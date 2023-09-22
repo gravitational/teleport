@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
@@ -46,11 +44,7 @@ type SentMessages []MessageData
 func DecodePluginData(dataMap map[string]string) (GenericPluginData, error) {
 	data := GenericPluginData{}
 
-	var err error
-	data.AccessRequestData, err = plugindata.DecodeAccessRequestData(dataMap)
-	if err != nil {
-		return GenericPluginData{}, trace.Wrap(err)
-	}
+	data.AccessRequestData = plugindata.DecodeAccessRequestData(dataMap)
 
 	if channelID, timestamp := dataMap["channel_id"], dataMap["timestamp"]; channelID != "" && timestamp != "" {
 		data.SentMessages = append(data.SentMessages, MessageData{ChannelID: channelID, MessageID: timestamp})
@@ -68,10 +62,7 @@ func DecodePluginData(dataMap map[string]string) (GenericPluginData, error) {
 
 // EncodePluginData serializes a GenericPluginData struct into a string map.
 func EncodePluginData(data GenericPluginData) (map[string]string, error) {
-	result, err := plugindata.EncodeAccessRequestData(data.AccessRequestData)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	result := plugindata.EncodeAccessRequestData(data.AccessRequestData)
 
 	var encodedMessages []string
 	for _, msg := range data.SentMessages {

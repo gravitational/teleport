@@ -17,13 +17,11 @@ limitations under the License.
 package proxy
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -34,10 +32,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -47,7 +43,7 @@ import (
 
 func TestModeratedSessions(t *testing.T) {
 	// enable enterprise features to have access to ModeratedSessions.
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{Kubernetes: true}})
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 	const (
 		moderatorUsername       = "moderator_user"
 		moderatorRoleName       = "mod_role"
@@ -164,8 +160,6 @@ func TestModeratedSessions(t *testing.T) {
 		moderator            types.User
 		closeSession         bool
 		moderatorForcedClose bool
-		reason               string
-		invite               []string
 	}
 	type want struct {
 		sessionEndEvent bool
@@ -178,9 +172,7 @@ func TestModeratedSessions(t *testing.T) {
 		{
 			name: "create session for user without moderation",
 			args: args{
-				user:   user,
-				reason: "reason 1",
-				invite: []string{"user1", "user2"},
+				user: user,
 			},
 			want: want{
 				sessionEndEvent: true,
@@ -191,8 +183,6 @@ func TestModeratedSessions(t *testing.T) {
 			args: args{
 				user:      userRequiringModerator,
 				moderator: moderator,
-				reason:    "reason 2",
-				invite:    []string{"user1", "user2"},
 			},
 			want: want{
 				sessionEndEvent: true,
@@ -203,8 +193,6 @@ func TestModeratedSessions(t *testing.T) {
 			args: args{
 				user:         user,
 				closeSession: true,
-				reason:       "reason 3",
-				invite:       []string{"user1", "user2"},
 			},
 			want: want{
 				sessionEndEvent: true,
@@ -215,8 +203,6 @@ func TestModeratedSessions(t *testing.T) {
 			args: args{
 				user:         userRequiringModerator,
 				closeSession: true,
-				reason:       "reason 4",
-				invite:       []string{"user1", "user2"},
 			},
 			want: want{
 				// until moderator joins the session is not started. If the connection
@@ -230,8 +216,6 @@ func TestModeratedSessions(t *testing.T) {
 				user:                 userRequiringModerator,
 				moderator:            moderator,
 				moderatorForcedClose: true,
-				reason:               "reason 5",
-				invite:               []string{"user1", "user2"},
 			},
 			want: want{
 				sessionEndEvent: true,
@@ -267,16 +251,12 @@ func TestModeratedSessions(t *testing.T) {
 				Tty:    true,
 			}
 			req, err := generateExecRequest(
-				generateExecRequestConfig{
-					addr:          testCtx.KubeProxyAddress(),
-					podName:       podName,
-					podNamespace:  podNamespace,
-					containerName: podContainerName,
-					cmd:           containerCommmandExecute, // placeholder for commands to execute in the dummy pod
-					options:       streamOpts,
-					reason:        tt.args.reason,
-					invite:        tt.args.invite,
-				},
+				testCtx.KubeServiceAddress(),
+				podName,
+				podNamespace,
+				podContainerName,
+				containerCommmandExecute, // placeholder for commands to execute in the dummy pod
+				streamOpts,
 			)
 			require.NoError(t, err)
 
@@ -301,10 +281,6 @@ func TestModeratedSessions(t *testing.T) {
 				group.Go(func() error {
 					// waits for user to send the sessionID of his exec request.
 					sessionID := <-sessionIDC
-					// validate that the sessionID is valid and the reason is the one we expect.
-					if err := validateSessionTracker(testCtx, sessionID, tt.args.reason, tt.args.invite); err != nil {
-						return trace.Wrap(err)
-					}
 					t.Logf("moderator is joining sessionID %q", sessionID)
 					// join the session.
 					stream, err := testCtx.NewJoiningSession(config, sessionID, types.SessionModeratorMode)
@@ -321,13 +297,10 @@ func TestModeratedSessions(t *testing.T) {
 
 					// moderator waits for the user informed that he joined the session.
 					<-moderatorJoined
-					dataFound := false
 					for {
 						p := make([]byte, 1024)
 						n, err := stream.Read(p)
-						if errors.Is(err, io.EOF) {
-							break
-						} else if err != nil {
+						if err != nil {
 							return trace.Wrap(err)
 						}
 						stringData := string(p[:n])
@@ -340,21 +313,15 @@ func TestModeratedSessions(t *testing.T) {
 
 						// stdinPayload is sent by the user after the session started.
 						if strings.Contains(stringData, stdinPayload) {
-							dataFound = true
+							break
 						}
 
 						// podContainerName is returned by the kubemock server and it's used
 						// to control that the session has effectively started.
 						// return to force the defer to run.
 						if strings.Contains(stringData, podContainerName) && tt.args.moderatorForcedClose {
-							if err := stream.ForceTerminate(); err != nil {
-								return trace.Wrap(err)
-							}
-							continue
+							return nil
 						}
-					}
-					if !dataFound && !tt.args.moderatorForcedClose {
-						return trace.Wrap(errors.New("stdinPayload was not received"))
 					}
 					return nil
 				})
@@ -413,8 +380,8 @@ func TestModeratedSessions(t *testing.T) {
 
 					// checks if moderator has joined the session.
 					// Each time a user joins a session the following message is broadcasted
-					// User <user> joined the session with participant mode: <mode>.
-					if strings.Contains(stringData, fmt.Sprintf("User %s joined the session with participant mode: moderator.", moderatorUsername)) {
+					// User <user> joined the session.
+					if strings.Contains(stringData, fmt.Sprintf("User %s joined the session.", moderatorUsername)) {
 						t.Logf("identified that moderator joined the session")
 						// inform moderator goroutine that the user detected that he joined the
 						// session.
@@ -461,212 +428,6 @@ func TestModeratedSessions(t *testing.T) {
 			})
 			// wait for every go-routine to finish without errors returned.
 			require.NoError(t, group.Wait())
-		})
-	}
-}
-
-// validateSessionTracker validates that the session tracker has the expected
-// reason and invited users.
-func validateSessionTracker(testCtx *TestContext, sessionID string, reason string, invited []string) error {
-	sessionTracker, err := testCtx.AuthClient.GetSessionTracker(testCtx.Context, sessionID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if sessionTracker.GetReason() != reason {
-		return trace.BadParameter("expected reason %q, got %q", reason, sessionTracker.GetReason())
-	}
-	if !reflect.DeepEqual(sessionTracker.GetInvited(), invited) {
-		return trace.BadParameter("expected invited %q, got %q", invited, sessionTracker.GetInvited())
-	}
-	return nil
-}
-
-// TestInteractiveSessionsNoAuth tests the interactive sessions when auth server
-// is down or the connection is not available.
-// This test complements github.com/gravitational/teleport/integration.TestKube/ExecWithNoAuth
-// which tests sessions that require and do not require moderation. This test exists
-// to test the scenario where the user has a role that defines the LockingMode to
-// "strict" and the user has no access to the auth server. This scenario is not
-// covered by the integration test mentioned above because we need to fake the
-// Lock watcher connection to be stale and it takes ~5 minutes to happen.
-func TestInteractiveSessionsNoAuth(t *testing.T) {
-	// enable enterprise features to have access to ModeratedSessions.
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{Kubernetes: true}})
-	const (
-		moderatorUsername       = "moderator_user"
-		moderatorRoleName       = "mod_role"
-		userRequiringModeration = "user_wmod"
-		roleRequiringModeration = "role_wmod"
-		userStrictLocking       = "user_strict"
-		roleStrictLocking       = "role_strict"
-		stdinPayload            = "sessionPayload"
-		discardPayload          = "discardPayload"
-		exitKeyword             = "exit"
-	)
-
-	// kubeMock is a Kubernetes API mock for the session tests.
-	// Once a new session is created, this mock will write to
-	// stdout and stdin (if available) the pod name, followed
-	// by copying the contents of stdin into both streams.
-	kubeMock, err := testingkubemock.NewKubeAPIMock()
-	require.NoError(t, err)
-	t.Cleanup(func() { kubeMock.Close() })
-
-	// creates a Kubernetes service with a configured cluster pointing to mock api server
-	testCtx := SetupTestContext(
-		context.Background(),
-		t,
-		TestConfig{
-			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
-		},
-	)
-	// close tests
-	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
-
-	// create a user with access to kubernetes that does not require any moderator.
-	// but his role defines strict locking.
-	userWithStrictLock, _ := testCtx.CreateUserAndRole(
-		testCtx.Context,
-		t,
-		userStrictLocking,
-		RoleSpec{
-			Name:       roleStrictLocking,
-			KubeUsers:  roleKubeUsers,
-			KubeGroups: roleKubeGroups,
-			SetupRoleFunc: func(role types.Role) {
-				// set session lock to strict
-				opts := role.GetOptions()
-				opts.Lock = constants.LockingModeStrict
-				role.SetOptions(opts)
-			},
-		})
-
-	// create a adminUser user with access to kubernetes
-	// (kubernetes_user and kubernetes_groups specified)
-	adminUser, modRole := testCtx.CreateUserAndRole(
-		testCtx.Context,
-		t,
-		moderatorUsername,
-		RoleSpec{
-			Name:       moderatorRoleName,
-			KubeUsers:  roleKubeUsers,
-			KubeGroups: roleKubeGroups,
-			// sessionJoin:
-			SessionJoin: []*types.SessionJoinPolicy{
-				{
-					Name:  "Auditor oversight",
-					Roles: []string{"*"},
-					Kinds: []string{"k8s"},
-					Modes: []string{string(types.SessionModeratorMode)},
-				},
-			},
-		})
-
-	// create a userRequiringModerator with access to kubernetes thar requires
-	// one moderator to join the session.
-	userRequiringModerator, _ := testCtx.CreateUserAndRole(
-		testCtx.Context,
-		t,
-		userRequiringModeration,
-		RoleSpec{
-			Name:       roleRequiringModeration,
-			KubeUsers:  roleKubeUsers,
-			KubeGroups: roleKubeGroups,
-			SessionRequire: []*types.SessionRequirePolicy{
-				{
-					Name:   "Auditor oversight",
-					Filter: fmt.Sprintf("contains(user.spec.roles, %q)", modRole.GetName()),
-					Kinds:  []string{"k8s"},
-					Modes:  []string{string(types.SessionModeratorMode)},
-					Count:  1,
-				},
-			},
-		})
-
-	// generate a kube client with user certs for auth
-	_, userStrictLockingConfig := testCtx.GenTestKubeClientTLSCert(
-		t,
-		userWithStrictLock.GetName(),
-		kubeCluster,
-	)
-
-	_, moderatorConfig := testCtx.GenTestKubeClientTLSCert(
-		t,
-		adminUser.GetName(),
-		kubeCluster,
-	)
-
-	_, userRequiringModeratorConfig := testCtx.GenTestKubeClientTLSCert(
-		t,
-		userRequiringModerator.GetName(),
-		kubeCluster,
-	)
-
-	// Mark the lock as stale so that the session with strict locking is denied.
-	close(testCtx.lockWatcher.StaleC)
-	// force the auth client to return an error when trying to create a session.
-	close(testCtx.closeSessionTrackers)
-
-	require.Eventually(t, func() bool {
-		return testCtx.lockWatcher.IsStale()
-	}, 3*time.Second, time.Millisecond*100, "lock watcher should be stale")
-	tests := []struct {
-		name      string
-		config    *rest.Config
-		assertErr require.ErrorAssertionFunc
-	}{
-		{
-			// this session does not require moderation and should be created without any issues.
-			name:      "create session for user without moderation",
-			assertErr: require.NoError,
-			config:    moderatorConfig,
-		},
-		{
-			// this session is denied because moderator sessions are not allowed when no auth connection is available.
-			name:      "create session requiring moderation",
-			assertErr: require.Error,
-			config:    userRequiringModeratorConfig,
-		},
-		{
-			// this session is denied because strict locking sessions are not allowed when no auth connection is available and the connector is expired.
-			name:      "create session with strict locking",
-			assertErr: require.Error,
-			config:    userStrictLockingConfig,
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			// create a user session.
-			var (
-				stdinReader   = bytes.NewReader([]byte("ls"))
-				stdoutWritter = &bytes.Buffer{}
-			)
-			streamOpts := remotecommand.StreamOptions{
-				Stdin:  stdinReader,
-				Stdout: stdoutWritter,
-				// when Tty is enabled, Stderr must be nil.
-				Stderr: nil,
-				Tty:    true,
-			}
-			req, err := generateExecRequest(
-				generateExecRequestConfig{
-					addr:          testCtx.KubeProxyAddress(),
-					podName:       podName,
-					podNamespace:  podNamespace,
-					containerName: podContainerName,
-					cmd:           containerCommmandExecute, // placeholder for commands to execute in the dummy pod
-					options:       streamOpts,
-				},
-			)
-			require.NoError(t, err)
-
-			exec, err := remotecommand.NewSPDYExecutor(tt.config, http.MethodPost, req.URL())
-			require.NoError(t, err)
-			err = exec.StreamWithContext(context.TODO(), streamOpts)
-			tt.assertErr(t, err)
 		})
 	}
 }

@@ -102,8 +102,3 @@ func (m *ServerMetadata) SetServerNamespace(ns string) {
 func (m *SessionMetadata) GetSessionID() string {
 	return m.SessionID
 }
-
-// GetUser returns event teleport user
-func (m *UserMetadata) GetUser() string {
-	return m.User
-}

@@ -24,8 +24,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
-	"strings"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -66,14 +64,23 @@ func EnsureLocalPath(customPath string, defaultLocalDir, defaultLocalPath string
 	_, err := StatDir(baseDir)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			if err := os.MkdirAll(baseDir, teleport.PrivateDirMode); err != nil {
-				return "", trace.ConvertSystemError(err)
+			if err := MkdirAll(baseDir, teleport.PrivateDirMode); err != nil {
+				return "", trace.Wrap(err)
 			}
 		} else {
 			return "", trace.Wrap(err)
 		}
 	}
 	return customPath, nil
+}
+
+// MkdirAll creates directory and subdirectories
+func MkdirAll(targetDirectory string, mode os.FileMode) error {
+	err := os.MkdirAll(targetDirectory, mode)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }
 
 // IsDir is a helper function to quickly check if a given path is a valid directory
@@ -85,71 +92,41 @@ func IsDir(path string) bool {
 	return false
 }
 
+// IsFile is a convenience helper to check if the given path is a regular file
+func IsFile(path string) bool {
+	fi, err := os.Stat(path)
+	if err == nil {
+		return fi.Mode().IsRegular()
+	}
+	return false
+}
+
 // NormalizePath normalises path, evaluating symlinks and converting local
 // paths to absolute
-func NormalizePath(path string, evaluateSymlinks bool) (string, error) {
+func NormalizePath(path string) (string, error) {
 	s, err := filepath.Abs(path)
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}
-	if evaluateSymlinks {
-		s, err = filepath.EvalSymlinks(s)
-		if err != nil {
-			return "", trace.ConvertSystemError(err)
-		}
+	abs, err := filepath.EvalSymlinks(s)
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
 	}
-	return s, nil
+	return abs, nil
 }
 
-// OpenFileAllowingUnsafeLinks opens a file, if the path includes a symlink, the returned os.File will be resolved to
-// the actual file.  This will return an error if the file is not found or is a directory.
-func OpenFileAllowingUnsafeLinks(path string) (*os.File, error) {
-	return openFile(path, true /* allowSymlink */, true /* allowMultipleHardlinks */)
-}
-
-// OpenFileNoUnsafeLinks opens a file, ensuring it's an actual file and not a directory or symlink.  Depending on
-// the os, it may also prevent hardlinks.  This is important because MacOS allows hardlinks without validating write
-// permissions (similar to a symlink in that regard).
-func OpenFileNoUnsafeLinks(path string) (*os.File, error) {
-	return openFile(path, false /* allowSymlink */, runtime.GOOS != "darwin" /* allowMultipleHardlinks */)
-}
-
-func openFile(path string, allowSymlink, allowMultipleHardlinks bool) (*os.File, error) {
-	newPath, err := NormalizePath(path, allowSymlink)
+// OpenFile opens  file and returns file handle
+func OpenFile(path string) (*os.File, error) {
+	newPath, err := NormalizePath(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var fi os.FileInfo
-	if allowSymlink {
-		fi, err = os.Stat(newPath)
-		if err != nil {
-			return nil, trace.ConvertSystemError(err)
-		}
-	} else {
-		components := strings.Split(newPath, string(os.PathSeparator))
-		var subPath string
-		for _, p := range components {
-			subPath = filepath.Join(subPath, p)
-			if subPath == "" {
-				subPath = string(os.PathSeparator)
-			}
-
-			fi, err = os.Lstat(subPath)
-			if err != nil {
-				return nil, trace.ConvertSystemError(err)
-			} else if fi.Mode().Type()&os.ModeSymlink != 0 {
-				return nil, trace.BadParameter("opening file %s, symlink not allowed in path: %s", path, subPath)
-			}
-		}
-	}
-	if !allowMultipleHardlinks {
-		// hardlinks can only exist at the end file, not for directories within the path
-		if linkCount, ok := getHardLinkCount(fi); ok && linkCount > 1 {
-			return nil, trace.BadParameter("file has hardlink count greater than 1: %s", path)
-		}
+	fi, err := os.Stat(newPath)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
 	}
 	if fi.IsDir() {
-		return nil, trace.BadParameter("%s is not a file", path)
+		return nil, trace.BadParameter("%v is not a file", path)
 	}
 	f, err := os.Open(newPath)
 	if err != nil {
@@ -160,7 +137,7 @@ func openFile(path string, allowSymlink, allowMultipleHardlinks bool) (*os.File,
 
 // StatFile stats path, returns error if it exists but a directory.
 func StatFile(path string) (os.FileInfo, error) {
-	newPath, err := NormalizePath(path, true)
+	newPath, err := NormalizePath(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -285,14 +262,13 @@ func overwriteFile(filePath string) (err error) {
 }
 
 // RemoveFileIfExist removes file if exits.
-func RemoveFileIfExist(filePath string) error {
+func RemoveFileIfExist(filePath string) {
 	if !FileExists(filePath) {
-		return nil
+		return
 	}
 	if err := os.Remove(filePath); err != nil {
-		return trace.ConvertSystemError(err)
+		log.WithError(err).Warnf("Failed to remove %v", filePath)
 	}
-	return nil
 }
 
 func RecursiveChown(dir string, uid, gid int) error {

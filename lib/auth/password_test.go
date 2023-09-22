@@ -48,7 +48,7 @@ import (
 type passwordSuite struct {
 	bk          backend.Backend
 	a           *Server
-	mockEmitter *eventstest.MockRecorderEmitter
+	mockEmitter *eventstest.MockEmitter
 }
 
 func setupPasswordSuite(t *testing.T) *passwordSuite {
@@ -95,7 +95,7 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 	err = s.a.SetStaticTokens(staticTokens)
 	require.NoError(t, err)
 
-	s.mockEmitter = &eventstest.MockRecorderEmitter{}
+	s.mockEmitter = &eventstest.MockEmitter{}
 	s.a.emitter = s.mockEmitter
 	return &s
 }
@@ -440,12 +440,12 @@ func TestChangeUserAuthentication(t *testing.T) {
 	for _, c := range tests {
 		t.Run(c.name, func(t *testing.T) {
 			username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
-			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
 			require.NoError(t, err)
 
 			c.setAuthPreference()
 
-			token, err := srv.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+			token, err := srv.Auth().CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
 				Name: username,
 			})
 			require.NoError(t, err)
@@ -501,7 +501,7 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	require.NoError(t, err)
 
 	username := "joe@example.com"
-	_, _, err = CreateUserAndRole(s.a, username, []string{username}, nil)
+	_, _, err = CreateUserAndRole(s.a, username, []string{username})
 	require.NoError(t, err)
 
 	token, err := s.a.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
@@ -606,12 +606,12 @@ func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secon
 		OldPassword: pass,
 	}
 
-	err := s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.UserCA, "me.localhost"))
+	err := s.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, "me.localhost"))
 	if err != nil {
 		return req, err
 	}
 
-	err = s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.HostCA, "me.localhost"))
+	err = s.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, "me.localhost"))
 	if err != nil {
 		return req, err
 	}
@@ -629,7 +629,7 @@ func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secon
 		return req, err
 	}
 
-	_, _, err = CreateUserAndRole(s.a, user, []string{user}, nil)
+	_, _, err = CreateUserAndRole(s.a, user, []string{user})
 	if err != nil {
 		return req, err
 	}

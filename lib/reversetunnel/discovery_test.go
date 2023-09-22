@@ -38,11 +38,11 @@ type discoveryRequestRaw struct {
 }
 
 // marshalDiscoveryRequest is the legacy method of marshaling a discoveryRequest
-func marshalDiscoveryRequest(proxies []types.Server) ([]byte, error) {
+func marshalDiscoveryRequest(req discoveryRequest) ([]byte, error) {
 	out := discoveryRequestRaw{
-		Proxies: make([]json.RawMessage, 0, len(proxies)),
+		Proxies: make([]json.RawMessage, 0, len(req.Proxies)),
 	}
-	for _, p := range proxies {
+	for _, p := range req.Proxies {
 		// Clone the server value to avoid a potential race
 		// since the proxies are shared.
 		// Marshaling attempts to enforce defaults which modifies
@@ -58,10 +58,8 @@ func marshalDiscoveryRequest(proxies []types.Server) ([]byte, error) {
 	return json.Marshal(out)
 }
 
-// unmarshalDiscoveryRequest exercises the legacy method of unmarshaling a
-// discoveryRequest, returning a slice with the names of the unmarshaled
-// types.Server resources.
-func unmarshalDiscoveryRequest(data []byte) ([]string, error) {
+// unmarshalDiscoveryRequest is the legacy method of unmarshaling a discoveryRequest
+func unmarshalDiscoveryRequest(data []byte) (*discoveryRequest, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing payload in discovery request")
 	}
@@ -71,49 +69,40 @@ func unmarshalDiscoveryRequest(data []byte) ([]string, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	out := make([]string, 0, len(raw.Proxies))
+	out := discoveryRequest{
+		Proxies: make([]types.Server, 0, len(raw.Proxies)),
+	}
 	for _, bytes := range raw.Proxies {
-		var v struct {
-			Version string `json:"version"`
-		}
-		if err := utils.FastUnmarshal(bytes, &v); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if v.Version != types.V2 {
-			return nil, trace.BadParameter("server resource version %q is not supported", v.Version)
-		}
-
 		proxy, err := services.UnmarshalServer(bytes, types.KindProxy)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		out = append(out, proxy.GetName())
+		out.Proxies = append(out.Proxies, proxy)
 	}
 
-	return out, nil
+	return &out, nil
 }
 
 func TestDiscoveryRequestMarshalling(t *testing.T) {
 	const proxyCount = 10
 
-	// prepare some random proxies for the discovery request
-	proxies := make([]types.Server, 0, proxyCount)
+	// create a discovery request
+	req := discoveryRequest{
+		Proxies: make([]types.Server, 0, proxyCount),
+	}
+
+	// populate the proxies
 	for i := 0; i < proxyCount; i++ {
 		p, err := types.NewServer(uuid.New().String(), types.KindProxy, types.ServerSpecV2{})
 		require.NoError(t, err)
-		proxies = append(proxies, p)
+		req.Proxies = append(req.Proxies, p)
 	}
-
-	// create the request
-	var req discoveryRequest
-	req.SetProxies(proxies)
 
 	// test marshaling the request with the legacy mechanism and unmarshaling
 	// with the new mechanism
 	t.Run("marshal=legacy unmarshal=new", func(t *testing.T) {
-		payload, err := marshalDiscoveryRequest(proxies)
+		payload, err := marshalDiscoveryRequest(req)
 		require.NoError(t, err)
 
 		var got discoveryRequest
@@ -131,7 +120,7 @@ func TestDiscoveryRequestMarshalling(t *testing.T) {
 		got, err := unmarshalDiscoveryRequest(payload)
 		require.NoError(t, err)
 
-		require.Empty(t, cmp.Diff(req.ProxyNames(), got))
+		require.Empty(t, cmp.Diff(req.ProxyNames(), got.ProxyNames()))
 	})
 
 	// test marshaling and unmarshaling the request with the new mechanism
@@ -147,12 +136,12 @@ func TestDiscoveryRequestMarshalling(t *testing.T) {
 
 	// test marshaling and unmarshaling the request with the legacy mechanism
 	t.Run("marshal=legacy unmarshal=legacy", func(t *testing.T) {
-		payload, err := marshalDiscoveryRequest(proxies)
+		payload, err := marshalDiscoveryRequest(req)
 		require.NoError(t, err)
 
 		got, err := unmarshalDiscoveryRequest(payload)
 		require.NoError(t, err)
 
-		require.Empty(t, cmp.Diff(req.ProxyNames(), got))
+		require.Empty(t, cmp.Diff(req.ProxyNames(), got.ProxyNames()))
 	})
 }

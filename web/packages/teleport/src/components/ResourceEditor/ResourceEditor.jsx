@@ -19,7 +19,7 @@ import PropTypes from 'prop-types';
 import Dialog, { DialogHeader, DialogTitle } from 'design/Dialog';
 import {
   Box,
-  ButtonBorder,
+  ButtonOutlined,
   ButtonPrimary,
   ButtonSecondary,
   Flex,
@@ -86,7 +86,7 @@ export default function ResourceEditor(props) {
           </DialogHeader>
           {attempt.isFailed && <Alerts.Danger>{attempt.message}</Alerts.Danger>}
           {!isNew && (
-            <Text mb="2" typography="h4" color="text.main">
+            <Text mb="2" typography="h4" color="text.contrast">
               {name}
             </Text>
           )}
@@ -128,7 +128,7 @@ export default function ResourceEditor(props) {
                 {directions}
               </Text>
             </Box>
-            <ButtonBorder
+            <ButtonOutlined
               size="medium"
               as="a"
               href={docsURL}
@@ -145,7 +145,7 @@ export default function ResourceEditor(props) {
               }}
             >
               VIEW DOCUMENTATION
-            </ButtonBorder>
+            </ButtonOutlined>
           </Flex>
         )}
       </Flex>

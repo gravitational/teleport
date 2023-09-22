@@ -26,15 +26,10 @@ import {
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import useTeleport from 'teleport/useTeleport';
-import cfg from 'teleport/config';
-import history from 'teleport/services/history/history';
-import localStorage from 'teleport/services/localStorage';
 
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
-import { SearchResource } from 'teleport/Discover/SelectResource';
-
-import { State, useKubes } from './useKubes';
+import { useKubes, State } from './useKubes';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -73,18 +68,13 @@ export function Kubes(props: State) {
     fetchedData.agents.length === 0 &&
     isSearchEmpty;
 
-  const enabled = localStorage.areUnifiedResourcesEnabled();
-  if (enabled) {
-    history.replace(cfg.getUnifiedResourcesRoute(clusterId));
-  }
-
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Kubernetes</FeatureHeaderTitle>
         {attempt.status === 'success' && !hasNoKubes && (
           <AgentButtonAdd
-            agent={SearchResource.KUBERNETES}
+            agent="kubernetes"
             beginsWithVowel={false}
             isLeafCluster={isLeafCluster}
             canCreate={canCreate}
@@ -135,7 +125,7 @@ const emptyStateInfo: EmptyStateInfo = {
   byline:
     'Teleport Kubernetes Access provides secure access to Kubernetes clusters.',
   docsURL: DOC_URL,
-  resourceType: SearchResource.KUBERNETES,
+  resourceType: 'kubernetes',
   readOnly: {
     title: 'No Kubernetes Clusters Found',
     resource: 'kubernetes clusters',

@@ -100,7 +100,7 @@ service boundaries a number of standard propagation mechanisms (W3C Trace Contex
 to forward the **SpanContext**. For more details on OpenTelemetry Propagators see https://opentelemetry.io/docs/reference/specification/context/api-propagators/.
 
 This means that any functions within Teleport that end up making a network call **must** take a `context.Context` as the
-first parameter. While this has been idiomatic Go regarding network calls for a while, it is not something that Teleport
+first parameter. While this has been idomatic Go regarding network calls for a while, it is not something that Teleport
 currently abides by. Take the [`auth.ClientI`](https://github.com/gravitational/teleport/blob/632d851783ac5dbd7d1ba60f4fce8c95d81041e3/lib/auth/clt.go#L1925)
 interface, which is used to abstract making calls to the `auth` service, as an example. If we look at just the first few
 functions defined within the interface more than half don't take a `context.Context` as the first parameter.

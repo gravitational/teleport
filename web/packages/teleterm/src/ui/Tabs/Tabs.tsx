@@ -14,14 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { Fragment } from 'react';
 import styled from 'styled-components';
 import { typography } from 'design/system';
-import { Box } from 'design';
+import { Box, ButtonIcon } from 'design';
+import * as Icons from 'design/Icon';
 
 import { Document } from 'teleterm/ui/services/workspacesService';
 
-import { TabItem, NewTabItem } from './TabItem';
+import { TabItem } from './TabItem';
 
 export function Tabs(props: Props) {
   const {
@@ -30,6 +31,7 @@ export function Tabs(props: Props) {
     onSelect,
     onClose,
     onNew,
+    disableNew,
     onMoved,
     onContextMenu,
     newTabTooltip,
@@ -37,34 +39,49 @@ export function Tabs(props: Props) {
     ...styledProps
   } = props;
 
-  const $items = items.length ? (
-    items.map((item, index) => {
-      const active = item.uri === activeTab;
-      const nextActive = items[index + 1]?.uri === activeTab;
-      return (
-        <TabItem
-          key={item.uri}
-          index={index}
-          name={item.title}
-          active={active}
-          nextActive={nextActive}
-          onClick={() => onSelect(item)}
-          onClose={() => onClose(item)}
-          onContextMenu={() => onContextMenu(item)}
-          onMoved={onMoved}
-          isLoading={getIsLoading(item)}
-          closeTabTooltip={closeTabTooltip}
-        />
-      );
-    })
-  ) : (
-    <TabItem active={true} />
+  const $emptyTab = (
+    <>
+      <TabItem active={true} />
+      <Separator />
+    </>
   );
+
+  const $items = items.length
+    ? items.map((item, index) => {
+        const active = item.uri === activeTab;
+        return (
+          <Fragment key={item.uri}>
+            <TabItem
+              index={index}
+              name={item.title}
+              active={active}
+              onClick={() => onSelect(item)}
+              onClose={() => onClose(item)}
+              onContextMenu={() => onContextMenu(item)}
+              onMoved={onMoved}
+              isLoading={getIsLoading(item)}
+              closeTabTooltip={closeTabTooltip}
+            />
+            <Separator />
+          </Fragment>
+        );
+      })
+    : $emptyTab;
 
   return (
     <StyledTabs as="nav" typography="h5" bold {...styledProps}>
       {$items}
-      <NewTabItem tooltip={newTabTooltip} onClick={onNew} />
+      <ButtonIcon
+        ml="1"
+        mr="2"
+        size={0}
+        color="light"
+        disabled={disableNew}
+        title={newTabTooltip}
+        onClick={onNew}
+      >
+        <Icons.Add fontSize="16px" />
+      </ButtonIcon>
     </StyledTabs>
   );
 }
@@ -76,6 +93,7 @@ function getIsLoading(doc: Document): boolean {
 type Props = {
   items: Document[];
   activeTab: string;
+  disableNew: boolean;
   newTabTooltip: string;
   closeTabTooltip: string;
   onNew: () => void;
@@ -85,15 +103,21 @@ type Props = {
   [index: string]: any;
 };
 
+const Separator = styled.div`
+  height: 23px;
+  width: 1px;
+  margin: 0 1px;
+  background: ${props => props.theme.colors.text.muted};
+`;
+
 const StyledTabs = styled(Box)`
-  background-color: ${props => props.theme.colors.levels.surface};
+  background-color: ${props => props.theme.colors.levels.surfaceSecondary};
   min-height: 32px;
+  border-radius: 4px;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   flex-shrink: 0;
-  max-width: 100%;
-  position: relative;
-  z-index: 1;
+  overflow: hidden;
   ${typography}
 `;

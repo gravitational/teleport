@@ -181,7 +181,6 @@ func parseU2FRegistrationResponse(resp []byte) (*u2fRegistrationResponse, error)
 	buf = buf[1:]
 
 	// public key
-	//nolint:staticcheck // SA1019 requires Go 1.21 in go.mod and non-insignificant changes. TODO: fix.
 	x, y := elliptic.Unmarshal(elliptic.P256(), buf[:pubKeyLen])
 	if x == nil {
 		return nil, trace.BadParameter("failed to parse public key")

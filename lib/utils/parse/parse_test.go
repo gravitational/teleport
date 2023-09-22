@@ -27,16 +27,11 @@ import (
 // TestVariable tests variable parsing
 func TestVariable(t *testing.T) {
 	t.Parallel()
-	traits := map[string][]string{
-		"foo":   {"foovalue"},
-		"bar":   {"barvalue"},
-		"email": {"user@example.com"},
-	}
 	var tests = []struct {
 		title string
 		in    string
 		err   error
-		out   string
+		out   Expression
 	}{
 		{
 			title: "no curly bracket prefix",
@@ -64,9 +59,9 @@ func TestVariable(t *testing.T) {
 			err:   trace.BadParameter(""),
 		},
 		{
-			title: "string variable",
+			title: "invalid string variable",
 			in:    `{{"asdf"}}`,
-			out:   "asdf",
+			err:   trace.BadParameter(""),
 		},
 		{
 			title: "invalid int variable",
@@ -101,47 +96,67 @@ func TestVariable(t *testing.T) {
 		{
 			title: "valid with brackets",
 			in:    `{{internal["foo"]}}`,
-			out:   "foovalue",
+			out: Expression{
+				expr: variable("internal", "foo"),
+			},
 		},
 		{
 			title: "string literal",
 			in:    `foo`,
-			out:   "foo",
+			out: Expression{
+				expr: variable(LiteralNamespace, "foo"),
+			},
 		},
 		{
 			title: "external with no brackets",
 			in:    "{{external.foo}}",
-			out:   "foovalue",
+			out: Expression{
+				expr: variable("external", "foo"),
+			},
 		},
 		{
 			title: "invalid namespaces are allowed",
 			in:    "{{foo.bar}}",
-			out:   "barvalue",
+			out: Expression{
+				expr: variable("foo", "bar"),
+			},
 		},
 		{
 			title: "internal with no brackets",
 			in:    "{{internal.bar}}",
-			out:   "barvalue",
+			out: Expression{
+				expr: variable("internal", "bar"),
+			},
 		},
 		{
 			title: "internal with spaces removed",
 			in:    "  {{  internal.bar  }}  ",
-			out:   "barvalue",
+			out: Expression{
+				expr: variable("internal", "bar"),
+			},
 		},
 		{
 			title: "variable with prefix and suffix",
 			in:    "  hello,  {{  internal.bar  }}  there! ",
-			out:   "hello,  barvalue  there!",
+			out: Expression{
+				prefix: "hello,  ",
+				expr:   variable("internal", "bar"),
+				suffix: "  there!",
+			},
 		},
 		{
 			title: "variable with local function",
-			in:    "{{email.local(internal.email)}}",
-			out:   "user",
+			in:    "{{email.local(internal.bar)}}",
+			out: Expression{
+				expr: emailLocal(variable("internal", "bar")),
+			},
 		},
 		{
 			title: "regexp replace",
-			in:    `{{regexp.replace(internal.foo, "^(.*)value$", "$1")}}`,
-			out:   "foo",
+			in:    `{{regexp.replace(internal.foo, "bar-(.*)", "$1")}}`,
+			out: Expression{
+				expr: regexpReplace(variable("internal", "foo"), "bar-(.*)", "$1"),
+			},
 		},
 		{
 			title: "regexp replace with variable expression",
@@ -156,7 +171,9 @@ func TestVariable(t *testing.T) {
 		{
 			title: "regexp replace constant expression",
 			in:    `{{regexp.replace("abc", "c", "z")}}`,
-			out:   "abz",
+			out: Expression{
+				expr: regexpReplace(stringLit("abc"), "c", "z"),
+			},
 		},
 		{
 			title: "non existing function",
@@ -187,20 +204,13 @@ func TestVariable(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			expr, err := NewTraitsTemplateExpression(tt.in)
+			variable, err := NewExpression(tt.in)
 			if tt.err != nil {
 				require.IsType(t, tt.err, err)
 				return
 			}
-			require.NoError(t, err, trace.DebugReport(err))
-
-			result, err := expr.Interpolate(func(namespace, trait string) error {
-				return nil
-			}, traits)
-			require.NoError(t, err, trace.DebugReport(err))
-
-			require.Len(t, result, 1)
-			require.Equal(t, tt.out, result[0])
+			require.NoError(t, err)
+			require.Equal(t, tt.out, *variable)
 		})
 	}
 }
@@ -289,7 +299,7 @@ func TestInterpolate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			expr, err := NewTraitsTemplateExpression(tt.in)
+			expr, err := NewExpression(tt.in)
 			require.NoError(t, err)
 			noVarValidation := func(string, string) error {
 				return nil
@@ -371,7 +381,7 @@ func TestVarValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			expr, err := NewTraitsTemplateExpression(tt.in)
+			expr, err := NewExpression(tt.in)
 			require.NoError(t, err)
 			_, err = expr.Interpolate(tt.varValidation, tt.traits)
 			tt.assertErr(t, err)
@@ -426,28 +436,28 @@ func TestMatch(t *testing.T) {
 			title: "string literal",
 			in:    `foo`,
 			out: MatchExpression{
-				matcher: regexpMatcher(`^foo$`),
+				matcher: regexpMatch(`^foo$`),
 			},
 		},
 		{
 			title: "wildcard",
 			in:    `foo*`,
 			out: MatchExpression{
-				matcher: regexpMatcher(`^foo(.*)$`),
+				matcher: regexpMatch(`^foo(.*)$`),
 			},
 		},
 		{
 			title: "raw regexp",
 			in:    `^foo.*$`,
 			out: MatchExpression{
-				matcher: regexpMatcher(`^foo.*$`),
+				matcher: regexpMatch(`^foo.*$`),
 			},
 		},
 		{
 			title: "regexp.match simple call",
 			in:    `{{regexp.match("foo")}}`,
 			out: MatchExpression{
-				matcher: regexpMatcher(`foo`),
+				matcher: regexpMatch(`foo`),
 			},
 		},
 		{
@@ -455,7 +465,7 @@ func TestMatch(t *testing.T) {
 			in:    `foo-{{regexp.match("bar")}}-baz`,
 			out: MatchExpression{
 				prefix:  "foo-",
-				matcher: regexpMatcher(`bar`),
+				matcher: regexpMatch(`bar`),
 				suffix:  "-baz",
 			},
 		},
@@ -464,7 +474,7 @@ func TestMatch(t *testing.T) {
 			in:    `foo-{{regexp.not_match("bar")}}-baz`,
 			out: MatchExpression{
 				prefix:  "foo-",
-				matcher: regexpNotMatcher(`bar`),
+				matcher: regexpNotMatch(`bar`),
 				suffix:  "-baz",
 			},
 		},
@@ -533,10 +543,26 @@ func TestMatchers(t *testing.T) {
 	}
 }
 
-func regexpMatcher(match string) Matcher {
-	return matcher{regexp.MustCompile(match)}
+func stringLit(value string) Expr {
+	return &StringLitExpr{value: value}
 }
 
-func regexpNotMatcher(match string) Matcher {
-	return notMatcher{regexp.MustCompile(match)}
+func variable(namespace, name string) Expr {
+	return &VarExpr{namespace: namespace, name: name}
+}
+
+func emailLocal(email Expr) Expr {
+	return &EmailLocalExpr{email: email}
+}
+
+func regexpReplace(source Expr, match, replacement string) Expr {
+	return &RegexpReplaceExpr{source: source, re: regexp.MustCompile(match), replacement: replacement}
+}
+
+func regexpMatch(match string) Expr {
+	return &RegexpMatchExpr{re: regexp.MustCompile(match)}
+}
+
+func regexpNotMatch(match string) Expr {
+	return &RegexpNotMatchExpr{re: regexp.MustCompile(match)}
 }

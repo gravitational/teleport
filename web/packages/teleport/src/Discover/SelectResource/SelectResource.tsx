@@ -14,44 +14,31 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useState } from 'react';
-import { useHistory, useLocation } from 'react-router';
+import React, { useState } from 'react';
+import { useLocation, useHistory } from 'react-router';
 
 import * as Icons from 'design/Icon';
 import styled from 'styled-components';
-import { Box, Flex, Link, Text } from 'design';
-
-import { getPlatform, Platform } from 'design/theme/utils';
+import { Box, Flex, Text, Popover, Link } from 'design';
 
 import useTeleport from 'teleport/useTeleport';
-import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import { Acl } from 'teleport/services/user';
 import {
+  ResourceKind,
   Header,
   HeaderSubtitle,
   PermissionsErrorMessage,
-  ResourceKind,
 } from 'teleport/Discover/Shared';
 import {
   getResourcePretitle,
   RESOURCES,
 } from 'teleport/Discover/SelectResource/resources';
 import AddApp from 'teleport/Apps/AddApp';
-import { useUser } from 'teleport/User/UserContext';
 
-import {
-  ClusterResource,
-  UserPreferences,
-} from 'teleport/services/userPreferences/types';
-
-import { resourceKindToPreferredResource } from 'teleport/Discover/Shared/ResourceKind';
-
-import { getMarketingTermMatches } from './getMarketingTermMatches';
-import { DiscoverIcon } from './icons';
-
-import { PrioritizedResources, SearchResource } from './types';
+import { icons } from './icons';
 
 import type { ResourceSpec } from './types';
+import type { AddButtonResourceKind } from 'teleport/components/AgentButtonAdd/AgentButtonAdd';
 
 interface SelectResourceProps {
   onSelect: (resource: ResourceSpec) => void;
@@ -59,9 +46,8 @@ interface SelectResourceProps {
 
 export function SelectResource({ onSelect }: SelectResourceProps) {
   const ctx = useTeleport();
-  const location = useLocation<{ entity: SearchResource }>();
+  const location = useLocation<{ entity: AddButtonResourceKind }>();
   const history = useHistory();
-  const { preferences } = useUser();
 
   const [search, setSearch] = useState('');
   const [resources, setResources] = useState<ResourceSpec[]>([]);
@@ -70,9 +56,9 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
 
   function onSearch(s: string, customList?: ResourceSpec[]) {
     const list = customList || defaultResources;
-    const split = s.split(' ').map(s => s.toLowerCase());
+    const splitted = s.split(' ').map(s => s.toLowerCase());
     const foundResources = list.filter(r => {
-      const match = split.every(s => r.keywords.includes(s));
+      const match = splitted.every(s => r.keywords.includes(s));
       if (match) {
         return r;
       }
@@ -86,15 +72,20 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
     onSearch('');
   }
 
-  useEffect(() => {
+  React.useEffect(() => {
     // Apply access check to each resource.
     const userContext = ctx.storeUser.state;
     const { acl } = userContext;
+    const updatedResources = makeResourcesWithHasAccessField(acl);
 
-    const sortedResources = sortResources(
-      makeResourcesWithHasAccessField(acl),
-      preferences
-    );
+    // Sort resources that user has access to the
+    // the top of the list, so it is more visible to
+    // the user.
+    const filteredResourcesByPerm = [
+      ...updatedResources.filter(r => r.hasAccess),
+      ...updatedResources.filter(r => !r.hasAccess),
+    ];
+    const sortedResources = sortResources(filteredResourcesByPerm);
     setDefaultResources(sortedResources);
 
     // A user can come to this screen by clicking on
@@ -102,23 +93,17 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
     // We sort the list by the specified resource type,
     // and then apply a search filter to it to reduce
     // the amount of results.
-    // We don't do this if the resource type is `unified_resource`,
-    // since we want to show all resources.
-    // TODO(bl-nero): remove this once the localstorage setting to disable unified resources is removed.
     const resourceKindSpecifiedByUrlLoc = location.state?.entity;
-    if (
-      resourceKindSpecifiedByUrlLoc &&
-      resourceKindSpecifiedByUrlLoc !== SearchResource.UNIFIED_RESOURCE
-    ) {
+    if (resourceKindSpecifiedByUrlLoc) {
       const sortedResourcesByKind = sortResourcesByKind(
         resourceKindSpecifiedByUrlLoc,
         sortedResources
       );
       onSearch(resourceKindSpecifiedByUrlLoc, sortedResourcesByKind);
-      return;
+    } else {
+      setResources(sortedResources);
     }
 
-    setResources(sortedResources);
     // Processing of the lists should only happen once on init.
     // User perms remain static and URL loc state does not change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -143,7 +128,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
         </InputWrapper>
         {search && <ClearSearch onClick={onClearSearch} />}
       </Box>
-      {resources && resources.length > 0 && (
+      {resources.length > 0 && (
         <>
           <Grid>
             {resources.map((r, index) => {
@@ -192,22 +177,22 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
                     <BadgeGuided>Guided</BadgeGuided>
                   )}
                   {!r.hasAccess && (
-                    <ToolTipNoPermBadge
+                    <ToolTip
                       children={<PermissionsErrorMessage resource={r} />}
                     />
                   )}
                   <Flex px={2} alignItems="center">
                     <Flex mr={3} justifyContent="center" width="24px">
-                      <DiscoverIcon name={r.icon} />
+                      {icons[r.icon]}
                     </Flex>
                     <Box>
                       {pretitle && (
-                        <Text fontSize="12px" color="text.slightlyMuted">
+                        <Text fontSize="12px" color="#a8afb2">
                           {pretitle}
                         </Text>
                       )}
                       {r.unguidedLink ? (
-                        <Text bold color="text.main">
+                        <Text bold color="white">
                           {title}
                         </Text>
                       ) : (
@@ -246,7 +231,6 @@ const ClearSearch = ({ onClick }: { onClick(): void }) => {
       css={`
         font-size: 12px;
         opacity: 0.7;
-
         :hover {
           cursor: pointer;
           opacity: 1;
@@ -258,16 +242,67 @@ const ClearSearch = ({ onClick }: { onClick(): void }) => {
         ml={1}
         width="18px"
         height="18px"
+        bg="#2d3762"
         borderRadius="4px"
         textAlign="center"
-        css={`
-          background: ${props => props.theme.colors.error.main};
-        `}
       >
-        <Icons.Cross size="small" />
+        <Icons.Close fontSize="15px" />
       </Box>
       <Text>Clear search</Text>
     </Flex>
+  );
+};
+
+const ToolTip: React.FC = ({ children }) => {
+  const [anchorEl, setAnchorEl] = useState();
+  const open = Boolean(anchorEl);
+
+  function handlePopoverOpen(event) {
+    setAnchorEl(event.currentTarget);
+  }
+
+  function handlePopoverClose() {
+    setAnchorEl(null);
+  }
+
+  return (
+    <>
+      <div
+        aria-owns={open ? 'mouse-over-popover' : undefined}
+        onMouseEnter={handlePopoverOpen}
+        onMouseLeave={handlePopoverClose}
+        css={`
+          position: absolute;
+          background: ${p => p.theme.colors.error.main};
+          padding: 0px 6px;
+          border-top-right-radius: 8px;
+          border-bottom-left-radius: 8px;
+          top: 0px;
+          right: 0px;
+          font-size: 10px;
+        `}
+      >
+        Lacking Permissions
+      </div>
+      <Popover
+        modalCss={() => `pointer-events: none;`}
+        onClose={handlePopoverClose}
+        open={open}
+        anchorEl={anchorEl}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
+        }}
+      >
+        <StyledOnHover px={3} py={2}>
+          {children}
+        </StyledOnHover>
+      </Popover>
+    </>
   );
 };
 
@@ -296,36 +331,36 @@ function checkHasAccess(acl: Acl, resourceKind: ResourceKind) {
 }
 
 function sortResourcesByKind(
-  resourceKind: SearchResource,
+  resourceKind: AddButtonResourceKind,
   resources: ResourceSpec[]
 ) {
   let sorted: ResourceSpec[] = [];
   switch (resourceKind) {
-    case SearchResource.SERVER:
+    case 'server':
       sorted = [
         ...resources.filter(r => r.kind === ResourceKind.Server),
         ...resources.filter(r => r.kind !== ResourceKind.Server),
       ];
       break;
-    case SearchResource.APPLICATION:
+    case 'application':
       sorted = [
         ...resources.filter(r => r.kind === ResourceKind.Application),
         ...resources.filter(r => r.kind !== ResourceKind.Application),
       ];
       break;
-    case SearchResource.DATABASE:
+    case 'database':
       sorted = [
         ...resources.filter(r => r.kind === ResourceKind.Database),
         ...resources.filter(r => r.kind !== ResourceKind.Database),
       ];
       break;
-    case SearchResource.DESKTOP:
+    case 'desktop':
       sorted = [
         ...resources.filter(r => r.kind === ResourceKind.Desktop),
         ...resources.filter(r => r.kind !== ResourceKind.Desktop),
       ];
       break;
-    case SearchResource.KUBERNETES:
+    case 'kubernetes':
       sorted = [
         ...resources.filter(r => r.kind === ResourceKind.Kubernetes),
         ...resources.filter(r => r.kind !== ResourceKind.Kubernetes),
@@ -335,122 +370,23 @@ function sortResourcesByKind(
   return sorted;
 }
 
-export function sortResources(
-  resources: ResourceSpec[],
-  preferences: UserPreferences
-) {
-  const { preferredResources, hasPreferredResources } =
-    getPrioritizedResources(preferences);
-
+// Sort the resources alphabetically and with the Guided resources listed first.
+export function sortResources(resources: ResourceSpec[]) {
   const sortedResources = [...resources];
-  const accessible = sortedResources.filter(r => r.hasAccess);
-  const restricted = sortedResources.filter(r => !r.hasAccess);
-
-  // Sort accessible resources by 1. os 2. preferred 3. guided and 4. alphabetically
-  accessible.sort((a, b) => {
-    let aPreferred,
-      bPreferred = false;
-    if (hasPreferredResources) {
-      aPreferred = preferredResources.includes(
-        resourceKindToPreferredResource(a.kind)
-      );
-      bPreferred = preferredResources.includes(
-        resourceKindToPreferredResource(b.kind)
-      );
-    }
-
-    let platform: string;
-    const platformType = getPlatform();
-    if (platformType.isMac) {
-      platform = Platform.PLATFORM_MACINTOSH;
-    }
-    if (platformType.isLinux) {
-      platform = Platform.PLATFORM_LINUX;
-    }
-    if (platformType.isWin) {
-      platform = Platform.PLATFORM_WINDOWS;
-    }
-
-    // Display platform resources first
-    if (a.platform === platform && b.platform !== platform) {
-      return -1;
-    }
-    if (a.platform !== platform && b.platform === platform) {
-      return 1;
-    }
-
-    // Display preferred resources second
-    if (aPreferred && !bPreferred) {
-      return -1;
-    }
-    if (!aPreferred && bPreferred) {
-      return 1;
-    }
-
-    // Display guided resources third
-    if (!a.unguidedLink && !b.unguidedLink) {
+  sortedResources.sort((a, b) => {
+    if (!a.unguidedLink && a.hasAccess && !b.unguidedLink && b.hasAccess) {
       return a.name.localeCompare(b.name);
     }
-    if (!b.unguidedLink) {
+    if (!b.unguidedLink && b.hasAccess) {
       return 1;
     }
-    if (!a.unguidedLink) {
+    if (!a.unguidedLink && a.hasAccess) {
       return -1;
     }
-
-    // Alpha
     return a.name.localeCompare(b.name);
   });
 
-  // Sort restricted resources alphabetically
-  restricted.sort((a, b) => {
-    return a.name.localeCompare(b.name);
-  });
-
-  // Sort resources that user has access to the
-  // top of the list, so it is more visible to
-  // the user.
-  return [...accessible, ...restricted];
-}
-
-/**
- * Returns prioritized resources based on user preferences cluster state
- *
- * @remarks
- * A user can have preferredResources set via onboarding either from the survey (preferredResources)
- * or various query parameters (marketingParams). We sort the list by the marketingParams if available.
- * If not, we sort by preferred resource type if available.
- * We do not search.
- *
- * @param preferences - Cluster state user preferences
- * @returns PrioritizedResources which is both the resource to prioritize and a boolean value of the value
- *
- */
-function getPrioritizedResources(
-  preferences: UserPreferences
-): PrioritizedResources {
-  const marketingParams = preferences.onboard.marketingParams;
-
-  if (marketingParams) {
-    const marketingPriorities = getMarketingTermMatches(marketingParams);
-    if (marketingPriorities.length > 0) {
-      return {
-        hasPreferredResources: true,
-        preferredResources: marketingPriorities,
-      };
-    }
-  }
-
-  const preferredResources = preferences.onboard.preferredResources || [];
-
-  // hasPreferredResources will be false if all resources are selected
-  const maxResources = Object.keys(ClusterResource).length / 2 - 1;
-  const selectedAll = preferredResources.length === maxResources;
-
-  return {
-    preferredResources: preferredResources,
-    hasPreferredResources: preferredResources.length > 0 && !selectedAll,
-  };
+  return sortedResources;
 }
 
 function makeResourcesWithHasAccessField(acl: Acl): ResourceSpec[] {
@@ -476,26 +412,25 @@ const ResourceCard = styled.div`
   display: flex;
   position: relative;
   align-items: center;
-  background: ${props => props.theme.colors.spotBackground[0]};
+  background: rgba(255, 255, 255, 0.05);
   transition: all 0.3s;
 
   border-radius: 8px;
   padding: 12px 12px 12px 12px;
-  color: ${props => props.theme.colors.text.main};
+  color: white;
   cursor: pointer;
   height: 48px;
 
   opacity: ${props => (props.hasAccess ? '1' : '0.45')};
 
   :hover {
-    background: ${props => props.theme.colors.spotBackground[1]};
+    background: rgba(255, 255, 255, 0.09);
   }
 `;
 
 const BadgeGuided = styled.div`
   position: absolute;
-  background: ${props => props.theme.colors.brand};
-  color: ${props => props.theme.colors.text.primaryInverse};
+  background: rgb(81, 48, 201);
   padding: 0px 6px;
   border-top-right-radius: 8px;
   border-bottom-left-radius: 8px;
@@ -504,15 +439,20 @@ const BadgeGuided = styled.div`
   font-size: 10px;
 `;
 
+const StyledOnHover = styled(Text)`
+  background-color: white;
+  color: black;
+  max-width: 350px;
+`;
+
 const InputWrapper = styled.div`
   border-radius: 200px;
   height: 40px;
-  border: 1px solid ${props => props.theme.colors.spotBackground[2]};
-
+  border: 1px solid #ffffff1c;
   &:hover,
   &:focus,
   &:active {
-    background: ${props => props.theme.colors.spotBackground[0]};
+    background: ${props => props.theme.colors.levels.surfaceSecondary};
   }
 `;
 
@@ -523,9 +463,14 @@ const StyledInput = styled.input`
   height: 100%;
   width: 100%;
   transition: all 0.2s;
-  color: ${props => props.theme.colors.text.main};
+  color: ${props => props.theme.colors.text.contrast};
   background: transparent;
   margin-right: ${props => props.theme.space[3]}px;
   margin-bottom: ${props => props.theme.space[2]}px;
   padding: ${props => props.theme.space[3]}px;
+  opacity: 0.8;
+  &:placeholder {
+    color: white;
+    opacity: 0.6;
+  }
 `;

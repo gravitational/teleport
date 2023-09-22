@@ -24,34 +24,16 @@ import { PredicateDoc } from 'shared/components/Search/PredicateDoc';
 
 import Toggle from 'teleport/components/Toggle';
 
-import { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
-
 import Tooltip from './Tooltip';
 import useServersideSearchPanel, {
-  SearchPanelState,
-  HookProps,
+  State,
+  Props,
 } from './useServerSideSearchPanel';
 
-interface ComponentProps {
-  pageIndicators: PageIndicators;
-  disabled?: boolean;
-}
-
-export interface Props extends HookProps, ComponentProps {}
-
 export default function Container(props: Props) {
-  const { pageIndicators, disabled, ...hookProps } = props;
-  const state = useServersideSearchPanel(hookProps);
-  return (
-    <ServersideSearchPanel
-      {...state}
-      pageIndicators={pageIndicators}
-      disabled={disabled}
-    />
-  );
+  const state = useServersideSearchPanel(props);
+  return <ServersideSearchPanel {...state} />;
 }
-
-interface State extends SearchPanelState, ComponentProps {}
 
 export function ServersideSearchPanel({
   searchString,

@@ -135,16 +135,6 @@ func (c *ClusterAuditConfigV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
-// GetRevision returns the revision
-func (c *ClusterAuditConfigV2) GetRevision() string {
-	return c.Metadata.GetRevision()
-}
-
-// SetRevision sets the revision
-func (c *ClusterAuditConfigV2) SetRevision(rev string) {
-	c.Metadata.SetRevision(rev)
-}
-
 // GetKind returns resource kind.
 func (c *ClusterAuditConfigV2) GetKind() string {
 	return c.Kind

@@ -27,12 +27,12 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 )
 
 // LockCommand implements `tctl lock` group of commands.
 type LockCommand struct {
-	config  *servicecfg.Config
+	config  *service.Config
 	mainCmd *kingpin.CmdClause
 	spec    types.LockSpecV2
 	expires string
@@ -40,7 +40,7 @@ type LockCommand struct {
 }
 
 // Initialize allows LockCommand to plug itself into the CLI parser.
-func (c *LockCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *LockCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	c.config = config
 
 	c.mainCmd = app.Command("lock", "Create a new lock.")
@@ -91,7 +91,6 @@ func (c *LockCommand) CreateLock(ctx context.Context, client auth.ClientI) error
 		return trace.Wrap(err)
 	}
 	c.spec.Expires = lockExpiry
-
 	lock, err := types.NewLock(uuid.New().String(), c.spec)
 	if err != nil {
 		return trace.Wrap(err)

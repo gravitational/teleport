@@ -18,7 +18,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
 import { components } from 'react-select';
 import { Flex, Text, ButtonBorder, ButtonIcon, Box } from 'design';
-import { Cross, Add } from 'design/Icon';
+import { Close, Add } from 'design/Icon';
 import Select, {
   Option as BaseOption,
   ActionMeta,
@@ -137,7 +137,7 @@ export default function SelectFilters({
           mr={3}
           mb={2}
         >
-          <Add size="small" mr={1} />
+          <Add fontSize={4} mr={1} color="rgba(255,255,255,0.24)" />
           Add Filters
         </AddButton>
         {showSelector && (
@@ -251,14 +251,14 @@ function Label({
     <StyledLabel onClick={() => onClick(name)}>
       <span title={name}>{name}</span>
       <ButtonIcon size={0} ml="1" bg="levels.surface">
-        <Cross size="small" />
+        <Close />
       </ButtonIcon>
     </StyledLabel>
   );
 }
 
 const ActionButton = styled(ButtonBorder)`
-  line-height: normal;
+  lineheight: normal;
   color: #4b4b4b;
   background-color: #fff;
   border: 1px solid #4b4b4b;
@@ -281,7 +281,7 @@ const ActionButton = styled(ButtonBorder)`
 
 const AddButton = styled(ButtonBorder)`
   line-height: normal;
-  background-color: ${props => props.theme.colors.levels.sunken};
+  background-color: ${props => props.theme.colors.levels.sunkenSecondary};
   font-weight: normal;
   border: 1px solid rgba(255, 255, 255, 0.24);
   color: #fff;
@@ -348,7 +348,7 @@ const StyledLabel = styled.div`
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 4px;
   color: ${({ theme }) => theme.colors.text.main};
-  background-color: ${props => props.theme.colors.levels.sunken};
+  background-color: ${props => props.theme.colors.levels.sunkenSecondary};
   font-weight: regular;
   font-size: 12px;
 

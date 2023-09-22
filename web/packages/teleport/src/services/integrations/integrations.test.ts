@@ -118,7 +118,6 @@ test('fetchAwsDatabases response', async () => {
         labels: [{ name: 'env', value: 'prod' }],
         accountId: 'account-id-1',
         resourceId: 'resource-id-1',
-        vpcId: 'vpc-123',
       },
       {
         engine: 'mysql',
@@ -128,7 +127,6 @@ test('fetchAwsDatabases response', async () => {
         status: undefined,
         accountId: undefined,
         resourceId: undefined,
-        vpcId: undefined,
       },
       {
         engine: 'mysql',
@@ -138,7 +136,6 @@ test('fetchAwsDatabases response', async () => {
         status: undefined,
         accountId: undefined,
         resourceId: undefined,
-        vpcId: undefined,
       },
     ],
     nextToken: 'next-token',
@@ -209,7 +206,6 @@ const mockAwsDbs = [
       account_id: 'account-id-1',
       rds: {
         resource_id: 'resource-id-1',
-        vpc_id: 'vpc-123',
       },
     },
   },

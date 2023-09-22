@@ -19,7 +19,6 @@ package awsoidc
 import (
 	"context"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdsTypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/gravitational/trace"
@@ -31,9 +30,6 @@ import (
 var (
 	// filterEngine is the filter name for filtering Databses based on their engine.
 	filterEngine = "engine"
-
-	// filterDBClusterID is the filter name for filtering RDS Instances for a given RDS Cluster.
-	filterDBClusterID = "db-cluster-id"
 )
 
 const (
@@ -192,16 +188,7 @@ func listDBClusters(ctx context.Context, clt ListDatabasesClient, req ListDataba
 			continue
 		}
 
-		// RDS Clusters do not return VPC and Subnets.
-		// To get this value, a member of the cluster is fetched and its Network Information is used to
-		// populate the RDS Cluster information.
-		// All the members have the same network information, so picking one at random should not matter.
-		clusterInstance, err := fetchSingleRDSDBInstance(ctx, clt, req, aws.ToString(db.DBClusterIdentifier))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		awsDB, err := services.NewDatabaseFromRDSV2Cluster(&db, clusterInstance)
+		awsDB, err := services.NewDatabaseFromRDSV2Cluster(&db)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -210,23 +197,4 @@ func listDBClusters(ctx context.Context, clt ListDatabasesClient, req ListDataba
 	}
 
 	return ret, nil
-}
-
-func fetchSingleRDSDBInstance(ctx context.Context, clt ListDatabasesClient, req ListDatabasesRequest, clusterID string) (*rdsTypes.DBInstance, error) {
-	describeDBInstanceInput := &rds.DescribeDBInstancesInput{
-		Filters: []rdsTypes.Filter{
-			{Name: &filterDBClusterID, Values: []string{clusterID}},
-		},
-	}
-
-	rdsDBs, err := clt.DescribeDBInstances(ctx, describeDBInstanceInput)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(rdsDBs.DBInstances) == 0 {
-		return nil, trace.BadParameter("database cluster %s has no instance", clusterID)
-	}
-
-	return &rdsDBs.DBInstances[0], nil
 }

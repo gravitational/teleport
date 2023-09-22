@@ -29,6 +29,10 @@ const (
 	// ProductionRegistry is the production image registry that hosts are customer facing container images.
 	ProductionRegistry = "public.ecr.aws"
 
+	// ProductionRegistryQuay is the production image registry that hosts images on quay.io. Will be deprecated in the future.
+	// See RFD 73 - https://github.com/gravitational/teleport/blob/c18c09f5d562dd46a509154eab4295ad39decc3c/rfd/0073-public-image-registry.md
+	ProductionRegistryQuay = "quay.io"
+
 	// Go version used by internal tools
 	GoVersion = "1.18"
 
@@ -242,7 +246,7 @@ func (b *buildType) hasTeleportConnect() bool {
 func dockerService(v ...volumeRef) service {
 	return service{
 		Name:       "Start Docker",
-		Image:      "docker:dind",
+		Image:      "docker:23.0-dind",
 		Privileged: true,
 		Volumes:    append(v, volumeRefDocker),
 	}

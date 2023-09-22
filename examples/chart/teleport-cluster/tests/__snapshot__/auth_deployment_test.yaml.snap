@@ -1,6 +1,6 @@
 should add an operator side-car when operator is enabled:
   1: |
-    image: public.ecr.aws/gravitational/teleport-operator:15.0.0-dev
+    image: public.ecr.aws/gravitational/teleport-operator:12.4.18
     imagePullPolicy: IfNotPresent
     livenessProbe:
       httpGet:
@@ -9,13 +9,6 @@ should add an operator side-car when operator is enabled:
       initialDelaySeconds: 15
       periodSeconds: 20
     name: operator
-    ports:
-    - containerPort: 8080
-      name: op-metrics
-      protocol: TCP
-    - containerPort: 8081
-      name: op-health
-      protocol: TCP
     readinessProbe:
       httpGet:
         path: /readyz
@@ -28,20 +21,16 @@ should add an operator side-car when operator is enabled:
       readOnly: true
     - mountPath: /var/lib/teleport
       name: data
-    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-      name: auth-serviceaccount-token
-      readOnly: true
 ? should not add named PersistentVolumeClaim as volume when in scratch mode, persistence.existingClaimName
   is set and persistence.enabled is false
 : 1: |
     affinity:
       podAntiAffinity: null
-    automountServiceAccountToken: false
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport:12.4.18
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -84,27 +73,9 @@ should add an operator side-car when operator is enabled:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
-      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-        name: auth-serviceaccount-token
-        readOnly: true
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 60
     volumes:
-    - name: auth-serviceaccount-token
-      projected:
-        sources:
-        - serviceAccountToken:
-            path: token
-        - configMap:
-            items:
-            - key: ca.crt
-              path: ca.crt
-            name: kube-root-ca.crt
-        - downwardAPI:
-            items:
-            - fieldRef:
-                fieldPath: metadata.namespace
-              path: namespace
     - configMap:
         name: RELEASE-NAME-auth
       name: config
@@ -129,9 +100,6 @@ should provision initContainer correctly when set in values:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
-      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-        name: auth-serviceaccount-token
-        readOnly: true
     - args:
       - echo test2
       image: alpine
@@ -149,9 +117,6 @@ should provision initContainer correctly when set in values:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
-      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-        name: auth-serviceaccount-token
-        readOnly: true
 should set affinity when set in values:
   1: |
     nodeAffinity:
@@ -169,12 +134,11 @@ should set nodeSelector when set in values:
   1: |
     affinity:
       podAntiAffinity: null
-    automountServiceAccountToken: false
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport:12.4.18
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -217,30 +181,12 @@ should set nodeSelector when set in values:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
-      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-        name: auth-serviceaccount-token
-        readOnly: true
     nodeSelector:
       environment: security
       role: bastion
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 60
     volumes:
-    - name: auth-serviceaccount-token
-      projected:
-        sources:
-        - serviceAccountToken:
-            path: token
-        - configMap:
-            items:
-            - key: ca.crt
-              path: ca.crt
-            name: kube-root-ca.crt
-        - downwardAPI:
-            items:
-            - fieldRef:
-                fieldPath: metadata.namespace
-              path: namespace
     - configMap:
         name: RELEASE-NAME-auth
       name: config
@@ -260,18 +206,17 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
           - key: app.kubernetes.io/component
             operator: In
             values:
-            - auth
+            - proxy
         topologyKey: kubernetes.io/hostname
 should set resources when set in values:
   1: |
     affinity:
       podAntiAffinity: null
-    automountServiceAccountToken: false
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport:12.4.18
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -321,27 +266,9 @@ should set resources when set in values:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
-      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-        name: auth-serviceaccount-token
-        readOnly: true
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 60
     volumes:
-    - name: auth-serviceaccount-token
-      projected:
-        sources:
-        - serviceAccountToken:
-            path: token
-        - configMap:
-            items:
-            - key: ca.crt
-              path: ca.crt
-            name: kube-root-ca.crt
-        - downwardAPI:
-            items:
-            - fieldRef:
-                fieldPath: metadata.namespace
-              path: namespace
     - configMap:
         name: RELEASE-NAME-auth
       name: config
@@ -352,12 +279,11 @@ should set securityContext when set in values:
   1: |
     affinity:
       podAntiAffinity: null
-    automountServiceAccountToken: false
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport:12.4.18
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -407,27 +333,9 @@ should set securityContext when set in values:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
-      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-        name: auth-serviceaccount-token
-        readOnly: true
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 60
     volumes:
-    - name: auth-serviceaccount-token
-      projected:
-        sources:
-        - serviceAccountToken:
-            path: token
-        - configMap:
-            items:
-            - key: ca.crt
-              path: ca.crt
-            name: kube-root-ca.crt
-        - downwardAPI:
-            items:
-            - fieldRef:
-                fieldPath: metadata.namespace
-              path: namespace
     - configMap:
         name: RELEASE-NAME-auth
       name: config
@@ -448,12 +356,11 @@ should use OSS image and not mount license when enterprise is not set in values:
   1: |
     affinity:
       podAntiAffinity: null
-    automountServiceAccountToken: false
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:12.2.1
+      image: public.ecr.aws/gravitational/teleport:8.3.4
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -496,27 +403,9 @@ should use OSS image and not mount license when enterprise is not set in values:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
-      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-        name: auth-serviceaccount-token
-        readOnly: true
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 60
     volumes:
-    - name: auth-serviceaccount-token
-      projected:
-        sources:
-        - serviceAccountToken:
-            path: token
-        - configMap:
-            items:
-            - key: ca.crt
-              path: ca.crt
-            name: kube-root-ca.crt
-        - downwardAPI:
-            items:
-            - fieldRef:
-                fieldPath: metadata.namespace
-              path: namespace
     - configMap:
         name: RELEASE-NAME-auth
       name: config

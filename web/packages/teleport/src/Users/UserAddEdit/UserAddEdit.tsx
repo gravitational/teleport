@@ -90,7 +90,6 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
             <FieldInput
               label="Username"
               rule={requiredField('Username is required')}
-              placeholder="Username"
               autoFocus
               value={name}
               onChange={e => onChangeName(e.target.value)}
@@ -100,7 +99,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
               menuPosition="fixed"
               label="User Roles"
               rule={requiredField('At least one role is required')}
-              placeholder="Click to select roles"
+              placeholder="Click to select a role"
               isSearchable
               isMulti
               isSimpleValue
@@ -108,7 +107,6 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
               value={selectedRoles}
               onChange={values => onChangeRoles(values as Option[])}
               options={selectOptions}
-              elevated={true}
             />
           </DialogContent>
           <DialogFooter>

@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"context"
 	"crypto/tls"
 	"net"
 	"net/http"
@@ -35,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/utils"
@@ -110,7 +110,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	// Dialed out to a proxy, start servicing the reverse tunnel as a listener.
 	case useTunnel && cfg.WindowsDesktop.ListenAddr.IsEmpty():
 		// create an adapter, from reversetunnel.ServerHandler to net.Listener.
-		shtl := reversetunnel.NewServerHandlerToListener(reversetunnelclient.LocalWindowsDesktop)
+		shtl := reversetunnel.NewServerHandlerToListener(reversetunnel.LocalWindowsDesktop)
 		listener = shtl
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
@@ -158,7 +158,6 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      log,
 		// Device authorization breaks browser-based access.
 		DisableDeviceAuthorization: true,
 	})
@@ -250,13 +249,17 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		}
 		process.BroadcastEvent(Event{Name: WindowsDesktopReady, Payload: nil})
 
+		muxCAGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+			return accessPoint.GetCertAuthority(ctx, id, loadKeys)
+		}
+
 		mux, err := multiplexer.New(multiplexer.Config{
-			Context:             process.ExitContext(),
-			Listener:            listener,
-			PROXYProtocolMode:   cfg.Proxy.PROXYProtocolMode,
-			ID:                  teleport.Component(teleport.ComponentWindowsDesktop),
-			CertAuthorityGetter: accessPoint.GetCertAuthority,
-			LocalClusterName:    clusterName,
+			Context:                     process.ExitContext(),
+			Listener:                    listener,
+			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
+			ID:                          teleport.Component(teleport.ComponentWindowsDesktop),
+			CertAuthorityGetter:         muxCAGetter,
+			LocalClusterName:            clusterName,
 		})
 		if err != nil {
 			return trace.Wrap(err)

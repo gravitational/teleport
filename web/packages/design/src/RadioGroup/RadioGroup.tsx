@@ -21,7 +21,6 @@ import { Flex } from 'design';
 interface RadioObjectOption {
   value: string;
   label: ReactNode;
-  disabled?: boolean;
 }
 
 type RadioOption = RadioObjectOption | string;
@@ -80,23 +79,20 @@ function Radio(props: RadioProps) {
   const optionLabel = isRadioObjectOption(props.option)
     ? props.option.label
     : props.option;
-  const optionDisabled = isRadioObjectOption(props.option)
-    ? props.option.disabled
-    : undefined;
 
   return (
     <label
       css={`
         display: flex;
         align-items: center;
-        cursor: ${optionDisabled ? 'not-allowed' : 'pointer'};
+        cursor: pointer;
       `}
     >
       <input
         autoFocus={props.autoFocus}
         css={`
           margin: 0 ${props => props.theme.space[2]}px 0 0;
-          accent-color: ${props => props.theme.colors.brand};
+          accent-color: ${props => props.theme.colors.brandAccent};
           cursor: inherit;
         `}
         type="radio"
@@ -104,9 +100,8 @@ function Radio(props: RadioProps) {
         checked={props.checked}
         onChange={() => props.onChange?.(optionValue)}
         value={optionValue}
-        disabled={optionDisabled}
       />
-      <span css={{ opacity: optionDisabled ? 0.5 : 1 }}>{optionLabel}</span>
+      <span>{optionLabel}</span>
     </label>
   );
 }

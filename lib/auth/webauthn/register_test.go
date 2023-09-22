@@ -19,7 +19,6 @@ import (
 	"context"
 	"encoding/pem"
 	"sort"
-	"strings"
 	"testing"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -515,20 +514,6 @@ func TestRegistrationFlow_Finish_attestation(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestIssue31187_errorParsingAttestationResponse reproduces the root cause of
-// https://github.com/gravitational/teleport/issues/31187 by attempting to parse
-// a current CCR created using a Chrome/Yubikey pair.
-//
-// The test exposes a poor interaction between go-webauthn/webauthn v0.8.6 and
-// fxamacker/cbor/v2 v2.5.0.
-func TestIssue31187_errorParsingAttestationResponse(t *testing.T) {
-	// Captured from an actual Yubikey 5Ci registration request.
-	const body = `{"id":"ibfM_71b4q2_xWPZDyvhZmJ_KU8f-mOCCLXHp-fTVoHZpDelym5lvBJDPr1EtD_l","type":"public-key","rawId":"ibfM_71b4q2_xWPZDyvhZmJ_KU8f-mOCCLXHp-fTVoHZpDelym5lvBJDPr1EtD_l","response":{"clientDataJSON":"eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoidEdiVFhEbzBGMXRNUVlmamRSLWNETlV1TUNvVURTX0w0OElSWmY4MUVuWSIsIm9yaWdpbiI6Imh0dHBzOi8vemFycXVvbi5kZXY6MzA4MCIsImNyb3NzT3JpZ2luIjpmYWxzZSwib3RoZXJfa2V5c19jYW5fYmVfYWRkZWRfaGVyZSI6ImRvIG5vdCBjb21wYXJlIGNsaWVudERhdGFKU09OIGFnYWluc3QgYSB0ZW1wbGF0ZS4gU2VlIGh0dHBzOi8vZ29vLmdsL3lhYlBleCJ9","attestationObject":"o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVjCnNjmsqMh0nu-_tuMkxVZkZShAhdoz0tK9evxg8ys9CLFAAAAAQAAAAAAAAAAAAAAAAAAAAAAMIm3zP-9W-Ktv8Vj2Q8r4WZifylPH_pjggi1x6fn01aB2aQ3pcpuZbwSQz69RLQ_5aUBAgMmIAEhWCCJt8z_vVvirb_FY9kPpoIwbfhER3VHTmOV0Y6xs7uHySJYIMFARJxlUoR4DbDzlKYnfJKitWgR3GHK9_Lz211z-128oWtjcmVkUHJvdGVjdAI"}}`
-
-	_, err := protocol.ParseCredentialCreationResponseBody(strings.NewReader(body))
-	require.NoError(t, err, "ParseCredentialCreationResponseBody failed")
 }
 
 func derToPEMs(certs [][]byte) []string {

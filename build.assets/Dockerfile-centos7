@@ -35,7 +35,7 @@ RUN wget https://github.com/git/git/archive/refs/tags/v2.39.1.tar.gz && \
 
 # Create an alias to the assets image. Ref: https://github.com/docker/for-mac/issues/2155
 ARG BUILDARCH
-FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport14-${BUILDARCH} AS teleport-buildbox-centos7-assets
+FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport12-${BUILDARCH} AS teleport-buildbox-centos7-assets
 
 ## LIBFIDO2 ###################################################################
 
@@ -59,9 +59,9 @@ RUN yum groupinstall -y 'Development Tools' && \
 
 # Install libudev-zero.
 # libudev-zero replaces systemd's libudev.
-RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.3 && \
+RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
     cd libudev-zero && \
-    [ "$(git rev-parse HEAD)" = 'ee32ac5f6494047b9ece26e7a5920650cdf46655' ] && \
+    [ "$(git rev-parse HEAD)" = '4154cf252c17297f98a8ca33693ead003b4509da' ] && \
     make install-static LIBDIR='$(PREFIX)/lib64'
 
 # Install libcbor.
@@ -81,7 +81,7 @@ RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.11
     cd openssl && \
     [ "$(git rev-parse HEAD)" = '6ba3884c3235e1bb474b379026087f8216afacf4' ] && \
     ./config --release --libdir=/usr/local/lib64 && \
-    make -j"$(nproc)" && \
+    make && \
     make install_sw
 # Necessary for libfido2 to find the correct libcrypto.
 ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
@@ -89,9 +89,9 @@ ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
 # Install libfido2.
 # Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib-devel.
 # Linked so `make build/tsh` finds the library where it expects it.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
     cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = '486a8f8667e42f55cee2bba301b41433cacec830' ] && \
+    [ "$(git rev-parse HEAD)" = '659a02679f99fd34a44e06e35dce90794f6ecc86' ] && \
     scl enable ${DEVTOOLSET} "\
       CFLAGS=-pthread cmake3 \
           -DBUILD_EXAMPLES=OFF \
@@ -126,7 +126,7 @@ RUN yum groupinstall -y 'Development Tools' && \
 # BUILD_STATIC_ONLY disables libbpf.so build as we don't need it.
 ARG LIBBPF_VERSION
 RUN mkdir -p /opt && cd /opt && \
-    curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    curl -Lf https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     scl enable ${DEVTOOLSET} "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install"
 
@@ -235,10 +235,6 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     cargo --version && \
     rustc --version
 
-ARG WASM_PACK_VERSION
-# Install wasm-pack for targeting WebAssembly from Rust.
-RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
-
 # Do a quick switch back to root and copy/setup libfido2 and libpcsclite binaries.
 # Do this last to take better advantage of the multi-stage build.
 USER root
@@ -251,7 +247,7 @@ COPY --from=libfido2 \
     /usr/local/lib64/libcrypto.a \
     /usr/local/lib64/libcrypto.so.3 \
     /usr/local/lib64/libfido2.a \
-    /usr/local/lib64/libfido2.so.1.13.0 \
+    /usr/local/lib64/libfido2.so.1.12.0 \
     /usr/local/lib64/libssl.a \
     /usr/local/lib64/libssl.so.3 \
     /usr/local/lib64/libudev.a \
@@ -259,7 +255,7 @@ COPY --from=libfido2 \
 # Re-create usual lib64 links.
 RUN cd /usr/local/lib64 && \
     ln -s libcrypto.so.3 libcrypto.so && \
-    ln -s libfido2.so.1.13.0 libfido2.so.1 && \
+    ln -s libfido2.so.1.12.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ln -s libssl.so.3 libssl.so && \
 # Update ld.

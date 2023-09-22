@@ -16,8 +16,8 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Text, Box } from 'design';
-import { AWSIcon } from 'design/SVGIcon';
+import { Text, Image } from 'design';
+import awsIcon from 'design/assets/images/icons/aws.svg';
 
 import cfg from 'teleport/config';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
@@ -43,9 +43,7 @@ export function IntegrationTiles({
       }
       data-testid="tile-aws-oidc"
     >
-      <Box mt={3} mb={2}>
-        <AWSIcon size={80} />
-      </Box>
+      <Image mt={3} mb={2} src={awsIcon} width="80px" height="80px" />
       <Text>
         Amazon Web Services
         <br />

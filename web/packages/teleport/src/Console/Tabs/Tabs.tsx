@@ -26,6 +26,8 @@ import { useStore } from 'shared/libs/stores';
 import * as stores from 'teleport/Console/stores';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 
+import { colors } from '../colors';
+
 import TabItem from './TabItem';
 
 export default function TabsContainer(props: Props) {
@@ -90,7 +92,7 @@ export function Tabs(props: Props & { parties: stores.Parties }) {
           title="New Tab"
           onClick={onNew}
         >
-          <Icons.Add size="small" />
+          <Icons.Add fontSize="16px" />
         </ButtonIcon>
       )}
     </StyledTabs>
@@ -107,7 +109,7 @@ type Props = {
 };
 
 const StyledTabs = styled(Box)`
-  background: ${props => props.theme.colors.levels.surface};
+  background: ${colors.terminalDark};
   min-height: 32px;
   border-radius: 4px;
   display: flex;

@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -117,13 +116,8 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 			t.Fatal("Timeout waiting for connection close.")
 		}
 
-		// Assert that the context was canceled and verify the cause.
+		// Assert that the context was canceled.
 		require.Error(t, monitorCtx.Err())
-		cause := context.Cause(monitorCtx)
-		require.True(t, trace.IsAccessDenied(cause))
-		for _, contains := range []string{"lock", "in force"} {
-			require.Contains(t, cause.Error(), contains)
-		}
 
 		// Validate that the disconnect event was logged.
 		require.Equal(t, services.LockInForceAccessDenied(lock).Error(), (<-emitter.C()).(*apievents.ClientDisconnect).Reason)
@@ -211,6 +205,11 @@ func TestMonitorStaleLocks(t *testing.T) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for LockWatcher loop check.")
 	}
+	select {
+	case asrv.LockWatcher.StaleC <- struct{}{}:
+	default:
+		t.Fatal("No staleness event should be scheduled yet. This is a bug in the test.")
+	}
 
 	// ensure ResetC is drained
 	select {
@@ -225,12 +224,6 @@ func TestMonitorStaleLocks(t *testing.T) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for LockWatcher reset.")
 	}
-	// StaleC is listened by multiple goroutines, so we need to close to ensure
-	// that all of them are unblocked and the stale state is detected.
-	close(asrv.LockWatcher.StaleC)
-	require.Eventually(t, func() bool {
-		return asrv.LockWatcher.IsStale()
-	}, 15*time.Second, 100*time.Millisecond, "Timeout waiting for LockWatcher to be stale.")
 	select {
 	case <-conn.closedC:
 	case <-time.After(15 * time.Second):
@@ -288,7 +281,7 @@ func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
 	}
 }
 
-func TestTrackingReadConn(t *testing.T) {
+func TestTrackingReadConnEOF(t *testing.T) {
 	server, client := net.Pipe()
 	defer client.Close()
 
@@ -296,7 +289,7 @@ func TestTrackingReadConn(t *testing.T) {
 	require.NoError(t, server.Close())
 
 	// Wrap the client in a TrackingReadConn.
-	ctx, cancel := context.WithCancelCause(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	tc, err := NewTrackingReadConn(TrackingReadConnConfig{
 		Conn:    client,
 		Clock:   clockwork.NewFakeClock(),
@@ -305,30 +298,10 @@ func TestTrackingReadConn(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Run("Read EOF", func(t *testing.T) {
-		// Make sure it returns an EOF and not a wrapped exception.
-		buf := make([]byte, 64)
-		_, err = tc.Read(buf)
-		require.Equal(t, io.EOF, err)
-	})
-
-	t.Run("CloseWithCause", func(t *testing.T) {
-		require.NoError(t, tc.CloseWithCause(trace.AccessDenied("fake problem")))
-		require.ErrorIs(t, context.Cause(ctx), trace.AccessDenied("fake problem"))
-	})
-
-	t.Run("Close", func(t *testing.T) {
-		ctx, cancel := context.WithCancelCause(context.Background())
-		tc, err := NewTrackingReadConn(TrackingReadConnConfig{
-			Conn:    client,
-			Clock:   clockwork.NewFakeClock(),
-			Context: ctx,
-			Cancel:  cancel,
-		})
-		require.NoError(t, err)
-		require.NoError(t, tc.Close())
-		require.ErrorIs(t, context.Cause(ctx), io.EOF)
-	})
+	// Make sure it returns an EOF and not a wrapped exception.
+	buf := make([]byte, 64)
+	_, err = tc.Read(buf)
+	require.Equal(t, io.EOF, err)
 }
 
 type mockChecker struct {

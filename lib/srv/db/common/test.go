@@ -100,7 +100,7 @@ type AuthClientCA interface {
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)
+	GetCertAuthority(context.Context, types.CertAuthID, bool, ...services.MarshalOption) (types.CertAuthority, error)
 }
 
 // MakeTestServerTLSConfig returns TLS config suitable for configuring test

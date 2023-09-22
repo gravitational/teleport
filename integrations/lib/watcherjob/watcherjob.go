@@ -16,27 +16,18 @@ package watcherjob
 
 import (
 	"context"
-	"errors"
-	"io"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
-const (
-	DefaultMaxConcurrency   = 128
-	DefaultEventFuncTimeout = time.Second * 5
-	failFastEnvVarName      = "TELEPORT_PLUGIN_FAIL_FAST"
-)
+const DefaultMaxConcurrency = 128
+const DefaultEventFuncTimeout = time.Second * 5
 
 type EventFunc func(context.Context, types.Event) error
 
@@ -44,7 +35,6 @@ type Config struct {
 	Watch            types.Watch
 	MaxConcurrency   int
 	EventFuncTimeout time.Duration
-	FailFast         bool
 }
 
 type job struct {
@@ -60,23 +50,16 @@ type eventKey struct {
 	name string
 }
 
-func NewJob(client teleport.Client, config Config, fn EventFunc) (lib.ServiceJob, error) {
+func NewJob(client teleport.Client, config Config, fn EventFunc) lib.ServiceJob {
 	return NewJobWithEvents(client, config, fn)
 }
 
-func NewJobWithEvents(events types.Events, config Config, fn EventFunc) (lib.ServiceJob, error) {
+func NewJobWithEvents(events types.Events, config Config, fn EventFunc) lib.ServiceJob {
 	if config.MaxConcurrency == 0 {
 		config.MaxConcurrency = DefaultMaxConcurrency
 	}
 	if config.EventFuncTimeout == 0 {
 		config.EventFuncTimeout = DefaultEventFuncTimeout
-	}
-	if flagVar := os.Getenv(failFastEnvVarName); !config.FailFast && flagVar != "" {
-		flag, err := strconv.ParseBool(flagVar)
-		if err != nil {
-			return nil, trace.WrapWithMessage(err, "failed to parse content '%s' of the %s environment variable", flagVar, failFastEnvVarName)
-		}
-		config.FailFast = flag
 	}
 	job := job{
 		events:    events,
@@ -98,25 +81,14 @@ func NewJobWithEvents(events types.Events, config Config, fn EventFunc) (lib.Ser
 			return nil
 		})
 
-		bk := backoff.NewDecorr(20*time.Millisecond, 5*time.Second, clockwork.NewRealClock())
-
 		log := logger.Get(ctx)
 		for {
 			err := job.watchEvents(ctx)
-			// We are not supporting liveness/readiness yet, but if we do it would make sense to use job's readiness
-			job.SetReady(false)
-
 			switch {
 			case trace.IsConnectionProblem(err):
-				if config.FailFast {
-					return trace.WrapWithMessage(err, "Connection problem detected. Exiting as fail fast is on.")
-				}
-				log.WithError(err).Error("Connection problem detected. Attempting to reconnect.")
-			case errors.Is(err, io.EOF):
-				if config.FailFast {
-					return trace.WrapWithMessage(err, "Watcher stream closed. Exiting as fail fast is on.")
-				}
-				log.WithError(err).Error("Watcher stream closed. Attempting to reconnect.")
+				log.WithError(err).Error("Failed to connect to Teleport Auth server. Reconnecting...")
+			case trace.IsEOF(err):
+				log.WithError(err).Error("Watcher stream closed. Reconnecting...")
 			case lib.IsCanceled(err):
 				log.Debug("Watcher context is canceled")
 				// Context cancellation is not an error
@@ -125,15 +97,9 @@ func NewJobWithEvents(events types.Events, config Config, fn EventFunc) (lib.Ser
 				log.WithError(err).Error("Watcher event loop failed")
 				return trace.Wrap(err)
 			}
-
-			// To mitigate a potentially aggressive retry loop, we wait
-			if err := bk.Do(ctx); err != nil {
-				log.Debug("Watcher context was canceled while waiting before a reconnection")
-				return nil
-			}
 		}
 	})
-	return job, nil
+	return job
 }
 
 // watchEvents spawns a watcher and reads events from it.

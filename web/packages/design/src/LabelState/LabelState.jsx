@@ -24,27 +24,27 @@ const kinds = ({ theme, kind, shadow }) => {
   // default is primary
   const styles = {
     background: theme.colors.brand,
-    color: theme.colors.text.primaryInverse,
+    color: theme.colors.text.contrast,
   };
 
   if (kind === 'secondary') {
-    styles.background = theme.colors.spotBackground[0];
+    styles.background = theme.colors.levels.sunkenSecondary;
     styles.color = theme.colors.text.main;
   }
 
   if (kind === 'warning') {
     styles.background = theme.colors.warning.main;
-    styles.color = theme.colors.text.primaryInverse;
+    styles.color = theme.colors.text.contrast;
   }
 
   if (kind === 'danger') {
-    styles.background = theme.colors.error.main;
-    styles.color = theme.colors.text.primaryInverse;
+    styles.background = theme.colors.danger;
+    styles.color = theme.colors.text.contrast;
   }
 
   if (kind === 'success') {
     styles.background = theme.colors.success;
-    styles.color = theme.colors.text.primaryInverse;
+    styles.color = theme.colors.text.contrast;
   }
 
   if (shadow) {
@@ -77,6 +77,7 @@ const LabelState = styled.span`
 `;
 LabelState.defaultProps = {
   fontSize: 0,
+  color: 'light',
   fontWeight: 'bold',
   shadow: false,
 };

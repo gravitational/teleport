@@ -86,8 +86,7 @@ func ProxyConn(ctx context.Context, client, server io.ReadWriteCloser) error {
 				errors = append(errors, err)
 			}
 		case <-ctx.Done():
-			// Cause(ctx) returns ctx.Err() if no cause is provided.
-			return trace.Wrap(context.Cause(ctx))
+			return ctx.Err()
 		}
 	}
 

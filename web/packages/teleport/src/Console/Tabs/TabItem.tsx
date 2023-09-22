@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { Cross as CloseIcon } from 'design/Icon';
+import { Close as CloseIcon } from 'design/Icon';
 import { space } from 'design/system';
 import { Flex, Text } from 'design';
 
@@ -33,13 +33,7 @@ export default function TabItem(props: Props) {
         </Text>
       </StyledTabButton>
       <StyledCloseButton title="Close" onClick={onClose}>
-        <CloseIcon
-          size="small"
-          css={`
-            transition: none;
-            color: inherit;
-          `}
-        />
+        <CloseIcon />
       </StyledCloseButton>
     </StyledTabItem>
   );
@@ -57,9 +51,9 @@ type Props = {
 function fromProps({ theme, active }) {
   let styles: Record<any, any> = {
     border: 'none',
-    borderRight: `1px solid ${theme.colors.levels.sunken}`,
+    borderRight: `1px solid ${theme.colors.bgTerminal}`,
     '&:hover, &:focus': {
-      color: theme.colors.text.main,
+      color: theme.colors.text.contrast,
       transition: 'color .3s',
     },
   };
@@ -67,8 +61,8 @@ function fromProps({ theme, active }) {
   if (active) {
     styles = {
       ...styles,
-      backgroundColor: theme.colors.levels.sunken,
-      color: theme.colors.text.main,
+      backgroundColor: theme.colors.bgTerminal,
+      color: theme.colors.text.contrast,
       fontWeight: 'bold',
       transition: 'none',
     };
@@ -91,6 +85,7 @@ const StyledTabButton = styled.button`
   text-decoration: none;
   outline: none;
   margin: 0;
+  text-decoration: none;
   color: inherit;
   line-height: 32px;
   background-color: transparent;
@@ -102,9 +97,6 @@ const StyledTabButton = styled.button`
 `;
 
 const StyledCloseButton = styled.button`
-  display: flex;
-  align-items: center;
-  justify-content: center;
   background: transparent;
   border-radius: 2px;
   border: none;
@@ -115,12 +107,9 @@ const StyledCloseButton = styled.button`
   padding: 0;
   margin: 0 8px 0 0;
   transition: all 0.3s;
-  color: ${props => props.theme.colors.text.main};
 
   &:hover {
-    color: ${props => props.theme.colors.text.primaryInverse};
-    background: ${props => props.theme.colors.error.main};
+    background: ${props => props.theme.colors.danger};
   }
-
   ${space}
 `;

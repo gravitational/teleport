@@ -25,7 +25,7 @@ import { createMemoryHistory } from 'history';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import TeleportContext from 'teleport/teleportContext';
 
-import { TeleportFeature, NavTitle } from 'teleport/types';
+import { TeleportFeature } from 'teleport/types';
 import { NavigationCategory } from 'teleport/Navigation/categories';
 import { NavigationItem } from 'teleport/Navigation/NavigationItem';
 import { NavigationItemSize } from 'teleport/Navigation/common';
@@ -35,7 +35,7 @@ class MockFeature implements TeleportFeature {
   category = NavigationCategory.Resources;
 
   route = {
-    title: 'Users',
+    title: 'Some Feature',
     path: '/web/cluster/:clusterId/feature',
     exact: true,
     component: () => <div>Test!</div>,
@@ -46,7 +46,7 @@ class MockFeature implements TeleportFeature {
   }
 
   navigationItem = {
-    title: NavTitle.Users,
+    title: 'Some Feature',
     icon: <div />,
     exact: true,
     getLink(clusterId: string) {
@@ -82,7 +82,7 @@ describe('navigation items', () => {
       </TeleportContextProvider>
     );
 
-    expect(screen.getByText('Users').closest('a')).toHaveAttribute(
+    expect(screen.getByText('Some Feature').closest('a')).toHaveAttribute(
       'href',
       '/web/cluster/root/feature'
     );
@@ -114,14 +114,14 @@ describe('navigation items', () => {
       </TeleportContextProvider>
     );
 
-    expect(screen.getByText('Users').closest('a')).toHaveAttribute(
+    expect(screen.getByText('Some Feature').closest('a')).toHaveAttribute(
       'href',
       '/web/cluster/root/feature'
     );
 
     history.push('/web/cluster/leaf/feature');
 
-    expect(screen.getByText('Users').closest('a')).toHaveAttribute(
+    expect(screen.getByText('Some Feature').closest('a')).toHaveAttribute(
       'href',
       '/web/cluster/leaf/feature'
     );

@@ -17,7 +17,6 @@ limitations under the License.
 package identity
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -395,8 +394,8 @@ func ReadSSHIdentityFromKeyPair(identity *Identity, keyBytes, publicKeyBytes, ce
 // VerifyWrite attempts to write to the .write-test artifact inside the given
 // destination. It should be called before attempting a renewal to help ensure
 // we won't then fail to save the identity.
-func VerifyWrite(ctx context.Context, dest bot.Destination) error {
-	return trace.Wrap(dest.Write(ctx, WriteTestKey, []byte{}))
+func VerifyWrite(dest bot.Destination) error {
+	return trace.Wrap(dest.Write(WriteTestKey, []byte{}))
 }
 
 // ListKeys returns a list of artifact keys that will be written given a list
@@ -415,7 +414,7 @@ func ListKeys(kinds ...ArtifactKind) []string {
 }
 
 // SaveIdentity saves a bot identity to a destination.
-func SaveIdentity(ctx context.Context, id *Identity, d bot.Destination, kinds ...ArtifactKind) error {
+func SaveIdentity(id *Identity, d bot.Destination, kinds ...ArtifactKind) error {
 	for _, artifact := range GetArtifacts() {
 		// Only store artifacts matching one of the set kinds.
 		if !artifact.Matches(kinds...) {
@@ -425,7 +424,7 @@ func SaveIdentity(ctx context.Context, id *Identity, d bot.Destination, kinds ..
 		data := artifact.ToBytes(id)
 
 		log.Debugf("Writing %s", artifact.Key)
-		if err := d.Write(ctx, artifact.Key, data); err != nil {
+		if err := d.Write(artifact.Key, data); err != nil {
 			return trace.Wrap(err, "could not write to %v", artifact.Key)
 		}
 	}
@@ -434,7 +433,7 @@ func SaveIdentity(ctx context.Context, id *Identity, d bot.Destination, kinds ..
 }
 
 // LoadIdentity loads a bot identity from a destination.
-func LoadIdentity(ctx context.Context, d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
+func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 	var certs proto.Certs
 	var params LoadIdentityParams
 
@@ -444,7 +443,7 @@ func LoadIdentity(ctx context.Context, d bot.Destination, kinds ...ArtifactKind)
 			continue
 		}
 
-		data, err := d.Read(ctx, artifact.Key)
+		data, err := d.Read(artifact.Key)
 		if err != nil {
 			return nil, trace.Wrap(err, "could not read artifact %q from destination %s", artifact.Key, d)
 		}
@@ -459,7 +458,7 @@ func LoadIdentity(ctx context.Context, d bot.Destination, kinds ...ArtifactKind)
 				artifact.Key,
 				artifact.OldKey,
 			)
-			data, err = d.Read(ctx, artifact.OldKey)
+			data, err = d.Read(artifact.OldKey)
 			if err != nil {
 				return nil, trace.Wrap(
 					err,

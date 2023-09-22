@@ -27,7 +27,6 @@ export function useClusterLogout({
 }) {
   const ctx = useAppContext();
   const [{ status, statusText }, removeCluster] = useAsync(async () => {
-    await ctx.connectMyComputerService.killAgentAndRemoveData(clusterUri);
     await ctx.clustersService.logout(clusterUri);
 
     if (ctx.workspacesService.getRootClusterUri() === clusterUri) {

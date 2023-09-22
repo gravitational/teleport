@@ -59,7 +59,7 @@ func newWebAuthn(p webAuthnParams) (*wan.WebAuthn, error) {
 
 	return wan.New(&wan.Config{
 		RPID:                  p.rpID,
-		RPOrigins:             []string{p.origin},
+		RPOrigin:              p.origin,
 		RPDisplayName:         defaultDisplayName,
 		RPIcon:                defaultIcon,
 		AttestationPreference: attestation,

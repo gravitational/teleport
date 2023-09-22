@@ -17,9 +17,9 @@ limitations under the License.
 package types
 
 import (
-	"encoding/xml"
 	"fmt"
 
+	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -40,11 +40,6 @@ type SAMLIdPServiceProvider interface {
 	GetEntityID() string
 	// SetEntityID sets the entity ID.
 	SetEntityID(string)
-	// Copy returns a copy of this saml idp service provider object.
-	Copy() SAMLIdPServiceProvider
-	// CloneResource returns a copy of the SAMLIdPServiceProvider as a ResourceWithLabels
-	// This is helpful when interfacing with multiple types at the same time in unified resources
-	CloneResource() ResourceWithLabels
 }
 
 // NewSAMLIdPServiceProvider returns a new SAMLIdPServiceProvider based off a metadata object and SAMLIdPServiceProviderSpecV1.
@@ -88,18 +83,10 @@ func (s *SAMLIdPServiceProviderV1) String() string {
 		s.GetName())
 }
 
-func (s *SAMLIdPServiceProviderV1) Copy() SAMLIdPServiceProvider {
-	return utils.CloneProtoMsg(s)
-}
-
-func (s *SAMLIdPServiceProviderV1) CloneResource() ResourceWithLabels {
-	return s.Copy()
-}
-
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (s *SAMLIdPServiceProviderV1) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(s.GetAllLabels()), s.GetEntityID(), s.GetName(), staticSAMLIdPServiceProviderDescription)
+	fieldVals := append(utils.MapToStrings(s.GetAllLabels()), s.GetEntityID(), s.GetName())
 	return MatchSearch(fieldVals, values, nil)
 }
 
@@ -121,11 +108,7 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 	}
 
 	if s.Spec.EntityID == "" {
-		// Extract just the entityID attribute from the descriptor
-		ed := &struct {
-			EntityID string `xml:"entityID,attr"`
-		}{}
-		err := xml.Unmarshal([]byte(s.Spec.EntityDescriptor), ed)
+		ed, err := samlsp.ParseMetadata([]byte(s.Spec.EntityDescriptor))
 		if err != nil {
 			return trace.Wrap(err)
 		}

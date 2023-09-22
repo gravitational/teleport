@@ -5,29 +5,24 @@ on:
   push:
     branches:
       - master
-      - branch/*
   pull_request:
     paths:
       - '/go.mod'
       - '/go.sum'
-      - 'integrations/**'
+      - 'operator/**'
       - 'api/types/**'
       - 'gen/**'
       - 'lib/tbot/**'
-      - 'Makefile'
-      - '.github/workflows/unit-tests-integrations.yaml'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
   merge_group:
     paths:
       - '/go.mod'
       - '/go.sum'
-      - 'integrations/**'
+      - 'operator/**'
       - 'api/types/**'
       - 'gen/**'
       - 'lib/tbot/**'
-      - 'Makefile'
-      - '.github/workflows/unit-tests-integrations.yaml'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
 
@@ -41,18 +36,18 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport14
+      image: ghcr.io/gravitational/teleport-buildbox:teleport12
       options: --cap-add=SYS_ADMIN --privileged
+      env: 
+        TELEPORT_GET_VERSION: v12.1.0
+        TELEPORT_ENTERPRISE_LICENSE: ${{ secrets.TELEPORT_ENTERPRISE_LICENSE }}
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
-
-      - name: Build teleport binaries
-        run: make build/tctl build/teleport build/tsh && echo "$PWD/build" >> "$GITHUB_PATH"
 
       - name: Run access plugin tests
         run: make test-access-integrations
@@ -65,11 +60,3 @@ jobs:
       - name: Run operator tests
         timeout-minutes: 40
         run: make test-operator
-
-      - name: Run kube-agent-updater tests
-        timeout-minutes: 15
-        run: make test-kube-agent-updater
-
-      - name: Run teleport-usage tests
-        timeout-minutes: 15
-        run: make test-teleport-usage

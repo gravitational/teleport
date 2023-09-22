@@ -18,8 +18,6 @@ package proxy
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"io"
 	"net"
@@ -31,7 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils/socks"
 )
 
@@ -40,11 +37,8 @@ func TestDialProxy(t *testing.T) {
 	ctx := context.Background()
 	dest := "remote-ip:3080"
 
-	tlsConfig, err := fixtures.LocalTLSConfig()
-	require.NoError(t, err)
-
 	cases := []struct {
-		proxy      func(chan error, net.Listener, *tls.Config)
+		proxy      func(chan error, net.Listener)
 		scheme     string
 		assertDial require.ErrorAssertionFunc
 	}{
@@ -59,12 +53,7 @@ func TestDialProxy(t *testing.T) {
 			assertDial: require.NoError,
 		},
 		{
-			proxy:      serveHTTPProxy,
-			scheme:     "https",
-			assertDial: require.NoError,
-		},
-		{
-			proxy:      func(errChan chan error, l net.Listener, _ *tls.Config) { close(errChan) },
+			proxy:      func(errChan chan error, l net.Listener) { close(errChan) },
 			scheme:     "unknown",
 			assertDial: require.Error,
 		},
@@ -82,22 +71,12 @@ func TestDialProxy(t *testing.T) {
 				require.NoError(t, err)
 			})
 
-			var serverTLSConfig *tls.Config
-			if tc.scheme == "https" {
-				serverTLSConfig = tlsConfig.TLS
-			}
-			go tc.proxy(errChan, l, serverTLSConfig)
+			go tc.proxy(errChan, l)
 
 			proxyURL, err := url.Parse(tc.scheme + "://" + l.Addr().String())
 			require.NoError(t, err)
 
-			pool := x509.NewCertPool()
-			pool.AddCert(tlsConfig.Certificate)
-			clientTLSConfig := &tls.Config{
-				RootCAs: pool,
-			}
-
-			conn, err := client.DialProxy(ctx, proxyURL, dest, client.WithTLSConfig(clientTLSConfig))
+			conn, err := client.DialProxy(ctx, proxyURL, dest)
 			tc.assertDial(t, err)
 
 			if conn != nil {
@@ -112,7 +91,7 @@ func TestDialProxy(t *testing.T) {
 
 // serveSOCKSProxy starts a limited SOCKS proxy on the supplied listener.
 // It performs the SOCKS5 handshake then writes back the requested remote address.
-func serveSOCKSProxy(errChan chan error, l net.Listener, _ *tls.Config) {
+func serveSOCKSProxy(errChan chan error, l net.Listener) {
 	defer close(errChan)
 
 	for {
@@ -143,9 +122,9 @@ func serveSOCKSProxy(errChan chan error, l net.Listener, _ *tls.Config) {
 	}
 }
 
-// serveHTTPProxy starts a limited HTTP/HTTPS proxy on the supplied listener.
+// serveHTTPProxy starts a limited HTTP proxy on the supplied listener.
 // It performs the HTTP handshake then writes back the requested remote address.
-func serveHTTPProxy(errChan chan error, l net.Listener, tlsConfig *tls.Config) {
+func serveHTTPProxy(errChan chan error, l net.Listener) {
 	defer close(errChan)
 
 	s := &http.Server{
@@ -157,17 +136,9 @@ func serveHTTPProxy(errChan chan error, l net.Listener, tlsConfig *tls.Config) {
 				http.Error(w, "handshake error", http.StatusBadRequest)
 			}
 		}),
-		TLSConfig: tlsConfig,
 	}
 
-	var err error
-	if tlsConfig != nil {
-		err = s.ServeTLS(l, "", "")
-	} else {
-		err = s.Serve(l)
-	}
-
-	if !errors.Is(err, net.ErrClosed) {
+	if err := s.Serve(l); !errors.Is(err, net.ErrClosed) {
 		errChan <- trace.Wrap(err)
 	}
 }

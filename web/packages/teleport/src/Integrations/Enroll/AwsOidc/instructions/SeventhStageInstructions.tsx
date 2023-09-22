@@ -36,7 +36,6 @@ import {
 } from 'shared/components/Validation/rules';
 
 import {
-  Integration,
   IntegrationKind,
   integrationService,
 } from 'teleport/services/integrations';
@@ -52,7 +51,7 @@ export function SeventhStageInstructions(
   props: PreviousStepProps & { emitEvent: EmitEvent }
 ) {
   const { attempt, setAttempt } = useAttempt('');
-  const [createdIntegration, setCreatedIntegration] = useState<Integration>();
+  const [showConfirmBox, setShowConfirmBox] = useState(false);
   const [roleArn, setRoleArn] = useState(props.awsOidc.roleArn);
   const [name, setName] = useState(props.awsOidc.integrationName);
 
@@ -68,7 +67,7 @@ export function SeventhStageInstructions(
         subKind: IntegrationKind.AwsOidc,
         awsoidc: { roleArn },
       })
-      .then(setCreatedIntegration)
+      .then(() => setShowConfirmBox(true))
       .catch((err: Error) =>
         setAttempt({ status: 'failed', statusText: err.message })
       );
@@ -135,9 +134,9 @@ export function SeventhStageInstructions(
           </>
         )}
       </Validation>
-      {createdIntegration && (
+      {showConfirmBox && (
         <SuccessfullyAddedIntegrationDialog
-          integration={createdIntegration}
+          integrationName={name}
           emitEvent={props.emitEvent}
         />
       )}
@@ -146,10 +145,10 @@ export function SeventhStageInstructions(
 }
 
 export function SuccessfullyAddedIntegrationDialog({
-  integration,
+  integrationName,
   emitEvent,
 }: {
-  integration: Integration;
+  integrationName: string;
   emitEvent: EmitEvent;
 }) {
   const location = useLocation<DiscoverUrlLocationState>();
@@ -171,11 +170,11 @@ export function SuccessfullyAddedIntegrationDialog({
       open={true}
     >
       <DialogHeader css={{ margin: '0 auto' }}>
-        <CircleCheck mb={4} size={60} color="success" />
+        <CircleCheck mb={4} fontSize={60} color="success" />
       </DialogHeader>
       <DialogContent>
         <Text textAlign="center">
-          AWS integration "{integration.name}" successfully added
+          AWS integration "{integrationName}" successfully added
         </Text>
       </DialogContent>
       <DialogFooter css={{ margin: '0 auto' }}>
@@ -186,7 +185,7 @@ export function SuccessfullyAddedIntegrationDialog({
             to={{
               pathname: cfg.routes.discover,
               state: {
-                integration,
+                integrationName,
                 discover: location.state.discover,
               },
             }}

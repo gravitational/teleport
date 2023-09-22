@@ -21,11 +21,7 @@ import (
 	"net/http"
 	"testing"
 
-	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -82,93 +78,6 @@ func TestConvertRequestFailureError(t *testing.T) {
 			} else {
 				require.True(t, test.wantIsError(err))
 			}
-		})
-	}
-}
-
-func TestConvertIAMv2Error(t *testing.T) {
-	for _, tt := range []struct {
-		name     string
-		inErr    error
-		errCheck require.ErrorAssertionFunc
-	}{
-		{
-			name:     "no error",
-			inErr:    nil,
-			errCheck: require.NoError,
-		},
-		{
-			name: "resource already exists",
-			inErr: &iamTypes.EntityAlreadyExistsException{
-				Message: aws.String("resource exists"),
-			},
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(tt, trace.IsAlreadyExists(err), "expected trace.AlreadyExists error, got %v", err)
-			},
-		},
-		{
-			name: "resource already exists",
-			inErr: &iamTypes.NoSuchEntityException{
-				Message: aws.String("resource not found"),
-			},
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(tt, trace.IsNotFound(err), "expected trace.NotFound error, got %v", err)
-			},
-		},
-		{
-			name: "invalid policy document",
-			inErr: &iamTypes.MalformedPolicyDocumentException{
-				Message: aws.String("malformed document"),
-			},
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(tt, trace.IsBadParameter(err), "expected trace.BadParameter error, got %v", err)
-			},
-		},
-		{
-			name: "unauthorized",
-			inErr: &awshttp.ResponseError{
-				ResponseError: &smithyhttp.ResponseError{
-					Response: &smithyhttp.Response{Response: &http.Response{
-						StatusCode: http.StatusForbidden,
-					}},
-					Err: trace.Errorf(""),
-				},
-			},
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(tt, trace.IsAccessDenied(err), "expected trace.AccessDenied error, got %v", err)
-			},
-		},
-		{
-			name: "not found",
-			inErr: &awshttp.ResponseError{
-				ResponseError: &smithyhttp.ResponseError{
-					Response: &smithyhttp.Response{Response: &http.Response{
-						StatusCode: http.StatusNotFound,
-					}},
-					Err: trace.Errorf(""),
-				},
-			},
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(tt, trace.IsNotFound(err), "expected trace.NotFound error, got %v", err)
-			},
-		},
-		{
-			name: "resource already exists",
-			inErr: &awshttp.ResponseError{
-				ResponseError: &smithyhttp.ResponseError{
-					Response: &smithyhttp.Response{Response: &http.Response{
-						StatusCode: http.StatusConflict,
-					}},
-					Err: trace.Errorf(""),
-				},
-			},
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(tt, trace.IsAlreadyExists(err), "expected trace.AlreadyExists error, got %v", err)
-			},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.errCheck(t, ConvertIAMv2Error(tt.inErr))
 		})
 	}
 }

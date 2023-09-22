@@ -92,7 +92,7 @@ export function StartTeleportTerminalAnimation() {
   const [animationFinished, setAnimationFinished] = useState(false);
   const [lines, setLines] = useState<TerminalLine[]>([...startLines]);
 
-  const { joinToken } = useJoinTokenSuspender([ResourceKind.Desktop]);
+  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
   const { active, result } = usePingTeleport<WindowsDesktopService>(joinToken);
 
   const [ranConnectingAnimation, setRanConnectingAnimation] = useState(false);

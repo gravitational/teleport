@@ -20,27 +20,26 @@ exports[`confirm state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #FF6257;
+  background: #d50000;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   margin-right: 16px;
 }
 
-.c10:hover,
-.c10:focus {
-  background: #FF8179;
+.c10:active {
+  opacity: 0.56;
 }
 
-.c10:active {
-  background: #FFA19A;
+.c10:hover,
+.c10:focus {
+  background: #ff1744;
 }
 
 .c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c11 {
@@ -62,26 +61,25 @@ exports[`confirm state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c11:hover,
-.c11:focus {
-  background: rgba(255,255,255,0.13);
+.c11:active {
+  opacity: 0.56;
 }
 
-.c11:active {
-  background: rgba(255,255,255,0.18);
+.c11:hover,
+.c11:focus {
+  background: #2C3A73;
 }
 
 .c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c5 {
@@ -92,7 +90,7 @@ exports[`confirm state 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: #FFFFFF;
+  color: rgba(255,255,255,0.87);
 }
 
 .c7 {
@@ -145,8 +143,8 @@ exports[`confirm state 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -254,8 +252,8 @@ exports[`failed state 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #FF6257;
-  color: #000000;
+  background: #f50057;
+  color: #FFFFFF;
 }
 
 .c7 a {
@@ -281,27 +279,26 @@ exports[`failed state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #FF6257;
+  background: #d50000;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   margin-right: 16px;
 }
 
-.c11:hover,
-.c11:focus {
-  background: #FF8179;
+.c11:active {
+  opacity: 0.56;
 }
 
-.c11:active {
-  background: #FFA19A;
+.c11:hover,
+.c11:focus {
+  background: #ff1744;
 }
 
 .c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c12 {
@@ -323,26 +320,25 @@ exports[`failed state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c12:hover,
-.c12:focus {
-  background: rgba(255,255,255,0.13);
+.c12:active {
+  opacity: 0.56;
 }
 
-.c12:active {
-  background: rgba(255,255,255,0.18);
+.c12:hover,
+.c12:focus {
+  background: #2C3A73;
 }
 
 .c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c5 {
@@ -353,7 +349,7 @@ exports[`failed state 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: #FFFFFF;
+  color: rgba(255,255,255,0.87);
 }
 
 .c8 {
@@ -406,8 +402,8 @@ exports[`failed state 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -527,27 +523,26 @@ exports[`processing state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #FF6257;
+  background: #d50000;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   margin-right: 16px;
 }
 
-.c10:hover,
-.c10:focus {
-  background: #FF8179;
+.c10:active {
+  opacity: 0.56;
 }
 
-.c10:active {
-  background: #FFA19A;
+.c10:hover,
+.c10:focus {
+  background: #ff1744;
 }
 
 .c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c11 {
@@ -569,26 +564,25 @@ exports[`processing state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c11:hover,
-.c11:focus {
-  background: rgba(255,255,255,0.13);
+.c11:active {
+  opacity: 0.56;
 }
 
-.c11:active {
-  background: rgba(255,255,255,0.18);
+.c11:hover,
+.c11:focus {
+  background: #2C3A73;
 }
 
 .c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c5 {
@@ -599,7 +593,7 @@ exports[`processing state 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: #FFFFFF;
+  color: rgba(255,255,255,0.87);
 }
 
 .c7 {
@@ -652,8 +646,8 @@ exports[`processing state 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;

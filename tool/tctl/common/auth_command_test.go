@@ -31,20 +31,40 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/fixtures"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestAuthSignKubeconfig(t *testing.T) {
+	const (
+		tlsCACertPEM = `-----BEGIN CERTIFICATE-----
+MIIDKjCCAhKgAwIBAgIQJtJDJZZBkg/afM8d2ZJCTjANBgkqhkiG9w0BAQsFADBA
+MRUwEwYDVQQKEwxUZWxlcG9ydCBPU1MxJzAlBgNVBAMTHnRlbGVwb3J0LmxvY2Fs
+aG9zdC5sb2NhbGRvbWFpbjAeFw0xNzA1MDkxOTQwMzZaFw0yNzA1MDcxOTQwMzZa
+MEAxFTATBgNVBAoTDFRlbGVwb3J0IE9TUzEnMCUGA1UEAxMedGVsZXBvcnQubG9j
+YWxob3N0LmxvY2FsZG9tYWluMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKC
+AQEAuKFLaf2iII/xDR+m2Yj6PnUEa+qzqwxsdLUjnunFZaAXG+hZm4Ml80SCiBgI
+gTHQlJyLIkTtuRoH5aeMyz1ERUCtii4ZsTqDrjjUybxP4r+4HVX6m34s6hwEr8Fi
+fts9pMp4iS3tQguRc28gPdDo/T6VrJTVYUfUUsNDRtIrlB5O9igqqLnuaY9eqGi4
+PUx0G0wRYJpRywoj8G0IkpfQTiX+CAC7dt5ws7ZrnGqCNBLGi5bGsaMmptVbsSEp
+1TenntF54V1iR49IV5JqDhm1S0HmkleoJzKdc+6sP/xNepz9PJzuF9d9NubTLWgB
+sK28YItcmWHdHXD/ODxVaehRjwIDAQABoyAwHjAOBgNVHQ8BAf8EBAMCB4AwDAYD
+VR0TAQH/BAIwADANBgkqhkiG9w0BAQsFAAOCAQEAAVU6sNBdj76saHwOxGSdnEqQ
+o2tMuR3msSM4F6wFK2UkKepsD7CYIf/PzNSNUqA5JIEUVeMqGyiHuAbU4C655nT1
+IyJX1D/+r73sSp5jbIpQm2xoQGZnj6g/Kltw8OSOAw+DsMF/PLVqoWJp07u6ew/m
+NxWsJKcZ5k+q4eMxci9mKRHHqsquWKXzQlURMNFI+mGaFwrKM4dmzaR0BEc+ilSx
+QqUvQ74smsLK+zhNikmgjlGC5ob9g8XkhVAkJMAh2rb9onDNiRl68iAgczP88mXu
+vN/o98dypzsPxXmw6tkDqIRPUAUbh465rlY5sKMmRgXi2rUfl/QV5nbozUo/HQ==
+-----END CERTIFICATE-----`
+	)
 	pingTestServer := httptest.NewTLSServer(&pingSrv{})
 	t.Cleanup(func() { pingTestServer.Close() })
 
@@ -56,7 +76,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 	remoteCluster, err := types.NewRemoteCluster("leaf.example.com")
 	require.NoError(t, err)
 
-	cert := []byte(fixtures.TLSCACertPEM)
+	cert := []byte(tlsCACertPEM)
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: "example.com",
@@ -201,7 +221,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				output:        filepath.Join(t.TempDir(), "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
-				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{Kube: servicecfg.KubeProxyConfig{
+				config: &service.Config{Proxy: service.ProxyConfig{Kube: service.KubeProxyConfig{
 					Enabled:     true,
 					PublicAddrs: []utils.NetAddr{{Addr: "proxy-from-config.example.com:3026"}},
 				}}},
@@ -216,8 +236,8 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				output:        filepath.Join(t.TempDir(), "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
-				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
-					Kube: servicecfg.KubeProxyConfig{
+				config: &service.Config{Proxy: service.ProxyConfig{
+					Kube: service.KubeProxyConfig{
 						Enabled: true,
 					},
 					PublicAddrs: []utils.NetAddr{{Addr: "proxy-from-config.example.com:3080"}},
@@ -233,8 +253,8 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				output:        filepath.Join(t.TempDir(), "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
-				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
-					Kube: servicecfg.KubeProxyConfig{
+				config: &service.Config{Proxy: service.ProxyConfig{
+					Kube: service.KubeProxyConfig{
 						Enabled: false,
 					},
 				}},
@@ -251,8 +271,8 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
 				leafCluster:   remoteCluster.GetMetadata().Name,
-				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
-					Kube: servicecfg.KubeProxyConfig{
+				config: &service.Config{Proxy: service.ProxyConfig{
+					Kube: service.KubeProxyConfig{
 						Enabled: false,
 					},
 				}},
@@ -270,8 +290,8 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
 				leafCluster:   "doesnotexist.example.com",
-				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
-					Kube: servicecfg.KubeProxyConfig{
+				config: &service.Config{Proxy: service.ProxyConfig{
+					Kube: service.KubeProxyConfig{
 						Enabled: false,
 					},
 				}},
@@ -289,15 +309,15 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				output:        filepath.Join(t.TempDir(), "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
-				config: &servicecfg.Config{
-					Auth: servicecfg.AuthConfig{
+				config: &service.Config{
+					Auth: service.AuthConfig{
 						NetworkingConfig: &types.ClusterNetworkingConfigV2{
 							Spec: types.ClusterNetworkingConfigSpecV2{
 								ProxyListenerMode: types.ProxyListenerMode_Multiplex,
 							},
 						},
 					},
-					Proxy: servicecfg.ProxyConfig{Kube: servicecfg.KubeProxyConfig{
+					Proxy: service.ProxyConfig{Kube: service.KubeProxyConfig{
 						Enabled: true,
 					}, PublicAddrs: []utils.NetAddr{{Addr: "proxy-from-config.example.com:3080"}}},
 				},
@@ -312,8 +332,8 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				output:        filepath.Join(t.TempDir(), "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
-				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
-					Kube: servicecfg.KubeProxyConfig{
+				config: &service.Config{Proxy: service.ProxyConfig{
+					Kube: service.KubeProxyConfig{
 						Enabled: false,
 					},
 				}},
@@ -386,7 +406,7 @@ type mockClient struct {
 	cas            []types.CertAuthority
 	proxies        []types.Server
 	remoteClusters []types.RemoteCluster
-	kubeServers    []types.KubeServer
+	kubeServices   []types.KubeServer
 	appServices    []types.AppServer
 	dbServices     []types.DatabaseServer
 	appSession     types.WebSession
@@ -410,7 +430,7 @@ func (c *mockClient) GenerateUserCerts(ctx context.Context, userCertsReq proto.U
 	return c.userCerts, nil
 }
 
-func (c *mockClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
+func (c *mockClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	for _, v := range c.cas {
 		if v.GetType() == id.Type && v.GetClusterName() == id.DomainName {
 			return v, nil
@@ -419,7 +439,7 @@ func (c *mockClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, 
 	return nil, trace.NotFound("not found")
 }
 
-func (c *mockClient) GetCertAuthorities(context.Context, types.CertAuthType, bool) ([]types.CertAuthority, error) {
+func (c *mockClient) GetCertAuthorities(context.Context, types.CertAuthType, bool, ...services.MarshalOption) ([]types.CertAuthority, error) {
 	return c.cas, nil
 }
 
@@ -432,7 +452,7 @@ func (c *mockClient) GetRemoteClusters(opts ...services.MarshalOption) ([]types.
 }
 
 func (c *mockClient) GetKubernetesServers(context.Context) ([]types.KubeServer, error) {
-	return c.kubeServers, nil
+	return c.kubeServices, nil
 }
 
 func (c *mockClient) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
@@ -535,9 +555,9 @@ func TestCheckKubeCluster(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			client.kubeServers = []types.KubeServer{}
+			client.kubeServices = []types.KubeServer{}
 			for _, kube := range tt.registeredClusters {
-				client.kubeServers = append(client.kubeServers, &types.KubernetesServerV3{
+				client.kubeServices = append(client.kubeServices, &types.KubernetesServerV3{
 					Metadata: types.Metadata{
 						Name: kube.GetName(),
 					},

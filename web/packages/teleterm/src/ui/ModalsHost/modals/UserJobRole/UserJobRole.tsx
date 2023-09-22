@@ -28,7 +28,7 @@ import DialogConfirmation, {
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { Cross } from 'design/Icon';
+import { Close } from 'design/Icon';
 import { RadioGroup } from 'design/RadioGroup';
 
 interface UserJobRoleProps {
@@ -97,7 +97,7 @@ export function UserJobRole(props: UserJobRoleProps) {
             onClick={props.onCancel}
             color="text.slightlyMuted"
           >
-            <Cross size="medium" />
+            <Close fontSize={5} />
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={3}>
@@ -108,7 +108,7 @@ export function UserJobRole(props: UserJobRoleProps) {
             value={jobRole}
             onChange={handleRadioGroupChange}
           />
-          <StyledInput
+          <DarkInput
             ref={inputRef}
             value={otherJobRole}
             onClick={() => {
@@ -135,8 +135,19 @@ export function UserJobRole(props: UserJobRoleProps) {
   );
 }
 
-const StyledInput = styled(Input)`
+// TODO(gzdunek): remove after improving inputs styling in Connect
+const DarkInput = styled(Input)`
+  background: inherit;
+  border: 1px ${props => props.theme.colors.action.disabledBackground} solid;
+  box-shadow: none;
+  color: ${props => props.theme.colors.text.main};
   margin-bottom: 10px;
   font-size: 14px;
   height: 34px;
+  transition: border 300ms ease-out;
+
+  ::placeholder {
+    opacity: 1;
+    color: ${props => props.theme.colors.text.slightlyMuted};
+  }
 `;

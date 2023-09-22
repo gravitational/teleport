@@ -30,8 +30,7 @@ import (
 )
 
 type ResourceDetails struct {
-	Hostname     string
-	FriendlyName string
+	Hostname string
 }
 
 type AccessRequest struct {
@@ -50,7 +49,7 @@ func (c *Cluster) GetAccessRequest(ctx context.Context, req types.AccessRequestF
 		err             error
 	)
 
-	err = AddMetadataToRetryableError(ctx, func() error {
+	err = addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -96,7 +95,7 @@ func (c *Cluster) GetAccessRequests(ctx context.Context, req types.AccessRequest
 		requests []types.AccessRequest
 		err      error
 	)
-	err = AddMetadataToRetryableError(ctx, func() error {
+	err = addMetadataToRetryableError(ctx, func() error {
 		requests, err = c.clusterClient.GetAccessRequests(ctx, req)
 		return err
 	})
@@ -145,10 +144,8 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	request.SetRequestReason(req.Reason)
 	request.SetSuggestedReviewers(req.SuggestedReviewers)
 
-	var reqOut types.AccessRequest
-	err = AddMetadataToRetryableError(ctx, func() error {
-		reqOut, err = c.clusterClient.CreateAccessRequestV2(ctx, request)
-		return trace.Wrap(err)
+	err = addMetadataToRetryableError(ctx, func() error {
+		return c.clusterClient.CreateAccessRequest(ctx, request)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -156,7 +153,7 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 
 	return &AccessRequest{
 		URI:           c.URI.AppendAccessRequest(request.GetName()),
-		AccessRequest: reqOut,
+		AccessRequest: request,
 	}, nil
 }
 
@@ -173,7 +170,7 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 		return nil, trace.Wrap(err)
 	}
 
-	err = AddMetadataToRetryableError(ctx, func() error {
+	err = addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -217,7 +214,7 @@ func (c *Cluster) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 		proxyClient *client.ProxyClient
 	)
 
-	err = AddMetadataToRetryableError(ctx, func() error {
+	err = addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -242,7 +239,7 @@ func (c *Cluster) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) error {
 	var err error
 
-	err = AddMetadataToRetryableError(ctx, func() error {
+	err = addMetadataToRetryableError(ctx, func() error {
 		params := client.ReissueParams{
 			AccessRequests:     req.AccessRequestIds,
 			DropAccessRequests: req.DropRequestIds,
@@ -272,7 +269,7 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 }
 
 func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.ClientI) (map[string]ResourceDetails, error) {
-	resourceIDsByCluster := services.GetResourceIDsByCluster(req)
+	resourceIDsByCluster := services.GetNodeResourceIDsByCluster(req)
 
 	resourceDetails := make(map[string]ResourceDetails)
 	for clusterName, resourceIDs := range resourceIDsByCluster {
@@ -282,7 +279,7 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.C
 		}
 		for id, d := range details {
 			resourceDetails[id] = ResourceDetails{
-				FriendlyName: d.FriendlyName,
+				Hostname: d.Hostname,
 			}
 		}
 	}

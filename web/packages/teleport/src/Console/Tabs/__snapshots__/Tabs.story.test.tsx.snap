@@ -1,10 +1,17 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render ConsoleTabs 1`] = `
-.c6 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.c7 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c10 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 16px;
 }
 
 .c9 {
@@ -28,22 +35,22 @@ exports[`render ConsoleTabs 1`] = `
   margin-left: 8px;
 }
 
-.c9:disabled {
-  color: rgba(255,255,255,0.36);
+.c9 .c6 {
+  color: inherit;
 }
 
 .c9:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255,255,255,0.3);
+}
+
+.c9:disabled {
+  color: rgba(255,255,255,0.3);
   cursor: default;
 }
 
 .c9:hover:enabled,
 .c9:focus:enabled {
-  background: rgba(255,255,255,0.13);
-}
-
-.c9:active:enabled {
-  background: rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.1);
 }
 
 .c4 {
@@ -59,6 +66,7 @@ exports[`render ConsoleTabs 1`] = `
   margin: -16px;
   height: 100%;
   width: 100%;
+  background-color: #010B1C;
   display: flex;
 }
 
@@ -69,8 +77,8 @@ exports[`render ConsoleTabs 1`] = `
   max-width: 200px;
   height: 100%;
   border: none;
-  border-right: 1px solid #0C143D;
-  background-color: #0C143D;
+  border-right: 1px solid #010B1C;
+  background-color: #010B1C;
   color: #FFFFFF;
   font-weight: bold;
   transition: none;
@@ -89,7 +97,7 @@ exports[`render ConsoleTabs 1`] = `
   max-width: 200px;
   height: 100%;
   border: none;
-  border-right: 1px solid #0C143D;
+  border-right: 1px solid #010B1C;
 }
 
 .c8:hover,
@@ -106,6 +114,7 @@ exports[`render ConsoleTabs 1`] = `
   text-decoration: none;
   outline: none;
   margin: 0;
+  text-decoration: none;
   color: inherit;
   line-height: 32px;
   background-color: transparent;
@@ -117,9 +126,6 @@ exports[`render ConsoleTabs 1`] = `
 }
 
 .c5 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   background: transparent;
   border-radius: 2px;
   border: none;
@@ -130,17 +136,10 @@ exports[`render ConsoleTabs 1`] = `
   padding: 0;
   margin: 0 8px 0 0;
   transition: all 0.3s;
-  color: #FFFFFF;
 }
 
 .c5:hover {
-  color: #000000;
-  background: #FF6257;
-}
-
-.c7 {
-  transition: none;
-  color: inherit;
+  background: #f50057;
 }
 
 .c1 {
@@ -148,7 +147,7 @@ exports[`render ConsoleTabs 1`] = `
   height: 32px;
   width: 100%;
   color: rgba(255,255,255,0.72);
-  background: #222C59;
+  background: #01172C;
   min-height: 32px;
   border-radius: 4px;
   display: flex;
@@ -192,19 +191,9 @@ exports[`render ConsoleTabs 1`] = `
         title="Close"
       >
         <span
-          class="c6 c7"
-        >
-          <svg
-            fill="currentColor"
-            height="16"
-            viewBox="0 0 24 24"
-            width="16"
-          >
-            <path
-              d="M19.2803 5.78033C19.5732 5.48744 19.5732 5.01256 19.2803 4.71967C18.9874 4.42678 18.5126 4.42678 18.2197 4.71967L12 10.9393L5.78033 4.71967C5.48744 4.42678 5.01256 4.42678 4.71967 4.71967C4.42678 5.01256 4.42678 5.48744 4.71967 5.78033L10.9393 12L4.71967 18.2197C4.42678 18.5126 4.42678 18.9874 4.71967 19.2803C5.01256 19.5732 5.48744 19.5732 5.78033 19.2803L12 13.0607L18.2197 19.2803C18.5126 19.5732 18.9874 19.5732 19.2803 19.2803C19.5732 18.9874 19.5732 18.5126 19.2803 18.2197L13.0607 12L19.2803 5.78033Z"
-            />
-          </svg>
-        </span>
+          class="c6 c7 icon icon-close "
+          color="light"
+        />
       </button>
     </div>
     <div
@@ -226,19 +215,9 @@ exports[`render ConsoleTabs 1`] = `
         title="Close"
       >
         <span
-          class="c6 c7"
-        >
-          <svg
-            fill="currentColor"
-            height="16"
-            viewBox="0 0 24 24"
-            width="16"
-          >
-            <path
-              d="M19.2803 5.78033C19.5732 5.48744 19.5732 5.01256 19.2803 4.71967C18.9874 4.42678 18.5126 4.42678 18.2197 4.71967L12 10.9393L5.78033 4.71967C5.48744 4.42678 5.01256 4.42678 4.71967 4.71967C4.42678 5.01256 4.42678 5.48744 4.71967 5.78033L10.9393 12L4.71967 18.2197C4.42678 18.5126 4.42678 18.9874 4.71967 19.2803C5.01256 19.5732 5.48744 19.5732 5.78033 19.2803L12 13.0607L18.2197 19.2803C18.5126 19.5732 18.9874 19.5732 19.2803 19.2803C19.5732 18.9874 19.5732 18.5126 19.2803 18.2197L13.0607 12L19.2803 5.78033Z"
-            />
-          </svg>
-        </span>
+          class="c6 c7 icon icon-close "
+          color="light"
+        />
       </button>
     </div>
     <div
@@ -260,19 +239,9 @@ exports[`render ConsoleTabs 1`] = `
         title="Close"
       >
         <span
-          class="c6 c7"
-        >
-          <svg
-            fill="currentColor"
-            height="16"
-            viewBox="0 0 24 24"
-            width="16"
-          >
-            <path
-              d="M19.2803 5.78033C19.5732 5.48744 19.5732 5.01256 19.2803 4.71967C18.9874 4.42678 18.5126 4.42678 18.2197 4.71967L12 10.9393L5.78033 4.71967C5.48744 4.42678 5.01256 4.42678 4.71967 4.71967C4.42678 5.01256 4.42678 5.48744 4.71967 5.78033L10.9393 12L4.71967 18.2197C4.42678 18.5126 4.42678 18.9874 4.71967 19.2803C5.01256 19.5732 5.48744 19.5732 5.78033 19.2803L12 13.0607L18.2197 19.2803C18.5126 19.5732 18.9874 19.5732 19.2803 19.2803C19.5732 18.9874 19.5732 18.5126 19.2803 18.2197L13.0607 12L19.2803 5.78033Z"
-            />
-          </svg>
-        </span>
+          class="c6 c7 icon icon-close "
+          color="light"
+        />
       </button>
     </div>
     <button
@@ -280,19 +249,10 @@ exports[`render ConsoleTabs 1`] = `
       title="New Tab"
     >
       <span
-        class="c6 icon icon-add"
-      >
-        <svg
-          fill="currentColor"
-          height="16"
-          viewBox="0 0 24 24"
-          width="16"
-        >
-          <path
-            d="M12.75 3.75C12.75 3.33579 12.4142 3 12 3C11.5858 3 11.25 3.33579 11.25 3.75V11.25H3.75C3.33579 11.25 3 11.5858 3 12C3 12.4142 3.33579 12.75 3.75 12.75H11.25V20.25C11.25 20.6642 11.5858 21 12 21C12.4142 21 12.75 20.6642 12.75 20.25V12.75H20.25C20.6642 12.75 21 12.4142 21 12C21 11.5858 20.6642 11.25 20.25 11.25H12.75V3.75Z"
-          />
-        </svg>
-      </span>
+        class="c6 c10 icon icon-add "
+        color="light"
+        font-size="16px"
+      />
     </button>
   </nav>
 </div>

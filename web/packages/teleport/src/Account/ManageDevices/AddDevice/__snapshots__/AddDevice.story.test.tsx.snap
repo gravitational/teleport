@@ -40,8 +40,8 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -49,19 +49,22 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   width: 45%;
 }
 
+.c19:active {
+  opacity: 0.56;
+}
+
 .c19:hover,
 .c19:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c19:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c20 {
@@ -83,27 +86,85 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
   width: 30%;
 }
 
-.c20:hover,
-.c20:focus {
-  background: rgba(255,255,255,0.13);
+.c20:active {
+  opacity: 0.56;
 }
 
-.c20:active {
-  background: rgba(255,255,255,0.18);
+.c20:hover,
+.c20:focus {
+  background: #2C3A73;
 }
 
 .c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
+}
+
+.c17 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #000000;
+  background-color: #FFFFFF;
+  margin-top: 4px;
+}
+
+.c17::-ms-clear {
+  display: none;
+}
+
+.c17::placeholder {
+  opacity: 0.4;
+}
+
+.c17:read-only {
+  cursor: not-allowed;
+}
+
+.c17:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
+.c12 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c16 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c8 {
+  display: block;
+  outline: none;
+  height: 168px;
 }
 
 .c5 {
@@ -114,7 +175,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: #FFFFFF;
+  color: rgba(255,255,255,0.87);
 }
 
 .c9 {
@@ -124,66 +185,17 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   margin-top: 16px;
 }
 
-.c17 {
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
+.c7 {
   box-sizing: border-box;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 0 16px;
-  outline: none;
-  width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
-  margin-top: 4px;
-}
-
-.c17:hover,
-.c17:focus,
-.c17:active {
-  border: 1px solid rgba(255,255,255,0.72);
-}
-
-.c17::-ms-clear {
-  display: none;
-}
-
-.c17::placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c17:read-only {
-  cursor: not-allowed;
-}
-
-.c17:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
-}
-
-.c12 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
-.c16 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
-}
-
-.c8 {
-  display: block;
-  outline: none;
-  height: 168px;
+  margin-bottom: 24px;
+  padding: 16px;
+  height: 256px;
+  background-color: #222C59;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
 }
 
 .c10 {
@@ -228,8 +240,8 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -261,137 +273,57 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
 }
 
 .c13 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
+  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c13 .react-select__control {
-  outline: none;
+.c13 .react-select__control,
+.c13 .react-select__control--is-focused {
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
   background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
   box-shadow: none;
 }
 
-.c13 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
-}
-
 .c13 .react-select__control:hover,
-.c13 .react-select__control:focus,
-.c13 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
+.c13 .react-select__control--is-focused:hover {
+  border-color: transparent;
   cursor: pointer;
-}
-
-.c13 .react-select__control:hover .react-select__dropdown-indicator,
-.c13 .react-select__control:focus .react-select__dropdown-indicator,
-.c13 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c13 .react-select__control .react-select__indicator:hover,
-.c13 .react-select__control .react-select__dropdown-indicator:hover,
-.c13 .react-select__control .react-select__indicator:focus,
-.c13 .react-select__control .react-select__dropdown-indicator:focus,
-.c13 .react-select__control .react-select__indicator:active,
-.c13 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c13 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c13 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c13 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c13 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
-}
-
-.c13 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c13 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c13 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c13 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
 }
 
 .c13 .react-select__option:hover {
   cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c13 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c13 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c13 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
+  background-color: #cfd8dc;
   color: inherit;
-  font-weight: 500;
 }
 
 .c13 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c13 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
-}
-
-.c13 .react-select__clear-indicator:hover,
-.c13 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c13 .react-select__clear-indicator:hover svg,
-.c13 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
+  background-color: #cfd8dc;
 }
 
 .c13 .react-select__menu {
   margin-top: 0px;
-  background-color: #4A5688;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c13 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
 }
 
 .c13 .react-select__indicator-separator {
@@ -402,39 +334,13 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   display: none;
 }
 
-.c13 .react-select--is-disabled,
-.c13 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
-}
-
 .c13 .react-select--is-disabled .react-select__single-value,
-.c13 .react-select__control--is-disabled .react-select__single-value,
-.c13 .react-select--is-disabled .react-select__placeholder,
-.c13 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+.c13 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
 }
 
-.c13 .react-select--is-disabled .react-select__indicator,
-.c13 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
-}
-
-.c13 .react-select__input {
-  color: #FFFFFF;
-}
-
-.c7 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  padding: 16px;
-  height: 256px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  background: rgba(255,255,255,0.07);
+.c13 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
 }
 
 <div
@@ -496,7 +402,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
                 font-size="0"
                 for="select"
               >
-                Two-factor Type
+                Two-factor type
               </label>
               <div
                 class="c13"
@@ -626,10 +532,11 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
               class="c16"
               font-size="0"
             >
-              Device Name
+              Device name
               <input
                 autocomplete="off"
                 class="c17"
+                color="text.primaryInverse"
                 inputmode="text"
                 placeholder="Name"
                 type="text"
@@ -678,8 +585,8 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   word-break: break-word;
   line-height: 1.5;
   margin-top: 8px;
-  background: #FF6257;
-  color: #000000;
+  background: #f50057;
+  color: #FFFFFF;
   width: 100%;
 }
 
@@ -726,8 +633,8 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -735,19 +642,22 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   width: 45%;
 }
 
+.c20:active {
+  opacity: 0.56;
+}
+
 .c20:hover,
 .c20:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c20:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c21 {
@@ -769,27 +679,85 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
   width: 30%;
 }
 
-.c21:hover,
-.c21:focus {
-  background: rgba(255,255,255,0.13);
+.c21:active {
+  opacity: 0.56;
 }
 
-.c21:active {
-  background: rgba(255,255,255,0.18);
+.c21:hover,
+.c21:focus {
+  background: #2C3A73;
 }
 
 .c21:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
+}
+
+.c18 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #000000;
+  background-color: #FFFFFF;
+  margin-top: 4px;
+}
+
+.c18::-ms-clear {
+  display: none;
+}
+
+.c18::placeholder {
+  opacity: 0.4;
+}
+
+.c18:read-only {
+  cursor: not-allowed;
+}
+
+.c18:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
+.c13 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c17 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c9 {
+  display: block;
+  outline: none;
+  height: 168px;
 }
 
 .c5 {
@@ -800,7 +768,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: #FFFFFF;
+  color: rgba(255,255,255,0.87);
 }
 
 .c10 {
@@ -810,66 +778,17 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   margin-top: 16px;
 }
 
-.c18 {
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
+.c8 {
   box-sizing: border-box;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 0 16px;
-  outline: none;
-  width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
-  margin-top: 4px;
-}
-
-.c18:hover,
-.c18:focus,
-.c18:active {
-  border: 1px solid rgba(255,255,255,0.72);
-}
-
-.c18::-ms-clear {
-  display: none;
-}
-
-.c18::placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c18:read-only {
-  cursor: not-allowed;
-}
-
-.c18:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
-}
-
-.c13 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
-.c17 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
-}
-
-.c9 {
-  display: block;
-  outline: none;
-  height: 168px;
+  margin-bottom: 24px;
+  padding: 16px;
+  height: 256px;
+  background-color: #222C59;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
 }
 
 .c11 {
@@ -914,8 +833,8 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -947,137 +866,57 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 }
 
 .c14 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
+  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c14 .react-select__control {
-  outline: none;
+.c14 .react-select__control,
+.c14 .react-select__control--is-focused {
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
   background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
   box-shadow: none;
 }
 
-.c14 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
-}
-
 .c14 .react-select__control:hover,
-.c14 .react-select__control:focus,
-.c14 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
+.c14 .react-select__control--is-focused:hover {
+  border-color: transparent;
   cursor: pointer;
-}
-
-.c14 .react-select__control:hover .react-select__dropdown-indicator,
-.c14 .react-select__control:focus .react-select__dropdown-indicator,
-.c14 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c14 .react-select__control .react-select__indicator:hover,
-.c14 .react-select__control .react-select__dropdown-indicator:hover,
-.c14 .react-select__control .react-select__indicator:focus,
-.c14 .react-select__control .react-select__dropdown-indicator:focus,
-.c14 .react-select__control .react-select__indicator:active,
-.c14 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c14 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c14 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c14 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c14 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
-}
-
-.c14 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c14 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c14 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c14 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
 }
 
 .c14 .react-select__option:hover {
   cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c14 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c14 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c14 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
+  background-color: #cfd8dc;
   color: inherit;
-  font-weight: 500;
 }
 
 .c14 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c14 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
-}
-
-.c14 .react-select__clear-indicator:hover,
-.c14 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c14 .react-select__clear-indicator:hover svg,
-.c14 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
+  background-color: #cfd8dc;
 }
 
 .c14 .react-select__menu {
   margin-top: 0px;
-  background-color: #4A5688;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c14 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
 }
 
 .c14 .react-select__indicator-separator {
@@ -1088,39 +927,13 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   display: none;
 }
 
-.c14 .react-select--is-disabled,
-.c14 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
-}
-
 .c14 .react-select--is-disabled .react-select__single-value,
-.c14 .react-select__control--is-disabled .react-select__single-value,
-.c14 .react-select--is-disabled .react-select__placeholder,
-.c14 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+.c14 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
 }
 
-.c14 .react-select--is-disabled .react-select__indicator,
-.c14 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
-}
-
-.c14 .react-select__input {
-  color: #FFFFFF;
-}
-
-.c8 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  padding: 16px;
-  height: 256px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  background: rgba(255,255,255,0.07);
+.c14 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
 }
 
 <div
@@ -1189,7 +1002,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
                 font-size="0"
                 for="select"
               >
-                Two-factor Type
+                Two-factor type
               </label>
               <div
                 class="c14"
@@ -1319,10 +1132,11 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
               class="c17"
               font-size="0"
             >
-              Device Name
+              Device name
               <input
                 autocomplete="off"
                 class="c18"
+                color="text.primaryInverse"
                 inputmode="text"
                 placeholder="Name"
                 type="text"
@@ -1371,8 +1185,8 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   word-break: break-word;
   line-height: 1.5;
   margin-top: 8px;
-  background: #FF6257;
-  color: #000000;
+  background: #f50057;
+  color: #FFFFFF;
   width: 100%;
 }
 
@@ -1419,8 +1233,8 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -1428,19 +1242,22 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   width: 45%;
 }
 
+.c22:active {
+  opacity: 0.56;
+}
+
 .c22:hover,
 .c22:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c22:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c22:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c23 {
@@ -1462,27 +1279,87 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
   width: 30%;
 }
 
-.c23:hover,
-.c23:focus {
-  background: rgba(255,255,255,0.13);
+.c23:active {
+  opacity: 0.56;
 }
 
-.c23:active {
-  background: rgba(255,255,255,0.18);
+.c23:hover,
+.c23:focus {
+  background: #2C3A73;
 }
 
 .c23:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
+}
+
+.c19 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #000000;
+  background-color: #FFFFFF;
+  margin-top: 4px;
+}
+
+.c19::-ms-clear {
+  display: none;
+}
+
+.c19::placeholder {
+  opacity: 0.4;
+}
+
+.c19:read-only {
+  cursor: not-allowed;
+}
+
+.c19:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
+.c15 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c18 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c12 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
 }
 
 .c5 {
@@ -1493,7 +1370,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: #FFFFFF;
+  color: rgba(255,255,255,0.87);
 }
 
 .c10 {
@@ -1512,68 +1389,17 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   color: rgba(255,255,255,0.72);
 }
 
-.c19 {
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
+.c8 {
   box-sizing: border-box;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 0 16px;
-  outline: none;
-  width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
-  margin-top: 4px;
-}
-
-.c19:hover,
-.c19:focus,
-.c19:active {
-  border: 1px solid rgba(255,255,255,0.72);
-}
-
-.c19::-ms-clear {
-  display: none;
-}
-
-.c19::placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c19:read-only {
-  cursor: not-allowed;
-}
-
-.c19:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
-}
-
-.c15 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
-.c18 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
-}
-
-.c12 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
+  margin-bottom: 24px;
+  padding: 16px;
+  height: 256px;
+  background-color: #222C59;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
 }
 
 .c9 {
@@ -1626,8 +1452,8 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -1659,137 +1485,57 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 }
 
 .c16 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
+  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c16 .react-select__control {
-  outline: none;
+.c16 .react-select__control,
+.c16 .react-select__control--is-focused {
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
   background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
   box-shadow: none;
 }
 
-.c16 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
-}
-
 .c16 .react-select__control:hover,
-.c16 .react-select__control:focus,
-.c16 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
+.c16 .react-select__control--is-focused:hover {
+  border-color: transparent;
   cursor: pointer;
-}
-
-.c16 .react-select__control:hover .react-select__dropdown-indicator,
-.c16 .react-select__control:focus .react-select__dropdown-indicator,
-.c16 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c16 .react-select__control .react-select__indicator:hover,
-.c16 .react-select__control .react-select__dropdown-indicator:hover,
-.c16 .react-select__control .react-select__indicator:focus,
-.c16 .react-select__control .react-select__dropdown-indicator:focus,
-.c16 .react-select__control .react-select__indicator:active,
-.c16 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c16 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c16 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c16 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c16 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
-}
-
-.c16 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c16 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c16 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c16 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
 }
 
 .c16 .react-select__option:hover {
   cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c16 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c16 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c16 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
+  background-color: #cfd8dc;
   color: inherit;
-  font-weight: 500;
 }
 
 .c16 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c16 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
-}
-
-.c16 .react-select__clear-indicator:hover,
-.c16 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c16 .react-select__clear-indicator:hover svg,
-.c16 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
+  background-color: #cfd8dc;
 }
 
 .c16 .react-select__menu {
   margin-top: 0px;
-  background-color: #4A5688;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c16 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
 }
 
 .c16 .react-select__indicator-separator {
@@ -1800,39 +1546,13 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   display: none;
 }
 
-.c16 .react-select--is-disabled,
-.c16 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
-}
-
 .c16 .react-select--is-disabled .react-select__single-value,
-.c16 .react-select__control--is-disabled .react-select__single-value,
-.c16 .react-select--is-disabled .react-select__placeholder,
-.c16 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+.c16 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
 }
 
-.c16 .react-select--is-disabled .react-select__indicator,
-.c16 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
-}
-
-.c16 .react-select__input {
-  color: #FFFFFF;
-}
-
-.c8 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  padding: 16px;
-  height: 256px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  background: rgba(255,255,255,0.07);
+.c16 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
 }
 
 <div
@@ -1918,7 +1638,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
                 font-size="0"
                 for="select"
               >
-                Two-factor Type
+                Two-factor type
               </label>
               <div
                 class="c16"
@@ -1982,10 +1702,11 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
                 class="c18"
                 font-size="0"
               >
-                Authenticator Code
+                Authenticator code
                 <input
                   autocomplete="one-time-code"
                   class="c19"
+                  color="text.primaryInverse"
                   inputmode="numeric"
                   placeholder="123 456"
                   type="text"
@@ -2002,10 +1723,11 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
               class="c18"
               font-size="0"
             >
-              Device Name
+              Device name
               <input
                 autocomplete="off"
                 class="c19"
+                color="text.primaryInverse"
                 inputmode="text"
                 placeholder="Name"
                 type="text"

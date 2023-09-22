@@ -130,11 +130,6 @@ func GetSingleHeader(headers http.Header, key string) (string, error) {
 	}
 }
 
-// HTTPDoClient is an interface that defines the Do function of http.Client.
-type HTTPDoClient interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
 // HTTPMiddleware defines a HTTP middleware.
 type HTTPMiddleware func(next http.Handler) http.Handler
 

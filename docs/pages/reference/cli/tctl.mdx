@@ -144,8 +144,6 @@ $ tctl users add [<flags>] <account>
 | `--gcp-service-accounts` | none | Comma-separated strings | List of allowed GCP service accounts for the new user |
 | `--azure-identities` | none | Comma-separated strings | List of Azure managed identities to allow the user to assume. Must be the full URIs of the identities |
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token |
-| `--host-user-uid` | none | Unix UID | UID for auto provisioned host users to use |
-| `--host-user-gid` | none | Unix GID | GID for auto provisioned host users to use |
 
 ### Global flags
 
@@ -157,9 +155,9 @@ These flags are available for all commands `--debug, --config`. Run
 ```code
 # Adds teleport user "joe" with mappings to
 # OS users and {{ internal.logins }} to "joe" and "ubuntu"
-$ tctl users add joe --roles=access,requester joe,ubuntu
+$ tctl users add joe --roles=access joe,ubuntu
 # Adds Teleport user "joe" with mappings to the editor role
-$ tctl users add joe --roles=editor,reviewer
+$ tctl users add joe --roles=editor
 ```
 
 ## tctl users update
@@ -684,7 +682,7 @@ The flag `--teams-to-roles` can be provided multiple times to specify which GitH
 In this example, members of the `devs` team in the GitHub org `octocats` will be assigned the `access`, and `editor` roles in Teleport.
 
 ```code
-$ tctl sso configure github --id=GITHUB_CLIENT_ID --secret=GITHUB_SECRET --teams-to-roles=octocats,devs,access,editor [<other-flags>]
+$ tctl sso test --id=GITHUB_CLIENT_ID --secret=GITHUB_SECRET --teams-to-roles=octocats,devs,access,editor [<other-flags>]
 ```
 
 ### Arguments
@@ -1364,46 +1362,6 @@ Device "ac3590ec-87d4-4519-8e9e-2f35af0a9f85" removed
 
 $ tctl devices rm --asset-tag=(=devicetrust.asset_tag=)
 Device "(=devicetrust.asset_tag=)" removed
-```
-
-### tctl acl ls
-
-Lists Access Lists on the cluster.
-
-```code
-$ tctl acl ls
-```
-
-### tctl acl get
-
-Gets and displays information about a particular access list.
-
-```code
-$ tctl acl get <id>
-```
-
-### tctl acl users add
-
-Adds a user to an access list.
-
-```code
-$ tctl acl users add <access-list-name> <user> [<expires>] [<reason>]
-```
-
-### tctl acl users rm
-
-Removes a user from an access list.
-
-```code
-$ tctl acl users rm <access-list-name> <user>
-```
-
-### tctl acl users ls
-
-Lists the users in an access list.
-
-```code
-$ tctl acl users ls <access-list-name>
 ```
 
 ## tctl top

@@ -56,20 +56,19 @@ resource "aws_security_group_rule" "proxy_ingress_allow_proxy" {
   protocol          = "tcp"
   cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
-  count             = var.use_tls_routing ? 0 : 1
 }
 
-// Ingress traffic to tunnel port 3024 is allowed from all directions
+// Ingress traffic to tunnel port 3024 is allowed from all directions (ACM)
 // tfsec:ignore:aws-ec2-no-public-ingress-sgr
 resource "aws_security_group_rule" "proxy_ingress_allow_tunnel" {
-  description       = "Ingress traffic to tunnel port 3024 is allowed from all directions"
+  description       = "Ingress traffic to tunnel port 3024 is allowed from all directions (ACM)"
   type              = "ingress"
   from_port         = 3024
   to_port           = 3024
   protocol          = "tcp"
   cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
-  count             = var.use_tls_routing ? 0 : 1
+  count             = var.use_acm ? 1 : 0
 }
 
 // Ingress traffic to web port 3026 is allowed from all directions
@@ -82,7 +81,6 @@ resource "aws_security_group_rule" "proxy_ingress_allow_kube" {
   protocol          = "tcp"
   cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
-  count             = var.use_tls_routing ? 0 : 1
 }
 
 // Permit inbound to Teleport mysql services
@@ -95,7 +93,7 @@ resource "aws_security_group_rule" "proxy_ingress_allow_mysql" {
   protocol          = "tcp"
   cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
-  count             = var.enable_mysql_listener && !var.use_tls_routing ? 1 : 0
+  count             = var.enable_mysql_listener ? 1 : 0
 }
 
 // Permit inbound to Teleport postgres services
@@ -108,7 +106,7 @@ resource "aws_security_group_rule" "proxy_ingress_allow_postgres" {
   protocol          = "tcp"
   cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
-  count             = var.enable_postgres_listener && !var.use_tls_routing ? 1 : 0
+  count             = var.enable_postgres_listener ? 1 : 0
 }
 
 // Permit inbound to Teleport mongodb services
@@ -121,7 +119,7 @@ resource "aws_security_group_rule" "cluster_ingress_mongodb" {
   protocol          = "tcp"
   cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
-  count             = var.enable_mongodb_listener && !var.use_tls_routing ? 1 : 0
+  count             = var.enable_mongodb_listener ? 1 : 0
 }
 
 // Ingress traffic to web port 3080 is allowed from all directions
@@ -184,14 +182,13 @@ resource "aws_lb" "proxy" {
   load_balancer_type               = "network"
   idle_timeout                     = 3600
   enable_cross_zone_load_balancing = true
-  count                            = var.use_acm && var.use_tls_routing ? 0 : 1
 
   tags = {
     TeleportCluster = var.cluster_name
   }
 }
 
-// Application load balancer for proxy server TLS listener (using ACM)
+// Application load balancer for proxy server web interface (using ACM)
 resource "aws_lb" "proxy_acm" {
   name               = "${var.cluster_name}-proxy-acm"
   internal           = false
@@ -211,41 +208,37 @@ resource "aws_lb_target_group" "proxy_proxy" {
   port     = 3023
   vpc_id   = aws_vpc.teleport.id
   protocol = "TCP"
-  count    = var.use_tls_routing ? 0 : 1
 }
 
 resource "aws_lb_listener" "proxy_proxy" {
-  load_balancer_arn = aws_lb.proxy[0].arn
+  load_balancer_arn = aws_lb.proxy.arn
   port              = "3023"
   protocol          = "TCP"
-  count             = var.use_tls_routing ? 0 : 1
 
   default_action {
-    target_group_arn = aws_lb_target_group.proxy_proxy[0].arn
+    target_group_arn = aws_lb_target_group.proxy_proxy.arn
     type             = "forward"
   }
 }
 
 // Tunnel endpoint/listener on LB - this is only used with ACM (as
 // Teleport web/tunnel multiplexing can be used with Letsencrypt)
-resource "aws_lb_target_group" "proxy_tunnel" {
+resource "aws_lb_target_group" "proxy_tunnel_acm" {
   name     = "${var.cluster_name}-proxy-tunnel"
   port     = 3024
   vpc_id   = aws_vpc.teleport.id
   protocol = "TCP"
-  // only create this if TLS routing is disabled
-  count = var.use_tls_routing ? 0 : 1
+  count    = var.use_acm ? 1 : 0
 }
 
-resource "aws_lb_listener" "proxy_tunnel" {
-  load_balancer_arn = aws_lb.proxy[0].arn
+resource "aws_lb_listener" "proxy_tunnel_acm" {
+  load_balancer_arn = aws_lb.proxy.arn
   port              = "3024"
   protocol          = "TCP"
-  // only create this if TLS routing is disabled
-  count = var.use_tls_routing ? 0 : 1
+  count             = var.use_acm ? 1 : 0
 
   default_action {
-    target_group_arn = aws_lb_target_group.proxy_tunnel[0].arn
+    target_group_arn = aws_lb_target_group.proxy_tunnel_acm[0].arn
     type             = "forward"
   }
 }
@@ -256,17 +249,15 @@ resource "aws_lb_target_group" "proxy_kube" {
   port     = 3026
   vpc_id   = aws_vpc.teleport.id
   protocol = "TCP"
-  count    = var.use_tls_routing ? 0 : 1
 }
 
 resource "aws_lb_listener" "proxy_kube" {
-  load_balancer_arn = aws_lb.proxy[0].arn
+  load_balancer_arn = aws_lb.proxy.arn
   port              = "3026"
   protocol          = "TCP"
-  count             = var.use_tls_routing ? 0 : 1
 
   default_action {
-    target_group_arn = aws_lb_target_group.proxy_kube[0].arn
+    target_group_arn = aws_lb_target_group.proxy_kube.arn
     type             = "forward"
   }
 }
@@ -280,11 +271,9 @@ resource "aws_lb_target_group" "proxy_mysql" {
 }
 
 resource "aws_lb_listener" "proxy_mysql" {
-  load_balancer_arn = aws_lb.proxy[0].arn
+  load_balancer_arn = aws_lb.proxy.arn
   port              = "3036"
   protocol          = "TCP"
-  // only create this if the mysql listener is enabled and TLS routing is disabled
-  count = var.enable_mysql_listener ? !var.use_tls_routing ? 1 : 0 : 0
 
   default_action {
     target_group_arn = aws_lb_target_group.proxy_mysql.arn
@@ -301,11 +290,9 @@ resource "aws_lb_target_group" "proxy_postgres" {
 }
 
 resource "aws_lb_listener" "proxy_postgres" {
-  load_balancer_arn = aws_lb.proxy[0].arn
+  load_balancer_arn = aws_lb.proxy.arn
   port              = "5432"
   protocol          = "TCP"
-  // only create this if the postgres listener is enabled and TLS routing is disabled
-  count = var.enable_postgres_listener ? !var.use_tls_routing ? 1 : 0 : 0
 
   default_action {
     target_group_arn = aws_lb_target_group.proxy_postgres.arn
@@ -322,11 +309,9 @@ resource "aws_lb_target_group" "proxy_mongodb" {
 }
 
 resource "aws_lb_listener" "proxy_mongodb" {
-  load_balancer_arn = aws_lb.proxy[0].arn
+  load_balancer_arn = aws_lb.proxy.arn
   port              = "27017"
   protocol          = "TCP"
-  // only create this if the mongo listener is enabled and TLS routing is disabled
-  count = var.enable_mongodb_listener ? !var.use_tls_routing ? 1 : 0 : 0
 
   default_action {
     target_group_arn = aws_lb_target_group.proxy_mongodb.arn
@@ -348,7 +333,7 @@ resource "aws_lb_target_group" "proxy_web" {
 
 // Proxy web listener (using letsencrypt)
 resource "aws_lb_listener" "proxy_web" {
-  load_balancer_arn = aws_lb.proxy[0].arn
+  load_balancer_arn = aws_lb.proxy.arn
   port              = "443"
   protocol          = "TCP"
   count             = var.use_acm ? 0 : 1
@@ -399,7 +384,7 @@ resource "aws_lb_target_group" "proxy_grafana" {
 }
 
 resource "aws_lb_listener" "proxy_grafana" {
-  load_balancer_arn = aws_lb.proxy[0].arn
+  load_balancer_arn = aws_lb.proxy.arn
   port              = "8443"
   protocol          = "TCP"
   count             = var.use_acm ? 0 : 1

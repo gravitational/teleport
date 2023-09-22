@@ -97,24 +97,6 @@ func TestConnectorSelection(t *testing.T) {
 				require.Contains(t, err.Error(), "unable to open tcp connection with host")
 			},
 		},
-		{
-			desc: "RDS Proxied database",
-			databaseSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "proxy-sqlserver.proxy-000000000000.us-east-1.rds.amazonaws.com:1433",
-				AWS: types.AWS{
-					RDSProxy: types.RDSProxy{
-						Name: "proxy-sqlserver",
-					},
-				},
-			},
-			// RDS proxies cannot be accessed outside their VPC. So, this test
-			// case should not resolve their host.
-			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "no such host")
-			},
-		},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
 			database, err := types.NewDatabaseV3(types.Metadata{
@@ -209,7 +191,7 @@ func (m *mockAuth) GenerateWindowsDesktopCert(ctx context.Context, request *prot
 	return nil, nil
 }
 
-func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	return nil, nil
 }
 
@@ -221,7 +203,7 @@ func (m *mockAuth) GetClusterName(opts ...services.MarshalOption) (types.Cluster
 }
 
 func (m *mockAuth) GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	return &proto.DatabaseCertResponse{Cert: []byte(mockCA), CACerts: [][]byte{[]byte(mockCA)}}, nil
+	return &proto.DatabaseCertResponse{Cert: []byte(mockCA)}, nil
 }
 
 func TestConnectorKInitClient(t *testing.T) {
@@ -234,6 +216,9 @@ func TestConnectorKInitClient(t *testing.T) {
 		DBAuth:                &mockDBAuth{},
 		AuthClient:            &mockAuth{},
 		kinitCommandGenerator: &staticCache{t: t, pass: true},
+		caFunc: func(ctx context.Context, clusterName string) ([]byte, error) {
+			return []byte(mockCA), nil
+		},
 	}
 
 	krbConfPath := filepath.Join(dir, "krb5.conf")

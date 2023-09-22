@@ -19,8 +19,10 @@ import (
 )
 
 func main() {
+
 	// aggregate common and oss-specific command variants
 	commands := common.Commands()
 	commands = append(commands, common.OSSCommands()...)
+
 	common.Run(commands)
 }

@@ -33,20 +33,20 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 type AppTestOptions struct {
-	ExtraRootApps        []servicecfg.App
-	ExtraLeafApps        []servicecfg.App
+	ExtraRootApps        []service.App
+	ExtraLeafApps        []service.App
 	RootClusterListeners helpers.InstanceListenerSetupFunc
 	LeafClusterListeners helpers.InstanceListenerSetupFunc
 	Clock                clockwork.FakeClock
 	MonitorCloseChannel  chan struct{}
 
-	RootConfig func(config *servicecfg.Config)
-	LeafConfig func(config *servicecfg.Config)
+	RootConfig func(config *service.Config)
+	LeafConfig func(config *service.Config)
 }
 
 // Setup configures all clusters and servers needed for a test.
@@ -287,7 +287,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	}
 	p.leafCluster = helpers.NewInstance(t, leafCfg)
 
-	rcConf := servicecfg.MakeDefaultConfig()
+	rcConf := service.MakeDefaultConfig()
 	rcConf.Console = nil
 	rcConf.Log = log
 	rcConf.DataDir = t.TempDir()
@@ -305,7 +305,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	}
 	rcConf.Clock = opts.Clock
 
-	lcConf := servicecfg.MakeDefaultConfig()
+	lcConf := service.MakeDefaultConfig()
 	lcConf.Console = nil
 	lcConf.Log = log
 	lcConf.DataDir = t.TempDir()
@@ -360,6 +360,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 
 var forwardedHeaderNames = []string{
 	teleport.AppJWTHeader,
+	teleport.AppCFHeader,
 	"X-Forwarded-Proto",
 	"X-Forwarded-Host",
 	"X-Forwarded-Server",

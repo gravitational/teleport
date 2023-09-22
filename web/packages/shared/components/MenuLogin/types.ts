@@ -23,9 +23,7 @@ export type MenuLoginProps = {
   getLoginItems: () => LoginItem[] | Promise<LoginItem[]>;
   onSelect: (e: React.SyntheticEvent, login: string) => void;
   anchorOrigin?: any;
-  alignButtonWidthToMenu?: boolean;
   transformOrigin?: any;
-  textTransform?: string;
   placeholder?: string;
   required?: boolean;
   width?: string;

@@ -48,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
@@ -334,13 +333,9 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	// Login the current user and fetch a valid pair of certificates.
 	key, err := teleportClient.Login(ctx)
 	require.NoError(t, err, "Login failed")
-
-	proxyClient, rootAuthClient, err := teleportClient.ConnectToRootCluster(ctx, key)
-	require.NoError(t, err, "Connecting to the root cluster failed")
-	t.Cleanup(func() {
-		require.NoError(t, rootAuthClient.Close())
-		require.NoError(t, proxyClient.Close())
-	})
+	require.NoError(t,
+		teleportClient.ActivateKey(ctx, key),
+		"ActivateKey failed")
 
 	// Prepare "device aware" certificates from key.
 	// In a real scenario these would be augmented certs.
@@ -382,18 +377,16 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		require.NoError(t, authenticatedAction(), "Authenticated action failed *before* AttemptDeviceLogin")
 
 		// Test! Exercise DeviceLogin.
-		got, err := teleportClient.DeviceLogin(ctx,
-			rootAuthClient,
-			&devicepb.UserCertificates{
-				SshAuthorizedKey: key.Cert,
-			})
+		got, err := teleportClient.DeviceLogin(ctx, &devicepb.UserCertificates{
+			SshAuthorizedKey: key.Cert,
+		})
 		require.NoError(t, err, "DeviceLogin failed")
 		require.Equal(t, validCerts, got, "DeviceLogin mismatch")
 		assert.Equal(t, 1, runCeremonyCalls, `DeviceLogin didn't call dtAuthnRunCeremony()`)
 
 		// Test! Exercise AttemptDeviceLogin.
 		require.NoError(t,
-			teleportClient.AttemptDeviceLogin(ctx, key, rootAuthClient),
+			teleportClient.AttemptDeviceLogin(ctx, key),
 			"AttemptDeviceLogin failed")
 		assert.Equal(t, 2, runCeremonyCalls, `AttemptDeviceLogin didn't call dtAuthnRunCeremony()`)
 
@@ -413,59 +406,13 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		resp, err := teleportClient.Ping(ctx)
 		require.NoError(t, err, "Ping failed")
 		require.True(t, resp.Auth.DeviceTrustDisabled, "Expected device trust to be disabled for Teleport OSS")
-		require.True(t, resp.Auth.DeviceTrust.Disabled, "Expected device trust to be disabled for Teleport OSS")
 
 		// Test!
 		// AttemptDeviceLogin should obey Ping and not attempt the ceremony.
 		require.NoError(t,
-			teleportClient.AttemptDeviceLogin(ctx, key, rootAuthClient),
+			teleportClient.AttemptDeviceLogin(ctx, key),
 			"AttemptDeviceLogin failed")
 		assert.False(t, runCeremonyCalled, "AttemptDeviceLogin called DeviceLogin/dtAuthnRunCeremony, despite the Ping response")
-	})
-
-	t.Run("device auto-enroll", func(t *testing.T) {
-		// Setup:
-		// - Ignore ping value for auto-enroll (only Enterprise can truly enable
-		//   auto-enroll)
-		// - RunCeremony only succeeds after AutoEnroll is called (simulate an
-		//   unenrolled device)
-		var enrolled bool
-		var runCeremonyCalls, autoEnrollCalls int
-		teleportClient.SetDTAutoEnrollIgnorePing(true)
-		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ devicepb.DeviceTrustServiceClient, _ *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
-			runCeremonyCalls++
-			if !enrolled {
-				return nil, errors.New("device not enrolled")
-			}
-			return validCerts, nil
-		})
-		teleportClient.SetDTAutoEnroll(func(_ context.Context, _ devicepb.DeviceTrustServiceClient) (*devicepb.Device, error) {
-			autoEnrollCalls++
-			enrolled = true
-			return &devicepb.Device{
-				Id: "mydevice",
-			}, nil
-		})
-
-		proxyClient, err := teleportClient.ConnectToProxy(ctx)
-		require.NoError(t, err)
-		defer proxyClient.Close()
-
-		rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
-		require.NoError(t, err)
-		defer rootAuthClient.Close()
-
-		// Test!
-		got, err := teleportClient.DeviceLogin(
-			ctx,
-			rootAuthClient,
-			&devicepb.UserCertificates{
-				SshAuthorizedKey: key.Cert,
-			})
-		require.NoError(t, err, "DeviceLogin failed")
-		assert.Equal(t, got, validCerts, "DeviceLogin mismatch")
-		assert.Equal(t, 2, runCeremonyCalls, "RunCeremony called an unexpected number of times")
-		assert.Equal(t, 1, autoEnrollCalls, "AutoEnroll called an unexpected number of times")
 	})
 }
 
@@ -505,7 +452,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	user.AddRole(role.GetName())
 
 	// AuthServer setup.
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	cfg.DataDir = t.TempDir()
 	cfg.Hostname = "localhost"
 	cfg.Clock = clock
@@ -587,7 +534,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	require.NoError(t, authServer.UpsertMFADevice(ctx, username, otpDevice))
 
 	// Proxy setup.
-	cfg = servicecfg.MakeDefaultConfig()
+	cfg = service.MakeDefaultConfig()
 	cfg.DataDir = t.TempDir()
 	cfg.Hostname = "localhost"
 	cfg.SetToken(staticToken)
@@ -622,7 +569,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	}
 }
 
-func startAndWait(t *testing.T, cfg *servicecfg.Config, eventName string) *service.TeleportProcess {
+func startAndWait(t *testing.T, cfg *service.Config, eventName string) *service.TeleportProcess {
 	instance, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, instance.Start())

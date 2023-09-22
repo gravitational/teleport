@@ -21,7 +21,7 @@ import FieldInput from 'shared/components/FieldInput';
 import { useValidation, Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { ResourceLabel } from 'teleport/services/agents';
+import { AgentLabel } from 'teleport/services/agents';
 
 export function LabelsCreater({
   labels = [],
@@ -29,14 +29,12 @@ export function LabelsCreater({
   disableBtns = false,
   isLabelOptional = false,
   noDuplicateKey = false,
-  autoFocus = false,
 }: {
   labels: DiscoverLabel[];
   setLabels(l: DiscoverLabel[]): void;
   disableBtns?: boolean;
   isLabelOptional?: boolean;
   noDuplicateKey?: boolean;
-  autoFocus?: boolean;
 }) {
   const validator = useValidation() as Validator;
 
@@ -73,7 +71,7 @@ export function LabelsCreater({
   const handleChange = (
     event: React.ChangeEvent<HTMLInputElement>,
     index: number,
-    labelField: keyof ResourceLabel
+    labelField: keyof AgentLabel
   ) => {
     const { value } = event.target;
     const newList = [...labels];
@@ -126,7 +124,7 @@ export function LabelsCreater({
                 <FieldInput
                   Input
                   rule={requiredUniqueKey}
-                  autoFocus={autoFocus}
+                  autoFocus
                   value={label.name}
                   placeholder="label key"
                   width="170px"
@@ -159,7 +157,7 @@ export function LabelsCreater({
                     `}
                     disabled={disableBtns}
                   >
-                    <Icons.Trash size="medium" />
+                    <Icons.Trash />
                   </ButtonIcon>
                 )}
               </Flex>
@@ -188,10 +186,13 @@ export function LabelsCreater({
         <Icons.Add
           className="icon-add"
           disabled={disableBtns}
-          size="small"
           css={`
+            font-weight: bold;
+            letter-spacing: 4px;
             margin-top: -2px;
-            margin-right: 3px;
+            &:after {
+              content: ' ';
+            }
           `}
         />
         Add New Label
@@ -200,7 +201,7 @@ export function LabelsCreater({
   );
 }
 
-export type DiscoverLabel = ResourceLabel & {
+export type DiscoverLabel = AgentLabel & {
   // isFixed is a flag to mean label is
   // unmodifiable and undeletable.
   isFixed?: boolean;

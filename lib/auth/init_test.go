@@ -18,8 +18,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
-	"math"
 	"strings"
 	"sync"
 	"testing"
@@ -30,7 +28,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
@@ -40,13 +37,14 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -445,22 +443,13 @@ func TestClusterName(t *testing.T) {
 	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())
 }
 
-func keysIn[K comparable, V any](m map[K]V) []K {
-	result := make([]K, 0, len(m))
-	for k := range m {
-		result = append(result, k)
-	}
-	return result
-}
-
 // TestPresets tests behavior of presets
 func TestPresets(t *testing.T) {
 	ctx := context.Background()
-
-	presetRoleNames := []string{
-		teleport.PresetEditorRoleName,
-		teleport.PresetAccessRoleName,
-		teleport.PresetAuditorRoleName,
+	roles := []types.Role{
+		services.NewPresetEditorRole(),
+		services.NewPresetAccessRole(),
+		services.NewPresetAuditorRole(),
 	}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
@@ -468,16 +457,16 @@ func TestPresets(t *testing.T) {
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		err := createPresetRoles(ctx, as)
+		err := createPresets(ctx, as)
 		require.NoError(t, err)
 
 		// Second call should not fail
-		err = createPresetRoles(ctx, as)
+		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
-		for _, role := range presetRoleNames {
-			_, err := as.GetRole(ctx, role)
+		for _, role := range roles {
+			_, err := as.GetRole(ctx, role.GetName())
 			require.NoError(t, err)
 		}
 	})
@@ -493,12 +482,12 @@ func TestPresets(t *testing.T) {
 		err := as.CreateRole(ctx, access)
 		require.NoError(t, err)
 
-		err = createPresetRoles(ctx, as)
+		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
-		for _, role := range presetRoleNames {
-			_, err := as.GetRole(ctx, role)
+		for _, role := range roles {
+			_, err := as.GetRole(ctx, role.GetName())
 			require.NoError(t, err)
 		}
 
@@ -536,7 +525,7 @@ func TestPresets(t *testing.T) {
 		err = as.CreateRole(ctx, accessRole)
 		require.NoError(t, err)
 
-		err = createPresetRoles(ctx, as)
+		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -600,7 +589,7 @@ func TestPresets(t *testing.T) {
 		require.NoError(t, err)
 
 		// Apply defaults.
-		err = createPresetRoles(ctx, as)
+		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -624,100 +613,34 @@ func TestPresets(t *testing.T) {
 		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, deniedDatabaseServiceLabels, "keeps the deny label for DatabaseService")
 	})
 
-	upsertRoleTest := func(t *testing.T, expectedPresetRoles []string, expectedSystemRoles []string) {
-		// test state
-		ctx := context.Background()
-		// mu protects created resource maps
-		var mu sync.Mutex
-		createdSystemRoles := make(map[string]types.Role)
-		createdPresets := make(map[string]types.Role)
+	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
+		presetRoleCount := 3
 
-		//
-		// Test #1 - populating an empty cluster
-		//
-		roleManager := newMockRoleManager(t)
-
-		// EXPECT that non-system resources will be created once
-		// and once only.
-		roleManager.
-			On("CreateRole", mock.Anything, mock.Anything).
-			Run(func(args mock.Arguments) {
-				r := args[1].(types.Role)
-				mu.Lock()
-				defer mu.Unlock()
-				require.Contains(t, expectedPresetRoles, r.GetName())
-				require.NotContains(t, createdPresets, r.GetName())
-				require.False(t, types.IsSystemResource(r))
-				createdPresets[r.GetName()] = r
-			}).
-			Return(nil)
-
-		// EXPECT that any (and ONLY) system resources will be upserted
-		roleManager.
-			On("UpsertRole", mock.Anything, mock.Anything).
-			Run(func(args mock.Arguments) {
-				r := args[1].(types.Role)
-				mu.Lock()
-				defer mu.Unlock()
-				require.True(t, types.IsSystemResource(r))
-				require.Contains(t, expectedSystemRoles, r.GetName())
-				require.NotContains(t, keysIn(createdSystemRoles), r.GetName())
-				createdSystemRoles[r.GetName()] = r
-			}).
-			Maybe().
-			Return(nil)
-
-		err := createPresetRoles(ctx, roleManager)
-		require.NoError(t, err)
-		require.ElementsMatch(t, keysIn(createdPresets), expectedPresetRoles)
-		require.ElementsMatch(t, keysIn(createdSystemRoles), expectedSystemRoles)
-		roleManager.AssertExpectations(t)
-
-		//
-		// Test #2 - populating an already-populated cluster
-		//
-		roleManager = newMockRoleManager(t)
-
-		// EXPECT that createPresets will try to create all expected
-		// non-system roles
-		roleManager.
-			On("CreateRole", mock.Anything, mock.Anything).
-			Run(func(args mock.Arguments) {
-				mu.Lock()
-				defer mu.Unlock()
-				require.Contains(t, createdPresets, args[1].(types.Role).GetName())
-			}).
-			Return(trace.AlreadyExists("dupe"))
-
-		// EXPECT that any (and ONLY) expected system roles will be
-		// automatically upserted
-		roleManager.
-			On("UpsertRole", mock.Anything, mock.Anything).
-			Run(requireSystemResource(t, 1)).
-			Maybe().
-			Return(nil)
-
-		// EXPECT that all of the roles created in the previous step (and ONLY the
-		// roles created in the previous step will be queried.
-		for name, role := range createdPresets {
-			roleManager.
-				On("GetRole", mock.Anything, name).
-				Return(role, nil)
+		roleManager := &mockRoleManager{
+			roles: make(map[string]types.Role, presetRoleCount),
 		}
 
-		err = createPresetRoles(ctx, roleManager)
+		err := createPresets(ctx, roleManager)
 		require.NoError(t, err)
-		roleManager.AssertExpectations(t)
 
-		//
-		// Test #3 - populating an already-populated cluster with updated presets
-		//
-		roleManager = newMockRoleManager(t)
+		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
+		require.Equal(t, 0, roleManager.getRoleCallsCount, "unexpected call to GetRole")
+		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
 
-		// Removing a specific resource which is part of the Default Allow Rules
-		// should trigger an UpsertRole call
-		editorRole := createdPresets[teleport.PresetEditorRoleName]
-		var allowRulesWithoutConnectionDiag []types.Rule
+		// Running a second time should return Already Exists, so it fetches the role.
+		// The role was not changed, so it can't call the UpsertRole method.
+		roleManager.ResetCallCounters()
+
+		err = createPresets(ctx, roleManager)
+		require.NoError(t, err)
+
+		require.Zero(t, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
+		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
+		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+
+		// Removing a specific resource which is part of the Default Allow Rules should trigger an UpsertRole call
+		editorRole := roleManager.roles[teleport.PresetEditorRoleName]
+		allowRulesWithoutConnectionDiag := []types.Rule{}
 
 		for _, r := range editorRole.GetRules(types.Allow) {
 			if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
@@ -726,234 +649,76 @@ func TestPresets(t *testing.T) {
 			allowRulesWithoutConnectionDiag = append(allowRulesWithoutConnectionDiag, r)
 		}
 		editorRole.SetRules(types.Allow, allowRulesWithoutConnectionDiag)
-
-		// EXPECT that createPresets will try to create all expected
-		// non-system roles
-		remainingPresets := toSet(expectedPresetRoles)
-		roleManager.
-			On("CreateRole", mock.Anything, mock.Anything).
-			Run(func(args mock.Arguments) {
-				mu.Lock()
-				defer mu.Unlock()
-				r := args[1].(types.Role)
-				require.Contains(t, createdPresets, r.GetName())
-				delete(remainingPresets, r.GetName())
-			}).
-			Return(trace.AlreadyExists("dupe"))
-
-		// EXPECT that all of the roles created in the first step (and ONLY the
-		// roles created in the first step will be queried.
-		for name, role := range createdPresets {
-			roleManager.
-				On("GetRole", mock.Anything, name).
-				Return(role, nil)
-		}
-
-		// EXPECT that any system roles will be automatically upserted
-		// AND our modified editor resource will be updated using an upsert
-		roleManager.
-			On("UpsertRole", mock.Anything, mock.Anything).
-			Return(func(_ context.Context, r types.Role) error {
-				if types.IsSystemResource(r) {
-					require.Contains(t, expectedSystemRoles, r.GetName())
-					return nil
-				}
-				require.Equal(t, teleport.PresetEditorRoleName, r.GetName())
-				return nil
-			})
-
-		err = createPresetRoles(ctx, roleManager)
+		err = roleManager.UpsertRole(ctx, editorRole)
 		require.NoError(t, err)
-		require.Empty(t, remainingPresets)
-		roleManager.AssertExpectations(t)
-	}
 
-	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-		upsertRoleTest(t, presetRoleNames, nil)
-	})
+		roleManager.ResetCallCounters()
+		err = createPresets(ctx, roleManager)
+		require.NoError(t, err)
 
-	t.Run("Enterprise", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
-			TestBuildType: modules.BuildEnterprise,
-		})
-
-		enterprisePresetRoleNames := append([]string{
-			teleport.PresetGroupAccessRoleName,
-			teleport.PresetRequesterRoleName,
-			teleport.PresetReviewerRoleName,
-			teleport.PresetDeviceAdminRoleName,
-			teleport.PresetDeviceEnrollRoleName,
-			teleport.PresetRequireTrustedDeviceRoleName,
-		}, presetRoleNames...)
-
-		enterpriseSystemRoleNames := []string{
-			teleport.SystemAutomaticAccessApprovalRoleName,
-		}
-
-		enterpriseUsers := []types.User{
-			services.NewSystemAutomaticAccessBotUser(),
-		}
-
-		t.Run("EmptyCluster", func(t *testing.T) {
-			as := newTestAuthServer(ctx, t)
-			clock := clockwork.NewFakeClock()
-			as.SetClock(clock)
-
-			// Run multiple times to simulate starting auth on an
-			// existing cluster and asserting that everything still
-			// returns success
-			for i := 0; i < 2; i++ {
-				err := createPresetRoles(ctx, as)
-				require.NoError(t, err)
-
-				err = createPresetUsers(ctx, as)
-				require.NoError(t, err)
-			}
-
-			// Preset Roles were created
-			for _, role := range append(enterprisePresetRoleNames, enterpriseSystemRoleNames...) {
-				_, err := as.GetRole(ctx, role)
-				require.NoError(t, err)
-			}
-
-			// Preset Users were created
-			for _, user := range enterpriseUsers {
-				_, err := as.GetUser(user.GetName(), false)
-				require.NoError(t, err)
-			}
-		})
-
-		t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-			upsertRoleTest(t, enterprisePresetRoleNames, enterpriseSystemRoleNames)
-		})
-
-		t.Run("System users are always upserted", func(t *testing.T) {
-			ctx := context.Background()
-			sysUser := services.NewSystemAutomaticAccessBotUser().(*types.UserV2)
-
-			// GIVEN a user database...
-			auth := newMockUserManager(t)
-
-			// Set the expectation that all user creations will succeed EXCEPT
-			// for our known system user
-			auth.On("CreateUser", ctx, mock.Anything).
-				Run(requireSystemResource(t, 1)).
-				Maybe().
-				Return(nil)
-
-			// All attempts to upsert should succeed, and record the being upserted
-			upsertedUsers := []string{}
-			auth.On("UpsertUser", mock.Anything).
-				Run(func(args mock.Arguments) {
-					u := args.Get(0).(types.User)
-					upsertedUsers = append(upsertedUsers, u.GetName())
-				}).
-				Return(nil)
-
-			// WHEN I attempt to create the preset users...
-			err := createPresetUsers(ctx, auth)
-
-			// EXPECT that the process succeeds and the system user was upserted
-			require.NoError(t, err)
-			auth.AssertExpectations(t)
-			require.Contains(t, upsertedUsers, sysUser.Metadata.Name)
-		})
+		require.Equal(t, 1, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
+		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
+		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
 	})
 }
-
-type mockUserManager struct {
-	mock.Mock
-}
-
-func newMockUserManager(t *testing.T) *mockUserManager {
-	m := &mockUserManager{}
-	m.Test(t)
-	return m
-}
-
-func (m *mockUserManager) CreateUser(ctx context.Context, user types.User) error {
-	type delegateFn = func(types.User) error
-	args := m.Called(ctx, user)
-	if delegate, ok := args.Get(0).(delegateFn); ok {
-		return delegate(user)
-	}
-	return args.Error(0)
-}
-
-func (m *mockUserManager) GetUser(username string, withSecrets bool) (types.User, error) {
-	type delegateFn = func(username string, withSecrets bool) (types.User, error)
-	args := m.Called(username, withSecrets)
-	if delegate, ok := args.Get(0).(delegateFn); ok {
-		return delegate(username, withSecrets)
-	}
-	return args.Get(0).(types.User), args.Error(1)
-}
-
-func (m *mockUserManager) UpsertUser(user types.User) error {
-	type delegateFn = func(types.User) error
-	args := m.Called(user)
-	if delegate, ok := args.Get(0).(delegateFn); ok {
-		return delegate(user)
-	}
-	return args.Error(0)
-}
-
-var _ PresetUsers = &mockUserManager{}
 
 type mockRoleManager struct {
-	mock.Mock
+	mu                   sync.Mutex
+	roles                map[string]types.Role
+	getRoleCallsCount    int
+	createRoleCallsCount int
+	upsertRoleCallsCount int
 }
 
-var _ PresetRoleManager = &mockRoleManager{}
+// ResetCallCounters resets the method call counters.
+func (m *mockRoleManager) ResetCallCounters() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-func newMockRoleManager(t *testing.T) *mockRoleManager {
-	m := &mockRoleManager{}
-	m.Test(t)
-	return m
+	m.getRoleCallsCount = 0
+	m.createRoleCallsCount = 0
+	m.upsertRoleCallsCount = 0
+}
+
+// GetRole returns role by name.
+func (m *mockRoleManager) GetRole(ctx context.Context, name string) (types.Role, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.getRoleCallsCount = m.getRoleCallsCount + 1
+
+	role, ok := m.roles[name]
+	if !ok {
+		return nil, trace.NotFound("role not found")
+	}
+	return role, nil
 }
 
 // CreateRole creates a role.
 func (m *mockRoleManager) CreateRole(ctx context.Context, role types.Role) error {
-	type delegateFn = func(context.Context, types.Role) error
-	args := m.Called(ctx, role)
-	if delegate, ok := args[0].(delegateFn); ok {
-		return delegate(ctx, role)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.createRoleCallsCount = m.createRoleCallsCount + 1
+
+	_, ok := m.roles[role.GetName()]
+	if ok {
+		return trace.AlreadyExists("role not found")
 	}
-	return args.Error(0)
+
+	m.roles[role.GetName()] = role
+	return nil
 }
 
-func (m *mockRoleManager) GetRole(ctx context.Context, name string) (types.Role, error) {
-	type delegateFn = func(context.Context, string) (types.Role, error)
-	args := m.Called(ctx, name)
-	if delegate, ok := args[0].(delegateFn); ok {
-		return delegate(ctx, name)
-	}
-	return args[0].(types.Role), args.Error(1)
-}
-
+// UpsertRole creates or updates a role and emits a related audit event.
 func (m *mockRoleManager) UpsertRole(ctx context.Context, role types.Role) error {
-	type delegateFn = func(context.Context, types.Role) error
-	args := m.Called(ctx, role)
-	if delegate, ok := args[0].(delegateFn); ok {
-		return delegate(ctx, role)
-	}
-	return args.Error(0)
-}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-func requireSystemResource(t *testing.T, argno int) func(mock.Arguments) {
-	return func(args mock.Arguments) {
-		argOfInterest := args[argno]
-		require.Implements(t, (*types.Resource)(nil), argOfInterest)
-		require.True(t, types.IsSystemResource(argOfInterest.(types.Resource)))
-	}
-}
+	m.upsertRoleCallsCount = m.upsertRoleCallsCount + 1
+	m.roles[role.GetName()] = role
 
-func toSet(items []string) map[string]struct{} {
-	result := make(map[string]struct{})
-	for _, v := range items {
-		result[v] = struct{}{}
-	}
-	return result
+	return nil
 }
 
 func setupConfig(t *testing.T) InitConfig {
@@ -1343,145 +1108,6 @@ func resourceDiff(res1, res2 types.Resource) string {
 		cmpopts.EquateEmpty())
 }
 
-// TestSyncUpgadeWindowStartHour verifies the core logic of the upgrade window start
-// hour behavior.
-func TestSyncUpgradeWindowStartHour(t *testing.T) {
-	ctx := context.Background()
-
-	conf := setupConfig(t)
-	authServer, err := Init(ctx, conf)
-	require.NoError(t, err)
-	t.Cleanup(func() { authServer.Close() })
-
-	// no getter is registered, sync should fail
-	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
-
-	// maintenance config does not exist yet
-	cmc, err := authServer.GetClusterMaintenanceConfig(ctx)
-	require.Error(t, err)
-	require.True(t, trace.IsNotFound(err))
-	require.Nil(t, cmc)
-
-	// set up fake getter
-	var mu sync.Mutex
-	var fakeHour int64
-	var fakeError error
-	authServer.SetUpgradeWindowStartHourGetter(func(ctx context.Context) (int64, error) {
-		mu.Lock()
-		defer mu.Unlock()
-		return fakeHour, fakeError
-	})
-
-	// sync should now succeed
-	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
-
-	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
-	require.NoError(t, err)
-
-	agentWindow, ok := cmc.GetAgentUpgradeWindow()
-	require.True(t, ok)
-
-	require.Equal(t, uint32(0), agentWindow.UTCStartHour)
-
-	// change the served hour
-	mu.Lock()
-	fakeHour = 16
-	mu.Unlock()
-
-	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
-
-	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
-	require.NoError(t, err)
-
-	agentWindow, ok = cmc.GetAgentUpgradeWindow()
-	require.True(t, ok)
-
-	require.Equal(t, uint32(16), agentWindow.UTCStartHour)
-
-	// set sync to fail with out of range hour
-	mu.Lock()
-	fakeHour = 36
-	mu.Unlock()
-
-	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
-
-	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
-	require.NoError(t, err)
-
-	agentWindow, ok = cmc.GetAgentUpgradeWindow()
-	require.True(t, ok)
-
-	// verify that the old hour value persists since the sync failed
-	require.Equal(t, uint32(16), agentWindow.UTCStartHour)
-
-	// set sync to fail with impossible int type-cast
-	mu.Lock()
-	fakeHour = math.MaxInt64
-	mu.Unlock()
-
-	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
-
-	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
-	require.NoError(t, err)
-
-	agentWindow, ok = cmc.GetAgentUpgradeWindow()
-	require.True(t, ok)
-
-	// verify that the old hour value persists since the sync failed
-	require.Equal(t, uint32(16), agentWindow.UTCStartHour)
-
-	mu.Lock()
-	fakeHour = 18
-	mu.Unlock()
-
-	// sync should now succeed again
-	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
-
-	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
-	require.NoError(t, err)
-
-	agentWindow, ok = cmc.GetAgentUpgradeWindow()
-	require.True(t, ok)
-
-	// verify that we got the new hour value
-	require.Equal(t, uint32(18), agentWindow.UTCStartHour)
-
-	// set sync to fail with error
-	mu.Lock()
-	fakeHour = 12
-	fakeError = fmt.Errorf("uh-oh")
-	mu.Unlock()
-
-	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
-
-	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
-	require.NoError(t, err)
-
-	agentWindow, ok = cmc.GetAgentUpgradeWindow()
-	require.True(t, ok)
-
-	// verify that the old hour value persists since the sync failed
-	require.Equal(t, uint32(18), agentWindow.UTCStartHour)
-
-	// recover and set hour to zero
-	mu.Lock()
-	fakeHour = 0
-	fakeError = nil
-	mu.Unlock()
-
-	// sync should now succeed again
-	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
-
-	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
-	require.NoError(t, err)
-
-	agentWindow, ok = cmc.GetAgentUpgradeWindow()
-	require.True(t, ok)
-
-	// verify that we got the new hour value
-	require.Equal(t, uint32(0), agentWindow.UTCStartHour)
-}
-
 // TestIdentityChecker verifies auth identity properly validates host
 // certificates when connecting to an SSH server.
 func TestIdentityChecker(t *testing.T) {
@@ -1593,4 +1219,102 @@ func TestInitCreatesCertsIfMissing(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, cert, 1)
 	}
+}
+
+func TestMigrateDatabaseCA(t *testing.T) {
+	ctx := context.Background()
+	conf := setupConfig(t)
+
+	// Create only HostCA and UserCA. DatabaseCA should be created on Init().
+	hostCA := suite.NewTestCA(types.HostCA, "me.localhost")
+	userCA := suite.NewTestCA(types.UserCA, "me.localhost")
+
+	conf.Authorities = []types.CertAuthority{hostCA, userCA}
+
+	// Here is where migration happens.
+	auth, err := Init(ctx, conf)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err = auth.Close()
+		require.NoError(t, err)
+	})
+
+	dbCAs, err := auth.GetCertAuthorities(ctx, types.DatabaseCA, true)
+	require.NoError(t, err)
+	require.Len(t, dbCAs, 1)
+	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Cert, dbCAs[0].GetActiveKeys().TLS[0].Cert)
+	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Key, dbCAs[0].GetActiveKeys().TLS[0].Key)
+}
+
+func TestRotateDuplicatedCerts(t *testing.T) {
+	conf := setupConfig(t)
+
+	// suite.NewTestCA() uses the same SSH key for all created keys, which in this scenario triggers extra CA rotation.
+	keygen := keygen.New(context.TODO())
+	privHost, _, err := keygen.GenerateKeyPair()
+	require.NoError(t, err)
+	privUser, _, err := keygen.GenerateKeyPair()
+	require.NoError(t, err)
+
+	hostCA := suite.NewTestCA(types.HostCA, "me.localhost", privHost)
+	userCA := suite.NewTestCA(types.UserCA, "me.localhost", privUser)
+	// Create duplicated CAs
+	databaseCA := suite.NewTestCA(types.DatabaseCA, "me.localhost", privHost)
+	databaseCA.Spec.ActiveKeys = hostCA.Spec.ActiveKeys.Clone()
+
+	conf.Authorities = []types.CertAuthority{hostCA, userCA, databaseCA}
+
+	auth, err := Init(context.Background(), conf)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err = auth.Close()
+		require.NoError(t, err)
+	})
+
+	rotationPhases := []string{
+		types.RotationPhaseInit, types.RotationPhaseUpdateClients,
+		types.RotationPhaseUpdateServers, types.RotationPhaseStandby,
+	}
+
+	ctx := context.Background()
+	// Rotate CAs.
+	for _, phase := range rotationPhases {
+		err = auth.RotateCertAuthority(ctx, RotateRequest{
+			Mode:        types.RotationModeManual,
+			TargetPhase: phase,
+			Type:        types.HostCA,
+		})
+		require.NoError(t, err)
+	}
+
+	newUserCA, err := auth.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: "me.localhost",
+	}, true)
+	require.NoError(t, err)
+	// UserCA should be untouched, as it was not the part of the rotate request, and it's unique.
+	require.Equal(t, userCA.Spec.ActiveKeys.TLS, newUserCA.GetActiveKeys().TLS)
+	require.Equal(t, userCA.Spec.ActiveKeys.SSH, newUserCA.GetActiveKeys().SSH)
+
+	newHostCA, err := auth.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: "me.localhost",
+	}, true)
+	require.NoError(t, err)
+	// HostCA should be rotated, as we requested for it.
+	require.NotEqual(t, hostCA.Spec.ActiveKeys.TLS, newHostCA.GetActiveKeys().TLS)
+	require.NotEqual(t, hostCA.Spec.ActiveKeys.SSH, newHostCA.GetActiveKeys().SSH)
+
+	newDatabaseCA, err := auth.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: "me.localhost",
+	}, true)
+	require.NoError(t, err)
+	// DatabaseCA should be rotated, as the key was the same as HostCA.
+	require.NotEqual(t, databaseCA.Spec.ActiveKeys.TLS, newDatabaseCA.GetActiveKeys().TLS)
+	require.NotEqual(t, databaseCA.Spec.ActiveKeys.SSH, newDatabaseCA.GetActiveKeys().SSH)
+
+	// HostCA and DatabaseCA should be different now.
+	require.NotEqual(t, newHostCA.GetActiveKeys().TLS, newDatabaseCA.GetActiveKeys().TLS)
+	require.NotEqual(t, newHostCA.GetActiveKeys().SSH, newDatabaseCA.GetActiveKeys().SSH)
 }

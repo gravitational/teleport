@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import 'xterm/css/xterm.css';
-import { ITheme, Terminal } from 'xterm';
+import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { debounce, isInteger } from 'shared/utils/highbar';
 import { WebLinksAddon } from 'xterm-addon-web-links';
@@ -46,7 +46,7 @@ export default class TtyTerminal {
   _fitAddon = new FitAddon();
   _webLinksAddon = new WebLinksAddon();
 
-  constructor(tty: Tty, private options: Options) {
+  constructor(tty: Tty, options: Options) {
     const { el, scrollBack, fontFamily, fontSize } = options;
     this._el = el;
     this._fontFamily = fontFamily || undefined;
@@ -69,8 +69,7 @@ export default class TtyTerminal {
       fontSize: this._fontSize,
       scrollback: this._scrollBack,
       cursorBlink: false,
-      minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
-      theme: this.options.theme,
+      allowTransparency: true,
     });
 
     this.term.loadAddon(this._fitAddon);
@@ -97,10 +96,6 @@ export default class TtyTerminal {
 
   connect() {
     this.tty.connect(this.term.cols, this.term.rows);
-  }
-
-  updateTheme(theme: ITheme): void {
-    this.term.options.theme = theme;
   }
 
   destroy() {
@@ -178,7 +173,6 @@ export default class TtyTerminal {
 
 type Options = {
   el: HTMLElement;
-  theme: ITheme;
   scrollBack?: number;
   fontFamily?: string;
   fontSize?: number;

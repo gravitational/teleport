@@ -70,10 +70,6 @@ type Application interface {
 	GetAWSAccountID() string
 	// GetAWSExternalID returns the AWS External ID configured for this app.
 	GetAWSExternalID() string
-	// GetUserGroups will get the list of user group IDs associated with the application.
-	GetUserGroups() []string
-	// SetUserGroups will set the list of user group IDs associated with the application.
-	SetUserGroups([]string)
 	// Copy returns a copy of this app resource.
 	Copy() *AppV3
 }
@@ -118,16 +114,6 @@ func (a *AppV3) GetResourceID() int64 {
 // SetResourceID sets the app resource ID.
 func (a *AppV3) SetResourceID(id int64) {
 	a.Metadata.ID = id
-}
-
-// GetRevision returns the revision
-func (a *AppV3) GetRevision() string {
-	return a.Metadata.GetRevision()
-}
-
-// SetRevision sets the revision
-func (a *AppV3) SetRevision(rev string) {
-	a.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns the app resource metadata.
@@ -296,16 +282,6 @@ func (a *AppV3) GetAWSExternalID() string {
 	return a.Spec.AWS.ExternalID
 }
 
-// GetUserGroups will get the list of user group IDss associated with the application.
-func (a *AppV3) GetUserGroups() []string {
-	return a.Spec.UserGroups
-}
-
-// SetUserGroups will set the list of user group IDs associated with the application.
-func (a *AppV3) SetUserGroups(userGroups []string) {
-	a.Spec.UserGroups = userGroups
-}
-
 // String returns the app string representation.
 func (a *AppV3) String() string {
 	return fmt.Sprintf("App(Name=%v, PublicAddr=%v, Labels=%v)",
@@ -366,6 +342,12 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		host = url.Host
 	}
 
+	// DEPRECATED DELETE IN 11.0 use KubeTeleportProxyALPNPrefix check only.
+	if strings.HasPrefix(host, constants.KubeSNIPrefix) {
+		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
+			constants.KubeSNIPrefix, a.Spec.PublicAddr)
+	}
+
 	if strings.HasPrefix(host, constants.KubeTeleportProxyALPNPrefix) {
 		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
 			constants.KubeTeleportProxyALPNPrefix, a.Spec.PublicAddr)
@@ -373,7 +355,7 @@ func (a *AppV3) CheckAndSetDefaults() error {
 
 	if a.Spec.Rewrite != nil {
 		switch a.Spec.Rewrite.JWTClaims {
-		case "", JWTClaimsRewriteRolesAndTraits, JWTClaimsRewriteRoles, JWTClaimsRewriteNone, JWTClaimsRewriteTraits:
+		case "", JWTClaimsRewriteRolesAndTraits, JWTClaimsRewriteRoles, JWTClaimsRewriteNone:
 		default:
 			return trace.BadParameter("app %q has unexpected JWT rewrite value %q", a.GetName(), a.Spec.Rewrite.JWTClaims)
 

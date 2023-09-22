@@ -43,6 +43,15 @@ type Announcer interface {
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertAuthServer(ctx context.Context, s types.Server) error
 
+	// UpsertKubeService registers kubernetes presence, permanently if ttl is 0
+	// or for the specified duration with second resolution if it's >= 1 second
+	// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
+	UpsertKubeService(context.Context, types.Server) error
+
+	// UpsertKubeServiceV2 registers a kubernetes service
+	// DELETE IN 13.0. Deprecated, use UpsertKubernetesServer
+	UpsertKubeServiceV2(context.Context, types.Server) (*types.KeepAlive, error)
+
 	// UpsertKubernetesServer registers a kubernetes server
 	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
 
@@ -58,8 +67,10 @@ type Announcer interface {
 	// UpsertWindowsDesktopService registers a Windows desktop service.
 	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
 
-	// UpsertWindowsDesktop registers a Windows desktop host.
-	UpsertWindowsDesktop(context.Context, types.WindowsDesktop) error
+	// CreateWindowsDesktop registers a Windows desktop host.
+	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
+	// UpdateWindowsDesktop updates a Windows desktop host.
+	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
 
 	// UpsertDatabaseService registers a DatabaseService.
 	UpsertDatabaseService(context.Context, types.DatabaseService) (*types.KeepAlive, error)
@@ -100,10 +111,10 @@ type ReadNodeAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -158,10 +169,10 @@ type ReadProxyAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -244,6 +255,10 @@ type ReadProxyAccessPoint interface {
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
+	// GetKubeServices returns a list of kubernetes services registered in the cluster
+	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
+	GetKubeServices(context.Context) ([]types.Server, error)
+
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
@@ -268,21 +283,6 @@ type ReadProxyAccessPoint interface {
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
-
-	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
-	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
-
-	// ListSAMLIdPServiceProviders returns a paginated list of all SAML IdP service provider resources.
-	ListSAMLIdPServiceProviders(context.Context, int, string) ([]types.SAMLIdPServiceProvider, string, error)
-
-	// GetSAMLIdPSession gets a SAML IdP session.
-	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
-
-	// ListUserGroups returns a paginated list of user group resources.
-	ListUserGroups(ctx context.Context, pageSize int, nextKey string) ([]types.UserGroup, string, error)
-
-	// GetUserGroup returns the specified user group resources.
-	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -315,10 +315,10 @@ type ReadRemoteProxyAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -377,6 +377,10 @@ type ReadRemoteProxyAccessPoint interface {
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
+	// GetKubeServices returns a list of kubernetes services registered in the cluster
+	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
+	GetKubeServices(context.Context) ([]types.Server, error)
+
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
@@ -406,10 +410,10 @@ type ReadKubernetesAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -440,6 +444,10 @@ type ReadKubernetesAccessPoint interface {
 
 	// GetNamespace returns namespace by name
 	GetNamespace(name string) (*types.Namespace, error)
+
+	// GetKubeServices returns a list of kubernetes services registered in the cluster
+	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
+	GetKubeServices(context.Context) ([]types.Server, error)
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
@@ -472,10 +480,10 @@ type ReadAppsAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -539,10 +547,10 @@ type ReadDatabaseAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -606,10 +614,10 @@ type ReadWindowsDesktopAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -673,10 +681,10 @@ type ReadDiscoveryAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -696,11 +704,6 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
-
-	// GetApps returns all application resources.
-	GetApps(context.Context) ([]types.Application, error)
-	// GetApp returns the specified application resource.
-	GetApp(ctx context.Context, name string) (types.Application, error)
 }
 
 // DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -725,18 +728,6 @@ type DiscoveryAccessPoint interface {
 	UpdateDatabase(ctx context.Context, database types.Database) error
 	// DeleteDatabase deletes a database resource.
 	DeleteDatabase(ctx context.Context, name string) error
-	// UpsertServerInfo upserts a server info resource.
-	UpsertServerInfo(ctx context.Context, si types.ServerInfo) error
-
-	// CreateApp creates a new application resource.
-	CreateApp(context.Context, types.Application) error
-	// UpdateApp updates an existing application resource.
-	UpdateApp(context.Context, types.Application) error
-	// DeleteApp removes the specified application resource.
-	DeleteApp(ctx context.Context, name string) error
-
-	// SubmitUsageEvent submits an external usage event.
-	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -835,10 +826,10 @@ type OktaAccessPoint interface {
 // AccessCache is a subset of the interface working on the certificate authorities
 type AccessCache interface {
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -899,10 +890,10 @@ type Cache interface {
 	GetAuthServers() ([]types.Server, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetUser returns a services.User for this cluster.
 	GetUser(name string, withSecrets bool) (types.User, error)
@@ -951,6 +942,10 @@ type Cache interface {
 
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
+
+	// GetKubeServices returns a list of kubernetes services registered in the cluster
+	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
+	GetKubeServices(context.Context) ([]types.Server, error)
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
@@ -1199,18 +1194,6 @@ func NewDiscoveryWrapper(base DiscoveryAccessPoint, cache ReadDiscoveryAccessPoi
 	}
 }
 
-func (w *DiscoveryWrapper) CreateApp(ctx context.Context, app types.Application) error {
-	return w.NoCache.CreateApp(ctx, app)
-}
-
-func (w *DiscoveryWrapper) UpdateApp(ctx context.Context, app types.Application) error {
-	return w.NoCache.UpdateApp(ctx, app)
-}
-
-func (w *DiscoveryWrapper) DeleteApp(ctx context.Context, name string) error {
-	return w.NoCache.DeleteApp(ctx, name)
-}
-
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (w *DiscoveryWrapper) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	return w.NoCache.CreateKubernetesCluster(ctx, cluster)
@@ -1239,16 +1222,6 @@ func (w *DiscoveryWrapper) UpdateDatabase(ctx context.Context, database types.Da
 // DeleteDatabase deletes a database resource.
 func (w *DiscoveryWrapper) DeleteDatabase(ctx context.Context, name string) error {
 	return w.NoCache.DeleteDatabase(ctx, name)
-}
-
-// UpsertServerInfo upserts a server info resource.
-func (w *DiscoveryWrapper) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
-	return w.NoCache.UpsertServerInfo(ctx, si)
-}
-
-// SubmitUsageEvent submits an external usage event.
-func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
-	return w.NoCache.SubmitUsageEvent(ctx, req)
 }
 
 // Close closes all associated resources

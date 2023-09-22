@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -60,17 +59,17 @@ type databaseClusterPack struct {
 	role             types.Role
 	dbProcess        *service.TeleportProcess
 	dbAuthClient     *auth.Client
-	PostgresService  servicecfg.Database
+	PostgresService  service.Database
 	postgresAddr     string
 	postgres         *postgres.TestServer
-	MysqlService     servicecfg.Database
+	MysqlService     service.Database
 	mysqlAddr        string
 	mysql            *mysql.TestServer
-	MongoService     servicecfg.Database
+	MongoService     service.Database
 	mongoAddr        string
 	mongo            *mongodb.TestServer
 	name             string
-	CassandraService servicecfg.Database
+	CassandraService service.Database
 	cassandra        *cassandra.TestServer
 	cassandraAddr    string
 }
@@ -92,34 +91,34 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	var postgresListener, mysqlListener, mongoListener, cassandaListener net.Listener
 
 	postgresListener, pack.postgresAddr = mustListen(t)
-	pack.PostgresService = servicecfg.Database{
+	pack.PostgresService = service.Database{
 		Name:     fmt.Sprintf("%s-postgres", pack.name),
 		Protocol: defaults.ProtocolPostgres,
 		URI:      pack.postgresAddr,
 	}
 
 	mysqlListener, pack.mysqlAddr = mustListen(t)
-	pack.MysqlService = servicecfg.Database{
+	pack.MysqlService = service.Database{
 		Name:     fmt.Sprintf("%s-mysql", pack.name),
 		Protocol: defaults.ProtocolMySQL,
 		URI:      pack.mysqlAddr,
 	}
 
 	mongoListener, pack.mongoAddr = mustListen(t)
-	pack.MongoService = servicecfg.Database{
+	pack.MongoService = service.Database{
 		Name:     fmt.Sprintf("%s-mongo", pack.name),
 		Protocol: defaults.ProtocolMongoDB,
 		URI:      pack.mongoAddr,
 	}
 
 	cassandaListener, pack.cassandraAddr = mustListen(t)
-	pack.CassandraService = servicecfg.Database{
+	pack.CassandraService = service.Database{
 		Name:     fmt.Sprintf("%s-cassandra", pack.name),
 		Protocol: defaults.ProtocolCassandra,
 		URI:      pack.cassandraAddr,
 	}
 
-	conf := servicecfg.MakeDefaultConfig()
+	conf := service.MakeDefaultConfig()
 	conf.DataDir = filepath.Join(t.TempDir(), pack.name)
 	conf.SetToken("static-token-value")
 
@@ -129,7 +128,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	})
 
 	conf.Databases.Enabled = true
-	conf.Databases.Databases = []servicecfg.Database{
+	conf.Databases.Databases = []service.Database{
 		pack.PostgresService,
 		pack.MysqlService,
 		pack.MongoService,
@@ -187,8 +186,8 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 type testOptions struct {
 	clock         clockwork.Clock
 	listenerSetup helpers.InstanceListenerSetupFunc
-	rootConfig    func(config *servicecfg.Config)
-	leafConfig    func(config *servicecfg.Config)
+	rootConfig    func(config *service.Config)
+	leafConfig    func(config *service.Config)
 	nodeName      string
 }
 
@@ -224,20 +223,19 @@ func WithListenerSetupDatabaseTest(fn helpers.InstanceListenerSetupFunc) TestOpt
 	}
 }
 
-func WithRootConfig(fn func(*servicecfg.Config)) TestOptionFunc {
+func WithRootConfig(fn func(*service.Config)) TestOptionFunc {
 	return func(o *testOptions) {
 		o.rootConfig = fn
 	}
 }
 
-func WithLeafConfig(fn func(*servicecfg.Config)) TestOptionFunc {
+func WithLeafConfig(fn func(*service.Config)) TestOptionFunc {
 	return func(o *testOptions) {
 		o.leafConfig = fn
 	}
 }
 
 func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
-	ctx := context.Background()
 	var opts testOptions
 	for _, opt := range options {
 		opt(&opts)
@@ -285,7 +283,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	p.Leaf.Cluster = helpers.NewInstance(t, leafCfg)
 
 	// Make root cluster config.
-	rcConf := servicecfg.MakeDefaultConfig()
+	rcConf := service.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.Preference.SetSecondFactor("off")
@@ -298,7 +296,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	}
 
 	// Make leaf cluster config.
-	lcConf := servicecfg.MakeDefaultConfig()
+	lcConf := service.MakeDefaultConfig()
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true
 	lcConf.Auth.Preference.SetSecondFactor("off")
@@ -332,7 +330,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	p.setupUsersAndRoles(t)
 
 	// Update root's certificate authority on leaf to configure role mapping.
-	ca, err := p.Leaf.Cluster.Process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
+	ca, err := p.Leaf.Cluster.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: p.Root.Cluster.Secrets.SiteName,
 	}, false)
@@ -341,7 +339,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	ca.SetRoleMap(types.RoleMap{
 		{Remote: p.Root.role.GetName(), Local: []string{p.Leaf.role.GetName()}},
 	})
-	err = p.Leaf.Cluster.Process.GetAuthServer().UpsertCertAuthority(ctx, ca)
+	err = p.Leaf.Cluster.Process.GetAuthServer().UpsertCertAuthority(ca)
 	require.NoError(t, err)
 
 	// Start database service and test servers in the clusters
@@ -353,7 +351,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 func (p *DatabasePack) setupUsersAndRoles(t *testing.T) {
 	var err error
 
-	p.Root.User, p.Root.role, err = auth.CreateUserAndRole(p.Root.Cluster.Process.GetAuthServer(), "root-user", nil, nil)
+	p.Root.User, p.Root.role, err = auth.CreateUserAndRole(p.Root.Cluster.Process.GetAuthServer(), "root-user", nil)
 	require.NoError(t, err)
 
 	p.Root.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -361,7 +359,7 @@ func (p *DatabasePack) setupUsersAndRoles(t *testing.T) {
 	err = p.Root.Cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.Root.role)
 	require.NoError(t, err)
 
-	p.Leaf.User, p.Leaf.role, err = auth.CreateUserAndRole(p.Root.Cluster.Process.GetAuthServer(), "leaf-user", nil, nil)
+	p.Leaf.User, p.Leaf.role, err = auth.CreateUserAndRole(p.Root.Cluster.Process.GetAuthServer(), "leaf-user", nil)
 	require.NoError(t, err)
 
 	p.Leaf.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -415,14 +413,14 @@ func (p *DatabasePack) StartDatabases(t *testing.T) {
 
 // databaseAgentStartParams parameters used to configure a database agent.
 type databaseAgentStartParams struct {
-	databases        []servicecfg.Database
+	databases        []service.Database
 	resourceMatchers []services.ResourceMatcher
 }
 
 // startRootDatabaseAgent starts a database agent with the provided
 // configuration on the root cluster.
 func (p *DatabasePack) startRootDatabaseAgent(t *testing.T, params databaseAgentStartParams) (*service.TeleportProcess, *auth.Client) {
-	conf := servicecfg.MakeDefaultConfig()
+	conf := service.MakeDefaultConfig()
 	conf.DataDir = t.TempDir()
 	conf.SetToken("static-token-value")
 	conf.DiagnosticAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerDiagnostic, &conf.FileDescriptors))

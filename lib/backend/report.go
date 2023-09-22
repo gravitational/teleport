@@ -143,7 +143,6 @@ func (s *Reporter) Create(ctx context.Context, i Item) (*Lease, error) {
 		ctx,
 		"backend/Create",
 		oteltrace.WithAttributes(
-			attribute.String("revision", i.Revision),
 			attribute.String("key", string(i.Key)),
 		),
 	)
@@ -167,7 +166,6 @@ func (s *Reporter) Put(ctx context.Context, i Item) (*Lease, error) {
 		ctx,
 		"backend/Put",
 		oteltrace.WithAttributes(
-			attribute.String("revision", i.Revision),
 			attribute.String("key", string(i.Key)),
 		),
 	)
@@ -190,7 +188,6 @@ func (s *Reporter) Update(ctx context.Context, i Item) (*Lease, error) {
 		ctx,
 		"backend/Update",
 		oteltrace.WithAttributes(
-			attribute.String("revision", i.Revision),
 			attribute.String("key", string(i.Key)),
 		),
 	)
@@ -306,7 +303,6 @@ func (s *Reporter) KeepAlive(ctx context.Context, lease Lease, expires time.Time
 		ctx,
 		"backend/KeepAlive",
 		oteltrace.WithAttributes(
-			attribute.String("revision", lease.Revision),
 			attribute.Int64("lease", lease.ID),
 			attribute.String("key", string(lease.Key)),
 		),
@@ -369,7 +365,7 @@ func (s *Reporter) trackRequest(opType types.OpType, key []byte, endKey []byte) 
 	if len(key) == 0 {
 		return
 	}
-	keyLabel := buildKeyLabel(string(key), sensitiveBackendPrefixes, singletonBackendPrefixes, len(endKey) != 0)
+	keyLabel := buildKeyLabel(string(key), sensitiveBackendPrefixes)
 	rangeSuffix := teleport.TagFalse
 	if len(endKey) != 0 {
 		// Range denotes range queries in stat entry
@@ -403,42 +399,20 @@ func (s *Reporter) trackRequest(opType types.OpType, key []byte, endKey []byte) 
 
 // buildKeyLabel builds the key label for storing to the backend. The key's name
 // is masked if it is determined to be sensitive based on sensitivePrefixes.
-func buildKeyLabel(key string, sensitivePrefixes, singletonPrefixes []string, isRange bool) string {
+func buildKeyLabel(key string, sensitivePrefixes []string) string {
 	parts := strings.Split(key, string(Separator))
-
-	finalLen := len(parts)
-	var realStart int
-
-	// skip leading space if one exists so that we can consistently access path segments by
-	// index regardless of whether or not the specific path has a leading separator.
-	if finalLen-realStart > 1 && parts[realStart] == "" {
-		realStart = 1
+	if len(parts) > 3 {
+		// Cut the key down to 3 parts, otherwise too many
+		// distinct requests can end up in the key label map.
+		parts = parts[:3]
 	}
 
-	// trim trailing space for consistency
-	if finalLen-realStart > 1 && parts[finalLen-1] == "" {
-		finalLen -= 1
+	// If the key matches "/sensitiveprefix/keyname", mask the key.
+	if len(parts) == 3 && len(parts[0]) == 0 && slices.Contains(sensitivePrefixes, parts[1]) {
+		parts[2] = string(MaskKeyName(parts[2]))
 	}
 
-	// we typically always want to trim the final element from any multipart path to avoid tracking individual
-	// resources. the two exceptions are if the path originates from a range request, or if the first element
-	// in the path is a known singleton range.
-	if finalLen-realStart > 1 && !isRange && !slices.Contains(singletonPrefixes, parts[realStart]) {
-		finalLen -= 1
-	}
-
-	// paths may contain at most two segments excluding leading blank
-	if finalLen-realStart > 2 {
-		finalLen = realStart + 2
-	}
-
-	// if the first non-empty segment is a secret range and there are at least two non-empty
-	// segments, then the second non-empty segment should be masked.
-	if finalLen-realStart > 1 && slices.Contains(sensitivePrefixes, parts[realStart]) {
-		parts[realStart+1] = string(MaskKeyName(parts[realStart+1]))
-	}
-
-	return strings.Join(parts[:finalLen], string(Separator))
+	return strings.Join(parts, string(Separator))
 }
 
 // sensitiveBackendPrefixes is a list of backend request prefixes preceding
@@ -450,12 +424,6 @@ var sensitiveBackendPrefixes = []string{
 	// https://github.com/gravitational/teleport/blob/01775b73f138ff124ff0351209d629bb01836869/lib/services/local/users.go#L1510.
 	"sessionData",
 	"access_requests",
-}
-
-// singletonBackendPrefixes is a list of prefixes where its not necessary to trim the trailing
-// path component automatically since the range only contains singleton values.
-var singletonBackendPrefixes = []string{
-	"cluster_configuration",
 }
 
 // ReporterWatcher is a wrapper around backend
@@ -490,7 +458,7 @@ var (
 	requests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: teleport.MetricBackendRequests,
-			Help: "Number of requests to the backend (reads, writes, and keepalives)",
+			Help: "Number of write requests to the backend",
 		},
 		[]string{teleport.ComponentLabel, teleport.TagReq, teleport.TagRange},
 	)

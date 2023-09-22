@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // WriteContextCloser provides close method with context
@@ -425,6 +426,16 @@ func (p *PortList) PopInt() int {
 	return i
 }
 
+// PopIntSlice returns a slice of values from the list, it panics if not enough
+// ports were allocated
+func (p *PortList) PopIntSlice(num int) []int {
+	ports := make([]int, num)
+	for i := range ports {
+		ports[i] = p.PopInt()
+	}
+	return ports
+}
+
 // PortStartingNumber is a starting port number for tests
 const PortStartingNumber = 20000
 
@@ -441,11 +452,6 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 	return PortList{ports: list}, nil
 }
 
-// GetHostUUIDPath returns the path to the host UUID file given the data directory.
-func GetHostUUIDPath(dataDir string) string {
-	return filepath.Join(dataDir, HostUUIDFile)
-}
-
 // HostUUIDExistsLocally checks if dataDir/host_uuid file exists in local storage.
 func HostUUIDExistsLocally(dataDir string) bool {
 	_, err := ReadHostUUID(dataDir)
@@ -454,7 +460,7 @@ func HostUUIDExistsLocally(dataDir string) bool {
 
 // ReadHostUUID reads host UUID from the file in the data dir
 func ReadHostUUID(dataDir string) (string, error) {
-	out, err := ReadPath(GetHostUUIDPath(dataDir))
+	out, err := ReadPath(filepath.Join(dataDir, HostUUIDFile))
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			//do not convert to system error as this loses the ability to compare that it is a permission error
@@ -471,7 +477,7 @@ func ReadHostUUID(dataDir string) (string, error) {
 
 // WriteHostUUID writes host UUID into a file
 func WriteHostUUID(dataDir string, id string) error {
-	err := os.WriteFile(GetHostUUIDPath(dataDir), []byte(id), os.ModeExclusive|0400)
+	err := os.WriteFile(filepath.Join(dataDir, HostUUIDFile), []byte(id), os.ModeExclusive|0400)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			//do not convert to system error as this loses the ability to compare that it is a permission error
@@ -508,6 +514,11 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return id, nil
+}
+
+// PrintVersion prints human readable version
+func PrintVersion() {
+	modules.GetModules().PrintVersion()
 }
 
 // StringSliceSubset returns true if b is a subset of a.

@@ -27,7 +27,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -40,8 +39,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/regular"
@@ -113,11 +112,10 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		err = se.Shell()
 		require.NoError(t, err)
 
-		require.EventuallyWithTf(t, func(collect *assert.CollectT) {
-			require.NoError(collect, uacc.UserWithPtyInDatabase(s.utmpPath, teleportTestUser))
-			require.NoError(collect, uacc.UserWithPtyInDatabase(s.wtmpPath, teleportTestUser))
-			// Ensure than an entry was not written to btmp.
-			require.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.btmpPath, teleportTestUser)), "unexpected error: %v", err)
+		require.Eventually(t, func() bool {
+			return uacc.UserWithPtyInDatabase(s.utmpPath, teleportTestUser) == nil &&
+				uacc.UserWithPtyInDatabase(s.wtmpPath, teleportTestUser) == nil &&
+				trace.IsNotFound(uacc.UserWithPtyInDatabase(s.btmpPath, teleportTestUser))
 		}, 5*time.Minute, time.Second, "did not detect utmp entry within 5 minutes")
 	})
 
@@ -149,11 +147,10 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		err = se.Shell()
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
-			require.NoError(collect, uacc.UserWithPtyInDatabase(s.btmpPath, teleportFakeUser))
-			// Ensure that entries were not written to utmp and wtmp
-			require.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.utmpPath, teleportFakeUser)), "unexpected error: %v", err)
-			require.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.wtmpPath, teleportFakeUser)), "unexpected error: %v", err)
+		require.Eventually(t, func() bool {
+			return uacc.UserWithPtyInDatabase(s.btmpPath, teleportFakeUser) == nil &&
+				trace.IsNotFound(uacc.UserWithPtyInDatabase(s.utmpPath, teleportFakeUser)) &&
+				trace.IsNotFound(uacc.UserWithPtyInDatabase(s.wtmpPath, teleportFakeUser))
 		}, 5*time.Minute, time.Second, "did not detect btmp entry within 5 minutes")
 	})
 
@@ -323,7 +320,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(s.nodeClient),
 		regular.SetShell("/bin/sh"),
-		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetLabels(
 			map[string]string{"foo": "bar"},
 			services.CommandLabels{

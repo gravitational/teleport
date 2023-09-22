@@ -63,11 +63,6 @@ func (*HostUsersProvisioningBackend) LookupGroup(name string) (*user.Group, erro
 	return user.LookupGroup(name)
 }
 
-// LookupGroup host group information lookup by GID
-func (*HostUsersProvisioningBackend) LookupGroupByID(gid string) (*user.Group, error) {
-	return user.LookupGroupId(gid)
-}
-
 // GetAllUsers returns a full list of users present on a system
 func (*HostUsersProvisioningBackend) GetAllUsers() ([]string, error) {
 	users, _, err := host.GetAllUsers()
@@ -75,23 +70,22 @@ func (*HostUsersProvisioningBackend) GetAllUsers() ([]string, error) {
 }
 
 // CreateGroup creates a group on a host
-func (*HostUsersProvisioningBackend) CreateGroup(name string, gid string) error {
-	_, err := host.GroupAdd(name, gid)
+func (*HostUsersProvisioningBackend) CreateGroup(name string) error {
+	_, err := host.GroupAdd(name)
 	return trace.Wrap(err)
 }
 
 // CreateUser creates a user on a host
-func (*HostUsersProvisioningBackend) CreateUser(name string, groups []string, uid, gid string) error {
+func (*HostUsersProvisioningBackend) CreateUser(name string, groups []string) error {
 	home, err := readDefaultHome(name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = host.UserAdd(name, groups, home, uid, gid)
+	_, err = host.UserAdd(name, groups, home)
 	return trace.Wrap(err)
 }
 
-// DeleteUser deletes a user on a host.
-// The user must not be logged in.
+// CreateUser creates a user on a host
 func (*HostUsersProvisioningBackend) DeleteUser(name string) error {
 	code, err := host.UserDel(name)
 	if code == host.UserLoggedInExit {
@@ -241,6 +235,8 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(user string, uidS, gi
 			destInfo, err := os.Lstat(dest)
 			if err != nil {
 				if os.IsNotExist(err) {
+					// dont filter destination files that dont exist as they
+					// still need to get copied
 					return false, nil
 				}
 				return true, trace.ConvertSystemError(err)

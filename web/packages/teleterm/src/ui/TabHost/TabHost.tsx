@@ -29,26 +29,18 @@ import { useTabShortcuts } from './useTabShortcuts';
 import { useNewTabOpener } from './useNewTabOpener';
 import { ClusterConnectPanel } from './ClusterConnectPanel/ClusterConnectPanel';
 
-export function TabHostContainer(props: {
-  topBarContainerRef: React.MutableRefObject<HTMLDivElement>;
-}) {
+export function TabHostContainer() {
   const ctx = useAppContext();
   ctx.workspacesService.useState();
   const isRootClusterSelected = !!ctx.workspacesService.getRootClusterUri();
 
   if (isRootClusterSelected) {
-    return <TabHost ctx={ctx} topBarContainerRef={props.topBarContainerRef} />;
+    return <TabHost ctx={ctx} />;
   }
   return <ClusterConnectPanel />;
 }
 
-export function TabHost({
-  ctx,
-  topBarContainerRef,
-}: {
-  ctx: IAppContext;
-  topBarContainerRef: React.MutableRefObject<HTMLDivElement>;
-}) {
+export function TabHost({ ctx }: { ctx: IAppContext }) {
   const documentsService =
     ctx.workspacesService.getActiveWorkspaceDocumentService();
   const activeDocument = documentsService?.getActive();
@@ -114,12 +106,13 @@ export function TabHost({
           onContextMenu={handleTabContextMenu}
           activeTab={activeDocument?.uri}
           onMoved={handleTabMoved}
+          disableNew={false}
           onNew={openClusterTab}
           newTabTooltip={getLabelWithAccelerator('New Tab', 'newTab')}
           closeTabTooltip={getLabelWithAccelerator('Close', 'closeTab')}
         />
       </Flex>
-      <DocumentsRenderer topBarContainerRef={topBarContainerRef} />
+      <DocumentsRenderer />
     </StyledTabHost>
   );
 }

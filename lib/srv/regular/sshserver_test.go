@@ -61,10 +61,10 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/pam"
 	libproxy "github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	sess "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -233,7 +233,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetNamespace(apidefaults.Namespace),
 		SetEmitter(nodeClient),
 		SetShell("/bin/sh"),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetLabels(
 			map[string]string{"foo": "bar"},
 			services.CommandLabels{
@@ -344,10 +344,7 @@ func TestMultipleExecCommands(t *testing.T) {
 
 	// Set up a mock emitter so we can capture audit events.
 	emitter := eventstest.NewChannelEmitter(32)
-	f.ssh.srv.StreamEmitter = events.StreamerAndEmitter{
-		Streamer: events.NewDiscardStreamer(),
-		Emitter:  emitter,
-	}
+	f.ssh.srv.StreamEmitter = emitter
 
 	// Manually open an ssh channel
 	channel, _, err := f.ssh.clt.OpenChannel(ctx, "session", nil)
@@ -595,12 +592,26 @@ func TestLockInForce(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), lockInForceMsg)
 
-	// Once the lock is lifted, new sessions should go through without error.
-	require.NoError(t, f.testSrv.Auth().DeleteLock(ctx, "test-lock"))
+	// As long as the lock is in force, global requests are rejected.
 	newClient2, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, newClient2.Close()) })
-	_, err = newClient2.NewSession(ctx)
+	t.Cleanup(func() {
+		// The client is expected to be closed by the lock monitor therefore expect
+		// an error on this second attempt.
+		require.Error(t, newClient2.Close())
+	})
+	ok, _, err := newClient2.SendRequest(ctx, teleport.ClusterDetailsReqType, true, nil)
+	require.False(t, ok)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), lockInForceMsg)
+
+	// Once the lock is lifted, new sessions should go through without error.
+	require.NoError(t, f.testSrv.Auth().DeleteLock(ctx, "test-lock"))
+	newClient3, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { require.NoError(t, newClient3.Close()) })
+	_, err = newClient3.NewSession(ctx)
 	require.NoError(t, err)
 }
 
@@ -1013,7 +1024,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 
 	// Create a fake client XServer listener which echos
 	// back whatever it receives.
-	fakeClientDisplay, err := net.Listen("tcp", "localhost:0")
+	fakeClientDisplay, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	go func() {
 		for {
@@ -1452,7 +1463,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
@@ -1593,7 +1604,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
@@ -1834,7 +1845,7 @@ func TestLimiter(t *testing.T) {
 		SetShell("/bin/sh"),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
@@ -2374,7 +2385,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),

@@ -36,19 +36,6 @@ func promoteBuildOsRepoPipeline() pipeline {
 			packageToTest:     "teleport-ent",
 			displayName:       "Teleport",
 		},
-		// teleport-ent-updater to stable/cloud only pipelines
-		{
-			versionChannel:    "cloud",
-			packageNameFilter: `teleport-ent-updater*`,
-			displayName:       "teleport-ent-updater",
-		},
-		// Rolling release pipelines
-		{
-			versionChannel:    "rolling",
-			packageNameFilter: `$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")`,
-			packageToTest:     "teleport-ent",
-			displayName:       "Teleport",
-		},
 	}
 
 	return buildPromoteOsPackagePipelines(packageDeployments)
@@ -72,7 +59,7 @@ func buildPromoteOsPackagePipelines(packageDeployments []osPackageDeployment) pi
 			Commands: []string{
 				fmt.Sprintf("cd %q", path.Join(clonePath, "build.assets", "tooling")),
 				fmt.Sprintf("mkdir -pv %q", path.Dir(releaseEnvironmentFilePath)),
-				fmt.Sprintf(`(CGO_ENABLED=0 go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo "build") > %q`, releaseEnvironmentFilePath),
+				fmt.Sprintf(`(go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo "build") > %q`, releaseEnvironmentFilePath),
 			},
 		},
 	}

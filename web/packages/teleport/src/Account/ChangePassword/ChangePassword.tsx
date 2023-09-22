@@ -15,13 +15,8 @@ limitations under the License.
 */
 
 import React from 'react';
+import { Text, Box } from 'design';
 import PasswordForm from 'shared/components/FormPassword';
-
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
 
 import useChangePassword, { State } from './useChangePassword';
 
@@ -37,16 +32,16 @@ export function ChangePassword({
   auth2faType,
 }: State) {
   return (
-    <FeatureBox style={{ padding: 0 }}>
-      <FeatureHeader border="none">
-        <FeatureHeaderTitle>Change Password</FeatureHeaderTitle>
-      </FeatureHeader>
+    <Box mt={3}>
+      <Text typography="h3" mb={3}>
+        Change Password
+      </Text>
       <PasswordForm
         auth2faType={auth2faType}
         preferredMfaType={preferredMfaType}
         onChangePass={changePassword}
         onChangePassWithWebauthn={changePasswordWithWebauthn}
       />
-    </FeatureBox>
+    </Box>
   );
 }

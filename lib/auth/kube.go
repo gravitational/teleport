@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -63,8 +64,9 @@ type KubeCSRResponse struct {
 // signed certificate if successful.
 func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	ctx := context.TODO()
-	if err := enforceLicense(types.KindKubernetesCluster); err != nil {
-		return nil, trace.Wrap(err)
+	if !modules.GetModules().Features().Kubernetes {
+		return nil, trace.AccessDenied(
+			"this Teleport cluster is not licensed for Kubernetes, please contact the cluster administrator")
 	}
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

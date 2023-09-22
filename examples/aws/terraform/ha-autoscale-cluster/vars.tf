@@ -70,7 +70,6 @@ variable "add_wildcard_route53_record" {
 
 // whether to enable the mongodb listener
 // adds security group setting, maps load balancer to port, and adds to teleport config
-// this setting will be ignored if use_tls_routing=true
 variable "enable_mongodb_listener" {
   type    = bool
   default = false
@@ -78,7 +77,6 @@ variable "enable_mongodb_listener" {
 
 // whether to enable the mysql listener
 // adds security group setting, maps load balancer to port, and adds to teleport config
-// this setting will be ignored if use_tls_routing=true
 variable "enable_mysql_listener" {
   type    = bool
   default = false
@@ -86,7 +84,6 @@ variable "enable_mysql_listener" {
 
 // whether to enable the postgres listener
 // adds security group setting, maps load balancer to port, and adds to teleport config
-// this setting will be ignored if use_tls_routing=true
 variable "enable_postgres_listener" {
   type    = bool
   default = false
@@ -179,16 +176,6 @@ variable "use_acm" {
   default = false
 }
 
-// Whether to enable TLS routing in the cluster
-// See https://goteleport.com/docs/architecture/tls-routing for more information
-// Setting this will disable ALL separate listener ports. If you also use ACM, then:
-// - you must use Teleport and tsh v13+
-// - you must use `tsh proxy` commands for Kubernetes/database access
-variable "use_tls_routing" {
-  type    = bool
-  default = false
-}
-
 // CIDR blocks allowed to connect to the bastion SSH port
 variable "allowed_bastion_ssh_ingress_cidr_blocks" {
   type    = list(any)
@@ -258,7 +245,6 @@ variable "node_aws_route_dest_cidr_block" {
 
 // Optional domain name to use for Teleport proxy NLB alias
 // Only applied when using ACM, it will do nothing when ACM is disabled
-// Only applied when _not_ using TLS routing, it will do nothing when TLS routing is enabled
 // When using ACM we have one ALB (for port 443 with TLS termination) and one NLB
 // (for all other traffic - 3023/3024/3026 etc)
 // As this NLB is at a different address, we add an alias record in Route 53 so that

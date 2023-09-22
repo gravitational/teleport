@@ -7,29 +7,35 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     ignore:
+      # Deprecated APIs, requires manual changes.
+      # TODO(xacrimon): Update Firestore and solve deprecations.
+      - dependency-name: cloud.google.com/go/firestore
+      # Depends on newer Firestore version.
+      - dependency-name: cloud.google.com/go/iam
+      - dependency-name: cloud.google.com/go/kms
+      - dependency-name: github.com/fsouza/fake-gcs-server
+      - dependency-name: google.golang.org/api
+      - dependency-name: google.golang.org/genproto
       # Breaks backwards compatibility
       - dependency-name: github.com/gravitational/ttlmap
+      # TODO(greedy52): Update mongo-driver and fix API changes.
+      - dependency-name: go.mongodb.org/mongo-driver
       # Must be kept in-sync with libbpf
       - dependency-name: github.com/aquasecurity/libbpfgo
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
       - dependency-name: github.com/coreos/go-oidc
       - dependency-name: github.com/go-mysql-org/go-mysql
+      - dependency-name: github.com/go-redis/redis/v9
       - dependency-name: github.com/gogo/protobuf
       - dependency-name: github.com/julienschmidt/httprouter
       - dependency-name: github.com/keys-pub/go-libfido2
       - dependency-name: github.com/microsoft/go-mssqldb
-      - dependency-name: github.com/redis/go-redis/v9
       - dependency-name: github.com/vulcand/predicate
+      - dependency-name: golang.org/x/crypto
     open-pull-requests-limit: 10
-    groups:
-      go:
-        update-types:
-          - "minor"
-          - "patch"
     reviewers:
       - codingllama
-      - jentfoo
       - rosstimothy
       - zmb3
 
@@ -39,55 +45,14 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
-    groups:
-      go:
-        update-types:
-          - "minor"
-          - "patch"
-    reviewers:
-      - codingllama
-      - jentfoo
-      - rosstimothy
-      - zmb3
-
-  - package-ecosystem: gomod
-    directory: "/assets/aws"
-    schedule:
-      interval: weekly
-      day: "sunday"
-      time: "09:00" # 9am UTC
     ignore:
+      # TODO(tross): Update after Firestore is updated
+      - dependency-name: google.golang.org/genproto
       # Forked/replaced dependencies
-      - dependency-name: github.com/alecthomas/kingpin/v2
+      - dependency-name: golang.org/x/crypto
     open-pull-requests-limit: 10
-    groups:
-      go:
-        update-types:
-          - "minor"
-          - "patch"
     reviewers:
       - codingllama
-      - jentfoo
-      - rosstimothy
-      - tcsc
-      - zmb3
-
-  - package-ecosystem: gomod
-    directory: "/assets/backport"
-    schedule:
-      interval: weekly
-      day: "sunday"
-      time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
-    groups:
-      go:
-        update-types:
-          - "minor"
-          - "patch"
-    reviewers:
-      - codingllama
-      - jentfoo
       - rosstimothy
       - zmb3
 
@@ -101,33 +66,9 @@ updates:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
     open-pull-requests-limit: 10
-    groups:
-      go:
-        update-types:
-          - "minor"
-          - "patch"
     reviewers:
       - codingllama
       - fheinecke
-      - jentfoo
-      - rosstimothy
-      - zmb3
-
-  - package-ecosystem: gomod
-    directory: "/integrations/kube-agent-updater"
-    schedule:
-      interval: weekly
-      day: "sunday"
-      time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
-    groups:
-      go:
-        update-types:
-          - "minor"
-          - "patch"
-    reviewers:
-      - codingllama
-      - hugoShaka
       - jentfoo
       - rosstimothy
       - zmb3
@@ -139,15 +80,8 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
-    groups:
-      rust:
-        update-types:
-          - "minor"
-          - "patch"
     reviewers:
       - codingllama
-      - ibeckermayer
-      - jentfoo
       - rosstimothy
       - zmb3
 
@@ -158,27 +92,7 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
-    groups:
-      rust:
-        update-types:
-          - "minor"
-          - "patch"
     reviewers:
       - codingllama
-      - ibeckermayer
-      - jentfoo
       - rosstimothy
       - zmb3
-
-  - package-ecosystem: github-actions
-    directory: "/"
-    schedule:
-      interval: weekly
-      day: monday
-      time: "09:00"
-      timezone: "America/Los_Angeles"
-    reviewers:
-      - wadells
-      - jentfoo
-      - fheinecke
-      - camscale

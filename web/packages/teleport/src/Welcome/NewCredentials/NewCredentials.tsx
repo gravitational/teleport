@@ -15,43 +15,38 @@ limitations under the License.
 */
 
 import React, { useState } from 'react';
-import { NewFlow, StepSlider } from 'design/StepSlider';
+import { Card } from 'design';
+import { PrimaryAuthType } from 'shared/services';
 
-import { OnboardCard } from 'design/Onboard/OnboardCard';
-
-import { Box } from 'design';
+import { NewFlow, StepComponentProps, StepSlider } from 'design/StepSlider';
 
 import RecoveryCodes from 'teleport/components/RecoveryCodes';
 import { PrivateKeyLoginDisabledCard } from 'teleport/components/PrivateKeyPolicy';
-import cfg from 'teleport/config';
 
-import { loginFlows } from 'teleport/Welcome/NewCredentials/constants';
-
-import useToken from '../useToken';
+import useToken, { State } from '../useToken';
 
 import { Expired } from './Expired';
-import { LoginFlow, NewCredentialsProps } from './types';
 import { RegisterSuccess } from './Success';
+import { NewMfaDevice } from './NewMfaDevice';
+import { NewPasswordlessDevice } from './NewPasswordlessDevice';
+import { NewPassword } from './NewPassword';
 
-/**
- *
- * @remarks
- * This container component is duplicated in Enterprise for Enterprise onboarding. If you are making edits to this file, check to see if the
- * equivalent change should be applied in Enterprise
- *
- */
+export type LoginFlow = Extract<PrimaryAuthType, 'passwordless' | 'local'>;
+export type SliderProps = StepComponentProps & {
+  changeFlow(f: NewFlow<LoginFlow>): void;
+};
+
+const loginFlows = {
+  local: [NewPassword, NewMfaDevice],
+  passwordless: [NewPasswordlessDevice],
+};
+
 export function Container({ tokenId = '', resetMode = false }) {
   const state = useToken(tokenId);
-  return (
-    <NewCredentials
-      {...state}
-      resetMode={resetMode}
-      isDashboard={cfg.isDashboard}
-    />
-  );
+  return <NewCredentials {...state} resetMode={resetMode} />;
 }
 
-export function NewCredentials(props: NewCredentialsProps) {
+export function NewCredentials(props: State & Props) {
   const {
     fetchAttempt,
     recoveryCodes,
@@ -62,21 +57,7 @@ export function NewCredentials(props: NewCredentialsProps) {
     success,
     finishedRegister,
     privateKeyPolicyEnabled,
-    isDashboard,
-    displayOnboardingQuestionnaire = false,
-    setDisplayOnboardingQuestionnaire = false,
-    Questionnaire = undefined,
   } = props;
-
-  // Check which flow to render as default.
-  const [password, setPassword] = useState('');
-  const [newFlow, setNewFlow] = useState<NewFlow<LoginFlow>>();
-  const [flow, setFlow] = useState<LoginFlow>(() => {
-    if (primaryAuthType === 'sso' || primaryAuthType === 'local') {
-      return 'local';
-    }
-    return 'passwordless';
-  });
 
   if (fetchAttempt.status === 'failed') {
     return <Expired resetMode={resetMode} />;
@@ -94,31 +75,12 @@ export function NewCredentials(props: NewCredentialsProps) {
     );
   }
 
-  if (
-    success &&
-    !resetMode &&
-    displayOnboardingQuestionnaire &&
-    setDisplayOnboardingQuestionnaire &&
-    Questionnaire
-  ) {
-    return (
-      <OnboardCard>
-        <Questionnaire
-          username={resetToken.user}
-          onSubmit={() => setDisplayOnboardingQuestionnaire(false)}
-          onboard={true}
-        />
-      </OnboardCard>
-    );
-  }
-
   if (success) {
     return (
       <RegisterSuccess
         redirect={redirect}
         resetMode={resetMode}
         username={resetToken.user}
-        isDashboard={isDashboard}
       />
     );
   }
@@ -134,6 +96,16 @@ export function NewCredentials(props: NewCredentialsProps) {
     );
   }
 
+  // Check which flow to render as default.
+  const [password, setPassword] = useState('');
+  const [newFlow, setNewFlow] = useState<NewFlow<LoginFlow>>();
+  const [flow, setFlow] = useState<LoginFlow>(() => {
+    if (primaryAuthType === 'sso' || primaryAuthType === 'local') {
+      return 'local';
+    }
+    return 'passwordless';
+  });
+
   function onSwitchFlow(flow: LoginFlow) {
     setFlow(flow);
   }
@@ -147,7 +119,7 @@ export function NewCredentials(props: NewCredentialsProps) {
   }
 
   return (
-    <Box as="form">
+    <Card as="form" bg="levels.surface" my={5} mx="auto" width={464}>
       <StepSlider<typeof loginFlows>
         flows={loginFlows}
         currFlow={flow}
@@ -158,6 +130,10 @@ export function NewCredentials(props: NewCredentialsProps) {
         password={password}
         updatePassword={updatePassword}
       />
-    </Box>
+    </Card>
   );
 }
+
+export type Props = State & {
+  resetMode?: boolean;
+};

@@ -1,6 +1,6 @@
 ---
 authors: Isaiah Becker-Mayer (isaiah@goteleport.com)
-state: implemented (v10.2.0)
+state: draft
 ---
 
 The next major feature for Teleport Desktop Access is referred to as "file
@@ -89,7 +89,7 @@ text, it will be inefficient for large files.
 
 Additionally, files transferred via this mechanism are limited to a maximum size
 of 4GB unless "huge file support" is enabled. This is a protocol extension that
-would require extra implementation to support.
+would require extra implmentation to support.
 
 Lastly, this approach is best suited to one-time transfers of a specific file
 (copy file, paste on other machine, make some edits, copy and paste the updated
@@ -98,7 +98,7 @@ many files available to the remote system simultaneously.
 
 ### File System Virtual Channel Extension (RDP Option 2)
 
-The other option for transferring files over an RDP connection is the file system
+The other option for tranferring files over an RDP connection is the file system
 virtual channel extension. This is a feature supported in many native RDP
 clients. After the connection is established, the RDP client announces a
 directory it wishes to share. This announcement includes basic metadata about the
@@ -115,7 +115,7 @@ copied, opened directly, or even edited. As long as the RDP client responds to
 the server's various requests, the RDP server takes care of making the remote
 file behave like any other file.
 
-From an implementation perspective, this approach is simpler because the client does
+From an implmentation perspective, this approach is simpler because the client does
 not need to monitor the directory for changes or alert the server.
 
 From an efficiency standpoint, this approach saves on network bandwidth as the RDP
@@ -236,7 +236,7 @@ system access API. From a user-experience perspective, the user never has to
 think about a file "transfer" - they just select a directory and then interact
 with it from the remote machine.
 
-The biggest drawback with this approach is that this API is currently only
+The biggest drawback with this appraoch is that this API is currently only
 [available](https://caniuse.com/?search=File%20System%20Access) in some Chromium
 browsers, the most popular being Chrome and Edge (enabling it in Brave requires
 modifying the setting at brave://flags/#file-system-access-api). However, this

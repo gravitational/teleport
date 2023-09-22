@@ -178,7 +178,7 @@ func NonNilErrorIsSuccess(_ interface{}, err error) bool {
 }
 
 // IsResponseSuccessful determines whether the error provided should be ignored by the circuit breaker. This checks
-// for http status codes < 500 and a few unsuccessful gRPC status codes.
+// for http status codes < 500 and a few unsuccessful grpc status codes.
 func IsResponseSuccessful(v interface{}, err error) bool {
 	switch t := v.(type) {
 	case nil:

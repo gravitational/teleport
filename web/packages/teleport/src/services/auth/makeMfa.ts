@@ -133,17 +133,6 @@ export function makeWebauthnAssertionResponse(res) {
   };
 }
 
-export type WebauthnAssertionResponse = {
-  id: string;
-  type: string;
-  extensions: {
-    appid: boolean;
-  };
-  rawId: string;
-  response: {
-    authenticatorData: string;
-    clientDataJSON: string;
-    signature: string;
-    userHandle: string;
-  };
-};
+export type WebauthnAssertionResponse = ReturnType<
+  typeof makeWebauthnAssertionResponse
+>;

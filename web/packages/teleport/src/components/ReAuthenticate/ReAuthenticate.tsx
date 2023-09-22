@@ -93,7 +93,7 @@ export function ReAuthenticate({
               <Flex mt={2} alignItems="flex-end">
                 <FieldSelect
                   width="50%"
-                  label="Two-factor Type"
+                  label="Two-factor type"
                   value={mfaOption}
                   options={mfaOptions}
                   onChange={(o: MfaOption) => {
@@ -104,12 +104,11 @@ export function ReAuthenticate({
                   mr={3}
                   mb={0}
                   isDisabled={attempt.status === 'processing'}
-                  elevated={true}
                 />
                 <Box width="50%">
                   {mfaOption.value === 'otp' && (
                     <FieldInput
-                      label="Authenticator Code"
+                      label="Authenticator code"
                       rule={requiredToken}
                       inputMode="numeric"
                       autoComplete="one-time-code"

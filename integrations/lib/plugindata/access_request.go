@@ -15,11 +15,8 @@
 package plugindata
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
-
-	"github.com/gravitational/trace"
 )
 
 // ResolutionTag represents enum type of access request resolution constant
@@ -34,17 +31,16 @@ const (
 
 // AccessRequestData represents generic plugin data required for access request processing
 type AccessRequestData struct {
-	User              string
-	Roles             []string
-	RequestReason     string
-	ReviewsCount      int
-	ResolutionTag     ResolutionTag
-	ResolutionReason  string
-	SystemAnnotations map[string][]string
+	User             string
+	Roles            []string
+	RequestReason    string
+	ReviewsCount     int
+	ResolutionTag    ResolutionTag
+	ResolutionReason string
 }
 
 // DecodeAccessRequestData deserializes a string map to PluginData struct.
-func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData, err error) {
+func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData) {
 	data.User = dataMap["user"]
 	if str := dataMap["roles"]; str != "" {
 		data.Roles = strings.Split(str, ",")
@@ -56,21 +52,11 @@ func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData,
 	data.ResolutionTag = ResolutionTag(dataMap["resolution"])
 	data.ResolutionReason = dataMap["resolve_reason"]
 
-	if _, ok := dataMap["system_annotations"]; ok {
-		err = json.Unmarshal([]byte(dataMap["system_annotations"]), &data.SystemAnnotations)
-		if err != nil {
-			err = trace.Wrap(err)
-			return
-		}
-		if len(data.SystemAnnotations) == 0 {
-			data.SystemAnnotations = nil
-		}
-	}
 	return
 }
 
 // EncodeAccessRequestData deserializes a string map to PluginData struct.
-func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) {
+func EncodeAccessRequestData(data AccessRequestData) map[string]string {
 	result := make(map[string]string)
 
 	result["user"] = data.User
@@ -85,12 +71,5 @@ func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) 
 	result["resolution"] = string(data.ResolutionTag)
 	result["resolve_reason"] = data.ResolutionReason
 
-	if len(data.SystemAnnotations) != 0 {
-		annotaions, err := json.Marshal(data.SystemAnnotations)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		result["system_annotations"] = string(annotaions)
-	}
-	return result, nil
+	return result
 }

@@ -1,8 +1,0 @@
-clusterName: teleport.example.com
-publicAddr: ["my-teleport-ingress.example.com:443"]
-ingress:
-  enabled: true
-  suppressAutomaticWildcards: true
-proxyListenerMode: multiplex
-service:
-  type: ClusterIP

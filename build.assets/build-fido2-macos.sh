@@ -13,22 +13,15 @@ set -eu
 
 readonly MACOS_VERSION_MIN=10.13
 
-# Cross-architecture building
-# Set C_ARCH to $(uname -m) if unset, and validate supported architecture
-if ! [[ "${C_ARCH:=$(uname -m)}" =~ ^(x86_64|arm64)$ ]]; then
-  echo "unknown or unsupported build architecture: $C_ARCH" >&2
-  exit 1
-fi
-
 # Note: versions are the same as the corresponding git tags for each repo.
 readonly CBOR_VERSION=v0.10.2
 readonly CBOR_COMMIT=efa6c0886bae46bdaef9b679f61f4b9d8bc296ae
 readonly CRYPTO_VERSION=openssl-3.0.11
 readonly CRYPTO_COMMIT=6ba3884c3235e1bb474b379026087f8216afacf4
-readonly FIDO2_VERSION=1.13.0
-readonly FIDO2_COMMIT=486a8f8667e42f55cee2bba301b41433cacec830
+readonly FIDO2_VERSION=1.12.0
+readonly FIDO2_COMMIT=659a02679f99fd34a44e06e35dce90794f6ecc86
 
-readonly LIB_CACHE="/tmp/teleport-fido2-cache-$C_ARCH"
+readonly LIB_CACHE="/tmp/teleport-fido2-cache"
 readonly PKGFILE_DIR="$LIB_CACHE/fido2-${FIDO2_VERSION}_cbor-${CBOR_VERSION}_crypto-${CRYPTO_VERSION}"
 
 # Library cache paths, implicitly matched by fetch_and_build.
@@ -89,7 +82,6 @@ cbor_build() {
   cd "$src"
 
   cmake \
-    -DCMAKE_OSX_ARCHITECTURES="$C_ARCH" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$dest" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOS_VERSION_MIN" \
@@ -113,8 +105,7 @@ crypto_build() {
   echo 'crypto: building' >&2
   cd "$src"
 
-  ./Configure \
-    "darwin64-$C_ARCH-cc" \
+  ./config \
     -mmacosx-version-min="$MACOS_VERSION_MIN" \
     --prefix="$dest" \
     no-shared \
@@ -146,7 +137,6 @@ fido2_build() {
     -DBUILD_EXAMPLES=OFF \
     -DBUILD_MANPAGES=OFF \
     -DBUILD_TOOLS=OFF \
-    -DCMAKE_OSX_ARCHITECTURES="$C_ARCH" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$dest" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOS_VERSION_MIN" \
@@ -182,7 +172,6 @@ EOF
   # Word splitting desired for pkg-config.
   #shellcheck disable=SC2046
   gcc \
-    -arch "$C_ARCH" \
     $(pkg-config --cflags --libs libfido2-static) \
     -o "$toydir/toy.bin" \
     "$toydir/toy.c"

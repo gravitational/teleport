@@ -33,7 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type mockJoinServiceClient struct {
@@ -73,8 +73,8 @@ func ConnectionCountingStreamInterceptor(count *atomic.Int32) grpc.StreamServerI
 func newGRPCServer(t *testing.T, opts ...grpc.ServerOption) (*grpc.Server, *bufconn.Listener) {
 	lis := bufconn.Listen(1024)
 	opts = append(opts,
-		grpc.ChainUnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
-		grpc.ChainStreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
+		grpc.ChainUnaryInterceptor(utils.GRPCServerUnaryErrorInterceptor),
+		grpc.ChainStreamInterceptor(utils.GRPCServerStreamErrorInterceptor),
 	)
 	s := grpc.NewServer(opts...)
 	return s, lis

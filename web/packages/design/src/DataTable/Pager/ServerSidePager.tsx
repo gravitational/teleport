@@ -34,7 +34,7 @@ export function ServerSidePager({ nextPage, prevPage }: Props) {
           disabled={isPrevDisabled}
           mx={0}
         >
-          <CircleArrowLeft />
+          <CircleArrowLeft fontSize="3" />
         </StyledArrowBtn>
         <StyledArrowBtn
           ml={0}
@@ -42,7 +42,7 @@ export function ServerSidePager({ nextPage, prevPage }: Props) {
           title="Next page"
           disabled={isNextDisabled}
         >
-          <CircleArrowRight />
+          <CircleArrowRight fontSize="3" />
         </StyledArrowBtn>
       </Flex>
     </Flex>

@@ -37,7 +37,6 @@ export interface UserContext {
   accessCapabilities: AccessCapabilities;
   // accessRequestId is the ID of the access request from which additional roles to assume were obtained for the current session.
   accessRequestId?: string;
-  allowedSearchAsRoles: string[];
 }
 
 export interface Access {
@@ -77,15 +76,9 @@ export interface Acl {
   download: Access;
   plugins: Access;
   integrations: AccessWithUse;
-  deviceTrust: Access;
-  lock: Access;
   assist: Access;
   samlIdpServiceProvider: Access;
-  accessList: Access;
 }
-
-// AllTraits represent all the traits defined for a user.
-export type AllUserTraits = Record<string, string[]>;
 
 export interface User {
   // name is the teleport username.
@@ -97,13 +90,7 @@ export interface User {
   authType?: string;
   // isLocal is true if json.authType was 'local'.
   isLocal?: boolean;
-  // traits existed before field "externalTraits"
-  // and returns only "specific" traits.
   traits?: UserTraits;
-  // externalTraits came after field "traits"
-  // and contains ALL the traits defined for
-  // this user.
-  allTraits?: AllUserTraits;
 }
 
 // UserTraits contain fields that define traits for local accounts.

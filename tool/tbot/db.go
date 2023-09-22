@@ -36,17 +36,27 @@ func onDBCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	destination, err := tshwrap.GetDestinationDirectory(botConfig)
+	destination, err := tshwrap.GetDestination(botConfig, cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	env, err := tshwrap.GetEnvForTSH(destination.Path)
+	destinationPath, err := tshwrap.GetDestinationPath(destination)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	identityPath := filepath.Join(destination.Path, config.IdentityFilePath)
+	identityTemplate, err := tshwrap.GetIdentityTemplate(destination)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	env, err := tshwrap.GetEnvForTSH(destination)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	identityPath := filepath.Join(destinationPath, identityTemplate.FileName)
 	identity, err := tshwrap.LoadIdentity(identityPath)
 	if err != nil {
 		return trace.Wrap(err)

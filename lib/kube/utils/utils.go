@@ -184,17 +184,60 @@ func KubeClusters(ctx context.Context, p KubeServicesPresence) ([]types.KubeClus
 	return extractAndSortKubeClusters(kubeServers), nil
 }
 
-// ListKubeClustersWithFilters returns a sorted list of unique kubernetes clusters
+// ListKubeClusterWithFilters returns a sorted list of unique kubernetes clusters
 // registered in p.
-func ListKubeClustersWithFilters(ctx context.Context, p client.GetResourcesClient, req proto.ListResourcesRequest) ([]types.KubeCluster, error) {
+func ListKubeClustersWithFilters(ctx context.Context, p client.ListResourcesClient, req proto.ListResourcesRequest) ([]types.KubeCluster, error) {
 	req.ResourceType = types.KindKubeServer
+	var kss []types.KubeServer
 
-	kss, err := client.GetAllResources[types.KubeServer](ctx, p, &req)
+	resources, err := client.GetResourcesWithFilters(ctx, p, req)
+	if trace.IsNotImplemented(err) {
+		// DELETE IN 13.0.0
+		resources, err = listKubeClustersWithFiltersFallback(ctx, p, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	} else {
+		// DELETE IN 13.0.0
+		resourceKubeService, err := listKubeClustersWithFiltersFallback(ctx, p, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = append(resources, resourceKubeService...)
+	}
+
+	kss, err = types.ResourcesWithLabels(resources).AsKubeServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return extractAndSortKubeClusters(kss), nil
+}
+
+func listKubeClustersWithFiltersFallback(ctx context.Context, p client.ListResourcesClient, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, error) {
+	req.ResourceType = types.KindKubeService
+	resources, err := client.GetResourcesWithFilters(ctx, p, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	kubeServices, err := types.ResourcesWithLabels(resources).AsServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var resourcesKubeServers []types.ResourceWithLabels
+	for _, kss := range kubeServices {
+		kubeServers, err := types.NewKubeServersV3FromServer(kss)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, kubeServer := range kubeServers {
+			resourcesKubeServers = append(resourcesKubeServers, kubeServer)
+		}
+	}
+	return resourcesKubeServers, nil
 }
 
 func extractAndSortKubeClusters(kss []types.KubeServer) []types.KubeCluster {

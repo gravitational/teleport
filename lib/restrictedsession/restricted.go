@@ -34,7 +34,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -84,7 +83,7 @@ type sessionMgr struct {
 }
 
 // New creates a RestrictedSession service.
-func New(config *servicecfg.RestrictedSessionConfig, wc RestrictionsWatcherClient) (Manager, error) {
+func New(config *bpf.RestrictedSessionConfig, wc RestrictionsWatcherClient) (Manager, error) {
 	err := config.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)

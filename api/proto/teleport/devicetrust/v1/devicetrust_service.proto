@@ -17,15 +17,10 @@ syntax = "proto3";
 package teleport.devicetrust.v1;
 
 import "google/protobuf/empty.proto";
-import "google/protobuf/field_mask.proto";
-import "google/protobuf/timestamp.proto";
 import "google/rpc/status.proto";
 import "teleport/devicetrust/v1/device.proto";
 import "teleport/devicetrust/v1/device_collected_data.proto";
 import "teleport/devicetrust/v1/device_enroll_token.proto";
-import "teleport/devicetrust/v1/device_source.proto";
-import "teleport/devicetrust/v1/tpm.proto";
-import "teleport/devicetrust/v1/usage.proto";
 import "teleport/devicetrust/v1/user_certificates.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
@@ -58,18 +53,6 @@ service DeviceTrustService {
   // It is possible to create both a Device and a DeviceEnrollToken in a
   // single invocation, see CreateDeviceRequest.create_enroll_token.
   rpc CreateDevice(CreateDeviceRequest) returns (Device);
-
-  // UpdateDevice is a masked device update.
-  //
-  // Only certain fields may be updated, see Device for details.
-  rpc UpdateDevice(UpdateDeviceRequest) returns (Device);
-
-  // UpsertDevice creates or updates a device.
-  //
-  // UpsertDevice attempts a write of all mutable fields on updates, therefore
-  // reading a fresh copy of the device is recommended. Update semantics still
-  // apply.
-  rpc UpsertDevice(UpsertDeviceRequest) returns (Device);
 
   // DeleteDevice hard-deletes a device, removing it and all collected data
   // history from the system.
@@ -114,18 +97,6 @@ service DeviceTrustService {
   // An enrolled device is allowed, via AuthenticateDevice, to acquire
   // certificates containing device extensions, thus gaining access to
   // device-aware actions.
-  //
-  // macOS enrollment flow:
-  // -> EnrollDeviceInit (client)
-  // <- MacOSEnrollChallenge (server)
-  // -> MacOSEnrollChallengeResponse
-  // <- EnrollDeviceSuccess
-  //
-  // TPM enrollment flow:
-  // -> EnrollDeviceInit (client)
-  // <- TPMEnrollChallenge (server)
-  // -> TPMEnrollChallengeResponse
-  // <- EnrollDeviceSuccess
   rpc EnrollDevice(stream EnrollDeviceRequest) returns (stream EnrollDeviceResponse);
 
   // AuthenticateDevice performs the device authentication ceremony.
@@ -136,20 +107,6 @@ service DeviceTrustService {
   //
   // Only registered and enrolled devices may perform device authentication.
   rpc AuthenticateDevice(stream AuthenticateDeviceRequest) returns (stream AuthenticateDeviceResponse);
-
-  // Syncs device inventory from a source exterior to Teleport, for example an
-  // MDM.
-  // Allows both partial and full syncs; for the latter, devices missing from
-  // the external inventory are handled as specified.
-  // Authorized either by a valid MDM service certificate or the appropriate
-  // "device" permissions (create/update/delete).
-  rpc SyncInventory(stream SyncInventoryRequest) returns (stream SyncInventoryResponse);
-
-  // GetDevicesUsage retrieves device limits and usage numbers for the
-  // underlying account/license.
-  // Requires an authenticated user with billing/read permissions.
-  // See [DevicesUsage] for details.
-  rpc GetDevicesUsage(GetDevicesUsageRequest) returns (DevicesUsage);
 }
 
 // Request for CreateDevice.
@@ -165,31 +122,6 @@ message CreateDeviceRequest {
   // to storage.
   // Prefer using non-resource creation semantics if possible.
   bool create_as_resource = 3;
-
-  // Custom expiration time for enrollment tokens.
-  // A short (for humans) server default is used if unset.
-  google.protobuf.Timestamp enroll_token_expire_time = 4;
-}
-
-// Request for UpdateDevice.
-message UpdateDeviceRequest {
-  // Device to update.
-  Device device = 1;
-
-  // Update mask applied to the resource.
-  // Fields are masked according to their proto name.
-  google.protobuf.FieldMask update_mask = 2;
-}
-
-// Request for UpsertDevice.
-message UpsertDeviceRequest {
-  // Device to create or update.
-  Device device = 1;
-
-  // If true, creates the device using resource semantics.
-  // Has no effect on device updates.
-  // See create_as_resource in CreateDeviceRequest.
-  bool create_as_resource = 2;
 }
 
 // Request for DeleteDevice.
@@ -291,33 +223,27 @@ message DeviceOrStatus {
   // ID of the created device.
   // Only present if the status is OK.
   string id = 2;
-
-  // If true the action attempted against the device was a delete, instead of a
-  // create or update.
-  bool deleted = 3;
 }
 
 // Request for CreateDeviceEnrollToken.
 message CreateDeviceEnrollTokenRequest {
   // ID of the device.
   string device_id = 1;
-
-  // Device collected data.
-  // Used to authorize issuance of device enrollment tokens for auto-enrollment.
-  // Not required otherwise.
-  DeviceCollectedData device_data = 2;
-
-  // Custom expiration time for enrollment tokens.
-  // A short (for humans) server default is used if unset.
-  google.protobuf.Timestamp expire_time = 3;
 }
 
 // Request for EnrollDevice.
+//
+// macOS enrollment flow:
+// -> EnrollDeviceInit (client)
+// <- MacOSEnrollChallenge (server)
+// -> MacOSEnrollChallengeResponse
+// <- EnrollDeviceSuccess
+//
+// Only macOS enrollments are supported at the moment.
 message EnrollDeviceRequest {
   oneof payload {
     EnrollDeviceInit init = 1;
     MacOSEnrollChallengeResponse macos_challenge_response = 2;
-    TPMEnrollChallengeResponse tpm_challenge_response = 3;
   }
 }
 
@@ -326,7 +252,6 @@ message EnrollDeviceResponse {
   oneof payload {
     EnrollDeviceSuccess success = 1;
     MacOSEnrollChallenge macos_challenge = 2;
-    TPMEnrollChallenge tpm_challenge = 3;
   }
 }
 
@@ -346,9 +271,6 @@ message EnrollDeviceInit {
 
   // Payload for macOS-specific data.
   MacOSEnrollPayload macos = 4;
-
-  // Payload for TPM-specific data. Used for Windows/Linux.
-  TPMEnrollPayload tpm = 5;
 }
 
 // EnrollDeviceSuccess marks a successful device enrollment ceremony.
@@ -375,86 +297,6 @@ message MacOSEnrollChallengeResponse {
   bytes signature = 2;
 }
 
-// The payload containing TPM specific information required on device
-// enrollment.
-message TPMEnrollPayload {
-  oneof ek {
-    // The device's endorsement certificate in X509, ASN.1 DER form. This
-    // certificate contains the public key of the endorsement key. This is
-    // preferred to ek_key.
-    bytes ek_cert = 1;
-    // The device's public endorsement key in PKIX, ASN.1 DER form. This is
-    // used when a TPM does not contain any endorsement certificates.
-    bytes ek_key = 2;
-  }
-  // The attestation key and the parameters necessary to remotely verify it as
-  // related to the endorsement key.
-  TPMAttestationParameters attestation_parameters = 3;
-}
-
-// The attestation key and the parameters necessary to remotely verify it as
-// related to the endorsement key.
-// See https://pkg.go.dev/github.com/google/go-attestation/attest#AttestationParameters.
-// This message excludes the `UseTCSDActivationFormat` field from the link above
-// as it is TMP 1.x specific and always false.
-message TPMAttestationParameters {
-  // The encoded TPMT_PUBLIC structure containing the attestation public key
-  // and signing parameters.
-  bytes public = 1;
-  // The properties of the attestation key, encoded as a TPMS_CREATION_DATA
-  // structure.
-  bytes create_data = 2;
-  // An assertion as to the details of the key, encoded as a TPMS_ATTEST
-  // structure.
-  bytes create_attestation = 3;
-  // A signature of create_attestation, encoded as a TPMT_SIGNATURE structure.
-  bytes create_signature = 4;
-}
-
-// The challenge sent to the client by the server during enrollment.
-// The challenge involves two parts:
-// - Solving an encrypted credential with `ActivateCredential`.
-// - Producing a platform attestation using the provided nonce.
-message TPMEnrollChallenge {
-  // The encrypted credential for the client to prove possession of the EK and
-  // AK.
-  TPMEncryptedCredential encrypted_credential = 1;
-  // The nonce to use when producing the quotes over the PCRs with the TPM
-  // during the platform attestation.
-  bytes attestation_nonce = 2;
-}
-
-// These values are used by the TPM2.0 `ActivateCredential` command to produce
-// the solution which proves possession of the EK and AK.
-//
-// For a more in-depth description see:
-// - https://pkg.go.dev/github.com/google/go-attestation/attest#EncryptedCredential
-// - https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_code_pub.pdf (Heading 12.5.1 "TPM2_ActivateCredential" "General Description")
-// - https://github.com/google/go-attestation/blob/v0.4.3/attest/activation.go#L199
-// - https://github.com/google/go-tpm/blob/v0.3.3/tpm2/credactivation/credential_activation.go#L61
-message TPMEncryptedCredential {
-  // The `credential_blob` parameter to be used with the `ActivateCredential`
-  // command. This is used with the decrypted value of `secret` in a
-  // cryptographic process to decrypt the solution.
-  bytes credential_blob = 1;
-  // The `secret` parameter to be used with `ActivateCredential`. This is a
-  // seed which can be decrypted with the EK. The decrypted seed is then used
-  // when decrypting `credential_blob`.
-  bytes secret = 2;
-}
-
-// The enrollment challenge response containing the solution returned by
-// calling the TPM2.0 `ActivateCredential` command on the client with the
-// parameters provided in `TPMEnrollChallenge`.
-message TPMEnrollChallengeResponse {
-  // The client's solution to `TPMEncryptedCredential` included in
-  // `TPMEnrollChallenge` using ActivateCredential.
-  bytes solution = 1;
-  // The result of the client's platform attestation with the nonce provided
-  // in `TPMEnrollChallenge`.
-  TPMPlatformParameters platform_parameters = 2;
-}
-
 // Request for AuthenticateDevice.
 //
 // Authentication ceremony flow:
@@ -466,7 +308,6 @@ message AuthenticateDeviceRequest {
   oneof payload {
     AuthenticateDeviceInit init = 1;
     AuthenticateDeviceChallengeResponse challenge_response = 2;
-    TPMAuthenticateDeviceChallengeResponse tpm_challenge_response = 3;
   }
 }
 
@@ -475,7 +316,6 @@ message AuthenticateDeviceResponse {
   oneof payload {
     AuthenticateDeviceChallenge challenge = 1;
     UserCertificates user_certificates = 2;
-    TPMAuthenticateDeviceChallenge tpm_challenge = 3;
   }
 }
 
@@ -500,22 +340,6 @@ message AuthenticateDeviceInit {
   DeviceCollectedData device_data = 3;
 }
 
-// TPMAuthenticateDeviceChallenge carries the authentication challenge
-// specific to TPMs.
-message TPMAuthenticateDeviceChallenge {
-  // Randomly-generated nonce to be used during platform attestation by the
-  // TPM.
-  bytes attestation_nonce = 1;
-}
-
-// TPMAuthenticateDeviceChallengeResponse carries the authentication challenge
-// response specific to TPMs.
-message TPMAuthenticateDeviceChallengeResponse {
-  // The result of the client's platform attestation with the nonce provided
-  // in `TPMAuthenticateDeviceChallenge`.
-  TPMPlatformParameters platform_parameters = 1;
-}
-
 // AuthenticateDeviceChallenge carries the authentication challenge.
 message AuthenticateDeviceChallenge {
   // Randomly-generated, opaque challenge to be signed using the device key.
@@ -528,102 +352,3 @@ message AuthenticateDeviceChallengeResponse {
   // Signature over the challenge, using the device key.
   bytes signature = 1;
 }
-
-// Request for SyncInventory.
-//
-// A typical message sequence is as follows:
-// (-> means client-to-server, <- means server-to-client)
-// -> SyncInventoryStart
-// <- SyncInventoryAck
-// (loop)
-// -> SyncInventoryDevices (add/remove devices)
-// <- SyncInventoryResult
-// (end loop)
-// -> SyncInventoryEnd
-// (loop until server closes the stream, zero or more times)
-// <- SyncInventoryMissingDevices
-// -> SyncInventoryDevices (removals only)
-// <- SyncInventoryResult
-// (end loop)
-message SyncInventoryRequest {
-  oneof payload {
-    SyncInventoryStart start = 1;
-    SyncInventoryEnd end = 2;
-    SyncInventoryDevices devices_to_upsert = 3;
-    SyncInventoryDevices devices_to_remove = 4;
-  }
-}
-
-// Response for SyncInventory.
-message SyncInventoryResponse {
-  oneof payload {
-    SyncInventoryAck ack = 1;
-    SyncInventoryResult result = 2;
-    SyncInventoryMissingDevices missing_devices = 3;
-  }
-}
-
-// SyncInventoryStart starts the inventory sync.
-message SyncInventoryStart {
-  // Source of the inventory sync.
-  // Used for all devices. The `source` field in individual devices is ignored
-  // by this RPC.
-  DeviceSource source = 1;
-
-  reserved 2; // SyncInventoryMode mode
-  reserved "mode";
-
-  reserved 3; // SyncInventoryDeviceAction on_missing_action
-  reserved "on_missing_action";
-
-  // If true, the server keeps track of the devices upserted during the sync.
-  // After receiving the [SyncInventoryEnd] message, the server informs the
-  // client of all devices that are present in storage but not observed in the
-  // upserts.
-  // See [SyncInventoryRequest] and [SyncInventoryMissingDevices] for details.
-  bool track_missing_devices = 4;
-}
-
-// SyncInventoryEnd ends the inventory sync, signaling that no more
-// SyncInventoryDevices messages will be sent by the client.
-message SyncInventoryEnd {
-  reserved 1; // bool external_sync_successful
-  reserved "external_sync_successful";
-}
-
-// SyncInventoryDevices transports devices to add/update/remove.
-// Removals only need identifying fields to be set.
-message SyncInventoryDevices {
-  // Devices to sync.
-  repeated Device devices = 1;
-}
-
-// SyncInventoryAck is used to confirm successful processing of messages that
-// lack a more specific response.
-message SyncInventoryAck {}
-
-// SyncInventoryResult is the response for SyncInventoryDevices or
-// SyncInventoryEnd
-// It lists all synced/deleted devices.
-message SyncInventoryResult {
-  // Devices modified, in the same order as the input when applicable.
-  repeated DeviceOrStatus devices = 1;
-}
-
-// SyncInventoryMissingDevices informs the sync client of all stored devices
-// that were not observed in upserts during the sync.
-//
-// Requires `track_missing_devices` to be set in the [SyncInventoryStart]
-// message.
-//
-// The client must follow up with a [SyncInventoryDevices] message, including
-// any devices to be deleted.
-message SyncInventoryMissingDevices {
-  // Devices missing from the client-side sync.
-  // Guaranteed to have the following fields: id, os_type, asset_tag and
-  // profile.external_id.
-  repeated Device devices = 1;
-}
-
-// Request for GetDevicesUsage.
-message GetDevicesUsageRequest {}

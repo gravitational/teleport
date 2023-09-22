@@ -335,7 +335,6 @@ impl Client {
 }
 
 bitflags! {
-    #[derive(PartialEq, Eq, Debug)]
     struct ClipboardHeaderFlags: u16 {
         /// Indicates that the assocated request was processed successfully.
         const CB_RESPONSE_OK = 0x0001;
@@ -429,7 +428,7 @@ impl ClipboardCapabilitiesPDU {
             w.write_u16::<LittleEndian>(ClipboardCapabilitySetType::General as u16)?;
             w.write_u16::<LittleEndian>(12)?; // length
             w.write_u32::<LittleEndian>(CB_CAPS_VERSION_2)?;
-            w.write_u32::<LittleEndian>(set.flags.bits())?;
+            w.write_u32::<LittleEndian>(set.flags.bits)?;
         }
 
         Ok(w)
@@ -490,7 +489,6 @@ struct GeneralClipboardCapabilitySet {
 }
 
 bitflags! {
-    #[derive(Debug, PartialEq)]
     struct ClipboardGeneralCapabilityFlags: u32 {
         /// Indicates that long format names will be used in the format list PDU.
         /// If this flag is not set, then the short format names MUST be used.

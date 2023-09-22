@@ -15,11 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import Table, {
-  Cell,
-  ClickableLabelCell,
-  StyledTableWrapper,
-} from 'design/DataTable';
+import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
 import { ButtonBorder } from 'design';
 import { Danger } from 'design/Alert';
 import { SearchPanel, SearchPagination } from 'shared/components/Search';
@@ -58,45 +54,43 @@ function KubeList(props: State) {
       {fetchAttempt.status === 'error' && (
         <Danger>{fetchAttempt.statusText}</Danger>
       )}
-      <StyledTableWrapper borderRadius={3}>
-        <SearchPanel
-          updateQuery={updateQuery}
-          updateSearch={updateSearch}
-          pageIndicators={pageCount}
-          filter={agentFilter}
-          showSearchBar={true}
-          disableSearch={disabled}
+      <SearchPanel
+        updateQuery={updateQuery}
+        updateSearch={updateSearch}
+        pageIndicators={pageCount}
+        filter={agentFilter}
+        showSearchBar={true}
+        disableSearch={disabled}
+      />
+      <DarkenWhileDisabled disabled={disabled}>
+        <Table
+          data={kubes}
+          columns={[
+            {
+              key: 'name',
+              headerText: 'Name',
+              isSortable: true,
+            },
+            {
+              key: 'labels',
+              headerText: 'Labels',
+              render: ({ labels }) => (
+                <ClickableLabelCell
+                  labels={labels}
+                  onClick={onAgentLabelClick}
+                />
+              ),
+            },
+            {
+              altKey: 'connect-btn',
+              render: kube => renderConnectButtonCell(kube.uri, connect),
+            },
+          ]}
+          customSort={customSort}
+          emptyText={emptyText}
         />
-        <DarkenWhileDisabled disabled={disabled}>
-          <Table
-            data={kubes}
-            columns={[
-              {
-                key: 'name',
-                headerText: 'Name',
-                isSortable: true,
-              },
-              {
-                key: 'labels',
-                headerText: 'Labels',
-                render: ({ labels }) => (
-                  <ClickableLabelCell
-                    labels={labels}
-                    onClick={onAgentLabelClick}
-                  />
-                ),
-              },
-              {
-                altKey: 'connect-btn',
-                render: kube => renderConnectButtonCell(kube.uri, connect),
-              },
-            ]}
-            customSort={customSort}
-            emptyText={emptyText}
-          />
-          <SearchPagination prevPage={prevPage} nextPage={nextPage} />
-        </DarkenWhileDisabled>
-      </StyledTableWrapper>
+        <SearchPagination prevPage={prevPage} nextPage={nextPage} />
+      </DarkenWhileDisabled>
     </>
   );
 }

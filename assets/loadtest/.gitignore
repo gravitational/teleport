@@ -16,5 +16,3 @@ k8s/secrets/**
 **/terraform.tfvars
 
 .secrets
-
-control-plane/vars.env

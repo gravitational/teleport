@@ -14,26 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { ResourceLabel } from 'teleport/services/agents';
+import { AgentLabel } from 'teleport/services/agents';
 
 // UserGroup is a remote user group.
 export type UserGroup = {
-  kind: 'user_group';
   // Name is name of the user group.
   name: string;
   // Description is the description of the user group.
   description: string;
   // Labels for the user group.
-  labels: ResourceLabel[];
-  // FriendlyName for the user group.
-  friendlyName?: string;
-  // Applications is a list of associated applications.
-  applications?: ApplicationAndFriendlyName[];
-};
-
-export type ApplicationAndFriendlyName = {
-  name: string;
-  friendlyName: string;
+  labels: AgentLabel[];
 };
 
 export type UserGroupsResponse = {

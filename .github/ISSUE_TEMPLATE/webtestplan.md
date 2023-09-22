@@ -1,7 +1,7 @@
 ---
-name: Web Test Plan
-about: Web UI manual test plan for Teleport major releases
-title: "Teleport Web Test Plan"
+name: Test Plan
+about: Manual test plan for Teleport major releases
+title: "Teleport X Web Test Plan"
 labels: testplan
 ---
 
@@ -14,8 +14,6 @@ For main, test with a role that has access to all resources.
   - [ ] Connect to a Teleport node
   - [ ] Connect to a OpenSSH node
   - [ ] Check agent forwarding is correct based on role and proxy mode.
-     - Set `forward_agent: true` under the `options` section of your role, and then test that your
-       teleport certs show up when you run `ssh-add -l` on the node.
 
 #### Top Nav
 - [ ] Verify that cluster selector displays all (root + leaf) clusters
@@ -27,32 +25,27 @@ For main, test with a role that has access to all resources.
 - [ ] Verify that Collapse/Expand works and collapsed has icon `>`, and expand has icon `v`
 - [ ] Verify that it automatically expands and highlights the item on page refresh
 
-### Unified Resources
-- [ ] Verify that scrolling to the bottom of the page renders more resources
-- [ ] Verify that all resource types are visible if no filters are present
-- [ ] Verify that "Search" by (host)name, address, labels works for all resources
 #### Servers aka Nodes
-- [ ] Verify that "Servers" type shows all joined nodes
+- [ ] Verify that "Servers" table shows all joined nodes
 - [ ] Verify that "Connect" button shows a list of available logins
+- [ ] Verify that "Hostname", "Address" and "Labels" columns show the current values
+- [ ] Verify that "Search" by hostname, address, labels works
 - [ ] Verify that terminal opens when clicking on one of the available logins
-- [ ] Verify that clicking on `Add Resource` button correctly sends to the resource discovery page
+- [ ] Verify that clicking on `Add Server` button renders dialogue set to `Automatically` view
+  - [ ] Verify clicking on `Regenerate Script` regenerates token value in the bash command
+  - [ ] Verify using the bash command successfully adds the server (refresh server list)
+  - [ ] Verify that clicking on `Manually` tab renders manual steps
+  - [ ] Verify that clicking back to `Automatically` tab renders bash command
+
 #### Applications
-- [ ] Verify that the app icons are correctly displayed
-- [ ] Verify that filtering types by Application includes applications in the page
-- [ ] Verify that the `Launch` button for applications correctly send to the app
-- [ ] Verify that the `Launch` button for AWS apps correctly renders an IAM role selection window 
+- [ ] Verify that clicking on `Add Application` button renders dialogue
+  - [ ] Verify input validation (prevent empty value and invalid url)
+  - [ ] Verify after input and clicking on `Generate Script`, bash command is rendered
+  - [ ] Verify clicking on `Regenerate` button regenerates token value in bash command
+
 #### Databases
-- [ ] Verify that the database subtype icons are correctly displayed
-- [ ] Verify that filtering types by Databases includes databases in the page
-- [ ] Verify that clicking `Connect` renders the dialog with correct information
-
-#### Kubes
-- [ ] Verify that filtering types by Kubes includes kubes in the page
-- [ ] Verify that clicking `Connect` renders the dialog with correct information
-
-#### Desktops
-- [ ] Verify that filtering types by Desktops includes desktops in the page
-- [ ] Verify that clicking `Connect` renders a login selection and that the logins are completely in view
+- [ ] Verify that clicking on `Add Database` button renders dialogue for manual instructions:
+  - [ ] Verify selecting different options on `Step 4` changes `Step 5` commands
 #### Active Sessions
 - [ ] Verify that "empty" state is handled
 - [ ] Verify that it displays the session when session is active
@@ -183,11 +176,11 @@ spec:
   allow:
     app_labels:  # just example labels
       label1-key: label1-value
-      env: [dev, staging]
+      env: [dev, staging] 
     db_labels:
       '*': '*'   # asteriks gives user access to everything
     kubernetes_labels:
-      '*': '*'
+      '*': '*' 
     node_labels:
       '*': '*'
     windows_desktop_labels:
@@ -291,6 +284,8 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 
 #### Node List Tab
 - [ ] Verify that Cluster selector works (URL should change too)
+- [ ] Verify that Quick launcher input works
+- [ ] Verify that Quick launcher input handles input errors
 - [ ] Verify that "Connect" button shows a list of available logins
 - [ ] Verify that "Hostname", "Address" and "Labels" columns show the current values
 - [ ] Verify that "Search" by hostname, address, labels work
@@ -504,36 +499,6 @@ Add the following to enable read access to trusted clusters
 - [ ] Verify that a user can access the "Trust" screen
 - [ ] Verify that a user cannot create/delete/update a trusted cluster.
 
-## Locks
-Checking that you can view, create, and delete locks.
-
-- [ ] Existing locks listing page.
-  - [ ] It lists all of the existing locks in the system.
-  - [ ] Locks without a `Locked By` and `Start Date` are still shown with those fields empty.
-  - [ ] Clicking the trash can deletes the lock with a spinner.
-  - [ ] Table columns are sortable.
-  - [ ] Table search field filters the results.
-- [ ] Adding a new lock. (+ Add New Lock).
-  - [ ] Target switcher shows the locks for the various target types (User, Role, Login, Node, MFA Device, Windows Desktop, Access Request).
-  - [ ] Target switcher has "Access Request" in E build but not in OSS.
-  - [ ] You can add lock targets from multiple target types.
-  - [ ] Adding a target disables that "add button".
-  - [ ] You cannot proceed if you haven't selected targets to lock.
-  - [ ] You can clear the selected targets prior to creating locks.
-  - [ ] Proceeding to lock opens an animated slide panel from the right.
-  - [ ] You can remove lock targets from the slide panel.
-  - [ ] Creating a lock with message and TTL correctly create the lock.
-  - [ ] Create a lock without message and TTL, they should be optional.
-
-## Enroll new resources using Discover Wizard
-Use Discover Wizard to enroll new resources and access them:
-
-- [ ] SSH Server
-- [ ] Self-Hosted PostgreSQL
-- [ ] AWS RDS PostgreSQL
-- [ ] Kubernetes
-- [ ] Windows Desktop Active Directory
-
 ## Teleport Connect
 
 - Auth methods
@@ -577,14 +542,15 @@ Use Discover Wizard to enroll new resources and access them:
       - Run the program: `$ mc`
       - Resize Teleport Connect to see if the panels resize with it
    - [ ] Verify that the tab automatically closes on `$ exit` command.
+   - [ ] Execute `tsh ssh nonexistent-node` in the command bar. Verify that you see a new tab with an
+     error from tsh ssh.
 - Kubernetes access
-   - [ ] Open a new kubernetes tab, run `echo $KUBECONFIG` and check if it points to the file within Connect's app data directory.
-   - [ ] Close the tab and open it again (to the same resource). Verify that the kubeconfig path didn't change.
-   - [ ] Run `kubectl get pods` and see if the command succeeds.
-   - Verify that the kubeconfig file is removed when the user:
+   - [ ] Open a new kubernetes tab, run `echo $KUBECONFIG` and check if it points to the file within Connect's app data directory. 
+   - [ ] Close the tab and open it again (to the same resource). Verify if the kubeconfig path didn't change.
+   - [ ] Run `kubectl get pods` and see if the command succeeds. 
+   - Verify if the kubeconfig file is removed when the user:
       - [ ] Removes the connection
       - [ ] Logs out of the cluster
-      - [ ] Closes Teleport Connect
 - State restoration from disk
    - [ ] Verify that the app asks about restoring previous tabs when launched and restores them
          properly.
@@ -638,24 +604,23 @@ Use Discover Wizard to enroll new resources and access them:
    - [ ] Click "Add another cluster", provide an address to a new cluster and submit the form. Close
      the modal when asked for credentials. Verify that the cluster was still added and is visible in
      the profile selector.
-- Search bar
-   - [ ] Verify that you can connect to all three resources types on root clusters and leaf
-     clusters.
-   - [ ] Verify that picking a resource filter and a cluster filter at the same time works as
-     expected.
-   - [ ] Verify that connecting to a resource from a different root cluster switches to the
-     workspace of that root cluster.
-   - Shut down a root cluster.
-      - [ ] Verify that attempting to search returns "Some of the search results are incomplete" in
-        the search bar.
-      - [ ] Verify that clicking "Show details" next to the error message and then closing the modal
-        by clicking one of the buttons or by pressing Escape does not close the search bar.
-   - Log in as a user with a short TTL. Make sure you're not logged in to any other cluster. Wait for
-     the cert to expire. Enter a search term that usually returns some results.
-      - [ ] Relogin when asked. Verify that the search bar is not collapsed and shows search
-        results.
-      - [ ] Close the login modal instead of logging in. Verify that the search bar is not collapsed
-        and shows "No matching results found".
+- Command bar & autocomplete
+   - Do the steps for the root cluster, then switch to a leaf cluster and repeat them.
+   - [ ] Verify that the autocomplete for tsh ssh filters SSH logins and autocompletes them.
+   - [ ] Verify that the autocomplete for tsh ssh filters SSH hosts by name and label and
+     autocompletes them.
+   - [ ] Verify that launching an invalid tsh ssh command shows the error in a new tab.
+   - [ ] Verify that launching a valid tsh ssh command opens a new tab with the session opened.
+   - [ ] Verify that the autocomplete for tsh proxy db filters databases by name and label and
+     autocompletes them.
+   - [ ] Verify that launching a tsh proxy db command opens a new local shell with the command
+     running.
+   - [ ] Verify that the autocomplete for tsh ssh doesn't break when you cut/paste commands in
+     various points.
+   - [ ] Verify that manually typing out what the autocomplete would suggest doesn't break the
+     command bar.
+   - [ ] Verify that launching any other command that's not supported by the autocomplete opens a
+     new local shell with that command running.
 - Resilience when resources become unavailable
    - DocumentCluster
       - For each scenario, create at least one DocumentCluster tab for each available resource kind.
@@ -706,16 +671,11 @@ Use Discover Wizard to enroll new resources and access them:
       - [ ] Verify that closing the login modal without logging in shows an appropriate error.
    - Log in, create a db connection, then remove access to that db server for that user; wait for
      the cert to expire, then attempt to make a connection through the proxy; log in.
-      - [ ] Verify that psql shows an appropriate access denied error ("access to db denied. User
-        does not have permissions. Confirm database user and name").
+      - [ ] Verify that the db tab shows an appropriate error.
    - Log in, open a cluster tab, wait for the cert to expire. Switch from a servers view to
      databases view.
       - [ ] Verify that a login modal was shown.
       - [ ] Verify that after logging in, the database list is shown.
-   - Log in, set up two db connections. Wait for the cert to expire. Attempt to connect to the first
-     proxy, then without logging in proceed to connect to the second proxy.
-      - [ ] Verify that an error notification was shown related to another login attempt being in
-        progress.
 - Access Requests
    - **Creating Access Requests (Role Based)**
       - To setup a test environment, follow the steps laid out in `Created Access Requests (Role
@@ -768,54 +728,8 @@ Use Discover Wizard to enroll new resources and access them:
         viewing
       - [ ] Verify that after re-login, requests that are not expired and are approved are assumable
         again
-- Configuration
-    - [ ] Verify that clicking on More Options icon `⋮` > Open Config File opens the `app_config.json` file in your editor.
-    - Change a config property and restart the app. Verify that the change has been applied.
-      - [ ] Change a keyboard shortcut.
-      - [ ] Change `terminal.fontFamily`.
-    - Provide the same keyboard shortcut for two actions.
-      - [ ] Verify that a notification is displayed saying that a duplicate shortcut was found.
-    - Provide an invalid value for some property (for example, set `"keymap.tab1": "ABC"`).
-      - [ ] Verify that a notification is displayed saying that the property has an invalid value.
-    - Make a syntax error in the file (for example, set `"keymap.tab1": not a string`).
-      - [ ] Verify that a notification is displayed saying that the config file was not loaded correctly.
-      - [ ] Verify that your config changes were not overridden.
-- Headless auth
-   - Headless auth modal in Connect can be triggered by calling `tsh ls --headless --user=<username>
-     --proxy=<proxy>`. The cluster needs to have webauthn enabled for it to work.
-   - [ ] Verify the basic operations (approve, reject, ignore then accept in the Web UI).
-   - [ ] Make a headless request then cancel the command. Verify that the modal in Connect was
-     closed automatically.
-   - [ ] Make a headless request then accept it in the Web UI. Verify that the modal in Connect was
-     closed automatically.
-   - [ ] Make two concurrent headless requests for the same cluster. Verify that Connect shows the
-     second one after closing the modal for the first request.
-   - [ ] Make two concurrent headless requests for two different clusters. Verify that Connect shows
-     the second one after closing the modal for the first request.
-- tshd-initiated communication
-   - [ ] Create a db connection, wait for the cert to expire. Attempt to connect to the database
-     through CLI. While the login modal is shown, make a headless request. Verify that after logging
-     in again, the app shows the modal for the headless request.
-- Connect My Computer
-   - [ ] Verify the happy path from clean slate (no existing role) setup: set up the node and then
-     connect to it.
-   - Kill the agent while its joining the cluster and verify that the logs from the agent process
-     are shown in the UI.
-      - The easiest way to do this is by following the agent cleanup daemon logs (`tail -F ~/Library/Application\ Support/Teleport\
-        Connect/logs/cleanup.log`) and then `kill -s KILL <agent PID>`.
-      - [ ] During setup.
-      - [ ] After setup in the status view. Verify that the page says that the process exited with
-        SIGKILL.
-   - [ ] Open the node config, change the proxy address to an incorrect one to simulate problems
-     with connection. Verify that the app kills the agent after the agent is not able to join the
-     cluster within the timeout.
-   - [ ] Verify autostart behavior. The agent should automatically start on app start unless it was
-     manually stopped before exiting the app.
 - [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
   `~/Library/Application\ Support/Teleport\ Connect/logs`.
 - [ ] Verify that the password from the login form is not saved in the renderer log.
 - [ ] Log in to a cluster, then log out and log in again as a different user. Verify that the app
   works properly after that.
-- [ ] Clean the Application Support dir for Connect. Start the latest stable version of the app.
-  Open every possible document. Close the app. Start the current alpha. Reopen the tabs. Verify that
-  the app was able to reopen the tabs without any errors.

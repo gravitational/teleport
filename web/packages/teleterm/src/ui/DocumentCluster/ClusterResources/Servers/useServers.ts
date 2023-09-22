@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-import { Server, GetResourcesParams } from 'teleterm/services/tshd/types';
+import { Server, ServerSideParams } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { makeServer } from 'teleterm/ui/services/clusters';
 import { connectToServer } from 'teleterm/ui/services/workspacesService';
@@ -28,7 +28,7 @@ export function useServers() {
   const { fetchAttempt, ...serversideResources } =
     useServerSideResources<Server>(
       { fieldName: 'hostname', dir: 'ASC' }, // default sort
-      (params: GetResourcesParams) =>
+      (params: ServerSideParams) =>
         appContext.resourcesService.fetchServers(params)
     );
 

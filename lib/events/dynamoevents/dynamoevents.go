@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/events"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -452,6 +453,50 @@ func (l *Log) setExpiry(e *event) {
 	e.Expires = aws.Int64(l.Clock.Now().UTC().Add(l.RetentionPeriod.Value()).Unix())
 }
 
+// GetSessionChunk returns a reader which can be used to read a byte stream
+// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
+// beginning) up to maxBytes bytes.
+//
+// If maxBytes > MaxChunkBytes, it gets rounded down to MaxChunkBytes
+func (l *Log) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
+	return nil, nil
+}
+
+// GetSessionEvents Returns all events that happen during a session sorted by time
+// (oldest first).
+//
+// after is used to return events after a specified cursor ID
+func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error) {
+	var values []events.EventFields
+	query := "SessionID = :sessionID AND EventIndex >= :eventIndex"
+	attributes := map[string]interface{}{
+		":sessionID":  string(sid),
+		":eventIndex": after,
+	}
+	attributeValues, err := dynamodbattribute.MarshalMap(attributes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	input := dynamodb.QueryInput{
+		KeyConditionExpression:    aws.String(query),
+		TableName:                 aws.String(l.Tablename),
+		ExpressionAttributeValues: attributeValues,
+	}
+	out, err := l.svc.Query(&input)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, item := range out.Items {
+		var e event
+		if err := dynamodbattribute.UnmarshalMap(item, &e); err != nil {
+			return nil, trace.BadParameter("failed to unmarshal event for session %q: %v", string(sid), err)
+		}
+		values = append(values, e.FieldsMap)
+	}
+	sort.Sort(events.ByTimeAndIndex(values))
+	return values, nil
+}
+
 func daysSinceEpoch(timestamp time.Time) int64 {
 	return timestamp.Unix() / (60 * 60 * 24)
 }
@@ -492,8 +537,8 @@ type checkpointKey struct {
 // The only mandatory requirement is a date range (UTC).
 //
 // This function may never return more than 1 MiB of event data.
-func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	return l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
+func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	return l.searchEventsWithFilter(context.TODO(), fromUTC, toUTC, namespace, limit, order, startKey, searchEventsFilter{eventTypes: eventTypes}, "")
 }
 
 func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {
@@ -668,27 +713,6 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 	return values, string(lastKey), nil
 }
 
-func GetCreatedAtFromStartKey(startKey string) (time.Time, error) {
-	checkpoint, err := getCheckpointFromStartKey(startKey)
-	if err != nil {
-		return time.Time{}, trace.Wrap(err)
-	}
-	if checkpoint.Iterator == nil {
-		return time.Time{}, errors.New("missing iterator")
-	}
-	var e event
-	if err := dynamodbattribute.UnmarshalMap(checkpoint.Iterator, &e); err != nil {
-		return time.Time{}, trace.Wrap(err)
-	}
-	if e.CreatedAt <= 0 {
-		// Value <= 0 means that either createdAt was not returned or
-		// it has 0 values, either way, we can't use that value.
-		return time.Time{}, errors.New("createdAt is invalid")
-	}
-
-	return time.Unix(e.CreatedAt, 0), nil
-}
-
 func getCheckpointFromStartKey(startKey string) (checkpointKey, error) {
 	var checkpoint checkpointKey
 	if startKey == "" {
@@ -729,18 +753,18 @@ func getSubPageCheckpoint(e *event) (string, error) {
 
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
-func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
+func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent}}
-	if req.Cond != nil {
+	if cond != nil {
 		params := condFilterParams{attrValues: make(map[string]interface{}), attrNames: make(map[string]string)}
-		expr, err := fromWhereExpr(req.Cond, &params)
+		expr, err := fromWhereExpr(cond, &params)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		filter.condExpr = expr
 		filter.condParams = params
 	}
-	return l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
+	return l.searchEventsWithFilter(context.TODO(), fromUTC, toUTC, apidefaults.Namespace, limit, order, startKey, filter, sessionID)
 }
 
 type searchEventsFilter struct {
@@ -1006,6 +1030,15 @@ func convertError(err error) error {
 	default:
 		return err
 	}
+}
+
+// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
+// The event channel is not closed on error to prevent race conditions in downstream select statements.
+func (l *Log) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+	e <- trace.NotImplemented("not implemented")
+	return c, e
 }
 
 type query interface {

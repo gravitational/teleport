@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"path"
 
+	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -76,6 +77,8 @@ type transport struct {
 	tr http.RoundTripper
 
 	uri *url.URL
+
+	ws *websocketTransport
 }
 
 // newTransport creates a new transport.
@@ -105,6 +108,7 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 		transportConfig: c,
 		uri:             uri,
 		tr:              tr,
+		ws:              newWebsocketTransport(uri, tr.TLSClientConfig.Clone(), c),
 	}, nil
 }
 
@@ -177,6 +181,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 func rewriteHeaders(r *http.Request, c *transportConfig) {
 	// Add in JWT headers.
 	r.Header.Set(teleport.AppJWTHeader, c.jwt)
+	r.Header.Set(teleport.AppCFHeader, c.jwt)
 
 	if c.app.GetRewrite() == nil || len(c.app.GetRewrite().Headers) == 0 {
 		return
@@ -287,4 +292,44 @@ func host(addr string) string {
 		return addr
 	}
 	return host
+}
+
+// websocketTransport combines parameters for websockets transport.
+//
+// Implements forward.ReqRewriter.
+type websocketTransport struct {
+	uri    *url.URL
+	dialer forward.Dialer
+	c      *transportConfig
+}
+
+// newWebsocketTransport returns transport that knows how to rewrite and
+// dial websocket requests.
+func newWebsocketTransport(uri *url.URL, tlsConfig *tls.Config, c *transportConfig) *websocketTransport {
+	return &websocketTransport{
+		uri: uri,
+		dialer: func(network, address string) (net.Conn, error) {
+			// Request is going to "wss://".
+			if uri.Scheme == "https" {
+				return tls.Dial(network, address, tlsConfig)
+			}
+			// Request is going to "ws://".
+			return net.Dial(network, address)
+		},
+		c: c,
+	}
+}
+
+// Rewrite rewrites the websocket request.
+func (r *websocketTransport) Rewrite(req *http.Request) {
+	// Update scheme and host to those of the target app's to make sure
+	// it's forwarded correctly.
+	req.URL.Scheme = "ws"
+	if r.uri.Scheme == "https" {
+		req.URL.Scheme = "wss"
+	}
+	req.URL.Host = r.uri.Host
+	req.Host = r.uri.Host
+
+	rewriteHeaders(req, r.c)
 }

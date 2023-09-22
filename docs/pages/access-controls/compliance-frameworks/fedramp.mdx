@@ -129,47 +129,18 @@ $ sudo systemctl enable teleport
 
 When using `teleport start --fips`, Teleport will start in FIPS mode.
 
-- If the `--fips` flag is selected, Teleport will fail to start unless the
-  binaries are compiled with the appropriate cryptographic module
-  (BoringCrypto).
-- If no TLS or SSH cryptographic primitives are specified, Teleport will
-  default to FIPS compliant cryptographic algorithms.
-- If TLS or SSH cryptographic primitives are not FIPS 140-2 compliant, Teleport
-  will fail to start.
+Teleport will configure the TLS and SSH servers with FIPS compliant
+cryptographic algorithms.  In FIPS mode, if non-compliant algorithms are
+chosen, Teleport will fail to start.  In addition, Teleport checks if the
+binary was compiled against an approved cryptographic module (BoringCrypto) and
+fails to start if it was not.
+
+- For OSS and Enterprise binaries not compiled with BoringCrypto, this flag will report that this version of Teleport is not compiled with the appropriate cryptographic module.
+- Running commands like `ps aux` can be useful to note that Teleport is running in FIPS mode.
+- If no ciphersuites are provided, Teleport will set the default ciphersuites to be FIPS 140-2 compliant.
+- If ciphersuites, key exchange, and MAC algorithms are provided in the Teleport configuration, Teleport will validate that they are FIPS 140-2 compliant.
 - Teleport will always enable at-rest encryption for both DynamoDB and S3.
-- If recording proxy mode is selected, validation of host certificates should
-  always happen.
-- Running commands like `ps aux` can be useful to note that Teleport is running
-  in FIPS mode.
-
-### Default Cryptographic Algorithms
-
-In FIPS mode, Teleport will use the following cryptographic algorithms by default.
-
-Default FIPS ciphers for SSH:
-
-- `aes128-ctr`
-- `aes192-ctr`
-- `aes256-ctr`
-- `aes128-gcm@openssh.com`
-
-Default FIPS Key Exchange Algorithms (KEX) for SSH:
-
-- `ecdh-sha2-nistp256`
-- `ecdh-sha2-nistp384`
-- `ecdh-sha2-nistp521`
-
-Default FIPS Message Authentication Codes (MAC) for SSH:
-
-- `hmac-sha2-256-etm@openssh.com`
-- `hmac-sha2-256`
-
-Default FIPS ciphersuites for TLS:
-
-- `tls-ecdhe-rsa-with-aes-128-gcm-sha256`
-- `tls-ecdhe-ecdsa-with-aes-128-gcm-sha256`
-- `tls-ecdhe-rsa-with-aes-256-gcm-sha384`
-- `tls-ecdhe-ecdsa-with-aes-256-gcm-sha384`
+- If recording proxy mode is selected, validation of host certificates should always happen.
 
 ### FedRAMP Audit Log
 

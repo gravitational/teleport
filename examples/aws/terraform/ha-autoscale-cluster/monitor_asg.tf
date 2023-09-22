@@ -11,12 +11,8 @@ resource "aws_autoscaling_group" "monitor" {
   health_check_type         = "EC2"
   desired_capacity          = 1
   force_delete              = false
+  launch_configuration      = aws_launch_configuration.monitor.name
   vpc_zone_identifier       = [aws_subnet.public[0].id]
-
-  launch_template {
-    id      = aws_launch_template.monitor.id
-    version = "$Latest"
-  }
 
   // Auto scaling group is associated with internal load balancer for metrics ingestion
   // and proxy load balancer for grafana
@@ -55,12 +51,8 @@ resource "aws_autoscaling_group" "monitor_acm" {
   health_check_type         = "EC2"
   desired_capacity          = 1
   force_delete              = false
+  launch_configuration      = aws_launch_configuration.monitor.name
   vpc_zone_identifier       = [aws_subnet.public[0].id]
-
-  launch_template {
-    id      = aws_launch_template.monitor.id
-    version = "$Latest"
-  }
 
   // Auto scaling group is associated with internal load balancer for metrics ingestion
   // and proxy load balancer for grafana
@@ -86,14 +78,14 @@ resource "aws_autoscaling_group" "monitor_acm" {
 
 // Needs to have a public IP
 // tfsec:ignore:aws-ec2-no-public-ip
-resource "aws_launch_template" "monitor" {
+resource "aws_launch_configuration" "monitor" {
   lifecycle {
     create_before_destroy = true
   }
   name_prefix   = "${var.cluster_name}-monitor-"
   image_id      = data.aws_ami.base.id
   instance_type = var.monitor_instance_type
-  user_data = base64encode(templatefile(
+  user_data = templatefile(
     "${path.module}/monitor-user-data.tpl",
     {
       region           = var.region
@@ -105,35 +97,18 @@ resource "aws_launch_template" "monitor" {
       domain_name      = var.route53_domain
       use_acm          = var.use_acm
     }
-  ))
-
+  )
   metadata_options {
-    http_tokens   = "required"
-    http_endpoint = "enabled"
+    http_tokens = "required"
   }
-
-  block_device_mappings {
-    device_name = "/dev/xvda"
-    ebs {
-      delete_on_termination = true
-      encrypted             = true
-      iops                  = 3000
-      throughput            = 125
-      volume_type           = "gp3"
-    }
+  root_block_device {
+    encrypted = true
   }
-
-  key_name      = var.key_name
-  ebs_optimized = true
-
-  network_interfaces {
-    associate_public_ip_address = true
-    security_groups             = [aws_security_group.monitor.id]
-  }
-
-  iam_instance_profile {
-    name = aws_iam_instance_profile.monitor.name
-  }
+  key_name                    = var.key_name
+  ebs_optimized               = true
+  associate_public_ip_address = true
+  security_groups             = [aws_security_group.monitor.id]
+  iam_instance_profile        = aws_iam_instance_profile.monitor.id
 }
 
 // Monitors support traffic coming from internal cluster subnets and expose 8443 for grafana

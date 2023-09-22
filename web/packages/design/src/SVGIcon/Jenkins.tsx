@@ -16,13 +16,17 @@ limitations under the License.
 
 import React from 'react';
 
-import { SVGIcon } from './SVGIcon';
-
 import type { SVGIconProps } from './common';
 
 export function JenkinsIcon({ size = 64, fill }: SVGIconProps) {
   return (
-    <SVGIcon viewBox="0 0 32 32" size={size} fill={fill}>
+    <svg
+      viewBox="0 0 32 32"
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      fill={fill}
+    >
       <path
         d="M27.295 15.42c0 6.34-5.025 11.48-11.223 11.48S4.85 21.76 4.85 15.42 9.874 3.94 16.072 3.94s11.223 5.14 11.223 11.48"
         fillRule="evenodd"
@@ -197,6 +201,6 @@ export function JenkinsIcon({ size = 64, fill }: SVGIconProps) {
         fill="#1d1919"
         fillRule="evenodd"
       />
-    </SVGIcon>
+    </svg>
   );
 }

@@ -58,15 +58,15 @@ interface HintBoxProps {
 export function HintBox(props: React.PropsWithChildren<HintBoxProps>) {
   return (
     <HintBoxContainer>
-      <Text color="warning.main">
+      <Text color="warning">
         <Flex alignItems="center" mb={2}>
           <TextIcon
-            color="warning.main"
+            color="warning"
             css={`
               white-space: pre;
             `}
           >
-            <Icons.Warning size="small" color="warning.main" mr={1} />
+            <Icons.Warning fontSize={4} color="warning" />
           </TextIcon>
           {props.header}
         </Flex>
@@ -85,7 +85,7 @@ export function SuccessBox(props: { children: React.ReactNode }) {
           white-space: pre;
         `}
       >
-        <Icons.CircleCheck size="medium" color="success" />
+        <Icons.CircleCheck fontSize={4} color="success" />
       </TextIcon>
       {props.children}
     </SuccessInfo>

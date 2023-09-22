@@ -41,12 +41,12 @@ import FieldSelect from 'shared/components/FieldSelect';
 
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
-import secKeyGraphic from 'design/assets/images/sec-key-graphic.svg';
-
 import { DeviceUsage } from 'teleport/services/mfa';
 import useTeleport from 'teleport/useTeleport';
 
 import useAddDevice, { State, Props } from './useAddDevice';
+
+const secKeyGraphic = require('design/assets/images/sec-key-graphic.svg');
 
 const deviceUsageOpts: DeviceusageOpt[] = [
   {
@@ -137,13 +137,11 @@ export function AddDevice({
                 flexDirection="column"
                 justifyContent="center"
                 alignItems="center"
+                bg="levels.surface"
                 borderRadius={8}
                 height="256px"
                 p={3}
                 mb={4}
-                css={`
-                  background: ${props => props.theme.colors.spotBackground[0]};
-                `}
               >
                 {mfaOption.value === 'otp' && (
                   <>
@@ -193,7 +191,7 @@ export function AddDevice({
                 <FieldSelect
                   maxWidth="50%"
                   width="100%"
-                  label="Two-factor Type"
+                  label="Two-factor type"
                   data-testid="mfa-select"
                   value={mfaOption}
                   options={mfaOptions}
@@ -203,12 +201,11 @@ export function AddDevice({
                   }}
                   mr={3}
                   isDisabled={addDeviceAttempt.status === 'processing'}
-                  elevated={true}
                 />
                 {mfaOption.value === 'otp' && (
                   <FieldInput
                     width="50%"
-                    label="Authenticator Code"
+                    label="Authenticator code"
                     rule={requiredToken}
                     inputMode="numeric"
                     autoComplete="one-time-code"
@@ -226,13 +223,12 @@ export function AddDevice({
                     options={deviceUsageOpts}
                     onChange={(o: DeviceusageOpt) => setUsageOption(o)}
                     isDisabled={addDeviceAttempt.status === 'processing'}
-                    elevated={true}
                   />
                 )}
               </Flex>
               <FieldInput
                 rule={requiredField('Device name is required')}
-                label="Device Name"
+                label="Device name"
                 placeholder="Name"
                 width="100%"
                 autoFocus

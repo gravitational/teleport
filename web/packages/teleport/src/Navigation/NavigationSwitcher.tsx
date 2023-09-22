@@ -19,7 +19,29 @@ import styled from 'styled-components';
 
 import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
 
+import { useLocalStorage } from 'shared/hooks/useLocalStorage';
+import { OpenAIIcon } from 'design/SVGIcon/OpenAI';
+
+import { useHistory, useLocation } from 'react-router';
+
 import { NavigationCategory } from 'teleport/Navigation/categories';
+
+import { useTeleport } from 'teleport';
+
+import { KeysEnum } from 'teleport/services/localStorage';
+
+import cfg from 'teleport/config';
+
+import {
+  TeleportIcon,
+  Tooltip,
+  TooltipButton,
+  TooltipFooter,
+  TooltipLogos,
+  TooltipLogosSpacer,
+  TooltipTitle,
+  TooltipTitleBackground,
+} from './AssistTooltip';
 
 interface NavigationSwitcherProps {
   onChange: (value: NavigationCategory) => void;
@@ -39,12 +61,10 @@ const Container = styled.div`
   position: relative;
   align-self: center;
   user-select: none;
-  margin-bottom: 25px;
-  margin-top: 26px;
 `;
 
 const ActiveValue = styled.div<OpenProps>`
-  border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
+  border: 1px solid #cccccc;
   border-radius: 4px;
   padding: 12px 16px;
   width: 190px;
@@ -65,7 +85,7 @@ const Dropdown = styled.div<OpenProps>`
   background: ${({ theme }) => theme.colors.levels.popout};
   border-radius: 4px;
   z-index: 99;
-  box-shadow: ${({ theme }) => theme.boxShadow[1]};
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.45);
   opacity: ${p => (p.open ? 1 : 0)};
   visibility: ${p => (p.open ? 'visible' : 'hidden')};
   transform-origin: top center;
@@ -75,7 +95,7 @@ const Dropdown = styled.div<OpenProps>`
 `;
 
 const DropdownItem = styled.div<ActiveProps & OpenProps>`
-  color: ${props => props.theme.colors.text.main};
+  color: white;
   padding: 12px 16px;
   width: 190px;
   font-weight: ${p => (p.active ? 700 : 400)};
@@ -88,7 +108,7 @@ const DropdownItem = styled.div<ActiveProps & OpenProps>`
   &:hover,
   &:focus {
     outline: none;
-    background: ${({ theme }) => theme.colors.spotBackground[0]};
+    background: ${({ theme }) => theme.colors.levels.popoutHighlighted};
   }
 `;
 
@@ -97,7 +117,7 @@ const Arrow = styled.div<OpenProps>`
   top: 50%;
   right: 16px;
   transform: translate(0, -50%);
-  color: ${props => props.theme.colors.text.main}
+  color: white;
   line-height: 0;
 
   svg {
@@ -105,13 +125,36 @@ const Arrow = styled.div<OpenProps>`
     transition: 0.1s linear transform;
 
     path {
-      fill: ${props => props.theme.colors.text.main}
+      fill: white;
     }
   }
 `;
 
+const Background = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 98;
+  background: rgba(0, 0, 0, 0.6);
+`;
+
 export function NavigationSwitcher(props: NavigationSwitcherProps) {
-  const [open, setOpen] = useState(false);
+  const ctx = useTeleport();
+  const assistEnabled = ctx.getFeatureFlags().assist && ctx.assistEnabled;
+
+  const location = useLocation();
+  const isAssistRoute = location.pathname.startsWith(cfg.routes.assistBase);
+
+  const [showAssist, setShowAssist] = useLocalStorage(
+    KeysEnum.SHOW_ASSIST_POPUP,
+    assistEnabled && !isAssistRoute
+  );
+
+  const [open, setOpen] = useState(showAssist);
+
+  const history = useHistory();
 
   const ref = useRef<HTMLDivElement>();
   const activeValueRef = useRef<HTMLDivElement>();
@@ -204,8 +247,14 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
 
   const handleChange = useCallback(
     (value: NavigationCategory) => {
+      setShowAssist(false);
+
       if (props.value !== value) {
         props.onChange(value);
+      }
+
+      if (value === NavigationCategory.Assist) {
+        history.push(cfg.routes.assistBase);
       }
 
       setOpen(false);
@@ -216,6 +265,10 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
   const items = [];
 
   for (const [index, item] of props.items.entries()) {
+    if (item === NavigationCategory.Assist && !assistEnabled) {
+      continue;
+    }
+
     items.push(
       <DropdownItem
         ref={index === 0 ? firstValueRef : null}
@@ -233,6 +286,30 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
 
   return (
     <Container ref={ref}>
+      {showAssist && (
+        <>
+          <Background />
+          <Tooltip>
+            <TooltipTitle>
+              <TooltipTitleBackground>New!</TooltipTitleBackground>
+            </TooltipTitle>{' '}
+            Try out Teleport Assist, a GPT-4-powered AI assistant that leverages
+            your infrastructure
+            <TooltipFooter>
+              <TooltipLogos>
+                <OpenAIIcon size={30} />
+                <TooltipLogosSpacer>+</TooltipLogosSpacer>
+                <TeleportIcon />
+              </TooltipLogos>
+
+              <TooltipButton onClick={() => setShowAssist(false)}>
+                Close
+              </TooltipButton>
+            </TooltipFooter>
+          </Tooltip>
+        </>
+      )}
+
       <ActiveValue
         ref={activeValueRef}
         onClick={() => setOpen(!open)}

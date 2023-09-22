@@ -25,7 +25,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -97,18 +96,6 @@ type SignTLSPaths struct {
 
 const serviceShutdownTimeout = 10 * time.Second
 
-func requireBinaryVersion(ctx context.Context, path string, targetVersion *version.Version) error {
-	v, err := getBinaryVersion(ctx, path)
-	if err != nil {
-		return trace.Wrap(err, "failed to get %s version", filepath.Base(path))
-	}
-	if !targetVersion.Equal(v.Version) {
-		return trace.Errorf("%s version %s does not match target version %s", filepath.Base(path), v.Version, targetVersion)
-	}
-
-	return nil
-}
-
 // New initializes a Teleport installation.
 func New(ctx context.Context, paths BinPaths, licenseStr string) (*Integration, error) {
 	var err error
@@ -123,25 +110,31 @@ func New(ctx context.Context, paths BinPaths, licenseStr string) (*Integration, 
 		}
 	}()
 
-	log.Debug("Creating test working dir")
 	integration.workDir, err = os.MkdirTemp("", "teleport-plugins-integration-*")
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to initialize work directory")
 	}
 	integration.registerCleanup(func() error { return os.RemoveAll(integration.workDir) })
-	log.Debugf("Test working dir is %s", integration.workDir)
 
 	teleportVersion, err := getBinaryVersion(ctx, integration.paths.Teleport)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get teleport version")
 	}
 
-	if err = requireBinaryVersion(ctx, integration.paths.Tctl, teleportVersion.Version); err != nil {
-		return nil, trace.Wrap(err, "tctl version check")
+	tctlVersion, err := getBinaryVersion(ctx, integration.paths.Tctl)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get tctl version")
+	}
+	if !teleportVersion.Equal(tctlVersion.Version) {
+		return nil, trace.Wrap(err, "teleport version %s does not match tctl version %s", teleportVersion.Version, tctlVersion.Version)
 	}
 
-	if err = requireBinaryVersion(ctx, integration.paths.Tsh, teleportVersion.Version); err != nil {
-		return nil, trace.Wrap(err, "tsh version check")
+	tshVersion, err := getBinaryVersion(ctx, integration.paths.Tsh)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get tsh version")
+	}
+	if !teleportVersion.Equal(tshVersion.Version) {
+		return nil, trace.Wrap(err, "teleport version %s does not match tsh version %s", teleportVersion.Version, tshVersion.Version)
 	}
 
 	if teleportVersion.IsEnterprise {
@@ -194,6 +187,12 @@ func NewFromEnv(ctx context.Context) (*Integration, error) {
 	}
 
 	var paths BinPaths
+
+	if os.Getenv("CI") != "" {
+		if licenseStr == "" {
+			return nil, trace.AccessDenied("tests on CI should run with enterprise license")
+		}
+	}
 
 	if version := os.Getenv("TELEPORT_GET_VERSION"); version == "" {
 		paths = BinPaths{

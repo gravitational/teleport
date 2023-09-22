@@ -36,7 +36,7 @@ jobs:
       packages: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport14
+      image: ghcr.io/gravitational/teleport-buildbox:teleport12
       env:
         TELEPORT_ETCD_TEST: yes
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
@@ -60,7 +60,7 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
@@ -68,6 +68,12 @@ jobs:
       - name: Mount debugfs
         run: mount -t debugfs none /sys/kernel/debug/
 
+      # Run Teleport Unit tests.
       - name: Run tests
         timeout-minutes: 40
         run: make test-go test-sh test-api
+
+      # Run tests for the script located under "examples/teleport-usage".
+      - name: Run teleport-usage tests
+        timeout-minutes: 15
+        run: make test-teleport-usage

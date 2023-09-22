@@ -288,7 +288,7 @@ func TestEventCassandra(t *testing.T) {
 }
 
 func withCassandra(name string, opts ...cassandra.TestServerOption) withDatabaseOption {
-	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		cassandraServer, err := cassandra.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,

@@ -16,17 +16,22 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { Text } from 'design';
-
-import { OnboardCard } from 'design/Onboard/OnboardCard';
+import { Card, Text } from 'design';
 
 export function Expired({ resetMode = false }) {
   const titleCodeTxt = resetMode ? 'Reset' : 'Invitation';
   const paraCodeTxt = resetMode ? 'reset' : 'invite';
 
   return (
-    <OnboardCard>
-      <Text typography="h4" textAlign="center" mb={3}>
+    <Card
+      width="540px"
+      color="text.primaryInverse"
+      p={6}
+      bg="light"
+      mt={6}
+      mx="auto"
+    >
+      <Text typography="h1" textAlign="center" fontSize={8} color="text" mb={3}>
         {titleCodeTxt} Code Expired
       </Text>
       <Text typography="paragraph" mb="2">
@@ -38,16 +43,15 @@ export function Expired({ resetMode = false }) {
         If you believe this is an issue with the product, please create a
         <GithubLink> GitHub issue</GithubLink>.
       </Text>
-    </OnboardCard>
+    </Card>
   );
 }
 
 const GithubLink = styled.a.attrs({
   href: 'https://github.com/gravitational/teleport/issues/new',
 })`
-  color: ${props => props.theme.colors.buttons.link.default};
-
-  &:visited {
-    color: ${props => props.theme.colors.buttons.link.default};
+  color: ${props => props.theme.colors.link};
+  &:visted {
+    color: ${props => props.theme.colors.link};
   }
 `;

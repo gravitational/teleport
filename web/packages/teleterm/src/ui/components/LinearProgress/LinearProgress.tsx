@@ -45,7 +45,7 @@ const StyledProgress = styled.div`
   height: 1px;
   z-index: 0;
   background-color: ${props =>
-    props.transparentBackground ? 'transparent' : props.theme.colors.surface};
+    props.transparentBackground ? 'transparent' : '#222c59'};
 
   .parent-bar-2 {
     position: absolute;

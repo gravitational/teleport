@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { spawn } from 'node:child_process';
-import os from 'node:os';
-import path from 'node:path';
+import { spawn } from 'child_process';
 
-import { app, globalShortcut, shell, nativeTheme } from 'electron';
+import path from 'path';
+
+import { app, globalShortcut, shell } from 'electron';
 
 import MainProcess from 'teleterm/mainProcess';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
@@ -26,10 +26,7 @@ import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandle
 import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
 import * as types from 'teleterm/types';
-import {
-  createConfigService,
-  runConfigFileMigration,
-} from 'teleterm/services/config';
+import { createConfigService } from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 
@@ -43,7 +40,6 @@ if (app.requestSingleInstanceLock()) {
 }
 
 async function initializeApp(): Promise<void> {
-  updateSessionDataPath();
   let devRelaunchScheduled = false;
   const settings = getRuntimeSettings();
   const logger = initMainLogger(settings);
@@ -54,14 +50,11 @@ async function initializeApp(): Promise<void> {
     configJsonSchemaFileStorage,
   } = await createFileStorages(settings.userDataDir);
 
-  runConfigFileMigration(configFileStorage);
   const configService = createConfigService({
     configFile: configFileStorage,
     jsonSchemaFile: configJsonSchemaFileStorage,
     platform: settings.platform,
   });
-
-  nativeTheme.themeSource = configService.get('theme').value;
   const windowsManager = new WindowsManager(appStateFileStorage, settings);
 
   process.on('uncaughtException', (error, origin) => {
@@ -195,39 +188,10 @@ async function initializeApp(): Promise<void> {
   });
 }
 
-/**
- * There is an outstanding issue about Electron storing its caches in the wrong location https://github.com/electron/electron/issues/8124.
- * Based on the Apple Developer docs (https://developer.apple.com/documentation/foundation/optimizing_your_app_s_data_for_icloud_backup/#3928528)
- * and the discussion under that issue, changing the location of `sessionData` to `~/Library/Caches` on macOS
- * and `XDG_CACHE_HOME` or `~/.cache`
- * (https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) on Linux seems like a reasonable thing to do.
- */
-function updateSessionDataPath() {
-  switch (process.platform) {
-    case 'linux': {
-      const xdgCacheHome = process.env.XDG_CACHE_HOME;
-      const cacheDirectory = xdgCacheHome || `${os.homedir()}/.cache`;
-      app.setPath('sessionData', path.resolve(cacheDirectory, app.getName()));
-      break;
-    }
-    case 'darwin': {
-      app.setPath(
-        'sessionData',
-        path.resolve(os.homedir(), 'Library', 'Caches', app.getName())
-      );
-      break;
-    }
-    case 'win32': {
-      const localAppData = process.env.LOCALAPPDATA;
-      app.setPath('sessionData', path.resolve(localAppData, app.getName()));
-    }
-  }
-}
-
 function initMainLogger(settings: types.RuntimeSettings) {
   const service = createFileLoggerService({
     dev: settings.dev,
-    dir: settings.logsDir,
+    dir: settings.userDataDir,
     name: 'main',
     loggerNameColor: LoggerColor.Magenta,
   });

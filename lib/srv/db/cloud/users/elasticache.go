@@ -26,7 +26,6 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -72,12 +71,12 @@ func (f *elastiCacheFetcher) FetchDatabaseUsers(ctx context.Context, database ty
 		return nil, nil
 	}
 
-	client, err := f.cfg.Clients.GetAWSElastiCacheClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	client, err := f.cfg.Clients.GetAWSElastiCacheClient(meta.Region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	secrets, err := newSecretStore(ctx, database, f.cfg.Clients)
+	secrets, err := newSecretStore(database, f.cfg.Clients)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

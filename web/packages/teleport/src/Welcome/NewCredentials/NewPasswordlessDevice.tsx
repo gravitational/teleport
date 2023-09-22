@@ -22,11 +22,9 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
 
-import { OnboardCard } from 'design/Onboard/OnboardCard';
+import { Props, SliderProps } from './NewCredentials';
 
-import { SliderProps, UseTokenState } from './types';
-
-export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
+export function NewPasswordlessDevice(props: Props & SliderProps) {
   const {
     submitAttempt,
     onSubmitWithWebauthn,
@@ -74,8 +72,8 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
   return (
     <Validation>
       {({ validator }) => (
-        <OnboardCard ref={refCallback} data-testid="passwordless">
-          <Text typography="h4" mb={3} color="text.main" bold>
+        <Box px={5} pb={4} pt={5} ref={refCallback} data-testid="passwordless">
+          <Text typography="h4" mb={3} color="light" bold>
             Set A Passwordless Device
           </Text>
           {submitAttempt.status === 'failed' && (
@@ -89,7 +87,7 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
           )}
           <FieldInput
             rule={requiredField('Device name is required')}
-            label="Device Name"
+            label="Device name"
             placeholder="Name"
             width="100%"
             ref={deviceNameInputRef}
@@ -127,7 +125,7 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
               </ButtonText>
             </Box>
           )}
-        </OnboardCard>
+        </Box>
       )}
     </Validation>
   );

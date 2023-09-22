@@ -241,10 +241,33 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 // when the store has a lot of keys and when we call the function multiple times in
 // parallel.
 // Although this function speeds up the process since it removes all transversals,
-// it still has to read 2 different files:
+// it still has to read 3 different files if the proxy is specified, otherwise it also
+// has to read $TSH_HOME/current_profile.
+// - $TSH_HOME/$profile.yaml
 // - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
 // - $TSH_HOME/keys/$PROXY/$USER
-func LoadKeysToKubeFromStore(profile *profile.Profile, dirPath, teleportCluster, kubeCluster string) ([]byte, []byte, error) {
+func LoadKeysToKubeFromStore(dirPath, proxy, teleportCluster, kubeCluster string) ([]byte, []byte, error) {
+	dirPath = profile.FullProfilePath(dirPath)
+
+	profileStore := NewFSProfileStore(dirPath)
+	// tsh stores the profiles using the proxy host as the profile name.
+	profileName, err := utils.Host(proxy)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	if profileName == "" {
+		// If no profile name is provided, default to the current profile.
+		profileName, err = profileStore.CurrentProfile()
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+	// Load the desired profile.
+	profile, err := profileStore.GetProfile(profileName)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	fsKeyStore := NewFSKeyStore(dirPath)
 
 	certPath := fsKeyStore.kubeCertPath(KeyIndex{ProxyHost: profile.SiteName, ClusterName: teleportCluster, Username: profile.Username}, kubeCluster)

@@ -169,7 +169,7 @@ func TestCheckSFTPAllowed(t *testing.T) {
 				roles,
 			)
 
-			err := ctx.CheckSFTPAllowed(nil)
+			err := ctx.CheckSFTPAllowed()
 			if tt.expectedErr == nil {
 				require.NoError(t, err)
 			} else {

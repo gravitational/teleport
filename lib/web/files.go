@@ -17,7 +17,6 @@ limitations under the License.
 package web
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -32,8 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 )
 
@@ -53,30 +51,18 @@ type fileTransferRequest struct {
 	filename string
 	// webauthn is an optional parameter that contains a webauthn response string used to issue single use certs
 	webauthn string
-	// fileTransferRequestID is used to find a FileTransferRequest on a session
-	fileTransferRequestID string
-	// moderatedSessonID is an ID of a moderated session that has completed a
-	// file transfer request approval process
-	moderatedSessionID string
 }
 
-func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	query := r.URL.Query()
 	req := fileTransferRequest{
-		cluster:               site.GetName(),
-		login:                 p.ByName("login"),
-		serverID:              p.ByName("server"),
-		remoteLocation:        query.Get("location"),
-		filename:              query.Get("filename"),
-		namespace:             defaults.Namespace,
-		webauthn:              query.Get("webauthn"),
-		fileTransferRequestID: query.Get("fileTransferRequestId"),
-		moderatedSessionID:    query.Get("moderatedSessionId"),
-	}
-
-	// Send an error if only one of these params has been sent. Both should exist or not exist together
-	if (req.fileTransferRequestID != "") != (req.moderatedSessionID != "") {
-		return nil, trace.BadParameter("fileTransferRequestId and moderatedSessionId must both be included in the same request.")
+		cluster:        site.GetName(),
+		login:          p.ByName("login"),
+		serverID:       p.ByName("server"),
+		remoteLocation: query.Get("location"),
+		filename:       query.Get("filename"),
+		namespace:      defaults.Namespace,
+		webauthn:       query.Get("webauthn"),
 	}
 
 	clt, err := sctx.GetUserClient(r.Context(), site)
@@ -125,7 +111,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	tc, err := ft.createClient(req, r, h.cfg.PROXYSigner)
+	tc, err := ft.createClient(req, r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -137,14 +123,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
-	ctx := r.Context()
-	if req.fileTransferRequestID != "" {
-		// These values should never exist independently of each other so we can set them at the same time
-		ctx = context.WithValue(ctx, sftp.FileTransferRequestID, req.fileTransferRequestID)
-		ctx = context.WithValue(ctx, sftp.ModeratedSessionID, req.moderatedSessionID)
-	}
-
-	err = tc.TransferFiles(ctx, req.login, req.serverID+":0", cfg)
+	err = tc.TransferFiles(r.Context(), req.login, req.serverID+":0", cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -161,7 +140,7 @@ type fileTransfer struct {
 	proxyHostPort string
 }
 
-func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Request, proxySigner multiplexer.PROXYHeaderSigner) (*client.TeleportClient, error) {
+func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Request) (*client.TeleportClient, error) {
 	if !types.IsValidNamespace(req.namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", req.namespace)
 	}
@@ -194,7 +173,6 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 	cfg.Host = hostName
 	cfg.HostPort = hostPort
 	cfg.ClientAddr = httpReq.RemoteAddr
-	cfg.PROXYSigner = proxySigner
 
 	tc, err := client.NewClient(cfg)
 	if err != nil {

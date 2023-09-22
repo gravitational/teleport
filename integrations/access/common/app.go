@@ -34,7 +34,7 @@ import (
 const (
 	// minServerVersion is the minimal teleport version the plugin supports.
 	minServerVersion = "6.1.0-beta.1"
-	// grpcBackoffMaxDelay is a maximum time gRPC client waits before reconnection attempt.
+	// grpcBackoffMaxDelay is a maximum time GRPC client waits before reconnection attempt.
 	grpcBackoffMaxDelay = time.Second * 2
 	// InitTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
@@ -177,7 +177,7 @@ func (a *BaseApp) run(ctx context.Context) error {
 	if err := a.init(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	watcherJob, err := watcherjob.NewJob(
+	watcherJob := watcherjob.NewJob(
 		a.apiClient,
 		watcherjob.Config{
 			Watch:            types.Watch{Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}}},
@@ -185,9 +185,6 @@ func (a *BaseApp) run(ctx context.Context) error {
 		},
 		a.onWatcherEvent,
 	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	a.SpawnCriticalJob(watcherJob)
 	ok, err := watcherJob.WaitReady(ctx)
 	if err != nil {
@@ -243,16 +240,15 @@ func (a *BaseApp) onPendingRequest(ctx context.Context, req types.AccessRequest)
 
 	reqID := req.GetName()
 	reqData := pd.AccessRequestData{
-		User:              req.GetUser(),
-		Roles:             req.GetRoles(),
-		RequestReason:     req.GetRequestReason(),
-		SystemAnnotations: req.GetSystemAnnotations(),
+		User:          req.GetUser(),
+		Roles:         req.GetRoles(),
+		RequestReason: req.GetRequestReason(),
 	}
 
 	_, err := a.pluginData.Create(ctx, reqID, GenericPluginData{AccessRequestData: reqData})
 	switch {
 	case err == nil:
-		// This is a new access-request, we have to broadcast it first.
+		// This is a new access-request, we have to broadcast it first
 		if recipients := a.getMessageRecipients(ctx, req); len(recipients) > 0 {
 			if err := a.broadcastMessages(ctx, recipients, reqID, reqData); err != nil {
 				return trace.Wrap(err)
@@ -388,20 +384,6 @@ func (a *BaseApp) getMessageRecipients(ctx context.Context, req types.AccessRequ
 	// We receive a set from GetRawRecipientsFor but we still might end up with duplicate channel names.
 	// This can happen if this set contains the channel `C` and the email for channel `C`.
 	recipientSet := NewRecipientSet()
-
-	switch a.Conf.GetPluginType() {
-	case types.PluginTypeOpsgenie, types.PluginTypeServiceNow:
-		if recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
-			for _, recipient := range recipients {
-				rec, err := a.bot.FetchRecipient(ctx, recipient)
-				if err != nil {
-					log.Warning(err)
-				}
-				recipientSet.Add(*rec)
-			}
-			return recipientSet.ToSlice()
-		}
-	}
 
 	validEmailSuggReviewers := []string{}
 	for _, reviewer := range req.GetSuggestedReviewers() {

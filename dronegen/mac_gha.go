@@ -23,8 +23,6 @@ import "time"
 // * a package with the tsh binary.
 // * a disk image (dmg) of Teleport Connect containing the signed tsh package.
 // These build assets are signed and notarized.
-// The tarballs are build for amd64, arm64 and universal. The packages and
-// disk image are build for universal only.
 func darwinTagPipelineGHA() pipeline {
 	bt := ghaBuildType{
 		buildType:    buildType{os: "darwin", arch: "amd64"},
@@ -32,7 +30,7 @@ func darwinTagPipelineGHA() pipeline {
 		pipelineName: "build-darwin-amd64",
 		workflows: []ghaWorkflow{
 			{
-				name:              "release-mac.yaml",
+				name:              "release-mac-amd64.yaml",
 				srcRefVar:         "DRONE_TAG",
 				ref:               "${DRONE_TAG}",
 				timeout:           150 * time.Minute,
@@ -41,6 +39,34 @@ func darwinTagPipelineGHA() pipeline {
 				inputs: map[string]string{
 					"release-artifacts": "true",
 					"build-packages":    "true",
+				},
+			},
+		},
+	}
+	return ghaBuildPipeline(bt)
+}
+
+// darwinPushPipelineGHA returns a pipeline that kicks off a push build of the
+// teleport binaries and the teleport connect dmg. The binaries are signed and
+// notarized even though we do not release these assets. This tests that the
+// signing and notarization process continues to work so we don't wait until
+// release time to discover breakage.
+func darwinPushPipelineGHA() pipeline {
+	bt := ghaBuildType{
+		buildType:    buildType{os: "darwin", arch: "amd64"},
+		trigger:      triggerPush,
+		pipelineName: "push-build-darwin-amd64",
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-mac-amd64.yaml",
+				srcRefVar:         "DRONE_COMMIT",
+				ref:               "${DRONE_BRANCH}",
+				timeout:           150 * time.Minute,
+				slackOnError:      true,
+				shouldTagWorkflow: true,
+				inputs: map[string]string{
+					"release-artifacts": "false",
+					"build-packages":    "false",
 				},
 			},
 		},

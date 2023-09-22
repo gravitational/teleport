@@ -30,18 +30,17 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -69,7 +68,7 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 	for _, v := range opts {
 		v(&options)
 	}
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 
 	var ccf GlobalCLIFlags
 	ccf.ConfigString = mustGetBase64EncFileConfig(t, fc)
@@ -95,12 +94,12 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 }
 
 type cliCommand interface {
-	Initialize(app *kingpin.Application, cfg *servicecfg.Config)
+	Initialize(app *kingpin.Application, cfg *service.Config)
 	TryRun(ctx context.Context, cmd string, client auth.ClientI) (bool, error)
 }
 
 func runCommand(t *testing.T, fc *config.FileConfig, cmd cliCommand, args []string, opts ...optionsFunc) error {
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -121,12 +120,6 @@ func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts
 		stdout: &stdoutBuff,
 	}
 	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
-}
-
-func runLockCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
-	command := &LockCommand{}
-	args = append([]string{"lock"}, args...)
-	return runCommand(t, fc, command, args, opts...)
 }
 
 func runTokensCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
@@ -151,18 +144,14 @@ func runAuthCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...
 	return runCommand(t, fc, command, args, opts...)
 }
 
-func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
-	var out T
-	err := json.NewDecoder(r).Decode(&out)
+func mustDecodeJSON(t *testing.T, r io.Reader, i interface{}) {
+	err := json.NewDecoder(r).Decode(i)
 	require.NoError(t, err)
-	return out
 }
 
-func mustDecodeYAML[T any](t *testing.T, r io.Reader) T {
-	var out T
-	err := yaml.NewDecoder(r).Decode(&out)
+func mustDecodeYAML(t *testing.T, r io.Reader, i interface{}) {
+	err := yaml.NewDecoder(r).Decode(i)
 	require.NoError(t, err)
-	return out
 }
 func mustGetBase64EncFileConfig(t *testing.T, fc *config.FileConfig) string {
 	configYamlContent, err := yaml.Marshal(fc)
@@ -193,8 +182,7 @@ func mustWriteIdentityFile(t *testing.T, fc *config.FileConfig, username string)
 
 type testServerOptions struct {
 	fileConfig      *config.FileConfig
-	fileDescriptors []servicecfg.FileDescriptor
-	fakeClock       clockwork.FakeClock
+	fileDescriptors []service.FileDescriptor
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -205,15 +193,9 @@ func withFileConfig(fc *config.FileConfig) testServerOptionFunc {
 	}
 }
 
-func withFileDescriptors(fds []servicecfg.FileDescriptor) testServerOptionFunc {
+func withFileDescriptors(fds []service.FileDescriptor) testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.fileDescriptors = fds
-	}
-}
-
-func withFakeClock(fakeClock clockwork.FakeClock) testServerOptionFunc {
-	return func(options *testServerOptions) {
-		options.fakeClock = fakeClock
 	}
 }
 
@@ -224,7 +206,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	}
 
 	var err error
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.FileDescriptors = options.fileDescriptors
 	if options.fileConfig != nil {
@@ -235,11 +217,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
-	if options.fakeClock != nil {
-		cfg.Clock = options.fakeClock
-	}
 	auth, err = service.NewTeleport(cfg)
-
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())
 
@@ -266,10 +244,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	return auth
 }
 
-func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []servicecfg.Database) {
-	if len(dbs) == 0 {
-		return
-	}
+func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service.Database) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {
@@ -296,4 +271,28 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service
 			t.Fatal("databases not registered after 10s")
 		}
 	}
+}
+
+func newDynamicServiceAddr(t *testing.T) *dynamicServiceAddr {
+	var fds []service.FileDescriptor
+	webAddr := helpers.NewListener(t, service.ListenerProxyWeb, &fds)
+	tunnelAddr := helpers.NewListener(t, service.ListenerProxyTunnel, &fds)
+	authAddr := helpers.NewListener(t, service.ListenerAuth, &fds)
+
+	return &dynamicServiceAddr{
+		descriptors: fds,
+		webAddr:     webAddr,
+		tunnelAddr:  tunnelAddr,
+		authAddr:    authAddr,
+	}
+}
+
+// dynamicServiceAddr collects listeners addresses and sockets descriptors allowing to create and network listeners
+// and pass the file descriptors to teleport service.
+// This is usefully when Teleport service is created from config file where a port is allocated by OS.
+type dynamicServiceAddr struct {
+	webAddr     string
+	tunnelAddr  string
+	authAddr    string
+	descriptors []service.FileDescriptor
 }

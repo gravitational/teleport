@@ -18,7 +18,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Text, Box, Flex, Link } from 'design';
 import { Danger } from 'design/Alert';
-import { Info } from 'design/Icon';
+import { InfoFilled } from 'design/Icon';
 import TextEditor from 'shared/components/TextEditor';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 import Validation from 'shared/components/Validation';
@@ -71,7 +71,6 @@ export function MutualTlsView({
           <Flex minHeight="195px" mt={3}>
             <TextEditor
               readOnly={true}
-              bg="levels.deep"
               data={[{ content: dbCU, type: 'yaml' }]}
             />
           </Flex>
@@ -90,7 +89,7 @@ export function MutualTlsView({
           </Box>
           <StyledBox mb={6}>
             <Flex mb={2}>
-              <Info size="medium" mr={1} />
+              <InfoFilled fontSize={18} mr={1} mt="2px" />
               <Text bold>After Running the Command</Text>
             </Flex>
             <DbEngineInstructions dbEngine={dbEngine} />
@@ -295,7 +294,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
 
 const StyledBox = styled(Box)`
   max-width: 800px;
-  background-color: ${props => props.theme.colors.spotBackground[0]};
+  background-color: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
   padding: 20px;
 `;

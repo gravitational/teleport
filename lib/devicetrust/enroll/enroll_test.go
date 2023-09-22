@@ -18,7 +18,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -27,65 +26,8 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust/testenv"
 )
 
-func TestCeremony_RunAdmin(t *testing.T) {
-	env := testenv.MustNew()
-	defer env.Close()
-
-	devices := env.DevicesClient
-	ctx := context.Background()
-
-	nonExistingDev, err := testenv.NewFakeMacOSDevice()
-	require.NoError(t, err, "NewFakeMacOSDevice failed")
-
-	registeredDev, err := testenv.NewFakeMacOSDevice()
-	require.NoError(t, err, "NewFakeMacOSDevice failed")
-
-	// Create the device corresponding to registeredDev.
-	_, err = devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
-			OsType:   registeredDev.GetDeviceOSType(),
-			AssetTag: registeredDev.SerialNumber,
-		},
-	})
-	require.NoError(t, err, "CreateDevice(registeredDev) failed")
-
-	tests := []struct {
-		name        string
-		dev         testenv.FakeDevice
-		wantOutcome enroll.RunAdminOutcome
-	}{
-		{
-			name:        "non-existing device",
-			dev:         nonExistingDev,
-			wantOutcome: enroll.DeviceRegisteredAndEnrolled,
-		},
-		{
-			name:        "registered device",
-			dev:         registeredDev,
-			wantOutcome: enroll.DeviceEnrolled,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			c := &enroll.Ceremony{
-				GetDeviceOSType:         test.dev.GetDeviceOSType,
-				EnrollDeviceInit:        test.dev.EnrollDeviceInit,
-				SignChallenge:           test.dev.SignChallenge,
-				SolveTPMEnrollChallenge: test.dev.SolveTPMEnrollChallenge,
-			}
-
-			enrolled, outcome, err := c.RunAdmin(ctx, devices, false /* debug */)
-			require.NoError(t, err, "RunAdmin failed")
-			assert.NotNil(t, enrolled, "RunAdmin returned nil device")
-			assert.Equal(t, test.wantOutcome, outcome, "RunAdmin outcome mismatch")
-		})
-	}
-}
-
 func TestCeremony_Run(t *testing.T) {
-	env := testenv.MustNew(
-		testenv.WithAutoCreateDevice(true),
-	)
+	env := testenv.MustNew()
 	defer env.Close()
 
 	devices := env.DevicesClient
@@ -93,63 +35,33 @@ func TestCeremony_Run(t *testing.T) {
 
 	macOSDev1, err := testenv.NewFakeMacOSDevice()
 	require.NoError(t, err, "NewFakeMacOSDevice failed")
-	windowsDev1 := testenv.NewFakeWindowsDevice()
 
 	tests := []struct {
-		name            string
-		dev             testenv.FakeDevice
-		assertErr       func(t *testing.T, err error)
-		assertGotDevice func(t *testing.T, device *devicepb.Device)
+		name string
+		dev  fakeDevice
 	}{
 		{
-			name: "macOS device succeeds",
+			name: "macOS device",
 			dev:  macOSDev1,
-			assertErr: func(t *testing.T, err error) {
-				assert.NoError(t, err, "RunCeremony returned an error")
-			},
-			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
-				assert.NotNil(t, d, "RunCeremony returned nil device")
-			},
-		},
-		{
-			name: "windows device succeeds",
-			dev:  windowsDev1,
-			assertErr: func(t *testing.T, err error) {
-				assert.NoError(t, err, "RunCeremony returned an error")
-			},
-			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
-				require.NotNil(t, d, "RunCeremony returned nil device")
-				require.NotNil(t, d.Credential, "device credential is nil")
-				assert.Equal(t, windowsDev1.CredentialID, d.Credential.Id, "device credential mismatch")
-			},
-		},
-		{
-			name: "linux device fails",
-			dev:  testenv.NewFakeLinuxDevice(),
-			assertErr: func(t *testing.T, err error) {
-				require.Error(t, err)
-				assert.True(
-					t, trace.IsBadParameter(err), "RunCeremony did not return a BadParameter error",
-				)
-				assert.ErrorContains(t, err, "linux", "RunCeremony error mismatch")
-			},
-			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
-				assert.Nil(t, d, "RunCeremony returned an unexpected, non-nil device")
-			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			c := &enroll.Ceremony{
-				GetDeviceOSType:         test.dev.GetDeviceOSType,
-				EnrollDeviceInit:        test.dev.EnrollDeviceInit,
-				SignChallenge:           test.dev.SignChallenge,
-				SolveTPMEnrollChallenge: test.dev.SolveTPMEnrollChallenge,
+				GetDeviceOSType:  test.dev.GetOSType,
+				EnrollDeviceInit: test.dev.EnrollDeviceInit,
+				SignChallenge:    test.dev.SignChallenge,
 			}
 
-			got, err := c.Run(ctx, devices, false /* debug */, testenv.FakeEnrollmentToken)
-			test.assertErr(t, err)
-			test.assertGotDevice(t, got)
+			got, err := c.Run(ctx, devices, "faketoken")
+			assert.NoError(t, err, "RunCeremony failed")
+			assert.NotNil(t, got, "RunCeremony returned nil device")
 		})
 	}
+}
+
+type fakeDevice interface {
+	GetOSType() devicepb.OSType
+	EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
+	SignChallenge(chal []byte) (sig []byte, err error)
 }

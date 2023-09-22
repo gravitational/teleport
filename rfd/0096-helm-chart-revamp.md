@@ -1,6 +1,6 @@
 ---
 authors: Hugo Hervieux (hugo.hervieux@goteleport.com)
-state: implemented (v12.0)
+state: draft
 ---
 
 # RFD 0096 - Helm chart revamping
@@ -65,7 +65,7 @@ The chart would deploy two Deployments: one for the proxies and one for the auth
 
 - the `teleport-proxy` Deployment: Those pods are stateless by default and can
   be upscaled even in standalone mode. Deploying those nodes using a Deployment
-  means we cannot mount persistent storage on them. As Teleport does not support
+  means we cannot mount peristent storage on them. As Teleport does not support
   graceful shutdown with record shipping, users might lose active sessions
   recordings during a rollout if using the `proxy` mode. Teleport nodes
   are relying on `kube` ProvisionTokens to join the auth nodes on startup ([see
@@ -228,7 +228,7 @@ but pass the custom configuration through the values. This is a breaking
 change for them, but by the nature of the auth/proxy split it is not possible
 to be backward compatible with `custom` mode.
 
-In order to mitigate the risk of building an invalid configuration, the chart should
+In order to mitigate the risk of building an invalid confifguration, the chart should
 run pre-install and pre-upgrade hooks validating the configuration.
 
 #### Backward compatibility
@@ -387,7 +387,7 @@ pods are running which version:
 - the initContainer exits, the proxy starts
 - this unlocks the proxy deployment rollout
 
-Headless services selecting auth pods with a specific version should contain
+Headless services selecting auth pods with a specific version should contain 
 on-ready endpoints to ensure the rollout happens only when all pods are
 completely terminated. This means setting `spec.publishNotReadyAddresses: true`.
 

@@ -38,7 +38,6 @@ Get started with a guide for each mode:
 | `standalone` | Runs by relying only on Kubernetes resources. | [Getting Started - Kubernetes with SSO](../../deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx) |
 | `aws` | Leverages AWS managed services to store data. | [Running an HA Teleport cluster using an AWS EKS Cluster](../../deploy-a-cluster/helm-deployments/aws.mdx) |
 | `gcp` | Leverages GCP managed services to store data. | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../deploy-a-cluster/helm-deployments/gcp.mdx) |
-| `azure` | Leverages Azure managed services to store data. | [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../deploy-a-cluster/helm-deployments/azure.mdx) |
 | `scratch` (v12 and above) | Generates empty Teleport configuration. User must pass their own config. This is discouraged, use `standalone` mode with [`auth.teleportConfig`](#authteleportconfig) and [`proxy.teleportConfig`](#proxyteleportconfig) instead. | [Running a Teleport cluster with a custom config](../../deploy-a-cluster/helm-deployments/custom.mdx) |
 
 <Admonition type="note" title="Custom mode removal">
@@ -116,36 +115,6 @@ auth:
   postStart: ["curl", "http://hook"]
   imagePullPolicy: Always
 ```
-
-### `proxyProtocol`
-
-| Component   | Type     | Default value  | Required? | `teleport.yaml` equivalent |
-|-------------|----------|----------------|-----------|----------------------------|
-| `proxy`     | `string` | `null`         | no        | `proxy_service.proxy_protocol`  |
-
-
-The `proxyProtocol` value controls whether the Proxy pods will
-accept PROXY lines with the client's IP address when they are
-behind a L4 load balancer (e.g. AWS ELB, GCP L4 LB, etc) with PROXY protocol
-enabled. Since L4 LBs do not preserve the client's IP address, PROXY protocol is
-required to ensure that Teleport can properly audit the client's IP address.
-
-When Teleport pods are not behind a L4 LB with PROXY protocol enabled, this
-value should be set to `off` to prevent Teleport from accepting PROXY headers
-from untrusted sources.
-
-Possible values are:
-- `on`: will enable the PROXY protocol for all connections and will require the
-  L4 LB to send a PROXY header.
-- `off` will disable the PROXY protocol for all connections and denies all
-  connections prefixed a PROXY header.
-
-If `proxyProtocol` is unspecified, Teleport does not require PROXY header for the
-connection, but will accept it if present. This mode is considered insecure
-and should only be used for testing purposes.
-
-See the [PROXY Protocol security section](../../management/security/proxy-protocol.mdx) for more details.
-
 
 ### `auth.teleportConfig`
 
@@ -349,11 +318,18 @@ By default no devices are forbidden.
 
 `proxyListenerMode` controls proxy TLS routing used by Teleport. Possible values are `multiplex`.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   proxyListenerMode: multiplex
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set proxyListenerMode=multiplex
+  ```
+  </TabItem>
+</Tabs>
 
 ## `sessionRecording`
 
@@ -365,11 +341,18 @@ By default no devices are forbidden.
 It is passed as-is in the configuration.
 For possible values, [see the Teleport Configuration Reference](../../reference/config.mdx).
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   sessionRecording: proxy
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set sessionRecording=proxy
+  ```
+  </TabItem>
+</Tabs>
 
 ## `separatePostgresListener`
 
@@ -391,11 +374,18 @@ in front of Teleport, such as when using AWS ACM.
 
 These settings will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   separatePostgresListener: true
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set separatePostgresListener=true
+  ```
+  </TabItem>
+</Tabs>
 
 ## `separateMongoListener`
 
@@ -416,11 +406,18 @@ in front of Teleport, such as when using AWS ACM.
 
 These settings will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   separateMongoListener: true
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set separateMongoListener=true
+  ```
+  </TabItem>
+</Tabs>
 
 ## `publicAddr`
 
@@ -450,11 +447,18 @@ For example, if users are accessing the cluster with the domain
 Changing the RP ID will invalidate all already registered webauthn second factors.
 </Admonition>
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   publicAddr: ["loadbalancer.example.com:443"]
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set publicAddr[0]=loadbalancer.example.com:443
+  ```
+  </TabItem>
+</Tabs>
 
 ## `kubePublicAddr`
 
@@ -468,11 +472,18 @@ This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set 
 When `kubePublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
 else [`clusterName`](#clusterName) is used. Default port is 3026.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   kubePublicAddr: ["loadbalancer.example.com:3026"]
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set kubePublicAddr[0]=loadbalancer.example.com:3026
+  ```
+  </TabItem>
+</Tabs>
 
 ## `mongoPublicAddr`
 
@@ -487,11 +498,18 @@ requires [`separateMongoListener`](#separatePostgresListener) enabled.
 When `mongoPublicAddr` is not set, the addresses are inferred from [`clusterName`](#clusterName) is used.
 Default port is 27017.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   mongoPublicAddr: ["loadbalancer.example.com:27017"]
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set mongoPublicAddr[0]=loadbalancer.example.com:27017
+  ```
+  </TabItem>
+</Tabs>
 
 ## `mysqlPublicAddr`
 
@@ -505,11 +523,18 @@ This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set 
 When `mysqlPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
 else [`clusterName`](#clusterName) is used. Default port is 3036.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   mysqlPublicAddr: ["loadbalancer.example.com:3036"]
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set mysqlPublicAddr[0]=loadbalancer.example.com:3036
+  ```
+  </TabItem>
+</Tabs>
 
 ## `postgresPublicAddr`
 
@@ -524,11 +549,18 @@ requires [`separatePostgresListener`](#separatePostgresListener) enabled.
 When `postgresPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
 else [`clusterName`](#clusterName) is used. Default port is 5432.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   postgresPublicAddr: ["loadbalancer.example.com:5432"]
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set postgresPublicAddr[0]=loadbalancer.example.com:5432
+  ```
+  </TabItem>
+</Tabs>
 
 ## `sshPublicAddr`
 
@@ -542,11 +574,18 @@ This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set 
 When `sshPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
 else [`clusterName`](#clusterName) is used. Default port is 3023.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   sshPublicAddr: ["loadbalancer.example.com:3023"]
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set sshPublicAddr[0]=loadbalancer.example.com:3023
+  ```
+  </TabItem>
+</Tabs>
 
 ## `tunnelPublicAddr`
 
@@ -560,11 +599,18 @@ This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set 
 When `tunnelPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
 else [`clusterName`](#clusterName) is used. Default port is 3024.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   tunnelPublicAddr: ["loadbalancer.example.com:3024"]
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set tunnelPublicAddr[0]=loadbalancer.example.com:3024
+  ```
+  </TabItem>
+</Tabs>
 
 ## `enterprise`
 
@@ -594,11 +640,18 @@ $ kubectl --namespace teleport create secret generic license --from-file=/path/t
   ```
 </Admonition>
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   enterprise: true
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set enterprise=true
+  ```
+  </TabItem>
+</Tabs>
 
 ## `installCRDs`
 
@@ -615,11 +668,18 @@ If several releases of the `teleport-cluster` chart are deployed in the same Kub
 release should have `installCRDs` enabled. Unless you are deploying multiple `teleport-cluster` Helm releases in
 the same Kubernetes cluster or installing the CRDs on your own you should not have to set this value.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   installCRDs: true
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set installCRDs=true
+  ```
+  </TabItem>
+</Tabs>
 
 ## `operator`
 
@@ -635,12 +695,19 @@ Enabling the operator will also deploy the Teleport CRDs in the Kubernetes clust
 If you are deploying multiple releases of the Helm chart in the same cluster you can override this behavior with
 [`installCRDs`](#installCRDs).
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   operator:
    enabled: true
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set operator.enabled=true
+  ```
+  </TabItem>
+</Tabs>
 
 ### `operator.image`
 
@@ -653,12 +720,19 @@ You can override this to use your own Teleport Operator image rather than a Tele
 
 This setting requires [`operator.enabled`](#operatorenabled).
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   operator:
     image: my.docker.registry/teleport-operator-image-name
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set operator.image=my.docker.registry/teleport-operator-image-name
+  ```
+  </TabItem>
+</Tabs>
 
 ### `operator.resources`
 
@@ -671,8 +745,8 @@ documentation.
 
 It is recommended to set resource requests/limits for each container based on their observed usage.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   operator:
     resources:
@@ -680,6 +754,14 @@ It is recommended to set resource requests/limits for each container based on th
         cpu: 1
         memory: 2Gi
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set operator.resources.requests.cpu=1 \
+  --set operator.resources.requests.memory=2Gi
+  ```
+  </TabItem>
+</Tabs>
 
 ## `teleportVersionOverride`
 
@@ -706,11 +788,18 @@ If you want to run Teleport version `X.Y.Z`, you should use
 See our [installation guide](../../installation.mdx#docker) for information on
 Docker image versions.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   teleportVersionOverride: "11"
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set teleportVersionOverride="11"
+  ```
+  </TabItem>
+</Tabs>
 
 ## `acme`
 
@@ -754,13 +843,22 @@ As an example, this can be overridden to use the [Let's Encrypt staging server](
 
 You can also use any other ACME-compatible server.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   acme: true
   acmeEmail: user@email.com
   acmeURI: https://acme-staging-v02.api.letsencrypt.org/directory
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set acme=true \
+  --set acmeEmail=user@email.com \
+  --set acmeURI=https://acme-staging-v02.api.letsencrypt.org/directory
+  ```
+  </TabItem>
+</Tabs>
 
 ## `podSecurityPolicy`
 
@@ -782,12 +880,19 @@ To disable PSP creation, you can set `enabled` to `false`.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/policy/pod-security-policy/)
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   podSecurityPolicy:
     enabled: false
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set podSecurityPolicy.enabled=false
+  ```
+  </TabItem>
+</Tabs>
 
 ## `labels`
 
@@ -802,13 +907,21 @@ Teleport's RBAC policies to define access rules for the cluster.
   These are Teleport-specific RBAC labels, not Kubernetes labels.
 </Admonition>
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   labels:
     environment: production
     region: us-east
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set labels.environment=production \
+  --set labels.region=us-east
+  ```
+  </TabItem>
+</Tabs>
 
 ## `chartMode`
 
@@ -823,7 +936,6 @@ Teleport's RBAC policies to define access rules for the cluster.
 | `standalone` | [Getting Started - Kubernetes with SSO](../../deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx)            |
 | `aws`        | [Running an HA Teleport cluster using an AWS EKS Cluster](../../deploy-a-cluster/helm-deployments/aws.mdx)         |
 | `gcp`        | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../deploy-a-cluster/helm-deployments/gcp.mdx) |
-| `azure`      | [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../deploy-a-cluster/helm-deployments/azure.mdx) |
 | `scratch`    | [Running a Teleport cluster with a custom config](../../deploy-a-cluster/helm-deployments/custom.mdx)              |
 
 <Admonition type="warning">
@@ -895,12 +1007,19 @@ This driver addon must be configured to use persistent volumes in EKS clusters a
 
 `persistence.enabled` can be used to enable data persistence using either a new or pre-existing `PersistentVolumeClaim`.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   persistence:
     enabled: true
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set persistence.enabled=true
+  ```
+  </TabItem>
+</Tabs>
 
 ### `persistence.existingClaimName`
 
@@ -912,12 +1031,19 @@ This driver addon must be configured to use persistent volumes in EKS clusters a
 
 The default is left blank, which will automatically create a `PersistentVolumeClaim` to use for Teleport storage in `standalone` or `scratch` mode.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   persistence:
     existingClaimName: my-existing-pvc-name
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set persistence.existingClaimName=my-existing-pvc-name
+  ```
+  </TabItem>
+</Tabs>
 
 ### `persistence.storageClassName`
 
@@ -946,12 +1072,19 @@ You can set `volumeSize` to request a different size of persistent volume when i
   `volumeSize` will be ignored if `existingClaimName` is set.
 </Admonition>
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   persistence:
     volumeSize: 50Gi
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set persistence.volumeSize=50Gi
+  ```
+  </TabItem>
+</Tabs>
 
 ## `aws`
 
@@ -960,10 +1093,6 @@ You can set `volumeSize` to request a different size of persistent volume when i
 ## `gcp`
 
 `gcp` settings are described in the GCP guide: [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../deploy-a-cluster/helm-deployments/gcp.mdx)
-
-## `azure`
-
-`azure` settings are described in the Azure guide: [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../deploy-a-cluster/helm-deployments/azure.mdx)
 
 ## `highAvailability`
 
@@ -1024,12 +1153,19 @@ Teleport pods must not be scheduled on the same physical host.
   This setting only has any effect when `highAvailability.replicaCount` is greater than `1`.
 </Admonition>
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   highAvailability:
     requireAntiAffinity: true
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set highAvailability.requireAntiAffinity=true
+  ```
+  </TabItem>
+</Tabs>
 
 ## `highAvailability.podDisruptionBudget`
 
@@ -1043,13 +1179,20 @@ Teleport pods must not be scheduled on the same physical host.
 
 Enable a Pod Disruption Budget for the Teleport Pod to ensure HA during voluntary disruptions.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   highAvailability:
     podDisruptionBudget:
       enabled: true
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.podDisruptionBudget.enabled=true
+  ```
+  </TabItem>
+</Tabs>
 
 ### `highAvailability.podDisruptionBudget.minAvailable`
 
@@ -1061,13 +1204,20 @@ Enable a Pod Disruption Budget for the Teleport Pod to ensure HA during voluntar
 
 Ensures that this number of replicas is available during voluntary disruptions, can be a number of replicas or a percentage.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   highAvailability:
     podDisruptionBudget:
       minAvailable: 1
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.podDisruptionBudget.minAvailable=1
+  ```
+  </TabItem>
+</Tabs>
 
 ## `highAvailability.certManager`
 
@@ -1086,7 +1236,7 @@ cluster deployed in HA mode.
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-36-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 ### `highAvailability.certManager.addCommonName`
@@ -1101,11 +1251,11 @@ Setting `highAvailability.certManager.addCommonName` to `true` will instruct `ce
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-36-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   highAvailability:
     certManager:
@@ -1113,26 +1263,15 @@ Setting `highAvailability.certManager.addCommonName` to `true` will instruct `ce
       addCommonName: true
       issuerName: letsencrypt-production
   ```
-
-### `highAvailability.certManager.addPublicAddrs`
-
-| Type   | Default value | `teleport.yaml` equivalent                                        |
-|--------|---------------|-------------------------------------------------------------------|
-| `bool` | `false`       | `proxy_service.https_keypairs` (to provide your own certificates) |
-
-Setting `highAvailability.certManager.addPublicAddrs` to `true` will instruct `cert-manager` to also add any additional addresses configured under the `publicAddr` chart value
-in its certificate signing request to the issuing CA.
-
-`values.yaml` example:
-
-  ```yaml
-  publicAddr: ['teleport.example.com:443']
-  highAvailability:
-    certManager:
-      enabled: true
-      addPublicAddrs: true
-      issuerName: letsencrypt-production
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set highAvailability.certManager.enabled=true \
+  --set highAvailability.certManager.addCommonName=true \
+  --set highAvailability.certManager.issuerName=letsencrypt-production
   ```
+  </TabItem>
+</Tabs>
 
 ### `highAvailability.certManager.issuerName`
 
@@ -1146,17 +1285,25 @@ Sets the name of the `cert-manager` `Issuer` or `ClusterIssuer` to use for issui
   You must install configure an appropriate `Issuer` supporting a DNS01 challenge yourself.
 
   Please see the [cert-manager DNS01 docs](https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers) and the relevant sections
-  of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
+  of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-36-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   highAvailability:
     certManager:
       enabled: true
       issuerName: letsencrypt-production
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set highAvailability.certManager.enabled=true \
+  --set highAvailability.certManager.issuerName=letsencrypt-production
+  ```
+  </TabItem>
+</Tabs>
 
 ### `highAvailability.certManager.issuerKind`
 
@@ -1167,13 +1314,20 @@ Sets the name of the `cert-manager` `Issuer` or `ClusterIssuer` to use for issui
 Sets the `Kind` of `Issuer` to be used when issuing certificates with `cert-manager`. Defaults to `Issuer` to keep permissions
 scoped to a single namespace.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   highAvailability:
     certManager:
       issuerKind: ClusterIssuer
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set highAvailability.certManager.issuerKind=ClusterIssuer
+  ```
+  </TabItem>
+</Tabs>
 
 ### `highAvailability.certManager.issuerGroup`
 
@@ -1183,13 +1337,20 @@ scoped to a single namespace.
 
 Sets the `Group` of `Issuer` to be used when issuing certificates with `cert-manager`. Defaults to `cert-manager.io` to use built-in issuers.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   highAvailability:
     certManager:
       issuerGroup: cert-manager.io
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set highAvailability.certManager.issuerGroup=cert-manager.io
+  ```
+  </TabItem>
+</Tabs>
 
 ## `highAvailability.minReadySeconds`
 
@@ -1202,12 +1363,19 @@ Amount of time to wait during a pod rollout before moving to the next pod.
 
 This is used to give time for the agents to connect back to newly created pods before continuing the rollout.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   highAvailability:
     minReadySeconds: 15
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.minReadySeconds=15
+  ```
+  </TabItem>
+</Tabs>
 
 ## `tls.existingSecretName`
 
@@ -1226,12 +1394,19 @@ kubectl create secret tls my-tls-secret --cert=/path/to/cert/file --key=/path/to
 
 See https://kubernetes.io/docs/concepts/configuration/secret/#tls-secrets for more information.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   tls:
     existingSecretName: my-tls-secret
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set tls.existingSecretName=my-tls-secret
+  ```
+  </TabItem>
+</Tabs>
 
 ## `tls.existingCASecretName`
 
@@ -1258,12 +1433,19 @@ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
   The filename used for the root CA in the secret must be `ca.pem`.
 </Notice>
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   tls:
     existingCASecretName: my-root-ca
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set tls.existingSecretName=my-root-ca
+  ```
+  </TabItem>
+</Tabs>
 
 ## `image`
 
@@ -1275,11 +1457,18 @@ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 
 You can override this to use your own Teleport Community image rather than a Teleport-published image.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   image: my.docker.registry/teleport-community-image-name
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set image=my.docker.registry/teleport-community-image-name
+  ```
+  </TabItem>
+</Tabs>
 
 ## `enterpriseImage`
 
@@ -1291,11 +1480,18 @@ You can override this to use your own Teleport Community image rather than a Tel
 
 You can override this to use your own Teleport Enterprise image rather than a Teleport-published image.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   enterpriseImage: my.docker.registry/teleport-enterprise-image-name
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set enterpriseImage=my.docker.registry/teleport-enterprise-image
+  ```
+  </TabItem>
+</Tabs>
 
 ## `log`
 
@@ -1317,12 +1513,19 @@ The default is `INFO`, which is recommended in production.
 
 `DEBUG` is useful during first-time setup or to see more detailed logs for debugging.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   log:
     level: DEBUG
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set log.level=DEBUG
+  ```
+  </TabItem>
+</Tabs>
 
 ### `log.output`
 
@@ -1336,12 +1539,19 @@ This can be set to any of the built-in values: `stdout`, `stderr` or `syslog` to
 
 The value can also be set to a file path (such as `/var/log/teleport.log`) to write logs to a file. Bear in mind that a few service startup messages will still go to `stderr` for resilience.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   log:
     output: stderr
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set log.output=stderr
+  ```
+  </TabItem>
+</Tabs>
 
 ### `log.format`
 
@@ -1353,12 +1563,19 @@ The value can also be set to a file path (such as `/var/log/teleport.log`) to wr
 
 Possible values are `text` (default) or `json`.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   log:
     format: json
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set log.format=json
+  ```
+  </TabItem>
+</Tabs>
 
 ### `log.extraFields`
 
@@ -1370,12 +1587,20 @@ Possible values are `text` (default) or `json`.
 
 See the [Teleport config file reference](../../reference/config.mdx) for more details on possible values for `extra_fields`.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   log:
     extraFields: ["timestamp", "level"]
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set "log.extraFields[0]=timestamp" \
+  --set "log.extraFields[1]=level"
+  ```
+  </TabItem>
+</Tabs>
 
 ## `nodeSelector`
 
@@ -1388,13 +1613,21 @@ nodes that Teleport pods will run on.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector)
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   nodeSelector:
     role: bastion
     environment: security
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set nodeSelector.role=bastion \
+  --set nodeSelector.environment=security
+  ```
+  </TabItem>
+</Tabs>
 
 ## `affinity`
 
@@ -1410,8 +1643,8 @@ Kubernetes affinity to set for pod assignments.
   You cannot set both `affinity` and `highAvailability.requireAntiAffinity` as they conflict with each other. Only set one or the other.
 </Admonition>
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   affinity:
     nodeAffinity:
@@ -1423,6 +1656,15 @@ Kubernetes affinity to set for pod assignments.
             values:
             - teleport
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=gravitational.io/dedicated \
+  --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator=In \
+  --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]=teleport
+  ```
+  </TabItem>
+</Tabs>
 
 ## `annotations.config`
 
@@ -1434,13 +1676,24 @@ Kubernetes affinity to set for pod assignments.
 
 Kubernetes annotations which should be applied to the `ConfigMap` created by the chart.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   annotations:
     config:
       kubernetes.io/annotation: value
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set annotations.config."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
 
 ## `annotations.deployment`
 
@@ -1452,13 +1705,24 @@ Kubernetes annotations which should be applied to the `ConfigMap` created by the
 
 Kubernetes annotations which should be applied to the `Deployment` created by the chart.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   annotations:
     deployment:
       kubernetes.io/annotation: value
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set annotations.deployment."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
 
 ## `annotations.pod`
 
@@ -1470,13 +1734,24 @@ Kubernetes annotations which should be applied to the `Deployment` created by th
 
 Kubernetes annotations which should be applied to each `Pod` created by the chart.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   annotations:
     pod:
       kubernetes.io/annotation: value
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set annotations.pod."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
 
 ## `annotations.service`
 
@@ -1488,13 +1763,24 @@ Kubernetes annotations which should be applied to each `Pod` created by the char
 
 Kubernetes annotations which should be applied to the `Service` created by the chart.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   annotations:
     service:
       kubernetes.io/annotation: value
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set annotations.service."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
 
 ## `annotations.serviceAccount`
 
@@ -1506,13 +1792,24 @@ Kubernetes annotations which should be applied to the `Service` created by the c
 
 Kubernetes annotations which should be applied to the `serviceAccount` created by the chart.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   annotations:
     serviceAccount:
       kubernetes.io/annotation: value
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set annotations.serviceAccount."kubernetes\.io\/annotation"=value
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
 
 ## `annotations.certSecret`
 
@@ -1527,32 +1824,24 @@ Kubernetes annotations which should be applied to the `secret` generated by
 `highAvailability.certManager.enabled` is set to `true` and requires
 `cert-manager` v1.5.0+.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   annotations:
     certSecret:
       kubernetes.io/annotation: value
   ```
-
-## `annotations.ingress`
-
-| Type     | Default value |
-|----------|---------------|
-| `object` | `{}`          |
-
-[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
-
-Kubernetes annotations which should be applied to the `Ingress` created by the chart.
-
-`values.yaml` example:
-
-  ```yaml
-  annotations:
-    ingress:
-      alb.ingress.kubernetes.io/target-type: ip
-      alb.ingress.kubernetes.io/backend-protocol: HTTPS
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set annotations.certSecret."kubernetes\.io\/annotation"=value
   ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
 
 ## `serviceAccount.create`
 
@@ -1583,12 +1872,19 @@ If `serviceAccount.create` is false, service account with this name should be cr
 
 Allows to specify the service type.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   service:
     type: LoadBalancer
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set service.type=LoadBalancer
+  ```
+  </TabItem>
+</Tabs>
 
 ## `service.spec.loadBalancerIP`
 
@@ -1600,67 +1896,20 @@ Allows to specify the service type.
 
 Allows to specify the `loadBalancerIP`.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   service:
     spec:
       loadBalancerIP: 1.2.3.4
   ```
-
-## `ingress.enabled`
-
-| Type      | Default value | Required? |
-|-----------|---------------|-----------|
-| `boolean` | `false`       | No        |
-
-[Kubernetes reference](https://kubernetes.io/docs/concepts/services-networking/ingress/)
-
-Boolean value that specifies whether to generate a Kubernetes `Ingress` for the Teleport deployment.
-
-`values.yaml` example:
-
-  ```yaml
-  ingress:
-    enabled: true
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set service.spec.loadBalancerIP=1.2.3.4
   ```
-
-## `ingress.suppressAutomaticWildcards`
-
-| Type      | Default value | Required? |
-|-----------|---------------|-----------|
-| `boolean` | `false`       | No        |
-
-Setting `suppressAutomaticWildcards` to true will not automatically add `*.<clusterName>` as a hostname served
-by the Ingress. This may be desirable if you don't use Teleport application access, or want to configure
-individual public addresses for applications instead.
-
-`values.yaml` example:
-
-  ```yaml
-  ingress:
-    enabled: true
-    suppressAutomaticWildcards: true
-  ```
-
-## `ingress.spec`
-
-| Type      | Default value | Required? |
-|-----------|---------------|-----------|
-| `object`  | `{}`          | No        |
-
-Object value which can be used to define additional properties for the configured Ingress.
-
-For example, you can use this to set an `ingressClassName`:
-
-`values.yaml` example:
-
-  ```yaml
-  ingress:
-    enabled: true
-    spec:
-      ingressClassName: alb
-  ```
+  </TabItem>
+</Tabs>
 
 ## `extraArgs`
 
@@ -1670,12 +1919,19 @@ For example, you can use this to set an `ingressClassName`:
 
 A list of extra arguments to pass to the `teleport start` command when running a Teleport Pod.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   extraArgs:
   - "--bootstrap=/etc/teleport-bootstrap/roles.yaml"
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set "extraArgs={--bootstrap=/etc/teleport-bootstrap/roles.yaml}"
+  ```
+  </TabItem>
+</Tabs>
 
 ## `extraEnv`
 
@@ -1687,13 +1943,21 @@ A list of extra arguments to pass to the `teleport start` command when running a
 
 A list of extra environment variables to be set on the main Teleport container.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   extraEnv:
   - name: MY_ENV
     value: my-value
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set "extraEnv[0].name=MY_ENV" \
+  --set "extraEnv[0].value=my-value"
+  ```
+  </TabItem>
+</Tabs>
 
 ## `extraVolumes`
 
@@ -1706,14 +1970,22 @@ A list of extra environment variables to be set on the main Teleport container.
 A list of extra Kubernetes `Volumes` which should be available to any `Pod` created by the chart. These volumes
 will also be available to any `initContainers` configured by the chart.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   extraVolumes:
   - name: myvolume
     secret:
       secretName: mysecret
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set "extraVolumes[0].name=myvolume" \
+  --set "extraVolumes[0].secret.secretName=mysecret"
+  ```
+  </TabItem>
+</Tabs>
 
 ## `extraVolumeMounts`
 
@@ -1726,13 +1998,21 @@ will also be available to any `initContainers` configured by the chart.
 A list of extra Kubernetes volume mounts which should be mounted into any `Pod` created by the chart. These volume
 mounts will also be mounted into any `initContainers` configured by the chart.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   extraVolumeMounts:
   - name: myvolume
     mountPath: /path/to/mount/volume
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set "extraVolumeMounts[0].name=myvolume" \
+  --set "extraVolumeMounts[0].path=/path/to/mount/volume"
+  ```
+  </TabItem>
+</Tabs>
 
 ## `imagePullPolicy`
 
@@ -1744,11 +2024,18 @@ mounts will also be mounted into any `initContainers` configured by the chart.
 
 Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   imagePullPolicy: Always
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set imagePullPolicy=Always
+  ```
+  </TabItem>
+</Tabs>
 
 ## `imagePullSecrets`
 
@@ -1760,12 +2047,19 @@ Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
 
 A list of secrets containing authorization tokens which can be optionally used to access a private Docker registry.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   imagePullSecrets:
   - name: my-docker-registry-key
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set "imagePullSecrets[0].name=my-docker-registry-key"
+  ```
+  </TabItem>
+</Tabs>
 
 ## `initContainers`
 
@@ -1777,14 +2071,23 @@ A list of secrets containing authorization tokens which can be optionally used t
 
 A list of `initContainers` which will be run before the main Teleport container in any pod created by the chart.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   initContainers:
   - name: teleport-init
     image: alpine
     args: ['echo test']
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set "initContainers[0].name=teleport-init" \
+  --set "initContainers[0].image=alpine" \
+  --set "initContainers[0].args={echo test}"
+  ```
+  </TabItem>
+</Tabs>
 
 ## `postStart`
 
@@ -1796,14 +2099,22 @@ A list of `initContainers` which will be run before the main Teleport container 
 
 A `postStart` lifecycle handler to be configured on the main Teleport container.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   postStart:
     command:
     - echo
     - foo
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set "postStart.command[0]=echo" \
+  --set "postStart.command[1]=foo"
+  ```
+  </TabItem>
+</Tabs>
 
 ## `resources`
 
@@ -1816,14 +2127,22 @@ A `postStart` lifecycle handler to be configured on the main Teleport container.
 Resource requests/limits which should be configured for Teleport containers. These resource limits will also be
 applied to `initContainers`.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   resources:
     requests:
       cpu: 1
       memory: 2Gi
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set resources.requests.cpu=1 \
+  --set resources.requests.memory=2Gi
+  ```
+  </TabItem>
+</Tabs>
 
 ## `securityContext`
 
@@ -1835,12 +2154,19 @@ applied to `initContainers`.
 
 The `securityContext` applies to the main Teleport containers.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   securityContext:
     runAsUser: 99
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set securityContext.runAsUser=99
+  ```
+  </TabItem>
+</Tabs>
 
 ## `tolerations`
 
@@ -1852,8 +2178,8 @@ The `securityContext` applies to the main Teleport containers.
 
 Kubernetes Tolerations to set for pod assignment.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   tolerations:
   - key: "dedicated"
@@ -1861,6 +2187,16 @@ Kubernetes Tolerations to set for pod assignment.
     value: "teleport"
     effect: "NoSchedule"
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set tolerations[0].key=dedicated \
+  --set tolerations[0].operator=Equal \
+  --set tolerations[0].value=teleport \
+  --set tolerations[0].effect=NoSchedule
+  ```
+  </TabItem>
+</Tabs>
 
 ## `priorityClassName`
 
@@ -1872,11 +2208,18 @@ Kubernetes Tolerations to set for pod assignment.
 
 Kubernetes PriorityClass to set for pod.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   priorityClassName: "system-cluster-critical"
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set priorityClassName=system-cluster-critical
+  ```
+  </TabItem>
+</Tabs>
 
 ## `probeTimeoutSeconds`
 
@@ -1888,8 +2231,15 @@ Kubernetes PriorityClass to set for pod.
 
 Kubernetes timeouts for the liveness and readiness probes.
 
-`values.yaml` example:
-
+<Tabs>
+  <TabItem label="values.yaml">
   ```yaml
   probeTimeoutSeconds: 5
   ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set probeTimeoutSeconds=5
+  ```
+  </TabItem>
+</Tabs>

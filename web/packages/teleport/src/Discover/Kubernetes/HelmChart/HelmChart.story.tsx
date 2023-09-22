@@ -34,7 +34,7 @@ export default {
     Story => {
       // Reset request handlers added in individual stories.
       worker.resetHandlers();
-      clearCachedJoinTokenResult([ResourceKind.Kubernetes]);
+      clearCachedJoinTokenResult(ResourceKind.Kubernetes);
       return <Story />;
     },
   ],

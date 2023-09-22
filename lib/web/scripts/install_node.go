@@ -19,6 +19,7 @@ package scripts
 import (
 	_ "embed"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 	"text/template"
@@ -29,6 +30,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 )
+
+// SetScriptHeaders sets response headers to plain text.
+func SetScriptHeaders(h http.Header) {
+	h.Set("Content-Type", "text/plain")
+}
 
 // ErrorBashScript is used to display friendly error message when
 // there is an error prepping the actual script.

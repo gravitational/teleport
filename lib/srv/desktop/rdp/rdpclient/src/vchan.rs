@@ -145,7 +145,6 @@ bitflags! {
     /// Channel control flags, as specified in section 2.2.6.1.1 of MS-RDPBCGR.
     ///
     /// See: https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/f125c65e-6901-43c3-8071-d7d5aaee7ae4
-    #[derive(Debug, PartialEq, Copy, Clone)]
     pub struct ChannelPDUFlags: u32 {
         const CHANNEL_FLAG_FIRST = 0x00000001;
         const CHANNEL_FLAG_LAST = 0x00000002;
@@ -157,7 +156,7 @@ bitflags! {
         const CHANNEL_PACKET_AT_FRONT = 0x00400000;
         const CHANNEL_PACKET_FLUSHED = 0x00800000;
 
-        const CHANNEL_FLAG_ONLY = Self::CHANNEL_FLAG_FIRST.bits() | Self::CHANNEL_FLAG_LAST.bits();
+        const CHANNEL_FLAG_ONLY = Self::CHANNEL_FLAG_FIRST.bits | Self::CHANNEL_FLAG_LAST.bits;
     }
 }
 

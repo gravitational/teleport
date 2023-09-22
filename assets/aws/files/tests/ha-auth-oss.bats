@@ -12,7 +12,6 @@ TELEPORT_INFLUXDB_ADDRESS=http://gus-tftestkube4-monitor-ae7983980c3419ab.elb.us
 TELEPORT_LOCKS_TABLE_NAME=gus-tftestkube4-locks
 TELEPORT_S3_BUCKET=gus-tftestkube4.gravitational.io
 USE_ACM=false
-USE_TLS_ROUTING=false
 EOF
 }
 

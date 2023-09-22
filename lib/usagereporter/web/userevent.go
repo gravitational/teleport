@@ -28,14 +28,12 @@ import (
 // these constants are 1:1 with user events found in the web directory
 // web/packages/teleport/src/services/userEvent/types.ts
 const (
-	bannerClickEvent                = "tp.ui.banner.click"
-	setCredentialSubmitEvent        = "tp.ui.onboard.setCredential.submit"
-	registerChallengeSubmitEvent    = "tp.ui.onboard.registerChallenge.submit"
-	addFirstResourceClickEvent      = "tp.ui.onboard.addFirstResource.click"
-	addFirstResourceLaterClickEvent = "tp.ui.onboard.addFirstResourceLater.click"
-	completeGoToDashboardClickEvent = "tp.ui.onboard.completeGoToDashboard.click"
-	questionnaireSubmitEvent        = "tp.ui.onboard.questionnaire.submit"
-
+	bannerClickEvent                         = "tp.ui.banner.click"
+	setCredentialSubmitEvent                 = "tp.ui.onboard.setCredential.submit"
+	registerChallengeSubmitEvent             = "tp.ui.onboard.registerChallenge.submit"
+	addFirstResourceClickEvent               = "tp.ui.onboard.addFirstResource.click"
+	addFirstResourceLaterClickEvent          = "tp.ui.onboard.addFirstResourceLater.click"
+	completeGoToDashboardClickEvent          = "tp.ui.onboard.completeGoToDashboard.click"
 	recoveryCodesContinueClickEvent          = "tp.ui.recoveryCodesContinue.click"
 	recoveryCodesCopyClickEvent              = "tp.ui.recoveryCodesCopy.click"
 	recoveryCodesPrintClickEvent             = "tp.ui.recoveryCodesPrint.click"
@@ -63,8 +61,6 @@ const (
 	uiIntegrationEnrollCompleteEvent = "tp.ui.integrationEnroll.complete"
 
 	uiCallToActionClickEvent = "tp.ui.callToAction.click"
-
-	featureRecommendationEvent = "tp.ui.feature.recommendation"
 )
 
 // Events that require extra metadata.
@@ -153,12 +149,6 @@ func ConvertPreUserEventRequestToUsageEvent(req CreatePreUserEventRequest) (*usa
 	case recoveryCodesPrintClickEvent:
 		typedEvent.Event = &usageeventsv1.UsageEventOneOf_UiRecoveryCodesPrintClick{
 			UiRecoveryCodesPrintClick: &usageeventsv1.UIRecoveryCodesPrintClickEvent{
-				Username: req.Username,
-			},
-		}
-	case questionnaireSubmitEvent:
-		typedEvent.Event = &usageeventsv1.UsageEventOneOf_UiOnboardQuestionnaireSubmit{
-			UiOnboardQuestionnaireSubmit: &usageeventsv1.UIOnboardQuestionnaireSubmitEvent{
 				Username: req.Username,
 			},
 		}
@@ -335,30 +325,6 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 				UiCallToActionClickEvent: &usageeventsv1.UICallToActionClickEvent{
 					Cta: usageeventsv1.CTA(cta),
 				}}},
-			nil
-
-	case questionnaireSubmitEvent:
-		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiOnboardQuestionnaireSubmit{
-				UiOnboardQuestionnaireSubmit: &usageeventsv1.UIOnboardQuestionnaireSubmitEvent{},
-			}},
-			nil
-
-	case featureRecommendationEvent:
-		event := struct {
-			Feature                     int32 `json:"feature"`
-			FeatureRecommendationStatus int32 `json:"featureRecommendationStatus"`
-		}{}
-
-		if err := json.Unmarshal([]byte(*req.EventData), &event); err != nil {
-			return nil, trace.BadParameter("eventData is invalid: %v", err)
-		}
-
-		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_FeatureRecommendationEvent{
-				FeatureRecommendationEvent: &usageeventsv1.FeatureRecommendationEvent{
-					Feature:                     usageeventsv1.Feature(event.Feature),
-					FeatureRecommendationStatus: usageeventsv1.FeatureRecommendationStatus(event.FeatureRecommendationStatus),
-				},
-			}},
 			nil
 	}
 

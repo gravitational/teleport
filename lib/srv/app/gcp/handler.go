@@ -24,6 +24,8 @@ import (
 	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
 	"cloud.google.com/go/iam/credentials/apiv1/credentialspb"
 	"github.com/googleapis/gax-go/v2"
+	"github.com/gravitational/oxy/forward"
+	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -32,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -64,7 +65,7 @@ type HandlerConfig struct {
 	// RoundTripper is the underlying transport given to an oxy Forwarder.
 	RoundTripper http.RoundTripper
 	// Log is the Logger.
-	Log utils.FieldLoggerWithWriter
+	Log logrus.FieldLogger
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 	// cloudClientGCP holds a reference to GCP IAM client. Normally set in CheckAndSetDefaults, it is overridden in tests.
@@ -87,10 +88,7 @@ func (s *HandlerConfig) CheckAndSetDefaults() error {
 		s.Log = logrus.WithField(trace.Component, "gcp:fwd")
 	}
 	if s.cloudClientGCP == nil {
-		clients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		clients := cloud.NewClients()
 		s.cloudClientGCP = &cloudClientGCPImpl[*gcpcredentials.IamCredentialsClient]{getGCPIAMClient: clients.GetGCPIAMClient}
 	}
 	return nil
@@ -103,7 +101,7 @@ type handler struct {
 	HandlerConfig
 
 	// fwd is used to forward requests to GCP API after the handler has rewritten them.
-	fwd *reverseproxy.Forwarder
+	fwd *forward.Forwarder
 
 	// tokenCache caches access tokens.
 	tokenCache *utils.FnCache
@@ -134,12 +132,18 @@ func newGCPHandler(ctx context.Context, config HandlerConfig) (*handler, error) 
 		tokenCache:    tokenCache,
 	}
 
-	svc.fwd, err = reverseproxy.New(
-		reverseproxy.WithRoundTripper(config.RoundTripper),
-		reverseproxy.WithLogger(config.Log),
-		reverseproxy.WithErrorHandler(svc.formatForwardResponseError),
+	fwd, err := forward.New(
+		forward.RoundTripper(config.RoundTripper),
+		forward.ErrorHandler(oxyutils.ErrorHandlerFunc(svc.formatForwardResponseError)),
+		// Explicitly passing false here to be clear that we always want the host
+		// header to be the same as the outbound request's URL host.
+		forward.PassHostHeader(false),
 	)
-	return svc, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	svc.fwd = fwd
+	return svc, nil
 }
 
 // RoundTrip handles incoming requests and forwards them to the proper API.

@@ -66,5 +66,5 @@ roleRef:
   name: {{ .Release.Name }}-psp
 subjects:
 - kind: ServiceAccount
-  name: {{ template "teleport-kube-agent.serviceAccountName" . }}
+  name: {{ template "teleport.serviceAccountName" . }}
 {{- end -}}

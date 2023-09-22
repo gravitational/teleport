@@ -224,7 +224,7 @@ latest version and the previous version of the secret respectively.
 Using AWS Secrets Manager does incur extra
 [costs](https://aws.amazon.com/secrets-manager/pricing/) for users. As an
 example, let's say that a Teleport cluster with three database agents is
-managing one ElastiCache Redis user. The monthly cost to store one secret is
+managing one ElastiCache Redis user. The montly cost to store one secret is
 $0.40. Assuming the secret is rotated 100 times per day, there will be about
 100 put calls plus 3 * 100 get calls per secret per day. This sums to 12000 API
 calls per month, which costs $0.06 ($0.05 for every 10000 calls). Therefore,

@@ -36,7 +36,7 @@ Some access workflows plugins will become available in the open source:
 * JIRA Plugin
 * PagerDuty Plugin
 
-### Enterprise Only Features
+### Enteprise Only Features
 
 The following features will remain enterprise only.
 

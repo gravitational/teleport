@@ -372,7 +372,7 @@ and session types that the role grants privileges to join.
 We will only initially support the modes `moderator` for Kubernetes Access and `peer` for SSH sessions.
 An `observer` mode also exists which only grants access to view but does not terminate an ongoing session.
 
-This RBAC model replaces the existing RBAC model for accessing SSH sessions. The existing model allows you to join all sessions to a node that you have login access to. If this is kept, this new RBAC model becomes inflexible as it is no longer possible to configure observers or moderators that do not themselves have access to start a session. The practical implication of this is that we no longer perform RBAC authorization at the node level when joining sessions, but instead deferring all authorization duties to the downstream authorizer for the session.
+This RBAC model replaces the existing RBAC model for accessing SSH sessions. The existing model allows you to join all sessions to a node that you have login access to. If this is kept, this new RBAC model becomes inflexible as it is no longer possible to configure observers or moderators that do not themselves have access to start a session. The pratical implication of this is that we no longer perform RBAC authorization at the node level when joining sessions, but instead deferring all authorization duties to the downstream authorizer for the session.
 
 Imagine you have 4 roles:
 - `prod-access`

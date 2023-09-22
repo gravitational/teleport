@@ -127,8 +127,12 @@ If you are running a self-hosted Teleport Enterprise cluster, you  will need to
 create a secret that contains your Teleport license information before you can
 install Teleport.
 
-1. (!docs/pages/includes//enterprise/obtainlicense.mdx!)
-1. Create a secret from your license file. Teleport will automatically discover
+Before you can install Teleport in your Kubernetes cluster, you will need to
+create a secret that contains your Teleport license information.
+
+(!docs/pages/includes/enterprise/obtainlicense.mdx!)
+
+Create a secret from your license file. Teleport will automatically discover
 this secret as long as your file is named `license.pem`.
 
   ```code
@@ -206,8 +210,6 @@ If you're not migrating an existing Teleport cluster, you'll need to create a
 user to be able to log into Teleport. This needs to be done on the Teleport
 auth server, so we can run the command using `kubectl`:
 
-<Tabs>
-<TabItem scope={["oss"]} label="Teleport Community Edition">
 ```code
 $ kubectl --namespace teleport exec deployment/teleport-auth -- tctl users add test --roles=access,editor
 
@@ -216,19 +218,6 @@ https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
 NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
 ```
-</TabItem>
-<TabItem scope={["enterprise", "cloud"]} label="Commercial">
-```code
-$ kubectl --namespace teleport exec deployment/teleport-auth -- tctl users add test --roles=access,editor,reviewer
-
-User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
-https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
-
-NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
-```
-</TabItem>
-
-</Tabs>
 
 <Admonition type="note">
 If you didn't set up DNS for your hostname earlier, remember to replace

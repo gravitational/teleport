@@ -27,12 +27,12 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 )
 
 // DesktopCommand implements "tctl desktop" group of commands.
 type DesktopCommand struct {
-	config *servicecfg.Config
+	config *service.Config
 
 	// format is the output format (text or yaml)
 	format string
@@ -45,7 +45,7 @@ type DesktopCommand struct {
 }
 
 // Initialize allows DesktopCommand to plug itself into the CLI parser
-func (c *DesktopCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *DesktopCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	c.config = config
 
 	desktop := app.Command("windows_desktops", "Operate on registered desktops.").Alias("desktops")

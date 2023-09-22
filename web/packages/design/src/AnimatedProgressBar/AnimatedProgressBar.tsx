@@ -17,7 +17,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import Flex from '../Flex';
+import { Flex } from '../';
 
 export const AnimatedProgressBar = ({
   barHeight = 16,
@@ -55,7 +55,7 @@ const Bar = styled.span`
   border-bottom-right-radius: 8px;
   border-top-left-radius: 20px;
   border-bottom-left-radius: 20px;
-  background-color: ${props => props.theme.colors.brand};
+  background-color: #b097ff;
 
   box-shadow: inset 0 2px 9px rgba(255, 255, 255, 0.3),
     inset 0 -2px 6px rgba(0, 0, 0, 0.4);

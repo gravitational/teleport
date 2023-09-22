@@ -57,14 +57,8 @@ const (
 	// ProtocolElasticsearch is TLS ALPN protocol value used to indicate Elasticsearch protocol.
 	ProtocolElasticsearch Protocol = "teleport-elasticsearch"
 
-	// ProtocolOpenSearch is TLS ALPN protocol value used to indicate OpenSearch protocol.
-	ProtocolOpenSearch Protocol = "teleport-opensearch"
-
 	// ProtocolDynamoDB is TLS ALPN protocol value used to indicate DynamoDB protocol.
 	ProtocolDynamoDB Protocol = "teleport-dynamodb"
-
-	// ProtocolClickhouse is TLS ALPN protocol value used to indicate Clickhouse Protocol.
-	ProtocolClickhouse Protocol = "teleport-clickhouse"
 
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
@@ -166,12 +160,8 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolCassandra, nil
 	case defaults.ProtocolElasticsearch:
 		return ProtocolElasticsearch, nil
-	case defaults.ProtocolOpenSearch:
-		return ProtocolOpenSearch, nil
 	case defaults.ProtocolDynamoDB:
 		return ProtocolDynamoDB, nil
-	case defaults.ProtocolClickHouse, defaults.ProtocolClickHouseHTTP:
-		return ProtocolClickhouse, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
@@ -191,14 +181,12 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolSnowflake,
 		ProtocolCassandra,
 		ProtocolElasticsearch,
-		ProtocolOpenSearch,
 		ProtocolDynamoDB,
-		ProtocolClickhouse,
 	}
 
-	return slices.ContainsFunc(dbTLSProtocols, func(dbTLSProtocol Protocol) bool {
+	return slices.IndexFunc(dbTLSProtocols, func(dbTLSProtocol Protocol) bool {
 		return protocol == dbTLSProtocol || protocol == ProtocolWithPing(dbTLSProtocol)
-	})
+	}) >= 0
 }
 
 // DatabaseProtocols is the list of the database protocols supported.
@@ -212,9 +200,7 @@ var DatabaseProtocols = []Protocol{
 	ProtocolSnowflake,
 	ProtocolCassandra,
 	ProtocolElasticsearch,
-	ProtocolOpenSearch,
 	ProtocolDynamoDB,
-	ProtocolClickhouse,
 }
 
 // ProtocolsWithPingSupport is the list of protocols that Ping connection is

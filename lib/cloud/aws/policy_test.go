@@ -87,147 +87,25 @@ func TestSliceOrString(t *testing.T) {
 }
 
 func TestParsePolicyDocument(t *testing.T) {
-	t.Run("parse without principals", func(t *testing.T) {
-		policyDoc, err := ParsePolicyDocument(`{
-			"Version": "2012-10-17",
-			"Statement": [
-			  {
-				"Effect": "Allow",
-				"Action": "rds-db:connect",
-				"Resource": ["arn:aws:rds-db:us-west-1:12345:dbuser:id/*"]
-			  }
-			]
-		  }`)
-		require.NoError(t, err)
-		require.Equal(t, PolicyDocument{
-			Version: PolicyVersion,
-			Statements: []*Statement{{
-				Effect:    EffectAllow,
-				Actions:   SliceOrString{"rds-db:connect"},
-				Resources: SliceOrString{"arn:aws:rds-db:us-west-1:12345:dbuser:id/*"},
-			}},
-		}, *policyDoc)
-	})
-	t.Run("parse without resource", func(t *testing.T) {
-		policyDoc, err := ParsePolicyDocument(`{
-			"Version": "2012-10-17",
-			"Statement": [
-			  {
-				"Effect": "Allow",
-				"Action": "rds-db:connect",
-				"Principal": {
-					"Service": "ecs-tasks.amazonaws.com"
-				}
-			  }
-			]
-		  }`)
-		require.NoError(t, err)
-		require.Equal(t, PolicyDocument{
-			Version: PolicyVersion,
-			Statements: []*Statement{{
-				Effect:  EffectAllow,
-				Actions: SliceOrString{"rds-db:connect"},
-				Principals: map[string]SliceOrString{
-					"Service": {"ecs-tasks.amazonaws.com"},
-				},
-			}},
-		}, *policyDoc)
-	})
-}
-
-func TestMarshalPolicyDocument(t *testing.T) {
-	t.Run("marshal without principal", func(t *testing.T) {
-		doc := PolicyDocument{
-			Version: PolicyVersion,
-			Statements: []*Statement{{
-				Effect:    EffectAllow,
-				Actions:   SliceOrString{"rds-db:connect"},
-				Resources: SliceOrString{"arn:aws:rds-db:us-west-1:12345:dbuser:id/*"},
-			}},
-		}
-
-		docString, err := doc.Marshal()
-		require.NoError(t, err)
-
-		require.Equal(t, `{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": "rds-db:connect",
-            "Resource": "arn:aws:rds-db:us-west-1:12345:dbuser:id/*"
-        }
-    ]
-}`, docString)
-	})
-
-	t.Run("marshal without resources", func(t *testing.T) {
-		doc := PolicyDocument{
-			Version: PolicyVersion,
-			Statements: []*Statement{{
-				Effect:  EffectAllow,
-				Actions: SliceOrString{"rds-db:connect"},
-				Principals: map[string]SliceOrString{
-					"Service": {"ecs-tasks.amazonaws.com"},
-				},
-			}},
-		}
-
-		docString, err := doc.Marshal()
-		require.NoError(t, err)
-
-		require.Equal(t, `{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": "rds-db:connect",
-            "Principal": {
-                "Service": "ecs-tasks.amazonaws.com"
-            }
-        }
-    ]
-}`, docString)
-	})
-
-	t.Run("marshal with condition", func(t *testing.T) {
-		doc := PolicyDocument{
-			Version: PolicyVersion,
-			Statements: []*Statement{{
-				Effect:  EffectAllow,
-				Actions: SliceOrString{"sts:AssumeRoleWithWebIdentity"},
-				Principals: map[string]SliceOrString{
-					"Federated": {"arn:aws:iam::123456789012:oidc-provider/proxy.example.com"},
-				},
-				Conditions: map[string]map[string]SliceOrString{
-					"StringEquals": {
-						"proxy.example.com:aud": SliceOrString{"discover.teleport"},
-					},
-				},
-			}},
-		}
-
-		docString, err := doc.Marshal()
-		require.NoError(t, err)
-
-		require.Equal(t, `{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": "sts:AssumeRoleWithWebIdentity",
-            "Principal": {
-                "Federated": "arn:aws:iam::123456789012:oidc-provider/proxy.example.com"
-            },
-            "Condition": {
-                "StringEquals": {
-                    "proxy.example.com:aud": "discover.teleport"
-                }
-            }
-        }
-    ]
-}`, docString)
-	})
+	policyDoc, err := ParsePolicyDocument(`{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "rds-db:connect",
+	  "Resource": ["arn:aws:rds-db:us-west-1:12345:dbuser:id/*"]
+    }
+  ]
+}`)
+	require.NoError(t, err)
+	require.Equal(t, PolicyDocument{
+		Version: PolicyVersion,
+		Statements: []*Statement{{
+			Effect:    EffectAllow,
+			Actions:   SliceOrString{"rds-db:connect"},
+			Resources: SliceOrString{"arn:aws:rds-db:us-west-1:12345:dbuser:id/*"},
+		}},
+	}, *policyDoc)
 }
 
 // TestIAMPolicy verifies AWS IAM policy manipulations.

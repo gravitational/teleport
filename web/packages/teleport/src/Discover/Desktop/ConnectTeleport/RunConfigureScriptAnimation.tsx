@@ -23,6 +23,7 @@ import {
 
 import { KeywordHighlight } from 'shared/components/AnimatedTerminal/TerminalContent';
 
+import cfg from 'teleport/config';
 import { ResourceKind } from 'teleport/Discover/Shared';
 
 import { generateCommand } from 'teleport/Discover/Shared/generateCommand';
@@ -31,9 +32,7 @@ import { JoinToken } from 'teleport/services/joinToken';
 
 const lines = (joinToken: JoinToken) => [
   {
-    text: generateCommand(
-      'https://teleport.example.com/v1/webapi/scripts/desktop-access/configure/<YOUR_TOKEN>/configure-ad.ps1'
-    ),
+    text: generateCommand(cfg.getConfigureADUrl(joinToken.id)),
     isCommand: true,
   },
   {
@@ -85,8 +84,8 @@ windows_desktop_service:
 ];
 
 const selectedLines = {
-  start: 3,
-  end: 28,
+  start: 4,
+  end: 29,
 };
 
 const highlights: KeywordHighlight[] = [
@@ -109,7 +108,7 @@ interface RunConfigureScriptAnimationProps {
 export function RunConfigureScriptAnimation(
   props: RunConfigureScriptAnimationProps
 ) {
-  const { joinToken } = useJoinTokenSuspender([ResourceKind.Desktop]);
+  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
 
   return (
     <AnimatedTerminal

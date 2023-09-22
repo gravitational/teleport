@@ -29,10 +29,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -55,9 +53,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -150,8 +147,6 @@ type CommandLineFlags struct {
 	DatabaseAWSRegion string
 	// DatabaseAWSAccountID is an optional AWS account ID e.g. when using Keyspaces.
 	DatabaseAWSAccountID string
-	// DatabaseAWSAssumeRoleARN is an optional AWS IAM role ARN to assume when accessing the database.
-	DatabaseAWSAssumeRoleARN string
 	// DatabaseAWSExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
 	DatabaseAWSExternalID string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
@@ -180,87 +175,16 @@ type CommandLineFlags struct {
 	// if the value cannot be obtained from the database.
 	DatabaseMySQLServerVersion string
 
-	// ProxyServer is the url of the proxy server to connect to.
+	// ProxyServer is the url of the proxy server to connect to
 	ProxyServer string
-	// OpenSSHConfigPath is the path of the file to write agentless configuration to.
+	// OpenSSHConfigPath is the path of the file to write agentless configuration to
 	OpenSSHConfigPath string
+	// OpenSSHKeysPath is the path to write teleport keys and certs into
+	OpenSSHKeysPath string
+	// AdditionalPrincipals are a list of extra principals to include when generating host keys.
+	AdditionalPrincipals string
 	// RestartOpenSSH indicates whether openssh should be restarted or not.
 	RestartOpenSSH bool
-	// RestartCommand is the command to use when restarting sshd
-	RestartCommand string
-	// CheckCommand is the command to use when checking sshd config validity
-	CheckCommand string
-	// Address is the ip address of the OpenSSH node.
-	Address string
-	// AdditionalPrincipals is a list of additional principals to include in the SSH cert.
-	AdditionalPrincipals string
-	// Directory to store
-	DataDir string
-
-	// IntegrationConfDeployServiceIAMArguments contains the arguments of
-	// `teleport integration configure deployservice-iam` command
-	IntegrationConfDeployServiceIAMArguments IntegrationConfDeployServiceIAM
-
-	// IntegrationConfEICEIAMArguments contains the arguments of
-	// `teleport integration configure eice-iam` command
-	IntegrationConfEICEIAMArguments IntegrationConfEICEIAM
-
-	// IntegrationConfAWSOIDCIdPArguments contains the arguments of
-	// `teleport integration configure awsoidc-idp` command
-	IntegrationConfAWSOIDCIdPArguments IntegrationConfAWSOIDCIdP
-
-	// IntegrationConfListDatabasesIAMArguments contains the arguments of
-	// `teleport integration configure listdatabases-iam` command
-	IntegrationConfListDatabasesIAMArguments IntegrationConfListDatabasesIAM
-}
-
-// IntegrationConfDeployServiceIAM contains the arguments of
-// `teleport integration configure deployservice-iam` command
-type IntegrationConfDeployServiceIAM struct {
-	// Cluster is the teleport cluster name.
-	Cluster string
-	// Name is the integration name.
-	Name string
-	// Region is the AWS Region used to set up the client.
-	Region string
-	// Role is the AWS Role associated with the Integration
-	Role string
-	// TaskRole is the AWS Role to be used by the deployed service.
-	TaskRole string
-}
-
-// IntegrationConfEICEIAM contains the arguments of
-// `teleport integration configure eice-iam` command
-type IntegrationConfEICEIAM struct {
-	// Region is the AWS Region used to set up the client.
-	Region string
-	// Role is the AWS Role associated with the Integration
-	Role string
-}
-
-// IntegrationConfAWSOIDCIdP contains the arguments of
-// `teleport integration configure awsoidc-idp` command
-type IntegrationConfAWSOIDCIdP struct {
-	// Cluster is the teleport cluster name.
-	Cluster string
-	// Name is the integration name.
-	Name string
-	// Region is the AWS Region used to set up the client.
-	Region string
-	// Role is the AWS Role to associate with the Integration
-	Role string
-	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
-	// Eg, https://<tenant>.teleport.sh
-	ProxyPublicURL string
-}
-
-// IntegrationConfListDatabasesIAM contains the arguments of
-// `teleport integration configure listdatabases-iam` command
-type IntegrationConfListDatabasesIAM struct {
-	// Region is the AWS Region used to set up the client.
-	Region string
-	// Role is the AWS Role associated with the Integration
-	Role string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -285,7 +209,7 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 
 // ReadResources loads a set of resources from a file.
 func ReadResources(filePath string) ([]types.Resource, error) {
-	reader, err := utils.OpenFileAllowingUnsafeLinks(filePath)
+	reader, err := utils.OpenFile(filePath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -312,7 +236,7 @@ func ReadResources(filePath string) ([]types.Resource, error) {
 
 // ApplyFileConfig applies configuration from a YAML file to Teleport
 // runtime config
-func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	var err error
 
 	// no config file? no problem
@@ -541,16 +465,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 
-	// Apply regardless of Jamf being enabled.
-	// If a config is present, we want it to be valid.
-	if err := applyJamfConfig(fc, cfg); err != nil {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 
-func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
+func applyAuthOrProxyAddress(fc *FileConfig, cfg *service.Config) error {
 	switch cfg.Version {
 	// For config versions v1 and v2, the auth_servers field can point to an auth
 	// server or a proxy server
@@ -620,7 +538,7 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 	return nil
 }
 
-func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
+func applyLogConfig(loggerConfig Log, cfg *service.Config) error {
 	logger := log.StandardLogger()
 
 	switch loggerConfig.Output {
@@ -697,7 +615,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 }
 
 // applyAuthConfig applies file configuration for the "auth_service" section.
-func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	var err error
 
 	if fc.Auth.KubeconfigFile != "" {
@@ -705,17 +623,10 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			"been moved to proxy_service section. This setting is ignored."
 		log.Warning(warningMessage)
 	}
-
-	cfg.Auth.PROXYProtocolMode = multiplexer.PROXYProtocolUnspecified
-	if fc.Auth.ProxyProtocol != "" {
-		val := multiplexer.PROXYProtocolMode(fc.Auth.ProxyProtocol)
-		if err := validatePROXYProtocolValue(val); err != nil {
-			return trace.Wrap(err)
-		}
-
-		cfg.Auth.PROXYProtocolMode = val
+	cfg.Auth.EnableProxyProtocol, err = utils.ParseOnOff("proxy_protocol", fc.Auth.ProxyProtocol, true)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
 	if fc.Auth.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Auth.ListenAddress, int(defaults.AuthListenPort))
 		if err != nil {
@@ -772,19 +683,6 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Auth.Preference.SetDisconnectExpiredCert(fc.Auth.DisconnectExpiredCert.Value)
 	}
 
-	if fc.Auth.Assist != nil && fc.Auth.Assist.OpenAI != nil {
-		keyPath := fc.Auth.Assist.OpenAI.APITokenPath
-		key, err := os.ReadFile(keyPath)
-		if err != nil {
-			return trace.Errorf("failed to read OpenAI API key file: %w", err)
-		}
-		cfg.Auth.AssistAPIKey = strings.TrimSpace(string(key))
-
-		if fc.Auth.Assist.CommandExecutionWorkers < 0 {
-			return trace.BadParameter("command_execution_workers must not be negative")
-		}
-	}
-
 	// Set cluster audit configuration from file configuration.
 	auditConfigSpec, err := services.ClusterAuditConfigSpecFromObject(fc.Storage.Params)
 	if err != nil {
@@ -799,23 +697,17 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Only override networking configuration if some of its fields are
 	// specified in file configuration.
 	if fc.Auth.hasCustomNetworkingConfig() {
-		var assistCommandExecutionWorkers int32
-		if fc.Auth.Assist != nil {
-			assistCommandExecutionWorkers = fc.Auth.Assist.CommandExecutionWorkers
-		}
 		cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-			ClientIdleTimeout:             fc.Auth.ClientIdleTimeout,
-			ClientIdleTimeoutMessage:      fc.Auth.ClientIdleTimeoutMessage,
-			WebIdleTimeout:                fc.Auth.WebIdleTimeout,
-			KeepAliveInterval:             fc.Auth.KeepAliveInterval,
-			KeepAliveCountMax:             fc.Auth.KeepAliveCountMax,
-			SessionControlTimeout:         fc.Auth.SessionControlTimeout,
-			ProxyListenerMode:             fc.Auth.ProxyListenerMode,
-			RoutingStrategy:               fc.Auth.RoutingStrategy,
-			TunnelStrategy:                fc.Auth.TunnelStrategy,
-			ProxyPingInterval:             fc.Auth.ProxyPingInterval,
-			AssistCommandExecutionWorkers: assistCommandExecutionWorkers,
-			CaseInsensitiveRouting:        fc.Auth.CaseInsensitiveRouting,
+			ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
+			ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
+			WebIdleTimeout:           fc.Auth.WebIdleTimeout,
+			KeepAliveInterval:        fc.Auth.KeepAliveInterval,
+			KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
+			SessionControlTimeout:    fc.Auth.SessionControlTimeout,
+			ProxyListenerMode:        fc.Auth.ProxyListenerMode,
+			RoutingStrategy:          fc.Auth.RoutingStrategy,
+			TunnelStrategy:           fc.Auth.TunnelStrategy,
+			ProxyPingInterval:        fc.Auth.ProxyPingInterval,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -861,7 +753,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	return nil
 }
 
-func applyKeyStoreConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Auth.CAKeyParams == nil {
 		return nil
 	}
@@ -877,7 +769,7 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	return nil
 }
 
-func applyPKCS11Config(pkcs11Config *PKCS11, cfg *servicecfg.Config) error {
+func applyPKCS11Config(pkcs11Config *PKCS11, cfg *service.Config) error {
 	if pkcs11Config.ModulePath != "" {
 		fi, err := utils.StatFile(pkcs11Config.ModulePath)
 		if err != nil {
@@ -927,7 +819,7 @@ func applyPKCS11Config(pkcs11Config *PKCS11, cfg *servicecfg.Config) error {
 	return nil
 }
 
-func applyGoogleCloudKMSConfig(kmsConfig *GoogleCloudKMS, cfg *servicecfg.Config) error {
+func applyGoogleCloudKMSConfig(kmsConfig *GoogleCloudKMS, cfg *service.Config) error {
 	if kmsConfig.KeyRing == "" {
 		return trace.BadParameter("must set keyring in ca_key_params.gcp_kms")
 	}
@@ -939,29 +831,14 @@ func applyGoogleCloudKMSConfig(kmsConfig *GoogleCloudKMS, cfg *servicecfg.Config
 	return nil
 }
 
-func validatePROXYProtocolValue(p multiplexer.PROXYProtocolMode) error {
-	allowedOptions := []multiplexer.PROXYProtocolMode{multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff}
-
-	if !slices.Contains(allowedOptions, p) {
-		return trace.BadParameter("invalid 'proxy_protocol' value %q. Available options are: %v", p, allowedOptions)
-	}
-	return nil
-}
-
 // applyProxyConfig applies file configuration for the "proxy_service" section.
-func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	var err error
 
-	cfg.Proxy.PROXYProtocolMode = multiplexer.PROXYProtocolUnspecified
-	if fc.Proxy.ProxyProtocol != "" {
-		val := multiplexer.PROXYProtocolMode(fc.Proxy.ProxyProtocol)
-		if err := validatePROXYProtocolValue(val); err != nil {
-			return trace.Wrap(err)
-		}
-
-		cfg.Proxy.PROXYProtocolMode = val
+	cfg.Proxy.EnableProxyProtocol, err = utils.ParseOnOff("proxy_protocol", fc.Proxy.ProxyProtocol, true)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
 	if fc.Proxy.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, defaults.SSHProxyListenPort)
 		if err != nil {
@@ -1009,7 +886,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.Proxy.PeerAddress = *addr
+		cfg.Proxy.PeerAddr = *addr
 	}
 
 	if fc.Proxy.UI != nil {
@@ -1027,14 +904,10 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 
-	if fc.Proxy.MySQLServerVersion != "" {
-		cfg.Proxy.MySQLServerVersion = fc.Proxy.MySQLServerVersion
-	}
-
 	// This is the legacy format. Continue to support it forever, but ideally
 	// users now use the list format below.
 	if fc.Proxy.KeyFile != "" || fc.Proxy.CertFile != "" {
-		cfg.Proxy.KeyPairs = append(cfg.Proxy.KeyPairs, servicecfg.KeyPairPath{
+		cfg.Proxy.KeyPairs = append(cfg.Proxy.KeyPairs, service.KeyPairPath{
 			PrivateKey:  fc.Proxy.KeyFile,
 			Certificate: fc.Proxy.CertFile,
 		})
@@ -1070,7 +943,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
-		cfg.Proxy.KeyPairs = append(cfg.Proxy.KeyPairs, servicecfg.KeyPairPath{
+		cfg.Proxy.KeyPairs = append(cfg.Proxy.KeyPairs, service.KeyPairPath{
 			PrivateKey:  p.PrivateKey,
 			Certificate: p.Certificate,
 		})
@@ -1203,7 +1076,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	return nil
 }
 
-func getPostgresDefaultPort(cfg *servicecfg.Config) int {
+func getPostgresDefaultPort(cfg *service.Config) int {
 	if !cfg.Proxy.PostgresAddr.IsEmpty() {
 		// If the proxy.PostgresAddr flag was provided return port
 		// from PostgresAddr address or default PostgresListenPort.
@@ -1221,7 +1094,7 @@ func getPostgresDefaultPort(cfg *servicecfg.Config) int {
 	return cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort)
 }
 
-func applyDefaultProxyListenerAddresses(cfg *servicecfg.Config) {
+func applyDefaultProxyListenerAddresses(cfg *service.Config) {
 	// From v2 onwards if an address is not provided don't fall back to the default values.
 	if cfg.Version != "" && cfg.Version != defaults.TeleportConfigVersionV1 {
 		return
@@ -1244,7 +1117,7 @@ func applyDefaultProxyListenerAddresses(cfg *servicecfg.Config) {
 }
 
 // applySSHConfig applies file configuration for the "ssh_service" section.
-func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
+func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.SSH.ListenAddress, int(defaults.SSHServerListenPort))
 		if err != nil {
@@ -1317,9 +1190,6 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 			return trace.Wrap(err)
 		}
 		cfg.SSH.RestrictedSession = rs
-
-		log.Warnf("Restricted Sessions for SSH were deprecated in Teleport 14 " +
-			"and will be removed in Teleport 15.")
 	}
 
 	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
@@ -1356,10 +1226,9 @@ func getInstallerProxyAddr(installParams *InstallParams, fc *FileConfig) string 
 	return fc.AuthServer
 }
 
-func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Discovery.Enabled = fc.Discovery.Enabled()
 	cfg.Discovery.DiscoveryGroup = fc.Discovery.DiscoveryGroup
-	cfg.Discovery.PollInterval = fc.Discovery.PollInterval
 	for _, matcher := range fc.Discovery.AWSMatchers {
 		installParams, err := matcher.InstallParams.Parse()
 		if err != nil {
@@ -1378,21 +1247,17 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers,
-			types.AWSMatcher{
+			services.AWSMatcher{
 				Types:   matcher.Types,
 				Regions: matcher.Regions,
-				AssumeRole: &types.AssumeRole{
-					RoleARN:    matcher.AssumeRoleARN,
-					ExternalID: matcher.ExternalID,
-				},
-				Tags:   matcher.Tags,
-				Params: &installParams,
-				SSM:    &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+				Tags:    matcher.Tags,
+				Params:  installParams,
+				SSM:     &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
 	}
 
 	for _, matcher := range fc.Discovery.AzureMatchers {
-		m := types.AzureMatcher{
+		m := services.AzureMatcher{
 			Subscriptions:  matcher.Subscriptions,
 			ResourceGroups: matcher.ResourceGroups,
 			Types:          matcher.Types,
@@ -1401,7 +1266,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		if matcher.InstallParams != nil {
-			m.Params = &types.InstallerParams{
+			m.Params = services.InstallerParams{
 				JoinMethod:      matcher.InstallParams.JoinParams.Method,
 				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
 				ScriptName:      matcher.InstallParams.ScriptName,
@@ -1412,31 +1277,13 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	for _, matcher := range fc.Discovery.GCPMatchers {
-		m := types.GCPMatcher{
-			Types:           matcher.Types,
-			Locations:       matcher.Locations,
-			Labels:          matcher.Labels,
-			Tags:            matcher.Tags,
-			ProjectIDs:      matcher.ProjectIDs,
-			ServiceAccounts: matcher.ServiceAccounts,
-		}
-		if matcher.InstallParams != nil {
-			m.Params = &types.InstallerParams{
-				JoinMethod:      matcher.InstallParams.JoinParams.Method,
-				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
-				ScriptName:      matcher.InstallParams.ScriptName,
-				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
-			}
-		}
-		cfg.Discovery.GCPMatchers = append(cfg.Discovery.GCPMatchers, m)
-	}
-
-	for _, matcher := range fc.Discovery.KubernetesMatchers {
-		cfg.Discovery.KubernetesMatchers = append(cfg.Discovery.KubernetesMatchers,
-			types.KubernetesMatcher{
+		cfg.Discovery.GCPMatchers = append(
+			cfg.Discovery.GCPMatchers,
+			services.GCPMatcher{
 				Types:      matcher.Types,
-				Namespaces: matcher.Namespaces,
-				Labels:     matcher.Labels,
+				Locations:  matcher.Locations,
+				Tags:       matcher.Tags,
+				ProjectIDs: matcher.ProjectIDs,
 			},
 		)
 	}
@@ -1445,7 +1292,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 // applyKubeConfig applies file configuration for the "kubernetes_service" section.
-func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Kube.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Kube.ListenAddress, int(defaults.SSHProxyListenPort))
 		if err != nil {
@@ -1465,10 +1312,6 @@ func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Kube.ResourceMatchers = append(cfg.Kube.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,
-				AWS: services.ResourceMatcherAWS{
-					AssumeRoleARN: matcher.AWS.AssumeRoleARN,
-					ExternalID:    matcher.AWS.ExternalID,
-				},
 			})
 	}
 
@@ -1499,33 +1342,25 @@ func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 // applyDatabasesConfig applies file configuration for the "db_service" section.
-func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Databases.Enabled = true
 	for _, matcher := range fc.Databases.ResourceMatchers {
 		cfg.Databases.ResourceMatchers = append(cfg.Databases.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,
-				AWS: services.ResourceMatcherAWS{
-					AssumeRoleARN: matcher.AWS.AssumeRoleARN,
-					ExternalID:    matcher.AWS.ExternalID,
-				},
 			})
 	}
 	for _, matcher := range fc.Databases.AWSMatchers {
 		cfg.Databases.AWSMatchers = append(cfg.Databases.AWSMatchers,
-			types.AWSMatcher{
+			services.AWSMatcher{
 				Types:   matcher.Types,
 				Regions: matcher.Regions,
 				Tags:    matcher.Tags,
-				AssumeRole: &types.AssumeRole{
-					RoleARN:    matcher.AssumeRoleARN,
-					ExternalID: matcher.ExternalID,
-				},
 			})
 	}
 	for _, matcher := range fc.Databases.AzureMatchers {
 		cfg.Databases.AzureMatchers = append(cfg.Databases.AzureMatchers,
-			types.AzureMatcher{
+			services.AzureMatcher{
 				Subscriptions:  matcher.Subscriptions,
 				ResourceGroups: matcher.ResourceGroups,
 				Types:          matcher.Types,
@@ -1554,65 +1389,58 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 
-		db := servicecfg.Database{
+		db := service.Database{
 			Name:          database.Name,
 			Description:   database.Description,
 			Protocol:      database.Protocol,
 			URI:           database.URI,
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
-			MySQL: servicecfg.MySQLOptions{
+			MySQL: service.MySQLOptions{
 				ServerVersion: database.MySQL.ServerVersion,
 			},
-			TLS: servicecfg.DatabaseTLS{
+			TLS: service.DatabaseTLS{
 				CACert:     caBytes,
 				ServerName: database.TLS.ServerName,
-				Mode:       servicecfg.TLSMode(database.TLS.Mode),
+				Mode:       service.TLSMode(database.TLS.Mode),
 			},
-			AdminUser: servicecfg.DatabaseAdminUser{
-				Name: database.AdminUser.Name,
-			},
-			Oracle: convOracleOptions(database.Oracle),
-			AWS: servicecfg.DatabaseAWS{
-				AccountID:     database.AWS.AccountID,
-				AssumeRoleARN: database.AWS.AssumeRoleARN,
-				ExternalID:    database.AWS.ExternalID,
-				Region:        database.AWS.Region,
-				Redshift: servicecfg.DatabaseAWSRedshift{
+			AWS: service.DatabaseAWS{
+				AccountID:  database.AWS.AccountID,
+				ExternalID: database.AWS.ExternalID,
+				Region:     database.AWS.Region,
+				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: database.AWS.Redshift.ClusterID,
 				},
-				RedshiftServerless: servicecfg.DatabaseAWSRedshiftServerless{
+				RedshiftServerless: service.DatabaseAWSRedshiftServerless{
 					WorkgroupName: database.AWS.RedshiftServerless.WorkgroupName,
 					EndpointName:  database.AWS.RedshiftServerless.EndpointName,
 				},
-				RDS: servicecfg.DatabaseAWSRDS{
+				RDS: service.DatabaseAWSRDS{
 					InstanceID: database.AWS.RDS.InstanceID,
 					ClusterID:  database.AWS.RDS.ClusterID,
 				},
-				ElastiCache: servicecfg.DatabaseAWSElastiCache{
+				ElastiCache: service.DatabaseAWSElastiCache{
 					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
 				},
-				MemoryDB: servicecfg.DatabaseAWSMemoryDB{
+				MemoryDB: service.DatabaseAWSMemoryDB{
 					ClusterName: database.AWS.MemoryDB.ClusterName,
 				},
-				SecretStore: servicecfg.DatabaseAWSSecretStore{
+				SecretStore: service.DatabaseAWSSecretStore{
 					KeyPrefix: database.AWS.SecretStore.KeyPrefix,
 					KMSKeyID:  database.AWS.SecretStore.KMSKeyID,
 				},
 			},
-			GCP: servicecfg.DatabaseGCP{
+			GCP: service.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,
 				InstanceID: database.GCP.InstanceID,
 			},
-			AD: servicecfg.DatabaseAD{
-				KeytabFile:  database.AD.KeytabFile,
-				Krb5File:    database.AD.Krb5File,
-				Domain:      database.AD.Domain,
-				SPN:         database.AD.SPN,
-				LDAPCert:    database.AD.LDAPCert,
-				KDCHostName: database.AD.KDCHostName,
+			AD: service.DatabaseAD{
+				KeytabFile: database.AD.KeytabFile,
+				Krb5File:   database.AD.Krb5File,
+				Domain:     database.AD.Domain,
+				SPN:        database.AD.SPN,
 			},
-			Azure: servicecfg.DatabaseAzure{
+			Azure: service.DatabaseAzure{
 				ResourceID:    database.Azure.ResourceID,
 				IsFlexiServer: database.Azure.IsFlexiServer,
 			},
@@ -1623,12 +1451,6 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
 	}
 	return nil
-}
-
-func convOracleOptions(o DatabaseOracle) servicecfg.OracleOptions {
-	return servicecfg.OracleOptions{
-		AuditUser: o.AuditUser,
-	}
 }
 
 // readCACert reads database CA certificate from the config file.
@@ -1667,7 +1489,7 @@ func readCACert(database *Database) ([]byte, error) {
 }
 
 // applyAppsConfig applies file configuration for the "app_service" section.
-func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 	// Apps are enabled.
 	cfg.Apps.Enabled = true
 
@@ -1676,9 +1498,6 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	// Configure resource watcher selectors if present.
 	for _, matcher := range fc.Apps.ResourceMatchers {
-		if matcher.AWS.AssumeRoleARN != "" {
-			return trace.NotImplemented("assume_role_arn is not supported for app resource matchers")
-		}
 		cfg.Apps.ResourceMatchers = append(cfg.Apps.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,
@@ -1705,7 +1524,7 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		// Add the application to the list of proxied applications.
-		app := servicecfg.App{
+		app := service.App{
 			Name:               application.Name,
 			Description:        application.Description,
 			URI:                application.URI,
@@ -1717,19 +1536,19 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 		if application.Rewrite != nil {
 			// Parse http rewrite headers if there are any.
-			headers, err := servicecfg.ParseHeaders(application.Rewrite.Headers)
+			headers, err := service.ParseHeaders(application.Rewrite.Headers)
 			if err != nil {
 				return trace.Wrap(err, "failed to parse headers rewrite configuration for app %q",
 					application.Name)
 			}
-			app.Rewrite = &servicecfg.Rewrite{
+			app.Rewrite = &service.Rewrite{
 				Redirect:  application.Rewrite.Redirect,
 				Headers:   headers,
 				JWTClaims: application.Rewrite.JWTClaims,
 			}
 		}
 		if application.AWS != nil {
-			app.AWS = &servicecfg.AppAWS{
+			app.AWS = &service.AppAWS{
 				ExternalID: application.AWS.ExternalID,
 			}
 		}
@@ -1743,7 +1562,7 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 // applyMetricsConfig applies file configuration for the "metrics_service" section.
-func applyMetricsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 	// Metrics is enabled.
 	cfg.Metrics.Enabled = true
 
@@ -1792,7 +1611,7 @@ func applyMetricsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
-		cfg.Metrics.KeyPairs = append(cfg.Metrics.KeyPairs, servicecfg.KeyPairPath{
+		cfg.Metrics.KeyPairs = append(cfg.Metrics.KeyPairs, service.KeyPairPath{
 			PrivateKey:  p.PrivateKey,
 			Certificate: p.Certificate,
 		})
@@ -1812,7 +1631,7 @@ func applyMetricsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 // applyWindowsDesktopConfig applies file configuration for the "windows_desktop_service" section.
-func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	if err := fc.WindowsDesktop.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1839,7 +1658,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 
-	cfg.WindowsDesktop.Discovery = servicecfg.LDAPDiscoveryConfig{
+	cfg.WindowsDesktop.Discovery = service.LDAPDiscoveryConfig{
 		BaseDN:          fc.WindowsDesktop.Discovery.BaseDN,
 		Filters:         fc.WindowsDesktop.Discovery.Filters,
 		LabelAttributes: fc.WindowsDesktop.Discovery.LabelAttributes,
@@ -1883,7 +1702,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 
-	cfg.WindowsDesktop.LDAP = servicecfg.LDAPConfig{
+	cfg.WindowsDesktop.LDAP = service.LDAPConfig{
 		Addr:               fc.WindowsDesktop.LDAP.Addr,
 		Username:           fc.WindowsDesktop.LDAP.Username,
 		SID:                fc.WindowsDesktop.LDAP.SID,
@@ -1893,7 +1712,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		CA:                 cert,
 	}
 
-	var hlrs []servicecfg.HostLabelRule
+	var hlrs []service.HostLabelRule
 	for _, rule := range fc.WindowsDesktop.HostLabels {
 		r, err := regexp.Compile(rule.Match)
 		if err != nil {
@@ -1910,12 +1729,12 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
-		hlrs = append(hlrs, servicecfg.HostLabelRule{
+		hlrs = append(hlrs, service.HostLabelRule{
 			Regexp: r,
 			Labels: rule.Labels,
 		})
 	}
-	cfg.WindowsDesktop.HostLabels = servicecfg.NewHostLabelRules(hlrs...)
+	cfg.WindowsDesktop.HostLabels = service.NewHostLabelRules(hlrs...)
 
 	if fc.WindowsDesktop.Labels != nil {
 		cfg.WindowsDesktop.Labels = make(map[string]string)
@@ -1928,7 +1747,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 // applyTracingConfig applies file configuration for the "tracing_service" section.
-func applyTracingConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+func applyTracingConfig(fc *FileConfig, cfg *service.Config) error {
 	// Tracing is enabled.
 	cfg.Tracing.Enabled = true
 
@@ -1949,7 +1768,7 @@ func applyTracingConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.NotFound("tracing_service cert does not exist: %s", p.Certificate)
 		}
 
-		cfg.Tracing.KeyPairs = append(cfg.Tracing.KeyPairs, servicecfg.KeyPairPath{
+		cfg.Tracing.KeyPairs = append(cfg.Tracing.KeyPairs, service.KeyPairPath{
 			PrivateKey:  p.PrivateKey,
 			Certificate: p.Certificate,
 		})
@@ -1980,7 +1799,7 @@ func applyString(src string, target *string) bool {
 
 // applyConfigVersion applies config version from parsed file. If config version is not
 // present the v1 version will be used as default.
-func applyConfigVersion(fc *FileConfig, cfg *servicecfg.Config) {
+func applyConfigVersion(fc *FileConfig, cfg *service.Config) {
 	cfg.Version = defaults.TeleportConfigVersionV1
 	if fc.Version != "" {
 		cfg.Version = fc.Version
@@ -1989,7 +1808,7 @@ func applyConfigVersion(fc *FileConfig, cfg *servicecfg.Config) {
 
 // Configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
-func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags bool) error {
+func Configure(clf *CommandLineFlags, cfg *service.Config, legacyAppFlags bool) error {
 	// pass the value of --insecure flag to the runtime
 	lib.SetInsecureDevMode(clf.InsecureMode)
 
@@ -2082,7 +1901,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		}
 
 		// Create and validate application. If valid, add to list of applications.
-		app := servicecfg.App{
+		app := service.App{
 			Name:          clf.AppName,
 			URI:           clf.AppURI,
 			Cloud:         clf.AppCloud,
@@ -2110,43 +1929,42 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				return trace.Wrap(err)
 			}
 		}
-		db := servicecfg.Database{
+		db := service.Database{
 			Name:         clf.DatabaseName,
 			Description:  clf.DatabaseDescription,
 			Protocol:     clf.DatabaseProtocol,
 			URI:          clf.DatabaseURI,
 			StaticLabels: staticLabels,
-			MySQL: servicecfg.MySQLOptions{
+			MySQL: service.MySQLOptions{
 				ServerVersion: clf.DatabaseMySQLServerVersion,
 			},
 			DynamicLabels: dynamicLabels,
-			TLS: servicecfg.DatabaseTLS{
+			TLS: service.DatabaseTLS{
 				CACert: caBytes,
 			},
-			AWS: servicecfg.DatabaseAWS{
-				Region:        clf.DatabaseAWSRegion,
-				AccountID:     clf.DatabaseAWSAccountID,
-				AssumeRoleARN: clf.DatabaseAWSAssumeRoleARN,
-				ExternalID:    clf.DatabaseAWSExternalID,
-				Redshift: servicecfg.DatabaseAWSRedshift{
+			AWS: service.DatabaseAWS{
+				Region:     clf.DatabaseAWSRegion,
+				AccountID:  clf.DatabaseAWSAccountID,
+				ExternalID: clf.DatabaseAWSExternalID,
+				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: clf.DatabaseAWSRedshiftClusterID,
 				},
-				RDS: servicecfg.DatabaseAWSRDS{
+				RDS: service.DatabaseAWSRDS{
 					InstanceID: clf.DatabaseAWSRDSInstanceID,
 					ClusterID:  clf.DatabaseAWSRDSClusterID,
 				},
-				ElastiCache: servicecfg.DatabaseAWSElastiCache{
+				ElastiCache: service.DatabaseAWSElastiCache{
 					ReplicationGroupID: clf.DatabaseAWSElastiCacheGroupID,
 				},
-				MemoryDB: servicecfg.DatabaseAWSMemoryDB{
+				MemoryDB: service.DatabaseAWSMemoryDB{
 					ClusterName: clf.DatabaseAWSMemoryDBClusterName,
 				},
 			},
-			GCP: servicecfg.DatabaseGCP{
+			GCP: service.DatabaseGCP{
 				ProjectID:  clf.DatabaseGCPProjectID,
 				InstanceID: clf.DatabaseGCPInstanceID,
 			},
-			AD: servicecfg.DatabaseAD{
+			AD: service.DatabaseAD{
 				KeytabFile: clf.DatabaseADKeytabFile,
 				Krb5File:   clf.DatabaseADKrb5File,
 				Domain:     clf.DatabaseADDomain,
@@ -2322,74 +2140,6 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 	// set the default proxy listener addresses for config v1, if not already set
 	applyDefaultProxyListenerAddresses(cfg)
 
-	// not publicly documented or supported for now (thus the
-	// "TELEPORT_UNSTABLE_" prefix); the group with an empty ID is a valid
-	// group, and generation zero is a valid generation for any group
-	cfg.Proxy.ProxyGroupID = os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_ID")
-	if proxyGroupGeneration := os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_GEN"); proxyGroupGeneration != "" {
-		cfg.Proxy.ProxyGroupGeneration, err = strconv.ParseUint(proxyGroupGeneration, 10, 64)
-		if err != nil {
-			return trace.Wrap(err, "invalid proxygroup generation %q: %v", proxyGroupGeneration, err)
-		}
-	}
-
-	return nil
-}
-
-// ConfigureOpenSSH initializes a config from the commandline flags passed
-func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
-	// Apply command line --debug flag to override logger severity.
-	if clf.Debug {
-		log.SetLevel(log.DebugLevel)
-		cfg.Log.SetLevel(log.DebugLevel)
-		cfg.Debug = clf.Debug
-	}
-
-	if clf.AuthToken != "" {
-		// store the value of the --token flag:
-		cfg.SetToken(clf.AuthToken)
-	}
-
-	log.Debugf("Disabling all services, only the Teleport OpenSSH service can run during the `teleport join openssh` command")
-	servicecfg.DisableLongRunningServices(cfg)
-
-	cfg.DataDir = clf.DataDir
-	cfg.Version = defaults.TeleportConfigVersionV3
-	cfg.OpenSSH.SSHDConfigPath = clf.OpenSSHConfigPath
-	cfg.OpenSSH.RestartSSHD = clf.RestartOpenSSH
-	cfg.OpenSSH.RestartCommand = clf.RestartCommand
-	cfg.OpenSSH.CheckCommand = clf.CheckCommand
-	cfg.JoinMethod = types.JoinMethod(clf.JoinMethod)
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	cfg.Hostname = hostname
-	cfg.OpenSSH.InstanceAddr = clf.Address
-	cfg.OpenSSH.AdditionalPrincipals = []string{hostname, clf.Address}
-	for _, principal := range strings.Split(clf.AdditionalPrincipals, ",") {
-		if principal == "" {
-			continue
-		}
-		cfg.OpenSSH.AdditionalPrincipals = append(cfg.OpenSSH.AdditionalPrincipals, principal)
-	}
-	cfg.OpenSSH.Labels, err = client.ParseLabelSpec(clf.Labels)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	proxyServer, err := utils.ParseAddr(clf.ProxyServer)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cfg.SetAuthServerAddresses(nil)
-	cfg.ProxyServer = *proxyServer
-
 	return nil
 }
 
@@ -2427,7 +2177,7 @@ func parseLabels(spec string) (map[string]string, services.CommandLabels, error)
 
 // parseLabelsApply reads in the labels command line flag and tries to
 // correctly populate static and dynamic labels for the SSH service.
-func parseLabelsApply(spec string, sshConf *servicecfg.SSHConfig) error {
+func parseLabelsApply(spec string, sshConf *service.SSHConfig) error {
 	if spec == "" {
 		return nil
 	}
@@ -2482,7 +2232,7 @@ func isCmdLabelSpec(spec string) (types.CommandLabel, error) {
 
 // applyListenIP replaces all 'listen addr' settings for all services with
 // a given IP
-func applyListenIP(ip net.IP, cfg *servicecfg.Config) {
+func applyListenIP(ip net.IP, cfg *service.Config) {
 	listeningAddresses := []*utils.NetAddr{
 		&cfg.Auth.ListenAddr,
 		&cfg.Auth.ListenAddr,
@@ -2530,7 +2280,7 @@ func splitRoles(roles string) []string {
 }
 
 // applyTokenConfig applies the auth_token and join_params to the config
-func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.AuthToken != "" {
 		if fc.JoinParams != (JoinParams{}) {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
@@ -2552,8 +2302,8 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.JoinMethod = fc.JoinParams.Method
 
 		if fc.JoinParams.Azure != (AzureJoinParams{}) {
-			cfg.JoinParams = servicecfg.JoinParams{
-				Azure: servicecfg.AzureJoinParams{
+			cfg.JoinParams = service.JoinParams{
+				Azure: service.AzureJoinParams{
 					ClientID: fc.JoinParams.Azure.ClientID,
 				},
 			}
@@ -2563,7 +2313,7 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	return nil
 }
 
-func applyOktaConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+func applyOktaConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Okta.APIEndpoint == "" {
 		return trace.BadParameter("okta_service is enabled but no api_endpoint is specified")
 	}
@@ -2591,24 +2341,5 @@ func applyOktaConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Okta.Enabled = fc.Okta.Enabled()
 	cfg.Okta.APIEndpoint = fc.Okta.APIEndpoint
 	cfg.Okta.APITokenPath = fc.Okta.APITokenPath
-	cfg.Okta.SyncPeriod = fc.Okta.SyncPeriod
-	return nil
-}
-
-func applyJamfConfig(fc *FileConfig, cfg *servicecfg.Config) error {
-	// Ignore empty configs, validate and transform anything else.
-	if reflect.DeepEqual(fc.Jamf, JamfService{}) {
-		return nil
-	}
-
-	jamfSpec, err := fc.Jamf.toJamfSpecV1()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	cfg.Jamf = servicecfg.JamfConfig{
-		Spec:       jamfSpec,
-		ExitOnSync: fc.Jamf.ExitOnSync,
-	}
 	return nil
 }

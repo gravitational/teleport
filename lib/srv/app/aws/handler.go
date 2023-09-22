@@ -26,6 +26,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/gravitational/oxy/forward"
+	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -33,7 +35,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -42,7 +43,7 @@ import (
 // signerHandler is an http.Handler for signing and forwarding requests to AWS API.
 type signerHandler struct {
 	// fwd is a Forwarder used to forward signed requests to AWS API.
-	fwd *reverseproxy.Forwarder
+	fwd *forward.Forwarder
 	// SignerHandlerConfig is the configuration for the handler.
 	SignerHandlerConfig
 	// closeContext is the app server close context.
@@ -52,7 +53,7 @@ type signerHandler struct {
 // SignerHandlerConfig is the awsSignerHandler configuration.
 type SignerHandlerConfig struct {
 	// Log is a logger for the handler.
-	Log utils.FieldLoggerWithWriter
+	Log logrus.FieldLogger
 	// RoundTripper is an http.RoundTripper instance used for requests.
 	RoundTripper http.RoundTripper
 	// SigningService is used to sign requests before forwarding them.
@@ -92,15 +93,18 @@ func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.
 		SignerHandlerConfig: config,
 		closeContext:        ctx,
 	}
-
-	var err error
-	handler.fwd, err = reverseproxy.New(
-		reverseproxy.WithRoundTripper(config.RoundTripper),
-		reverseproxy.WithLogger(config.Log),
-		reverseproxy.WithErrorHandler(reverseproxy.ErrorHandlerFunc(handler.formatForwardResponseError)),
+	fwd, err := forward.New(
+		forward.RoundTripper(config.RoundTripper),
+		forward.ErrorHandler(oxyutils.ErrorHandlerFunc(handler.formatForwardResponseError)),
+		// Explicitly passing false here to be clear that we always want the host
+		// header to be the same as the outbound request's URL host.
+		forward.PassHostHeader(false),
 	)
-
-	return handler, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	handler.fwd = fwd
+	return handler, nil
 }
 
 // formatForwardResponseError converts an error to a status code and writes the code to a response.

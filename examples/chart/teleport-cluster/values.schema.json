@@ -33,15 +33,6 @@
             "type": "string",
             "default": ""
         },
-        "proxyProtocol": {
-            "$id": "#/properties/proxyProtocol",
-            "type": "string",
-            "default": "",
-            "enum": [
-                "off",
-                "on"
-            ]
-        },
         "auth": {
             "$id": "#/properties/auth",
             "type": "object"
@@ -58,9 +49,7 @@
         "podMonitor": {
             "$id": "#/properties/podMonitor",
             "type": "object",
-            "required": [
-                "enabled"
-            ],
+            "required": ["enabled"],
             "properties": {
                 "enabled": {
                     "$id": "#/properties/podMonitor/enabled",
@@ -70,12 +59,8 @@
                 "additionalLabels": {
                     "$id": "#/properties/podMonitor/additionalLabels",
                     "type": "object",
-                    "default": {
-                        "prometheus": "default"
-                    },
-                    "additionalProperties": {
-                        "type": "string"
-                    }
+                    "default": {"prometheus": "default"},
+                    "additionalProperties": {"type": "string"}
                 },
                 "interval": {
                     "$id": "#/properties/podMonitor/interval",
@@ -87,10 +72,7 @@
         "authentication": {
             "$id": "#/properties/authentication",
             "type": "object",
-            "required": [
-                "type",
-                "localAuth"
-            ],
+            "required": ["type", "localAuth"],
             "properties": {
                 "type": {
                     "$id": "#/properties/authentication/properties/type",
@@ -115,13 +97,7 @@
                 "secondFactor": {
                     "$id": "#/properties/authentication/properties/secondFactor",
                     "type": "string",
-                    "enum": [
-                        "off",
-                        "on",
-                        "otp",
-                        "optional",
-                        "webauthn"
-                    ],
+                    "enum": ["off", "on", "otp", "optional", "webauthn"],
                     "default": "otp"
                 },
                 "webauthn": {
@@ -155,13 +131,7 @@
                 "secondFactor": {
                     "$id": "#/properties/authenticationSecondFactor/properties/secondFactor",
                     "type": "string",
-                    "enum": [
-                        "off",
-                        "on",
-                        "otp",
-                        "optional",
-                        "webauthn"
-                    ],
+                    "enum": ["off", "on", "otp", "optional", "webauthn"],
                     "default": "otp"
                 },
                 "webauthn": {
@@ -291,9 +261,7 @@
         "operator": {
             "$id": "#/properties/operator",
             "type": "object",
-            "required": [
-                "enabled"
-            ],
+            "required": ["enabled"],
             "properties": {
                 "enabled": {
                     "$id": "#/properties/operator/properties/enabled",
@@ -337,7 +305,6 @@
             "enum": [
                 "standalone",
                 "aws",
-                "azure",
                 "gcp",
                 "scratch"
             ],
@@ -501,52 +468,6 @@
                 }
             }
         },
-        "azure": {
-            "$id": "#/properties/azure",
-            "type": "object",
-            "properties": {
-                "databaseHost": {
-                    "$id": "#/properties/azure/properties/databaseHost",
-                    "type": "string",
-                    "default": ""
-                },
-                "databaseUser": {
-                    "$id": "#/properties/azure/properties/databaseUser",
-                    "type": "string",
-                    "default": ""
-                },
-                "backendDatabase": {
-                    "$id": "#/properties/azure/properties/backendDatabase",
-                    "type": "string",
-                    "default": "teleport_backend"
-                },
-                "auditLogDatabase": {
-                    "$id": "#/properties/azure/properties/auditLogDatabase",
-                    "type": "string",
-                    "default": "teleport_audit"
-                },
-                "auditLogMirrorOnStdout": {
-                    "$id": "#/properties/azure/properties/auditLogMirrorOnStdout",
-                    "type": "boolean",
-                    "default": false
-                },
-                "sessionRecordingStorageAccount": {
-                    "$id": "#/properties/azure/properties/sessionRecordingStorageAccount",
-                    "type": "string",
-                    "default": ""
-                },
-                "clientID": {
-                    "$id": "#/properties/azure/properties/clientID",
-                    "type": "string",
-                    "default": ""
-                },
-                "databasePoolMaxConnections": {
-                    "$id": "#/properties/azure/properties/databasePoolMaxConnections",
-                    "type": "integer",
-                    "default": 0
-                }
-            }
-        },
         "gcp": {
             "$id": "#/properties/gcp",
             "type": "object",
@@ -616,11 +537,6 @@
                     "properties": {
                         "addCommonName": {
                             "$id": "#/properties/highAvailability/properties/certManager/properties/addCommonName",
-                            "type": "boolean",
-                            "default": "false"
-                        },
-                        "addPublicAddrs": {
-                            "$id": "#/properties/highAvailability/properties/certManager/properties/addPublicAddrs",
                             "type": "boolean",
                             "default": "false"
                         },
@@ -696,12 +612,12 @@
         "image": {
             "$id": "#/properties/image",
             "type": "string",
-            "default": "public.ecr.aws/gravitational/teleport-distroless"
+            "default": "public.ecr.aws/gravitational/teleport"
         },
         "enterpriseImage": {
             "$id": "#/properties/enterpriseImage",
             "type": "string",
-            "default": "public.ecr.aws/gravitational/teleport-ent-distroless"
+            "default": "public.ecr.aws/gravitational/teleport-ent"
         },
         "imagePullSecrets": {
             "$id": "#/properties/imagePullSecrets",
@@ -732,13 +648,7 @@
                 "level": {
                     "$id": "#/properties/log/properties/level",
                     "type": "string",
-                    "enum": [
-                        "DEBUG",
-                        "INFO",
-                        "WARN",
-                        "WARNING",
-                        "ERROR"
-                    ],
+                    "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
                     "default": "INFO"
                 },
                 "deployment": {
@@ -777,8 +687,7 @@
                 "pod",
                 "service",
                 "serviceAccount",
-                "certSecret",
-                "ingress"
+                "certSecret"
             ],
             "properties": {
                 "config": {
@@ -830,23 +739,6 @@
                     "type": "object",
                     "default": {}
                 }
-            }
-        },
-        "ingress": {
-            "enabled": {
-                "$id": "#/properties/ingress/enabled",
-                "type": "boolean",
-                "default": false
-            },
-            "suppressAutomaticWildcards": {
-                "$id": "#/properties/ingress/suppressAutomaticWildcards",
-                "type": "boolean",
-                "default": false
-            },
-            "spec": {
-                "$id": "#/properties/ingress/spec",
-                "type": "object",
-                "default": {}
             }
         },
         "serviceAccount": {

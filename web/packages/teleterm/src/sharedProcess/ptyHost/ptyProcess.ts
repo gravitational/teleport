@@ -18,11 +18,10 @@ import { readlink } from 'fs';
 
 import { exec } from 'child_process';
 
+import * as nodePTY from 'node-pty';
 import { promisify } from 'util';
 
 import { EventEmitter } from 'events';
-
-import * as nodePTY from 'node-pty';
 
 import Logger from 'teleterm/logger';
 
@@ -76,15 +75,12 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
     this._setStatus('open');
     this.emit(TermEventEnum.Open);
 
-    // Emit the init/help message before registering data handler. This ensures
-    // the message is printed first and will not conflict with data coming from
-    // the PTY.
-    if (this.options.initMessage) {
-      this.emit(TermEventEnum.Data, this.options.initMessage);
-    }
-
     this._process.onData(data => this._handleData(data));
     this._process.onExit(ev => this._handleExit(ev));
+
+    if (this.options.initCommand) {
+      this._process.write(this.options.initCommand + '\r');
+    }
   }
 
   write(data: string) {

@@ -1,7 +1,11 @@
 ---
-title: Use Teleport's SAML Provider to authenticate with Grafana
+title: Use Teleport's SAML Provider to authenticate with Grafana (Preview)
 description: Configure Grafana to use identities provided by Teleport.
 ---
+
+<Admonition type="warning" title="Preview">
+  The SAML identity provider is currently in Preview mode.
+</Admonition>
 
 Grafana is an open-source observability platform. Their enterprise version supports
 SAML authentication. This guide will help you configure Teleport as a SAML provider,
@@ -28,7 +32,7 @@ create a role called `sp-manager.yaml` with the following contents:
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: sp-manager
 spec:
@@ -41,7 +45,7 @@ spec:
 Create it with `tctl`:
 
 ```code
-$ tctl create sp-manager.yaml
+$ tctl create sp-manager.yaml 
 role 'saml-idp-service-provider-manager' has been created
 ```
 

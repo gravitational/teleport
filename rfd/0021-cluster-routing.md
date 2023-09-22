@@ -33,7 +33,7 @@ This would allow users to use `tsh ssh -J clusterName serverName` to work on mul
 
 ## Actual Implementation: cluster name inferred from jumphost cert
 
-To address Problem 1, we should not use the jumphost address as such to establish the cluster name. Instead, the host certificate presented while connecting to the jumphost should be analyzed and if it indeed belongs to a Teleport proxy, it should come with an [extension containing its cluster name](https://github.com/gravitational/teleport/blob/026d3419c2454163678de9b43d5c69b81702fb7f/lib/auth/native/native.go#L225). From that it should be reliably known which `RouteToCluster` value is expected of the user certificate, and request its re-issue if it is not available.
+To address Problem 1, we should not use the jumphost address as such to establish the cluster name. Instead, the host certificate presented while connceting to the jumphost should be analyzed and if it indeed belongs to a Teleport proxy, it should come with an [extension containing its cluster name](https://github.com/gravitational/teleport/blob/026d3419c2454163678de9b43d5c69b81702fb7f/lib/auth/native/native.go#L225). From that it should be reliably known which `RouteToCluster` value is expected of the user certificate, and request its re-issue if it is not available.
 
 However, Problem 2 still remains. It seems unavoidable to simply ignore the `-J` override for the needed cert re-issual request. Ignoring `-J` would presumably make the client fall back to the root proxy capable of issuing an SSH certificate pointing to the leaf cluster.
 

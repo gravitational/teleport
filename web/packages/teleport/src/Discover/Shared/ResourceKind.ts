@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import { ClusterResource } from 'teleport/services/userPreferences/types';
-
 import type { JoinRole } from 'teleport/services/joinToken';
 
 export enum ResourceKind {
@@ -25,7 +23,6 @@ export enum ResourceKind {
   Kubernetes,
   Server,
   SamlApplication,
-  Discovery,
 }
 
 export function resourceKindToJoinRole(kind: ResourceKind): JoinRole {
@@ -40,26 +37,5 @@ export function resourceKindToJoinRole(kind: ResourceKind): JoinRole {
       return 'Kube';
     case ResourceKind.Server:
       return 'Node';
-    case ResourceKind.Discovery:
-      return 'Discovery';
-  }
-}
-
-export function resourceKindToPreferredResource(
-  kind: ResourceKind
-): ClusterResource {
-  switch (kind) {
-    case ResourceKind.Application:
-      return ClusterResource.RESOURCE_WEB_APPLICATIONS;
-    case ResourceKind.Database:
-      return ClusterResource.RESOURCE_DATABASES;
-    case ResourceKind.Desktop:
-      return ClusterResource.RESOURCE_WINDOWS_DESKTOPS;
-    case ResourceKind.Kubernetes:
-      return ClusterResource.RESOURCE_KUBERNETES;
-    case ResourceKind.Server:
-      return ClusterResource.RESOURCE_SERVER_SSH;
-    case ResourceKind.Discovery:
-      return ClusterResource.RESOURCE_UNSPECIFIED;
   }
 }

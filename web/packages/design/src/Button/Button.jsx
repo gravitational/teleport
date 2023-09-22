@@ -16,9 +16,10 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { bool, string } from 'prop-types';
+import PropTypes from 'prop-types';
 
 import { space, width, height } from 'design/system';
+import defaultTheme from 'design/theme';
 
 const Button = ({ children, setRef, ...props }) => {
   return (
@@ -56,25 +57,13 @@ const themedStyles = props => {
   const { colors } = props.theme;
   const { kind } = props;
 
-  let disabledStyle = {
-    background: kind === 'text' ? 'none' : colors.buttons.bgDisabled,
-    color: colors.buttons.textDisabled,
-    cursor: 'auto',
+  const style = {
+    color: colors.buttons.text,
+    '&:disabled': {
+      background: kind === 'text' ? 'none' : colors.buttons.bgDisabled,
+      color: colors.buttons.textDisabled,
+    },
   };
-
-  let style = {
-    '&:disabled': disabledStyle,
-  };
-
-  // Using the pseudo class `:disabled` to style disabled state
-  // doesn't work for non form elements (e.g. anchor). So
-  // we target by attribute with square brackets. Only true
-  // when we change the underlying type for this component (button)
-  // using the `as` prop (eg: a, NavLink, Link).
-  if (props.as && props.disabled) {
-    disabledStyle.pointerEvents = 'none';
-    style = { '&[disabled]': disabledStyle };
-  }
 
   return {
     ...kinds(props),
@@ -84,7 +73,6 @@ const themedStyles = props => {
     ...width(props),
     ...block(props),
     ...height(props),
-    ...textTransform(props),
   };
 };
 
@@ -93,41 +81,34 @@ export const kinds = props => {
   switch (kind) {
     case 'secondary':
       return {
-        color: theme.colors.buttons.text,
         background: theme.colors.buttons.secondary.default,
         '&:hover, &:focus': {
           background: theme.colors.buttons.secondary.hover,
         },
-        '&:active': {
-          background: theme.colors.buttons.secondary.active,
-        },
       };
     case 'border':
       return {
-        color: theme.colors.buttons.text,
         background: theme.colors.buttons.border.default,
         border: '1px solid ' + theme.colors.buttons.border.border,
+        opacity: '.87',
         '&:hover, &:focus': {
           background: theme.colors.buttons.border.hover,
+          border: '1px solid ' + theme.colors.buttons.border.borderHover,
+          opacity: 1,
         },
         '&:active': {
-          background: theme.colors.buttons.border.active,
+          opacity: 0.24,
         },
       };
     case 'warning':
       return {
-        color: theme.colors.buttons.warning.text,
         background: theme.colors.buttons.warning.default,
         '&:hover, &:focus': {
           background: theme.colors.buttons.warning.hover,
         },
-        '&:active': {
-          background: theme.colors.buttons.warning.active,
-        },
       };
     case 'text':
       return {
-        color: theme.colors.buttons.text,
         background: 'none',
         'text-transform': 'none',
         '&:hover, &:focus': {
@@ -138,7 +119,6 @@ export const kinds = props => {
     case 'primary':
     default:
       return {
-        color: theme.colors.buttons.primary.text,
         background: theme.colors.buttons.primary.default,
         '&:hover, &:focus': {
           background: theme.colors.buttons.primary.hover,
@@ -156,9 +136,6 @@ const block = props =>
         width: '100%',
       }
     : null;
-
-const textTransform = props =>
-  props.textTransform ? { textTransform: props.textTransform } : null;
 
 const StyledButton = styled.button`
   line-height: 1.5;
@@ -180,6 +157,10 @@ const StyledButton = styled.button`
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
 
+  &:active {
+    opacity: 0.56;
+  }
+
   ${themedStyles}
 `;
 
@@ -188,29 +169,19 @@ Button.propTypes = {
    * block specifies if an element's display is set to block or not.
    * Set to true to set display to block.
    */
-  block: bool,
+  block: PropTypes.bool,
 
   /**
    * kind specifies the styling a button takes.
    * Select from primary (default), secondary, warning.
    */
-  kind: string,
+  kind: PropTypes.string,
 
   /**
    * size specifies the size of button.
    * Select from small, medium (default), large
    */
-  size: string,
-
-  /**
-   * textTransform specifies the case transform of the button text.
-   * default is UPPERCASE
-   *
-   * TODO (avatus): eventually, we will move away from every button being
-   * uppercase and this probably won't be needed anymore. This is a temporary
-   * fix before we audit the whole site and migrate
-   */
-  textTransform: string,
+  size: PropTypes.string,
 
   /**
    * styled-system
@@ -222,6 +193,10 @@ Button.propTypes = {
 Button.defaultProps = {
   size: 'medium',
   kind: 'primary',
+};
+
+StyledButton.defaultProps = {
+  theme: defaultTheme,
 };
 
 Button.displayName = 'Button';

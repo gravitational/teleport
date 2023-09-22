@@ -49,7 +49,13 @@ export async function retryWithRelogin<T>(
   try {
     return await actionToRetry();
   } catch (error) {
-    if (isRetryable(error)) {
+    // TODO(ravicious): Replace this with actual check on metadata.
+    const isRetryable =
+      error instanceof Error &&
+      (error.message.includes('ssh: handshake failed') ||
+        error.message.includes('ssh: cert has expired'));
+
+    if (isRetryable) {
       retryableErrorFromActionToRetry = error;
       logger.info(`Activating relogin on error ${error}`);
     } else {
@@ -76,15 +82,6 @@ export async function retryWithRelogin<T>(
   await login(appContext, rootClusterUri);
 
   return await actionToRetry();
-}
-
-export function isRetryable(error: unknown): boolean {
-  // TODO(ravicious): Replace this with actual check on metadata.
-  return (
-    error instanceof Error &&
-    (error.message.includes('ssh: handshake failed') ||
-      error.message.includes('ssh: cert has expired'))
-  );
 }
 
 // Notice that we don't differentiate between onSuccess and onCancel. In both cases, we're going to

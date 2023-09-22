@@ -16,20 +16,15 @@ limitations under the License.
 
 import React from 'react';
 
-import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
-
 import { Route, Switch, useParams } from 'teleport/components/Router';
 import history from 'teleport/services/history';
+import LogoHero from 'teleport/components/LogoHero';
 import cfg from 'teleport/config';
-import { NewCredentialsContainerProps } from 'teleport/Welcome/NewCredentials';
 
+import { NewCredentials } from './NewCredentials';
 import { CardWelcome } from './CardWelcome';
 
-type WelcomeProps = {
-  NewCredentials: (props: NewCredentialsContainerProps) => JSX.Element;
-};
-
-export default function Welcome({ NewCredentials }: WelcomeProps) {
+export default function Welcome() {
   const { tokenId } = useParams<{ tokenId: string }>();
 
   const handleOnInviteContinue = () => {
@@ -41,37 +36,32 @@ export default function Welcome({ NewCredentials }: WelcomeProps) {
   };
 
   return (
-    <Switch>
-      <Route exact path={cfg.routes.userInvite}>
-        <WelcomeWrapper>
+    <>
+      <LogoHero />
+      <Switch>
+        <Route exact path={cfg.routes.userInvite}>
           <CardWelcome
             title="Welcome to Teleport"
             subTitle="Please click the button below to create an account"
             btnText="Get started"
             onClick={handleOnInviteContinue}
           />
-        </WelcomeWrapper>
-      </Route>
-      <Route exact path={cfg.routes.userReset}>
-        <WelcomeWrapper>
+        </Route>
+        <Route exact path={cfg.routes.userReset}>
           <CardWelcome
             title="Reset Authentication"
             subTitle="Please click the button below to begin recovery of your account"
             btnText="Continue"
             onClick={handleOnResetContinue}
           />
-        </WelcomeWrapper>
-      </Route>
-      <Route path={cfg.routes.userInviteContinue}>
-        <WelcomeWrapper>
+        </Route>
+        <Route path={cfg.routes.userInviteContinue}>
           <NewCredentials tokenId={tokenId} />
-        </WelcomeWrapper>
-      </Route>
-      <Route path={cfg.routes.userResetContinue}>
-        <WelcomeWrapper>
+        </Route>
+        <Route path={cfg.routes.userResetContinue}>
           <NewCredentials resetMode={true} tokenId={tokenId} />
-        </WelcomeWrapper>
-      </Route>
-    </Switch>
+        </Route>
+      </Switch>
+    </>
   );
 }

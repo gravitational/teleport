@@ -30,6 +30,7 @@ import {
   CreateAccessRequestParams,
   GetRequestableRolesParams,
   ReviewAccessRequestParams,
+  ServerSideParams,
 } from 'teleterm/services/tshd/types';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { UsageService } from 'teleterm/ui/services/usage';
@@ -149,8 +150,10 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
    * syncRootCluster is useful in situations where we want to sync the cluster _and_ propagate any
    * errors up.
    */
-  async syncRootCluster(clusterUri: uri.RootClusterUri) {
+  private async syncRootCluster(clusterUri: uri.RootClusterUri) {
     await Promise.all([
+      // syncClusterInfo never fails with a retryable error since it reads data from disk.
+      // syncLeafClusters reaches out to the proxy so it might return a retryable error.
       this.syncClusterInfo(clusterUri),
       this.syncLeafClustersList(clusterUri),
     ]);
@@ -210,8 +213,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async getRequestableRoles(params: GetRequestableRolesParams) {
     const cluster = this.state.clusters.get(params.rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. This check should be done earlier in the
-    // UI rather than be repeated in each ClustersService method.
     if (!cluster.connected) {
       return;
     }
@@ -221,7 +222,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   getAssumedRequests(rootClusterUri: uri.RootClusterUri) {
     const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster?.connected) {
       return {};
     }
@@ -235,7 +235,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async getAccessRequests(rootClusterUri: uri.RootClusterUri) {
     const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -248,7 +247,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     requestId: string
   ) {
     const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -261,7 +259,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     dropIds: string[]
   ) {
     const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -275,7 +272,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     requestId: string
   ) {
     const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -288,7 +284,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     params: ReviewAccessRequestParams
   ) {
     const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -303,7 +298,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async createAccessRequest(params: CreateAccessRequestParams) {
     const cluster = this.state.clusters.get(params.rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -379,13 +373,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     }
   }
 
-  async removeKubeGateway(kubeUri: uri.KubeUri) {
-    const gateway = this.findGatewayByConnectionParams(kubeUri, '');
-    if (gateway) {
-      await this.removeGateway(gateway.uri);
-    }
-  }
-
   async setGatewayTargetSubresourceName(
     gatewayUri: uri.GatewayUri,
     targetSubresourceName: string
@@ -432,7 +419,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   findGatewayByConnectionParams(
-    targetUri: uri.DatabaseUri | uri.KubeUri,
+    targetUri: uri.DatabaseUri,
     targetUser: string
   ) {
     let found: Gateway;
@@ -481,6 +468,16 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   getRootClusters() {
     return this.getClusters().filter(c => !c.leaf);
+  }
+
+  // TODO(ravicious): Use ResourcesService instead.
+  async fetchKubes(params: ServerSideParams) {
+    return await this.client.getKubes(params);
+  }
+
+  // TODO(ravicious): Move to ResourceService.
+  async getDbUsers(dbUri: uri.DatabaseUri): Promise<string[]> {
+    return await this.client.listDatabaseUsers(dbUri);
   }
 
   async removeClusterKubeConfigs(clusterUri: string): Promise<void> {

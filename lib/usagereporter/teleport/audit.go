@@ -148,28 +148,6 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			JoinMethod:    e.Method,
 			JoinTokenName: e.TokenName,
 		}
-
-	case *apievents.DeviceEvent2:
-		// Only count successful events.
-		if !e.Success {
-			return nil
-		}
-
-		switch e.Metadata.GetType() {
-		case events.DeviceAuthenticateEvent:
-			return &DeviceAuthenticateEvent{
-				DeviceId:     e.Device.DeviceId,
-				UserName:     e.User,
-				DeviceOsType: e.Device.OsType.String(),
-			}
-		case events.DeviceEnrollEvent:
-			return &DeviceEnrollEvent{
-				DeviceId:     e.Device.DeviceId,
-				UserName:     e.User,
-				DeviceOsType: e.Device.OsType.String(),
-				DeviceOrigin: e.Device.DeviceOrigin.String(),
-			}
-		}
 	}
 
 	return nil

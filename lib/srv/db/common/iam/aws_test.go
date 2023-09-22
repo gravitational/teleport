@@ -67,12 +67,6 @@ func TestGetAWSPolicyDocument(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: "redis",
 		URI:      "clustercfg.my-redis-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
-		AWS: types.AWS{
-			AccountID: "123456789012",
-			ElastiCache: types.ElastiCache{
-				ReplicationGroupID: "some-group",
-			},
-		},
 	})
 	require.NoError(t, err)
 
@@ -128,19 +122,7 @@ func TestGetAWSPolicyDocument(t *testing.T) {
 		},
 		{
 			inputDatabase: elasticache,
-			expectPolicyDocument: `{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": "elasticache:Connect",
-            "Resource": [
-                "arn:aws:elasticache:ca-central-1:123456789012:replicationgroup:some-group",
-                "arn:aws:elasticache:ca-central-1:123456789012:user:*"
-            ]
-        }
-    ]
-}`,
+			expectError:   true,
 		},
 	}
 

@@ -16,6 +16,7 @@
 
 import { KubeUri, routing } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
+import { TrackedKubeConnection } from 'teleterm/ui/services/connectionTracker';
 
 import { DocumentOrigin } from './types';
 
@@ -27,12 +28,20 @@ export async function connectToKube(
   const rootClusterUri = routing.ensureRootClusterUri(target.uri);
   const documentsService =
     ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
-  const doc = documentsService.createGatewayKubeDocument({
-    targetUri: target.uri,
+  const kubeDoc = documentsService.createTshKubeDocument({
+    kubeUri: target.uri,
     origin: telemetry.origin,
   });
+  const connection = ctx.connectionTracker.findConnectionByDocument(
+    kubeDoc
+  ) as TrackedKubeConnection;
 
   await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
-  documentsService.add(doc);
-  documentsService.open(doc.uri);
+
+  documentsService.add({
+    ...kubeDoc,
+    kubeConfigRelativePath:
+      connection?.kubeConfigRelativePath || kubeDoc.kubeConfigRelativePath,
+  });
+  documentsService.open(kubeDoc.uri);
 }

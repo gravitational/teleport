@@ -26,19 +26,14 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/observability/tracing"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
-
-// AdminMFAHintBeforePrompt is a hint used for MFA prompts for admin-level API requests.
-const AdminMFAHintBeforePrompt = "MFA is required for admin-level API request."
 
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentClient,
@@ -112,13 +107,6 @@ func NewPrompt(proxyAddr string) *Prompt {
 
 // Run prompts the user to complete MFA authentication challenges according to the prompt's configuration.
 func (p *Prompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	ctx, span := tracing.NewTracer("MFACeremony").Start(
-		ctx,
-		"Run",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
 	// Is there a challenge present?
 	if chal.TOTP == nil && chal.WebauthnChallenge == nil {
 		return &proto.MFAAuthenticateResponse{}, nil

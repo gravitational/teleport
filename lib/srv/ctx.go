@@ -44,8 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -106,7 +106,7 @@ type AccessPoint interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
 	services.ConnectionDiagnosticTraceAppender
@@ -145,7 +145,7 @@ type Server interface {
 	GetDataDir() string
 
 	// GetPAM returns PAM configuration for this server.
-	GetPAM() (*servicecfg.PAMConfig, error)
+	GetPAM() (*pam.Config, error)
 
 	// GetClock returns a clock setup for the server
 	GetClock() clockwork.Clock
@@ -440,9 +440,6 @@ type ServerContext struct {
 	// JoinOnly is set if the connection was created using a join-only principal and may only be used to join other sessions.
 	JoinOnly bool
 
-	// ServerSubKind if the sub kind of the node this context is for.
-	ServerSubKind string
-
 	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
 	UserCreatedByTeleport bool
 }
@@ -476,7 +473,6 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		clientIdleTimeout:      identityContext.AccessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		cancelContext:          cancelContext,
 		cancel:                 cancel,
-		ServerSubKind:          srv.TargetMetadata().ServerSubKind,
 	}
 
 	fields := log.Fields{
@@ -759,7 +755,7 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 // CheckSFTPAllowed returns an error if remote file operations via SCP
 // or SFTP are not allowed by the user's role or the node's config, or
 // if the user is not allowed to start unattended sessions.
-func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
+func (c *ServerContext) CheckSFTPAllowed() error {
 	if err := c.CheckFileCopyingAllowed(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -771,21 +767,8 @@ func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// canStart will be true for non-moderated sessions. If canStart is false, check to
-	// see if the request has been approved through a moderated session next.
-	if canStart {
-		return nil
-	}
-	if registry == nil {
-		return trace.Wrap(errCannotStartUnattendedSession)
-	}
-
-	approved, err := registry.isApprovedFileTransfer(c)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if !approved {
-		return trace.Wrap(errCannotStartUnattendedSession)
+	if !canStart {
+		return errCannotStartUnattendedSession
 	}
 
 	return nil
@@ -1087,13 +1070,13 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 		}
 
 		for key, value := range localPAMConfig.Environment {
-			expr, err := parse.NewTraitsTemplateExpression(value)
+			expr, err := parse.NewExpression(value)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
 			varValidation := func(namespace, name string) error {
-				if namespace != teleport.TraitExternalPrefix {
+				if namespace != teleport.TraitExternalPrefix && namespace != parse.LiteralNamespace {
 					return trace.BadParameter("PAM environment interpolation only supports external traits, found %q", value)
 				}
 				return nil

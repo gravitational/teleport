@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/stretchr/testify/require"
@@ -73,8 +74,8 @@ func TestSSMInstaller(t *testing.T) {
 		{
 			name: "ssm run was successful",
 			req: SSMRunRequest{
-				Instances: []EC2Instance{
-					{InstanceID: "instance-id-1"},
+				Instances: []*ec2.Instance{
+					{InstanceId: aws.String("instance-id-1")},
 				},
 				DocumentName: document,
 				Params:       map[string]string{"token": "abcdefg"},
@@ -114,8 +115,8 @@ func TestSSMInstaller(t *testing.T) {
 			name: "ssm run failed",
 			req: SSMRunRequest{
 				DocumentName: document,
-				Instances: []EC2Instance{
-					{InstanceID: "instance-id-1"},
+				Instances: []*ec2.Instance{
+					{InstanceId: aws.String("instance-id-1")},
 				},
 				Params: map[string]string{"token": "abcdefg"},
 				SSM: &mockSSMClient{

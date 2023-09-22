@@ -17,8 +17,10 @@ limitations under the License.
 package db
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/stretchr/testify/require"
 
@@ -26,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 func TestRDSDBProxyFetcher(t *testing.T) {
@@ -37,47 +38,68 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 	rdsProxyEndpointVpc1, rdsProxyEndpointDatabaseVpc1 := makeRDSProxyCustomEndpoint(t, rdsProxyVpc1, "endpoint-1", "us-east-1")
 	rdsProxyEndpointVpc2, rdsProxyEndpointDatabaseVpc2 := makeRDSProxyCustomEndpoint(t, rdsProxyVpc2, "endpoint-2", "us-east-1")
 
-	tests := []awsFetcherTest{
+	clients := &cloud.TestCloudClients{
+		RDS: &mocks.RDSMock{
+			DBProxies:         []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
+			DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
+			DBProxyTargetPort: 9999,
+		},
+	}
+
+	tests := []struct {
+		name          string
+		inputLabels   map[string]string
+		wantDatabases types.Databases
+	}{
 		{
-			name: "fetch all",
-			inputClients: &cloud.TestCloudClients{
-				RDS: &mocks.RDSMock{
-					DBProxies:         []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
-					DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
-					DBProxyTargetPort: 9999,
-				},
-			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRDSProxy, "us-east-1", wildcardLabels),
+			name:          "fetch all",
+			inputLabels:   wildcardLabels,
 			wantDatabases: types.Databases{rdsProxyDatabaseVpc1, rdsProxyDatabaseVpc2, rdsProxyEndpointDatabaseVpc1, rdsProxyEndpointDatabaseVpc2},
 		},
 		{
-			name: "fetch vpc1",
-			inputClients: &cloud.TestCloudClients{
-				RDS: &mocks.RDSMock{
-					DBProxies:         []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
-					DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
-					DBProxyTargetPort: 9999,
-				},
-			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRDSProxy, "us-east-1", map[string]string{"vpc-id": "vpc1"}),
+			name:          "fetch vpc1",
+			inputLabels:   map[string]string{"vpc-id": "vpc1"},
 			wantDatabases: types.Databases{rdsProxyDatabaseVpc1, rdsProxyEndpointDatabaseVpc1},
 		},
 	}
-	testAWSFetchers(t, tests...)
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			fetchers := mustMakeAWSFetchersForMatcher(t, clients, services.AWSMatcherRDSProxy, "us-east-2", toTypeLabels(test.inputLabels))
+			require.ElementsMatch(t, test.wantDatabases, mustGetDatabases(t, fetchers))
+		})
+	}
 }
 
 func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rds.DBProxy, types.Database) {
-	rdsProxy := mocks.RDSProxy(name, region, vpcID)
+	rdsProxy := &rds.DBProxy{
+		DBProxyArn:   aws.String(fmt.Sprintf("arn:aws:rds:%s:123456789012:db-proxy:prx-%s", region, name)),
+		DBProxyName:  aws.String(name),
+		EngineFamily: aws.String(rds.EngineFamilyMysql),
+		Endpoint:     aws.String("localhost"),
+		VpcId:        aws.String(vpcID),
+		RequireTLS:   aws.Bool(true),
+		Status:       aws.String("available"),
+	}
+
 	rdsProxyDatabase, err := services.NewDatabaseFromRDSProxy(rdsProxy, 9999, nil)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(rdsProxyDatabase, services.AWSMatcherRDSProxy)
 	return rdsProxy, rdsProxyDatabase
 }
 
 func makeRDSProxyCustomEndpoint(t *testing.T, rdsProxy *rds.DBProxy, name, region string) (*rds.DBProxyEndpoint, types.Database) {
-	rdsProxyEndpoint := mocks.RDSProxyCustomEndpoint(rdsProxy, name, region)
+	rdsProxyEndpoint := &rds.DBProxyEndpoint{
+		Endpoint:            aws.String("localhost"),
+		DBProxyEndpointName: aws.String(name),
+		DBProxyName:         rdsProxy.DBProxyName,
+		DBProxyEndpointArn:  aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:db-proxy-endpoint:prx-endpoint-%v", region, name)),
+		TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
+		Status:              aws.String("available"),
+	}
 	rdsProxyEndpointDatabase, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint, 9999, nil)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(rdsProxyEndpointDatabase, services.AWSMatcherRDSProxy)
 	return rdsProxyEndpoint, rdsProxyEndpointDatabase
 }

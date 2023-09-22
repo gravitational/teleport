@@ -29,9 +29,11 @@ export const TopBarButton = styled.button`
   border-width: 1px;
   border-style: solid;
   border-color: ${props =>
-    props.isOpened ? props.theme.colors.buttons.border.border : 'transparent'};
+    props.isOpened
+      ? props.theme.colors.action.disabledBackground
+      : 'transparent'};
 
   &:hover {
-    background: ${props => props.theme.colors.spotBackground[0]};
+    background: ${props => props.theme.colors.levels.surface};
   }
 `;

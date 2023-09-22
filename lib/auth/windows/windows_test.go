@@ -139,39 +139,23 @@ func TestGenerateCredentials(t *testing.T) {
 
 func TestCRLDN(t *testing.T) {
 	for _, test := range []struct {
-		name        string
 		clusterName string
 		crlDN       string
-		caType      types.CertAuthType
 	}{
 		{
-			name:        "test cluster name",
 			clusterName: "test",
 			crlDN:       "CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
 		},
 		{
-			name:        "full cluster name",
 			clusterName: "cluster.goteleport.com",
-			crlDN:       "CN=cluster.goteleport.com,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
-		},
-		{
-			name:        "database CA",
-			clusterName: "cluster.goteleport.com",
-			caType:      types.DatabaseCA,
-			crlDN:       "CN=cluster.goteleport.com,CN=TeleportDB,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
-		},
-		{
-			name:        "user CA",
-			clusterName: "cluster.goteleport.com",
-			caType:      types.UserCA,
 			crlDN:       "CN=cluster.goteleport.com,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
 		},
 	} {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.clusterName, func(t *testing.T) {
 			cfg := LDAPConfig{
 				Domain: "test.goteleport.com",
 			}
-			require.Equal(t, test.crlDN, crlDN(test.clusterName, cfg, test.caType))
+			require.Equal(t, test.crlDN, crlDN(test.clusterName, cfg))
 		})
 	}
 }

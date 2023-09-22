@@ -43,7 +43,7 @@ import (
 type APIConfig struct {
 	PluginRegistry plugin.Registry
 	AuthServer     *Server
-	AuditLog       events.AuditLogSessionStreamer
+	AuditLog       events.IAuditLog
 	Authorizer     authz.Authorizer
 	Emitter        apievents.Emitter
 	// KeepAlivePeriod defines period between keep alives
@@ -89,8 +89,12 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.WithAuth(srv.processKubeCSR))
 
+	srv.POST("/:version/authorities/:type", srv.WithAuth(srv.upsertCertAuthority))
 	srv.POST("/:version/authorities/:type/rotate", srv.WithAuth(srv.rotateCertAuthority))
 	srv.POST("/:version/authorities/:type/rotate/external", srv.WithAuth(srv.rotateExternalCertAuthority))
+	srv.DELETE("/:version/authorities/:type/:domain", srv.WithAuth(srv.deleteCertAuthority))
+	srv.GET("/:version/authorities/:type/:domain", srv.WithAuth(srv.getCertAuthority))
+	srv.GET("/:version/authorities/:type", srv.WithAuth(srv.getCertAuthorities))
 
 	// Generating certificates for user and host authorities
 	srv.POST("/:version/ca/host/certs", srv.WithAuth(srv.generateHostCert))
@@ -98,6 +102,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Operations on users
 	srv.GET("/:version/users", srv.WithAuth(srv.getUsers))
 	srv.GET("/:version/users/:user", srv.WithAuth(srv.getUser))
+	srv.DELETE("/:version/users/:user", srv.WithAuth(srv.deleteUser)) // DELETE IN: 5.2 REST method is replaced by grpc method with context.
 
 	// Passwords and sessions
 	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
@@ -504,9 +509,6 @@ func (s *APIServer) upsertUser(auth ClientI, w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateUserRoles(r.Context(), user, auth); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	err = auth.UpsertUser(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -544,6 +546,15 @@ func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Reques
 		out[i] = data
 	}
 	return out, nil
+}
+
+// DELETE IN: 5.2 REST method is replaced by grpc method with context.
+func (s *APIServer) deleteUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	user := p.ByName("user")
+	if err := auth.DeleteUser(r.Context(), user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message(fmt.Sprintf("user %q deleted", user)), nil
 }
 
 type generateHostCertReq struct {
@@ -602,6 +613,32 @@ func (s *APIServer) rotateCertAuthority(auth ClientI, w http.ResponseWriter, r *
 	return message("ok"), nil
 }
 
+type upsertCertAuthorityRawReq struct {
+	CA  json.RawMessage `json:"ca"`
+	TTL time.Duration   `json:"ttl"`
+}
+
+func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req *upsertCertAuthorityRawReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := services.UnmarshalCertAuthority(req.CA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.TTL != 0 {
+		ca.SetExpiry(s.Now().UTC().Add(req.TTL))
+	}
+	if err = services.ValidateCertAuthority(ca); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.UpsertCertAuthority(ca); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
 type rotateExternalCertAuthorityRawReq struct {
 	CA json.RawMessage `json:"ca"`
 }
@@ -619,6 +656,53 @@ func (s *APIServer) rotateExternalCertAuthority(auth ClientI, w http.ResponseWri
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
+}
+
+func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certs, err := auth.GetCertAuthorities(r.Context(), types.CertAuthType(p.ByName("type")), loadKeys)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	items := make([]json.RawMessage, len(certs))
+	for i, cert := range certs {
+		data, err := services.MarshalCertAuthority(cert, services.WithVersion(version), services.PreserveResourceID())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items[i] = data
+	}
+	return items, nil
+}
+
+func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	id := types.CertAuthID{
+		Type:       types.CertAuthType(p.ByName("type")),
+		DomainName: p.ByName("domain"),
+	}
+	ca, err := auth.GetCertAuthority(r.Context(), id, loadKeys)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rawMessage(services.MarshalCertAuthority(ca, services.WithVersion(version), services.PreserveResourceID()))
+}
+
+func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	id := types.CertAuthID{
+		DomainName: p.ByName("domain"),
+		Type:       types.CertAuthType(p.ByName("type")),
+	}
+	if err := auth.DeleteCertAuthority(id); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message(fmt.Sprintf("cert '%v' deleted", id)), nil
 }
 
 // validateGithubAuthCallbackReq is a request to validate Github OAuth2 callback
@@ -727,13 +811,7 @@ func (s *APIServer) searchEvents(auth ClientI, w http.ResponseWriter, r *http.Re
 	}
 
 	eventTypes := query[events.EventType]
-	eventsList, _, err := auth.SearchEvents(r.Context(), events.SearchEventsRequest{
-		From:       from,
-		To:         to,
-		EventTypes: eventTypes,
-		Limit:      limit,
-		Order:      types.EventOrderDescending,
-	})
+	eventsList, _, err := auth.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, types.EventOrderDescending, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -773,12 +851,7 @@ func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *
 		}
 	}
 	// only pull back start and end events to build list of completed sessions
-	eventsList, _, err := auth.SearchSessionEvents(r.Context(), events.SearchSessionEventsRequest{
-		From:  from,
-		To:    to,
-		Limit: limit,
-		Order: types.EventOrderDescending,
-	})
+	eventsList, _, err := auth.SearchSessionEvents(from, to, limit, types.EventOrderDescending, "", nil, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -842,8 +915,12 @@ func (s *APIServer) getSessionEvents(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		afterN = 0
 	}
+	includePrintEvents, err := strconv.ParseBool(r.URL.Query().Get("print"))
+	if err != nil {
+		includePrintEvents = false
+	}
 
-	return auth.GetSessionEvents(namespace, *sid, afterN)
+	return auth.GetSessionEvents(namespace, *sid, afterN, includePrintEvents)
 }
 
 type upsertNamespaceReq struct {
@@ -1101,7 +1178,7 @@ func (s *APIServer) getRemoteCluster(auth ClientI, w http.ResponseWriter, r *htt
 
 // deleteRemoteCluster deletes remote cluster by name
 func (s *APIServer) deleteRemoteCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteRemoteCluster(r.Context(), p.ByName("cluster"))
+	err := auth.DeleteRemoteCluster(p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -178,7 +178,7 @@ func (c *RunWhileLockedConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	if c.ReleaseCtxTimeout <= 0 {
-		c.ReleaseCtxTimeout = time.Second
+		c.ReleaseCtxTimeout = 300 * time.Millisecond
 	}
 	if c.RefreshLockInterval <= 0 {
 		c.RefreshLockInterval = c.LockConfiguration.TTL / 2
@@ -220,10 +220,8 @@ func RunWhileLocked(ctx context.Context, cfg RunWhileLockedConfig, fn func(conte
 	fnErr := fn(subContext)
 	close(stopRefresh)
 
-	// Release the lock with a separate context to allow the lock to be removed even
-	// if the passed in context is canceled by the user, otherwise the lock will be
-	// left around for the entire TTL even though the operation that required the
-	// lock may have completed.
+	// lock.Release should be called with separate ctx. If someone cancels via ctx
+	// RunWhileLocked method, we want to at least try releasing lock.
 	releaseLockCtx, releaseLockCancel := context.WithTimeout(context.Background(), cfg.ReleaseCtxTimeout)
 	defer releaseLockCancel()
 	if err := lock.Release(releaseLockCtx, cfg.Backend); err != nil {

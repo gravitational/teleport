@@ -23,8 +23,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-
-	"github.com/gravitational/teleport/api"
 )
 
 type IntegrationSuite struct {
@@ -40,11 +38,11 @@ func (s *IntegrationSuite) SetupTest() {
 func (s *IntegrationSuite) TestVersion() {
 	t := s.T()
 
-	versionMin, err := version.NewVersion("v12.0.0")
+	versionMin, err := version.NewVersion("v11.0.0")
 	require.NoError(t, err)
-	versionMax, err := version.NewVersion(api.Version)
+	versionMax, err := version.NewVersion("v13")
 	require.NoError(t, err)
 
 	assert.True(t, s.Integration.Version().GreaterThanOrEqual(versionMin))
-	assert.True(t, s.Integration.Version().LessThanOrEqual(versionMax))
+	assert.True(t, s.Integration.Version().LessThan(versionMax))
 }

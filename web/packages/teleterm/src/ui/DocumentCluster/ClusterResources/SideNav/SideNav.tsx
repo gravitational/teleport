@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+import styled from 'styled-components';
 import { Flex } from 'design';
 
 import ClusterNavButton from 'teleterm/ui/DocumentCluster/ClusterNavButton';
@@ -35,7 +36,7 @@ export default function SideNav(props: Props) {
     );
   });
 
-  return <Flex {...props}>{$items}</Flex>;
+  return <StyledNav {...props}>{$items}</StyledNav>;
 }
 
 type Props = {
@@ -46,6 +47,12 @@ export type SideNavItem = {
   to: NavLocation;
   title: string;
 };
+
+const StyledNav = styled(Flex)`
+  min-width: 180px;
+  overflow: auto;
+  height: 100%;
+`;
 
 function createItems(): SideNavItem[] {
   return [

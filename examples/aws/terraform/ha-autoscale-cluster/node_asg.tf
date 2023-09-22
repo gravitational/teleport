@@ -9,12 +9,8 @@ resource "aws_autoscaling_group" "node" {
   health_check_type         = "EC2"
   desired_capacity          = 1
   force_delete              = false
+  launch_configuration      = aws_launch_configuration.node.name
   vpc_zone_identifier       = aws_subnet.node.*.id
-
-  launch_template {
-    id      = aws_launch_template.node.id
-    version = "$Latest"
-  }
 
   tag {
     key                 = "TeleportCluster"
@@ -38,16 +34,14 @@ resource "aws_autoscaling_group" "node" {
     ]
   }
 }
-
-resource "aws_launch_template" "node" {
+resource "aws_launch_configuration" "node" {
   lifecycle {
     create_before_destroy = true
   }
-
   name_prefix   = "${var.cluster_name}-node-"
   image_id      = data.aws_ami.base.id
   instance_type = var.node_instance_type
-  user_data = base64encode(templatefile(
+  user_data = templatefile(
     "${path.module}/node-user-data.tpl",
     {
       region           = var.region
@@ -57,32 +51,15 @@ resource "aws_launch_template" "node" {
       influxdb_addr    = "http://${aws_lb.monitor.dns_name}:8086"
       use_acm          = var.use_acm
     }
-  ))
-
+  )
   metadata_options {
-    http_tokens   = "required"
-    http_endpoint = "enabled"
+    http_tokens = "required"
   }
-
-  block_device_mappings {
-    device_name = "/dev/xvda"
-    ebs {
-      delete_on_termination = true
-      encrypted             = true
-      iops                  = 3000
-      throughput            = 125
-      volume_type           = "gp3"
-    }
+  root_block_device {
+    encrypted = true
   }
-
-  key_name = var.key_name
-
-  network_interfaces {
-    associate_public_ip_address = false
-    security_groups             = [aws_security_group.node.id]
-  }
-
-  iam_instance_profile {
-    name = aws_iam_instance_profile.node.name
-  }
+  key_name                    = var.key_name
+  associate_public_ip_address = false
+  security_groups             = [aws_security_group.node.id]
+  iam_instance_profile        = aws_iam_instance_profile.node.id
 }

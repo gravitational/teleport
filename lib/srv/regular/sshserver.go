@@ -40,7 +40,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -54,11 +53,10 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
@@ -68,6 +66,8 @@ import (
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+const sftpSubsystem = "sftp"
 
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentNode,
@@ -103,7 +103,7 @@ type Server struct {
 	cloudLabels labels.Importer
 
 	proxyMode        bool
-	proxyTun         reversetunnelclient.Tunnel
+	proxyTun         reversetunnel.Tunnel
 	proxyAccessPoint auth.ReadProxyAccessPoint
 	peerAddr         string
 
@@ -152,7 +152,7 @@ type Server struct {
 	termHandlers *srv.TermHandlers
 
 	// pamConfig holds configuration for PAM.
-	pamConfig *servicecfg.PAMConfig
+	pamConfig *pam.Config
 
 	// dataDir is a server local data directory
 	dataDir string
@@ -274,7 +274,7 @@ func (s *Server) GetUserAccountingPaths() (string, string, string) {
 }
 
 // GetPAM returns the PAM configuration for this server.
-func (s *Server) GetPAM() (*servicecfg.PAMConfig, error) {
+func (s *Server) GetPAM() (*pam.Config, error) {
 	return s.pamConfig, nil
 }
 
@@ -444,7 +444,7 @@ func SetShell(shell string) ServerOption {
 }
 
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(peerAddr string, tsrv reversetunnelclient.Tunnel, ap auth.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
+func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
@@ -486,16 +486,13 @@ func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels,
 		}
 		s.labels = labelsClone
 
-		if len(cmdLabels) > 0 {
-			// Create dynamic labels.
-			s.dynamicLabels, err = labels.NewDynamic(s.ctx, &labels.DynamicConfig{
-				Labels: cmdLabels,
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
+		// Create dynamic labels.
+		s.dynamicLabels, err = labels.NewDynamic(s.ctx, &labels.DynamicConfig{
+			Labels: cmdLabels,
+		})
+		if err != nil {
+			return trace.Wrap(err)
 		}
-
 		s.cloudLabels = cloudLabels
 		return nil
 	}
@@ -561,7 +558,7 @@ func SetMACAlgorithms(macAlgorithms []string) ServerOption {
 	}
 }
 
-func SetPAMConfig(pamConfig *servicecfg.PAMConfig) ServerOption {
+func SetPAMConfig(pamConfig *pam.Config) ServerOption {
 	return func(s *Server) error {
 		s.pamConfig = pamConfig
 		return nil
@@ -859,6 +856,7 @@ func New(
 		sshutils.SetFIPS(s.fips),
 		sshutils.SetClock(s.clock),
 		sshutils.SetIngressReporter(s.ingressService, s.ingressReporter),
+		sshutils.SetCAGetter(s.caGetter),
 		sshutils.SetClusterName(clusterName.GetClusterName()),
 	)
 	if err != nil {
@@ -911,13 +909,8 @@ func (s *Server) getNamespace() string {
 	return types.ProcessNamespace(s.namespace)
 }
 
-func (s *Server) tunnelWithAccessChecker(ctx *srv.ServerContext) (reversetunnelclient.Tunnel, error) {
-	clusterName, err := s.GetAccessPoint().GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return reversetunnelclient.NewTunnelWithRoles(s.proxyTun, clusterName.GetClusterName(), ctx.Identity.AccessChecker, s.proxyAccessPoint), nil
+func (s *Server) tunnelWithAccessChecker(ctx *srv.ServerContext) reversetunnel.Tunnel {
+	return reversetunnel.NewTunnelWithRoles(s.proxyTun, ctx.Identity.AccessChecker, s.proxyAccessPoint)
 }
 
 // Context returns server shutdown context
@@ -935,12 +928,6 @@ func (s *Server) Component() string {
 // Addr returns server address
 func (s *Server) Addr() string {
 	return s.srv.Addr()
-}
-
-// ActiveConnections returns the number of connections that are
-// being served.
-func (s *Server) ActiveConnections() int32 {
-	return s.srv.ActiveConnections()
 }
 
 // ID returns server ID
@@ -1003,20 +990,11 @@ func (s *Server) getRole() types.SystemRole {
 // getStaticLabels gets the labels that the server should present as static,
 // which includes EC2 labels if available.
 func (s *Server) getStaticLabels() map[string]string {
-	labels := make(map[string]string, len(s.labels))
-	if s.cloudLabels != nil {
-		for k, v := range s.cloudLabels.Get() {
-			labels[k] = v
-		}
+	if s.cloudLabels == nil {
+		return s.labels
 	}
-	// Let labels sent over ics override labels from instance metadata.
-	if s.inventoryHandle != nil {
-		for k, v := range s.inventoryHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServerCloudLabels) {
-			labels[k] = v
-		}
-	}
-
-	// Let static labels override any other labels.
+	labels := s.cloudLabels.Get()
+	// Let static labels override ec2 labels if they conflict.
 	for k, v := range s.labels {
 		labels[k] = v
 	}
@@ -1638,8 +1616,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		case teleport.ForceTerminateRequest:
 			return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 		case sshutils.EnvRequest, tracessh.EnvsRequest:
-		case constants.FileTransferDecision:
-			return s.termHandlers.HandleFileTransferDecision(ctx, ch, req, serverContext)
 			// We ignore all SSH setenv requests for join-only principals.
 			// SSH will send them anyway but it seems fine to silently drop them.
 		case sshutils.SubsystemRequest:
@@ -1681,10 +1657,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			return trace.Wrap(err)
 		}
 		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
-	case constants.InitiateFileTransfer:
-		return s.termHandlers.HandleFileTransferRequest(ctx, ch, req, serverContext)
-	case constants.FileTransferDecision:
-		return s.termHandlers.HandleFileTransferDecision(ctx, ch, req, serverContext)
 	case sshutils.WindowChangeRequest:
 		return s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
 	case teleport.ForceTerminateRequest:
@@ -2086,8 +2058,9 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *sr
 	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
 	case r.Name == teleport.GetHomeDirSubsystem:
 		return newHomeDirSubsys(), nil
-	case r.Name == teleport.SFTPSubsystem:
-		if err := ctx.CheckSFTPAllowed(s.reg); err != nil {
+	case r.Name == sftpSubsystem:
+		if err := ctx.CheckSFTPAllowed(); err != nil {
+			s.replyError(ch, req, err)
 			return nil, trace.Wrap(err)
 		}
 

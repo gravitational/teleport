@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { Flex, Label, Text } from 'design';
+import { CircleCheck } from 'design/Icon';
 
 import styled from 'styled-components';
 
@@ -27,6 +28,7 @@ interface ClusterItemProps {
   index: number;
   item: Cluster;
   isSelected: boolean;
+
   onSelect(): void;
 }
 
@@ -36,6 +38,7 @@ export function ClusterItem(props: ClusterItemProps) {
     onRun: props.onSelect,
   });
 
+  const LabelVersion = props.isSelected ? InvertedLabel : Label;
   const clusterName = props.item.name;
 
   return (
@@ -55,18 +58,12 @@ export function ClusterItem(props: ClusterItemProps) {
         <Text typography="body1" title={clusterName}>
           {clusterName}
         </Text>
-        <Flex>
-          {!props.item.leaf ? (
-            <Label ml={1} kind="primary">
-              root
-            </Label>
-          ) : null}
-          {props.isSelected ? (
-            <Label ml={1} kind="success">
-              active
-            </Label>
-          ) : null}
-        </Flex>
+        {!props.item.leaf ? (
+          <LabelVersion ml={1} kind="primary">
+            root
+          </LabelVersion>
+        ) : null}
+        {props.isSelected ? <CircleCheck fontSize={12} /> : null}
       </Flex>
     </StyledListItem>
   );
@@ -74,9 +71,30 @@ export function ClusterItem(props: ClusterItemProps) {
 
 const StyledListItem = styled(ListItem)`
   padding-left: ${props => (props.isLeaf ? '32px' : null)};
+  background: ${getBackgroundColor};
 
   &:hover,
   &:focus {
-    background: ${props => props.theme.colors.spotBackground[0]};
+    background: ${getHoverBackgroundColor};
   }
 `;
+
+const InvertedLabel = styled(Label)`
+  color: ${props => props.theme.colors.brand};
+  background-color: ${props => props.theme.colors.text.contrast};
+`;
+
+function getBackgroundColor(props) {
+  if (props.isSelected) {
+    if (props.isActive) {
+      return props.theme.colors.brandAccent;
+    }
+    return props.theme.colors.brand;
+  }
+}
+
+function getHoverBackgroundColor(props) {
+  if (props.isSelected) {
+    return props.theme.colors.brandAccent;
+  }
+}

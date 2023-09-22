@@ -246,16 +246,6 @@ func (c *SemaphoreV3) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
-// GetRevision returns the revision
-func (c *SemaphoreV3) GetRevision() string {
-	return c.Metadata.GetRevision()
-}
-
-// SetRevision sets the revision
-func (c *SemaphoreV3) SetRevision(rev string) {
-	c.Metadata.SetRevision(rev)
-}
-
 // GetName returns the name of the cluster.
 func (c *SemaphoreV3) GetName() string {
 	return c.Metadata.Name

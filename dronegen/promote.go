@@ -37,46 +37,8 @@ func promoteBuildPipelines() []pipeline {
 		},
 	})
 	ociPipeline.Trigger.Target.Include = append(ociPipeline.Trigger.Target.Include, "promote-distroless")
+
 	promotePipelines = append(promotePipelines, ociPipeline)
-
-	amiPipeline := ghaBuildPipeline(ghaBuildType{
-		buildType:    buildType{os: "linux", fips: false},
-		trigger:      triggerPromote,
-		pipelineName: "promote-teleport-hardened-amis",
-		workflows: []ghaWorkflow{
-			{
-				name:              "promote-teleport-hardened-amis.yaml",
-				timeout:           150 * time.Minute,
-				ref:               "${DRONE_TAG}",
-				srcRefVar:         "DRONE_TAG",
-				shouldTagWorkflow: true,
-				inputs: map[string]string{
-					"release-source-tag": "${DRONE_TAG}",
-				},
-			},
-		},
-	})
-	amiPipeline.Trigger.Target.Include = append(amiPipeline.Trigger.Target.Include, "promote-hardened-amis")
-	promotePipelines = append(promotePipelines, amiPipeline)
-
-	updaterPipeline := ghaBuildPipeline(ghaBuildType{
-		buildType:    buildType{os: "linux", fips: false},
-		trigger:      triggerPromote,
-		pipelineName: "promote-teleport-kube-agent-updater-oci-images",
-		workflows: []ghaWorkflow{
-			{
-				name:              "promote-teleport-kube-agent-updater-oci.yml",
-				timeout:           150 * time.Minute,
-				ref:               "${DRONE_TAG}",
-				shouldTagWorkflow: true,
-				inputs: map[string]string{
-					"release-source-tag": "${DRONE_TAG}",
-				},
-			},
-		},
-	})
-	updaterPipeline.Trigger.Target.Include = append(updaterPipeline.Trigger.Target.Include, "promote-updater")
-	promotePipelines = append(promotePipelines, updaterPipeline)
 
 	return promotePipelines
 }

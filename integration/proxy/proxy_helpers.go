@@ -20,70 +20,51 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"fmt"
-	"io"
+	"crypto/x509/pkix"
+	"encoding/json"
 	"net"
 	"net/http"
-	"net/url"
+	"net/http/httptest"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/maps"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/breaker"
-	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
-	"github.com/gravitational/teleport/lib/teleterm/daemon"
-	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 type Suite struct {
-	root     *helpers.TeleInstance
-	leaf     *helpers.TeleInstance
-	username string
+	root *helpers.TeleInstance
+	leaf *helpers.TeleInstance
 }
 
 type suiteOptions struct {
-	rootConfigFunc func(suite *Suite) *servicecfg.Config
-	leafConfigFunc func(suite *Suite) *servicecfg.Config
+	rootConfigFunc func(suite *Suite) *service.Config
+	leafConfigFunc func(suite *Suite) *service.Config
 
-	rootConfigModFunc []func(config *servicecfg.Config)
-	leafConfigModFunc []func(config *servicecfg.Config)
+	rootConfigModFunc []func(config *service.Config)
+	leafConfigModFunc []func(config *service.Config)
 
 	rootClusterNodeName string
 	leafClusterNodeName string
@@ -132,14 +113,12 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 	}
 	lCfg.Listeners = options.leafClusterListeners(t, &lCfg.Fds)
 	lc := helpers.NewInstance(t, lCfg)
-	user := helpers.MustGetCurrentUser(t)
-
 	suite := &Suite{
-		root:     rc,
-		leaf:     lc,
-		username: user.Username,
+		root: rc,
+		leaf: lc,
 	}
 
+	user := helpers.MustGetCurrentUser(t)
 	for _, role := range options.rootClusterRoles {
 		rc.AddUserWithRole(user.Username, role)
 	}
@@ -193,8 +172,8 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 }
 
 func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
-	nodeConfig := func() *servicecfg.Config {
-		tconf := servicecfg.MakeDefaultConfig()
+	nodeConfig := func() *service.Config {
+		tconf := service.MakeDefaultConfig()
 		tconf.Console = nil
 		tconf.Log = utils.NewLoggerForTests()
 		tconf.Hostname = tunnelNodeHostname
@@ -267,14 +246,14 @@ func withRootAndLeafClusterRoles(roles ...types.Role) proxySuiteOptionsFunc {
 	}
 }
 
-func withLeafClusterConfig(fn func(suite *Suite) *servicecfg.Config, configModFunctions ...func(config *servicecfg.Config)) proxySuiteOptionsFunc {
+func withLeafClusterConfig(fn func(suite *Suite) *service.Config, configModFunctions ...func(config *service.Config)) proxySuiteOptionsFunc {
 	return func(options *suiteOptions) {
 		options.leafConfigFunc = fn
 		options.leafConfigModFunc = append(options.leafConfigModFunc, configModFunctions...)
 	}
 }
 
-func withRootClusterConfig(fn func(suite *Suite) *servicecfg.Config, configModFunctions ...func(config *servicecfg.Config)) proxySuiteOptionsFunc {
+func withRootClusterConfig(fn func(suite *Suite) *service.Config, configModFunctions ...func(config *service.Config)) proxySuiteOptionsFunc {
 	return func(options *suiteOptions) {
 		options.rootConfigFunc = fn
 		options.rootConfigModFunc = append(options.rootConfigModFunc, configModFunctions...)
@@ -327,10 +306,10 @@ func newRole(t *testing.T, roleName string, username string) types.Role {
 	return role
 }
 
-func rootClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Config {
-	return func(suite *Suite) *servicecfg.Config {
+func rootClusterStandardConfig(t *testing.T) func(suite *Suite) *service.Config {
+	return func(suite *Suite) *service.Config {
 		rc := suite.root
-		config := servicecfg.MakeDefaultConfig()
+		config := service.MakeDefaultConfig()
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
 		config.Auth.Preference.SetSecondFactor("off")
@@ -347,10 +326,10 @@ func rootClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Conf
 	}
 }
 
-func leafClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Config {
-	return func(suite *Suite) *servicecfg.Config {
+func leafClusterStandardConfig(t *testing.T) func(suite *Suite) *service.Config {
+	return func(suite *Suite) *service.Config {
 		lc := suite.leaf
-		config := servicecfg.MakeDefaultConfig()
+		config := service.MakeDefaultConfig()
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
 		config.Auth.Preference.SetSecondFactor("off")
@@ -378,18 +357,17 @@ func createTestRole(username string) types.Role {
 func withStandardRoleMapping() proxySuiteOptionsFunc {
 	return func(options *suiteOptions) {
 		options.updateRoleMappingFunc = func(t *testing.T, suite *Suite) {
-			ctx := context.Background()
 			rc := suite.root
 			lc := suite.leaf
 			role := suite.root.Secrets.Users[helpers.MustGetCurrentUser(t).Username].Roles[0]
-			ca, err := lc.Process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
+			ca, err := lc.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
 				Type:       types.UserCA,
 				DomainName: rc.Secrets.SiteName,
 			}, false)
 			require.NoError(t, err)
 			ca.SetRoles(nil) // Reset roles, otherwise they will take precedence.
 			ca.SetRoleMap(types.RoleMap{{Remote: role.GetName(), Local: []string{role.GetName()}}})
-			err = lc.Process.GetAuthServer().UpsertCertAuthority(ctx, ca)
+			err = lc.Process.GetAuthServer().UpsertCertAuthority(ca)
 			require.NoError(t, err)
 		}
 	}
@@ -417,28 +395,6 @@ func withTrustedCluster() proxySuiteOptionsFunc {
 	}
 }
 
-// withTrustedClusterBehindALB creates a local server that simulates a layer 7
-// LB and puts it infront of the root cluster when the leaf connects through
-// the reverse tunnel.
-func withTrustedClusterBehindALB() proxySuiteOptionsFunc {
-	return func(options *suiteOptions) {
-		originalSetup := options.updateRoleMappingFunc
-
-		options.updateRoleMappingFunc = func(t *testing.T, suite *Suite) {
-			t.Helper()
-
-			if originalSetup != nil {
-				originalSetup(t, suite)
-			}
-			require.NotNil(t, options.trustedCluster)
-
-			albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
-			options.trustedCluster.SetProxyAddress(albProxy.Addr().String())
-			options.trustedCluster.SetReverseTunnelAddress(albProxy.Addr().String())
-		}
-	}
-}
-
 func mustRunPostgresQuery(t *testing.T, client *pgconn.PgConn) {
 	result, err := client.Exec(context.Background(), "select 1").ReadAll()
 	require.NoError(t, err)
@@ -450,64 +406,77 @@ func mustClosePostgresClient(t *testing.T, client *pgconn.PgConn) {
 	require.NoError(t, err)
 }
 
-const (
-	// kubeClusterName is the name of the cluster in Teleport.
-	// It it's not a real cluster name, but a cluster that uses
-	// kube mock server.
-	kubeClusterName = "gke_project_europecentral2a_cluster1"
-)
-
 func k8ClientConfig(serverAddr, sni string) clientcmdapi.Config {
+	const clusterName = "gke_project_europecentral2a_cluster1"
 	return clientcmdapi.Config{
 		Clusters: map[string]*clientcmdapi.Cluster{
-			kubeClusterName: {
+			clusterName: {
 				Server:                serverAddr,
 				InsecureSkipTLSVerify: true,
 				TLSServerName:         sni,
 			},
 		},
 		Contexts: map[string]*clientcmdapi.Context{
-			kubeClusterName: {
-				Cluster:  kubeClusterName,
-				AuthInfo: kubeClusterName,
+			clusterName: {
+				Cluster:  clusterName,
+				AuthInfo: clusterName,
 			},
 		},
-		CurrentContext: kubeClusterName,
+		CurrentContext: clusterName,
 	}
 }
 
-func startKubeAPIMock(t *testing.T) *testingkubemock.KubeMockServer {
-	kubeMock, err := testingkubemock.NewKubeAPIMock()
-	require.NoError(t, err)
-	t.Cleanup(func() { kubeMock.Close() })
-	return kubeMock
+func mkPodList() *v1.PodList {
+	return &v1.PodList{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "PodList",
+			APIVersion: "v1",
+		},
+		Items: []v1.Pod{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "firstcontainer-66b6c48dd-bqmwk",
+				},
+			},
+		},
+	}
+}
+
+func startKubeAPIMock(t *testing.T) *httptest.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", func(rw http.ResponseWriter, request *http.Request) {
+	})
+	mux.HandleFunc("/api/v1/namespaces/default/pods", func(rw http.ResponseWriter, request *http.Request) {
+		rw.Header().Add("Content-Type", "application/json")
+		err := json.NewEncoder(rw).Encode(mkPodList())
+		require.NoError(t, err)
+	})
+
+	svr := httptest.NewTLSServer(mux)
+	t.Cleanup(func() {
+		svr.Close()
+	})
+	return svr
 }
 
 func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
-	t.Helper()
-
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	err := clientcmd.WriteToFile(config, configPath)
 	require.NoError(t, err)
 	return configPath
 }
 
-func mustCreateKubeLocalProxyListener(t *testing.T, teleportCluster string, caCert, caKey []byte) net.Listener {
-	t.Helper()
-
-	ca, err := tls.X509KeyPair(caCert, caKey)
+func mustCreateListener(t *testing.T) net.Listener {
+	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 
-	listener, err := alpnproxy.NewKubeListener(map[string]tls.Certificate{
-		teleportCluster: ca,
+	t.Cleanup(func() {
+		listener.Close()
 	})
-	require.NoError(t, err)
 	return listener
 }
 
 func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Protocol) *alpnproxy.LocalProxy {
-	t.Helper()
-
 	return mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    addr,
 		Protocols:          []alpncommon.Protocol{protocol},
@@ -516,10 +485,8 @@ func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Prot
 }
 
 func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxyConfig) *alpnproxy.LocalProxy {
-	t.Helper()
-
 	if config.Listener == nil {
-		config.Listener = helpers.MustCreateListener(t)
+		config.Listener = mustCreateListener(t)
 	}
 	if config.ParentContext == nil {
 		config.ParentContext = context.TODO()
@@ -532,49 +499,14 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 	})
 
 	go func() {
-		var err error
-		if config.HTTPMiddleware == nil {
-			err = lp.Start(context.Background())
-		} else {
-			err = lp.StartHTTPAccessProxy(context.Background())
-		}
-		assert.NoError(t, err)
+		err := lp.Start(context.Background())
+		require.NoError(t, err)
 	}()
 	return lp
 }
 
-func mustStartKubeForwardProxy(t *testing.T, lpAddr string) *alpnproxy.ForwardProxy {
-	t.Helper()
-
-	fp, err := alpnproxy.NewKubeForwardProxy(alpnproxy.KubeForwardProxyConfig{
-		ForwardAddr: lpAddr,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		fp.Close()
-	})
-
-	go func() {
-		assert.NoError(t, fp.Start())
-	}()
-	return fp
-}
-
-func mustCreateKubeLocalProxyMiddleware(t *testing.T, teleportCluster, kubeCluster string, userCert, userKey []byte) alpnproxy.LocalProxyHTTPMiddleware {
-	t.Helper()
-
-	cert, err := tls.X509KeyPair(userCert, userKey)
-	require.NoError(t, err)
-	certs := make(alpnproxy.KubeClientCerts)
-	certs.Add(teleportCluster, kubeCluster, cert)
-
-	return alpnproxy.NewKubeMiddleware(certs, func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
-		return tls.Certificate{}, nil
-	}, clockwork.NewRealClock(), nil)
-}
-
-func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
-	nodeConfig := servicecfg.MakeDefaultConfig()
+func makeNodeConfig(nodeName, proxyAddr string) *service.Config {
+	nodeConfig := service.MakeDefaultConfig()
 	nodeConfig.Version = defaults.TeleportConfigVersionV3
 	nodeConfig.Hostname = nodeName
 	nodeConfig.SetToken("token")
@@ -586,8 +518,76 @@ func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
 	return nodeConfig
 }
 
+func mustCreateSelfSignedCert(t *testing.T) tls.Certificate {
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName: "localhost",
+	}, []string{"localhost"}, defaults.CATTL)
+	require.NoError(t, err)
+
+	cert, err := tls.X509KeyPair(caCert, caKey)
+	require.NoError(t, err)
+	return cert
+}
+
+// mockAWSALBProxy is a mock proxy server that simulates an AWS application
+// load balancer where ALPN is not supported. Note that this mock does not
+// actually balance traffic.
+type mockAWSALBProxy struct {
+	net.Listener
+	proxyAddr string
+	cert      tls.Certificate
+}
+
+func (m *mockAWSALBProxy) serve(ctx context.Context, t *testing.T) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		conn, err := m.Accept()
+		if err != nil {
+			if utils.IsOKNetworkError(err) {
+				return
+			}
+			require.NoError(t, err)
+			return
+		}
+
+		go func() {
+			// Handshake with incoming client and drops ALPN.
+			downstreamConn := tls.Server(conn, &tls.Config{
+				Certificates: []tls.Certificate{m.cert},
+			})
+			require.NoError(t, downstreamConn.HandshakeContext(ctx))
+
+			// Make a connection to the proxy server with ALPN protos.
+			upstreamConn, err := tls.Dial("tcp", m.proxyAddr, &tls.Config{
+				InsecureSkipVerify: true,
+			})
+			require.NoError(t, err)
+
+			utils.ProxyConn(ctx, downstreamConn, upstreamConn)
+		}()
+	}
+}
+
+func mustStartMockALBProxy(t *testing.T, proxyAddr string) *mockAWSALBProxy {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	m := &mockAWSALBProxy{
+		proxyAddr: proxyAddr,
+		Listener:  mustCreateListener(t),
+		cert:      mustCreateSelfSignedCert(t),
+	}
+	go m.serve(ctx, t)
+	return m
+}
+
 // waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
-func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnelclient.Server, expectedCount int) { //nolint:unused // Only used by skipped test TestProxyTunnelStrategyProxyPeering
+func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) { //nolint:unused // Only used by skipped test TestProxyTunnelStrategyProxyPeering
 	require.Eventually(t, func() bool {
 		return tunnel.GetProxyPeerClient().GetConnectionsCount() >= expectedCount
 	},
@@ -595,165 +595,4 @@ func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnelclient.
 		time.Second,
 		"Peer proxy connections did not reach %v in the expected time frame %v", expectedCount, 30*time.Second,
 	)
-}
-
-func mustParseURL(t *testing.T, rawURL string) *url.URL {
-	t.Helper()
-
-	u, err := url.Parse(rawURL)
-	require.NoError(t, err)
-	return u
-}
-
-// fakeSTSClient is a fake HTTP client used to fake STS responses when Auth
-// server sends out pre-signed STS requests for IAM join verification.
-type fakeSTSClient struct {
-	accountID   string
-	arn         string
-	credentials *credentials.Credentials
-}
-
-func (f fakeSTSClient) Do(req *http.Request) (*http.Response, error) {
-	if err := awsutils.VerifyAWSSignature(req, f.credentials); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response := fmt.Sprintf(`{"GetCallerIdentityResponse": {"GetCallerIdentityResult": {"Account": "%s", "Arn": "%s" }}}`, f.accountID, f.arn)
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(strings.NewReader(response)),
-	}, nil
-}
-
-func mustCreateIAMJoinProvisionToken(t *testing.T, name, awsAccountID, allowedARN string) types.ProvisionToken {
-	t.Helper()
-
-	provisionToken, err := types.NewProvisionTokenFromSpec(
-		name,
-		time.Now().Add(time.Hour),
-		types.ProvisionTokenSpecV2{
-			Roles: []types.SystemRole{types.RoleNode},
-			Allow: []*types.TokenRule{
-				{
-					AWSAccount: awsAccountID,
-					AWSARN:     allowedARN,
-				},
-			},
-			JoinMethod: types.JoinMethodIAM,
-		},
-	)
-	require.NoError(t, err)
-	return provisionToken
-}
-
-func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token string, credentials *credentials.Credentials) {
-	t.Helper()
-
-	cred, err := credentials.Get()
-	require.NoError(t, err)
-
-	t.Setenv("AWS_ACCESS_KEY_ID", cred.AccessKeyID)
-	t.Setenv("AWS_SECRET_ACCESS_KEY", cred.SecretAccessKey)
-	t.Setenv("AWS_SESSION_TOKEN", cred.SessionToken)
-	t.Setenv("AWS_REGION", "us-west-2")
-
-	privateKey, err := ssh.ParseRawPrivateKey([]byte(fixtures.SSHCAPrivateKey))
-	require.NoError(t, err)
-	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
-	require.NoError(t, err)
-
-	node := uuid.NewString()
-	_, err = auth.Register(auth.RegisterParams{
-		Token: token,
-		ID: auth.IdentityID{
-			Role:     types.RoleNode,
-			HostUUID: node,
-			NodeName: node,
-		},
-		ProxyServer:  proxyAddr,
-		JoinMethod:   types.JoinMethodIAM,
-		PublicTLSKey: pubTLS,
-		PublicSSHKey: []byte(fixtures.SSHCAPublicKey),
-		Insecure:     lib.IsInsecureDevMode(),
-	})
-	require.NoError(t, err, trace.DebugReport(err))
-}
-
-func mustFindKubePod(t *testing.T, tc *client.TeleportClient) {
-	t.Helper()
-
-	serviceClient, err := tc.NewKubernetesServiceClient(context.Background(), tc.SiteName)
-	require.NoError(t, err)
-
-	response, err := serviceClient.ListKubernetesResources(context.Background(), &kubeproto.ListKubernetesResourcesRequest{
-		ResourceType:        types.KindKubePod,
-		KubernetesCluster:   kubeClusterName,
-		KubernetesNamespace: metav1.NamespaceDefault,
-		TeleportCluster:     tc.SiteName,
-	})
-	require.NoError(t, err)
-	require.Len(t, response.Resources, 3)
-	require.Equal(t, types.KindKubePod, response.Resources[0].Kind)
-}
-
-func mustConnectDatabaseGateway(t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
-	t.Helper()
-
-	dbGateway, err := gateway.AsDatabase(gw)
-	require.NoError(t, err)
-
-	// Open a new connection.
-	client, err := mysql.MakeTestClientWithoutTLS(
-		net.JoinHostPort(gw.LocalAddress(), gw.LocalPort()),
-		dbGateway.RouteToDatabase())
-	require.NoError(t, err)
-
-	// Execute a query.
-	result, err := client.Execute("select 1")
-	require.NoError(t, err)
-	require.Equal(t, mysql.TestQueryResponse, result)
-
-	// Disconnect.
-	require.NoError(t, client.Close())
-}
-
-func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kubeCluster string) *kubernetes.Clientset {
-	t.Helper()
-
-	config, err := kubeconfig.Load(kubeconfigPath)
-	require.NoError(t, err)
-
-	contextName := kubeconfig.ContextName(teleportCluster, kubeCluster)
-	require.Contains(t, maps.Keys(config.Clusters), contextName)
-	proxyURL, err := url.Parse(config.Clusters[contextName].ProxyURL)
-	require.NoError(t, err)
-
-	tlsClientConfig := rest.TLSClientConfig{
-		CAData:     config.Clusters[contextName].CertificateAuthorityData,
-		CertData:   config.AuthInfos[contextName].ClientCertificateData,
-		KeyData:    config.AuthInfos[contextName].ClientKeyData,
-		ServerName: alpncommon.KubeLocalProxySNI(teleportCluster, kubeCluster),
-	}
-	client, err := kubernetes.NewForConfig(&rest.Config{
-		Host:            "https://" + teleportCluster,
-		TLSClientConfig: tlsClientConfig,
-		Proxy:           http.ProxyURL(proxyURL),
-	})
-	require.NoError(t, err)
-	return client
-}
-
-func mustGetKubePod(t *testing.T, client *kubernetes.Clientset) {
-	t.Helper()
-
-	resp, err := client.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
-	require.NoError(t, err)
-	require.Equal(t, len(resp.Items), 3)
-}
-
-func mustGetProfileName(t *testing.T, webProxyAddr string) string {
-	t.Helper()
-
-	profileName, _, err := net.SplitHostPort(webProxyAddr)
-	require.NoError(t, err)
-	return profileName
 }

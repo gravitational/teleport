@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { Flex } from 'design';
 
-import { DiscoverIcon } from 'teleport/Discover/SelectResource/icons';
+import { icons } from 'teleport/Discover/SelectResource/icons';
 
 import { StepList } from './StepList';
 
@@ -53,7 +53,7 @@ export function StepItem(props: StepItemProps) {
       <StepsContainer>
         <StepTitle>
           {getBulletIcon({
-            Icon: <DiscoverIcon name={props.selectedResource.icon} />,
+            Icon: icons[props.selectedResource.icon],
           })}
           {props.selectedResource.name}
         </StepTitle>
@@ -147,7 +147,7 @@ const ActiveBullet = styled(Bullet)`
     height: 8px;
     width: 8px;
     border-radius: 50%;
-    border: 2px solid ${props => props.theme.colors.levels.surface};
+    border: 2px solid ${props => props.theme.colors.levels.surfaceSecondary};
   }
 `;
 

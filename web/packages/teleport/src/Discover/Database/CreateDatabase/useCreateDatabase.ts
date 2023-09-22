@@ -23,17 +23,15 @@ import { useDiscover } from 'teleport/Discover/useDiscover';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { compareByString } from 'teleport/lib/util';
 import { ApiError } from 'teleport/services/api/parseError';
-import { DatabaseLocation } from 'teleport/Discover/SelectResource';
-import { IamPolicyStatus } from 'teleport/services/databases';
 
-import { matchLabels } from '../common';
+import { matchLabels } from '../util';
 
 import type {
   CreateDatabaseRequest,
   Database as DatabaseResource,
   DatabaseService,
 } from 'teleport/services/databases';
-import type { ResourceLabel } from 'teleport/services/agents';
+import type { AgentLabel } from 'teleport/services/agents';
 import type { DbMeta } from 'teleport/Discover/useDiscover';
 
 export const WAITING_TIMEOUT = 30000; // 30 seconds
@@ -68,8 +66,6 @@ export function useCreateDatabase() {
   //    - timed out due to failure to query (this would most likely be some kind of
   //      backend error or network failure)
   const [createdDb, setCreatedDb] = useState<CreateDatabaseRequest>();
-
-  const isAws = resourceSpec.dbMeta.location === DatabaseLocation.Aws;
 
   const dbPollingResult = usePoll<DatabaseResource>(
     signal => fetchDatabaseServer(signal),
@@ -119,17 +115,11 @@ export function useCreateDatabase() {
       resourceName: createdDb.name,
       agentMatcherLabels: dbPollingResult.labels,
       db: dbPollingResult,
-      serviceDeployedMethod:
-        dbPollingResult.aws?.iamPolicyStatus === IamPolicyStatus.Success
-          ? 'skipped'
-          : undefined, // User has to deploy a service (can be auto or manual)
     });
 
     setAttempt({ status: 'success' });
   }, [dbPollingResult]);
 
-  // fetchDatabaseServer is the callback that is run every interval by the poller.
-  // The poller will stop polling once a result returns (a dbServer).
   function fetchDatabaseServer(signal: AbortSignal) {
     const request = {
       search: createdDb.name,
@@ -139,21 +129,8 @@ export function useCreateDatabase() {
       .fetchDatabases(clusterId, request, signal)
       .then(res => {
         if (res.agents.length) {
-          const dbServer = res.agents[0];
-          if (
-            !isAws || // If not AWS, then we return the first thing we get back.
-            // If AWS and aws.iamPolicyStatus is undefined or non-pending,
-            // return the dbServer.
-            dbServer.aws?.iamPolicyStatus !== IamPolicyStatus.Pending
-          ) {
-            return dbServer;
-          }
+          return res.agents[0];
         }
-        // Returning nothing here will continue the polling.
-        // Either no result came back back yet or
-        // a result did come back but we are waiting for a specific
-        // marker to appear in the result. Specifically for AWS dbs,
-        // we wait for a non-pending flag to appear.
         return null;
       });
   }
@@ -218,7 +195,6 @@ export function useCreateDatabase() {
           ...(agentMeta as DbMeta),
           resourceName: db.name,
           agentMatcherLabels: db.labels,
-          selectedAwsRdsDb: db.awsRds,
         });
         setAttempt({ status: 'success' });
         return;
@@ -293,10 +269,8 @@ export function useCreateDatabase() {
 
     return (
       createdDb.uri !== db.uri ||
-      createdDb.awsRds?.resourceId !== db.awsRds?.resourceId ||
-      createdDb.awsRds?.vpcId !== db.awsRds?.vpcId ||
-      createdDb.awsRds?.subnets !== db.awsRds?.subnets ||
-      createdDb.awsRds?.accountId !== db.awsRds?.accountId
+      createdDb.awsRds?.accountId !== db.awsRds?.accountId ||
+      createdDb.awsRds?.resourceId !== db.awsRds?.resourceId
     );
   }
 
@@ -308,21 +282,6 @@ export function useCreateDatabase() {
     const message = getErrMessage(err);
     setAttempt({ status: 'failed', statusText: `${preErrMsg}${message}` });
     emitErrorEvent(`${preErrMsg}${message}`);
-  }
-
-  function handleNextStep() {
-    if (dbPollingResult) {
-      if (
-        isAws &&
-        dbPollingResult.aws?.iamPolicyStatus === IamPolicyStatus.Success
-      ) {
-        // Skips the deploy db service step AND setting up IAM policy step.
-        return nextStep(3);
-      }
-      // Skips the deploy database service step.
-      return nextStep(2);
-    }
-    nextStep(); // Goes to deploy database service step.
   }
 
   const access = ctx.storeUser.getDatabaseAccess();
@@ -338,14 +297,16 @@ export function useCreateDatabase() {
     dbLocation: resourceSpec.dbMeta.location,
     isDbCreateErr,
     prevStep,
-    nextStep: handleNextStep,
+    // If there was a result from database polling, then
+    // allow user to skip the next step.
+    nextStep: dbPollingResult ? () => nextStep(2) : () => nextStep(),
   };
 }
 
 export type State = ReturnType<typeof useCreateDatabase>;
 
 export function findActiveDatabaseSvc(
-  newDbLabels: ResourceLabel[],
+  newDbLabels: AgentLabel[],
   dbServices: DatabaseService[]
 ) {
   if (!dbServices.length) {

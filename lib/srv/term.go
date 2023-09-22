@@ -36,7 +36,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 )
@@ -118,7 +117,7 @@ func NewTerminal(ctx *ServerContext) (Terminal, error) {
 
 	// If this is not a Teleport node, find out what mode the cluster is in and
 	// return the correct terminal.
-	if types.IsOpenSSHNodeSubKind(ctx.ServerSubKind) || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return newRemoteTerminal(ctx)
 	}
 	return newLocalTerminal(ctx)
@@ -453,13 +452,13 @@ func getOwner(login string, lookupUser LookupUser, lookupGroup LookupGroup) (int
 		if err != nil {
 			return 0, 0, 0, trace.Wrap(err)
 		}
-		mode = 0o620
+		mode = 0620
 	} else {
 		gid, err = strconv.Atoi(group.Gid)
 		if err != nil {
 			return 0, 0, 0, trace.Wrap(err)
 		}
-		mode = 0o600
+		mode = 0600
 	}
 
 	return uid, gid, mode, nil
@@ -716,7 +715,9 @@ func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *trac
 		teleport.SSHSessionID:           string(scx.SessionID()),
 	}
 
-	if err := session.SetEnvs(ctx, envs); err != nil {
-		t.log.WithError(err).Debug("Unable to set environment variables")
+	for k, v := range envs {
+		if err := session.Setenv(ctx, k, v); err != nil {
+			t.log.Debugf("Unable to set environment variable: %v: %v", k, v)
+		}
 	}
 }

@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { fireEvent, render, screen } from 'design/utils/testing';
+import { render, screen, fireEvent } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 
@@ -33,7 +33,6 @@ test('all participant modes are properly listed and in the correct order', () =>
         clusterId={'test-cluster'}
         participantModes={['moderator', 'peer', 'observer']}
         showCTA={false}
-        showModeratedCTA={false}
       />
     </ContextProvider>
   );
@@ -44,35 +43,24 @@ test('all participant modes are properly listed and in the correct order', () =>
   fireEvent.click(joinBtn);
 
   // Make sure that the join URL is correct.
-  expect(screen.queryByText('As an Observer').closest('a')).toHaveAttribute(
-    'href',
-    '/web/cluster/test-cluster/console/session/4b038eda-ddca-5533-9a49-3a34f133b5f4?mode=observer'
-  );
-  expect(screen.queryByText('As a Moderator').closest('a')).toHaveAttribute(
-    'href',
+  const moderatorJoinUrl = screen
+    .queryByText('moderator')
+    .closest('a')
+    .getAttribute('href');
+
+  expect(moderatorJoinUrl).toBe(
     '/web/cluster/test-cluster/console/session/4b038eda-ddca-5533-9a49-3a34f133b5f4?mode=moderator'
-  );
-  expect(screen.queryByText('As a Peer').closest('a')).toHaveAttribute(
-    'href',
-    '/web/cluster/test-cluster/console/session/4b038eda-ddca-5533-9a49-3a34f133b5f4?mode=peer'
   );
 
   // Make sure that the menu items are in the order of observer -> moderator -> peer.
   const menuItems = screen.queryAllByRole<HTMLAnchorElement>('link');
   expect(menuItems).toHaveLength(3);
-  expect(menuItems[0]).toHaveTextContent('As an Observer');
-  expect(menuItems[1]).toHaveTextContent('As a Moderator');
-  expect(menuItems[2]).toHaveTextContent('As a Peer');
-
-  expect(
-    screen.queryByText('Join Active Sessions with Teleport Enterprise')
-  ).not.toBeInTheDocument();
-  expect(
-    screen.queryByText('Join as a moderator with Teleport Enterprise')
-  ).not.toBeInTheDocument();
+  expect(menuItems[0].innerHTML).toBe('observer');
+  expect(menuItems[1].innerHTML).toBe('moderator');
+  expect(menuItems[2].innerHTML).toBe('peer');
 });
 
-test('showCTA does not render a join link for any sessions', () => {
+test('all possible participant modes are properly listed in the CTA without join links', () => {
   const ctx = createTeleportContext();
   render(
     <ContextProvider ctx={ctx}>
@@ -81,7 +69,6 @@ test('showCTA does not render a join link for any sessions', () => {
         clusterId={'test-cluster'}
         participantModes={['moderator', 'peer', 'observer']}
         showCTA={true}
-        showModeratedCTA={false}
       />
     </ContextProvider>
   );
@@ -91,45 +78,18 @@ test('showCTA does not render a join link for any sessions', () => {
 
   fireEvent.click(joinBtn);
 
-  expect(screen.queryByText('As an Observer').closest('a')).toBeNull();
-  expect(screen.queryByText('As a Moderator').closest('a')).toBeNull();
-  expect(screen.queryByText('As a Peer').closest('a')).toBeNull();
+  // Make sure that no link to join session is available when showCTA = true.
+  const menuItems = screen.queryByRole<HTMLAnchorElement>('link');
 
-  expect(
-    screen.getByText('Join Active Sessions with Teleport Enterprise')
-  ).toBeInTheDocument();
-});
+  expect(menuItems.getAttribute('href')).not.toMatch(/.*console\/session.*/);
 
-test('showModeratedCTA does not render a join link for moderated sessions', () => {
-  const ctx = createTeleportContext();
-  render(
-    <ContextProvider ctx={ctx}>
-      <SessionJoinBtn
-        sid={'4b038eda-ddca-5533-9a49-3a34f133b5f4'}
-        clusterId={'test-cluster'}
-        participantModes={['moderator', 'peer', 'observer']}
-        showCTA={false}
-        showModeratedCTA={true}
-      />
-    </ContextProvider>
+  // Make sure the CTAs are rendered
+  expect(menuItems).toHaveTextContent(
+    'Join Active Sessions with Teleport Enterprise'
   );
 
-  const joinBtn = screen.queryByText(/Join/i);
-  expect(joinBtn).toBeInTheDocument();
-
-  fireEvent.click(joinBtn);
-
-  expect(screen.queryByText('As an Observer').closest('a')).toHaveAttribute(
-    'href',
-    '/web/cluster/test-cluster/console/session/4b038eda-ddca-5533-9a49-3a34f133b5f4?mode=observer'
+  const cta = screen.queryByText(
+    'Join Active Sessions with Teleport Enterprise'
   );
-  expect(screen.queryByText('As a Moderator').closest('a')).toBeNull();
-  expect(screen.queryByText('As a Peer').closest('a')).toHaveAttribute(
-    'href',
-    '/web/cluster/test-cluster/console/session/4b038eda-ddca-5533-9a49-3a34f133b5f4?mode=peer'
-  );
-
-  expect(
-    screen.getByText('Join as a moderator with Teleport Enterprise')
-  ).toBeInTheDocument();
+  expect(cta).toBeInTheDocument();
 });

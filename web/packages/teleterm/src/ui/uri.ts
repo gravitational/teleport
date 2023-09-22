@@ -109,13 +109,6 @@ export const routing = {
     return matchPath<Params>(path, route);
   },
 
-  /**
-   * parseClusterName should be used only when getting the cluster object from ClustersService is
-   * not possible.
-   *
-   * rootClusterId in the URI is not the name of the cluster but rather just the hostname of the
-   * proxy. These two might be different.
-   */
   parseClusterName(clusterUri: string) {
     const parsed = routing.parseClusterUri(clusterUri);
     if (!parsed) {

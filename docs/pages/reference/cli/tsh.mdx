@@ -23,7 +23,6 @@ information about the cluster.
 | `--skip-version-check` | none | none | Skip version checking between server and client. |
 | `-d, --debug` | none | none | Verbose logging to stdout |
 | `-J, --jumphost` | none | A jump host | SSH jumphost |
-| `--headless` | none | none | Use Headless WebAuthn for authentication |
 | `--mlock` | `auto` | `auto`, `off`, `best_effort`, `strict` | Lock process memory to protect client secrets stored in memory from being swapped to disk. |
 
 ## tsh help
@@ -157,34 +156,6 @@ $ tsh config
 # Append Teleport configuration to ssh config
 $ tsh config >> ~/.ssh/config
 ```
-
-## tsh puttyconfig
-
-Adds a PuTTY saved session to the Windows registry for the currently logged in Windows user.
-
-```
-$ tsh puttyconfig [--leaf <leaf-cluster-name>] [login@]hostname
-```
-
-### Flags
-
-| Name | Default Value(s) | Allowed Value(s) | Description |
-| - | - | - | - |
-| `-l, --login` | none | Linux username | Default Linux username to use. Will translate to SSH config's `User` option. |
-| `-p`, `--port` | 3022 | port | Default SSH port to use. Will translate to SSH config's `Port` option. |
-| `--leaf` | none | Leaf cluster name | Leaf cluster name to add to the saved session. |
-
-### Examples
-
-```code
-# Add a saved PuTTY session on 'node' for the user 'ec2-user'
-$ tsh puttyconfig ec2-user@node
-
-# Add a saved PuTTY session on leaf-node for the user 'ec2-user' on the leaf cluster 'example.teleport.sh'
-$ tsh puttyconfig --leaf example.teleport.sh ec2-user@leaf-node
-```
-
-See [full docs on `tsh puttyconfig` here](../../connect-your-client/putty.mdx).
 
 ## tsh apps ls
 
@@ -361,27 +332,6 @@ $ tsh play c8e1b2c5-322a-4095-89e3-391edfd2da9b.tar
 ```
 
 </Admonition>
-
-## tsh recordings export
-
-Export recorded desktop sessions to video.
-
-```code
-$ tsh recordings export <session_id> [<flags>]
-```
-
-### Flags
-
-| Name | Default Value(s) | Allowed Value(s) | Description |
-| - | - | - | - |
-| `--out` | `<session_id>.avi` | a filename | Override the output file name. |
-
-### Examples
-
-```code
-$ tsh recordings export c8e1b2c5-322a-4095-89e3-391edfd2da9b --out=recording.avi
-wrote recording to recording.avi
-```
 
 ## tsh play
 
@@ -1073,7 +1023,6 @@ $ tsh request create [<flags>]
 | `--nowait` | `false` | `true` or `false` | Finish without waiting for request resolution |
 | `--request-ttl` | 1 hour | Relative duration like `5s`, `2m`, or `3h`, | Defines how long the Access Request will be in a `PENDING` state before becoming invalid |
 | `--session-ttl` | Time left on current session | Relative duration like `5s`, `2m`, or `3h` | Defines how long the elevated session will be valid for |
-| `--max-duration` | none | Relative duration like `5s`, `2m`, `3h`, or `7d` | Defines the maximum duration of the elevated session up to 7 days. The assigned role also must have `max_duration` option specified (optional) |
 
 <Admonition type="tip" title="Note">
 The `--request-ttl` and `--session-ttl` values can not be greater than the
@@ -1083,8 +1032,6 @@ following:
 - Time left on an existing session (certificate).
 - Maximum session duration defined by the user's roles.
 
-Use `--max-duration` to request access for longer than the maximum certificate
-lifetime.
 </Admonition>
 
 ## tsh request ls
@@ -1214,4 +1161,3 @@ Environment variables configure your tsh client and can help you avoid using fla
 | TELEPORT_ADD_KEYS_TO_AGENT | Specifies if the user certificate should be stored on the running SSH agent | yes, no, auto, only |
 | TELEPORT_USE_LOCAL_SSH_AGENT | Disable or enable local SSH agent integration | true, false |
 | TELEPORT_GLOBAL_TSH_CONFIG | Override location of global `tsh` config file from default `/etc/tsh.yaml` | /opt/teleport/tsh.yaml |
-| TELEPORT_HEADLESS | Use headless authentication | true, false, 1, 0 |

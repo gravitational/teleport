@@ -14,17 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import React from 'react';
-import Table, {
-  Cell,
-  ClickableLabelCell,
-  StyledTableWrapper,
-} from 'design/DataTable';
+import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
 import { Danger } from 'design/Alert';
 import { MenuLogin } from 'shared/components/MenuLogin';
 import { SearchPanel, SearchPagination } from 'shared/components/Search';
 
 import { makeServer } from 'teleterm/ui/services/clusters';
 
+import { MenuLoginTheme } from '../MenuLoginTheme';
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
 import { getEmptyTableText } from '../getEmptyTableText';
 
@@ -58,55 +55,53 @@ function ServerList(props: State) {
       {fetchAttempt.status === 'error' && (
         <Danger>{fetchAttempt.statusText}</Danger>
       )}
-      <StyledTableWrapper borderRadius={3}>
-        <SearchPanel
-          updateQuery={updateQuery}
-          updateSearch={updateSearch}
-          pageIndicators={pageCount}
-          filter={agentFilter}
-          showSearchBar={true}
-          disableSearch={disabled}
-        />
-        <DarkenWhileDisabled disabled={disabled}>
-          <Table
-            columns={[
-              {
-                key: 'hostname',
-                headerText: 'Hostname',
-                isSortable: true,
-              },
-              {
-                key: 'addr',
-                headerText: 'Address',
-                isSortable: false,
-                render: renderAddressCell,
-              },
-              {
-                key: 'labels',
-                headerText: 'Labels',
-                render: ({ labels }) => (
-                  <ClickableLabelCell
-                    labels={labels}
-                    onClick={onAgentLabelClick}
-                  />
+      <SearchPanel
+        updateQuery={updateQuery}
+        updateSearch={updateSearch}
+        pageIndicators={pageCount}
+        filter={agentFilter}
+        showSearchBar={true}
+        disableSearch={disabled}
+      />
+      <DarkenWhileDisabled disabled={disabled}>
+        <Table
+          columns={[
+            {
+              key: 'hostname',
+              headerText: 'Hostname',
+              isSortable: true,
+            },
+            {
+              key: 'addr',
+              headerText: 'Address',
+              isSortable: false,
+              render: renderAddressCell,
+            },
+            {
+              key: 'labels',
+              headerText: 'Labels',
+              render: ({ labels }) => (
+                <ClickableLabelCell
+                  labels={labels}
+                  onClick={onAgentLabelClick}
+                />
+              ),
+            },
+            {
+              altKey: 'connect-btn',
+              render: server =>
+                renderConnectCell(
+                  () => getSshLogins(server.uri),
+                  login => connect(server, login)
                 ),
-              },
-              {
-                altKey: 'connect-btn',
-                render: server =>
-                  renderConnectCell(
-                    () => getSshLogins(server.uri),
-                    login => connect(server, login)
-                  ),
-              },
-            ]}
-            customSort={customSort}
-            emptyText={emptyText}
-            data={servers}
-          />
-          <SearchPagination prevPage={prevPage} nextPage={nextPage} />
-        </DarkenWhileDisabled>
-      </StyledTableWrapper>
+            },
+          ]}
+          customSort={customSort}
+          emptyText={emptyText}
+          data={servers}
+        />
+        <SearchPagination prevPage={prevPage} nextPage={nextPage} />
+      </DarkenWhileDisabled>
     </>
   );
 }
@@ -117,18 +112,22 @@ const renderConnectCell = (
 ) => {
   return (
     <Cell align="right">
-      <MenuLogin
-        getLoginItems={() => getSshLogins().map(login => ({ login, url: '' }))}
-        onSelect={(e, login) => onConnect(login)}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-        anchorOrigin={{
-          vertical: 'center',
-          horizontal: 'right',
-        }}
-      />
+      <MenuLoginTheme>
+        <MenuLogin
+          getLoginItems={() =>
+            getSshLogins().map(login => ({ login, url: '' }))
+          }
+          onSelect={(e, login) => onConnect(login)}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+          anchorOrigin={{
+            vertical: 'center',
+            horizontal: 'right',
+          }}
+        />
+      </MenuLoginTheme>
     </Cell>
   );
 };
@@ -137,11 +136,9 @@ const renderAddressCell = ({ addr, tunnel }: ReturnType<typeof makeServer>) => (
   <Cell>
     {tunnel && (
       <span
-        style={{ cursor: 'default', whiteSpace: 'nowrap' }}
+        style={{ cursor: 'default' }}
         title="This node is connected to cluster through reverse tunnel"
-      >
-        ← tunnel
-      </span>
+      >{`⟵ tunnel`}</span>
     )}
     {!tunnel && addr}
   </Cell>

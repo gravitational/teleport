@@ -92,12 +92,8 @@ func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 	})
 	require.NoError(t, err)
 
-	pool.tracker.TrackExpected(
-		track.Proxy{Name: "proxy-1"},
-		track.Proxy{Name: "proxy-2"},
-		track.Proxy{Name: "proxy-3"},
-	)
-	pool.newAgentFunc = func(ctx context.Context, tracker *track.Tracker, l *track.Lease) (Agent, error) {
+	pool.tracker.TrackExpected([]string{"proxy-1", "proxy-2", "proxy-3"}...)
+	pool.newAgentFunc = func(ctx context.Context, tracker *track.Tracker, l track.Lease) (Agent, error) {
 		agent := &mockAgent{}
 		agent.mockStart = func(ctx context.Context) error {
 			return nil
@@ -132,15 +128,17 @@ func TestAgentPoolConnectionCount(t *testing.T) {
 		return config, nil
 	}
 
-	require.NoError(t, pool.Start())
-	t.Cleanup(pool.Stop)
+	err := pool.Start()
+	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
 		return pool.active.len() == 1
 	}, time.Second*5, time.Millisecond*10, "wait for agent pool")
 
-	require.Nil(t, pool.tracker.TryAcquire())
+	require.False(t, pool.isAgentRequired())
 	require.Equal(t, pool.Count(), 1)
+
+	pool.Stop()
 
 	pool, client = setupTestAgentPool(t)
 	client.mockGetClusterNetworkingConfig = func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
@@ -153,13 +151,21 @@ func TestAgentPoolConnectionCount(t *testing.T) {
 		return config, nil
 	}
 
-	require.NoError(t, pool.Start())
-	t.Cleanup(pool.Stop)
+	err = pool.Start()
+	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
 		return pool.Count() == 3
 	}, time.Second*5, time.Millisecond*10)
 
-	require.Nil(t, pool.tracker.TryAcquire())
+	select {
+	case <-pool.tracker.Acquire():
+		require.FailNow(t, "expected all leases to be acquired")
+	default:
+	}
+
+	require.True(t, pool.isAgentRequired())
 	require.Equal(t, pool.Count(), 3)
+
+	pool.Stop()
 }

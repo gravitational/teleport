@@ -24,8 +24,6 @@ import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportConte
 import { userContext } from 'teleport/Main/fixtures';
 import { ResourceKind } from 'teleport/Discover/Shared';
 
-import { UserContextProvider } from 'teleport/User';
-
 import DownloadScript from './DownloadScript';
 
 const { worker, rest } = window.msw;
@@ -36,7 +34,7 @@ export default {
     Story => {
       // Reset request handlers added in individual stories.
       worker.resetHandlers();
-      clearCachedJoinTokenResult([ResourceKind.Server]);
+      clearCachedJoinTokenResult(ResourceKind.Server);
       return <Story />;
     },
   ],
@@ -122,16 +120,14 @@ const Provider = props => {
         { pathname: cfg.routes.discover, state: { entity: 'database' } },
       ]}
     >
-      <UserContextProvider>
-        <ContextProvider ctx={ctx}>
-          <PingTeleportProvider
-            interval={props.interval || 100000}
-            resourceKind={ResourceKind.Server}
-          >
-            {props.children}
-          </PingTeleportProvider>
-        </ContextProvider>
-      </UserContextProvider>
+      <ContextProvider ctx={ctx}>
+        <PingTeleportProvider
+          interval={props.interval || 100000}
+          resourceKind={ResourceKind.Server}
+        >
+          {props.children}
+        </PingTeleportProvider>
+      </ContextProvider>
     </MemoryRouter>
   );
 };

@@ -18,16 +18,15 @@ Create a file called `kube-access.yaml` with the following content, replacing
 kind: role
 metadata:
   name: kube-access
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-      - kind: '*'
-        namespace: '*'
-        name: '*'
-        verbs: ['*']
+      - kind: pod
+        namespace: "*"
+        name: "*"
     kubernetes_groups:
     - viewers
     kubernetes_users:

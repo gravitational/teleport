@@ -26,10 +26,10 @@ export default function useAttemptNext(status = '' as Attempt['status']) {
     statusText: '',
   }));
 
-  const handleError = useCallback((err: Error) => {
+  function handleError(err: Error) {
     logger.error('attempt', err);
     setAttempt({ status: 'failed', statusText: err.message });
-  }, []);
+  }
 
   const run = useCallback((fn: Callback) => {
     try {

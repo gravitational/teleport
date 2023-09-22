@@ -212,7 +212,7 @@ we will:
 
 *Phase 2:* Fully remove old APIs
 
-In the next major release, N+1.0.0, we will:
+In the next major relase, N+1.0.0, we will:
 
 - remove the `GetSessionEvents` and `GetSessionChunk` from the gRPC API client
 - remove `EventFields` from the `lib/events` package. This was the legacy way
@@ -221,7 +221,7 @@ In the next major release, N+1.0.0, we will:
 
 ### Security
 
-There are no *new* security implications to consider here, since the streaming
+There are no *new* security impliciations to consider here, since the streaming
 APIs already exist and are already protected by Teleport's RBAC system.
 
 ### UX
@@ -229,7 +229,7 @@ APIs already exist and are already protected by Teleport's RBAC system.
 From a user experience perspective, implementing this RFD will:
 
 - reduce the initial latency when starting to play a recorded sessions
-  (this will be more noticeable with larger sessions than smaller sessions)
+  (this will be more noticable with larger sessions than smaller sessions)
 - improve the experience of playing back sessions on resource constrained
   systems with smaller amounts of memory
 - *increase* the latency of "rewind" operations, since the session stream

@@ -1,24 +1,24 @@
 ---
 title: "Introduction to Teleport Team"
-description: "Teleport Team makes it easy for small organizations set up secure role-based access control for their infrastructure."
+description: "Teleport Team makes it quick and easy for small organizations set up secure RBAC for their infrastructure."
 tocDepth: 3
 ---
 
-Teleport Team helps small organizations provide secure access to their infrastructure, with 
-minimal configuration and cluster management. 
+Teleport Team helps small organizations get started quickly enabling secure
+access to their infrastructure. 
 
-With Teleport Team, the Teleport Auth Service and Teleport Proxy Service are managed for you as cloud-based services. 
-These services provide you with immediate access to a scalable and fault tolerant certificate authority and reverse 
-proxy that you don't need to manage or maintain. You can focus on enrolling the resources you want to protect and 
-configuring secure role-based access for private and public networks across the globe.
+With Teleport Team, the Auth Service and Proxy Service are fully managed, giving
+you a scalable, fault tolerant certificate authority and reverse proxy that you
+can use to configure access from users across the globe to your infrastructure,
+including private networks.
 
-After you start a [free trial](https://goteleport.com/signup) of Teleport Team,
-you can set up role-based access control (RBAC), enable single sign-on with GitHub 
-or the Teleport identity provider, and prevent unauthorized use of organization resources.
+After starting a [free trial](https://goteleport.com/signup) of Teleport Team,
+you can set up RBAC, enable single sign-on with GitHub or Teleport's own
+identity provider, and start protecting resources with Teleport.
 
 ```mermaid
 flowchart LR
-subgraph team["Teleport Team cluster"]
+subgraph team["Teleport Team tenant"]
   direction LR
   proxy["Teleport Proxy Service"]
   auth["Teleport Auth Service"]
@@ -39,227 +39,203 @@ web & tsh--Client traffic-->proxy
 <Notice type="tip">
 
 For a detailed comparison of Teleport's editions, including how Teleport Team
-compares to Teleport Enterprise Cloud and Teleport Enterprise, see 
-[Choose an Edition](introduction.mdx).
+compares to Teleport Team, see the [Choose an Edition](introduction.mdx) guide.
 
 </Notice>
 
-This guide explains how to register a local server with a Teleport Team account. 
-After you register the server, you can access it through the Teleport Web UI in a browser or using the terminal. 
-You can also record your sessions, so you can review them later.
+## Get started with Teleport Team
 
-## Prerequisites
+This guide walks you through the process of registering a local server with a
+Teleport Team account. You can then access the server through the browser and
+the terminal, and record your session so you can review it later.
 
-- A Teleport Team account. You can sign up for a free trial at the following page:
+### Prerequisites
+
+- A Teleport Team account. You can sign up for a free trial at the following
+  page:
 
   https://goteleport.com/signup/
 
-  After you sign up, you receive an email invitation to activate your account.
-  Use this account to authenticate your identity when you access the Teleport
-  Team cluster.
+- Docker installed on your workstation. We will use a Docker container to
+  register a server with Teleport via the Teleport SSH Service. You can find
+  installation instructions on [Docker's
+  website](https://docs.docker.com/get-docker/).
 
-- Docker installed on your workstation. 
+  <Notice type="tip">
 
-  This guide illustrates how to register a server with Teleport Team using a Docker 
-  container and the Teleport SSH Service. 
-  Docker is only required for the local demo environment used in this guide. 
-  You can find installation instructions for Docker on [Docker's website](https://docs.docker.com/get-docker/). 
-  If you want to register servers in Teleport Team without using Docker, see the getting started guide for
-  [server access](../server-access/getting-started.mdx).
+  Docker is only required for the local demo environment we use in this guide.
+  If you want to get started registering your servers in your infrastructure
+  with Teleport, view our documentation on how to [register servers and
+  configure access to them](../server-access/introduction.mdx).
 
-- The `tsh` client tool. 
-  
-  The `tsh` client tool is only required to access the server from a terminal. 
-  For installation instructions, see [Installation Guide](../installation.mdx). 
-  If you don't install the `tsh` client tool, you can access the server in 
-  Teleport Team using the Web UI through your browser.
+  </Notice>
 
-## Step 1/5. Spin up a server
+- The `tsh` client tool. Visit our [Installation Guide](../installation.mdx)
+  for instructions. If you want to get started quickly, you can skip this for
+  now and access Teleport through your browser.
 
-To spin up a new server using Docker:
+### Step 1/4. Spin up your server
 
-1. Open a terminal shell on your workstation.
+Start a Docker container on your workstation to register as a server in your
+Teleport Team tenant:
 
-1. Start a Docker container on your workstation to prepare a server that you want enroll 
-as a resource in your Teleport Team cluster:
-   
-   ```code
-   $ docker run --interactive --tty ubuntu:22.10 /bin/bash
-   ```
-   
-   This command starts a new shell session in the `ubuntu:22.10` container. 
+```code
+$ docker run -it ubuntu:22.10 /bin/bash
+```
 
-1. Run the following command to install `curl` and `telnet` from the package management repository:
-   
-   ```code
-   $ apt update && apt install -y curl telnet
-   ```
-   
-   The script that installs Teleport in this guide requires both `curl` and `telnet` to be installed.
-   
-   Keep the new shell open in your terminal.
+Your terminal will begin a shell session in the `ubuntu:22.10` container. From
+there, make sure you have `curl` and `telnet` installed. When we run a script to
+install Teleport later in this guide, the script will require both of these
+tools:
 
-## Step 2/5. Install the Teleport SSH Service
+```code
+$ apt update && apt install -y curl telnet
+```
 
-To install the Teleport SSH Service on your server:
+Keep this shell open in your terminal.
 
-1. Open a browser and go to the address for your Teleport Team cluster. For example, if your 
-Teleport Team account is `mytenant`, open `https://mytenant.teleport.sh`.
+### Step 2/4. Install the Teleport SSH Service
 
-1. Sign in with the account credentials you used to activate your Teleport Team account.
-   
-   The first time you sign in, you are prompted to add your first resource: 
-   
-   ![Add your first resource](../../img/cloud/getting-started/add-my-first-resource@2x.png)
+To install the Teleport SSH Service on your server, visit the Teleport Web UI at
+the address of your Teleport Team tenant, <Var name="tenant-url"/>`.teleport.sh`
+(e.g., `mytenant.teleport.sh`). 
 
-1. Click **Add my first resource** to open **Enroll New Resource**. 
+If this is your first time visiting the Web UI, you will see a prompt to add
+your first resource: 
 
-1. Type *server* in the search box to filter the list of resources.
-   
-   ![Select resource type](../../img/cloud/getting-started/choose-resource@2x.png)
+![Add your first
+resource](../../img/cloud/getting-started/add-my-first-resource@2x.png)
 
-1. Click *Ubuntu 14.04+* to register the server in the Docker container.
-   
-   After you select *Ubuntu 14.04+* as the resource type, the script to install and 
-   configure the Teleport service is displayed. For example:
-   
-   ![Configure resource](../../img/cloud/getting-started/paste-script@2x.png)
-   
-   The Teleport installation script uses `sudo`, which is not installed on your 
-   Docker container. Before copying the command to run the installation script, you 
-   need to alias `sudo` in the container terminal shell session.
+Clicking **Add my first resource** will take you to the **Enroll New Resource**
+view. Enter "server" in the search box as shown below:
 
-1. In the terminal with the container shell session, alias `sudo` by running 
-the following command:
-   
-   ```code
-   $ alias sudo=""
-   ```
+![Select resource
+type](../../img/cloud/getting-started/choose-resource@2x.png)
 
-1. Copy the command to run the installation script from the Teleport Web UI and paste it 
-into the container shell session.
-   
-   Leave the script running in the shell. After Teleport is installed on the server, 
-   you'll see a message in the Web UI that your new Teleport instance was successfully detected:
-   
-   ![Connected successfully](../../img/cloud/getting-started/successfully-connected@2x.png)
-   
-   To continue, click **Next**.
+Select "Ubuntu 14.04+" so you can register your Docker container.
 
-1. Confirm that you want to authenticate as the `root` user and click **Next**:
-   
-   ![Choose your user](../../img/cloud/getting-started/set-up-access@2x.png)
+After selecting an OS, you will see a script that you can copy from the Teleport
+Web UI:
 
-1. Click **Test Connection** to verify access to the server.
-   
-   ![Start session](../../img/cloud/getting-started/test-connection@2x.png)
+![Configure resource](../../img/cloud/getting-started/paste-script@2x.png)
 
-## Step 3/5. Start a session
+The Teleport installation script uses `sudo`, which is not installed on your
+Docker container. Alias `sudo` in your container terminal to override this:
 
-To start a session on the server you just added to Teleport Team:
+```code
+$ alias sudo=""
+```
 
-1. Click **Start Session** to start an interactive session.
-   
-   You should see a terminal prompt in a new browser window. Your Teleport Team 
-   account routes your SSH connection through the Teleport Proxy Service, which
-   connects to your container through a reverse tunnel. 
-   Reverse tunnels allow Teleport to manage access to resources like Kubernetes 
-   clusters and remote desktops, even if these resources are running on private networks.
-      
-   If you get an error connecting to your container, interrupt the `teleport` process in 
-   the container shell with **Ctrl-C**, then run `teleport start` to restart the process.
-       
-1. Execute some commands in your terminal. 
+Copy the script and paste it into the shell you opened earlier on your Docker
+container.
 
-1. Enter the `exit` command to end the remote interactive session and close the browser tab.
+Leave the script running in your shell. Teleport will run in the foreground. You
+will see a message in the Web UI that your new server connected successfully:
 
-1. In the last step of **Enroll New Resource**, click **Finish**.
+![Connected
+successfully](../../img/cloud/getting-started/successfully-connected@2x.png)
 
-1. Click **Browse existing resources** to see your new server listed in the Teleport Web UI.
+Click **Next**.
 
-## Step 4/5. Play back your session
+Confirm that you will authenticate as the `root` user and click **Next**:
+
+![Choose your user](../../img/cloud/getting-started/set-up-access@2x.png)
+
+From there, you can test the connection and access the server. Click **Start
+Session** to connect:
+
+![Start session](../../img/cloud/getting-started/test-connection@2x.png)
+
+<Notice type="tip">
+
+If you get an error connecting to your container, interrupt the `teleport`
+process in your container's shell with **Ctrl-C**, then run `teleport start` to
+restart the process.
+
+</Notice>
+
+You should see a terminal prompt in a new browser window. Your Teleport Team
+account routes your SSH connection through the Teleport Proxy Service, which
+connects to your container via a reverse tunnel. 
+
+Reverse tunnels like this allow Teleport to manage access to resources like
+Kubernetes clusters and remote desktops, even if these resources are running on
+private networks.
+
+Execute some commands in your terminal. When you have finished, run `exit` to
+end your session.
+
+Return to your original browser window. In the **Manage Access** view, click
+**Finish**, then **Browse existing resources** to visit the main view of the
+Teleport Web UI.
+
+### Step 3/4. Play back your session
 
 As Teleport Team proxies SSH connections to registered servers, it records the
 commands that users execute during their sessions so operators can play them
 back later to investigate issues.
 
-To play back a session in the Teleport Web UI:
+In the Teleport Web UI, set the dropdown menu on the upper left of the screen to
+**Management**, then click **Session Recordings**. You will see your session
+from the previous step:
 
-1. Set the dropdown menu on the upper left of the screen to **Management**.
+![Session
+recordings](../../img/cloud/getting-started/session-recordings@2x.png)
 
-1. Under Activity, click **Session Recordings**.
-   
-   You will see the recording for your interactive session from the previous step listed.
-   For example:
-   
-   ![Session recordings](../../img/cloud/getting-started/session-recordings@2x.png)
+Click **PLAY**. You will see a full recording of your session.
 
-1. Click **Play** to see a full recording of your session.
+### Step 4/4. Access your server from the command line
 
-## Step 5/5. Access the server from the command line
+Open a new terminal window and log in to your Teleport Team tenant
+via the command line, filling in the URL of your tenant and the name of your
+Teleport user:
 
-To access the server using commands in a terminal:
+```code
+$ tsh login --proxy=<Var name="tenant-url" />.teleport.sh --user=<Var name="username" />
+```
 
-1. Open a new terminal window.
+List the servers your Teleport user can access. You should see the name of the
+container you just registered:
 
-1. Sign in to your Teleport Team cluster by running the `tsh login` command  with the URL 
-of your cluster and the name of your Teleport user:
-   
-   ```code
-   $ tsh login --proxy=<Var name="mytenant" />.teleport.sh --user=<Var name="username" />
-   ```
-   
-   When prompted, authenticate using your password, authenticator app, or hardware key.
-   The command displays information about your Teleport Team cluster and account. For example:
-   
-   ```code
-   > Profile URL:      https://mytenant.teleport.sh:443
-     Logged in as:       admin@teleport.example.com
-     Cluster:            mytenant.teleport.sh
-     Roles:              access, auditor, editor
-     Logins:             root
-     Kubernetes:         enabled
-     Valid until:        2023-07-08 01:35:20 -0700 PDT [valid for 12h0m0s]
-     Extensions:         login-ip, permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
-   ```
+```code
+$ tsh ls
+Node Name    Address    Labels
+------------ ---------- ----------------------------------------------------------------------------------------
+000000000000 ⟵ Tunnel   hostname=000000000000,teleport.internal/resource-id=000000000000
+```
 
-1. List the servers your Teleport user can access. 
-   
-   ```code
-   $ tsh ls
-   ```
+Access your server as the `root` user:
 
-   You should see the name of the container you just registered. For example:
-    
-   ```code
-   Node Name    Address    Labels
-   ------------ ---------- ----------------------------------------------------------------------------------------
-   <Var name="node-name" /> ⟵ Tunnel   hostname=<Var name="node-name" />,teleport.internal/resource-id=000000000000
-   ```
-
-1. Access your server as the `root` user:
-
-   ```code
-   $ tsh ssh root@<Var name="node-name" />
-   ```
+```code
+$ tsh ssh root@<Var name="node-name" />
+```
 
 ## Next steps
 
-This guide introduced how you can use Teleport Team to protect your
-infrastructure by demonstrating how to register a server with your Teleport Team 
-cluster. 
+We have shown you how to use Teleport Team to quickly protect your
+infrastructure by registering a server with your Teleport Team cluster. From
+here, you can explore more of the documentation to see how to set up secure
+access for your infrastructure.
 
-You can provide secure access to more of your infrastructure through 
-Teleport Team by deploying one or more Teleport **agents** and configuring
-role-based access control for users. Agents proxy traffic to all of 
-your infrastructure resources—including servers, databases, Kubernetes
-clusters, cloud provider APIs, and Windows desktops. Role-based access control
-ensures that only authorized users are allowed access to those resources.
+### Register resources
 
-To learn more information about deploying agents, see [Deploy Teleport Agents 
-with Terraform](../agents/deploy-agents-terraform.mdx).
+Read about how you can register resources in your infrastructure, including:
 
-You can deploy a limited number of agents and protect a limited number of resources
-during the free trial. After you finish the free trial, charges for Teleport Team 
-are based on the number of active users, protected resources, and authorizations performed. 
-Check the [pricing page](https://goteleport.com/pricing/) for detailed billing information.
+  - [Additional SSH servers](../server-access/introduction.mdx)
+  - [Cloud provider tools and internal web applications](../application-access/introduction.mdx)
+  - [Databases](../database-access/introduction.mdx)
+  - [Kubernetes clusters](../kubernetes-access/introduction.mdx)
+  - [Service accounts](../machine-id/introduction.mdx)
+  - [Windows desktops](../desktop-access/introduction.mdx)
+
+### Connect to your infrastructure
+
+Aside from `tsh` and the Web UI, you can also connect to Teleport with our
+desktop application, [Teleport
+Connect](../connect-your-client/teleport-connect.mdx).
+
+### Subscribe
+
+After you finish your free trial, Teleport Team will charge based on usage.
+Check the [pricing page](https://goteleport.com/teleport-pricing/) for detailed
+billing information.

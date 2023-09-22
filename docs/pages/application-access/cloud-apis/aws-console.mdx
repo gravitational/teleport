@@ -25,7 +25,8 @@ This guide will explain how to:
   must be running a Linux distribution.
 - IAM permissions in the AWS account you want to connect.
 - `aws` command line interface (CLI) tool in PATH. [Installing or updating the
-  latest version of the AWS](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
+  latest version of the AWS CLI
+  ](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
 
 <Admonition type="note">
 If using Teleport deployed in AWS EKS, you cannot use Helm chart
@@ -202,6 +203,9 @@ and port of your Teleport Proxy Service or Teleport Cloud tenant, e.g.,
 
 The `app_service` field configures the Teleport Application Service. Each item
 within `app_service.apps` is an application configuration. 
+
+
+
 
 Note that the URI must start with one of the following values in order to be
 recognized as an AWS console:

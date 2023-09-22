@@ -72,11 +72,6 @@ const (
 	RoleDiscovery SystemRole = "Discovery"
 	// RoleOkta is a role for Okta nodes in the cluster
 	RoleOkta SystemRole = "Okta"
-	// RoleMDM is the role for MDM services in the cluster.
-	// An MDM service, like Jamf Service, has the powers to manage the cluster's
-	// device inventory.
-	// Device Trust requires Teleport Enteprise.
-	RoleMDM SystemRole = "MDM"
 )
 
 // roleMappings maps a set of allowed lowercase system role names
@@ -102,7 +97,6 @@ var roleMappings = map[string]SystemRole{
 	"instance":        RoleInstance,
 	"discovery":       RoleDiscovery,
 	"okta":            RoleOkta,
-	"mdm":             RoleMDM,
 }
 
 // localServiceMappings is the subset of role mappings which happen to be true
@@ -118,14 +112,6 @@ var localServiceMappings = map[SystemRole]struct{}{
 	RoleWindowsDesktop: {},
 	RoleDiscovery:      {},
 	RoleOkta:           {},
-	RoleMDM:            {},
-}
-
-// controlPlaneMapping is the subset of local services which are definitively control plane
-// elements.
-var controlPlaneMapping = map[SystemRole]struct{}{
-	RoleAuth:  {},
-	RoleProxy: {},
 }
 
 // LocalServiceMappings returns the subset of role mappings which happen
@@ -283,11 +269,5 @@ func (r *SystemRole) Check() error {
 // as remoteproxy.
 func (r *SystemRole) IsLocalService() bool {
 	_, ok := localServiceMappings[*r]
-	return ok
-}
-
-// IsControlPlane checks if the given system role is a control plane element (i.e. auth/proxy).
-func (r *SystemRole) IsControlPlane() bool {
-	_, ok := controlPlaneMapping[*r]
 	return ok
 }

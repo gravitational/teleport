@@ -40,7 +40,7 @@ Personal Identity Verification (PIV), described in [FIPS-201](https://csrc.nist.
 PIV builds upon the PKCS#11 interface and provides us with additional capabilities including:
 
 * Optional PIN and Touch requirements for accessing keys
-* PIV secrets for granular [administrative access](https://developers.yubico.com/PIV/Introduction/Admin_access.html)
+* PIV secrets for granular [adminstrative access](https://developers.yubico.com/PIV/Introduction/Admin_access.html)
 * [Attestation](https://docs.yubico.com/yesdk/users-manual/application-piv/attestation.html) of private key slots
 
 ##### Attestation
@@ -55,12 +55,12 @@ For example, Yubico created their own [PIV attestation extension](https://develo
 
 We will use the [go-piv](https://github.com/go-piv/piv-go) library, which is a Golang port of Yubikey's C library [ykpiv](https://github.com/Yubico/yubico-piv-tool/blob/master/lib/ykpiv.c). This is the same library used by [yubikey-agent](https://github.com/FiloSottile/yubikey-agent).
 
-Currently, Yubikey is one of the only PIV-compatible commercial hardware keys. As a result, current PIV implementations like piv-go are specifically designed around Yubikey's implementation of PIV - the `libykcs11.so` module. While the majority of PIV is standardized, the Yubikey PIV implementation has [some extensions](https://developers.yubico.com/PIV/Introduction/Yubico_extensions.html) and other idiosyncracies which may not be standard across future PIV implementations.
+Currently, Yubikey is one of the only PIV-compatible commercial hardware keys. As a result, current PIV implementations like piv-go are specifically designed around Yubikey's implementation of PIV - the `libykcs11.so` module. While the majority of PIV is standardized, the Yubikey PIV implementation has [some extensions](https://developers.yubico.com/PIV/Introduction/Yubico_extensions.html) and other idiosyncracies which may not be standard across future PIV implemenations.
 
-There is no common PIV library, so our best option is to use `piv-go` for a streamlined implementation and prepare to adjust in the future as more PIV-compatible hardware keys are released. Possible adjustments include:
+There is no common PIV library, so our best option is to use `piv-go` for a streamlined implemenation and prepare to adjust in the future as more PIV-compatible hardware keys are released. Possible adjustments include:
 
 * using multiple PIV libraries to support custom PIV implementations
-* switching to a PIV library which expressly supports all/more PIV implementations
+* switching to a PIV library which expressly supports all/more PIV implemenations
 * working within a PIV library, through PRs or a Fork, to expand PIV support
 * creating our own custom PIV library which we can add custom support into as needed
 
@@ -287,9 +287,9 @@ Teleport clients should be able to automatically determine if a user requires a 
 
 First, the client will ping the Teleport Auth server to get the cluster-wide private key policy if set. Second, the client will check for an existing key in the user's key store (`~/.tsh`), and check its associated private key policy. Between the two private key policies retrieved, the stricter one will be used for initial login. This guessing logic will capture all cases except for the case where a user's role private key policy is stricter than the cluster-wide policy, and do not have an active/expired login session stored in `~/.tsh`.
 
-If the private key policy was incorrect and a stricter requirement is needed, then the server will respond with a `private key policy not met: <private-key-policy>` error. The client will parse this error and resort to re-authenticating with the correct private key policy, meaning that the user will be re-prompted for their login credentials.
+If the private key policy was incorrect and a stricter requirement is neeeded, then the server will respond with a `private key policy not met: <private-key-policy>` error. The client will parse this error and resort to re-authenticating with the correct private key policy, meaning that the user will be re-prompted for their login credentials.
 
-If a user's private key policy requirement is increased during an active login, the server will respond to any requests from the user with a `private key policy not met: <private-key-policy>` error. The Teleport client can capture this error and initiate re-login with the correct key policy.
+If a user's private key policy requirement is increased during an active login, the server will respond to any requests from the user with a `private key policy not met: <private-key-policy>` error. The Teleport client can capture this error and intiate re-login with the correct key policy.
 
 #### Hardware private key login
 
@@ -345,7 +345,7 @@ slot=<slot>
 
 #### Unsupported clients
 
-The WebUI will not be able to support PIV login, since it is browser-based and cannot connect directly to the user's PIV device. If a user with `require_session_mfa: hardware_key` attempts to login on the WebUI, or use an existing login session, it will fail. However, WebUI user registration and password reset logic must still work, regardless of the user's private key policy requirement. After initial registration/reset flow, the user should be directed to a page which notifies them that `tsh` or Teleport Connect must be used.
+The WebUI will not be able to support PIV login, since it is brower-based and cannot connect directly to the user's PIV device. If a user with `require_session_mfa: hardware_key` attempts to login on the WebUI, or use an existing login session, it will fail. However, WebUI user registration and password reset logic must still work, regardless of the user's private key policy requirement. After initial registration/reset flow, the user should be directed to a page which notifies them that `tsh` or Teleport Connect must be used.
 
 It may be possible to work around this limitation by introducing a local proxy to connect to the hardware key, or by supporting a hardware key solution which doesn't need a direct connection, but this is out of scope and will not be explored in this PR.
 
@@ -422,7 +422,7 @@ For Yubikey, users can also [manually add their keys](https://github.com/jamesog
 
 #### PIV secret management
 
-Some PIV operations require [administrative access](https://developers.yubico.com/PIV/Introduction/Admin_access.html), which require one or more of the following secrets:
+Some PIV operations require [adminstrative access](https://developers.yubico.com/PIV/Introduction/Admin_access.html), which require one or more of the following secrets:
 
 | Name           | size     | default value                                      | function                                  |
 |----------------|----------|----------------------------------------------------|-------------------------------------------|

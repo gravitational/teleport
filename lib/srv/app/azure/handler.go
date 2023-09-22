@@ -26,6 +26,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/gravitational/oxy/forward"
+	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -34,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -45,7 +46,7 @@ type HandlerConfig struct {
 	// RoundTripper is the underlying transport given to an oxy Forwarder.
 	RoundTripper http.RoundTripper
 	// Log is the Logger.
-	Log utils.FieldLoggerWithWriter
+	Log logrus.FieldLogger
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 
@@ -81,7 +82,7 @@ type handler struct {
 	HandlerConfig
 
 	// fwd is used to forward requests to Azure API after the handler has rewritten them.
-	fwd *reverseproxy.Forwarder
+	fwd *forward.Forwarder
 
 	// tokenCache caches access tokens.
 	tokenCache *utils.FnCache
@@ -112,13 +113,18 @@ func newAzureHandler(ctx context.Context, config HandlerConfig) (*handler, error
 		tokenCache:    tokenCache,
 	}
 
-	svc.fwd, err = reverseproxy.New(
-		reverseproxy.WithRoundTripper(config.RoundTripper),
-		reverseproxy.WithLogger(config.Log),
-		reverseproxy.WithErrorHandler(svc.formatForwardResponseError),
+	fwd, err := forward.New(
+		forward.RoundTripper(config.RoundTripper),
+		forward.ErrorHandler(oxyutils.ErrorHandlerFunc(svc.formatForwardResponseError)),
+		// Explicitly passing false here to be clear that we always want the host
+		// header to be the same as the outbound request's URL host.
+		forward.PassHostHeader(false),
 	)
-
-	return svc, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	svc.fwd = fwd
+	return svc, nil
 }
 
 // RoundTrip handles incoming requests and forwards them to the proper API.
@@ -203,6 +209,7 @@ func getPeerKey(certs []*x509.Certificate) (crypto.PublicKey, error) {
 	}
 
 	return pk, nil
+
 }
 
 func (s *handler) replaceAuthHeaders(r *http.Request, sessionCtx *common.SessionContext, reqCopy *http.Request) error {

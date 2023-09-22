@@ -224,10 +224,8 @@ func (u *UIDiscoverDeployServiceEvent) Anonymize(a utils.Anonymizer) prehogv1a.S
 					Id:       u.Metadata.Id,
 					UserName: a.AnonymizeString(u.Metadata.UserName),
 				},
-				Resource:     u.Resource,
-				Status:       u.Status,
-				DeployMethod: u.DeployMethod,
-				DeployType:   u.DeployType,
+				Resource: u.Resource,
+				Status:   u.Status,
 			},
 		},
 	}

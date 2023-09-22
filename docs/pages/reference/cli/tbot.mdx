@@ -35,9 +35,8 @@ Starts the Machine ID client `tbot`, fetching and writing certificates to disk a
 | `--destination-dir`  | Directory to write short-lived machine certificates.                                           |
 | `--certificate-ttl`  | TTL of short-lived machine certificates.                                                       |
 | `--renewal-interval` | Interval at which short-lived certificates are renewed; must be less than the certificate TTL. |
-| `--join-method`      | Method to use to join the cluster. Can be `token`, `azure`, `circleci`, `gcp`, `github`, `gitlab` or `iam`. |
+| `--join-method`      | Method to use to join the cluster. Can be `token` or `iam`.                                    |
 | `--oneshot`          | If set, quit after the first renewal.                                                          |
-| `--log-format`       | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.               |
 
 ### Examples
 <Tabs>
@@ -86,7 +85,6 @@ configuring either file or POSIX ACL permissions.
 | `--reader-user`     | Enables POSIX ACLs and defines the Linux user that will read short-lived certificates from `--destination-dir`.    |
 | `--init-dir`        | If using a config file and multiple destinations are configured, controls which destination dir to configure.      |
 | `--clean`           | If set, remove unexpected files and directories from the destination.                                              |
-| `--log-format`      | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.                                   |
 
 ### Examples
 

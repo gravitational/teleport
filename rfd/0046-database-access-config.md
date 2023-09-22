@@ -266,7 +266,7 @@ AWS
 
 Confirm actions? [y/N] y
 ✅[AWS] Creating IAM Policy "DatabaseAccess"... done.
-✅[AWS] Creating IAM policy boundary "DatabaseAccessBoundary"... done.
+✅[AWS] Creating IAM policy boundary "DatabaseAcessBoundary"... done.
 ✅[AWS] Attaching IAM policy and boundary to IAM user "SampleUser"... done.
 ```
 
@@ -286,7 +286,7 @@ AWS
 3. Attach policy and boundary to "SampleUser".
 
 ✅[AWS] Creating IAM Policy "DatabaseAccess"... done.
-✅[AWS] Creating IAM policy boundary "DatabaseAccessBoundary"... done.
+✅[AWS] Creating IAM policy boundary "DatabaseAcessBoundary"... done.
 ✅[AWS] Attaching IAM policy and boundary to IAM user "SampleUser"... done.
 ```
 
@@ -338,7 +338,7 @@ AWS
 
 Confirm actions? [y/N] y
 ✅[AWS] Creating IAM Policy "DatabaseAccess"... done.
-✅[AWS] Creating IAM policy boundary "DatabaseAccessBoundary"... done.
+✅[AWS] Creating IAM policy boundary "DatabaseAcessBoundary"... done.
 ❌[AWS] Attaching IAM policy and boundary to IAM user "SampleUser"... failed.
 Failure reason: unable to find user "SampleUser".
 ```

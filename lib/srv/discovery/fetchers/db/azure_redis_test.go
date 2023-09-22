@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // TestAzureRedisFetchers tests Azure Redis and Azure Redis Enterprise fetchers
@@ -46,7 +45,7 @@ func TestAzureRedisFetchers(t *testing.T) {
 	azRedisServer, azRedisDB := makeAzureRedisServer(t, "redis", "sub", "group", "East US", map[string]string{"env": "prod"})
 	azRedisEnterpriseCluster, azRedisEnterpriseDatabase, azRedisEnterpriseDB := makeAzureRedisEnterpriseCluster(t, "redis-enterprise", "sub", "group", "eastus", map[string]string{"env": "prod"})
 
-	azureMatchers := []types.AzureMatcher{{
+	azureMatchers := []services.AzureMatcher{{
 		Types:        []string{services.AzureMatcherRedis},
 		ResourceTags: types.Labels{"env": []string{"prod"}},
 		Regions:      []string{"eastus"},
@@ -88,7 +87,6 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 
 	database, err := services.NewDatabaseFromAzureRedis(resourceInfo)
 	require.NoError(t, err)
-	common.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherRedis)
 	return resourceInfo, database
 }
 
@@ -115,6 +113,5 @@ func makeAzureRedisEnterpriseCluster(t *testing.T, cluster, subscription, group,
 
 	database, err := services.NewDatabaseFromAzureRedisEnterprise(armCluster, armDatabase)
 	require.NoError(t, err)
-	common.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherRedis)
 	return armCluster, armDatabase, database
 }

@@ -256,21 +256,15 @@ func (f PNG2Frame) Encode() ([]byte, error) {
 	// Encode gets called on the reusable buffer at
 	// lib/srv/desktop/rdp/rdclient.Client.png2FrameBuffer,
 	// which was causing us recording problems due to the async
-	// nature of SessionWriter. Copying into a new buffer here is
+	// nature of AuditWriter. Copying into a new buffer here is
 	// a temporary hack that fixes that.
 	//
-	// TODO(isaiah, zmb3): remove this once a buffer pool
+	// TODO(isaiah, zmb3, LKozlowski): remove this once a buffer pool
 	// is added.
 	b := make([]byte, len(f))
 	copy(b, f)
 	return b, nil
 }
-
-func (f PNG2Frame) Left() uint32   { return binary.BigEndian.Uint32(f[5:9]) }
-func (f PNG2Frame) Top() uint32    { return binary.BigEndian.Uint32(f[9:13]) }
-func (f PNG2Frame) Right() uint32  { return binary.BigEndian.Uint32(f[13:17]) }
-func (f PNG2Frame) Bottom() uint32 { return binary.BigEndian.Uint32(f[17:21]) }
-func (f PNG2Frame) Data() []byte   { return f[21:] }
 
 // MouseMove is the mouse movement message.
 // | message type (3) | x uint32 | y uint32 |
@@ -910,6 +904,7 @@ func decodeSharedDirectoryCreateRequest(in io.Reader) (SharedDirectoryCreateRequ
 		FileType:     fileType,
 		Path:         path,
 	}, nil
+
 }
 
 // SharedDirectoryCreateResponseis sent by the TDP client to the server with information from an executed SharedDirectoryCreateRequest.
@@ -1310,6 +1305,7 @@ func decodeSharedDirectoryWriteRequest(in byteReader, maxLen uint32) (SharedDire
 		WriteDataLength: writeDataLength,
 		WriteData:       writeData,
 	}, nil
+
 }
 
 // SharedDirectoryWriteResponse is a message sent by the TDP client to the server
@@ -1459,19 +1455,17 @@ func writeUint64(b *bytes.Buffer, v uint64) {
 	b.WriteByte(byte(v))
 }
 
-const (
-	// tdpMaxNotificationMessageLength is somewhat arbitrary, as it is only sent *to*
-	// the browser (Teleport never receives this message, so won't be decoding it)
-	tdpMaxNotificationMessageLength = 10240
+// tdpMaxNotificationMessageLength is somewhat arbitrary, as it is only sent *to*
+// the browser (Teleport never receives this message, so won't be decoding it)
+const tdpMaxNotificationMessageLength = 10240
 
-	// tdpMaxPathLength is somewhat arbitrary because we weren't able to determine
-	// a precise value to set it to: https://github.com/gravitational/teleport/issues/14950#issuecomment-1341632465
-	// The limit is kept as an additional defense-in-depth measure.
-	tdpMaxPathLength = 10240
+// tdpMaxPathLength is somewhat arbitrary because we weren't able to determine
+// a precise value to set it to: https://github.com/gravitational/teleport/issues/14950#issuecomment-1341632465
+// The limit is kept as an additional defense-in-depth measure.
+const tdpMaxPathLength = 10240
 
-	maxClipboardDataLength    = 1024 * 1024 // 1MB
-	tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
-)
+const maxClipboardDataLength = 1024 * 1024    // 1MB
+const tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
 
 // maxPNGFrameDataLength is maximum data length for PNG2Frame
 const maxPNGFrameDataLength = 10 * 1024 * 1024 // 10MB

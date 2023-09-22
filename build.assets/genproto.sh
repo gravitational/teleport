@@ -46,8 +46,7 @@ main() {
     --path=api/proto/teleport/legacy/ \
     --path=api/proto/teleport/attestation/ \
     --path=api/proto/teleport/usageevents/ \
-    --path=proto/teleport/lib/web/envelope.proto \
-    --exclude-path=api/proto/teleport/legacy/client/proto/event.proto
+    --path=proto/teleport/lib/web/envelope.proto
   cp -r gogogen/github.com/gravitational/teleport/. .
   # error out if there's anything outside of github.com/gravitational/teleport
   rm -fr gogogen/github.com/gravitational/teleport
@@ -60,11 +59,6 @@ main() {
     --exclude-path=api/proto/teleport/usageevents/ \
     --exclude-path=proto/teleport/lib/web/envelope.proto \
     --exclude-path=proto/prehog/
-
-  # Generate event.proto separately because we only want to run it on this
-  # one particular file in legacy.
-  echoed buf generate --template=buf-go.gen.yaml \
-    --path=api/proto/teleport/legacy/client/proto/event.proto
 
   # Generate connect-go protos.
   echoed buf generate --template=buf-connect-go.gen.yaml \

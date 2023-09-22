@@ -1,9 +1,3 @@
-###################################################################################
-#                                                                                 #
-#      DO NOT USE FOR PRODUCTION BUILD OR ANYTHING OTHER THAN CI TESTING!         #
-#                                                                                 #
-###################################################################################
-
 # This Dockerfile makes the "build box" the container used to:
 # * run test and linters in CI
 # * building other Docker images
@@ -16,7 +10,7 @@
 ## LIBFIDO2 ###################################################################
 
 # Build libfido2 separately for isolation, speed and flexibility.
-FROM buildpack-deps:22.04 AS libfido2
+FROM buildpack-deps:20.04 AS libfido2
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends cmake && \
@@ -24,9 +18,9 @@ RUN apt-get update && \
 
 # Install libudev-zero.
 # libudev-zero replaces systemd's libudev
-RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.3 && \
+RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
     cd libudev-zero && \
-    [ "$(git rev-parse HEAD)" = 'ee32ac5f6494047b9ece26e7a5920650cdf46655' ] && \
+    [ "$(git rev-parse HEAD)" = '4154cf252c17297f98a8ca33693ead003b4509da' ] && \
     make install-static && \
     make clean
 
@@ -48,15 +42,14 @@ RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.11
     cd openssl && \
     [ "$(git rev-parse HEAD)" = '6ba3884c3235e1bb474b379026087f8216afacf4' ] && \
     ./config --release --libdir=/usr/local/lib && \
-    make -j"$(nproc)" && \
+    make && \
     make install_sw
 
 # Install libfido2.
 # Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib1g-dev.
-# Keep the version below synced with devbox.json
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
     cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = '486a8f8667e42f55cee2bba301b41433cacec830' ] && \
+    [ "$(git rev-parse HEAD)" = '659a02679f99fd34a44e06e35dce90794f6ecc86' ] && \
     CFLAGS=-pthread cmake \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
@@ -69,7 +62,7 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
 
 ## LIBBPF #####################################################################
 
-FROM buildpack-deps:22.04 AS libbpf
+FROM buildpack-deps:20.04 AS libbpf
 
 # Install required dependencies
 RUN apt-get update -y --fix-missing && \
@@ -79,7 +72,7 @@ RUN apt-get update -y --fix-missing && \
 
 ARG LIBBPF_VERSION
 RUN mkdir -p /opt && cd /opt &&  \
-    curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    curl -Lf https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make &&  \
     BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install
@@ -101,7 +94,7 @@ RUN mkdir -p /opt && cd /opt &&  \
 # 4. Fast, language-dependent dependencies
 # 5. Multi-stage layer copies
 
-FROM ubuntu:22.04 AS buildbox
+FROM ubuntu:20.04 AS buildbox
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
@@ -117,7 +110,7 @@ ENV LANGUAGE="en_US.UTF-8" \
 ARG BUILDARCH
 
 # Install packages.
-# Latest git 2.18+ is required for GitHub actions.
+# Latest git 2.18+ is required for GitHub actions
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
 RUN apt-get -y update && \
     apt-get -y install software-properties-common && \
@@ -147,12 +140,13 @@ RUN apt-get -y update && \
         mingw-w64-x86-64-dev \
         net-tools \
         openssh-client \
+        osslsigncode \
         pkg-config \
         python3-pip \
         python3-setuptools \
         python3-wheel \
-        # rsync is required for some integration tests
-        rsync \
+        # Used during tag builds to build the RPM package of Connect.
+        rpm \
         softhsm2 \
         sudo \
         tree \
@@ -170,23 +164,10 @@ RUN apt-get -y update && \
     tee /etc/apt/sources.list.d/docker.list > /dev/null && \
     apt-get update && \
     apt-get install -y docker-ce-cli && \
-    if [ "$BUILDARCH" = "arm64" ]; then apt-get install -y binaryen; fi && \
     pip3 --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
-
-# Install osslsigncode for Windows Code Signing. The format of our
-# Code Signing Certificate needs us to use osslsigncode >= 2.6, which
-# allows the use of legacy OpenSSL algorithms. This is not yet provided
-# by Ubuntu, so we will have to fetch it ourselves.
-RUN --mount=type=bind,target=/context \
-    curl -L https://github.com/mtrojnar/osslsigncode/releases/download/2.6/osslsigncode-2.6-ubuntu-22.04.zip -o osslsigncode.zip \
-    && sha256sum --strict -c /context/download-hashes/osslsigncode.sha256 \
-    && unzip -d /tmp/osslsigncode osslsigncode.zip \
-    && install -m 0755 /tmp/osslsigncode/bin/osslsigncode /usr/bin \
-    && rm -rf /tmp/osslsigncode \
-    && rm osslsigncode.zip
 
 # Add the CI user.
 ARG UID
@@ -214,11 +195,6 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustc --version && \
     rustup component add rustfmt clippy && \
     if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
-
-ARG WASM_PACK_VERSION
-# Install wasm-pack for targeting WebAssembly from Rust.
-RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
-
 # Switch back to root for the remaining instructions and keep it as the default
 # user.
 USER root
@@ -263,7 +239,6 @@ RUN scversion='v0.9.0' && \
     shellcheck --version
 
 # Install helm.
-# Keep the version below synced with devbox.json
 RUN mkdir -p helm-tarball && \
     curl -fsSL https://get.helm.sh/helm-v3.12.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
@@ -287,8 +262,8 @@ ARG NODE_PROTOC_TS_VERSION  # eg, "5.0.1"
 RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
 
 # Install protoc.
-ARG PROTOC_VERSION # eg, "3.20.2"
-RUN VERSION="$PROTOC_VERSION" && \
+ARG PROTOC_VER # eg, "3.20.2"
+RUN VERSION="$PROTOC_VER" && \
   PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
   PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
   curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \
@@ -305,18 +280,17 @@ RUN go install github.com/google/addlicense@v1.0.0
 # Install GCI.
 RUN go install github.com/daixiang0/gci@v0.11.0
 
-# Install gotestsum.
-RUN go install gotest.tools/gotestsum@v1.10.1
-
 # Install golangci-lint.
-RUN VERSION='v1.54.2'; \
-    curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$VERSION/install.sh" | \
-    sh -s -- -b "$(go env GOPATH)/bin" "$VERSION"
+RUN TAG='v1.54.1' && \
+    curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$TAG/install.sh" | \
+    sh -s -- -b "$(go env GOPATH)/bin" "$TAG"
 
 # Install Buf.
-ARG BUF_VERSION # eg, "v1.26.1"
-RUN VERSION="$BUF_VERSION"; \
-    go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
+ARG BUF_VERSION # eg, "1.19.0"
+RUN BIN='/usr/local/bin' && \
+  VERSION="$BUF_VERSION" && \
+  curl -fsSL "https://github.com/bufbuild/buf/releases/download/v$VERSION/buf-$(uname -s)-$(uname -m)" -o "${BIN}/buf" && \
+  chmod +x "$BIN/buf"
 
 # Copy BPF libraries.
 ARG LIBBPF_VERSION
@@ -333,14 +307,14 @@ COPY --from=libfido2 \
     /usr/local/lib/libcrypto.a \
     /usr/local/lib/libcrypto.so.3 \
     /usr/local/lib/libfido2.a \
-    /usr/local/lib/libfido2.so.1.13.0 \
+    /usr/local/lib/libfido2.so.1.12.0 \
     /usr/local/lib/libssl.a \
     /usr/local/lib/libssl.so.3 \
     /usr/local/lib/libudev.a \
     /usr/local/lib/
 RUN cd /usr/local/lib && \
     ln -s libcrypto.so.3 libcrypto.so && \
-    ln -s libfido2.so.1.13.0 libfido2.so.1 && \
+    ln -s libfido2.so.1.12.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ln -s libssl.so.3 libssl.so && \
     ldconfig

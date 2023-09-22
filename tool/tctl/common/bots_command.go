@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -59,7 +59,7 @@ type BotsCommand struct {
 }
 
 // Initialize sets up the "tctl bots" command.
-func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *BotsCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	bots := app.Command("bots", "Operate on certificate renewal bots registered with the cluster.")
 
 	c.botsList = bots.Command("ls", "List all certificate renewal bots registered with the cluster.")
@@ -147,8 +147,8 @@ func bold(text string) string {
 
 var startMessageTemplate = template.Must(template.New("node").Funcs(template.FuncMap{
 	"bold": bold,
-}).Parse(`The bot token: {{.token}}{{if .minutes}}
-This token will expire in {{.minutes}} minutes.{{end}}
+}).Parse(`The bot token: {{.token}}
+This token will expire in {{.minutes}} minutes.
 
 Optionally, if running the bot under an isolated user account, first initialize
 the data directory by running the following command {{ bold "as root" }}:
@@ -224,8 +224,12 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	}
 
 	joinMethod := response.JoinMethod
-	if joinMethod == types.JoinMethodUnspecified {
-		joinMethod = types.JoinMethodToken
+	// omit join method output for the token method
+	switch joinMethod {
+	case types.JoinMethodUnspecified, types.JoinMethodToken:
+		// the template will omit an empty string
+		joinMethod = ""
+	default:
 	}
 
 	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{

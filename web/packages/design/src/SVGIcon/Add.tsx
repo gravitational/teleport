@@ -16,14 +16,18 @@ limitations under the License.
 
 import React from 'react';
 
-import { SVGIcon } from './SVGIcon';
-
 import type { SVGIconProps } from './common';
 
-export function AddIcon({ size = 10, fill }: SVGIconProps) {
+export function AddIcon({ size = 10, fill = 'white' }: SVGIconProps) {
   return (
-    <SVGIcon viewBox="0 0 10 10" size={size} fill={fill}>
+    <svg
+      viewBox="0 0 10 10"
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      fill={fill}
+    >
       <path d="M9.07388 5.574H5.57388V9.074H4.42529V5.574H0.925293V4.42542H4.42529V0.925415H5.57388V4.42542H9.07388V5.574Z" />
-    </SVGIcon>
+    </svg>
   );
 }

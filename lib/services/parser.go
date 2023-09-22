@@ -262,7 +262,7 @@ func (l *LogAction) Log(level, format string, args ...interface{}) predicate.Boo
 // Context is a default rule context used in teleport
 type Context struct {
 	// User is currently authenticated user
-	User UserState
+	User types.User
 	// Resource is an optional resource, in case if the rule
 	// checks access to the resource
 	Resource types.Resource
@@ -324,7 +324,7 @@ func (ctx *Context) GetResource() (types.Resource, error) {
 func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 	switch fields[0] {
 	case UserIdentifier:
-		var user UserState
+		var user types.User
 		if ctx.User == nil {
 			user = emptyUser
 		} else {
@@ -537,16 +537,6 @@ func (r *EmptyResource) SetResourceID(id int64) {
 	r.Metadata.ID = id
 }
 
-// GetRevision returns the revision
-func (r *EmptyResource) GetRevision() string {
-	return r.Metadata.GetRevision()
-}
-
-// SetRevision sets the revision
-func (r *EmptyResource) SetRevision(rev string) {
-	r.Metadata.SetRevision(rev)
-}
-
 // SetExpiry sets expiry time for the object.
 func (r *EmptyResource) SetExpiry(expires time.Time) {
 	r.Metadata.SetExpiry(expires)
@@ -751,22 +741,6 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 			return predicate.Equals(a, b)
 		}
 	}
-	predPrefix := func(a interface{}, prefix string) predicate.BoolPredicate {
-		switch aval := a.(type) {
-		case label:
-			return func() bool {
-				return strings.HasPrefix(aval.value, prefix)
-			}
-		case string:
-			return func() bool {
-				return strings.HasPrefix(aval, prefix)
-			}
-		default:
-			return func() bool {
-				return false
-			}
-		}
-	}
 
 	p, err := predicate.NewParser(predicate.Def{
 		Operators: predicate.Operators{
@@ -779,8 +753,7 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 			},
 		},
 		Functions: map[string]interface{}{
-			"hasPrefix": predPrefix,
-			"equals":    predEquals,
+			"equals": predEquals,
 			// search allows fuzzy matching against select field values.
 			"search": func(searchVals ...string) predicate.BoolPredicate {
 				return func() bool {

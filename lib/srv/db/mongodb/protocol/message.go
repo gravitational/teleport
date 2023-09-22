@@ -79,7 +79,8 @@ func ReadMessage(reader io.Reader, maxMessageSize uint32) (Message, error) {
 
 // ReadServerMessage reads wire protocol message from the MongoDB server connection.
 func ReadServerMessage(ctx context.Context, conn driver.Connection, maxMessageSize uint32) (Message, error) {
-	wm, err := conn.ReadWireMessage(ctx)
+	var wm []byte
+	wm, err := conn.ReadWireMessage(ctx, wm)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -112,7 +113,7 @@ func readHeaderAndPayload(reader io.Reader, maxMessageSize uint32) (*MessageHead
 	}
 
 	// Then read the entire message body.
-	payloadBuff := bytes.NewBuffer(make([]byte, 0, min(payloadLength, maxMessageSize)))
+	payloadBuff := bytes.NewBuffer(make([]byte, 0, buffAllocCapacity(payloadLength, maxMessageSize)))
 	if _, err := io.CopyN(payloadBuff, reader, int64(payloadLength)); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -130,6 +131,14 @@ func readHeaderAndPayload(reader io.Reader, maxMessageSize uint32) (*MessageHead
 // value is only used if the MongoDB doesn't impose any value. Defaults to
 // double size of MongoDB default.
 const DefaultMaxMessageSizeBytes = uint32(48000000) * 2
+
+// buffCapacity returns the capacity for the payload buffer.
+func buffAllocCapacity(payloadLength, maxMessageSize uint32) uint32 {
+	if payloadLength >= maxMessageSize {
+		return maxMessageSize
+	}
+	return payloadLength
+}
 
 // MessageHeader represents parsed MongoDB wire protocol message header.
 //

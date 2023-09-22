@@ -69,9 +69,10 @@ for a full reference of flags for this command:
 $ tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/> \
 --secret=$(cat client-secret.txt) \
---teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
+--teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
 > github.yaml
 ```
+
 <Admonition type="tip">
   GitHub organizations and teams should be referred to by their slug, not display name.
   To create the slug, GitHub replaces special characters in the name string, changes all words to lowercase,
@@ -84,31 +85,6 @@ $ tctl sso configure github \
 
 The contents of `github.yaml` should resemble the following:
 
-<Tabs>
-<TabItem scope={["oss"]} label="Teleport Community Edition">
-```yaml
-kind: github
-metadata:
-  name: github
-spec:
-  api_endpoint_url: https://api.github.com
-  client_id: <client-id>
-  client_secret: <client-secret>
-  display: GitHub
-  endpoint_url: https://github.com
-  redirect_url: https://<proxy-address>/v1/webapi/github/callback
-  teams_to_logins: null
-  teams_to_roles:
-    - organization: ORG-NAME
-      roles:
-        - access
-        - editor
-      team: github-team
-version: v3
-```
-</TabItem>
-
-<TabItem scope={["enterprise", "cloud"]} label="Commercial">
 ```yaml
 kind: github
 metadata:
@@ -126,13 +102,9 @@ spec:
       roles:
         - access
         - editor
-        - reviewer
       team: github-team
 version: v3
 ```
-</TabItem>
-
-</Tabs>
 
 <Details title="Mapping multiple roles">
 You can add multiple instances of the `--teams-to-roles` flag or edit the connector
@@ -142,9 +114,9 @@ file to define multiple mappings. For example:
 $  tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/> \
 --secret=$(cat client-secret.txt) \
---teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
---teams-to-roles="org-name,administrators,admins \
---teams-to-roles="different-org,developers,dev \
+--teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
+--teams-to-roles="ORG-NAME,administrators,admins \
+--teams-to-roles="DIFFERENT-ORG,developers,dev \
 > github.yaml
 ```
 
@@ -177,7 +149,7 @@ instance endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters:
 $ tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/> \
 --secret=$(cat client-secret.txt) \
---teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
+--teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
 --endpoint-url=https://<Var name="github-enterprise-server-address"/>
 --api-endpoint-url=https://<Var name="api-github-enterprise-server-address"/>
 > github.yaml
@@ -249,7 +221,7 @@ authentication connector "github" has been created
   present in the "teams to logins" mapping, otherwise Teleport will not be
   able to determine team memberships for these organizations.
 </Admonition>
-
+  
 After a user authenticates, Teleport will add the user's GitHub username to their
 `internal.logins` trait for their Teleport session. The preset `access` role has this
 trait variable configured to include the GitHub user as an authorized SSH login.
@@ -259,7 +231,6 @@ Here is an example role configuration snippet using the trait variable:
   allow:
     # List of allowed SSH logins
     logins: ['{{internal.logins}}', ubuntu, debian]
-
     # List of node labels that users can SSH into
     node_labels:
       '*': '*'
@@ -312,61 +283,18 @@ After logging in successfully, you will see the following:
 
 You will receive the details of your user session within the CLI:
 
-<Tabs>
-<TabItem scope={["oss"]} label="Teleport Community Edition">
-
 ```code
-> Profile URL:        https://tele.example.com:443
+> Profile URL:        https://example.teleport.sh:443
   Logged in as:       jeff
-  Cluster:            tele.example.com
+  Cluster:            example.teleport.sh
   Roles:              access
-  Logins:             jeff, ubuntu, debian
+  Logins:             jeff, ubuntu, debian, -teleport-internal-join
   Kubernetes:         enabled
   Kubernetes users:   dev
   Kubernetes groups:  developer
   Valid until:        2023-03-08 17:13:50 -0600 CST [valid for 7h51m0s]
   Extensions:         permit-port-forwarding, permit-pty, private-key-policy
 ```
-
-</TabItem>
-
-
-<TabItem scope={["enterprise"]} label="Teleport Enterprise">
-
-```code
-> Profile URL:        https://tele.example.com:443
-  Logged in as:       jeff
-  Cluster:            tele.example.com
-  Roles:              access, requester
-  Logins:             jeff, ubuntu, debian
-  Kubernetes:         enabled
-  Kubernetes users:   dev
-  Kubernetes groups:  developer
-  Valid until:        2023-03-08 17:13:50 -0600 CST [valid for 7h51m0s]
-  Extensions:         permit-port-forwarding, permit-pty, private-key-policy
-```
-
-</TabItem>
-
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-> Profile URL:        https://mytenant.teleport.sh:443
-  Logged in as:       jeff
-  Cluster:            mytenant.teleport.sh
-  Roles:              access, requester
-  Logins:             jeff, ubuntu, debian
-  Kubernetes:         enabled
-  Kubernetes users:   dev
-  Kubernetes groups:  developer
-  Valid until:        2023-03-08 17:13:50 -0600 CST [valid for 7h51m0s]
-  Extensions:         permit-port-forwarding, permit-pty, private-key-policy
-
-```
-
-</TabItem>
-
-</Tabs>
 
 ## Step 4/4. Configure authentication preference
 
@@ -446,4 +374,3 @@ shows the slug is `my-team`. Update the teams to roles mapping.
         - reviewer
       team: my-team
 ```
-

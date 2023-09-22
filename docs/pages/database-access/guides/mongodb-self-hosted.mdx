@@ -4,7 +4,11 @@ description: How to configure Teleport database access with self-hosted MongoDB.
 videoBanner: 6lgVObxoLkc
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="MongoDB cluster" dbConfigure="MongoDB cluster with mutual TLS authentication" dbName="MongoDB" !)
+In this guide, you will:
+
+- Install and configure Teleport for database access.
+- Configure mutual TLS authentication between Teleport and your MongoDB cluster.
+- Connect to your MongoDB instance through Teleport.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -153,6 +157,8 @@ Create the secrets:
   servers.
   </TabItem>
 </Tabs>
+
+(!docs/pages/includes/database-access/rotation-note.mdx!)
 
 Use the generated secrets to enable mutual TLS in your `mongod.conf` configuration
 file and restart the database:

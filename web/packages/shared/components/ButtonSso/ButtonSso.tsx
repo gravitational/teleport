@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { forwardRef } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 import Button from 'design/Button';
 import { darken, lighten } from 'design/theme/utils/colorManipulator';
@@ -22,21 +22,21 @@ import * as Icons from 'design/Icon';
 
 import { AuthProviderType } from 'shared/services';
 
-const ButtonSso = forwardRef<HTMLInputElement, Props>((props: Props, ref) => {
+const ButtonSso = (props: Props) => {
   const { ssoType = 'unknown', title, ...rest } = props;
   const { color, Icon } = getSSOIcon(ssoType);
 
   return (
-    <StyledButton color={color} block {...rest} ref={ref}>
+    <StyledButton color={color} block {...rest}>
       {Boolean(Icon) && (
         <IconBox>
-          <Icon data-testid="icon" color="white" />
+          <Icon data-testid="icon" />
         </IconBox>
       )}
       {title}
     </StyledButton>
   );
-});
+};
 
 type Props = {
   ssoType: SSOType;
@@ -58,14 +58,14 @@ function getSSOIcon(type: SSOType) {
     case 'microsoft':
       return { color: '#2672ec', Icon: Icons.Windows, type };
     case 'github':
-      return { color: '#444444', Icon: Icons.GitHub, type };
+      return { color: '#444444', Icon: Icons.Github, type };
     case 'bitbucket':
-      return { color: '#205081', Icon: Icons.Key, /*temporary icon */ type };
+      return { color: '#205081', Icon: Icons.BitBucket, type };
     case 'google':
       return { color: '#dd4b39', Icon: Icons.Google, type };
     default:
       // provide default icon for unknown social providers
-      return { color: '#f7931e', Icon: Icons.Key /*temporary icon */ };
+      return { color: '#f7931e', Icon: Icons.OpenID };
   }
 }
 
@@ -103,7 +103,6 @@ const StyledButton = styled(Button)`
   display: block;
   width: 100%;
   border: 1px solid transparent;
-  color: white;
 
   &:hover,
   &:focus {
@@ -114,7 +113,8 @@ const StyledButton = styled(Button)`
   position: relative;
   box-sizing: border-box;
 
-  svg {
+  ${Icons.default} {
+    font-size: 20px;
     opacity: 0.87;
   }
 `;

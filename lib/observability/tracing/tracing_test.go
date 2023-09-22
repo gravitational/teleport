@@ -242,6 +242,7 @@ func TestNewExporter(t *testing.T) {
 }
 
 func TestTraceProvider(t *testing.T) {
+	t.Parallel()
 	const spansCreated = 4
 
 	tlsCertificate, err := generateTLSCertificate()
@@ -338,7 +339,9 @@ func TestTraceProvider(t *testing.T) {
 	}
 
 	for _, tt := range cases {
+		tt := tt // capture range variable
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			collector, err := NewCollector(CollectorConfig{
 				TLSConfig: tt.tlsConfig,
 			})
@@ -354,8 +357,7 @@ func TestTraceProvider(t *testing.T) {
 			}()
 
 			ctx := context.Background()
-			cfg := tt.config(collector)
-			provider, err := NewTraceProvider(ctx, cfg)
+			provider, err := NewTraceProvider(ctx, tt.config(collector))
 			tt.errAssertion(t, err)
 			tt.providerAssertion(t, provider)
 

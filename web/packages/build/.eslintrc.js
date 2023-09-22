@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+const configFactory = require('./webpack/webpack.base');
+
 module.exports = {
   parser: '@typescript-eslint/parser',
   parserOptions: {
@@ -109,6 +111,7 @@ module.exports = {
     'no-alert': 0,
     'import/no-named-as-default': 0,
     'import/default': 2,
+    'import/named': 2,
     // XXX Change to a 2 once e pkg imports are removed from teleterm.
     'import/no-unresolved': 1,
     'no-underscore-dangle': 0,
@@ -151,7 +154,9 @@ module.exports = {
       version: 'detect',
     },
     'import/resolver': {
-      typescript: {},
+      webpack: {
+        config: configFactory.createDefaultConfig(),
+      },
     },
   },
 };

@@ -74,8 +74,8 @@ export default function LoginForm(props: Props) {
   // and display sso providers if any.
   if (!isLocalAuthEnabled && ssoEnabled) {
     return (
-      <Card my="5" mx="auto" width="464px" pb={4}>
-        <Text typography="h3" pt={4} textAlign="center">
+      <Card bg="levels.surface" my="5" mx="auto" width="464px" pb={4}>
+        <Text typography="h3" pt={4} textAlign="center" color="light">
           {title}
         </Text>
         {attempt.isFailed && (
@@ -83,15 +83,15 @@ export default function LoginForm(props: Props) {
             {attempt.message}
           </Alerts.Danger>
         )}
-        <SsoList {...props} autoFocus={true} hasTransitionEnded={true} />
+        <SsoList {...props} />
       </Card>
     );
   }
 
   if (!isLocalAuthEnabled) {
     return (
-      <Card my="5" mx="auto" width="464px" px={5} pb={4}>
-        <Text typography="h3" pt={4} textAlign="center">
+      <Card bg="levels.surface" my="5" mx="auto" width="464px" px={5} pb={4}>
+        <Text typography="h3" pt={4} textAlign="center" color="light">
           {title}
         </Text>
         <Alerts.Danger my={5}>Login has not been enabled</Alerts.Danger>
@@ -105,8 +105,8 @@ export default function LoginForm(props: Props) {
 
   // Everything below requires local auth to be enabled.
   return (
-    <Card my="5" mx="auto" width={464} pb={4}>
-      <Text typography="h3" pt={4} textAlign="center">
+    <Card bg="levels.surface" my="5" mx="auto" width={464} pb={4}>
+      <Text typography="h3" pt={4} textAlign="center" color="light">
         {title}
       </Text>
       {attempt.isFailed && (
@@ -128,11 +128,7 @@ const SsoList = ({
   authProviders,
   onLoginWithSso,
   autoFocus = false,
-  hasTransitionEnded,
-}: Props & { hasTransitionEnded?: boolean }) => {
-  const ref = useRefAutoFocus<HTMLInputElement>({
-    shouldFocus: hasTransitionEnded && autoFocus,
-  });
+}: Props) => {
   const { isProcessing } = attempt;
   return (
     <SSOButtonList
@@ -140,7 +136,7 @@ const SsoList = ({
       isDisabled={isProcessing}
       providers={authProviders}
       onClick={onLoginWithSso}
-      ref={ref}
+      autoFocus={autoFocus}
     />
   );
 };
@@ -149,11 +145,7 @@ const Passwordless = ({
   onLoginWithWebauthn,
   attempt,
   autoFocus = false,
-  hasTransitionEnded,
-}: Props & { hasTransitionEnded: boolean }) => {
-  const ref = useRefAutoFocus<HTMLInputElement>({
-    shouldFocus: hasTransitionEnded && autoFocus,
-  });
+}: Props) => {
   // Firefox currently does not support passwordless and when
   // logging in, it will return an ambigugous error.
   // We display a soft warning because firefox may provide
@@ -170,30 +162,25 @@ const Passwordless = ({
         </Alerts.Info>
       )}
       <StyledPaswordlessBtn
-        setRef={ref}
         mt={3}
         py={2}
         px={3}
         width="100%"
         onClick={() => onLoginWithWebauthn()}
         disabled={attempt.isProcessing}
+        autoFocus={autoFocus}
       >
         <Flex alignItems="center" justifyContent="space-between">
           <Flex alignItems="center">
-            <Key mr={3} size="medium" />
+            <Key mr={3} fontSize={16} />
             <Box>
               <Text typography="h6">Passwordless</Text>
-              <Text
-                fontSize={1}
-                color={
-                  attempt.isProcessing ? 'text.disabled' : 'text.slightlyMuted'
-                }
-              >
+              <Text fontSize={1} color="text.slightlyMuted">
                 Follow the prompt from your browser
               </Text>
             </Box>
           </Flex>
-          <ArrowForward size="medium" />
+          <ArrowForward fontSize={16} />
         </Flex>
       </StyledPaswordlessBtn>
     </Box>
@@ -272,7 +259,6 @@ const LocalForm = ({
             value={user}
             onChange={e => setUser(e.target.value)}
             placeholder="Username"
-            disabled={attempt.isProcessing}
             mb={3}
           />
           <Box mb={isRecoveryEnabled ? 1 : 3}>
@@ -283,7 +269,6 @@ const LocalForm = ({
               onChange={e => setPass(e.target.value)}
               type="password"
               placeholder="Password"
-              disabled={attempt.isProcessing}
               mb={0}
               width="100%"
             />
@@ -305,7 +290,7 @@ const LocalForm = ({
                   maxWidth="50%"
                   width="100%"
                   data-testid="mfa-select"
-                  label="Two-factor Type"
+                  label="Two-factor type"
                   value={mfaType}
                   options={mfaOptions}
                   onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
@@ -317,7 +302,7 @@ const LocalForm = ({
                 {mfaType.value === 'otp' && (
                   <FieldInput
                     width="50%"
-                    label="Authenticator Code"
+                    label="Authenticator code"
                     rule={requiredToken}
                     autoComplete="one-time-code"
                     inputMode="numeric"
@@ -369,22 +354,10 @@ const Primary = ({
 
   switch (otherProps.primaryAuthType) {
     case 'passwordless':
-      $primary = (
-        <Passwordless
-          {...otherProps}
-          autoFocus={true}
-          hasTransitionEnded={hasTransitionEnded}
-        />
-      );
+      $primary = <Passwordless {...otherProps} autoFocus={true} />;
       break;
     case 'sso':
-      $primary = (
-        <SsoList
-          {...otherProps}
-          autoFocus={true}
-          hasTransitionEnded={hasTransitionEnded}
-        />
-      );
+      $primary = <SsoList {...otherProps} autoFocus={true} />;
       break;
     case 'local':
       otherOptionsAvailable = otherProps.isPasswordlessEnabled || ssoEnabled;
@@ -509,21 +482,18 @@ const Divider = () => (
 const StyledPaswordlessBtn = styled(ButtonText)`
   display: block;
   text-align: left;
-  border: 1px solid ${({ theme }) => theme.colors.buttons.border.border};
+  border: 1px solid ${({ theme }) => theme.colors.text.muted};
 
   &:hover,
+  &:active,
   &:focus {
-    background: ${({ theme }) => theme.colors.buttons.border.hover};
+    border-color: ${({ theme }) => theme.colors.action.active};
     text-decoration: none;
-  }
-
-  &:active {
-    background: ${({ theme }) => theme.colors.buttons.border.active};
   }
 
   &[disabled] {
     pointer-events: none;
-    background: ${({ theme }) => theme.colors.buttons.bgDisabled};
+    opacity: 0.7;
   }
 `;
 

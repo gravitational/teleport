@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"cloud.google.com/go/firestore"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -89,19 +88,12 @@ func (tt *firestoreContext) setupTest(t *testing.T) {
 	if len(docSnaps) == 0 {
 		return
 	}
-	batch := tt.log.svc.BulkWriter(tt.log.svcContext)
-	jobs := make([]*firestore.BulkWriterJob, 0, len(docSnaps))
+	batch := tt.log.svc.Batch()
 	for _, docSnap := range docSnaps {
-		job, err := batch.Delete(docSnap.Ref)
-		require.NoError(t, err)
-		jobs = append(jobs, job)
+		batch.Delete(docSnap.Ref)
 	}
-
-	batch.End()
-	for _, job := range jobs {
-		_, err := job.Results()
-		require.NoError(t, err)
-	}
+	_, err = batch.Commit(ctx)
+	require.NoError(t, err)
 }
 
 func (tt *firestoreContext) Close(t *testing.T) {
@@ -123,7 +115,7 @@ func (tt *firestoreContext) testPagination(t *testing.T) {
 
 func (tt *firestoreContext) testSearchSessionEvensBySessionID(t *testing.T) {
 	tt.setupTest(t)
-	tt.suite.SearchSessionEventsBySessionID(t)
+	tt.suite.SearchSessionEvensBySessionID(t)
 }
 
 func TestFirestoreEvents(t *testing.T) {

@@ -30,14 +30,14 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // SSOTestCommand implements common.CLICommand interface
 type SSOTestCommand struct {
-	config *servicecfg.Config
+	config *service.Config
 
 	ssoTestCmd *kingpin.CmdClause
 
@@ -54,7 +54,7 @@ type SSOTestCommand struct {
 
 // Initialize allows a caller-defined command to plug itself into CLI
 // argument parsing
-func (cmd *SSOTestCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
+func (cmd *SSOTestCommand) Initialize(app *kingpin.Application, cfg *service.Config) {
 	cmd.config = cfg
 
 	sso := app.GetCommand("sso")
@@ -98,7 +98,7 @@ func (cmd *SSOTestCommand) getSupportedKinds() []string {
 func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c auth.ClientI) error {
 	reader := os.Stdin
 	if cmd.connectorFileName != "" {
-		f, err := utils.OpenFileAllowingUnsafeLinks(cmd.connectorFileName)
+		f, err := utils.OpenFile(cmd.connectorFileName)
 		if err != nil {
 			return trace.Wrap(err, "could not open connector spec file %v", cmd.connectorFileName)
 		}

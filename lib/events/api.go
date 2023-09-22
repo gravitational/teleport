@@ -230,6 +230,8 @@ const (
 	RecoveryTokenCreateEvent = "recovery_token.create"
 	// ResetPasswordTokenCreateEvent is emitted when a new reset password token is created.
 	ResetPasswordTokenCreateEvent = "reset_password_token.create"
+	// BotTokenCreateEvent is emitted when a new bot join user token is created
+	BotTokenCreateEvent = "bot_token.create"
 	// ResetPasswordTokenTTL is TTL of reset password token.
 	ResetPasswordTokenTTL = "ttl"
 	// PrivilegeTokenCreateEvent is emitted when a new user privilege token is created.
@@ -349,14 +351,9 @@ const (
 	TrustedClusterCreateEvent = "trusted_cluster.create"
 	// TrustedClusterDeleteEvent is the event for removing a trusted cluster.
 	TrustedClusterDeleteEvent = "trusted_cluster.delete"
-	// TrustedClusterTokenCreateEvent is the event for creating new provisioning
-	// token for a trusted cluster. Deprecated in favor of
-	// [ProvisionTokenCreateEvent].
+	// TrustedClusterTokenCreateEvent is the event for
+	// creating new join token for a trusted cluster.
 	TrustedClusterTokenCreateEvent = "trusted_cluster_token.create"
-
-	// ProvisionTokenCreateEvent is the event for creating a provisioning token,
-	// also known as Join Token. See [types.ProvisionToken].
-	ProvisionTokenCreateEvent = "join_token.create"
 
 	// GithubConnectorCreatedEvent fires when a Github connector is created/updated.
 	GithubConnectorCreatedEvent = "github.created"
@@ -491,10 +488,6 @@ const (
 	// DatabaseSessionElasticsearchRequestEvent is emitted when Elasticsearch client sends
 	// a generic request.
 	DatabaseSessionElasticsearchRequestEvent = "db.session.elasticsearch.request"
-
-	// DatabaseSessionOpenSearchRequestEvent is emitted when OpenSearch client sends
-	// a request.
-	DatabaseSessionOpenSearchRequestEvent = "db.session.opensearch.request"
 
 	// DatabaseSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
 	// a request via database-access.
@@ -658,30 +651,6 @@ const (
 	// OktaAssignmentCleanupEvent is emitted when an assignment is cleaned up.
 	OktaAssignmentCleanupEvent = "okta.assignment.cleanup"
 
-	// AccessListCreateEvent is emitted when an access list is created.
-	AccessListCreateEvent = "access_list.create"
-
-	// AccessListUpdateEvent is emitted when an access list is updated.
-	AccessListUpdateEvent = "access_list.update"
-
-	// AccessListDeleteEvent is emitted when an access list is deleted.
-	AccessListDeleteEvent = "access_list.delete"
-
-	// AccessListReviewEvent is emitted when an access list is reviewed.
-	AccessListReviewEvent = "access_list.review"
-
-	// AccessListMemberCreateEvent is emitted when a member is added to an access list.
-	AccessListMemberCreateEvent = "access_list.member.create"
-
-	// AccessListMemberUpdateEvent is emitted when a member is updated in an access list.
-	AccessListMemberUpdateEvent = "access_list.member.update"
-
-	// AccessListMemberDeleteEvent is emitted when a member is deleted from an access list.
-	AccessListMemberDeleteEvent = "access_list.member.delete"
-
-	// AccessListMemberDeleteAllForAccessListEvent is emitted when all members are deleted from an access list.
-	AccessListMemberDeleteAllForAccessListEvent = "access_list.member.delete_all_for_access_list"
-
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 )
@@ -826,43 +795,30 @@ type UploadMetadataGetter interface {
 	GetUploadMetadata(sid session.ID) UploadMetadata
 }
 
-// SessionEventPreparer will set necessary event fields for session-related
-// events and must be called before the event is used, regardless
-// of whether the event will be recorded, emitted, or both.
-type SessionEventPreparer interface {
-	PrepareSessionEvent(event apievents.AuditEvent) (apievents.PreparedSessionEvent, error)
-}
-
-// SessionRecorder records session events. It can be used both as a
-// [io.Writer] when recording raw session data and as a [apievents.Recorder]
-// when recording session events.
-type SessionRecorder interface {
+// StreamWriter implements io.Writer to be plugged into the multi-writer
+// associated with every session. It forwards session stream to the audit log
+type StreamWriter interface {
 	io.Writer
 	apievents.Stream
 }
 
-// SessionPreparerRecorder sets necessary session event fields and records them.
-type SessionPreparerRecorder interface {
-	SessionEventPreparer
-	SessionRecorder
-}
-
-// StreamEmitter supports emitting single events to the audit log
-// and streaming events to a session recording.
+// StreamEmitter supports submitting single events and streaming
+// session events
 type StreamEmitter interface {
 	apievents.Emitter
 	Streamer
 }
 
-// AuditLogSessionStreamer is the primary (and the only external-facing)
-// interface for AuditLogger and SessionStreamer.
-type AuditLogSessionStreamer interface {
-	AuditLogger
-	SessionStreamer
-}
+// IAuditLog is the primary (and the only external-facing) interface for AuditLogger.
+// If you wish to implement a different kind of logger (not filesystem-based), you
+// have to implement this interface
+type IAuditLog interface {
+	// Closer releases connection and resources associated with log if any
+	io.Closer
 
-// SessionStreamer supports streaming session chunks or events.
-type SessionStreamer interface {
+	// EmitAuditEvent emits audit event
+	EmitAuditEvent(context.Context, apievents.AuditEvent) error
+
 	// GetSessionChunk returns a reader which can be used to read a byte stream
 	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
 	// beginning) up to maxBytes bytes.
@@ -874,57 +830,7 @@ type SessionStreamer interface {
 	// (oldest first).
 	//
 	// after is used to return events after a specified cursor ID
-	GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error)
-
-	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
-	// The event channel is not closed on error to prevent race conditions in downstream select statements.
-	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
-}
-
-type SearchEventsRequest struct {
-	// From is oldest date of returned events, can be zero.
-	From time.Time
-	// To is the newest date of returned events.
-	To time.Time
-	// EventTypes is optional, if not set, returns all events.
-	EventTypes []string
-	// Limit is the maximum amount of events returned.
-	Limit int
-	// Order specifies an ascending or descending order of events.
-	Order types.EventOrder
-	// StartKey is used to resume a query in order to enable pagination.
-	// If the previous response had LastKey set then this should be
-	// set to its value. Otherwise leave empty.
-	StartKey string
-}
-
-type SearchSessionEventsRequest struct {
-	// From is oldest date of returned events, can be zero.
-	From time.Time
-	// To is the newest date of returned events.
-	To time.Time
-	// Limit is the maximum amount of events returned.
-	Limit int
-	// Order specifies an ascending or descending order of events.
-	Order types.EventOrder
-	// StartKey is used to resume a query in order to enable pagination.
-	// If the previous response had LastKey set then this should be
-	// set to its value. Otherwise leave empty.
-	StartKey string
-	// Cond can be used to pass additional expression to query, can be empty.
-	Cond *types.WhereExpr
-	// SessionID is optional parameter to return session events only to given session.
-	SessionID string
-}
-
-// AuditLogger defines which methods need to implemented by audit loggers.
-type AuditLogger interface {
-	// Closer releases connection and resources associated with log if any
-	io.Closer
-
-	// Emitter emits an audit event
-	apievents.Emitter
+	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error)
 
 	// SearchEvents is a flexible way to find events.
 	//
@@ -934,7 +840,7 @@ type AuditLogger interface {
 	// The only mandatory requirement is a date range (UTC).
 	//
 	// This function may never return more than 1 MiB of event data.
-	SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error)
+	SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)
 
 	// SearchSessionEvents is a flexible way to find session events.
 	// Only session.end events are returned by this function.
@@ -944,7 +850,12 @@ type AuditLogger interface {
 	// a query to be resumed.
 	//
 	// This function may never return more than 1 MiB of event data.
-	SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error)
+	SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error)
+
+	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
+	// The event channel is not closed on error to prevent race conditions in downstream select statements.
+	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
 }
 
 // EventFields instance is attached to every logged event
@@ -957,6 +868,7 @@ func (f EventFields) AsString() string {
 		f.GetString(EventLogin),
 		f.GetInt(EventCursor),
 		f.GetInt(SessionPrintEventBytes))
+
 }
 
 // GetType returns the type (string) of the event

@@ -1,0 +1,280 @@
+// Copyright 2022 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.usageevents.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1";
+
+// UIBannerClickEvent is a usage event sent by the UI when the upgrade
+// banner is clicked.
+message UIBannerClickEvent {
+  // The cluster alert name.
+  string alert = 1;
+}
+
+// UIOnboardCompleteGoToDashboardClickEvent is a UI event sent when initial
+// registration is complete.
+message UIOnboardCompleteGoToDashboardClickEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
+
+// UIOnboardAddFirstResourceClickEvent is a UI event sent when a user clicks the
+// "add first resource" button.
+message UIOnboardAddFirstResourceClickEvent {}
+
+// UIOnboardAddFirstResourceLaterClickEvent is a UI event sent when a user
+// clicks the "add first resource later" button.
+message UIOnboardAddFirstResourceLaterClickEvent {}
+
+// UIOnboardSetCredentialSubmitEvent is a UI event sent during registration when
+// users configure their credentials.
+message UIOnboardSetCredentialSubmitEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
+
+// UIOnboardRegisterChallengeSubmitEvent is a UI event sent during registration
+// when the MFA challenge is completed.
+message UIOnboardRegisterChallengeSubmitEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+  // The type of MFA used.
+  string mfa_type = 2;
+  // The type of login used.
+  string login_flow = 3;
+}
+
+// UIRecoveryCodesContinueClickEvent is a UI event sent during
+// registration when the user configures cluster recovery codes.
+message UIRecoveryCodesContinueClickEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
+
+// UIRecoveryCodesCopyClickEvent is a UI event sent during
+// registration when the user copies recovery codes.
+message UIRecoveryCodesCopyClickEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
+
+// UIRecoveryCodesPrintClickEvent is a UI event sent during
+// registration when the user prints recovery codes.
+message UIRecoveryCodesPrintClickEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
+
+// DiscoverMetadata contains common metadata for Discover related events.
+message DiscoverMetadata {
+  // Uniquely identifies Discover wizard "session". Will allow to correlate
+  // events within the same Discover wizard run.
+  string id = 1;
+}
+
+// DiscoverResource represents a resource type.
+enum DiscoverResource {
+  DISCOVER_RESOURCE_UNSPECIFIED = 0;
+  DISCOVER_RESOURCE_SERVER = 1;
+  DISCOVER_RESOURCE_KUBERNETES = 2;
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_SELF_HOSTED = 3;
+  DISCOVER_RESOURCE_DATABASE_MYSQL_SELF_HOSTED = 4;
+  DISCOVER_RESOURCE_DATABASE_MONGODB_SELF_HOSTED = 5;
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_RDS = 6;
+  DISCOVER_RESOURCE_DATABASE_MYSQL_RDS = 7;
+  DISCOVER_RESOURCE_APPLICATION_HTTP = 8;
+  DISCOVER_RESOURCE_APPLICATION_TCP = 9;
+  DISCOVER_RESOURCE_WINDOWS_DESKTOP = 10;
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_RDS = 11;
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_REDSHIFT = 12;
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_SELF_HOSTED = 13;
+  DISCOVER_RESOURCE_DATABASE_REDIS_SELF_HOSTED = 14;
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_GCP = 15;
+  DISCOVER_RESOURCE_DATABASE_MYSQL_GCP = 16;
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP = 17;
+}
+
+// DiscoverResourceMetadata contains common metadata identifying resource type being added.
+message DiscoverResourceMetadata {
+  // Resource type that is being added.
+  DiscoverResource resource = 1;
+}
+
+// DiscoverStatus represents a Discover Step outcome.
+enum DiscoverStatus {
+  DISCOVER_STATUS_UNSPECIFIED = 0;
+  // The user tried to complete the action and it succeeded.
+  DISCOVER_STATUS_SUCCESS = 1;
+  // The system skipped the step.
+  // For example:
+  // When setting up a Database and there's already a Database Service proxying the DB.
+  // In this case the Database Agent installation is skipped.
+  DISCOVER_STATUS_SKIPPED = 2;
+  // The user tried to complete the action and it failed.
+  DISCOVER_STATUS_ERROR = 3;
+  // The user did not complete the action and left the wizard.
+  DISCOVER_STATUS_ABORTED = 4;
+}
+
+// DiscoverStepStatus contains fields that track a particular step outcome,
+// for example connection test failed or succeeded, or user aborted the step.
+message DiscoverStepStatus {
+  // Indicates the step outcome.
+  DiscoverStatus status = 1;
+  // Contains error details in case of Error Status.
+  // We have to be careful to not include any identifyable infomation like server addresses here.
+  string error = 2;
+}
+
+// UIDiscoverStartedEvent is emitted when the wizard opens.
+message UIDiscoverStartedEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverStepStatus status = 2;
+}
+
+// UIDiscoverResourceSelectionEvent is emitted when user selected resource type to add
+// and proceeded to the next step.
+message UIDiscoverResourceSelectionEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
+// For SSH this is the Teleport 'install-node' script.
+//
+// For Kubernetes this is the teleport-agent helm chart installation.
+//
+// For Database Access this step is the installation of the teleport 'install-db' script.
+// It can be skipped if the cluster already has a Database Service capable of proxying the database.
+message UIDiscoverDeployServiceEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverDatabaseRegisterEvent is emitted when a user is finished with the step that registers a database resource.
+message UIDiscoverDatabaseRegisterEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverDatabaseConfigureMTLSEvent is emitted when a user is finished with the step that configures mutual TLS for a self-hosted database.
+message UIDiscoverDatabaseConfigureMTLSEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverDesktopActiveDirectoryToolsInstallEvent is emitted when the user is finished with the step that asks user to run the install Active Directory tools script for the Desktop flow.
+message UIDiscoverDesktopActiveDirectoryToolsInstallEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverDesktopActiveDirectoryConfigureEvent is emitted when the user is finished with the step that asks user to run the Configure Active Directory script for the Desktop flow.
+message UIDiscoverDesktopActiveDirectoryConfigureEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverAutoDiscoveredResourcesEvent is emitted when the user is finished with the step that auto discovers resources (waiting until resources show up).
+// resources_count field must reflect the latest amount of discovered resources (get the number after user is finished with this step).
+message UIDiscoverAutoDiscoveredResourcesEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+  int64 resources_count = 4;
+}
+
+// UIDiscoverDatabaseConfigureIAMPolicyEvent is emitted when a user is finished with the step that configures IAM policy for an RDS database.
+message UIDiscoverDatabaseConfigureIAMPolicyEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverPrincipalsConfigureEvent is emitted when a user is finished with the step that allows user to update their principals (setting up access).
+message UIDiscoverPrincipalsConfigureEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverTestConnectionEvent emitted on the "Test Connection" screen
+// when the user clicked tested connection to their resource.
+message UIDiscoverTestConnectionEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverCompletedEvent is emitted when user completes the Discover wizard.
+message UIDiscoverCompletedEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UICreateNewRoleClickEvent is an event that can be triggered during custom role creation
+message UICreateNewRoleClickEvent {}
+
+// UICreateNewRoleSaveClickEvent is an event that can be triggered during custom role creation
+message UICreateNewRoleSaveClickEvent {}
+
+// UICreateNewRoleCancelClickEvent is an event that can be triggered during custom role creation
+message UICreateNewRoleCancelClickEvent {}
+
+// UICreateNewRoleViewDocumentationClickEvent is an event that can be triggered during custom role creation
+message UICreateNewRoleViewDocumentationClickEvent {}
+
+// UsageEventOneOf is a message that can accept a oneof of any supported
+// external usage event.
+message UsageEventOneOf {
+  oneof event {
+    UIBannerClickEvent ui_banner_click = 1;
+    UIOnboardCompleteGoToDashboardClickEvent ui_onboard_complete_go_to_dashboard_click = 3;
+    UIOnboardAddFirstResourceClickEvent ui_onboard_add_first_resource_click = 4;
+    UIOnboardAddFirstResourceLaterClickEvent ui_onboard_add_first_resource_later_click = 5;
+    UIOnboardSetCredentialSubmitEvent ui_onboard_set_credential_submit = 6;
+    UIOnboardRegisterChallengeSubmitEvent ui_onboard_register_challenge_submit = 7;
+    UIRecoveryCodesContinueClickEvent ui_recovery_codes_continue_click = 8;
+    UIRecoveryCodesCopyClickEvent ui_recovery_codes_copy_click = 9;
+    UIRecoveryCodesPrintClickEvent ui_recovery_codes_print_click = 10;
+    UIDiscoverStartedEvent ui_discover_started_event = 11;
+    UIDiscoverResourceSelectionEvent ui_discover_resource_selection_event = 12;
+    UIDiscoverDeployServiceEvent ui_discover_deploy_service_event = 13;
+    UIDiscoverDatabaseRegisterEvent ui_discover_database_register_event = 14;
+    UIDiscoverDatabaseConfigureMTLSEvent ui_discover_database_configure_mtls_event = 15;
+    UIDiscoverDesktopActiveDirectoryToolsInstallEvent ui_discover_desktop_active_directory_tools_install_event = 16;
+    UIDiscoverDesktopActiveDirectoryConfigureEvent ui_discover_desktop_active_directory_configure_event = 17;
+    UIDiscoverAutoDiscoveredResourcesEvent ui_discover_auto_discovered_resources_event = 18;
+    UIDiscoverDatabaseConfigureIAMPolicyEvent ui_discover_database_configure_iam_policy_event = 19;
+    UIDiscoverPrincipalsConfigureEvent ui_discover_principals_configure_event = 20;
+    UIDiscoverTestConnectionEvent ui_discover_test_connection_event = 21;
+    UIDiscoverCompletedEvent ui_discover_completed_event = 22;
+    UICreateNewRoleClickEvent ui_create_new_role_click = 23;
+    UICreateNewRoleSaveClickEvent ui_create_new_role_save_click = 24;
+    UICreateNewRoleCancelClickEvent ui_create_new_role_cancel_click = 25;
+    UICreateNewRoleViewDocumentationClickEvent ui_create_new_role_view_documentation_click = 26;
+  }
+  reserved 2; //UIOnboardGetStartedClickEvent
+  reserved "ui_onboard_get_started_click";
+}

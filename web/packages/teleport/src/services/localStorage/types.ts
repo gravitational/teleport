@@ -19,36 +19,5 @@ export const KeysEnum = {
   TOKEN_RENEW: 'grv_teleport_token_renew',
   LAST_ACTIVE: 'grv_teleport_last_active',
   DISCOVER: 'grv_teleport_discover',
-  THEME: 'grv_teleport_ui_theme',
   SHOW_ASSIST_POPUP: 'grv_teleport_show_assist',
-  ASSIST_VIEW_MODE: 'grv_teleport_assist_view_mode',
-  USER_PREFERENCES: 'grv_teleport_user_preferences',
-  ONBOARD_SURVEY: 'grv_teleport_onboard_survey',
-  RECOMMEND_FEATURE: 'grv_recommend_feature',
-  UNIFIED_RESOURCES_DISABLED: 'grv_teleport_unified_resources_disabled',
-  UNIFIED_RESOURCES_NOT_SUPPORTED:
-    'grv_teleport_unified_resources_not_supported',
-};
-
-// SurveyRequest is the request for sending data to the back end
-export type SurveyRequest = {
-  companyName: string;
-  employeeCount: string;
-  resourcesList: Array<string>;
-  role: string;
-  team: string;
-};
-
-// LocalStorageSurvey is the SurveyRequest type defined in Enterprise
-export type LocalStorageSurvey = SurveyRequest & {
-  clusterResources: Array<number>;
-  marketingParams: LocalStorageMarketingParams;
-};
-
-// LocalStorageMarketingParams is the MarketingParams type defined in Enterprise
-export type LocalStorageMarketingParams = {
-  campaign: string;
-  source: string;
-  medium: string;
-  intent: string;
 };

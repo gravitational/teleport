@@ -278,10 +278,7 @@ export function useUserTraits(props: AgentStepProps) {
   // For server and kubernetes, the prev screen is the download
   // script which wouldn't make sense to go back to.
   let onPrev;
-  if (
-    props.resourceSpec.kind === ResourceKind.Database &&
-    (props.agentMeta as DbMeta).serviceDeployedMethod !== 'auto'
-  ) {
+  if (props.resourceSpec.kind === ResourceKind.Database) {
     onPrev = props.prevStep;
   }
 
@@ -298,7 +295,6 @@ export function useUserTraits(props: AgentStepProps) {
     dynamicTraits,
     staticTraits,
     resourceSpec: props.resourceSpec,
-    agentMeta: props.agentMeta,
   };
 }
 

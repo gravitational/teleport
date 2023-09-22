@@ -17,7 +17,6 @@ limitations under the License.
 package common
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -187,20 +186,6 @@ func TestConfigure(t *testing.T) {
 		flags := dumpFlags{}
 		err := flags.CheckAndSetDefaults()
 		require.NoError(t, err)
-	})
-
-	t.Run("Suppress output", func(t *testing.T) {
-		tempDir := t.TempDir()
-		var stdout bytes.Buffer
-		err := onConfigDump(dumpFlags{
-			SampleFlags: config.SampleFlags{
-				Silent: true,
-			},
-			output: filepath.Join(tempDir, "teleport.yaml"),
-			stdout: &stdout,
-		})
-		require.NoError(t, err)
-		require.Empty(t, stdout.Bytes())
 	})
 }
 

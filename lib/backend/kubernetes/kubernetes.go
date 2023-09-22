@@ -24,7 +24,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,10 +35,7 @@ import (
 )
 
 const (
-	// secretIdentifierName is the suffix used to construct the per-agent store.
 	secretIdentifierName = "state"
-	// sharedSecretIdentifierName is the suffix used to construct the shared store.
-	sharedSecretIdentifierName = "shared-state"
 	// NamespaceEnv is the env variable defined by the Helm chart that contains the
 	// namespace value.
 	NamespaceEnv = "KUBE_NAMESPACE"
@@ -65,16 +61,12 @@ type Config struct {
 	// Namespace is the Agent's namespace
 	// Field is required
 	Namespace string
-	// SecretName is the name of the kubernetes secret resource that backs this store. Conventionally
-	// this will be set to '<replica-name>-state' for per-agent secret store, and '<release-name>-shared-state'
-	// for the shared release-level store.
+	// SecretName is unique secret per agent where state and identity will be stored.
 	// Field is required
 	SecretName string
-	// FieldManager is the name used to identify the "owner" of fields within
-	// the store. This is the replica name in the per-agent state store, and
-	// helm release name (or 'teleport') in the shared store.
-	// Field is required.
-	FieldManager string
+	// ReplicaName is the Agent's pod name
+	// Field is required
+	ReplicaName string
 	// ReleaseName is the HELM release name
 	// Field is optional
 	ReleaseName string
@@ -92,8 +84,8 @@ func (c Config) Check() error {
 		return trace.BadParameter("missing secret name")
 	}
 
-	if len(c.FieldManager) == 0 {
-		return trace.BadParameter("missing field manager")
+	if len(c.ReplicaName) == 0 {
+		return trace.BadParameter("missing replica name")
 	}
 
 	if c.KubeClient == nil {
@@ -103,8 +95,7 @@ func (c Config) Check() error {
 	return nil
 }
 
-// Backend implements a subset of the teleport backend API backed by a kuberentes secret resource
-// and storing backend items as entries in the secret's 'data' map.
+// Backend uses Kubernetes Secrets to store identities.
 type Backend struct {
 	Config
 
@@ -140,50 +131,9 @@ func NewWithClient(restClient kubernetes.Interface) (*Backend, error) {
 				os.Getenv(teleportReplicaNameEnv),
 				secretIdentifierName,
 			),
-			FieldManager: os.Getenv(teleportReplicaNameEnv),
-			ReleaseName:  os.Getenv(ReleaseNameEnv),
-			KubeClient:   restClient,
-		},
-	)
-}
-
-// NewShared returns a new instance of the kuberentes shared secret store (equivalent to New() except that
-// this backend can be written to by any teleport agent within the helm release. used for propagating relevant state
-// to controllers).
-func NewShared() (*Backend, error) {
-	restClient, _, err := kubeutils.GetKubeClient("")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return NewSharedWithClient(restClient)
-}
-
-// NewSharedWithClient returns a new instance of the shared kubernetes secret store with the provided client (equivalent
-// to NewWithClient() except that this backend can be written to by any teleport agent within the helm release. used for propagating
-// relevant state to controllers).
-func NewSharedWithClient(restClient kubernetes.Interface) (*Backend, error) {
-	if os.Getenv(NamespaceEnv) == "" {
-		return nil, trace.BadParameter("environment variable %q not set or empty", NamespaceEnv)
-	}
-
-	ident := os.Getenv(ReleaseNameEnv)
-	if ident == "" {
-		ident = "teleport"
-		log.Warnf("Var %q is not set, falling back to default identifier %q for shared store.", ReleaseNameEnv, ident)
-	}
-
-	return NewWithConfig(
-		Config{
-			Namespace: os.Getenv(NamespaceEnv),
-			SecretName: fmt.Sprintf(
-				"%s-%s",
-				ident,
-				sharedSecretIdentifierName,
-			),
-			FieldManager: ident,
-			ReleaseName:  os.Getenv(ReleaseNameEnv),
-			KubeClient:   restClient,
+			ReplicaName: os.Getenv(teleportReplicaNameEnv),
+			ReleaseName: os.Getenv(ReleaseNameEnv),
+			KubeClient:  restClient,
 		},
 	)
 }
@@ -240,6 +190,19 @@ func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 	defer b.mu.Unlock()
 
 	return b.updateSecretContent(ctx, i)
+}
+
+// PutRange receives multiple items and upserts them into the Kubernetes Secret.
+// This function is only used when the Agent's Secret does not exist, but local SQLite database
+// has identity credentials.
+// TODO(tigrato): remove this once the compatibility layer between local storage and
+// Kube secret storage is no longer required!
+func (b *Backend) PutRange(ctx context.Context, items []backend.Item) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	_, err := b.updateSecretContent(ctx, items...)
+	return trace.Wrap(err)
 }
 
 // getSecret reads the secret from K8S API.
@@ -313,7 +276,7 @@ func (b *Backend) upsertSecret(ctx context.Context, secret *corev1.Secret) error
 	_, err := b.KubeClient.
 		CoreV1().
 		Secrets(b.Namespace).
-		Apply(ctx, secretApply, metav1.ApplyOptions{FieldManager: b.FieldManager})
+		Apply(ctx, secretApply, metav1.ApplyOptions{FieldManager: b.ReplicaName})
 
 	return trace.Wrap(err)
 }

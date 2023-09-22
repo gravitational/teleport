@@ -101,6 +101,9 @@ func TestParseShortcut(t *testing.T) {
 		"kube_cluster":  {expectedOutput: types.KindKubernetesCluster},
 		"kube_clusters": {expectedOutput: types.KindKubernetesCluster},
 
+		"kube_service":  {expectedOutput: types.KindKubeService},
+		"kube_services": {expectedOutput: types.KindKubeService},
+
 		"kube_server":  {expectedOutput: types.KindKubeServer},
 		"kube_servers": {expectedOutput: types.KindKubeServer},
 
@@ -157,11 +160,6 @@ func TestParseShortcut(t *testing.T) {
 		"okta_assignments": {expectedOutput: types.KindOktaAssignment},
 		"oktaassignment":   {expectedOutput: types.KindOktaAssignment},
 		"oktaassignments":  {expectedOutput: types.KindOktaAssignment},
-
-		"access_list":  {expectedOutput: types.KindAccessList},
-		"access_lists": {expectedOutput: types.KindAccessList},
-		"accesslist":   {expectedOutput: types.KindAccessList},
-		"accesslists":  {expectedOutput: types.KindAccessList},
 
 		"SamL_IDP_sERVICe_proVidER": {expectedOutput: types.KindSAMLIdPServiceProvider},
 

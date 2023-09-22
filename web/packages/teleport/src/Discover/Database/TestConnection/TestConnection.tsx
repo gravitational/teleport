@@ -115,7 +115,7 @@ export function TestConnectionView({
         <Box width="500px" mb={3}>
           <LabelInput htmlFor={'select'}>Database Name</LabelInput>
           <Select
-            label="Database Name"
+            label="Database name"
             placeholder={
               nameOpts.length === 0
                 ? 'No database names defined'

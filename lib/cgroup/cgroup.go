@@ -41,7 +41,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -172,7 +171,7 @@ func (s *Service) Place(sessionID string, pid int) error {
 // readPids returns a slice of PIDs from a file. Used to get list of all PIDs
 // within a cgroup.
 func readPids(path string) ([]string, error) {
-	f, err := utils.OpenFileNoUnsafeLinks(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

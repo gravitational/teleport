@@ -39,9 +39,6 @@ spec:
       {{- if .Values.dnsPolicy }}
       dnsPolicy: {{ .Values.dnsPolicy | quote }}
       {{- end }}
-      {{- if .Values.hostAliases }}
-      hostAliases: {{- toYaml .Values.hostAliases | nindent 8 }}
-      {{- end }}
       securityContext:
         fsGroup: 9807
       {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
@@ -113,14 +110,14 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
-      serviceAccountName: {{ template "teleport-kube-agent.serviceAccountName" . }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" . }}
       {{- if .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
       {{- end }}
       containers:
       - name: "teleport"
-        image: {{ include "teleport-kube-agent.image" . | quote }}
+        image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
@@ -139,10 +136,6 @@ spec:
                 fieldPath: metadata.namespace
           - name: RELEASE_NAME
             value: {{ .Release.Name }}
-          {{- if .Values.updater.enabled }}
-          - name: TELEPORT_EXT_UPGRADER
-            value: kube
-          {{- end }}
           {{- if .Values.tls.existingCASecretName }}
           - name: SSL_CERT_FILE
             value: /etc/teleport-tls-ca/ca.pem
@@ -213,7 +206,7 @@ spec:
           name: {{ .Release.Name }}
       - name: "auth-token"
         secret:
-          secretName: {{ coalesce .Values.secretName .Values.joinTokenSecret.name }}
+          secretName: {{ .Values.secretName }}
 {{- if not .Values.storage.enabled }}
       - name: "data"
         emptyDir: {}

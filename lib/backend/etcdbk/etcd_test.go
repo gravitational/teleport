@@ -58,7 +58,7 @@ var commonEtcdOptions = []Option{
 
 func TestEtcd(t *testing.T) {
 	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
+		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
 	}
 
 	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
@@ -92,7 +92,7 @@ func TestEtcd(t *testing.T) {
 
 func TestPrefix(t *testing.T) {
 	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
+		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
 	}
 
 	ctx := context.Background()
@@ -169,7 +169,7 @@ func requireKV(ctx context.Context, t *testing.T, bk *EtcdBackend, key, val stri
 // See https://github.com/gravitational/teleport/issues/4786
 func TestCompareAndSwapOversizedValue(t *testing.T) {
 	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
+		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
 	}
 	// setup
 	const maxClientMsgSize = 128
@@ -202,7 +202,7 @@ func TestLeaseBucketing(t *testing.T) {
 	const count = 40
 
 	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
+		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

@@ -16,8 +16,6 @@
 
 import { Label } from 'teleport/types';
 
-import { Node } from '../nodes';
-
 /**
  * type Integration v. type Plugin:
  *
@@ -94,22 +92,7 @@ export function getStatusCodeDescription(
 
 export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
 export type PluginSpec = Record<string, never>; // currently no 'spec' fields exposed to the frontend
-// PluginKind represents the type of the plugin
-// and should be the same value as defined in the backend (check master branch for the latest):
-// https://github.com/gravitational/teleport/blob/a410acef01e0023d41c18ca6b0a7b384d738bb32/api/types/plugin.go#L27
-export type PluginKind =
-  | 'slack'
-  | 'openai'
-  | 'pagerduty'
-  | 'email'
-  | 'jira'
-  | 'discord'
-  | 'mattermost'
-  | 'msteams'
-  | 'opsgenie'
-  | 'okta'
-  | 'servicenow'
-  | 'jamf';
+export type PluginKind = 'slack' | 'openai';
 
 export type IntegrationCreateRequest = {
   name: string;
@@ -205,12 +188,6 @@ export type AwsRdsDatabase = {
   accountId: string;
   // labels contains this Instance tags.
   labels: Label[];
-  // subnets is a list of subnets for the RDS instance.
-  subnets: string[];
-  // vpcId is the AWS VPC ID for the DB.
-  vpcId: string;
-  // region is the AWS cloud region that this database is from.
-  region: Regions;
   // status contains this Instance status.
   // There is a lot of status states available so only a select few were
   // hard defined to use to determine the status color.
@@ -229,127 +206,4 @@ export type IntegrationUpdateRequest = {
   awsoidc: {
     roleArn: string;
   };
-};
-
-export type AwsOidcDeployServiceRequest = {
-  deploymentMode: 'database-service';
-  region: Regions;
-  subnetIds: string[];
-  taskRoleArn: string;
-  databaseAgentMatcherLabels: Label[];
-};
-
-export type AwsOidcDeployServiceResponse = {
-  // clusterArn is the Amazon ECS Cluster ARN
-  // where the task was started.
-  clusterArn: string;
-  // serviceArn is the Amazon ECS Cluster Service
-  // ARN created to run the task.
-  serviceArn: string;
-  // taskDefinitionArn is the Amazon ECS Task Definition
-  // ARN created to run the Service.
-  taskDefinitionArn: string;
-  // serviceDashboardUrl is a link to the service's Dashboard
-  // URL in Amazon Console.
-  serviceDashboardUrl: string;
-};
-
-export type ListEc2InstancesRequest = {
-  region: Regions;
-  nextToken?: string;
-};
-
-export type ListEc2InstancesResponse = {
-  // instances is the list of EC2 Instances.
-  instances: Node[];
-  nextToken?: string;
-};
-
-export type ListEc2InstanceConnectEndpointsRequest = {
-  region: Regions;
-  // vpcId is the VPC to filter EC2 Instance Connect Endpoints.
-  vpcId: string;
-  nextToken?: string;
-};
-
-export type ListEc2InstanceConnectEndpointsResponse = {
-  // endpoints is the list of EC2 Instance Connect Endpoints.
-  endpoints: Ec2InstanceConnectEndpoint[];
-  nextToken?: string;
-};
-
-export type Ec2InstanceConnectEndpoint = {
-  name: string;
-  // state is the current state of the EC2 Instance Connect Endpoint.
-  state:
-    | 'create-in-progress'
-    | 'create-complete'
-    | 'create-failed'
-    | 'delete-in-progress'
-    | 'delete-complete'
-    | 'delete-failed';
-  // stateMessage is an optional message describing the state of the EICE, such as an error message.
-  stateMessage?: string;
-  // dashboardLink is a URL to AWS Console where the user can see the EC2 Instance Connect Endpoint.
-  dashboardLink: string;
-  // subnetID is the subnet used by the Endpoint. Please note that the Endpoint should be able to reach any subnet within the VPC.
-  subnetId: string;
-};
-
-export type DeployEc2InstanceConnectEndpointRequest = {
-  region: Regions;
-  // subnetID is the subnet id for the EC2 Instance Connect Endpoint.
-  subnetId: string;
-  // securityGroupIDs is the list of SecurityGroups to apply to the Endpoint. If not specified, the Endpoint will receive the default SG for the subnet's VPC.
-  securityGroupIds?: string[];
-};
-
-export type DeployEc2InstanceConnectEndpointResponse = {
-  // name is the name of the EC2 Instance Connect Endpoint that was created.
-  name: string;
-};
-
-export type ListAwsSecurityGroupsRequest = {
-  // VPCID is the VPC to filter Security Groups.
-  vpcId: string;
-  nextToken?: string;
-};
-
-export type ListAwsSecurityGroupsResponse = {
-  securityGroups: SecurityGroup[];
-  nextToken?: string;
-};
-
-export type SecurityGroup = {
-  // Name is the Security Group name.
-  // This is just a friendly name and should not be used for further API calls
-  name: string;
-  // ID is the security group ID.
-  // This is the value that should be used when doing further API calls.
-  id: string;
-  description: string;
-  // InboundRules describe the Security Group Inbound Rules.
-  // The CIDR of each rule represents the source IP that the rule applies to.
-  inboundRules: SecurityGroupRule[];
-  // OutboundRules describe the Security Group Outbound Rules.
-  // The CIDR of each rule represents the destination IP that the rule applies to.
-  outboundRules: SecurityGroupRule[];
-};
-
-export type SecurityGroupRule = {
-  // IPProtocol is the protocol used to describe the rule.
-  ipProtocol: string;
-  // FromPort is the inclusive start of the Port range for the Rule.
-  fromPort: string;
-  // ToPort is the inclusive end of the Port range for the Rule.
-  toPort: string;
-  // CIDRs contains a list of IP ranges that this rule applies to and a description for the value.
-  cidrs: Cidr[];
-};
-
-export type Cidr = {
-  // CIDR is the IP range using CIDR notation.
-  cidr: string;
-  // Description contains a small text describing the CIDR.
-  description: string;
 };

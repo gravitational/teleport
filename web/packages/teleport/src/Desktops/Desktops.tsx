@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Box, Indicator } from 'design';
+import { Indicator, Box } from 'design';
 
 import useTeleport from 'teleport/useTeleport';
 import {
@@ -25,16 +25,11 @@ import {
 } from 'teleport/components/Layout';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
-import cfg from 'teleport/config';
-import history from 'teleport/services/history/history';
-import localStorage from 'teleport/services/localStorage';
 
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
-import { SearchResource } from 'teleport/Discover/SelectResource';
-
 import DesktopList from './DesktopList';
-import { State, useDesktops } from './useDesktops';
+import { useDesktops, State } from './useDesktops';
 
 const DOC_URL = 'https://goteleport.com/docs/desktop-access/getting-started/';
 
@@ -73,18 +68,13 @@ export function Desktops(props: State) {
     fetchedData.agents.length === 0 &&
     isSearchEmpty;
 
-  const enabled = localStorage.areUnifiedResourcesEnabled();
-  if (enabled) {
-    history.replace(cfg.getUnifiedResourcesRoute(clusterId));
-  }
-
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Desktops</FeatureHeaderTitle>
         {attempt.status === 'success' && !hasNoDesktops && (
           <AgentButtonAdd
-            agent={SearchResource.DESKTOP}
+            agent="desktop"
             beginsWithVowel={false}
             isLeafCluster={isLeafCluster}
             canCreate={canCreate}
@@ -135,7 +125,7 @@ const emptyStateInfo: EmptyStateInfo = {
   byline:
     'Teleport Desktop Access provides graphical desktop access to remote Windows hosts.',
   docsURL: DOC_URL,
-  resourceType: SearchResource.DESKTOP,
+  resourceType: 'desktop',
   readOnly: {
     title: 'No Desktops Found',
     resource: 'desktops',

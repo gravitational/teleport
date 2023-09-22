@@ -15,15 +15,12 @@
  */
 
 import React from 'react';
-import { useTheme } from 'styled-components';
 import ReactSelectCreatable from 'react-select/creatable';
-import { Cross } from 'design/Icon';
+import theme from 'design/theme';
 
-const styles = theme => ({
+const styles = {
   multiValue: (base, state) => {
-    return state.data.isFixed
-      ? { ...base, backgroundColor: `${theme.colors.spotBackground[2]}` }
-      : { ...base, backgroundColor: `${theme.colors.spotBackground[0]}` };
+    return state.data.isFixed ? { ...base, backgroundColor: 'gray' } : base;
   },
   multiValueLabel: (base, state) => {
     if (state.data.isFixed) {
@@ -34,7 +31,7 @@ const styles = theme => ({
       return { ...base, paddingRight: 6 };
     }
 
-    return { ...base, color: theme.colors.text.primary };
+    return { ...base, color: theme.colors.text.primaryInverse };
   },
   multiValueRemove: (base, state) => {
     return state.data.isFixed || state.isDisabled
@@ -42,39 +39,13 @@ const styles = theme => ({
       : {
           ...base,
           cursor: 'pointer',
-          color: theme.colors.text.primary,
+          color: theme.colors.text.primaryInverse,
         };
   },
   menuList: base => {
-    return {
-      ...base,
-      color: theme.colors.text.primary,
-      backgroundColor: theme.colors.spotBackground[0],
-    };
+    return { ...base, color: theme.colors.text.primaryInverse };
   },
-
-  control: base => ({
-    ...base,
-    backgroundColor: theme.colors.levels.surface,
-  }),
-
-  input: base => ({
-    ...base,
-    color: theme.colors.text.primary,
-  }),
-
-  menu: base => ({ ...base, backgroundColor: theme.colors.levels.elevated }),
-
-  option: (base, state) => {
-    if (state.isFocused) {
-      return {
-        ...base,
-        backgroundColor: theme.colors.spotBackground[1],
-      };
-    }
-    return base;
-  },
-});
+};
 
 export type SelectCreatableProps = {
   inputValue: string;
@@ -103,24 +74,20 @@ export const SelectCreatable = ({
   isDisabled = false,
   autoFocus = false,
   ...rest
-}: SelectCreatableProps) => {
-  const theme = useTheme();
-  return (
-    <ReactSelectCreatable
-      className="react-select"
-      components={{
-        DropdownIndicator: null,
-        CrossIcon: () => <Cross />,
-      }}
-      styles={styles(theme)}
-      {...rest}
-      isMulti={isMulti}
-      isClearable={isClearable}
-      isDisabled={isDisabled}
-      autoFocus={autoFocus}
-    />
-  );
-};
+}: SelectCreatableProps) => (
+  <ReactSelectCreatable
+    className="react-select"
+    components={{
+      DropdownIndicator: null,
+    }}
+    styles={styles}
+    {...rest}
+    isMulti={isMulti}
+    isClearable={isClearable}
+    isDisabled={isDisabled}
+    autoFocus={autoFocus}
+  />
+);
 
 export type Option = {
   // value is the actual value used inlieu of label.

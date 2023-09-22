@@ -1,5 +1,5 @@
 ---
-title: Database Access with SQL Server on Azure
+title: Database Access with SQL Server on Azure (Preview)
 description: How to configure Teleport database access with Azure SQL Server using Azure Active Directory authentication.
 ---
 
@@ -14,7 +14,16 @@ description: How to configure Teleport database access with Azure SQL Server usi
   is available starting from Teleport `11.0`.
 </Details>
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Azure SQL Server" dbConfigure="Azure SQL Server using Azure Active Directory authentication" dbName="Azure SQL Server" !)
+<Admonition type="warning" title="Preview">
+  Database access for Azure SQL Server with Azure Active Directory authentication is
+  currently in Preview mode.
+</Admonition>
+
+This guide will help you to:
+
+- Install and configure Teleport.
+- Set up access to Azure SQL Server using Azure Active Directory authentication.
+- Connect to Azure SQL Server through Teleport.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">

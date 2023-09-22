@@ -20,7 +20,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -32,10 +32,10 @@ import (
 // returned value to release the keepAliver resources.
 func (c *Client) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
 	cancelCtx, cancel := context.WithCancel(ctx)
-	stream, err := c.grpc.SendKeepAlives(cancelCtx)
+	stream, err := c.grpc.SendKeepAlives(cancelCtx, c.callOpts...)
 	if err != nil {
 		cancel()
-		return nil, trace.Wrap(err)
+		return nil, trail.FromGRPC(err)
 	}
 	k := &streamKeepAliver{
 		stream:      stream,
@@ -70,7 +70,7 @@ func (k *streamKeepAliver) forwardKeepAlives() {
 		case keepAlive := <-k.keepAlivesC:
 			err := k.stream.Send(&keepAlive)
 			if err != nil {
-				k.closeWithError(trace.Wrap(err))
+				k.closeWithError(trail.FromGRPC(err))
 				return
 			}
 		}
@@ -93,7 +93,7 @@ func (k *streamKeepAliver) Done() <-chan struct{} {
 // server, otherwise no errors will be propagated
 func (k *streamKeepAliver) recv() {
 	err := k.stream.RecvMsg(&emptypb.Empty{})
-	k.closeWithError(trace.Wrap(err))
+	k.closeWithError(trail.FromGRPC(err))
 }
 
 func (k *streamKeepAliver) closeWithError(err error) {

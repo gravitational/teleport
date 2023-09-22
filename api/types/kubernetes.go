@@ -72,9 +72,6 @@ type KubeCluster interface {
 	IsKubeconfig() bool
 	// Copy returns a copy of this kube cluster resource.
 	Copy() *KubernetesClusterV3
-	// GetCloud gets the cloud this kube cluster is running on, or an empty string if it
-	// isn't running on a cloud provider.
-	GetCloud() string
 }
 
 // NewKubernetesClusterV3FromLegacyCluster creates a new Kubernetes cluster resource
@@ -154,16 +151,6 @@ func (k *KubernetesClusterV3) GetResourceID() int64 {
 // SetResourceID sets the resource ID.
 func (k *KubernetesClusterV3) SetResourceID(id int64) {
 	k.Metadata.ID = id
-}
-
-// GetRevision returns the revision
-func (k *KubernetesClusterV3) GetRevision() string {
-	return k.Metadata.GetRevision()
-}
-
-// SetRevision sets the revision
-func (k *KubernetesClusterV3) SetRevision(rev string) {
-	k.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns the resource metadata.
@@ -305,21 +292,6 @@ func (k *KubernetesClusterV3) IsGCP() bool {
 	return !protoKnownFieldsEqual(&k.Spec.GCP, &KubeGCP{})
 }
 
-// GetCloud gets the cloud this kube cluster is running on, or an empty string if it
-// isn't running on a cloud provider.
-func (k *KubernetesClusterV3) GetCloud() string {
-	switch {
-	case k.IsAzure():
-		return CloudAzure
-	case k.IsAWS():
-		return CloudAWS
-	case k.IsGCP():
-		return CloudGCP
-	default:
-		return ""
-	}
-}
-
 // IsKubeconfig identifies if the KubeCluster contains kubeconfig data.
 func (k *KubernetesClusterV3) IsKubeconfig() bool {
 	return len(k.Spec.Kubeconfig) > 0
@@ -385,10 +357,6 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if err := k.Spec.GCP.CheckAndSetDefaults(); err != nil && k.IsGCP() {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 
@@ -419,22 +387,6 @@ func (k KubeAWS) CheckAndSetDefaults() error {
 
 	if len(k.AccountID) == 0 {
 		return trace.BadParameter("invalid AWS AccountID")
-	}
-
-	return nil
-}
-
-func (k KubeGCP) CheckAndSetDefaults() error {
-	if len(k.Location) == 0 {
-		return trace.BadParameter("invalid GCP Location")
-	}
-
-	if len(k.ProjectID) == 0 {
-		return trace.BadParameter("invalid GCP ProjectID")
-	}
-
-	if len(k.Name) == 0 {
-		return trace.BadParameter("invalid GCP Name")
 	}
 
 	return nil
@@ -616,16 +568,6 @@ func (k *KubernetesResourceV1) SetResourceID(id int64) {
 	k.Metadata.ID = id
 }
 
-// GetRevision returns the revision
-func (k *KubernetesResourceV1) GetRevision() string {
-	return k.Metadata.GetRevision()
-}
-
-// SetRevision sets the revision
-func (k *KubernetesResourceV1) SetRevision(rev string) {
-	k.Metadata.SetRevision(rev)
-}
-
 // CheckAndSetDefaults validates the Resource and sets any empty fields to
 // default values.
 func (k *KubernetesResourceV1) CheckAndSetDefaults() error {
@@ -637,8 +579,7 @@ func (k *KubernetesResourceV1) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	// Unless the resource is cluster-wide, it must have a namespace.
-	if len(k.Spec.Namespace) == 0 && !slices.Contains(KubernetesClusterWideResourceKinds, k.Kind) {
+	if len(k.Spec.Namespace) == 0 {
 		return trace.BadParameter("missing kubernetes namespace")
 	}
 

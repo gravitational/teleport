@@ -3,7 +3,11 @@ title: Database Access with Self-Hosted PostgreSQL
 description: How to configure Teleport database access with self-hosted PostgreSQL.
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="PostgreSQL" dbConfigure="PostgreSQL database with mutual TLS authentication" dbName="PostgreSQL" !)
+This guide will help you to:
+
+- Install Teleport `(=teleport.version=)`.
+- Set up Teleport to access your self-hosted PostgreSQL.
+- Connect to your databases through Teleport.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -162,8 +166,3 @@ $ tsh db logout example-postgres
 # Remove credentials for all database instances.
 $ tsh db logout
 ```
-
-## Next steps
-
-- Set up [automatic database user provisioning](../rbac/configuring-auto-user-provisioning.mdx).
-

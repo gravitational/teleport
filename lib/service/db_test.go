@@ -19,36 +19,34 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 func TestTeleportProcess_shouldInitDatabases(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name   string
-		config servicecfg.DatabasesConfig
+		config DatabasesConfig
 		want   bool
 	}{
 		{
 			name: "disabled",
-			config: servicecfg.DatabasesConfig{
+			config: DatabasesConfig{
 				Enabled: false,
 			},
 			want: false,
 		},
 		{
 			name: "enabled but no config",
-			config: servicecfg.DatabasesConfig{
+			config: DatabasesConfig{
 				Enabled: true,
 			},
 			want: false,
 		},
 		{
 			name: "enabled with config",
-			config: servicecfg.DatabasesConfig{
+			config: DatabasesConfig{
 				Enabled: true,
-				Databases: []servicecfg.Database{
+				Databases: []Database{
 					{
 						Name: "foo",
 					},
@@ -61,7 +59,7 @@ func TestTeleportProcess_shouldInitDatabases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &TeleportProcess{
-				Config: &servicecfg.Config{
+				Config: &Config{
 					Databases: tt.config,
 				},
 			}

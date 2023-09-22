@@ -107,7 +107,7 @@ type agentConfig struct {
 	// tracker tracks existing proxies.
 	tracker *track.Tracker
 	// lease gives the agent an exclusive claim to connect to a proxy.
-	lease *track.Lease
+	lease track.Lease
 	// clock is use to get the current time. Mock clocks can be used for
 	// testing.
 	clock clockwork.Clock
@@ -137,18 +137,17 @@ func (c *agentConfig) checkAndSetDefaults() error {
 	if c.tracker == nil {
 		return trace.BadParameter("missing parameter tracker")
 	}
-	if c.lease == nil {
-		return trace.BadParameter("missing parameter lease")
-	}
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
 	}
 	if c.log == nil {
 		c.log = logrus.New()
 	}
-	c.log = c.log.
-		WithField("leaseID", c.lease.ID()).
-		WithField("target", c.addr.String())
+	if !c.lease.IsZero() {
+		c.log = c.log.WithField("leaseID", c.lease.ID())
+	}
+
+	c.log = c.log.WithField("target", c.addr.String())
 
 	return nil
 }
@@ -175,6 +174,8 @@ type agent struct {
 	discoveryC <-chan ssh.NewChannel
 	// transportC receives new tranport channels.
 	transportC <-chan ssh.NewChannel
+	// unclaim releases the claim to the proxy in the tracker.
+	unclaim func()
 	// ctx is the internal context used to release resources used by  the agent.
 	ctx context.Context
 	// cancel cancels the internal context.
@@ -204,6 +205,7 @@ func newAgent(config agentConfig) (*agent, error) {
 		state:          AgentInitial,
 		cancel:         noop,
 		drainCancel:    noop,
+		unclaim:        noop,
 		doneConnecting: make(chan struct{}),
 		proxySigner:    config.proxySigner,
 	}, nil
@@ -365,12 +367,14 @@ func (a *agent) connect() error {
 	}
 	a.client = client
 
-	if !a.lease.Claim(a.client.Principals()...) {
+	unclaim, ok := a.tracker.Claim(a.client.Principals()...)
+	if !ok {
 		a.client.Close()
 		// the error message must end with [proxyAlreadyClaimedError] to be
 		// recognized by [isProxyAlreadyClaimed]
 		return trace.Errorf("failed to claim proxy %v: "+proxyAlreadyClaimedError, a.client.Principals())
 	}
+	a.unclaim = unclaim
 
 	startupCtx, cancel := context.WithCancel(a.ctx)
 
@@ -429,6 +433,8 @@ func (a *agent) Stop() error {
 	}
 
 	a.drainCancel()
+
+	a.unclaim()
 	a.lease.Release()
 
 	// Wait for open tranports to close before closing the connection.
@@ -647,8 +653,9 @@ func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				return
 			}
 
-			a.log.Debugf("Received discovery request: %s", &r)
-			a.tracker.TrackExpected(r.TrackProxies()...)
+			proxies := r.ProxyNames()
+			a.log.Debugf("Received discovery request: %v", proxies)
+			a.tracker.TrackExpected(proxies...)
 		}
 	}
 }
@@ -658,4 +665,22 @@ const (
 	chanDiscovery    = "teleport-discovery"
 	chanDiscoveryReq = "discovery"
 	reconnectRequest = "reconnect@goteleport.com"
+)
+
+const (
+	// LocalNode is a special non-resolvable address that indicates the request
+	// wants to connect to a dialed back node.
+	LocalNode = "@local-node"
+	// RemoteAuthServer is a special non-resolvable address that indicates client
+	// requests a connection to the remote auth server.
+	RemoteAuthServer = "@remote-auth-server"
+	// LocalKubernetes is a special non-resolvable address that indicates that clients
+	// requests a connection to the kubernetes endpoint of the local proxy.
+	// This has to be a valid domain name, so it lacks @
+	LocalKubernetes = "remote.kube.proxy." + constants.APIDomain
+	// LocalWindowsDesktop is a special non-resolvable address that indicates
+	// that clients requests a connection to the windows service endpoint of
+	// the local proxy.
+	// This has to be a valid domain name, so it lacks @
+	LocalWindowsDesktop = "remote.windows_desktop.proxy." + constants.APIDomain
 )

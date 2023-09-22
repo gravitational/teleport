@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-export { ActionButtons, AlternateInstructionButton } from './ActionButtons';
+export { ActionButtons } from './ActionButtons';
 export { ButtonBlueText } from './ButtonBlueText';
 export { Header, HeaderSubtitle, HeaderWithBackBtn } from './Header';
 export { Finished } from './Finished';
 export { Mark } from './Mark';
 export { PermissionsErrorMessage } from '../SelectResource/PermissionsErrorMessage';
+export { ReadOnlyYamlEditor } from './YAML';
 export { ResourceKind } from './ResourceKind';
 export { Step, StepContainer } from './Step';
 export { TextBox, TextIcon } from './Text';

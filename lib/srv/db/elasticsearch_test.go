@@ -190,7 +190,7 @@ func TestAuditElasticsearch(t *testing.T) {
 }
 
 func withElasticsearch(name string, opts ...elasticsearch.TestServerOption) withDatabaseOption {
-	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		ElasticsearchServer, err := elasticsearch.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,

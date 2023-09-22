@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"net"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -113,7 +112,7 @@ type SessionCreds struct {
 
 // AuthenticateUser authenticates user based on the request type.
 // Returns the username of the authenticated user.
-func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (services.UserState, error) {
+func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (types.User, error) {
 	username := req.Username
 
 	mfaDev, actualUsername, err := s.authenticateUser(ctx, req)
@@ -149,7 +148,7 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		}
 	}
 
-	var userState services.UserState
+	var user types.User
 	if err != nil {
 		event.Code = events.UserLocalLoginFailureCode
 		event.Status.Success = false
@@ -159,7 +158,7 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		event.Status.Success = true
 
 		var err error
-		user, err := s.GetUser(username, false /* withSecrets */)
+		user, err = s.GetUser(username, false /* withSecrets */)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -170,17 +169,11 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		if err := s.CallLoginHooks(ctx, user); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		userState, err = s.GetUserOrLoginState(ctx, username)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 	if err := s.emitter.EmitAuditEvent(s.closeCtx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit login event.")
 	}
-
-	return userState, trace.Wrap(err)
+	return user, trace.Wrap(err)
 }
 
 var (
@@ -477,7 +470,7 @@ func (s *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 	}
 
 	if req.Session != nil {
-		session, err := s.GetWebSession(ctx, types.GetWebSessionRequest{
+		session, err := s.GetWebSession(context.TODO(), types.GetWebSessionRequest{
 			User:      username,
 			SessionID: req.Session.ID,
 		})
@@ -492,15 +485,7 @@ func (s *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 		return nil, trace.Wrap(err)
 	}
 
-	loginIP := ""
-	if req.ClientMetadata != nil {
-		loginIP, _, err = net.SplitHostPort(req.ClientMetadata.RemoteAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	sess, err := s.createUserWebSession(ctx, user, loginIP)
+	sess, err := s.createUserWebSession(context.TODO(), user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -620,12 +605,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		return nil, trace.Wrap(err)
 	}
 
-	userState, err := s.GetUserOrLoginState(ctx, user.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	accessInfo := services.AccessInfoFromUserState(userState)
+	accessInfo := services.AccessInfoFromUser(user)
 	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -656,12 +636,12 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 	}
 
 	certReq := certRequest{
-		user:                 userState,
+		user:                 user,
 		ttl:                  req.TTL,
 		publicKey:            req.PublicKey,
 		compatibility:        req.CompatibilityMode,
 		checker:              checker,
-		traits:               userState.GetTraits(),
+		traits:               user.GetTraits(),
 		routeToCluster:       req.RouteToCluster,
 		kubernetesCluster:    req.KubernetesCluster,
 		loginIP:              clientIP,
@@ -713,12 +693,11 @@ func (s *Server) emitNoLocalAuthEvent(username string) {
 	}
 }
 
-func (s *Server) createUserWebSession(ctx context.Context, user services.UserState, loginIP string) (types.WebSession, error) {
+func (s *Server) createUserWebSession(ctx context.Context, user types.User) (types.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User as this method
 	// is only used for local accounts.
 	return s.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
 		User:      user.GetName(),
-		LoginIP:   loginIP,
 		Roles:     user.GetRoles(),
 		Traits:    user.GetTraits(),
 		LoginTime: s.clock.Now().UTC(),

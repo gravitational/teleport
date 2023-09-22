@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/url"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -35,7 +34,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
@@ -47,7 +45,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -56,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // DatabaseGetter defines interface for fetching database resources.
@@ -147,6 +144,13 @@ func ValidateDatabase(db types.Database) error {
 		return trace.Wrap(err)
 	}
 
+	// This was added in v14 and backported, except that it's intentionally
+	// called here instead of in CheckAndSetDefaults for backwards
+	// compatibility.
+	if err := types.ValidateDatabaseName(db.GetName()); err != nil {
+		return trace.Wrap(err, "invalid database name")
+	}
+
 	if !slices.Contains(defaults.DatabaseProtocols, db.GetProtocol()) {
 		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v", db.GetName(), db.GetProtocol(), defaults.DatabaseProtocols)
 	}
@@ -168,10 +172,6 @@ func ValidateDatabase(db types.Database) error {
 		if !strings.Contains(db.GetURI(), defaults.SnowflakeURL) {
 			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
 		}
-	} else if db.GetProtocol() == defaults.ProtocolClickHouse || db.GetProtocol() == defaults.ProtocolClickHouseHTTP {
-		if err := validateClickhouseURI(db); err != nil {
-			return trace.Wrap(err)
-		}
 	} else if needsURIValidation(db) {
 		if _, _, err := net.SplitHostPort(db.GetURI()); err != nil {
 			return trace.BadParameter("invalid database %q address %q: %v", db.GetName(), db.GetURI(), err)
@@ -185,9 +185,9 @@ func ValidateDatabase(db types.Database) error {
 	}
 
 	// Validate Active Directory specific configuration, when Kerberos auth is required.
-	if needsADValidation(db) {
-		if db.GetAD().KeytabFile == "" && db.GetAD().KDCHostName == "" {
-			return trace.BadParameter("either keytab file path or kdc_host_name must be provided for database %q, both are missing", db.GetName())
+	if db.GetProtocol() == defaults.ProtocolSQLServer && (db.GetAD().Domain != "" || !strings.Contains(db.GetURI(), azureutils.MSSQLEndpointSuffix)) {
+		if db.GetAD().KeytabFile == "" {
+			return trace.BadParameter("missing keytab file path for database %q", db.GetName())
 		}
 		if db.GetAD().Krb5File == "" {
 			return trace.BadParameter("missing Kerberos config file path for database %q", db.GetName())
@@ -198,69 +198,6 @@ func ValidateDatabase(db types.Database) error {
 		if db.GetAD().SPN == "" {
 			return trace.BadParameter("missing service principal name for database %q", db.GetName())
 		}
-		if db.GetAD().KDCHostName != "" {
-			if db.GetAD().LDAPCert == "" {
-				return trace.BadParameter("missing LDAP certificate for x509 authentication for database %q", db.GetName())
-			}
-		}
-	}
-
-	awsMeta := db.GetAWS()
-	if awsMeta.AssumeRoleARN != "" {
-		if awsMeta.AccountID == "" {
-			return trace.BadParameter("database %q missing AWS account ID", db.GetName())
-		}
-		parsed, err := awsutils.ParseRoleARN(awsMeta.AssumeRoleARN)
-		if err != nil {
-			return trace.BadParameter("database %q assume_role_arn %q is invalid: %v",
-				db.GetName(), awsMeta.AssumeRoleARN, err)
-		}
-		err = awsutils.CheckARNPartitionAndAccount(parsed, awsMeta.Partition(), awsMeta.AccountID)
-		if err != nil {
-			return trace.BadParameter("database %q is incompatible with AWS assume_role_arn %q: %v",
-				db.GetName(), awsMeta.AssumeRoleARN, err)
-		}
-	}
-
-	return nil
-}
-
-// needsADValidation returns whether a database AD configuration needs to
-// be validated.
-func needsADValidation(db types.Database) bool {
-	if db.GetProtocol() != defaults.ProtocolSQLServer {
-		return false
-	}
-
-	// Domain is always required when configuring the AD section, so we assume
-	// users intend to use Kerberos authentication if the configuration has it.
-	if db.GetAD().Domain != "" {
-		return true
-	}
-
-	// Azure-hosted databases and RDS Proxy support other authentication
-	// methods, and do not require this section to be validated.
-	if strings.Contains(db.GetURI(), azureutils.MSSQLEndpointSuffix) || db.GetAWS().RDSProxy.Name != "" {
-		return false
-	}
-
-	return true
-}
-
-func validateClickhouseURI(db types.Database) error {
-	u, err := url.Parse(db.GetURI())
-	if err != nil {
-		return trace.BadParameter("failed to parse uri: %v", err)
-	}
-	var requiredSchema string
-	if db.GetProtocol() == defaults.ProtocolClickHouse {
-		requiredSchema = "clickhouse"
-	}
-	if db.GetProtocol() == defaults.ProtocolClickHouseHTTP {
-		requiredSchema = "https"
-	}
-	if u.Scheme != requiredSchema {
-		return trace.BadParameter("invalid uri schema: %s for %v database protocol", u.Scheme, db.GetProtocol())
 	}
 	return nil
 }
@@ -619,9 +556,6 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	vpcID, subnets := rdsSubnetGroupToNetworkInfo(rdsInstance.DBSubnetGroup)
-
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
@@ -630,8 +564,6 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 			ClusterID:  aws.StringValue(rdsInstance.DBClusterIdentifier),
 			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
 			IAMAuth:    rdsInstance.IAMDatabaseAuthenticationEnabled,
-			Subnets:    subnets,
-			VPCID:      vpcID,
 		},
 	}, nil
 }
@@ -649,8 +581,8 @@ func labelsFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance, meta *types.AWS
 
 // NewDatabaseFromRDSV2Cluster creates a database resource from an RDS cluster (Aurora).
 // It uses aws sdk v2.
-func NewDatabaseFromRDSV2Cluster(cluster *rdsTypesV2.DBCluster, firstInstance *rdsTypesV2.DBInstance) (types.Database, error) {
-	metadata, err := MetadataFromRDSV2Cluster(cluster, firstInstance)
+func NewDatabaseFromRDSV2Cluster(cluster *rdsTypesV2.DBCluster) (types.Database, error) {
+	metadata, err := MetadataFromRDSV2Cluster(cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -675,39 +607,13 @@ func NewDatabaseFromRDSV2Cluster(cluster *rdsTypesV2.DBCluster, firstInstance *r
 		})
 }
 
-func rdsSubnetGroupToNetworkInfo(subnetGroup *rdsTypesV2.DBSubnetGroup) (vpcID string, subnets []string) {
-	if subnetGroup == nil {
-		return
-	}
-
-	vpcID = aws.StringValue(subnetGroup.VpcId)
-	subnets = make([]string, 0, len(subnetGroup.Subnets))
-	for _, s := range subnetGroup.Subnets {
-		subnetID := aws.StringValue(s.SubnetIdentifier)
-		if subnetID != "" {
-			subnets = append(subnets, subnetID)
-		}
-	}
-
-	return
-}
-
 // MetadataFromRDSV2Cluster creates AWS metadata from the provided RDS cluster.
 // It uses aws sdk v2.
-// An optional [rdsTypesV2.DBInstance] can be passed to fill the network configuration of the Cluster.
-func MetadataFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster, rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, error) {
+func MetadataFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(rdsCluster.DBClusterArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var vpcID string
-	var subnets []string
-
-	if rdsInstance != nil {
-		vpcID, subnets = rdsSubnetGroupToNetworkInfo(rdsInstance.DBSubnetGroup)
-	}
-
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
@@ -715,8 +621,6 @@ func MetadataFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster, rdsInstance *rds
 			ClusterID:  aws.StringValue(rdsCluster.DBClusterIdentifier),
 			ResourceID: aws.StringValue(rdsCluster.DbClusterResourceId),
 			IAMAuth:    aws.BoolValue(rdsCluster.IAMDatabaseAuthenticationEnabled),
-			Subnets:    subnets,
-			VPCID:      vpcID,
 		},
 	}, nil
 }
@@ -792,7 +696,7 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 	for _, endpoint := range cluster.CustomEndpoints {
 		// RDS custom endpoint format:
 		// <endpointName>.cluster-custom-<customerDnsIdentifier>.<dnsSuffix>
-		endpointDetails, err := apiawsutils.ParseRDSEndpoint(aws.StringValue(endpoint))
+		endpointDetails, err := awsutils.ParseRDSEndpoint(aws.StringValue(endpoint))
 		if err != nil {
 			errors = append(errors, trace.Wrap(err))
 			continue
@@ -829,60 +733,6 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 	return databases, trace.NewAggregate(errors...)
 }
 
-// NewDatabasesFromRDSCluster creates all database resources from an RDS Aurora
-// cluster.
-func NewDatabasesFromRDSCluster(cluster *rds.DBCluster) (types.Databases, error) {
-	var errors []error
-	var databases types.Databases
-
-	// Find out what types of instances the cluster has. Some examples:
-	// - Aurora cluster with one instance: one writer
-	// - Aurora cluster with three instances: one writer and two readers
-	// - Secondary cluster of a global database: one or more readers
-	var hasWriterInstance, hasReaderInstance bool
-	for _, clusterMember := range cluster.DBClusterMembers {
-		if clusterMember != nil {
-			if aws.BoolValue(clusterMember.IsClusterWriter) {
-				hasWriterInstance = true
-			} else {
-				hasReaderInstance = true
-			}
-		}
-	}
-
-	// Add a database from primary endpoint, if any writer instances.
-	if cluster.Endpoint != nil && hasWriterInstance {
-		database, err := NewDatabaseFromRDSCluster(cluster)
-		if err != nil {
-			errors = append(errors, err)
-		} else {
-			databases = append(databases, database)
-		}
-	}
-
-	// Add a database from reader endpoint, if any reader instances.
-	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html#Aurora.Endpoints.Reader
-	if cluster.ReaderEndpoint != nil && hasReaderInstance {
-		database, err := NewDatabaseFromRDSClusterReaderEndpoint(cluster)
-		if err != nil {
-			errors = append(errors, err)
-		} else {
-			databases = append(databases, database)
-		}
-	}
-
-	// Add databases from custom endpoints
-	if len(cluster.CustomEndpoints) > 0 {
-		customEndpointDatabases, err := NewDatabasesFromRDSClusterCustomEndpoints(cluster)
-		if err != nil {
-			errors = append(errors, err)
-		}
-		databases = append(databases, customEndpointDatabases...)
-	}
-
-	return databases, trace.NewAggregate(errors...)
-}
-
 // NewDatabaseFromRDSProxy creates database resource from RDS Proxy.
 func NewDatabaseFromRDSProxy(dbProxy *rds.DBProxy, port int64, tags []*rds.Tag) (types.Database, error) {
 	metadata, err := MetadataFromRDSProxy(dbProxy)
@@ -905,7 +755,7 @@ func NewDatabaseFromRDSProxy(dbProxy *rds.DBProxy, port int64, tags []*rds.Tag) 
 		})
 }
 
-// NewDatabaseFromRDSProxyCustomEndpoint creates database resource from RDS
+// NewDatabaseFromRDSProxyCustomEndpiont creates database resource from RDS
 // Proxy custom endpoint.
 func NewDatabaseFromRDSProxyCustomEndpoint(dbProxy *rds.DBProxy, customEndpoint *rds.DBProxyEndpoint, port int64, tags []*rds.Tag) (types.Database, error) {
 	metadata, err := MetadataFromRDSProxyCustomEndpoint(dbProxy, customEndpoint)
@@ -973,7 +823,7 @@ func NewDatabaseFromElastiCacheConfigurationEndpoint(cluster *elasticache.Replic
 		return nil, trace.BadParameter("missing configuration endpoint")
 	}
 
-	return newElastiCacheDatabase(cluster, cluster.ConfigurationEndpoint, apiawsutils.ElastiCacheConfigurationEndpoint, extraLabels)
+	return newElastiCacheDatabase(cluster, cluster.ConfigurationEndpoint, awsutils.ElastiCacheConfigurationEndpoint, extraLabels)
 }
 
 // NewDatabasesFromElastiCacheNodeGroups creates database resources from
@@ -982,7 +832,7 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 	var databases types.Databases
 	for _, nodeGroup := range cluster.NodeGroups {
 		if nodeGroup.PrimaryEndpoint != nil {
-			database, err := newElastiCacheDatabase(cluster, nodeGroup.PrimaryEndpoint, apiawsutils.ElastiCachePrimaryEndpoint, extraLabels)
+			database, err := newElastiCacheDatabase(cluster, nodeGroup.PrimaryEndpoint, awsutils.ElastiCachePrimaryEndpoint, extraLabels)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -990,7 +840,7 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 		}
 
 		if nodeGroup.ReaderEndpoint != nil {
-			database, err := newElastiCacheDatabase(cluster, nodeGroup.ReaderEndpoint, apiawsutils.ElastiCacheReaderEndpoint, extraLabels)
+			database, err := newElastiCacheDatabase(cluster, nodeGroup.ReaderEndpoint, awsutils.ElastiCacheReaderEndpoint, extraLabels)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -998,27 +848,6 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 		}
 	}
 	return databases, nil
-}
-
-// NewDatabasesFromElastiCacheReplicationGroup creates all database resources
-// from an ElastiCache ReplicationGroup.
-func NewDatabasesFromElastiCacheReplicationGroup(cluster *elasticache.ReplicationGroup, extraLabels map[string]string) (types.Databases, error) {
-	// Create database using configuration endpoint for Redis with cluster
-	// mode enabled.
-	if aws.BoolValue(cluster.ClusterEnabled) {
-		database, err := NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return types.Databases{database}, nil
-	}
-
-	// Create databases using primary and reader endpoints for Redis with
-	// cluster mode disabled. When cluster mode is disabled, it is expected
-	// there is only one node group (aka shard) with one primary endpoint
-	// and one reader endpoint.
-	databases, err := NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels)
-	return databases, trace.Wrap(err)
 }
 
 // newElastiCacheDatabase returns a new ElastiCache database.
@@ -1029,7 +858,7 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 	}
 
 	suffix := make([]string, 0)
-	if endpointType == apiawsutils.ElastiCacheReaderEndpoint {
+	if endpointType == awsutils.ElastiCacheReaderEndpoint {
 		suffix = []string{endpointType}
 	}
 
@@ -1043,99 +872,10 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 	})
 }
 
-// NewDatabasesFromOpenSearchDomain creates database resources from an OpenSearch domain.
-func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
-	var databases types.Databases
-
-	if aws.StringValue(domain.Endpoint) != "" {
-		metadata, err := MetadataFromOpenSearchDomain(domain, apiawsutils.OpenSearchDefaultEndpoint)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		meta := types.Metadata{
-			Description: fmt.Sprintf("OpenSearch domain in %v (default endpoint)", metadata.Region),
-			Labels:      labelsFromOpenSearchDomain(domain, metadata, apiawsutils.OpenSearchDefaultEndpoint, tags),
-		}
-
-		meta = setAWSDBName(meta, aws.StringValue(domain.DomainName))
-		spec := types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolOpenSearch,
-			URI:      fmt.Sprintf("%v:443", aws.StringValue(domain.Endpoint)),
-			AWS:      *metadata,
-		}
-
-		db, err := types.NewDatabaseV3(meta, spec)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		databases = append(databases, db)
-	}
-
-	if domain.DomainEndpointOptions != nil && aws.StringValue(domain.DomainEndpointOptions.CustomEndpoint) != "" {
-		metadata, err := MetadataFromOpenSearchDomain(domain, apiawsutils.OpenSearchCustomEndpoint)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		meta := types.Metadata{
-			Description: fmt.Sprintf("OpenSearch domain in %v (custom endpoint)", metadata.Region),
-			Labels:      labelsFromOpenSearchDomain(domain, metadata, apiawsutils.OpenSearchCustomEndpoint, tags),
-		}
-
-		meta = setAWSDBName(meta, aws.StringValue(domain.DomainName), "custom")
-		spec := types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolOpenSearch,
-			URI:      fmt.Sprintf("%v:443", aws.StringValue(domain.DomainEndpointOptions.CustomEndpoint)),
-			AWS:      *metadata,
-		}
-
-		db, err := types.NewDatabaseV3(meta, spec)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		databases = append(databases, db)
-	}
-
-	for name, url := range domain.Endpoints {
-		metadata, err := MetadataFromOpenSearchDomain(domain, apiawsutils.OpenSearchVPCEndpoint)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		meta := types.Metadata{
-			Description: fmt.Sprintf("OpenSearch domain in %v (endpoint %q)", metadata.Region, name),
-			Labels:      labelsFromOpenSearchDomain(domain, metadata, apiawsutils.OpenSearchVPCEndpoint, tags),
-		}
-
-		if domain.VPCOptions != nil {
-			meta.Labels[types.DiscoveryLabelVPCID] = aws.StringValue(domain.VPCOptions.VPCId)
-		}
-
-		meta = setAWSDBName(meta, aws.StringValue(domain.DomainName), name)
-		spec := types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolOpenSearch,
-			URI:      fmt.Sprintf("%v:443", aws.StringValue(url)),
-			AWS:      *metadata,
-		}
-
-		db, err := types.NewDatabaseV3(meta, spec)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		databases = append(databases, db)
-	}
-
-	return databases, nil
-}
-
 // NewDatabaseFromMemoryDBCluster creates a database resource from a MemoryDB
 // cluster.
 func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[string]string) (types.Database, error) {
-	endpointType := apiawsutils.MemoryDBClusterEndpoint
+	endpointType := awsutils.MemoryDBClusterEndpoint
 
 	metadata, err := MetadataFromMemoryDBCluster(cluster, endpointType)
 	if err != nil {
@@ -1325,24 +1065,6 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpo
 			UserGroupIDs:             userGroupIDs,
 			TransitEncryptionEnabled: aws.BoolValue(cluster.TransitEncryptionEnabled),
 			EndpointType:             endpointType,
-		},
-	}, nil
-}
-
-// MetadataFromOpenSearchDomain creates AWS metadata for the provided OpenSearch domain.
-func MetadataFromOpenSearchDomain(domain *opensearchservice.DomainStatus, endpointType string) (*types.AWS, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(domain.ARN))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &types.AWS{
-		Region:    parsedARN.Region,
-		AccountID: parsedARN.AccountID,
-		OpenSearch: types.OpenSearch{
-			DomainName:   aws.StringValue(domain.DomainName),
-			DomainID:     aws.StringValue(domain.DomainId),
-			EndpointType: endpointType,
 		},
 	}, nil
 }
@@ -1639,12 +1361,6 @@ func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
 	return labels
 }
 
-func labelsFromOpenSearchDomain(domain *opensearchservice.DomainStatus, meta *types.AWS, endpointType string, tags []*opensearchservice.Tag) map[string]string {
-	labels := labelsFromMetaAndEndpointType(meta, endpointType, libcloudaws.TagsToLabels(tags))
-	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(domain.EngineVersion)
-	return labels
-}
-
 // labelsFromMetaAndEndpointType creates database labels from provided AWS meta and endpoint type.
 func labelsFromMetaAndEndpointType(meta *types.AWS, endpointType string, extraLabels map[string]string) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
@@ -1859,11 +1575,6 @@ func IsMemoryDBClusterAvailable(cluster *memorydb.Cluster) bool {
 	return IsAWSResourceAvailable(cluster, cluster.Status)
 }
 
-// IsOpenSearchDomainAvailable checks if the OpenSearch domain is available.
-func IsOpenSearchDomainAvailable(domain *opensearchservice.DomainStatus) bool {
-	return aws.BoolValue(domain.Created) && !aws.BoolValue(domain.Deleted)
-}
-
 // IsRDSProxyAvailable checks if the RDS Proxy is available.
 func IsRDSProxyAvailable(dbProxy *rds.DBProxy) bool {
 	return IsAWSResourceAvailable(dbProxy, dbProxy.Status)
@@ -1947,8 +1658,6 @@ const (
 	// RDSEngineMariaDB is RDS engine name for MariaDB instances.
 	RDSEngineMariaDB = "mariadb"
 	// RDSEngineAurora is RDS engine name for Aurora MySQL 5.6 compatible clusters.
-	// This reached EOF on Feb 28, 2023.
-	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.MySQL56.EOL.html
 	RDSEngineAurora = "aurora"
 	// RDSEngineAuroraMySQL is RDS engine name for Aurora MySQL 5.7 compatible clusters.
 	RDSEngineAuroraMySQL = "aurora-mysql"

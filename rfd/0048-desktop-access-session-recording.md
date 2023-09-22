@@ -166,7 +166,7 @@ events.
 
 In order to support a new type of session recording, a new audit event will be
 defined for capturing desktop session data. The `DesktopRecordingEvent` will
-implement the `AuditEvent` interface and is analogous to the `PrintEvent` used
+implement the `AuditEvent` interface and is analagous to the `PrintEvent` used
 for SSH recordings.
 
 ```protobuf
@@ -185,7 +185,7 @@ message DesktopRecordingEvent {
 }
 ```
 
-The `Message` field contains an arbitrary TDP-encoded message, as defined in
+The `Message` field contains an artibrary TDP-encoded message, as defined in
 [RFD 0037](./0037-desktop-access-protocol.md). The vast majority of these events
 will contain TDP message 2 (PNG frame), but we will also capture:
 
@@ -207,7 +207,7 @@ bitmaps sent from the Windows desktop do _not_ include the mouse cursor
 
 When this new event is introduced, several parts of the code that assume
 `SessionPrintEvent` is the only type of session recording will need to be
-updated:
+udpated:
 
 - `AuditWriter` assumes every `[]byte` it receives needs to be packaged up into
   a `SessionPrintEvent`. We will extend `AuditWriterConfig` with a new field:
@@ -215,7 +215,7 @@ updated:
   configure `AuditWriter` to produce `SessionPrintEvent`s, while allowing
   desktop sessions to emit `DesktopRecordingEvent`s.
 - `AuditWriter` does some tracking of `lastPrintEvent` in order to update
-  timestamps and chunk indices. This needs to be generalized to be able to
+  timestamps and chunk indicdes. This needs to be generalized to be able to
   track the last event in desktop mode as well.
 - The `TeeStreamer` that filters out `SessionPrintEvent`s needs to be updated to
   also filter out `DesktopRecordingEvent`s, as there will be a large number of

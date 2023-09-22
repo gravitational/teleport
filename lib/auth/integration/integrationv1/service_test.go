@@ -416,7 +416,7 @@ func (m *mockCAGetter) GetDomainName() (string, error) {
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (m *mockCAGetter) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
+func (m *mockCAGetter) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	return m.ca, nil
 }
 

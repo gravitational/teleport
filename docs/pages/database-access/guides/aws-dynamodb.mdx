@@ -3,7 +3,15 @@ title: Database Access with AWS DynamoDB
 description: How to access AWS DynamoDB with Teleport database access
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS DynamoDB" dbConfigure="AWS DynamoDB database with IAM authentication" dbName="AWS DynamoDB" !)
+Access to AWS DynamoDB can be provided by [Teleport Database
+Access](../introduction.mdx). This allows for
+fine-grain access control through [Teleport's RBAC](../../database-access/rbac.mdx).
+
+This guide will help you to:
+
+- Install the Teleport Database Service.
+- Set up the Teleport Database Service to access DynamoDB.
+- Connect to your DynamoDB databases through the Teleport Database Service.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -68,7 +76,7 @@ Click **Next**. Find the AWS-managed policy `AmazonDynamoDBFullAccess` and then 
 <Admonition type="note" title="Apply least-privilege permissions">
 The `AmazonDynamoDBFullAccess` policy may grant more permissions than desired.
 If you want to use a different IAM policy to reduce permissions, refer to
-[Managing access permissions to your Amazon DynamoDB
+[Managing access permissions to your Amazon DynamoDB 
 Resources](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-control-overview.html)
 for more information.
 </Admonition>
@@ -110,7 +118,7 @@ listing the IAM role ARN created in the previous step. Create a file called
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: aws-dynamodb-access
 spec:
@@ -226,7 +234,7 @@ Type "help", "copyright", "credits" or "license" for more information.
 >>> res = clt.list_tables()
 >>> print(res)
 {'TableNames': *snip output*}
->>>
+>>> 
 ```
 
 ## Next Steps

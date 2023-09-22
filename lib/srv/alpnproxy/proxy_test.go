@@ -32,7 +32,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -76,7 +75,7 @@ func TestProxyKubeHandler(t *testing.T) {
 	t.Parallel()
 	const (
 		kubernetesHandlerResponse = "kubernetes handler response"
-		kubeSNI                   = constants.KubeTeleportProxyALPNPrefix + "localhost"
+		kubeSNI                   = "kube.localhost"
 	)
 	suite := NewSuite(t)
 
@@ -192,7 +191,7 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		conn := pingconn.NewTLS(baseConn)
+		conn := NewPingConn(baseConn)
 		tlsConn := tls.Client(conn, &tls.Config{
 			Certificates: []tls.Certificate{
 				clientCert,
@@ -458,8 +457,7 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 				"unknown-protocol1",
 				"unknown-protocol2",
 				"unknown-protocol3",
-				string(common.ProtocolProxySSH),
-			},
+				string(common.ProtocolProxySSH)},
 			ServerName:          "localhost",
 			wantProtocolHandler: string(common.ProtocolProxySSH),
 		},
@@ -474,9 +472,9 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 			wantProtocolHandler: string(common.ProtocolHTTP),
 		},
 		{
-			name:             "kube KubeTeleportProxyALPNPrefix prefix should route to kube handler",
+			name:             "kube ServerName prefix should route to kube handler",
 			ClientNextProtos: nil,
-			ServerName:       fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, "localhost"),
+			ServerName:       fmt.Sprintf("%s%s", constants.KubeSNIPrefix, "localhost"),
 			handlers: []HandlerDecs{
 				makeHandler(common.ProtocolHTTP),
 			},

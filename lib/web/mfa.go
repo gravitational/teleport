@@ -27,7 +27,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -353,11 +353,11 @@ func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRe
 	return protoReq, nil
 }
 
-type isMfaRequiredResponse struct {
+type isMFARequiredResponse struct {
 	Required bool `json:"required"`
 }
 
-func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	var httpReq *isMFARequiredRequest
 	if err := httplib.ReadJSON(r, &httpReq); err != nil {
 		return nil, trace.Wrap(err)
@@ -378,7 +378,7 @@ func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
-	return isMfaRequiredResponse{Required: res.GetRequired()}, nil
+	return isMFARequiredResponse{Required: res.GetRequired()}, nil
 }
 
 // makeAuthenticateChallenge converts proto to JSON format.

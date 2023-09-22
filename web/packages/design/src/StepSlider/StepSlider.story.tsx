@@ -16,21 +16,19 @@
 
 import React, { useState } from 'react';
 
-import { Box, ButtonLink, ButtonPrimary, Text, Card } from 'design';
+import { Text, Card, ButtonPrimary, ButtonLink, Box } from 'design';
 
-import { OnboardCard } from 'design/Onboard/OnboardCard';
-
-import { NewFlow, StepComponentProps, StepSlider } from './StepSlider';
+import { StepSlider, StepComponentProps, NewFlow } from './StepSlider';
 
 export default {
   title: 'Design/StepSlider',
 };
 
 const singleFlow = { default: [Body1, Body2] };
-export const SingleFlowInPlaceSlider = () => {
+export const SingleStaticFlow = () => {
   return (
-    <Card my="5" mx="auto" width={464}>
-      <Text typography="h3" pt={5} textAlign="center" color="text.main">
+    <Card bg="levels.surface" my="5" mx="auto" width={464}>
+      <Text typography="h3" pt={5} textAlign="center" color="light">
         Static Title
       </Text>
       <StepSlider<typeof singleFlow>
@@ -50,7 +48,7 @@ const multiflows = {
   primary: [MainStep1, MainStep2, FinalStep],
   secondary: [OtherStep1, FinalStep],
 };
-export const MultiFlowWheelSlider = () => {
+export const MultiCardFlow = () => {
   const [flow, setFlow] = useState<MultiFlow>('primary');
   const [newFlow, setNewFlow] = useState<NewFlow<MultiFlow>>();
 
@@ -63,20 +61,22 @@ export const MultiFlowWheelSlider = () => {
   }
 
   return (
-    <StepSlider<typeof multiflows>
-      flows={multiflows}
-      currFlow={flow}
-      onSwitchFlow={onSwitchFlow}
-      newFlow={newFlow}
-      changeFlow={onNewFlow}
-    />
+    <Card as="form" bg="levels.surface" mx="auto" width={464}>
+      <StepSlider<typeof multiflows>
+        flows={multiflows}
+        currFlow={flow}
+        onSwitchFlow={onSwitchFlow}
+        newFlow={newFlow}
+        changeFlow={onNewFlow}
+      />
+    </Card>
   );
 };
 
 function MainStep1({ next, refCallback, changeFlow }: ViewProps) {
   return (
-    <OnboardCard ref={refCallback} data-testid="multi-primary1">
-      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
+    <Box p="6" ref={refCallback} data-testid="multi-primary1">
+      <Text typography="h2" mb={3} textAlign="center" color="light" bold>
         First Step
       </Text>
       <Text mb={3}>
@@ -104,14 +104,14 @@ function MainStep1({ next, refCallback, changeFlow }: ViewProps) {
           Switch Secondary Flow
         </ButtonLink>
       </Box>
-    </OnboardCard>
+    </Box>
   );
 }
 
 function MainStep2({ next, prev, refCallback }: ViewProps) {
   return (
-    <OnboardCard ref={refCallback} data-testid="multi-primary2">
-      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
+    <Box p="6" ref={refCallback} data-testid="multi-primary2">
+      <Text typography="h2" mb={3} textAlign="center" color="light" bold>
         Second Step
       </Text>
       <Text mb={3}>
@@ -157,14 +157,14 @@ function MainStep2({ next, prev, refCallback }: ViewProps) {
           Go Back
         </ButtonLink>
       </Box>
-    </OnboardCard>
+    </Box>
   );
 }
 
 function OtherStep1({ changeFlow, next: onNext, refCallback }: ViewProps) {
   return (
-    <OnboardCard ref={refCallback} data-testid="multi-secondary1">
-      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
+    <Box p="6" ref={refCallback} data-testid="multi-secondary1">
+      <Text typography="h2" mb={3} textAlign="center" color="light" bold>
         Some Other Flow Title
       </Text>
       <Text mb={3}>
@@ -194,14 +194,14 @@ function OtherStep1({ changeFlow, next: onNext, refCallback }: ViewProps) {
           Switch Primary Flow
         </ButtonLink>
       </Box>
-    </OnboardCard>
+    </Box>
   );
 }
 
 function FinalStep({ prev, refCallback }: ViewProps) {
   return (
-    <OnboardCard ref={refCallback} data-testid="multi-final">
-      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
+    <Box p="6" ref={refCallback} data-testid="multi-final">
+      <Text typography="h2" mb={3} textAlign="center" color="light" bold>
         Done Step
       </Text>
       <Text mb={3}>
@@ -222,7 +222,7 @@ function FinalStep({ prev, refCallback }: ViewProps) {
           Go Back
         </ButtonLink>
       </Box>
-    </OnboardCard>
+    </Box>
   );
 }
 
@@ -233,7 +233,7 @@ function Body1({
   testProp,
 }: StepComponentProps & { testProp: string }) {
   return (
-    <Box p={6} ref={refCallback} data-testid="single-body1">
+    <Box p="6" ref={refCallback} data-testid="single-body1">
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua.
@@ -270,7 +270,7 @@ function Body2({
   testProp,
 }: StepComponentProps & { testProp: string }) {
   return (
-    <Box p={6} ref={refCallback} data-testid="single-body2">
+    <Box p="6" ref={refCallback} data-testid="single-body2">
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim

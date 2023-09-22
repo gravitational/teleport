@@ -269,9 +269,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		}
 	}()
 
-	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
-		Clock: c.Clock,
-	})
+	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -319,13 +317,8 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clustername, err := s.c.AccessPoint.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Create and configure HTTP server with authorizing middleware.
-	s.httpServer = s.newHTTPServer(clustername.GetClusterName())
+	s.httpServer = s.newHTTPServer()
 
 	// TCP server will handle TCP applications.
 	tcpServer, err := s.newTCPServer()
@@ -702,7 +695,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 func (s *Server) handleConnection(conn net.Conn) (func(), error) {
-	ctx, cancel := context.WithCancelCause(s.closeContext)
+	ctx, cancel := context.WithCancel(s.closeContext)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   s.c.Clock,
@@ -1040,21 +1033,18 @@ func (s *Server) appWithUpdatedLabelsLocked(app types.Application) *types.AppV3 
 
 // newHTTPServer creates an *http.Server that can authorize and forward
 // requests to a target application.
-func (s *Server) newHTTPServer(clusterName string) *http.Server {
+func (s *Server) newHTTPServer() *http.Server {
 	// Reuse the auth.Middleware to authorize requests but only accept
 	// certificates that were specifically generated for applications.
-
 	s.authMiddleware = &auth.Middleware{
-		ClusterName:   clusterName,
+		AccessPoint:   s.c.AccessPoint,
 		AcceptedUsage: []string{teleport.UsageAppsOnly},
 	}
 	s.authMiddleware.Wrap(s)
 
 	return &http.Server{
 		Handler:           httplib.MakeTracingHandler(s.authMiddleware, teleport.ComponentApp),
-		ReadTimeout:       apidefaults.DefaultIOTimeout,
-		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
-		WriteTimeout:      apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
@@ -1065,24 +1055,14 @@ func (s *Server) newHTTPServer(clusterName string) *http.Server {
 
 // newTCPServer creates a server that proxies TCP applications.
 func (s *Server) newTCPServer() (*tcpServer, error) {
+	audit, err := common.NewAudit(common.AuditConfig{
+		Emitter: s.c.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &tcpServer{
-		newAudit: func(sessionID string) (common.Audit, error) {
-			// Audit stream is using server context, not session context,
-			// to make sure that session is uploaded even after it is closed.
-			rec, err := s.newSessionRecorder(s.closeContext, sessionID)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			audit, err := common.NewAudit(common.AuditConfig{
-				Emitter:  s.c.Emitter,
-				Recorder: rec,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return audit, nil
-		},
+		audit:  audit,
 		hostID: s.c.HostID,
 		log:    s.log,
 	}, nil

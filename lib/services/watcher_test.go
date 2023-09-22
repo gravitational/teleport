@@ -31,7 +31,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -714,7 +713,7 @@ func TestAppWatcher(t *testing.T) {
 	}
 }
 
-func newApp(t *testing.T, name string) *types.AppV3 {
+func newApp(t *testing.T, name string) types.Application {
 	app, err := types.NewAppV3(types.Metadata{
 		Name: name,
 	}, types.AppSpecV3{
@@ -788,17 +787,17 @@ func TestCertAuthorityWatcher(t *testing.T) {
 
 		// Create a CA and ensure we receive the event.
 		ca := newCertAuthority(t, "test", types.HostCA)
-		require.NoError(t, caService.UpsertCertAuthority(ctx, ca))
+		require.NoError(t, caService.UpsertCertAuthority(ca))
 		waitForEvent(t, sub, types.HostCA, "test", types.OpPut)
 
 		// Delete a CA and ensure we receive the event.
-		require.NoError(t, caService.DeleteCertAuthority(ctx, ca.GetID()))
+		require.NoError(t, caService.DeleteCertAuthority(ca.GetID()))
 		waitForEvent(t, sub, types.HostCA, "test", types.OpDelete)
 
 		// Create a CA with a type that the watcher is NOT receiving and ensure
 		// we DO NOT receive the event.
 		signer := newCertAuthority(t, "test", types.JWTSigner)
-		require.NoError(t, caService.UpsertCertAuthority(ctx, signer))
+		require.NoError(t, caService.UpsertCertAuthority(signer))
 		ensureNoEvents(t, sub)
 	})
 
@@ -813,17 +812,17 @@ func TestCertAuthorityWatcher(t *testing.T) {
 		t.Cleanup(func() { require.NoError(t, sub.Close()) })
 
 		// Receives one HostCA event, matched by type and specific cluster name.
-		require.NoError(t, caService.UpsertCertAuthority(ctx, newCertAuthority(t, "test", types.HostCA)))
+		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "test", types.HostCA)))
 		waitForEvent(t, sub, types.HostCA, "test", types.OpPut)
 
 		// Receives one UserCA event, matched by type and wildcard cluster name.
-		require.NoError(t, caService.UpsertCertAuthority(ctx, newCertAuthority(t, "unknown", types.UserCA)))
+		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "unknown", types.UserCA)))
 		waitForEvent(t, sub, types.UserCA, "unknown", types.OpPut)
 
 		// Should NOT receive any HostCA events from another cluster.
 		// Should NOT receive any DatabaseCA events.
-		require.NoError(t, caService.UpsertCertAuthority(ctx, newCertAuthority(t, "unknown", types.HostCA)))
-		require.NoError(t, caService.UpsertCertAuthority(ctx, newCertAuthority(t, "test", types.DatabaseCA)))
+		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "unknown", types.HostCA)))
+		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "test", types.DatabaseCA)))
 		ensureNoEvents(t, sub)
 	})
 }
@@ -998,110 +997,6 @@ func newNodeServer(t *testing.T, name, addr string, tunnel bool) types.Server {
 	return s
 }
 
-func TestKubeServerWatcher(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-
-	bk, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-
-	type client struct {
-		services.Presence
-		types.Events
-	}
-
-	presence := local.NewPresenceService(bk)
-	w, err := services.NewKubeServerWatcher(ctx, services.KubeServerWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: "test",
-			Client: &client{
-				Presence: presence,
-				Events:   local.NewEventsService(bk),
-			},
-			MaxStaleness: time.Minute,
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(w.Close)
-	require.NoError(t, w.WaitInitialization())
-	newKubeServer := func(t *testing.T, name, addr, hostID string) types.KubeServer {
-		kube, err := types.NewKubernetesClusterV3(
-			types.Metadata{
-				Name: name,
-			},
-			types.KubernetesClusterSpecV3{})
-		require.NoError(t, err)
-		server, err := types.NewKubernetesServerV3FromCluster(kube, addr, hostID)
-		require.NoError(t, err)
-		return server
-	}
-
-	// Add some kube servers.
-	kubeServers := make([]types.KubeServer, 0, 5)
-	for i := 0; i < 5; i++ {
-		kubeServer := newKubeServer(t, fmt.Sprintf("kube_cluster-%d", i), "addr", fmt.Sprintf("host-%d", i))
-		_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
-		require.NoError(t, err)
-		kubeServers = append(kubeServers, kubeServer)
-	}
-
-	require.Eventually(t, func() bool {
-		filtered, err := w.GetKubernetesServers(context.Background())
-		assert.NoError(t, err)
-		return len(filtered) == len(kubeServers)
-	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive kube servers.")
-
-	// Test filtering by cluster name.
-	filtered, err := w.GetKubeServersByClusterName(context.Background(), kubeServers[0].GetName())
-	require.NoError(t, err)
-	require.Len(t, filtered, 1)
-
-	// Test Deleting a kube server.
-	require.NoError(t, presence.DeleteKubernetesServer(ctx, kubeServers[0].GetHostID(), kubeServers[0].GetName()))
-	require.Eventually(t, func() bool {
-		kube, err := w.GetKubernetesServers(context.Background())
-		assert.NoError(t, err)
-		return len(kube) == len(kubeServers)-1
-	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the delete event.")
-
-	filtered, err = w.GetKubeServersByClusterName(context.Background(), kubeServers[0].GetName())
-	require.Error(t, err)
-	require.Empty(t, filtered)
-
-	// Test adding a kube server with the same name as an existing one.
-	kubeServer := newKubeServer(t, kubeServers[1].GetName(), "addr", uuid.NewString())
-	_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		filtered, err := w.GetKubeServersByClusterName(context.Background(), kubeServers[1].GetName())
-		assert.NoError(t, err)
-		return len(filtered) == 2
-	}, time.Second, time.Millisecond, "Timeout waiting for watcher to the new registered kube server.")
-
-	// Test deleting all kube servers with the same name.
-	filtered, err = w.GetKubeServersByClusterName(context.Background(), kubeServers[1].GetName())
-	assert.NoError(t, err)
-	for _, server := range filtered {
-		require.NoError(t, presence.DeleteKubernetesServer(ctx, server.GetHostID(), server.GetName()))
-	}
-	require.Eventually(t, func() bool {
-		filtered, err := w.GetKubeServersByClusterName(context.Background(), kubeServers[1].GetName())
-		return len(filtered) == 0 && err != nil
-	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the two delete events.")
-
-	require.NoError(t, presence.DeleteAllKubernetesServers(ctx))
-	require.Eventually(t, func() bool {
-		filtered, err := w.GetKubernetesServers(context.Background())
-		assert.NoError(t, err)
-		return len(filtered) == 0
-	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive all delete events.")
-}
-
 // TestAccessRequestWatcher tests that access request resource watcher properly receives
 // and dispatches updates to access request resources.
 func TestAccessRequestWatcher(t *testing.T) {
@@ -1148,8 +1043,7 @@ func TestAccessRequestWatcher(t *testing.T) {
 
 	// Add an access request.
 	accessRequest1 := newAccessRequest(t, uuid.NewString())
-	accessRequest1, err = dynamicAccessService.CreateAccessRequestV2(ctx, accessRequest1)
-	require.NoError(t, err)
+	require.NoError(t, dynamicAccessService.CreateAccessRequest(ctx, accessRequest1))
 
 	// The first event is always the current list of access requests.
 	select {
@@ -1164,8 +1058,7 @@ func TestAccessRequestWatcher(t *testing.T) {
 
 	// Add a second access request.
 	accessRequest2 := newAccessRequest(t, uuid.NewString())
-	accessRequest2, err = dynamicAccessService.CreateAccessRequestV2(ctx, accessRequest2)
-	require.NoError(t, err)
+	require.NoError(t, dynamicAccessService.CreateAccessRequest(ctx, accessRequest2))
 
 	// Watcher should detect the access request list change.
 	select {

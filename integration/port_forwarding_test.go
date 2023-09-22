@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -190,7 +190,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			})
 
 			// Create node config.
-			nodeCfg := servicecfg.MakeDefaultConfig()
+			nodeCfg := service.MakeDefaultConfig()
 			nodeCfg.SetAuthServerAddress(cfg.Auth.ListenAddr)
 			nodeCfg.SetToken("token")
 			nodeCfg.CachePolicy.Enabled = true

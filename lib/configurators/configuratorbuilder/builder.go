@@ -20,7 +20,6 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
 	"github.com/gravitational/teleport/lib/configurators/aws"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 // BuildConfigurators reads the configuration and returns a list of
@@ -30,14 +29,10 @@ func BuildConfigurators(flags configurators.BootstrapFlags) ([]configurators.Con
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	serviceCfg := servicecfg.MakeDefaultConfig()
-	if err := config.ApplyFileConfig(fileConfig, serviceCfg); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	awsConfigurator, err := aws.NewAWSConfigurator(aws.ConfiguratorConfig{
-		Flags:         flags,
-		ServiceConfig: serviceCfg,
+		Flags:      flags,
+		FileConfig: fileConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -157,6 +157,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindSemaphore, nil
 	case types.KindKubernetesCluster, "kube_clusters":
 		return types.KindKubernetesCluster, nil
+	case types.KindKubeService, "kube_services":
+		return types.KindKubeService, nil
 	case types.KindKubeServer, "kube_servers":
 		return types.KindKubeServer, nil
 	case types.KindLock, "locks":
@@ -193,12 +195,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindOktaImportRule, nil
 	case types.KindOktaAssignment, types.KindOktaAssignment + "s", "oktaassignment", "oktaassignments":
 		return types.KindOktaAssignment, nil
-	case types.KindClusterMaintenanceConfig, "cmc":
-		return types.KindClusterMaintenanceConfig, nil
 	case types.KindIntegration, types.KindIntegration + "s":
 		return types.KindIntegration, nil
-	case types.KindAccessList, types.KindAccessList + "s", "accesslist", "accesslists":
-		return types.KindAccessList, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

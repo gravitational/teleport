@@ -18,7 +18,6 @@ package common
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 
@@ -43,14 +42,10 @@ type Session struct {
 	Identity tlsca.Identity
 	// Checker is the access checker for the identity.
 	Checker services.AccessChecker
-	// AutoCreateUser indicates whether the database user should be auto-created.
-	AutoCreateUser bool
 	// DatabaseUser is the requested database user.
 	DatabaseUser string
 	// DatabaseName is the requested database name.
 	DatabaseName string
-	// DatabaseRoles is a list of roles for auto-provisioned users.
-	DatabaseRoles []string
 	// StartupParameters define initial connection parameters such as date style.
 	StartupParameters map[string]string
 	// Log is the logger with session specific fields.
@@ -63,24 +58,16 @@ type Session struct {
 
 // String returns string representation of the session parameters.
 func (c *Session) String() string {
-	return fmt.Sprintf("db[%v] identity[%v] dbUser[%v] dbName[%v] autoCreate[%v] dbRoles[%v]",
-		c.Database.GetName(), c.Identity.Username, c.DatabaseUser, c.DatabaseName,
-		c.AutoCreateUser, strings.Join(c.DatabaseRoles, ","))
+	return fmt.Sprintf("db[%v] identity[%v] dbUser[%v] dbName[%v]",
+		c.Database.GetName(), c.Identity.Username, c.DatabaseUser, c.DatabaseName)
 }
 
 // GetAccessState returns the AccessState based on the underlying
 // [services.AccessChecker] and [tlsca.Identity].
 func (c *Session) GetAccessState(authPref types.AuthPreference) services.AccessState {
 	state := c.Checker.GetAccessState(authPref)
-	state.MFAVerified = c.Identity.IsMFAVerified()
+	state.MFAVerified = c.Identity.MFAVerified != ""
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsTLSDeviceVerified(&c.Identity.DeviceExtensions)
 	return state
-}
-
-// WithUser returns a shallow copy of the session with overridden database user.
-func (c *Session) WithUser(user string) *Session {
-	copy := *c
-	copy.DatabaseUser = user
-	return &copy
 }

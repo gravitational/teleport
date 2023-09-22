@@ -35,7 +35,6 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -45,13 +44,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -203,7 +201,7 @@ func GetLocalIP() (string, error) {
 }
 
 func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
-	key, err := client.GenerateRSAKey()
+	key, err := libclient.GenerateRSAKey()
 	require.NoError(t, err)
 	key.ClusterName = tc.Secrets.SiteName
 
@@ -260,15 +258,8 @@ func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime 
 	if err != nil {
 		t.Fatalf("failed to create linear backoff: %v", err)
 	}
-	ctx := context.Background()
 	for {
-		events, _, err := cli.SearchEvents(ctx, events.SearchEventsRequest{
-			From:       startTime,
-			To:         time.Now().Add(time.Hour),
-			EventTypes: []string{eventType},
-			Limit:      100,
-			Order:      types.EventOrderAscending,
-		})
+		events, _, err := cli.SearchEvents(startTime, time.Now().Add(time.Hour), apidefaults.Namespace, []string{eventType}, 100, types.EventOrderAscending, "")
 		if err != nil {
 			t.Fatalf("failed to call SearchEvents: %v", err)
 		}
@@ -290,7 +281,7 @@ func MustGetCurrentUser(t *testing.T) *user.User {
 	return user
 }
 
-func WaitForDatabaseServers(t *testing.T, authServer *auth.Server, dbs []servicecfg.Database) {
+func WaitForDatabaseServers(t *testing.T, authServer *auth.Server, dbs []service.Database) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -333,7 +324,6 @@ func CreatePROXYEnabledListener(ctx context.Context, t *testing.T, address strin
 	return multiplexer.NewPROXYEnabledListener(multiplexer.Config{
 		Listener:            listener,
 		Context:             ctx,
-		PROXYProtocolMode:   multiplexer.PROXYProtocolOff,
 		CertAuthorityGetter: caGetter,
 		LocalClusterName:    clusterName,
 	})
@@ -348,7 +338,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	//
 	// We need this to get a random port assigned to it and allow parallel
 	// execution of this test.
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	cfg.Hostname = "localhost"
@@ -389,7 +379,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	require.NoError(t, err)
 
 	// Set up a test proxy service.
-	cfg = servicecfg.MakeDefaultConfig()
+	cfg = service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	cfg.Hostname = "localhost"
@@ -418,7 +408,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	})
 
 	// Wait for proxy to become ready.
-	_, err = proxy.WaitForEventTimeout(30*time.Second, service.ProxyWebServerReady)
+	_, err = proxy.WaitForEventTimeout(10*time.Second, service.ProxyWebServerReady)
 	require.NoError(t, err, "proxy web server didn't start after 10s")
 
 	return auth, proxy, provisionToken
@@ -426,11 +416,11 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 
 // MakeTestDatabaseServer creates a Database Service
 // It receives the Proxy Address, a Token (to join the cluster) and a list of Datbases
-func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string, resMatchers []services.ResourceMatcher, dbs ...servicecfg.Database) (db *service.TeleportProcess) {
+func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string, resMatchers []services.ResourceMatcher, dbs ...service.Database) (db *service.TeleportProcess) {
 	// Proxy uses self-signed certificates in tests.
 	lib.SetInsecureDevMode(true)
 
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -439,7 +429,6 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	cfg.SetToken(token)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = false
-	cfg.Proxy.Enabled = false
 	cfg.Databases.Enabled = true
 	cfg.Databases.Databases = dbs
 	cfg.Databases.ResourceMatchers = resMatchers
@@ -454,35 +443,8 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	})
 
 	// Wait for database agent to start.
-	_, err = db.WaitForEventTimeout(30*time.Second, service.DatabasesReady)
+	_, err = db.WaitForEventTimeout(10*time.Second, service.DatabasesReady)
 	require.NoError(t, err, "database server didn't start after 10s")
 
 	return db
-}
-
-// MustCreateListener creates a tcp listener at 127.0.0.1 with random port.
-func MustCreateListener(t *testing.T) net.Listener {
-	t.Helper()
-
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		listener.Close()
-	})
-	return listener
-}
-
-func FindNodeWithLabel(t *testing.T, ctx context.Context, cl services.ResourceLister, key, value string) func() bool {
-	t.Helper()
-	return func() bool {
-		servers, err := cl.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindNode,
-			Namespace:    apidefaults.Namespace,
-			Labels:       map[string]string{key: value},
-			Limit:        1,
-		})
-		assert.NoError(t, err)
-		return len(servers.Resources) >= 1
-	}
 }

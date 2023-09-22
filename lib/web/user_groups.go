@@ -21,20 +21,16 @@ package web
 
 import (
 	"net/http"
-	"sort"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
-func (h *Handler) getUserGroups(_ http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) getUserGroups(_ http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (any, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of nodes.
 	clt, err := sctx.GetUserClient(r.Context(), site)
@@ -42,53 +38,29 @@ func (h *Handler) getUserGroups(_ http.ResponseWriter, r *http.Request, params h
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := convertListResourcesRequest(r, types.KindUserGroup)
+	page, err := listResources(clt, r, types.KindUserGroup)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	page, err := apiclient.GetResourcePage[types.UserGroup](r.Context(), clt, req)
+	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	appServers, err := apiclient.GetAllResources[types.AppServer](r.Context(), clt, &proto.ListResourcesRequest{
-		ResourceType:     types.KindAppServer,
-		Namespace:        apidefaults.Namespace,
-		UseSearchAsRoles: true,
-	})
+	userGroups, err := types.ResourcesWithLabels(page.Resources).AsUserGroups()
 	if err != nil {
-		h.log.Debugf("Unable to fetch applications while listing user groups, unable to display associated applications: %v", err)
+		return nil, trace.Wrap(err)
 	}
 
-	appServerLookup := make(map[string]types.AppServer, len(appServers))
-	for _, appServer := range appServers {
-		appServerLookup[appServer.GetName()] = appServer
-	}
-
-	userGroupsToApps := map[string]types.Apps{}
-	for _, userGroup := range page.Resources {
-		apps := make(types.Apps, 0, len(userGroup.GetApplications()))
-		for _, appName := range userGroup.GetApplications() {
-			app := appServerLookup[appName]
-			if app == nil {
-				h.log.Debugf("Unable to find application %s when creating user groups, skipping", appName)
-				continue
-			}
-			apps = append(apps, app.GetApp())
-		}
-		sort.Sort(apps)
-		userGroupsToApps[userGroup.GetName()] = apps
-	}
-
-	userGroups, err := ui.MakeUserGroups(page.Resources, userGroupsToApps)
+	uiUserGroups, err := ui.MakeUserGroups(site.GetName(), userGroups, accessChecker.Roles())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
-		Items:      userGroups,
+		Items:      uiUserGroups,
 		StartKey:   page.NextKey,
-		TotalCount: page.Total,
+		TotalCount: page.TotalCount,
 	}, nil
 }

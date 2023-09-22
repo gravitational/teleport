@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -155,7 +154,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 // ServicesTestSuite is an acceptance test suite
 // for services. It is used for local implementations and implementations
-// using gRPC to guarantee consistency between local and remote services
+// using GRPC to guarantee consistency between local and remote services
 type ServicesTestSuite struct {
 	Access        services.Access
 	CAS           services.Trust
@@ -305,7 +304,7 @@ func (s *ServicesTestSuite) LoginAttempts(t *testing.T) {
 func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	ctx := context.Background()
 	ca := NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, s.CAS.UpsertCertAuthority(ctx, ca))
+	require.NoError(t, s.CAS.UpsertCertAuthority(ca))
 
 	out, err := s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
@@ -327,12 +326,12 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, cas[0], ca)
 
-	err = s.CAS.DeleteCertAuthority(ctx, *ca.ID())
+	err = s.CAS.DeleteCertAuthority(*ca.ID())
 	require.NoError(t, err)
 
 	// test compare and swap
 	ca = NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, s.CAS.CreateCertAuthority(ctx, ca))
+	require.NoError(t, s.CAS.CreateCertAuthority(ca))
 
 	clock := clockwork.NewFakeClock()
 	newCA := *ca
@@ -350,7 +349,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	out, err = s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
 	newCA.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(&newCA, out, cmpopts.EquateApproxTime(time.Second)))
+	require.Equal(t, &newCA, out)
 }
 
 // NewServer creates a new server resource
@@ -432,6 +431,36 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	auth.SetResourceID(out[0].GetResourceID())
 	require.Empty(t, cmp.Diff(out, []types.Server{auth}))
+
+	// Kubernetes service.
+	out, err = s.PresenceS.GetKubeServices(ctx)
+	require.NoError(t, err)
+	require.Equal(t, len(out), 0)
+
+	kube1 := NewServer(types.KindKubeService, "kube1", "10.0.0.1:3026", apidefaults.Namespace)
+	_, err = s.PresenceS.UpsertKubeServiceV2(ctx, kube1)
+	require.NoError(t, err)
+	kube2 := NewServer(types.KindKubeService, "kube2", "10.0.0.2:3026", apidefaults.Namespace)
+	_, err = s.PresenceS.UpsertKubeServiceV2(ctx, kube2)
+	require.NoError(t, err)
+
+	out, err = s.PresenceS.GetKubeServices(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 2)
+	kube1.SetResourceID(out[0].GetResourceID())
+	kube2.SetResourceID(out[1].GetResourceID())
+	require.Empty(t, cmp.Diff(out, []types.Server{kube1, kube2}))
+
+	require.NoError(t, s.PresenceS.DeleteKubeService(ctx, kube1.GetName()))
+	out, err = s.PresenceS.GetKubeServices(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff(out, []types.Server{kube2}))
+
+	require.NoError(t, s.PresenceS.DeleteAllKubeServices(ctx))
+	out, err = s.PresenceS.GetKubeServices(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 0)
 }
 
 // AppServerCRUD tests CRUD functionality for services.Server.
@@ -606,7 +635,10 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	require.Equal(t, token.GetRoles().Include(types.RoleAuth), true)
 	require.Equal(t, token.GetRoles().Include(types.RoleNode), true)
 	require.Equal(t, token.GetRoles().Include(types.RoleProxy), false)
-	require.Equal(t, time.Time{}, token.Expiry())
+	diff := s.Clock.Now().UTC().Add(defaults.ProvisioningTokenTTL).Second() - token.Expiry().Second()
+	if diff > 1 {
+		t.Fatalf("expected diff to be within one second, got %v instead", diff)
+	}
 
 	require.NoError(t, s.ProvisioningS.DeleteToken(ctx, "token"))
 
@@ -925,7 +957,6 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
-	ctx := context.Background()
 	clusterName := "example.com"
 	out, err := s.PresenceS.GetRemoteClusters()
 	require.NoError(t, err)
@@ -964,10 +995,10 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
 	require.Equal(t, len(out), 1)
 	require.Empty(t, cmp.Diff(out[0], rc))
 
-	err = s.PresenceS.DeleteRemoteCluster(ctx, clusterName)
+	err = s.PresenceS.DeleteRemoteCluster(clusterName)
 	require.NoError(t, err)
 
-	err = s.PresenceS.DeleteRemoteCluster(ctx, clusterName)
+	err = s.PresenceS.DeleteRemoteCluster(clusterName)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -1325,17 +1356,17 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 			crud: func(context.Context) types.Resource {
 				ca := NewTestCA(types.UserCA, "example.com")
-				require.NoError(t, s.CAS.UpsertCertAuthority(ctx, ca))
+				require.NoError(t, s.CAS.UpsertCertAuthority(ca))
 
 				out, err := s.CAS.GetCertAuthority(ctx, *ca.ID(), true)
 				require.NoError(t, err)
 
-				require.NoError(t, s.CAS.DeleteCertAuthority(ctx, *ca.ID()))
+				require.NoError(t, s.CAS.DeleteCertAuthority(*ca.ID()))
 				return out
 			},
 		},
 	}
-	s.runEventsTests(t, testCases, types.Watch{Kinds: eventsTestKinds(testCases)})
+	s.runEventsTests(t, testCases)
 
 	testCases = []eventTest{
 		{
@@ -1346,17 +1377,17 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 			crud: func(context.Context) types.Resource {
 				ca := NewTestCA(types.UserCA, "example.com")
-				require.NoError(t, s.CAS.UpsertCertAuthority(ctx, ca))
+				require.NoError(t, s.CAS.UpsertCertAuthority(ca))
 
 				out, err := s.CAS.GetCertAuthority(ctx, *ca.ID(), false)
 				require.NoError(t, err)
 
-				require.NoError(t, s.CAS.DeleteCertAuthority(ctx, *ca.ID()))
+				require.NoError(t, s.CAS.DeleteCertAuthority(*ca.ID()))
 				return out
 			},
 		},
 	}
-	s.runEventsTests(t, testCases, types.Watch{Kinds: eventsTestKinds(testCases)})
+	s.runEventsTests(t, testCases)
 
 	testCases = []eventTest{
 		{
@@ -1470,7 +1501,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				Kind: types.KindUser,
 			},
 			crud: func(context.Context) types.Resource {
-				user := newUser("user1", []string{constants.DefaultImplicitRole})
+				user := newUser("user1", []string{"admin"})
 				err := s.Users().UpsertUser(user)
 				require.NoError(t, err)
 
@@ -1569,7 +1600,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			kind: types.WatchKind{
 				Kind: types.KindRemoteCluster,
 			},
-			crud: func(ctx context.Context) types.Resource {
+			crud: func(context.Context) types.Resource {
 				rc, err := types.NewRemoteCluster("example.com")
 				rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 				require.NoError(t, err)
@@ -1578,18 +1609,14 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				out, err := s.PresenceS.GetRemoteClusters()
 				require.NoError(t, err)
 
-				err = s.PresenceS.DeleteRemoteCluster(ctx, rc.GetName())
+				err = s.PresenceS.DeleteRemoteCluster(rc.GetName())
 				require.NoError(t, err)
 
 				return out[0]
 			},
 		},
 	}
-	// this also tests the partial success mode by requesting an unknown kind
-	s.runEventsTests(t, testCases, types.Watch{
-		Kinds:               append(eventsTestKinds(testCases), types.WatchKind{Kind: "unknown"}),
-		AllowPartialSuccess: true,
-	})
+	s.runEventsTests(t, testCases)
 
 	// Namespace with a name
 	testCases = []eventTest{
@@ -1621,22 +1648,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 		},
 	}
-	s.runEventsTests(t, testCases, types.Watch{Kinds: eventsTestKinds(testCases)})
-
-	// tests that a watch fails given an unknown kind when the partial success mode is not enabled
-	s.runUnknownEventsTest(t, types.Watch{Kinds: []types.WatchKind{
-		{Kind: types.KindNamespace},
-		{Kind: "unknown"},
-	}})
-
-	// tests that a watch fails if all given kinds are unknown even if the success mode is enabled
-	s.runUnknownEventsTest(t, types.Watch{
-		Kinds: []types.WatchKind{
-			{Kind: "unrecognized"},
-			{Kind: "unidentified"},
-		},
-		AllowPartialSuccess: true,
-	})
+	s.runEventsTests(t, testCases)
 }
 
 // EventsClusterConfig tests cluster config resource events
@@ -1734,7 +1746,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(t *testing.T) {
 			},
 		},
 	}
-	s.runEventsTests(t, testCases, types.Watch{Kinds: eventsTestKinds(testCases)})
+	s.runEventsTests(t, testCases)
 }
 
 // NetworkRestrictions tests network restrictions.
@@ -1779,19 +1791,17 @@ func (s *ServicesTestSuite) NetworkRestrictions(t *testing.T, opts ...Option) {
 	require.True(t, trace.IsNotFound(err))
 }
 
-func (s *ServicesTestSuite) runEventsTests(t *testing.T, testCases []eventTest, watch types.Watch) {
+func (s *ServicesTestSuite) runEventsTests(t *testing.T, testCases []eventTest) {
 	ctx := context.Background()
-	w, err := s.EventsS.NewWatcher(ctx, watch)
+	w, err := s.EventsS.NewWatcher(ctx, types.Watch{
+		Kinds: eventsTestKinds(testCases),
+	})
 	require.NoError(t, err)
 	defer w.Close()
 
 	select {
 	case event := <-w.Events():
 		require.Equal(t, event.Type, types.OpInit)
-		watchStatus, ok := event.Resource.(types.WatchStatus)
-		require.True(t, ok)
-		expectedKinds := eventsTestKinds(testCases)
-		require.Equal(t, expectedKinds, watchStatus.GetKinds())
 	case <-w.Done():
 		t.Fatalf("Watcher exited with error %v", w.Error())
 	case <-time.After(2 * time.Second):
@@ -1835,26 +1845,6 @@ skiploop:
 	}
 }
 
-func (s *ServicesTestSuite) runUnknownEventsTest(t *testing.T, watch types.Watch) {
-	ctx := context.Background()
-	w, err := s.EventsS.NewWatcher(ctx, watch)
-	if err != nil {
-		// depending on the implementation of EventsS, it might fail here immediately
-		// or later before returning the first event from the watcher.
-		return
-	}
-	defer w.Close()
-
-	select {
-	case <-w.Events():
-		t.Fatal("unexpected event from watcher that is supposed to fail")
-	case <-w.Done():
-		require.Error(t, w.Error())
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for error from watcher")
-	}
-}
-
 type eventTest struct {
 	name string
 	kind types.WatchKind
@@ -1884,6 +1874,10 @@ waitLoop:
 				log.Debugf("Skipping event %+v", event)
 				continue
 			}
+			if resource.GetResourceID() > event.Resource.GetResourceID() {
+				log.Debugf("Skipping stale event %v %v %v %v, latest object version is %v", event.Type, event.Resource.GetKind(), event.Resource.GetName(), event.Resource.GetResourceID(), resource.GetResourceID())
+				continue waitLoop
+			}
 			if resource.GetName() != event.Resource.GetName() || resource.GetKind() != event.Resource.GetKind() || resource.GetSubKind() != event.Resource.GetSubKind() {
 				log.Debugf("Skipping event %v resource %v, expecting %v", event.Type, event.Resource.GetMetadata(), event.Resource.GetMetadata())
 				continue waitLoop
@@ -1909,14 +1903,6 @@ waitLoop:
 				log.Debugf("Skipping stale event %v %v", event.Type, event.Resource.GetName())
 				continue
 			}
-
-			// Server resources may have subkind set, but the backend
-			// generating this delete event doesn't know the subkind.
-			// Set it to prevent the check below from failing.
-			if event.Resource.GetKind() == types.KindNode {
-				event.Resource.SetSubKind(resource.GetSubKind())
-			}
-
 			require.Empty(t, cmp.Diff(resource, event.Resource))
 			break waitLoop
 		}

@@ -43,9 +43,6 @@ spec:
       {{- if .Values.dnsPolicy }}
       dnsPolicy: {{ .Values.dnsPolicy | quote }}
       {{- end }}
-      {{- if .Values.hostAliases }}
-      hostAliases: {{- toYaml .Values.hostAliases | nindent 8 }}
-      {{- end }}
       {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
       affinity:
         {{- if .Values.affinity }}
@@ -118,7 +115,7 @@ spec:
       {{- end }}
       containers:
       - name: "teleport"
-        image: {{ include "teleport-kube-agent.image" . | quote }}
+        image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
@@ -127,10 +124,6 @@ spec:
         # Telemetry is opt-in for oss users and controlled at the auth level.
         - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
           value: "true"
-        {{- if .Values.updater.enabled }}
-        - name: TELEPORT_EXT_UPGRADER
-          value: kube
-        {{- end }}
         {{- if (gt (len .Values.extraEnv) 0) }}
           {{- toYaml .Values.extraEnv | nindent 8 }}
         {{- end }}
@@ -196,7 +189,7 @@ spec:
           name: {{ .Release.Name }}
       - name: "auth-token"
         secret:
-          secretName: {{ coalesce .Values.secretName .Values.joinTokenSecret.name }}
+          secretName: {{ .Values.secretName }}
       {{- if not .Values.existingDataVolume }}
       - name: "data"
         emptyDir: {}
@@ -212,5 +205,5 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
-      serviceAccountName: {{ template "teleport-kube-agent.serviceAccountName" . }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" . }}
 {{- end }}

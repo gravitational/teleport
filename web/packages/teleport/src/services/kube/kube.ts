@@ -16,7 +16,7 @@ limitations under the License.
 
 import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
-import { ResourcesResponse } from 'teleport/services/agents';
+import { AgentResponse } from 'teleport/services/agents';
 
 import { Kube } from './types';
 import makeKube from './makeKube';
@@ -26,7 +26,7 @@ class KubeService {
     clusterId,
     params: UrlResourcesParams,
     signal?: AbortSignal
-  ): Promise<ResourcesResponse<Kube>> {
+  ): Promise<AgentResponse<Kube>> {
     return api
       .get(cfg.getKubernetesUrl(clusterId, params), signal)
       .then(json => {

@@ -179,62 +179,19 @@ Reference](../../reference/cli/tsh.mdx#tsh-global-flags) page.
 
 Once a WebAuthn device is registered, the user will be prompted for it on login:
 
-<Tabs>
-<TabItem scope={["oss"]} label="Teleport Community Edition">
-
 ```code
-$ tsh login --proxy=example.com
+$ tsh login --proxy=example.teleport.sh
 # Enter password for Teleport user codingllama:
 # Tap any security key or enter a code from a OTP device:
-# > Profile URL:        https://example.com
+# > Profile URL:        https://example.teleport.sh
 #   Logged in as:       codingllama
-#   Cluster:            example.com
+#   Cluster:            mytenant.teleport.sh
 #   Roles:              access, editor
 #   Logins:             codingllama
 #   Kubernetes:         enabled
 #   Valid until:        2021-10-04 23:32:29 -0700 PDT [valid for 12h0m0s]
 #   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
-
-</TabItem>
-
-<TabItem scope={["enterprise"]} label="Teleport Enterprise">
-
-```code
-$ tsh login --proxy=example.com
-# Enter password for Teleport user codingllama:
-# Tap any security key or enter a code from a OTP device:
-# > Profile URL:        https://example.com
-#   Logged in as:       codingllama
-#   Cluster:            example.com
-#   Roles:              access, editor, reviewer
-#   Logins:             codingllama
-#   Kubernetes:         enabled
-#   Valid until:        2021-10-04 23:32:29 -0700 PDT [valid for 12h0m0s]
-#   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
-```
-
-</TabItem>
-
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-$ tsh login --proxy=mytenant.teleport.sh
-# Enter password for Teleport user codingllama:
-# Tap any security key or enter a code from a OTP device:
-# > Profile URL:        https://mytenant.teleport.sh
-#   Logged in as:       codingllama
-#   Cluster:            mytenant.teleport.sh
-#   Roles:              access, editor, reviewer
-#   Logins:             codingllama
-#   Kubernetes:         enabled
-#   Valid until:        2021-10-04 23:32:29 -0700 PDT [valid for 12h0m0s]
-#   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
-```
-
-</TabItem>
-
-</Tabs>
 
 <Admonition type="note">
   WebAuthn for logging in to Teleport is only required for [local users](

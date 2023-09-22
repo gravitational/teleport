@@ -1,0 +1,35 @@
+#!groovy
+pipeline {
+    agent any
+    options {
+        ansiColor(colorMapName: 'XTerm')
+        disableConcurrentBuilds()
+        timestamps()
+    }
+    parameters {
+        string(name: 'version', defaultValue: '4.1.0', description: 'Teleport version to build')
+    }
+    stages {
+        stage('Create files/build directory') {
+            steps {
+                dir('assets/aws') {
+                    sh 'mkdir -p files/build'
+                }
+            }
+        }
+        stage('Run Packer to build specified version') {
+            steps {
+                dir('assets/aws') {
+                    sh "PUBLIC_AMI_NAME=gravitational-teleport-ami-oss-${params.version} TELEPORT_VERSION=${params.version} make oss-ci-build"
+                }
+            }
+        }
+        stage('Make OSS AMIs public') {
+            steps {
+                dir('assets/aws') {
+                    sh 'make change-amis-to-public-oss'
+                }
+            }
+        }
+    }
+}

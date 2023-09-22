@@ -16,31 +16,20 @@ limitations under the License.
 
 import { DbProtocol } from 'shared/services/databases';
 
-import { ResourceLabel } from 'teleport/services/agents';
+import { AgentLabel } from 'teleport/services/agents';
 
-import { AwsRdsDatabase, RdsEngine } from '../integrations';
-
-export enum IamPolicyStatus {
-  // Unspecified flag is most likely a result
-  // from an older service that do not set this state
-  Unspecified = 'IAM_POLICY_STATUS_UNSPECIFIED',
-  Pending = 'IAM_POLICY_STATUS_PENDING',
-  Failed = 'IAM_POLICY_STATUS_FAILED',
-  Success = 'IAM_POLICY_STATUS_SUCCESS',
-}
+import { RdsEngine } from '../integrations';
 
 export type Aws = {
-  rds: Pick<AwsRdsDatabase, 'resourceId' | 'region' | 'subnets' | 'vpcId'>;
-  iamPolicyStatus: IamPolicyStatus;
+  rds?: { resourceId: string };
 };
 
 export interface Database {
-  kind: 'db';
   name: string;
   description: string;
   type: string;
   protocol: DbProtocol;
-  labels: ResourceLabel[];
+  labels: AgentLabel[];
   names?: string[];
   users?: string[];
   hostname: string;
@@ -64,8 +53,13 @@ export type CreateDatabaseRequest = {
   name: string;
   protocol: DbProtocol | RdsEngine;
   uri: string;
-  labels?: ResourceLabel[];
-  awsRds?: AwsRdsDatabase;
+  labels?: AgentLabel[];
+  awsRds?: AwsRds;
+};
+
+export type AwsRds = {
+  accountId: string;
+  resourceId: string;
 };
 
 export type DatabaseIamPolicyResponse = {

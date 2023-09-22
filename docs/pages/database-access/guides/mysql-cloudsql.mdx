@@ -3,7 +3,11 @@ title: Database Access with MySQL on GCP Cloud SQL
 description: How to configure Teleport database access with GCP Cloud SQL MySQL.
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="MySQL on Google Cloud SQL" dbConfigure="MySQL on Google Cloud SQL with a service account" dbName="MySQL on Google Cloud SQL" !)
+This guide will help you to:
+
+- Install Teleport `(=teleport.version=)`.
+- Set up Teleport to access your MySQL on Google Cloud SQL.
+- Connect to your databases through Teleport.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -137,7 +141,7 @@ a single Cloud SQL MySQL database. Save this file as `/etc/teleport.yaml`:
 ```yaml
 version: v3
 teleport:
-  data_dir: /var/lib/teleport-db
+  data_dir: /var/lib/teleport
   nodename: test
   # Proxy address to connect to. Note that it has to be the proxy address
   # because the Database Service always connects to the cluster over a reverse
@@ -181,7 +185,7 @@ proxy_service:
 ```yaml
 version: v3
 teleport:
-  data_dir: /var/lib/teleport-db
+  data_dir: /var/lib/teleport
   nodename: test
   # Proxy address to connect to. Use your Teleport Cloud tenant address.
   proxy_server: mytenant.teleport.sh:443

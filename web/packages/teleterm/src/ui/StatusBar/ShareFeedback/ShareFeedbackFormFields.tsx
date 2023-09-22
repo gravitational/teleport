@@ -15,7 +15,6 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
@@ -53,7 +52,6 @@ export function ShareFeedbackFormFields({
         readonly={disabled}
         css={`
           input {
-            background: inherit;
             font-size: 14px;
           }
         `}
@@ -62,11 +60,10 @@ export function ShareFeedbackFormFields({
         onChange={e => updateFormField('email', e.target.value)}
       />
       <FieldInput
-        label="Company Name (optional)"
+        label="Company name (optional)"
         readonly={disabled}
         css={`
           input {
-            background: inherit;
             font-size: 14px;
           }
         `}
@@ -76,7 +73,7 @@ export function ShareFeedbackFormFields({
       <FieldTextArea
         label="Suggestions"
         textAreaCss={`
-            font-size: 14px;
+          font-size: 14px;
         `}
         rule={requiredField('Suggestions are required')}
         readOnly={disabled}
@@ -84,7 +81,7 @@ export function ShareFeedbackFormFields({
         onChange={e => updateFormField('feedback', e.target.value)}
         placeholder="Type your suggestions here"
       />
-      <ToggleWithCustomStyling
+      <Toggle
         disabled={disabled}
         isToggled={formValues.newsletterEnabled}
         onToggle={() => {
@@ -94,8 +91,8 @@ export function ShareFeedbackFormFields({
         <Text ml={2} color="text.main">
           Sign me up for the newsletter
         </Text>
-      </ToggleWithCustomStyling>
-      <ToggleWithCustomStyling
+      </Toggle>
+      <Toggle
         disabled={disabled}
         isToggled={formValues.salesContactEnabled}
         onToggle={() => {
@@ -114,15 +111,7 @@ export function ShareFeedbackFormFields({
         >
           I would like a demo of Teleport&nbsp;Enterprise features
         </Text>
-      </ToggleWithCustomStyling>
+      </Toggle>
     </>
   );
 }
-
-// Custom styling for the toggle to make it readable on a light background.
-// TODO(gzdunek): remove when design team finish work on this form control.
-const ToggleWithCustomStyling = styled(Toggle)`
-  > div:first-of-type {
-    border: 1px solid ${props => props.theme.colors.spotBackground[1]};
-  }
-`;

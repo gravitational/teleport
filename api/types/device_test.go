@@ -15,7 +15,6 @@
 package types
 
 import (
-	"crypto"
 	"testing"
 	"time"
 
@@ -25,8 +24,79 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
+
+// TestUnmarshalDevice tests that devices can be successfully
+// unmarshalled from YAML and JSON.
+func TestUnmarshalDevice(t *testing.T) {
+	for _, tc := range []struct {
+		desc          string
+		input         string
+		errorContains string
+		expected      *DeviceV1
+	}{
+		{
+			desc: "success",
+			input: `
+{
+  "kind": "device",
+	"version": "v1",
+	"metadata": {
+		"name": "xaa"
+	},
+	"spec": {
+		"asset_tag": "mymachine",
+		"os_type": "macos",
+		"enroll_status": "enrolled"
+	}
+}`,
+			expected: &DeviceV1{
+				ResourceHeader: ResourceHeader{
+					Kind:    KindDevice,
+					Version: "v1",
+					Metadata: Metadata{
+						Namespace: defaults.Namespace,
+						Name:      "xaa",
+					},
+				},
+				Spec: &DeviceSpec{
+					OsType:       "macos",
+					AssetTag:     "mymachine",
+					EnrollStatus: "enrolled",
+				},
+			},
+		},
+		{
+			desc:          "fail string as num",
+			errorContains: `cannot unmarshal number`,
+			input: `
+{
+  "kind": "device",
+	"version": "v1",
+	"metadata": {
+		"name": "secretid"
+	},
+	"spec": {
+		"asset_tag": 4,
+		"os_type": "macos",
+		"enroll_status": "enrolled"
+	}
+}`,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			out, err := UnmarshalDevice([]byte(tc.input))
+			if tc.errorContains != "" {
+				require.ErrorContains(t, err, tc.errorContains, "error from UnmarshalDevice does not contain the expected string")
+				return
+			}
+			require.NoError(t, err, "UnmarshalDevice returned unexpected error")
+			require.Equal(t, tc.expected, out, "unmarshalled device  does not match what was expected")
+		})
+	}
+}
 
 func TestDeviceConversions_toAndFrom(t *testing.T) {
 	t1 := time.UnixMilli(1680276526972000) // Fri Mar 31 2023 15:28:46 UTC
@@ -45,11 +115,8 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 		UpdateTime:   timestamppb.New(t2),
 		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
 		Credential: &devicepb.DeviceCredential{
-			Id:                    "557762f0-4cd4-4b75-aaee-575c57237c0b",
-			PublicKeyDer:          []byte("insert public key here"),
-			DeviceAttestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED,
-			TpmEkcertSerial:       "00:00:00:00:00:00:00:00:00:00:00:DE:AD:BE:EF:CA:FE",
-			TpmAkPublic:           []byte("a TPMT_PUBLIC encoded blob"),
+			Id:           "557762f0-4cd4-4b75-aaee-575c57237c0b",
+			PublicKeyDer: []byte("insert public key here"),
 		},
 		CollectedData: []*devicepb.DeviceCollectedData{
 			{
@@ -59,64 +126,12 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 				SerialNumber: assetTag,
 			},
 			{
-				CollectTime:             timestamppb.New(t2),
-				RecordTime:              timestamppb.New(t22),
-				OsType:                  osType,
-				SerialNumber:            assetTag,
-				ModelIdentifier:         "MacBookPro9,2",
-				OsVersion:               "13.1.2",
-				OsBuild:                 "22D68",
-				OsUsername:              "llama",
-				JamfBinaryVersion:       "9.27",
-				MacosEnrollmentProfiles: "Enrolled via DEP: No\nMDM enrollment: Yes (User Approved)\nMDM server: ...",
-				ReportedAssetTag:        assetTag + "-reported",
-				SystemSerialNumber:      assetTag + "-system",
-				BaseBoardSerialNumber:   assetTag + "-board",
-				TpmPlatformAttestation: &devicepb.TPMPlatformAttestation{
-					Nonce: []byte("foo-bar-bizz"),
-					PlatformParameters: &devicepb.TPMPlatformParameters{
-						EventLog: []byte("dummy-event-log"),
-						Quotes: []*devicepb.TPMQuote{
-							{
-								Quote:     []byte("fake-quote-1"),
-								Signature: []byte("fake-signature-1"),
-							},
-							{
-								Quote:     []byte("fake-quote-2"),
-								Signature: []byte("fake-signature-2"),
-							},
-						},
-						Pcrs: []*devicepb.TPMPCR{
-							{
-								Index:     0,
-								Digest:    []byte("fake-sha1-digest"),
-								DigestAlg: uint64(crypto.SHA1),
-							},
-							{
-								Index:     1,
-								Digest:    []byte("fake-sha256-digest"),
-								DigestAlg: uint64(crypto.SHA256),
-							},
-						},
-					},
-				},
+				CollectTime:  timestamppb.New(t2),
+				RecordTime:   timestamppb.New(t22),
+				OsType:       osType,
+				SerialNumber: assetTag,
 			},
 		},
-		Source: &devicepb.DeviceSource{
-			Name:   "myscript",
-			Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_API,
-		},
-		Profile: &devicepb.DeviceProfile{
-			UpdateTime:          timestamppb.New(t1),
-			ModelIdentifier:     "MacBookPro9,2",
-			OsVersion:           "13.1.2",
-			OsBuild:             "22F82",
-			OsBuildSupplemental: "22F770820d",
-			OsUsernames:         []string{"admin", "llama"},
-			JamfBinaryVersion:   "9.27",
-			ExternalId:          "99",
-		},
-		Owner: "llama",
 	}
 
 	gotRes := DeviceToResource(dev)
@@ -131,49 +146,6 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 	require.NoError(t, err, "DeviceFromResource failed")
 	if diff := cmp.Diff(dev, gotDev, protocmp.Transform()); diff != "" {
 		t.Errorf("DeviceFromResource mismatch (-want +got)\n%s", diff)
-	}
-}
-
-func TestResourceAttestationType_toAndFrom(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		attestationType string
-		wantEmpty       bool
-		wantErr         string
-	}{
-		{
-			attestationType: "unspecified",
-			wantEmpty:       true,
-		},
-		{
-			attestationType: "tpm_ekpub",
-		},
-		{
-			attestationType: "tpm_ekcert",
-		},
-		{
-			attestationType: "tpm_ekcert_trusted",
-		},
-		{
-			attestationType: "quantum_entanglement",
-			wantErr:         "unknown attestation type",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.attestationType, func(t *testing.T) {
-			asEnum, err := ResourceDeviceAttestationTypeFromString(tt.attestationType)
-			if tt.wantErr != "" {
-				require.ErrorContains(t, err, tt.wantErr, "ResourceDeviceAttestationTypeFromString error mismatch")
-				return
-			}
-
-			got := ResourceDeviceAttestationTypeToString(asEnum)
-			want := tt.attestationType
-			if tt.wantEmpty {
-				want = ""
-			}
-			require.Equal(t, want, got, "ResourceDeviceAttestationTypeToString mismatch")
-		})
 	}
 }
 
@@ -203,28 +175,6 @@ func TestAllDeviceEnumsMapped(t *testing.T) {
 			},
 			fromString: func(s string) (int32, error) {
 				val, err := ResourceDeviceEnrollStatusFromString(s)
-				return int32(val), err
-			},
-		},
-		{
-			name:    "DeviceAttestationType",
-			nameMap: devicepb.DeviceAttestationType_name,
-			toString: func(i int32) string {
-				return ResourceDeviceAttestationTypeToString(devicepb.DeviceAttestationType(i))
-			},
-			fromString: func(s string) (int32, error) {
-				val, err := ResourceDeviceAttestationTypeFromString(s)
-				return int32(val), err
-			},
-		},
-		{
-			name:    "DeviceOrigin",
-			nameMap: devicepb.DeviceOrigin_name,
-			toString: func(i int32) string {
-				return ResourceDeviceOriginToString(devicepb.DeviceOrigin(i))
-			},
-			fromString: func(s string) (int32, error) {
-				val, err := ResourceDeviceOriginFromString(s)
 				return int32(val), err
 			},
 		},

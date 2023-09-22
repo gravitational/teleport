@@ -55,11 +55,6 @@ func (p PrivateKeyPolicy) VerifyPolicy(policy PrivateKeyPolicy) error {
 	return NewPrivateKeyPolicyError(p)
 }
 
-// MFAVerified checks that meet this private key policy counts towards MFA verification.
-func (p PrivateKeyPolicy) MFAVerified() bool {
-	return p == PrivateKeyPolicyHardwareKeyTouch
-}
-
 func (p PrivateKeyPolicy) validate() error {
 	switch p {
 	case PrivateKeyPolicyNone, PrivateKeyPolicyHardwareKey, PrivateKeyPolicyHardwareKeyTouch:

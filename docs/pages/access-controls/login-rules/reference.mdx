@@ -1,7 +1,6 @@
 ---
-title: Login Rules Reference 
+title: Login Rules Reference (Preview)
 description: Reference documentation for Login Rules
-tocDepth: 3
 ---
 
 <Admonition type="warning" title="Preview">
@@ -71,7 +70,7 @@ spec:
     # lowercase.
     logins:
       - 'strings.lower(external.username)'
-
+   
     # the access trait is determined conditionally based on the incoming groups trait.
     access:
       - 'ifelse(external.groups.contains("devs"), set("staging"), set())'
@@ -509,7 +508,7 @@ Argument | Type | Description
 
 Type | Description
 ---- | ----------
-`set`  | a copy of `input` where each string has been converted to uppercase
+`set`  | a copy of `input` where each string has been convert to uppercase
 
 #### Examples
 
@@ -541,7 +540,7 @@ Argument | Type | Description
 
 Type | Description
 ---- | ----------
-`set`  | a copy of `input` where each string has been converted to lowercase
+`set`  | a copy of `input` where each string has been convert to lowercase
 
 #### Examples
 
@@ -585,123 +584,6 @@ Expression | Result
 ------- | ------
 `strings.replaceall(set("user-name"), "-", "_")` | `("user_name")`
 `strings.replaceall(set("user-alice", "user-bob"), "user-", "")` | `("alice", "bob")`
-
-### `strings.split`
-
-<Admonition type="note">
-The `strings.split` helper was introduced in Teleport v13.3.0. All Auth Service
-instances must be running this version or greater before it can be used.
-</Admonition>
-
-#### Signature
-
-```go
-func strings.split(input set, separator string) set
-```
-
-#### Description
-
-`strings.split` splits each element of `input` at each match of `separator` and
-returns a set containing the union of all split strings.
-This may be useful when an IdP does not have the ability to pass multi-valued
-claims, a Login Rule with this helper function can split a single claim value
-into a Teleport trait with multiple values.
-
-#### Arguments
-
-Argument | Type | Description
--------- | ---- | -----------
-`input` | `set` | set of input strings which should be split |
-`sep` | `string` | literal string separator |
-
-#### Returns
-
-Type | Description
----- | ----------
-`set`  | the union of all split strings |
-
-#### Examples
-
-Expression | Result
-------- | ------
-`strings.split(set("alice,bob,charlie"), ",")` | `("alice", "bob", "charlie")`
-`strings.split(set("devs security"), " ")` | `("devs", "security")`
-
-### `email.local`
-
-<Admonition type="note">
-The `email.local` helper was introduced in Teleport v13.3.0. All Auth Service instances
-must be running this version or greater before it can be used.
-</Admonition>
-
-#### Signature
-
-```go
-func email.local(input set) set
-```
-
-#### Description
-
-`email.local` maps each email in the input set to its local part.
-
-#### Arguments
-
-Argument | Type | Description
--------- | ---- | -----------
-`input` | `set` | set of input emails |
-
-#### Returns
-
-Type | Description
----- | ----------
-`set`  | a copy of `input` where each email has been converted to its local part.
-
-#### Examples
-
-Expression | Result
-------- | ------
-`email.local(set("alice@example.com"))` | `("alice")`
-`email.local(set("Alice <alice@example.com>"))` | `("alice")`
-
-### `regexp.replace`
-
-<Admonition type="note">
-The `regexp.replace` helper was introduced in Teleport v13.3.0. All Auth Service instances
-must be running this version or greater before it can be used.
-</Admonition>
-
-#### Signature
-
-```go
-func regexp.replace(input set, expression string, replacement string) set
-```
-
-#### Description
-
-`regexp.replace` finds all matches of `expression` in each element of `input`
-and replaces them with `replacement`.
-Values which do not match the expression will be filtered out.
-The replacement supports expansion of capture groups from `expression`.
-`$N` is used to refer to the Nth captured group, starting at `$1`.
-
-#### Arguments
-
-Argument | Type | Description
--------- | ---- | -----------
-`input` | `set` | set of input strings |
-
-#### Returns
-
-Type | Description
----- | ----------
-`set`  | a copy of `input` where each string has had all matches of `expression` replaced with `replacement`.
-
-#### Examples
-
-Expression | Result
-------- | ------
-`regexp.replace(set("team-devs"), "^team-(.*)$", "$1")` | `("devs")`
-`regexp.replace(set("team-dev-security"), "^team-(.*)-(.*)$", "$1.$2")` | `("dev.security")`
 
 ### `ifelse`
 

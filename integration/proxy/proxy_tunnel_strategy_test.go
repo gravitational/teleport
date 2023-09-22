@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -300,7 +299,7 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 
 	auth.AddUser(p.username, []string{p.username})
 
-	conf := servicecfg.MakeDefaultConfig()
+	conf := service.MakeDefaultConfig()
 	conf.DataDir = t.TempDir()
 	conf.Log = auth.Log
 
@@ -328,7 +327,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 
 	authAddr := utils.MustParseAddr(p.auth.Auth)
 
-	conf := servicecfg.MakeDefaultConfig()
+	conf := service.MakeDefaultConfig()
 	conf.SetAuthServerAddress(*authAddr)
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
@@ -342,8 +341,8 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	conf.Proxy.ReverseTunnelListenAddr.Addr = proxy.ReverseTunnel
 	conf.Proxy.SSHAddr.Addr = proxy.SSHProxy
 	conf.Proxy.WebAddr.Addr = proxy.Web
-	conf.Proxy.PeerAddress.Addr = helpers.NewListenerOn(t, helpers.Loopback, service.ListenerProxyPeer, &proxy.Fds)
-	conf.Proxy.PeerPublicAddr = conf.Proxy.PeerAddress
+	conf.Proxy.PeerAddr.Addr = helpers.NewListenerOn(t, helpers.Loopback, service.ListenerProxyPeer, &proxy.Fds)
+	conf.Proxy.PeerPublicAddr = conf.Proxy.PeerAddr
 	conf.Proxy.PublicAddrs = append(conf.Proxy.PublicAddrs, utils.FromAddr(p.lb.Addr()))
 	conf.Proxy.DisableWebInterface = true
 	conf.FileDescriptors = proxy.Fds
@@ -373,7 +372,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 		Log:         utils.NewLoggerForTests(),
 	})
 
-	conf := servicecfg.MakeDefaultConfig()
+	conf := service.MakeDefaultConfig()
 	conf.Version = types.V3
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
@@ -418,7 +417,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 		Log:         utils.NewLoggerForTests(),
 	})
 
-	conf := servicecfg.MakeDefaultConfig()
+	conf := service.MakeDefaultConfig()
 	conf.Version = types.V3
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
@@ -430,7 +429,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	conf.SSH.Enabled = false
 	conf.Databases.Enabled = true
 	conf.ProxyServer = utils.FromAddr(p.lb.Addr())
-	conf.Databases.Databases = []servicecfg.Database{
+	conf.Databases.Databases = []service.Database{
 		{
 			Name:     p.cluster + "-postgres",
 			Protocol: defaults.ProtocolPostgres,
@@ -438,7 +437,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 		},
 	}
 
-	_, role, err := auth.CreateUserAndRole(p.auth.Process.GetAuthServer(), p.username, []string{p.username}, nil)
+	_, role, err := auth.CreateUserAndRole(p.auth.Process.GetAuthServer(), p.username, []string{p.username})
 	require.NoError(t, err)
 
 	role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})

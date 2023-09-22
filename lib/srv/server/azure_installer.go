@@ -26,13 +26,15 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 )
 
 // AzureInstaller handles running commands that install Teleport on Azure
 // virtual machines.
 type AzureInstaller struct {
-	Emitter apievents.Emitter
+	Emitter     apievents.Emitter
+	AccessPoint auth.DiscoveryAccessPoint
 }
 
 // AzureRunRequest combines parameters for running commands on a set of Azure

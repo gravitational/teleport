@@ -139,42 +139,6 @@ func TestValidateDatabase(t *testing.T) {
 			expectError: true,
 		},
 		{
-			inputName: "invalid-database-assume-role-arn",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolDynamoDB,
-				AWS: types.AWS{
-					Region:        "us-east-1",
-					AccountID:     "123456789012",
-					AssumeRoleARN: "foobar",
-				},
-			},
-			expectError: true,
-		},
-		{
-			inputName: "invalid-database-assume-role-arn-resource-type",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolDynamoDB,
-				AWS: types.AWS{
-					Region:        "us-east-1",
-					AccountID:     "123456789012",
-					AssumeRoleARN: "arn:aws:sts::123456789012:federated-user/Alice",
-				},
-			},
-			expectError: true,
-		},
-		{
-			inputName: "invalid-database-assume-role-arn-account-id-mismatch",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolDynamoDB,
-				AWS: types.AWS{
-					Region:        "us-east-1",
-					AccountID:     "123456789012",
-					AssumeRoleARN: "arn:aws:iam::111222333444:federated-user/Alice",
-				},
-			},
-			expectError: true,
-		},
-		{
 			inputName: "invalid-database-CA-cert",
 			inputSpec: types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolPostgres,
@@ -268,199 +232,6 @@ func TestValidateDatabase(t *testing.T) {
 					Region:    "us-east-1",
 					AccountID: "123456789012",
 				},
-			},
-			expectError: false,
-		},
-		{
-			inputName: "invalid-mssql-without-ad",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "sqlserver.goteleport.com:1433",
-				AD:       types.AD{},
-			},
-			expectError: true,
-		},
-		{
-			inputName: "valid-mssql-kerberos-keytabfile",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "sqlserver.goteleport.com:1433",
-				AD: types.AD{
-					KeytabFile: "path-to.keytab",
-					Krb5File:   "path-to.krb5",
-					Domain:     "domain.goteleport.com",
-					SPN:        "MSSQLSvc/sqlserver.goteleport.com:1433",
-				},
-			},
-			expectError: false,
-		},
-		{
-			inputName: "valid-mssql-kerberos-kdchostname",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "sqlserver.goteleport.com:1433",
-				AD: types.AD{
-					KDCHostName: "DOMAIN-CONTROLLER.domain.goteleport.com",
-					Krb5File:    "path-to.krb5",
-					Domain:      "domain.goteleport.com",
-					SPN:         "MSSQLSvc/sqlserver.goteleport.com:1433",
-					LDAPCert:    "-----BEGIN CERTIFICATE-----",
-				},
-			},
-			expectError: false,
-		},
-		{
-			inputName: "invalid-mssql-kerberos-kdchostname-without-ldapcert",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "sqlserver.goteleport.com:1433",
-				AD: types.AD{
-					KDCHostName: "DOMAIN-CONTROLLER.domain.goteleport.com",
-					Krb5File:    "path-to.krb5",
-					Domain:      "domain.goteleport.com",
-					SPN:         "MSSQLSvc/sqlserver.goteleport.com:1433",
-				},
-			},
-			expectError: true,
-		},
-		{
-			inputName: "valid-mssql-azure-kerberos",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "sqlserver.database.windows.net:1433",
-				AD: types.AD{
-					KeytabFile: "path-to.keytab",
-					Krb5File:   "path-to.krb5",
-					Domain:     "domain.goteleport.com",
-					SPN:        "MSSQLSvc/sqlserver.database.windows.net:1433",
-				},
-			},
-			expectError: false,
-		},
-		{
-			inputName: "valid-mssql-azure-ad",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "sqlserver.database.windows.net:1433",
-				AD:       types.AD{},
-			},
-			expectError: false,
-		},
-		{
-			inputName: "valid-mssql-rds-kerberos-keytab",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "sqlserver.rds.amazonaws.com:1433",
-				AD: types.AD{
-					KeytabFile: "path-to.keytab",
-					Krb5File:   "path-to.krb5",
-					Domain:     "domain.goteleport.com",
-					SPN:        "MSSQLSvc/sqlserver.rds.amazonaws.com:1433",
-				},
-			},
-			expectError: false,
-		},
-		{
-			inputName: "valid-mssql-aws-rds-proxy",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "sqlserver.rds.amazonaws.com:1433",
-				AWS: types.AWS{
-					RDSProxy: types.RDSProxy{
-						Name: "sqlserver-proxy",
-					},
-				},
-			},
-			expectError: false,
-		},
-		{
-			inputName: "invalid-mssql-rds-kerberos-without-ad",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "sqlserver.rds.amazonaws.com:1433",
-				AD:       types.AD{},
-			},
-			expectError: true,
-		},
-		{
-			inputName: "invalid-mssql-aws-rds-proxy-kerberos-without-spn",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "sqlserver.rds.amazonaws.com:1433",
-				AWS: types.AWS{
-					RDSProxy: types.RDSProxy{
-						Name: "sqlserver-proxy",
-					},
-				},
-				AD: types.AD{
-					KeytabFile: "path-to.keytab",
-					Krb5File:   "path-to.krb5",
-					Domain:     "domain.goteleport.com",
-				},
-			},
-			expectError: true,
-		},
-		{
-			inputName: "valid-clickhouse-uri-http-protocol",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolClickHouseHTTP,
-				URI:      "https://localhost:1234",
-			},
-			expectError: false,
-		},
-		{
-			inputName: "clickhouse-uri-without-schema-http-protocol",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolClickHouseHTTP,
-				URI:      "localhost:1234",
-			},
-			expectError: false,
-		},
-		{
-			inputName: "clickhouse-uri-without-schema-native-protocol",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolClickHouse,
-				URI:      "localhost:1234",
-			},
-			expectError: false,
-		},
-		{
-			inputName: "invalid-schema-for-native-protocol",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolClickHouse,
-				URI:      "https://localhost:1234",
-			},
-			expectError: true,
-		},
-		{
-			inputName: "invalid-schema-for-http-protocol",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolClickHouseHTTP,
-				URI:      "clickhouse://localhost:1234",
-			},
-			expectError: true,
-		},
-		{
-			inputName: "valid-clickhouse-uri-native-protocol",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolClickHouse,
-				URI:      "clickhouse://localhost:1234",
-			},
-			expectError: false,
-		},
-		{
-			inputName: "uri-without-schema-native-protocol",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolClickHouse,
-				URI:      "localhost:1234",
-			},
-			expectError: false,
-		},
-		{
-			inputName: "uri-without-schema-http-protocol",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolClickHouseHTTP,
-				URI:      "localhost:1234",
 			},
 			expectError: false,
 		},
@@ -746,15 +517,6 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 			Key:   aws.String("key"),
 			Value: aws.String("val"),
 		}},
-		DBSubnetGroup: &rdsTypesV2.DBSubnetGroup{
-			Subnets: []rdsTypesV2.Subnet{
-				{SubnetIdentifier: aws.String("")},
-				{SubnetIdentifier: aws.String("subnet-1234567890abcdef0")},
-				{SubnetIdentifier: aws.String("subnet-1234567890abcdef1")},
-				{SubnetIdentifier: aws.String("subnet-1234567890abcdef2")},
-			},
-			VpcId: aws.String("vpc-asd"),
-		},
 	}
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "instance-1",
@@ -780,12 +542,6 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 				ClusterID:  "cluster-1",
 				ResourceID: "resource-1",
 				IAMAuth:    true,
-				Subnets: []string{
-					"subnet-1234567890abcdef0",
-					"subnet-1234567890abcdef1",
-					"subnet-1234567890abcdef2",
-				},
-				VPCID: "vpc-asd",
 			},
 		},
 	})
@@ -1058,7 +814,7 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 			AWS:      expectedAWS,
 		})
 		require.NoError(t, err)
-		actual, err := NewDatabaseFromRDSV2Cluster(cluster, nil)
+		actual, err := NewDatabaseFromRDSV2Cluster(cluster)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(expected, actual))
 
@@ -1074,58 +830,11 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 				)
 				expected.Metadata.Name = newName
 
-				actual, err := NewDatabaseFromRDSV2Cluster(cluster, nil)
+				actual, err := NewDatabaseFromRDSV2Cluster(cluster)
 				require.NoError(t, err)
 				require.Equal(t, actual.GetName(), newName)
 			})
 		}
-	})
-
-	t.Run("DB Cluster uses network information from DB Instance when available", func(t *testing.T) {
-		instance := &rdsTypesV2.DBInstance{
-			DBSubnetGroup: &rdsTypesV2.DBSubnetGroup{
-				VpcId: aws.String("vpc-123"),
-				Subnets: []rdsTypesV2.Subnet{
-					{SubnetIdentifier: aws.String("subnet-123")},
-					{SubnetIdentifier: aws.String("subnet-456")},
-				},
-			},
-		}
-
-		expected, err := types.NewDatabaseV3(types.Metadata{
-			Name:        "override-1",
-			Description: "Aurora cluster in us-east-1",
-			Labels: map[string]string{
-				"TeleportDatabaseName":            "override-1",
-				"teleport.dev/database_name":      "override-1",
-				types.DiscoveryLabelAccountID:     "123456789012",
-				types.CloudLabel:                  types.CloudAWS,
-				types.DiscoveryLabelRegion:        "us-east-1",
-				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
-				types.DiscoveryLabelEngineVersion: "8.0.0",
-				types.DiscoveryLabelEndpointType:  "primary",
-				types.DiscoveryLabelStatus:        "available",
-				"key":                             "val",
-			},
-		}, types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolMySQL,
-			URI:      "localhost:3306",
-			AWS: types.AWS{
-				AccountID: "123456789012",
-				Region:    "us-east-1",
-				RDS: types.RDS{
-					ClusterID:  "cluster-1",
-					ResourceID: "resource-1",
-					IAMAuth:    true,
-					Subnets:    []string{"subnet-123", "subnet-456"},
-					VPCID:      "vpc-123",
-				},
-			},
-		})
-		require.NoError(t, err)
-		actual, err := NewDatabaseFromRDSV2Cluster(cluster, instance)
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(expected, actual), "NewDatabaseFromRDSV2Cluster diff (-want +got)")
 	})
 }
 

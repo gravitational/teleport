@@ -439,8 +439,8 @@ proto.PtyCreate.toObject = function(includeInstance, msg) {
     path: jspb.Message.getFieldWithDefault(msg, 3, ""),
     argsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
     cwd: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    env: (f = msg.getEnv()) && google_protobuf_struct_pb.Struct.toObject(includeInstance, f),
-    initMessage: jspb.Message.getFieldWithDefault(msg, 8, "")
+    initCommand: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    env: (f = msg.getEnv()) && google_protobuf_struct_pb.Struct.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -489,14 +489,14 @@ proto.PtyCreate.deserializeBinaryFromReader = function(msg, reader) {
       var value = /** @type {string} */ (reader.readString());
       msg.setCwd(value);
       break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setInitCommand(value);
+      break;
     case 7:
       var value = new google_protobuf_struct_pb.Struct;
       reader.readMessage(value,google_protobuf_struct_pb.Struct.deserializeBinaryFromReader);
       msg.setEnv(value);
-      break;
-    case 8:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setInitMessage(value);
       break;
     default:
       reader.skipField();
@@ -548,19 +548,19 @@ proto.PtyCreate.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
+  f = /** @type {string} */ (jspb.Message.getField(message, 6));
+  if (f != null) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
   f = message.getEnv();
   if (f != null) {
     writer.writeMessage(
       7,
       f,
       google_protobuf_struct_pb.Struct.serializeBinaryToWriter
-    );
-  }
-  f = message.getInitMessage();
-  if (f.length > 0) {
-    writer.writeString(
-      8,
-      f
     );
   }
 };
@@ -640,6 +640,42 @@ proto.PtyCreate.prototype.setCwd = function(value) {
 
 
 /**
+ * optional string init_command = 6;
+ * @return {string}
+ */
+proto.PtyCreate.prototype.getInitCommand = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.PtyCreate} returns this
+ */
+proto.PtyCreate.prototype.setInitCommand = function(value) {
+  return jspb.Message.setField(this, 6, value);
+};
+
+
+/**
+ * Clears the field making it undefined.
+ * @return {!proto.PtyCreate} returns this
+ */
+proto.PtyCreate.prototype.clearInitCommand = function() {
+  return jspb.Message.setField(this, 6, undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.PtyCreate.prototype.hasInitCommand = function() {
+  return jspb.Message.getField(this, 6) != null;
+};
+
+
+/**
  * optional google.protobuf.Struct env = 7;
  * @return {?proto.google.protobuf.Struct}
  */
@@ -673,24 +709,6 @@ proto.PtyCreate.prototype.clearEnv = function() {
  */
 proto.PtyCreate.prototype.hasEnv = function() {
   return jspb.Message.getField(this, 7) != null;
-};
-
-
-/**
- * optional string init_message = 8;
- * @return {string}
- */
-proto.PtyCreate.prototype.getInitMessage = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
-};
-
-
-/**
- * @param {string} value
- * @return {!proto.PtyCreate} returns this
- */
-proto.PtyCreate.prototype.setInitMessage = function(value) {
-  return jspb.Message.setProto3StringField(this, 8, value);
 };
 
 

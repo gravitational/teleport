@@ -19,7 +19,6 @@ package github
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	go_github "github.com/google/go-github/v41/github"
 	"github.com/gravitational/trace"
@@ -103,25 +102,14 @@ func (c *Client) Backport(ctx context.Context, baseBranchName string, pullNumber
 
 // CreatePullRequest creates a pull request.
 func (c *Client) CreatePullRequest(ctx context.Context, baseBranch string, headBranch string, originalPrNumber int) error {
-	pr, _, err := c.Client.PullRequests.Get(ctx, c.c.Organization, c.c.Repository, originalPrNumber)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	major := strings.TrimPrefix(baseBranch, "branch/")
-	body := pr.GetBody()
-	if len(body) > 0 {
-		body += "\n\n"
-	}
-	body += fmt.Sprintf("Backports #%v", originalPrNumber)
-
+	titleAndBody := fmt.Sprintf("Backport #%v to %s", originalPrNumber, baseBranch)
 	newPR := &go_github.NewPullRequest{
-		Title: go_github.String(fmt.Sprintf("[%v] %v", major, pr.GetTitle())),
+		Title: go_github.String(titleAndBody),
 		Head:  go_github.String(headBranch),
 		Base:  go_github.String(baseBranch),
-		Body:  go_github.String(body),
+		Body:  go_github.String(titleAndBody),
 	}
-	_, _, err = c.Client.PullRequests.Create(ctx, c.c.Organization, c.c.Repository, newPR)
+	_, _, err := c.Client.PullRequests.Create(ctx, c.c.Organization, c.c.Repository, newPR)
 	if err != nil {
 		return trace.Wrap(err)
 	}

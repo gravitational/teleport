@@ -16,7 +16,6 @@ package desktop
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"net"
 	"net/netip"
@@ -272,18 +271,10 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 		return nil, trace.Wrap(err)
 	}
 
-	// ensure no '.' in name, because we use SNI to route to the right
-	// desktop, and our cert is valid for *.desktop.teleport.cluster.local
-	name := strings.ReplaceAll(hostname, ".", "-")
-
-	// append portion of the object GUID to ensure that desktops from
-	// different domains that happen to have the same hostname don't conflict
-	if guid := entry.GetRawAttributeValue(windows.AttrObjectGUID); len(guid) >= 4 {
-		name += "-" + hex.EncodeToString(guid[:4])
-	}
-
 	desktop, err := types.NewWindowsDesktopV3(
-		name,
+		// ensure no '.' in name, because we use SNI to route to the right
+		// desktop, and our cert is valid for *.desktop.teleport.cluster.local
+		strings.ReplaceAll(hostname, ".", "-"),
 		labels,
 		types.WindowsDesktopSpecV3{
 			Addr:   addr.String(),

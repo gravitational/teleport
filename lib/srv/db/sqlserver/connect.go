@@ -29,20 +29,10 @@ import (
 	"github.com/microsoft/go-mssqldb/azuread"
 	"github.com/microsoft/go-mssqldb/msdsn"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/kinit"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
-)
-
-const (
-	// ResourceIDDSNKey represents the resource ID DSN parameter key. This value
-	// is defined by the go-mssqldb library.
-	ResourceIDDSNKey = "resource id"
-	// FederatedAuthDSNKey represents the federated auth DSN parameter key. This
-	// value is defined by the go-mssqldb library.
-	FederatedAuthDSNKey = "fedauth"
 )
 
 // Connector defines an interface for connecting to a SQL Server so it can be
@@ -60,6 +50,7 @@ type connector struct {
 	DataDir string
 
 	kinitCommandGenerator kinit.CommandGenerator
+	caFunc                func(ctx context.Context, clusterName string) ([]byte, error)
 }
 
 var errBadKerberosConfig = errors.New("configuration must have either keytab or kdc_host_name and ldap_cert")
@@ -119,19 +110,35 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 	}
 
 	var connector *mssql.Connector
-	switch {
-	case sessionCtx.Database.IsAzure() && sessionCtx.Database.GetAD().Domain == "":
+	if sessionCtx.Database.IsAzure() && sessionCtx.Database.GetAD().Domain == "" {
 		// If the client is connecting to Azure SQL, and no AD configuration is
 		// provided, authenticate using the Azure AD Integrated authentication
 		// method.
-		connector, err = c.getAzureConnector(ctx, sessionCtx, dsnConfig)
-	case sessionCtx.Database.GetType() == types.DatabaseTypeRDSProxy:
-		connector, err = c.getAccessTokenConnector(ctx, sessionCtx, dsnConfig)
-	default:
-		connector, err = c.getKerberosConnector(ctx, sessionCtx, dsnConfig)
-	}
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		managedIdentityID, err := c.DBAuth.GetAzureIdentityResourceID(ctx, sessionCtx.DatabaseUser)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		dsnConfig.Parameters = map[string]string{
+			"fedauth":     azuread.ActiveDirectoryManagedIdentity,
+			"resource id": managedIdentityID,
+		}
+
+		connector, err = azuread.NewConnectorFromConfig(dsnConfig)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	} else {
+		kc, err := c.getKerberosClient(ctx, sessionCtx)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		dbAuth, err := c.getAuth(sessionCtx, kc)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		connector = mssql.NewConnectorConfig(dsnConfig, dbAuth)
 	}
 
 	conn, err := connector.Connect(ctx)
@@ -147,47 +154,4 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 	// Return all login flags returned by the server so that they can be passed
 	// back to the client.
 	return mssqlConn.GetUnderlyingConn(), mssqlConn.GetLoginFlags(), nil
-}
-
-// getKerberosConnector generates a Kerberos connector using proper Kerberos
-// client.
-func (c *connector) getKerberosConnector(ctx context.Context, sessionCtx *common.Session, dsnConfig msdsn.Config) (*mssql.Connector, error) {
-	kc, err := c.getKerberosClient(ctx, sessionCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	dbAuth, err := c.getAuth(sessionCtx, kc)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return mssql.NewConnectorConfig(dsnConfig, dbAuth), nil
-}
-
-// getAzureConnector generates a connector that authenticates using Azure AD.
-func (c *connector) getAzureConnector(ctx context.Context, sessionCtx *common.Session, dsnConfig msdsn.Config) (*mssql.Connector, error) {
-	managedIdentityID, err := c.DBAuth.GetAzureIdentityResourceID(ctx, sessionCtx.DatabaseUser)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	dsnConfig.Parameters = map[string]string{
-		FederatedAuthDSNKey: azuread.ActiveDirectoryManagedIdentity,
-		ResourceIDDSNKey:    managedIdentityID,
-	}
-
-	connector, err := azuread.NewConnectorFromConfig(dsnConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return connector, nil
-}
-
-// getAccessTokenConnector generates a connector that uses a token to
-// authenticate.
-func (c *connector) getAccessTokenConnector(ctx context.Context, sessionCtx *common.Session, dsnConfig msdsn.Config) (*mssql.Connector, error) {
-	return mssql.NewSecurityTokenConnector(dsnConfig, func(ctx context.Context) (string, error) {
-		return c.DBAuth.GetRDSAuthToken(ctx, sessionCtx)
-	})
 }

@@ -28,7 +28,6 @@ import (
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 func TestRedshiftServerlessFetcher(t *testing.T) {
@@ -48,7 +47,12 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 	endpointNotAvailable := mocks.RedshiftServerlessEndpointAccess(workgroupNotAvailable, "endpoint-creating", "us-east-1")
 	endpointNotAvailable.EndpointStatus = aws.String("creating")
 
-	tests := []awsFetcherTest{
+	tests := []struct {
+		name          string
+		inputClients  cloud.AWSClients
+		inputLabels   map[string]string
+		wantDatabases types.Databases
+	}{
 		{
 			name: "fetch all",
 			inputClients: &cloud.TestCloudClients{
@@ -58,7 +62,7 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 					TagsByARN:  tagsByARN,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRedshiftServerless, "us-east-1", wildcardLabels),
+			inputLabels:   wildcardLabels,
 			wantDatabases: types.Databases{workgroupProdDB, workgroupDevDB, endpointProdDB, endpointProdDev},
 		},
 		{
@@ -70,7 +74,7 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 					TagsByARN:  tagsByARN,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRedshiftServerless, "us-east-1", envProdLabels),
+			inputLabels:   envProdLabels,
 			wantDatabases: types.Databases{workgroupProdDB, endpointProdDB},
 		},
 		{
@@ -82,11 +86,20 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 					TagsByARN:  tagsByARN,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRedshiftServerless, "us-east-1", wildcardLabels),
+			inputLabels:   wildcardLabels,
 			wantDatabases: types.Databases{workgroupProdDB},
 		},
 	}
-	testAWSFetchers(t, tests...)
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			fetchers := mustMakeAWSFetchersForMatcher(t, test.inputClients, services.AWSMatcherRedshiftServerless, "us-east-2", toTypeLabels(test.inputLabels))
+			require.ElementsMatch(t, test.wantDatabases, mustGetDatabases(t, fetchers))
+		})
+	}
 }
 
 func makeRedshiftServerlessWorkgroup(t *testing.T, name, region string, labels map[string]string) (*redshiftserverless.Workgroup, types.Database) {
@@ -94,7 +107,6 @@ func makeRedshiftServerlessWorkgroup(t *testing.T, name, region string, labels m
 	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](labels)
 	database, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(workgroup, tags)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRedshiftServerless)
 	return workgroup, database
 }
 
@@ -103,6 +115,5 @@ func makeRedshiftServerlessEndpoint(t *testing.T, workgroup *redshiftserverless.
 	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](labels)
 	database, err := services.NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint, workgroup, tags)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRedshiftServerless)
 	return endpoint, database
 }

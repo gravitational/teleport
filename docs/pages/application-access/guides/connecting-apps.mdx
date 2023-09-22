@@ -98,7 +98,7 @@ a reverse tunnel.
 
 {/*
 Note: this section of the docs is linked to from error messages in the product.
-Please make sure to update lib/srv/servicecfg/app.go if you change this section
+Please make sure to update lib/service/cfg.go if you change this section
 header or move this page.
 */}
 
@@ -109,7 +109,7 @@ e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
 `grafana.acme.com` if you configure the appropriate DNS entry to point to the
 Teleport proxy server.
 
-## Start the Teleport Application Service with a config file
+## Start Application Service with a config file
 
 Example `teleport.yaml` configuration:
 
@@ -297,8 +297,7 @@ this information from the token.
     # Options:
     # - roles-and-traits: include both roles and traits
     # - roles: include only roles
-    # - traits: include only traits
-    # - none: exclude both roles and traits from the JWT token
+    # - none :exclude both roles and traits from the JWT token
     # Default: roles-and-traits
     jwt_claims: roles-and-traits
     headers:

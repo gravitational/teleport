@@ -168,7 +168,7 @@ const useDesktopPlayer = ({
         playerClient.shutdown();
       };
     }
-  }, [playerClient, setAttempt]);
+  }, [playerClient]);
 
   // If the websocket closed for some reason other than the session playback ending,
   // as signaled by the server (which sets prevAttempt.status = '' in

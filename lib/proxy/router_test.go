@@ -16,24 +16,18 @@ package proxy
 
 import (
 	"context"
-	"math/rand"
 	"net"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/agentless"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -97,13 +91,6 @@ func TestGetServers(t *testing.T) {
 	unambiguousCfg := types.ClusterNetworkingConfigV2{
 		Spec: types.ClusterNetworkingConfigSpecV2{
 			RoutingStrategy: types.RoutingStrategy_UNAMBIGUOUS_MATCH,
-		},
-	}
-
-	unambiguousInsensitiveCfg := types.ClusterNetworkingConfigV2{
-		Spec: types.ClusterNetworkingConfigSpecV2{
-			RoutingStrategy:        types.RoutingStrategy_UNAMBIGUOUS_MATCH,
-			CaseInsensitiveRouting: true,
 		},
 	}
 
@@ -175,26 +162,6 @@ func TestGetServers(t *testing.T) {
 			hostname: "lion",
 			addr:     "lion.roar",
 		},
-		{
-			name:     "platypus1",
-			hostname: "Platypus",
-			tunnel:   true,
-		},
-		{
-			name:     "platypus2",
-			hostname: "platypus",
-			tunnel:   true,
-		},
-		{
-			name:     "capybara1",
-			hostname: "Capybara",
-			tunnel:   true,
-		},
-	})
-
-	// ensure tests don't have order-dependence
-	rand.Shuffle(len(servers), func(i, j int) {
-		servers[i], servers[j] = servers[j], servers[i]
 	})
 
 	cases := []struct {
@@ -307,27 +274,6 @@ func TestGetServers(t *testing.T) {
 				require.Empty(t, srv)
 			},
 		},
-		{
-			name:         "case-insensitive match",
-			site:         testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
-			host:         "capybara",
-			errAssertion: require.NoError,
-			serverAssertion: func(t *testing.T, srv types.Server) {
-				require.NotNil(t, srv)
-				require.Equal(t, "Capybara", srv.GetHostname())
-			},
-		},
-		{
-			name: "case-insensitive ambiguous",
-			site: testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
-			host: "platypus",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.NotFound(teleport.NodeIsAmbiguous))
-			},
-			serverAssertion: func(t *testing.T, srv types.Server) {
-				require.Empty(t, srv)
-			},
-		},
 	}
 
 	ctx := context.Background()
@@ -347,44 +293,28 @@ func serverResolver(srv types.Server, err error) serverResolverFn {
 }
 
 type tunnel struct {
-	reversetunnelclient.Tunnel
+	reversetunnel.Tunnel
 
-	site reversetunnelclient.RemoteSite
+	site reversetunnel.RemoteSite
 	err  error
 }
 
-func (t tunnel) GetSite(cluster string) (reversetunnelclient.RemoteSite, error) {
+func (t tunnel) GetSite(cluster string) (reversetunnel.RemoteSite, error) {
 	return t.site, t.err
 }
 
 type testRemoteSite struct {
-	reversetunnelclient.RemoteSite
-
-	params reversetunnelclient.DialParams
-
+	reversetunnel.RemoteSite
 	conn net.Conn
 	err  error
 }
 
-func (r *testRemoteSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
-	r.params = params
+func (r testRemoteSite) Dial(reversetunnel.DialParams) (net.Conn, error) {
 	return r.conn, r.err
 }
 
-func (r testRemoteSite) DialAuthServer(reversetunnelclient.DialParams) (net.Conn, error) {
+func (r testRemoteSite) DialAuthServer(reversetunnel.DialParams) (net.Conn, error) {
 	return r.conn, r.err
-}
-
-func (r testRemoteSite) GetClient() (auth.ClientI, error) {
-	return nil, nil
-}
-
-type testSiteGetter struct {
-	site reversetunnelclient.RemoteSite
-}
-
-func (s testSiteGetter) GetSite(clusterName string) (reversetunnelclient.RemoteSite, error) {
-	return s.site, nil
 }
 
 type fakeConn struct {
@@ -407,47 +337,11 @@ func TestRouter_DialHost(t *testing.T) {
 			Hostname: "test",
 		},
 	}
-	agentlessSrv := &types.ServerV2{
-		Kind:    types.KindNode,
-		SubKind: types.SubKindOpenSSHNode,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name: uuid.NewString(),
-		},
-		Spec: types.ServerSpecV2{
-			Addr:     "127.0.0.1:9001",
-			Hostname: "agentless",
-		},
-	}
-
-	agentlessEC2ICESrv := &types.ServerV2{
-		Kind:    types.KindNode,
-		SubKind: types.SubKindOpenSSHEICENode,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name: uuid.NewString(),
-		},
-		Spec: types.ServerSpecV2{
-			Addr:     "127.0.0.1:9001",
-			Hostname: "agentless",
-		},
-	}
-
-	agentGetter := func() (teleagent.Agent, error) {
-		return nil, nil
-	}
-	createSigner := func(_ context.Context, _ agentless.CertGenerator) (ssh.Signer, error) {
-		key, err := native.GeneratePrivateKey()
-		if err != nil {
-			return nil, err
-		}
-		return ssh.NewSignerFromSigner(key)
-	}
 
 	cases := []struct {
 		name      string
 		router    Router
-		assertion func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error)
+		assertion func(t *testing.T, conn net.Conn, err error)
 	}{
 		{
 			name: "failure resolving node",
@@ -457,7 +351,7 @@ func TestRouter_DialHost(t *testing.T) {
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(nil, trace.NotFound(teleport.NodeIsAmbiguous)),
 			},
-			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
+			assertion: func(t *testing.T, conn net.Conn, err error) {
 				require.Error(t, err)
 				require.Nil(t, conn)
 			},
@@ -470,7 +364,7 @@ func TestRouter_DialHost(t *testing.T) {
 				log:         logger,
 				tracer:      tracing.NoopTracer("test"),
 			},
-			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
+			assertion: func(t *testing.T, conn net.Conn, err error) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 				require.Nil(t, conn)
@@ -485,7 +379,7 @@ func TestRouter_DialHost(t *testing.T) {
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(srv, nil),
 			},
-			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
+			assertion: func(t *testing.T, conn net.Conn, err error) {
 				require.Error(t, err)
 				require.True(t, trace.IsConnectionProblem(err))
 				require.Nil(t, conn)
@@ -500,49 +394,8 @@ func TestRouter_DialHost(t *testing.T) {
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(srv, nil),
 			},
-			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
+			assertion: func(t *testing.T, conn net.Conn, err error) {
 				require.NoError(t, err)
-				require.Equal(t, srv, params.TargetServer)
-				require.NotNil(t, params.GetUserAgent)
-				require.Nil(t, params.AgentlessSigner)
-				require.NotNil(t, conn)
-			},
-		},
-		{
-			name: "dial success to agentless node",
-			router: Router{
-				clusterName:    "test",
-				log:            logger,
-				localSite:      &testRemoteSite{conn: fakeConn{}},
-				siteGetter:     &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
-				tracer:         tracing.NoopTracer("test"),
-				serverResolver: serverResolver(agentlessSrv, nil),
-			},
-			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
-				require.NoError(t, err)
-				require.Equal(t, agentlessSrv, params.TargetServer)
-				require.Nil(t, params.GetUserAgent)
-				require.NotNil(t, params.AgentlessSigner)
-				require.True(t, params.IsAgentlessNode)
-				require.NotNil(t, conn)
-			},
-		},
-		{
-			name: "dial success to agentless node using EC2 Instance Connect Endpoint",
-			router: Router{
-				clusterName:    "test",
-				log:            logger,
-				localSite:      &testRemoteSite{conn: fakeConn{}},
-				siteGetter:     &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
-				tracer:         tracing.NoopTracer("test"),
-				serverResolver: serverResolver(agentlessEC2ICESrv, nil),
-			},
-			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
-				require.NoError(t, err)
-				require.Equal(t, agentlessEC2ICESrv, params.TargetServer)
-				require.Nil(t, params.GetUserAgent)
-				require.Nil(t, params.AgentlessSigner)
-				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
 			},
 		},
@@ -552,16 +405,11 @@ func TestRouter_DialHost(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			conn, err := tt.router.DialHost(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "0", "test", nil, agentGetter, createSigner)
-
-			var params reversetunnelclient.DialParams
-			if tt.router.localSite != nil {
-				params = tt.router.localSite.(*testRemoteSite).params
-			}
-
-			tt.assertion(t, params, conn, err)
+			conn, _, err := tt.router.DialHost(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "0", "test", nil, nil)
+			tt.assertion(t, conn, err)
 		})
 	}
+
 }
 
 func TestRouter_DialSite(t *testing.T) {
@@ -609,7 +457,7 @@ func TestRouter_DialSite(t *testing.T) {
 			name:    "failure to dial remote site",
 			cluster: "leaf",
 			tunnel: tunnel{
-				site: &testRemoteSite{err: trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")},
+				site: testRemoteSite{err: trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")},
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {
 				require.Error(t, err)
@@ -633,7 +481,7 @@ func TestRouter_DialSite(t *testing.T) {
 			name:    "successfully  dial remote site",
 			cluster: "leaf",
 			tunnel: tunnel{
-				site: &testRemoteSite{conn: fakeConn{}},
+				site: testRemoteSite{conn: fakeConn{}},
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {
 				require.NoError(t, err)

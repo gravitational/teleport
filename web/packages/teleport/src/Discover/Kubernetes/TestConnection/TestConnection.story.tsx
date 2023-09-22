@@ -42,7 +42,6 @@ export const WithKubeUsers = () => (
     <TestConnection
       {...props}
       kube={{
-        kind: 'kube_cluster',
         name: 'some-kube-name',
         labels: [],
         users: ['user1', 'user2'],
@@ -57,7 +56,6 @@ export const WithKubeGroups = () => (
     <TestConnection
       {...props}
       kube={{
-        kind: 'kube_cluster',
         name: 'some-kube-name',
         labels: [],
         users: [],
@@ -72,7 +70,6 @@ export const WithKubeUsersAndGroups = () => (
     <TestConnection
       {...props}
       kube={{
-        kind: 'kube_cluster',
         name: 'some-kube-name',
         labels: [],
         users: ['user1', 'user2'],
@@ -93,7 +90,6 @@ const props: State = {
   diagnosis: null,
   canTestConnection: true,
   kube: {
-    kind: 'kube_cluster',
     name: 'some-kube-name',
     labels: [],
     users: [],

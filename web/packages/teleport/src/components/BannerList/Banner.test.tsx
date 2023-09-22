@@ -42,7 +42,7 @@ describe('components/BannerList/Banner', () => {
         onClose={() => {}}
       />
     );
-    expect(screen.getByRole('icon')).toHaveClass('icon-info');
+    expect(screen.getByRole('icon')).toHaveClass('icon-info_outline');
     expect(container.firstChild).toHaveStyleRule('background-color', '#039be5');
   });
 
@@ -55,8 +55,8 @@ describe('components/BannerList/Banner', () => {
         onClose={() => {}}
       />
     );
-    expect(screen.getByRole('icon')).toHaveClass('icon-info');
-    expect(container.firstChild).toHaveStyleRule('background-color', '#FFAB00');
+    expect(screen.getByRole('icon')).toHaveClass('icon-info_outline');
+    expect(container.firstChild).toHaveStyleRule('background-color', '#ff9100');
   });
 
   it('renders a danger banner', () => {
@@ -69,7 +69,7 @@ describe('components/BannerList/Banner', () => {
       />
     );
     expect(screen.getByRole('icon')).toHaveClass('icon-warning');
-    expect(container.firstChild).toHaveStyleRule('background-color', '#FF6257');
+    expect(container.firstChild).toHaveStyleRule('background-color', '#f50057');
   });
 
   it('calls onClose when the X is clicked', () => {

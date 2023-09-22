@@ -15,23 +15,23 @@ limitations under the License.
 */
 
 import React from 'react';
-import { ButtonPrimary, Text } from 'design';
-
-import { OnboardCard } from 'design/Onboard/OnboardCard';
+import { Card, Box, Text, ButtonPrimary } from 'design';
 
 export function CardWelcome({ title, subTitle, btnText, onClick }: Props) {
   return (
-    <OnboardCard center>
-      <Text mb="8px" typography="h4">
-        {title}
-      </Text>
-      <Text mb="16px" typography="subtitle1" fontWeight="light">
-        {subTitle}
-      </Text>
-      <ButtonPrimary width="100%" onClick={onClick}>
-        {btnText}
-      </ButtonPrimary>
-    </OnboardCard>
+    <Card bg="levels.surface" my={6} mx="auto" width="464px">
+      <Box p={6}>
+        <Text typography="h2" mb={3} textAlign="center" color="light">
+          {title}
+        </Text>
+        <Text typography="h5" mb={3} textAlign="center">
+          {subTitle}
+        </Text>
+        <ButtonPrimary width="100%" mt={3} size="large" onClick={onClick}>
+          {btnText}
+        </ButtonPrimary>
+      </Box>
+    </Card>
   );
 }
 

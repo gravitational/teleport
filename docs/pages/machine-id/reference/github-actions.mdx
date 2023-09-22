@@ -34,6 +34,10 @@ metadata:
   # name identifies the token. When configuring a bot or node to join using this
   # token, this name should be specified.
   name: github-token
+  # expires is a time in the future that this token should no longer be
+  # accepted. For GitHub joining, there is no need to set this to a short value.
+  # Format: YYYY-MM-DDThh:mm:ss
+  expires: "3000-01-01T00:00:00Z"
 spec:
   # For Machine ID and GitHub joining, roles will always be `Bot` and
   # join_method will always be `github`.

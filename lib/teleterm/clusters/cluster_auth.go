@@ -19,6 +19,7 @@ package clusters
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 
 	"github.com/gravitational/trace"
@@ -65,8 +66,15 @@ func (c *Cluster) Logout(ctx context.Context) error {
 		}
 	}
 
+	// Get the address of the active Kubernetes proxy to find AuthInfos,
+	// Clusters, and Contexts in kubeconfig.
+	clusterName, _ := c.clusterClient.KubeProxyHostPort()
+	if c.clusterClient.SiteName != "" {
+		clusterName = fmt.Sprintf("%v.%v", c.clusterClient.SiteName, clusterName)
+	}
+
 	// Remove cluster entries from kubeconfig
-	if err := kubeconfig.RemoveByServerAddr("", c.clusterClient.KubeClusterAddr()); err != nil {
+	if err := kubeconfig.Remove("", clusterName); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -184,17 +192,12 @@ func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) e
 	c.clusterClient.LocalAgent().UpdateUsername(key.Username)
 	c.clusterClient.Username = key.Username
 
-	proxyClient, rootAuthClient, err := c.clusterClient.ConnectToRootCluster(ctx, key)
-	if err != nil {
+	if err := c.clusterClient.ActivateKey(ctx, key); err != nil {
 		return trace.Wrap(err)
 	}
-	defer func() {
-		rootAuthClient.Close()
-		proxyClient.Close()
-	}()
 
 	// Attempt device login. This activates a fresh key if successful.
-	if err := c.clusterClient.AttemptDeviceLogin(ctx, key, rootAuthClient); err != nil {
+	if err := c.clusterClient.AttemptDeviceLogin(ctx, key); err != nil {
 		return trace.Wrap(err)
 	}
 

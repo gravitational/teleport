@@ -229,7 +229,7 @@ func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDia
 	}
 
 	processStdoutString := strings.TrimSpace(processStdout.String())
-	if strings.HasPrefix(processStdoutString, "Failed to launch: user:") {
+	if strings.HasPrefix(processStdoutString, "Failed to launch: user: unknown user") {
 		connDiag, err := s.cfg.UserClient.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewTraceDiagnosticConnection(
 			types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
 			fmt.Sprintf("Invalid user. Please ensure the principal %q is a valid Linux login in the target node. Output from Node: %v", sshPrincipal, processStdoutString),

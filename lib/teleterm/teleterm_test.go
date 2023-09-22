@@ -82,7 +82,7 @@ func TestStart(t *testing.T) {
 				return &tls.Config{InsecureSkipVerify: true}
 			},
 			connReadExpectationFunc: func(t *testing.T, connReadErr error) {
-				require.ErrorContains(t, connReadErr, "tls:")
+				require.ErrorContains(t, connReadErr, "tls: bad certificate")
 			},
 		},
 		{
@@ -93,7 +93,7 @@ func TestStart(t *testing.T) {
 				return &tls.Config{InsecureSkipVerify: true}
 			},
 			connReadExpectationFunc: func(t *testing.T, connReadErr error) {
-				require.ErrorContains(t, connReadErr, "tls:")
+				require.ErrorContains(t, connReadErr, "tls: bad certificate")
 			},
 		},
 	}
@@ -108,13 +108,11 @@ func TestStart(t *testing.T) {
 			listeningC := make(chan utils.NetAddr)
 
 			cfg := Config{
-				Addr:           test.addr,
-				HomeDir:        homeDir,
-				CertsDir:       certsDir,
-				PrehogAddr:     "https://prehog:9999",
-				ListeningC:     listeningC,
-				KubeconfigsDir: t.TempDir(),
-				AgentsDir:      t.TempDir(),
+				Addr:       test.addr,
+				HomeDir:    homeDir,
+				CertsDir:   certsDir,
+				PrehogAddr: "https://prehog:9999",
+				ListeningC: listeningC,
 			}
 
 			ctx, cancel := context.WithCancel(context.Background())

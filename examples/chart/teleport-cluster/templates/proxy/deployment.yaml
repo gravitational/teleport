@@ -1,6 +1,5 @@
 {{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
 {{- $replicable := or $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName -}}
-{{- $projectedServiceAccountToken := semverCompare ">=1.20.0-0" .Capabilities.KubeVersion.Version }}
 # Deployment is {{ if not $replicable }}not {{end}}replicable
 {{- if and $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName }}
 {{- fail "Cannot set both highAvailability.certManager.enabled and tls.existingSecretName, choose one or the other" }}
@@ -120,7 +119,11 @@ spec:
     {{- list $initContainer | toYaml | nindent 8 }}
     {{- /* Note: this will break if the user sets volumeMounts to its initContainer */}}
           volumeMounts:
-    {{- if or $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName }}
+    {{- if $proxy.highAvailability.certManager.enabled }}
+          - mountPath: /etc/teleport-tls
+            name: "teleport-tls"
+            readOnly: true
+    {{- else if $proxy.tls.existingSecretName }}
           - mountPath: /etc/teleport-tls
             name: "teleport-tls"
             readOnly: true
@@ -232,7 +235,11 @@ spec:
         securityContext: {{- toYaml $proxy.securityContext | nindent 10 }}
 {{- end }}
         volumeMounts:
-{{- if or $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName }}
+{{- if $proxy.highAvailability.certManager.enabled }}
+        - mountPath: /etc/teleport-tls
+          name: "teleport-tls"
+          readOnly: true
+{{- else if $proxy.tls.existingSecretName }}
         - mountPath: /etc/teleport-tls
           name: "teleport-tls"
           readOnly: true
@@ -247,37 +254,10 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "data"
-{{- if $projectedServiceAccountToken }}
-        - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-          name: proxy-serviceaccount-token
-          readOnly: true
-{{- end }}
 {{- if $proxy.extraVolumeMounts }}
   {{- toYaml $proxy.extraVolumeMounts | nindent 8 }}
 {{- end }}
-{{- if $projectedServiceAccountToken }}
-      automountServiceAccountToken: false
-{{- end }}
       volumes:
-{{- if $projectedServiceAccountToken }}
-      # This projected token volume mimics the `automountServiceAccountToken`
-      # behaviour but defaults to a 1h TTL instead of 1y.
-      - name: proxy-serviceaccount-token
-        projected:
-          sources:
-            - serviceAccountToken:
-                path: token
-            - configMap:
-                items:
-                - key: ca.crt
-                  path: ca.crt
-                name: kube-root-ca.crt
-            - downwardAPI:
-                items:
-                  - path: "namespace"
-                    fieldRef:
-                      fieldPath: metadata.namespace
-{{- end }}
 {{- if $proxy.highAvailability.certManager.enabled }}
       - name: teleport-tls
         secret:

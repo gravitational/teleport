@@ -249,9 +249,9 @@ func (s *SlackSuite) createAccessRequest(reviewers []User) types.AccessRequest {
 	t.Helper()
 
 	req := s.newAccessRequest(reviewers)
-	out, err := s.requestor().CreateAccessRequestV2(s.Context(), req)
+	err := s.requestor().CreateAccessRequest(s.Context(), req)
 	require.NoError(t, err)
-	return out
+	return req
 }
 
 func (s *SlackSuite) checkPluginData(reqID string, cond func(common.GenericPluginData) bool) common.GenericPluginData {
@@ -651,7 +651,7 @@ func (s *SlackSuite) TestRace() {
 				return setRaceErr(trace.Wrap(err))
 			}
 			req.SetSuggestedReviewers([]string{reviewer1.Profile.Email, reviewer2.Profile.Email})
-			if _, err := s.requestor().CreateAccessRequestV2(ctx, req); err != nil {
+			if err := s.requestor().CreateAccessRequest(ctx, req); err != nil {
 				return setRaceErr(trace.Wrap(err))
 			}
 			return nil

@@ -4,16 +4,15 @@ db_service:
 
   # Matchers for database resources created with "tctl create" command or by the
   # discovery service.
+  #
+  # All database resources have a predefined "teleport.dev/origin" label with
+  # one of the following values:
+  # "dynamic": database resources created with "tctl create" command
+  # "cloud": database resources created by the discovery service
+  # "config": database resources defined in the "databases" array below
   resources:
-    # See "Database labels reference" (https://goteleport.com/docs/database-access/reference/labels/)
-    # to learn more on database labels.
   - labels:
       "*": "*"
-    # Optional AWS role that the Database Service will assume to access the
-    # databases.
-    aws:
-      assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
-      external_id: "example-external-id"
 
   # Matchers for registering AWS-hosted databases.
   aws:
@@ -24,18 +23,9 @@ db_service:
     # 'redshift-serverless' - discovers and registers AWS Redshift Serverless databases.
     # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
     # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
-    # 'opensearch' - discovers and registers AWS OpenSearch Redis databases.
   - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "memorydb"]
     # AWS regions to register databases from.
     regions: ["us-west-1", "us-east-2"]
-    # Optional AWS role that the Database Service will assume to discover
-    # and register AWS-hosted databases.
-    # Discovered databases are also accessed by the Database Service via
-    # this role.
-    assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
-    # Optional AWS external ID that the Database Service will use to assume
-    # a role in an external AWS account.
-    external_id: "example-external-id"
     # AWS resource tags to match when registering databases.
     tags:
       "*": "*"
@@ -102,12 +92,6 @@ db_service:
     aws:
       # Region the database is deployed in.
       region: "us-east-1"
-      # Optional AWS role that the Database Service will assume to access
-      # this database.
-      assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
-      # Optional AWS external ID that the Database Service will use to assume
-      # a role in an external AWS account.
-      external_id: "example-external-id"
       # Redshift-specific configuration.
       redshift:
         # Redshift cluster identifier.

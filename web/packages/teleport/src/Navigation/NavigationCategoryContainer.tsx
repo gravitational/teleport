@@ -42,7 +42,7 @@ const Container = styled.div<SelectedProps>`
   opacity: ${p => (p.visible ? 1 : 0)};
   transition: opacity 0.15s linear;
   bottom: 0;
-  top: 0;
+  top: 25px;
   overflow-y: auto;
 `;
 
@@ -55,6 +55,16 @@ export function NavigationCategoryContainer(props: NavigationCategoryProps) {
   let items = features
     .filter(feature => feature.category === props.category)
     .filter(feature => !feature.parent);
+
+  if (props.category === NavigationCategory.Assist) {
+    // Return an empty div for a portal to be created by the assist route
+    // This allows for the conversation history to be put in the sidebar.
+    return (
+      <Container visible={props.visible}>
+        <div id="assist-sidebar"></div>
+      </Container>
+    );
+  }
 
   if (props.category === NavigationCategory.Resources) {
     const transitionDelayPerItem = TRANSITION_TOTAL_TIME / items.length;

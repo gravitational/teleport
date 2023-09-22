@@ -131,6 +131,33 @@ func TestServerDeepCopy(t *testing.T) {
 				GracePeriod: types.Duration(1 * time.Minute),
 				LastRotated: now.Add(-1 * time.Minute),
 			},
+			Apps: []*types.App{
+				{
+					Name:         "app",
+					StaticLabels: map[string]string{"label": "value"},
+					DynamicLabels: map[string]types.CommandLabelV2{
+						"app-cmd": {
+							Period:  types.Duration(1 * time.Second),
+							Command: []string{"app-cmd", "--app-flag"},
+						},
+					},
+					Rewrite: &types.Rewrite{
+						Redirect: []string{"host1", "host2"},
+					},
+				},
+			},
+			KubernetesClusters: []*types.KubernetesCluster{
+				{
+					Name:         "cluster",
+					StaticLabels: map[string]string{"label": "value"},
+					DynamicLabels: map[string]types.CommandLabelV2{
+						"cmd": {
+							Period:  types.Duration(1 * time.Second),
+							Command: []string{"cmd", "--flag"},
+						},
+					},
+				},
+			},
 		},
 	}
 

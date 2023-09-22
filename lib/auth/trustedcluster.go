@@ -136,7 +136,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		// to be equal to the name of the remote cluster it is connecting to.
 		trustedCluster.SetName(remoteCAs[0].GetClusterName())
 
-		if err := a.addCertAuthorities(ctx, trustedCluster, remoteCAs); err != nil {
+		if err := a.addCertAuthorities(trustedCluster, remoteCAs); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -155,7 +155,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		// Force name to the name of the trusted cluster.
 		trustedCluster.SetName(remoteCAs[0].GetClusterName())
 
-		if err := a.addCertAuthorities(ctx, trustedCluster, remoteCAs); err != nil {
+		if err := a.addCertAuthorities(trustedCluster, remoteCAs); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -220,7 +220,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 
 	// Remove all CAs
 	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.OpenSSHCA} {
-		if err := a.DeleteCertAuthority(ctx, types.CertAuthID{Type: caType, DomainName: name}); err != nil {
+		if err := a.DeleteCertAuthority(types.CertAuthID{Type: caType, DomainName: name}); err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
 			}
@@ -317,7 +317,7 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 	return validateResponse.CAs, nil
 }
 
-func (a *Server) addCertAuthorities(ctx context.Context, trustedCluster types.TrustedCluster, remoteCAs []types.CertAuthority) error {
+func (a *Server) addCertAuthorities(trustedCluster types.TrustedCluster, remoteCAs []types.CertAuthority) error {
 	// the remote auth server has verified our token. add the
 	// remote certificate authority to our backend
 	for _, remoteCertAuthority := range remoteCAs {
@@ -335,7 +335,7 @@ func (a *Server) addCertAuthorities(ctx context.Context, trustedCluster types.Tr
 
 		// we use create here instead of upsert to prevent people from wiping out
 		// their own ca if it has the same name as the remote ca
-		err := a.CreateCertAuthority(ctx, remoteCertAuthority)
+		err := a.CreateCertAuthority(remoteCertAuthority)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -346,7 +346,7 @@ func (a *Server) addCertAuthorities(ctx context.Context, trustedCluster types.Tr
 
 // DeleteRemoteCluster deletes remote cluster resource, all certificate authorities
 // associated with it
-func (a *Server) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
+func (a *Server) DeleteRemoteCluster(clusterName string) error {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
 	_, err := a.GetRemoteCluster(clusterName)
@@ -354,7 +354,7 @@ func (a *Server) DeleteRemoteCluster(ctx context.Context, clusterName string) er
 		return trace.Wrap(err)
 	}
 	// delete cert authorities associated with the cluster
-	err = a.DeleteCertAuthority(ctx, types.CertAuthID{
+	err = a.DeleteCertAuthority(types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName,
 	})
@@ -368,7 +368,7 @@ func (a *Server) DeleteRemoteCluster(ctx context.Context, clusterName string) er
 	}
 	// there should be no User CA in trusted clusters on the main cluster side
 	// per standard automation but clean up just in case
-	err = a.DeleteCertAuthority(ctx, types.CertAuthID{
+	err = a.DeleteCertAuthority(types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: clusterName,
 	})
@@ -377,7 +377,7 @@ func (a *Server) DeleteRemoteCluster(ctx context.Context, clusterName string) er
 			return trace.Wrap(err)
 		}
 	}
-	return a.Services.DeleteRemoteCluster(ctx, clusterName)
+	return a.Services.DeleteRemoteCluster(clusterName)
 }
 
 // GetRemoteCluster returns remote cluster by name
@@ -526,7 +526,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 		}
 	}
 
-	err = a.UpsertCertAuthority(ctx, remoteCA)
+	err = a.UpsertCertAuthority(remoteCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -571,20 +571,30 @@ func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string, vali
 // getCATypesForLeaf returns the list of CA certificates that should be sync in response to ValidateTrustedClusterRequest.
 func getCATypesForLeaf(validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthType, error) {
 	var (
-		err                error
-		openSSHCASupported bool
+		err                 error
+		databaseCASupported bool
+		openSSHCASupported  bool
 	)
 
 	if validateRequest.TeleportVersion != "" {
 		// (*ValidateTrustedClusterRequest).TeleportVersion was added in Teleport 10.0. If the request comes from an older
 		// cluster this field will be empty.
+		databaseCASupported, err = utils.MinVerWithoutPreRelease(validateRequest.TeleportVersion, constants.DatabaseCAMinVersion)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse Teleport version: %q", validateRequest.TeleportVersion)
+		}
 		openSSHCASupported, err = utils.MinVerWithoutPreRelease(validateRequest.TeleportVersion, constants.OpenSSHCAMinVersion)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse Teleport version: %q", validateRequest.TeleportVersion)
 		}
 	}
 
-	certTypes := []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA}
+	certTypes := []types.CertAuthType{types.HostCA, types.UserCA}
+	if databaseCASupported {
+		// Database CA was introduced in Teleport 10.0. Do not send it to older clusters
+		// as they don't understand it.
+		certTypes = append(certTypes, types.DatabaseCA)
+	}
 	if openSSHCASupported {
 		// OpenSSH CA was introduced in Teleport 12.0. Do not send it to older clusters
 		// as they don't understand it.

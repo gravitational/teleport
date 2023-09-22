@@ -23,7 +23,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -38,13 +37,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	toolcommon "github.com/gravitational/teleport/tool/common"
 )
 
 const (
@@ -83,7 +81,7 @@ type GlobalCLIFlags struct {
 type CLICommand interface {
 	// Initialize allows a caller-defined command to plug itself into CLI
 	// argument parsing
-	Initialize(*kingpin.Application, *servicecfg.Config)
+	Initialize(*kingpin.Application, *service.Config)
 
 	// TryRun is executed after the CLI parsing is done. The command must
 	// determine if selectedCommand belongs to it and return match=true
@@ -97,7 +95,7 @@ type CLICommand interface {
 func Run(commands []CLICommand) {
 	err := TryRun(commands, os.Args[1:])
 	if err != nil {
-		var exitError *common.ExitCodeError
+		var exitError *toolcommon.ExitCodeError
 		if errors.As(err, &exitError) {
 			os.Exit(exitError.Code)
 		}
@@ -115,7 +113,7 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	// cfg (teleport auth server configuration) is going to be shared by all
 	// commands
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// each command will add itself to the CLI parser:
@@ -170,16 +168,9 @@ func TryRun(commands []CLICommand, args []string) error {
 		return trace.Wrap(err)
 	}
 
-	// Identity files do not currently contain a proxy address. When loading an
-	// Identity file, an auth server address must be passed on the command line
-	// as well.
-	if ccf.IdentityFilePath != "" && len(ccf.AuthServerAddr) == 0 {
-		return trace.BadParameter("tctl --identity also requires --auth-server")
-	}
-
 	// "version" command?
 	if selectedCmd == ver.FullCommand() {
-		modules.GetModules().PrintVersion()
+		utils.PrintVersion()
 		return nil
 	}
 
@@ -196,10 +187,6 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	ctx := context.Background()
 
-	mfaPrompt := mfa.NewPrompt("")
-	mfaPrompt.HintBeforePrompt = mfa.AdminMFAHintBeforePrompt
-	clientConfig.PromptAdminRequestMFA = mfaPrompt.Run
-
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
 		if utils.IsUntrustedCertErr(err) {
@@ -210,13 +197,6 @@ func TryRun(commands []CLICommand, args []string) error {
 			cfg.AuthServerAddresses()[0].Addr)
 		return trace.NewAggregate(&common.ExitCodeError{Code: 1}, err)
 	}
-
-	// Set proxy address for the MFA prompt from the ping response.
-	resp, err := client.Ping(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	mfaPrompt.ProxyAddress = resp.ProxyPublicAddr
 
 	// execute whatever is selected:
 	var match bool
@@ -241,11 +221,11 @@ func TryRun(commands []CLICommand, args []string) error {
 }
 
 // ApplyConfig takes configuration values from the config file and applies them
-// to 'servicecfg.Config' object.
+// to 'service.Config' object.
 //
 // The returned authclient.Config has the credentials needed to dial the auth
 // server.
-func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
+func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
 	// --debug flag
 	if ccf.Debug {
 		cfg.Debug = ccf.Debug
@@ -303,12 +283,6 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 		}
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
-		} else if runtime.GOOS == constants.WindowsOS {
-			// On macOS/Linux, a not found error here is okay, as we can attempt
-			// to use the local auth identity. The auth server itself doesn't run
-			// on Windows though, so exit early with a clear error.
-			return nil, trace.BadParameter("tctl requires a tsh profile on Windows. " +
-				"Try logging in with tsh first.")
 		}
 	}
 
@@ -362,7 +336,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 }
 
 // LoadConfigFromProfile applies config from ~/.tsh/ profile if it's present
-func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
+func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
 	proxyAddr := ""
 	if len(ccf.AuthServerAddr) != 0 {
 		proxyAddr = ccf.AuthServerAddr[0]

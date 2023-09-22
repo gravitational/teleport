@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -168,4 +169,166 @@ func TestGuessProxyHostAndVersion(t *testing.T) {
 	require.Equal(t, host, proxyB.Spec.PublicAddrs[0])
 	require.Equal(t, version, proxyB.Spec.Version)
 	require.NoError(t, err)
+}
+
+func TestUnmarshalServerKubernetes(t *testing.T) {
+	t.Parallel()
+
+	// Regression test for
+	// https://github.com/gravitational/teleport/issues/4862
+	//
+	// Verifies unmarshaling succeeds, when provided a 4.4 server JSON
+	// definition.
+	tests := []struct {
+		desc string
+		in   string
+		want *types.ServerV2
+	}{
+		{
+			desc: "4.4 kubernetes_clusters field",
+			in: `{
+	"version": "v2",
+	"kind": "kube_service",
+	"metadata": {
+		"name": "foo"
+	},
+	"spec": {
+		"kubernetes_clusters": ["a", "b", "c"]
+	}
+}`,
+			want: &types.ServerV2{
+				Version: types.V2,
+				Kind:    types.KindKubeService,
+				Metadata: types.Metadata{
+					Name:      "foo",
+					Namespace: apidefaults.Namespace,
+				},
+			},
+		},
+		{
+			desc: "5.0 kubernetes_clusters field",
+			in: `{
+	"version": "v2",
+	"kind": "kube_service",
+	"metadata": {
+		"name": "foo"
+	},
+	"spec": {
+		"kube_clusters": [{"name": "a"}, {"name": "b"}, {"name": "c"}]
+	}
+}`,
+			want: &types.ServerV2{
+				Version: types.V2,
+				Kind:    types.KindKubeService,
+				Metadata: types.Metadata{
+					Name:      "foo",
+					Namespace: apidefaults.Namespace,
+				},
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{
+						{Name: "a"},
+						{Name: "b"},
+						{Name: "c"},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			got, err := UnmarshalServer([]byte(tt.in), types.KindKubeService)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(got, tt.want))
+		})
+	}
+}
+
+// TestOnlyTimestampsDifferent tests that OnlyTimestampsDifferent is returned
+// after checking that whether KubernetesClusters and Apps are different.
+func TestOnlyTimestampsDifferent(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	later := now.Add(time.Minute)
+
+	tests := []struct {
+		desc   string
+		a      types.Resource
+		b      types.Resource
+		expect int
+	}{
+		{
+			desc: "Kube cluster change returns Different",
+			a: &types.ServerV2{
+				Spec: types.ServerSpecV2{KubernetesClusters: []*types.KubernetesCluster{}},
+				Metadata: types.Metadata{
+					Expires: &now,
+				},
+			},
+			b: &types.ServerV2{
+				Spec: types.ServerSpecV2{KubernetesClusters: []*types.KubernetesCluster{{
+					Name: "test-cluster",
+				}}},
+				Metadata: types.Metadata{
+					Expires: &later,
+				},
+			},
+			expect: Different,
+		},
+		{
+			desc: "No kube cluster change returns OnlyTimestampsDifferent",
+			a: &types.ServerV2{
+				Spec: types.ServerSpecV2{KubernetesClusters: []*types.KubernetesCluster{}},
+				Metadata: types.Metadata{
+					Expires: &now,
+				},
+			},
+			b: &types.ServerV2{
+				Spec: types.ServerSpecV2{KubernetesClusters: []*types.KubernetesCluster{}},
+				Metadata: types.Metadata{
+					Expires: &later,
+				},
+			},
+			expect: OnlyTimestampsDifferent,
+		},
+		{
+			desc: "Apps change returns Different",
+			a: &types.ServerV2{
+				Spec: types.ServerSpecV2{Apps: []*types.App{}},
+				Metadata: types.Metadata{
+					Expires: &now,
+				},
+			},
+			b: &types.ServerV2{
+				Spec: types.ServerSpecV2{Apps: []*types.App{{
+					Name: "test-app",
+				}}},
+				Metadata: types.Metadata{
+					Expires: &later,
+				},
+			},
+			expect: Different,
+		},
+		{
+			desc: "No apps change returns OnlyTimestampsDifferent",
+			a: &types.ServerV2{
+				Spec: types.ServerSpecV2{Apps: []*types.App{}},
+				Metadata: types.Metadata{
+					Expires: &now,
+				},
+			},
+			b: &types.ServerV2{
+				Spec: types.ServerSpecV2{Apps: []*types.App{}},
+				Metadata: types.Metadata{
+					Expires: &later,
+				},
+			},
+			expect: OnlyTimestampsDifferent,
+		},
+	}
+
+	for _, tc := range tests {
+		got := CompareServers(tc.a, tc.b)
+		require.Equal(t, tc.expect, got, tc.desc)
+	}
 }

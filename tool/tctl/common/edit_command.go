@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -43,11 +43,11 @@ import (
 type EditCommand struct {
 	app    *kingpin.Application
 	cmd    *kingpin.CmdClause
-	config *servicecfg.Config
+	config *service.Config
 	ref    services.Ref
 }
 
-func (e *EditCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (e *EditCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	e.app = app
 	e.config = config
 	e.cmd = app.Command("edit", "Edit a Teleport resource.")
@@ -153,7 +153,7 @@ func editor() string {
 }
 
 func checksum(filename string) (string, error) {
-	f, err := utils.OpenFileAllowingUnsafeLinks(filename)
+	f, err := utils.OpenFile(filename)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -168,7 +168,7 @@ func checksum(filename string) (string, error) {
 }
 
 func resourceName(filename string) (string, error) {
-	f, err := utils.OpenFileAllowingUnsafeLinks(filename)
+	f, err := utils.OpenFile(filename)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

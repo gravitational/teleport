@@ -21,6 +21,7 @@ import { createMemoryHistory } from 'history';
 import { Router, Route } from 'react-router';
 
 import Console from './Console';
+import { colors } from './colors';
 import ConsoleContext from './consoleContext';
 import ConsoleContextProvider from './consoleContextProvider';
 
@@ -58,6 +59,7 @@ export function TestLayout(props: PropType) {
             style={{ position: 'absolute' }}
             width="100%"
             height="100%"
+            bg={colors.bgTerminal}
           >
             {props.children}
           </Flex>

@@ -17,8 +17,6 @@ limitations under the License.
 package native
 
 import (
-	"crypto/ed25519"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"os"
@@ -63,30 +61,4 @@ func TestGeneratePKSC1RSAKey(t *testing.T) {
 
 	_, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 	require.NoError(t, err)
-}
-
-func TestGenerateEICEKey_when_boringbinary(t *testing.T) {
-	if !IsBoringBinary() {
-		t.Skip()
-	}
-
-	publicKey, privateKey, err := GenerateEICEKey()
-	require.NoError(t, err)
-
-	// We expect an RSA Key because boringcrypto doesn't yet support generating ED25519 keys.
-	require.IsType(t, rsa.PublicKey{}, publicKey)
-	require.IsType(t, rsa.PrivateKey{}, privateKey)
-}
-
-func TestGenerateEICEKey(t *testing.T) {
-	if IsBoringBinary() {
-		t.Skip()
-	}
-
-	publicKey, privateKey, err := GenerateEICEKey()
-	require.NoError(t, err)
-
-	// We expect an ED25519 key
-	require.IsType(t, ed25519.PublicKey{}, publicKey)
-	require.IsType(t, ed25519.PrivateKey{}, privateKey)
 }

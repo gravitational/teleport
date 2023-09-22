@@ -58,7 +58,7 @@ const (
 	// two different files (in the same directory)
 	FormatOpenSSH Format = "openssh"
 
-	// FormatTLS is a standard TLS format used by common TLS clients (e.g. gRPC) where
+	// FormatTLS is a standard TLS format used by common TLS clients (e.g. GRPC) where
 	// certificate and key are stored in separate files.
 	FormatTLS Format = "tls"
 
@@ -370,7 +370,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			}
 		}
 
-		err = writer.WriteFile(pubPath, caCerts, identityfile.FilePermissions)
+		err = os.WriteFile(pubPath, caCerts, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -739,14 +739,10 @@ func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.K
 // is also added to its profile store with the limited profile data available
 // in the identity file.
 //
-// Use [proxyAddr] to specify the host:port-like address of the proxy.
-// This is necessary because identity files do not store the proxy address.
-// Additionally, the [clusterName] argument can ve used to target a leaf cluster
-// rather than the default root cluster.
+// Since identity files do not save a proxy address, proxyAddr must be provided
+// to fill in this data gap. clusterName can also be provided to aim the key at
+// a leaf cluster rather than the default root cluster.
 func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string) (*client.Store, error) {
-	if proxyAddr == "" {
-		return nil, trace.BadParameter("missing a Proxy address when loading an Identity File.")
-	}
 	proxyHost, err := utils.Host(proxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)

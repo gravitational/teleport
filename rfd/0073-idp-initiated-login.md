@@ -1,9 +1,9 @@
 ---
 authors: Joel Wejdenstal <jwejdenstal@goteleport.com>
-state: implemented (v10.1.9)
+state: draft
 ---
 
-# RFD 73 - IdP-initiated Login Flows for SAML
+# RFD 73 - RFD 73 - IdP-initated Login Flows for SAML and OIDC
 
 ## Required Approvers
 

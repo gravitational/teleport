@@ -35,15 +35,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
-	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
 )
@@ -221,7 +218,7 @@ func (s *localSite) GetLastConnected() time.Time {
 	return s.clock.Now()
 }
 
-func (s *localSite) DialAuthServer(params reversetunnelclient.DialParams) (net.Conn, error) {
+func (s *localSite) DialAuthServer(params DialParams) (net.Conn, error) {
 	if len(s.authServers) == 0 {
 		return nil, trace.ConnectionProblem(nil, "no auth servers available")
 	}
@@ -232,59 +229,39 @@ func (s *localSite) DialAuthServer(params reversetunnelclient.DialParams) (net.C
 		return nil, trace.ConnectionProblem(err, "unable to connect to auth server")
 	}
 
-	if err := s.maybeSendSignedPROXYHeader(params, conn, false); err != nil {
+	if err := s.maybeSendSignedPROXYHeader(params, conn, false, false); err != nil {
 		return nil, trace.ConnectionProblem(err, "unable to send signed PROXY header to auth server")
 	}
 
 	return conn, nil
 }
 
-// shouldDialAndForward returns whether a connection should be proxied
-// and forwarded or not.
-func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types.SessionRecordingConfig) bool {
-	// connection is already being tunneled, do not forward
-	if params.FromPeerProxy {
-		return false
-	}
-	// the node is an agentless node, the connection must be forwarded
-	if params.TargetServer != nil && params.TargetServer.IsOpenSSHNode() {
-		return true
-	}
-	// proxy session recording mode is being used and an SSH session
-	// is being requested, the connection must be forwarded
-	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
-		return true
-	}
-	return false
-}
-
-func (s *localSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
+func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 	recConfig, err := s.accessPoint.GetSessionRecordingConfig(s.srv.Context)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// If the proxy is in recording mode and a SSH connection is being
-	// requested or the target server is a registered OpenSSH node, build
-	// an in-memory forwarding server.
-	if shouldDialAndForward(params, recConfig) {
-		return s.dialAndForward(params)
+	// If the proxy is in recording mode and a SSH connection is being requested,
+	// use the agent to dial and build an in-memory forwarding server.
+	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) && !params.FromPeerProxy {
+		return s.dialWithAgent(params)
 	}
 
 	// Attempt to perform a direct TCP dial.
 	return s.DialTCP(params)
 }
 
-func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, useTunnel, isAgentlessNode bool, srcAddr, dstAddr net.Addr) bool {
+func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, version string, useTunnel, checkVersion bool, srcAddr, dstAddr net.Addr) bool {
 	return !(signer == nil ||
 		useTunnel ||
-		isAgentlessNode ||
+		(checkVersion && utils.CheckVersion(version, utils.MinIPPropagationVersion) != nil) ||
 		srcAddr == nil ||
 		dstAddr == nil)
 }
 
-func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialParams, conn net.Conn, useTunnel bool) error {
-	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, params.IsAgentlessNode, params.From, params.OriginalClientDstAddr) {
+func (s *localSite) maybeSendSignedPROXYHeader(params DialParams, conn net.Conn, useTunnel, checkVersion bool) error {
+	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, params.TeleportVersion, useTunnel, checkVersion, params.From, params.OriginalClientDstAddr) {
 		return nil
 	}
 
@@ -301,7 +278,7 @@ func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialPa
 }
 
 // TODO(awly): unit test this
-func (s *localSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, error) {
+func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
 	s.log.Debugf("Dialing %v.", params)
 
 	conn, useTunnel, err := s.getConn(params)
@@ -310,7 +287,8 @@ func (s *localSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, er
 	}
 	s.log.Debugf("Succeeded dialing %v.", params)
 
-	if err := s.maybeSendSignedPROXYHeader(params, conn, useTunnel); err != nil {
+	isKubeOrDB := params.ConnType == types.KubeTunnel || params.ConnType == types.DatabaseTunnel
+	if err := s.maybeSendSignedPROXYHeader(params, conn, useTunnel, !isKubeOrDB); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -355,42 +333,33 @@ func (s *localSite) adviseReconnect(ctx context.Context) {
 	}
 }
 
-func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
-	if params.GetUserAgent == nil && !params.IsAgentlessNode {
-		return nil, trace.BadParameter("agentless node require an agent getter")
+func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
+	if params.GetUserAgent == nil {
+		return nil, trace.BadParameter("user agent getter missing")
 	}
-	s.log.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
+	s.log.Debugf("Dialing with an agent from %v to %v.", params.From, params.To)
 
-	// request user agent connection if a SSH user agent is set
-	var userAgent teleagent.Agent
-	if params.GetUserAgent != nil {
-		ua, err := params.GetUserAgent()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		userAgent = ua
-		defer func() {
-			if retErr != nil {
-				retErr = trace.NewAggregate(retErr, userAgent.Close())
-			}
-		}()
+	// request user agent connection
+	userAgent, err := params.GetUserAgent()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// If server ID matches a node that has self registered itself over the tunnel,
 	// return a connection to that node. Otherwise net.Dial to the target host.
 	targetConn, useTunnel, err := s.getConn(params)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.NewAggregate(trace.Wrap(err), userAgent.Close())
 	}
 
-	if err := s.maybeSendSignedPROXYHeader(params, targetConn, useTunnel); err != nil {
-		return nil, trace.Wrap(err)
+	if err := s.maybeSendSignedPROXYHeader(params, targetConn, useTunnel, true); err != nil {
+		return nil, trace.NewAggregate(trace.Wrap(err), userAgent.Close())
 	}
 
 	// Get a host certificate for the forwarding node from the cache.
 	hostCertificate, err := s.certificateCache.getHostCertificate(context.TODO(), params.Address, params.Principals)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.NewAggregate(trace.Wrap(err), userAgent.Close())
 	}
 
 	// Create a forwarding server that serves a single SSH connection on it. This
@@ -399,8 +368,6 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 	serverConfig := forward.ServerConfig{
 		AuthClient:      s.client,
 		UserAgent:       userAgent,
-		IsAgentlessNode: params.IsAgentlessNode,
-		AgentlessSigner: params.AgentlessSigner,
 		TargetConn:      targetConn,
 		SrcAddr:         params.From,
 		DstAddr:         params.To,
@@ -418,23 +385,18 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 		TargetID:        params.ServerID,
 		TargetAddr:      params.To.String(),
 		TargetHostname:  params.Address,
-		TargetServer:    params.TargetServer,
 		Clock:           s.clock,
-	}
-	// Ensure the hostname is set correctly if we have details of the target
-	if params.TargetServer != nil {
-		serverConfig.TargetHostname = params.TargetServer.GetHostname()
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.NewAggregate(trace.Wrap(err), userAgent.Close())
 	}
 	go remoteServer.Serve()
 
 	// Return a connection to the forwarding server.
 	conn, err := remoteServer.Dial()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.NewAggregate(trace.Wrap(err), userAgent.Close())
 	}
 
 	return conn, nil
@@ -459,7 +421,7 @@ func (s *localSite) dialTunnel(dreq *sshutils.DialReq) (net.Conn, error) {
 
 // tryProxyPeering determines whether the node should try to be reached over
 // a peer proxy.
-func (s *localSite) tryProxyPeering(params reversetunnelclient.DialParams) bool {
+func (s *localSite) tryProxyPeering(params DialParams) bool {
 	if s.peerClient == nil {
 		return false
 	}
@@ -474,7 +436,7 @@ func (s *localSite) tryProxyPeering(params reversetunnelclient.DialParams) bool 
 }
 
 // skipDirectDial determines if a direct dial attempt should be made.
-func (s *localSite) skipDirectDial(params reversetunnelclient.DialParams) (bool, error) {
+func (s *localSite) skipDirectDial(params DialParams) (bool, error) {
 	// Connections to application and database servers should never occur
 	// over a direct dial.
 	switch params.ConnType {
@@ -493,14 +455,14 @@ func (s *localSite) skipDirectDial(params reversetunnelclient.DialParams) (bool,
 
 	// This node can only be reached over a tunnel, don't attempt to dial
 	// directly.
-	if params.To == nil || params.To.String() == "" || params.To.String() == reversetunnelclient.LocalNode {
+	if params.To == nil || params.To.String() == "" || params.To.String() == LocalNode {
 		return true, nil
 	}
 
 	return false, nil
 }
 
-func getTunnelErrorMessage(params reversetunnelclient.DialParams, connStr string, err error) string {
+func getTunnelErrorMessage(params DialParams, connStr string, err error) string {
 	errorMessageTemplate := `Teleport proxy failed to connect to %q agent %q over %s:
 
   %v
@@ -517,82 +479,13 @@ with the cluster.`
 	return fmt.Sprintf(errorMessageTemplate, params.ConnType, toAddr, connStr, err)
 }
 
-func stringOrEmpty(addr net.Addr) string {
-	if addr == nil {
-		return ""
-	}
-	return addr.String()
-}
-
-func (s *localSite) setupTunnelForOpenSSHEICENode(ctx context.Context, targetServer types.Server) (*awsoidc.OpenTunnelEC2Response, error) {
-	awsInfo := targetServer.GetAWSInfo()
-	if awsInfo == nil {
-		return nil, trace.BadParameter("missing aws cloud metadata")
-	}
-
-	issuer, err := awsoidc.IssuerForCluster(ctx, s.accessPoint)
-	if err != nil {
-		return nil, trace.BadParameter("failed to get issuer %v", err)
-	}
-
-	token, err := s.client.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
-		Issuer: issuer,
-	})
-	if err != nil {
-		return nil, trace.BadParameter("failed to generate aws token: %v", err)
-	}
-
-	integration, err := s.client.GetIntegration(ctx, awsInfo.Integration)
-	if err != nil {
-		return nil, trace.BadParameter("failed to fetch integration details: %v", err)
-	}
-
-	if integration.GetAWSOIDCIntegrationSpec() == nil {
-		return nil, trace.BadParameter("integration does not have aws oidc spec fields %q", awsInfo.Integration)
-	}
-
-	openTunnelClt, err := awsoidc.NewOpenTunnelEC2Client(ctx, &awsoidc.AWSClientRequest{
-		IntegrationName: integration.GetName(),
-		Token:           token,
-		RoleARN:         integration.GetAWSOIDCIntegrationSpec().RoleARN,
-		Region:          awsInfo.Region,
-	})
-	if err != nil {
-		return nil, trace.BadParameter("failed to create the ec2 open tunnel client: %v", err)
-	}
-
-	openTunnelResp, err := awsoidc.OpenTunnelEC2(ctx, openTunnelClt, awsoidc.OpenTunnelEC2Request{
-		Region:     awsInfo.Region,
-		VPCID:      awsInfo.VPCID,
-		EC2Address: targetServer.GetAddr(),
-	})
-	if err != nil {
-		return nil, trace.BadParameter("failed to open AWS EC2 Instance Connect Endpoint tunnel: %v", err)
-	}
-
-	// OpenTunnelResp has the tcp connection that should be used to access the EC2 instance directly.
-	return openTunnelResp, nil
-}
-
-func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Conn, useTunnel bool, err error) {
-	dialStart := s.srv.Clock.Now()
-
-	// Creates a connection to the target EC2 instance using its private IP.
-	// This relies on EC2 Instance Connect Endpoint service.
-	if params.TargetServer != nil && params.TargetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
-		eiceTunnelConn, err := s.setupTunnelForOpenSSHEICENode(s.srv.Context, params.TargetServer)
-		if err != nil {
-			return nil, false, trace.Wrap(err)
-		}
-
-		return newMetricConn(eiceTunnelConn.Tunnel, dialTypeDirect, dialStart, s.srv.Clock), false, nil
-	}
-
+func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, err error) {
 	dreq := &sshutils.DialReq{
-		ServerID:      params.ServerID,
-		ConnType:      params.ConnType,
-		ClientSrcAddr: stringOrEmpty(params.From),
-		ClientDstAddr: stringOrEmpty(params.OriginalClientDstAddr),
+		ServerID:        params.ServerID,
+		ConnType:        params.ConnType,
+		ClientSrcAddr:   stringOrEmpty(params.From),
+		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
+		TeleportVersion: params.TeleportVersion,
 	}
 	if params.To != nil {
 		dreq.Address = params.To.String()
@@ -603,6 +496,8 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 		peerErr   error
 		directErr error
 	)
+
+	dialStart := s.srv.Clock.Now()
 
 	// If server ID matches a node that has self registered itself over the tunnel,
 	// return a tunnel connection to that node. Otherwise net.Dial to the target host.
@@ -723,8 +618,9 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 			logger.Info("Closing")
 			return
 		case <-proxyResyncTicker.Chan():
-			var req discoveryRequest
-			req.SetProxies(s.srv.proxyWatcher.GetCurrent())
+			req := discoveryRequest{
+				Proxies: s.srv.proxyWatcher.GetCurrent(),
+			}
 
 			if err := rconn.sendDiscoveryRequest(req); err != nil {
 				logger.WithError(err).Debug("Marking connection invalid on error")
@@ -732,8 +628,9 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 				return
 			}
 		case proxies := <-rconn.newProxiesC:
-			var req discoveryRequest
-			req.SetProxies(proxies)
+			req := discoveryRequest{
+				Proxies: proxies,
+			}
 
 			if err := rconn.sendDiscoveryRequest(req); err != nil {
 				logger.WithError(err).Debug("Failed to send discovery request to agent")

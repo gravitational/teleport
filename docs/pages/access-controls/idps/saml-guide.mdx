@@ -1,8 +1,12 @@
 ---
-title: Using Teleport as a SAML identity provider
+title: Using Teleport as a SAML identity provider (Preview)
 description: How to configure and use Teleport as a SAML identity provider.
 h1: Teleport as a SAML identity provider
 ---
+
+<Admonition type="warning" title="Preview">
+  The SAML identity provider is currently in Preview mode.
+</Admonition>
 
 ## How to use Teleport as an identity provider
 
@@ -44,13 +48,13 @@ spec:
       - read
       - update
       - delete
-version: v7
+version: v6
 ```
 
 Create the role with `tctl`:
 
 ```code
-$ tctl create sp-manager.yaml
+$ tctl create sp-manager.yaml 
 role 'saml-idp-service-provider-manager' has been created
 ```
 

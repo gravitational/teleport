@@ -21,8 +21,6 @@ import (
 	"net/http"
 	"strings"
 
-	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
@@ -38,11 +36,7 @@ func ConvertRequestFailureError(err error) error {
 		return err
 	}
 
-	return convertRequestFailureErrorFromStatusCode(requestErr.StatusCode(), requestErr)
-}
-
-func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) error {
-	switch statusCode {
+	switch requestErr.StatusCode() {
 	case http.StatusForbidden:
 		return trace.AccessDenied(requestErr.Error())
 	case http.StatusConflict:
@@ -57,7 +51,7 @@ func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) 
 		}
 	}
 
-	return requestErr // Return unmodified.
+	return err // Return unmodified.
 }
 
 // ConvertIAMError converts common errors from IAM clients to trace errors.
@@ -92,33 +86,4 @@ func parseMetadataClientError(err error) error {
 		return trace.ReadError(httpError.HTTPStatusCode(), nil)
 	}
 	return trace.Wrap(err)
-}
-
-// ConvertIAMv2Error converts common errors from IAM clients to trace errors.
-func ConvertIAMv2Error(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	var entityExistsError *iamTypes.EntityAlreadyExistsException
-	if errors.As(err, &entityExistsError) {
-		return trace.AlreadyExists(*entityExistsError.Message)
-	}
-
-	var entityNotFound *iamTypes.NoSuchEntityException
-	if errors.As(err, &entityNotFound) {
-		return trace.NotFound(*entityNotFound.Message)
-	}
-
-	var malformedPolicyDocument *iamTypes.MalformedPolicyDocumentException
-	if errors.As(err, &malformedPolicyDocument) {
-		return trace.BadParameter(*malformedPolicyDocument.Message)
-	}
-
-	var re *awshttp.ResponseError
-	if errors.As(err, &re) {
-		return convertRequestFailureErrorFromStatusCode(re.HTTPStatusCode(), re.Err)
-	}
-
-	return err
 }

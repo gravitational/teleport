@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/discovery"
 )
 
@@ -56,18 +57,14 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	}
 
 	discoveryService, err := discovery.New(process.ExitContext(), &discovery.Config{
-		Matchers: discovery.Matchers{
-			AWS:        process.Config.Discovery.AWSMatchers,
-			Azure:      process.Config.Discovery.AzureMatchers,
-			GCP:        process.Config.Discovery.GCPMatchers,
-			Kubernetes: process.Config.Discovery.KubernetesMatchers,
-		},
+		Clients:        cloud.NewClients(),
+		AWSMatchers:    process.Config.Discovery.AWSMatchers,
+		AzureMatchers:  process.Config.Discovery.AzureMatchers,
+		GCPMatchers:    process.Config.Discovery.GCPMatchers,
 		DiscoveryGroup: process.Config.Discovery.DiscoveryGroup,
 		Emitter:        asyncEmitter,
 		AccessPoint:    accessPoint,
 		Log:            process.log,
-		ClusterName:    conn.ClientIdentity.ClusterName,
-		PollInterval:   process.Config.Discovery.PollInterval,
 	})
 	if err != nil {
 		return trace.Wrap(err)

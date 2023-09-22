@@ -20,32 +20,30 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"reflect"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
 	DefaultCertificateTTL = 60 * time.Minute
 	DefaultRenewInterval  = 20 * time.Minute
+	DefaultJoinMethod     = "token"
 )
 
 var SupportedJoinMethods = []string{
 	string(types.JoinMethodAzure),
 	string(types.JoinMethodCircleCI),
-	string(types.JoinMethodGCP),
 	string(types.JoinMethodGitHub),
 	string(types.JoinMethodGitLab),
 	string(types.JoinMethodIAM),
@@ -81,20 +79,11 @@ func RemainingArgs(s kingpin.Settings) (target *[]string) {
 	return
 }
 
-const (
-	LogFormatJSON = "json"
-	LogFormatText = "text"
-)
-
 // CLIConf is configuration from the CLI.
 type CLIConf struct {
 	ConfigPath string
 
 	Debug bool
-
-	// LogFormat controls the format of logging. Can be either `json` or `text`.
-	// By default, this is `text`.
-	LogFormat string
 
 	// AuthServer is a Teleport auth server address. It may either point
 	// directly to an auth server, or to a Teleport proxy server in which case
@@ -129,7 +118,7 @@ type CLIConf struct {
 	// Oneshot controls whether the bot quits after a single renewal.
 	Oneshot bool
 
-	// InitDir specifies which Destination to initialize if multiple are
+	// InitDir specifies which destination to initialize if multiple are
 	// configured.
 	InitDir string
 
@@ -139,7 +128,7 @@ type CLIConf struct {
 	// ReaderUser is the Unix username that will be reading the files
 	ReaderUser string
 
-	// Owner is the user:group that will own the Destination files. Due to SSH
+	// Owner is the user:group that will own the destination files. Due to SSH
 	// restrictions on key permissions, it cannot be the same as the reader
 	// user. If ACL support is unused or unavailable, the reader user will own
 	// files directly.
@@ -176,9 +165,6 @@ type CLIConf struct {
 	// DiagAddr is the address the diagnostics http service should listen on.
 	// If not set, no diagnostics listener is created.
 	DiagAddr string
-
-	// Insecure instructs `tbot` to trust the Auth Server without verifying the CA.
-	Insecure bool
 }
 
 // AzureOnboardingConfig holds configuration relevant to the "azure" join method.
@@ -194,16 +180,16 @@ type OnboardingConfig struct {
 	// TokenValue is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
-	// You should use Token() instead - this has to be an exported field for YAML unmarshaling
+	// You should use Token() instead - this has to be an exported field for YAML unmarshalling
 	// to work correctly, but this could be a path instead of a token
-	TokenValue string `yaml:"token,omitempty"`
+	TokenValue string `yaml:"token"`
 
 	// CAPath is an optional path to a CA certificate.
-	CAPath string `yaml:"ca_path,omitempty"`
+	CAPath string `yaml:"ca_path"`
 
 	// CAPins is a list of certificate authority pins, used to validate the
 	// connection to the Teleport auth server.
-	CAPins []string `yaml:"ca_pins,omitempty"`
+	CAPins []string `yaml:"ca_pins"`
 
 	// JoinMethod is the method the bot should use to exchange a token for the
 	// initial certificate
@@ -217,12 +203,6 @@ type OnboardingConfig struct {
 // in the config
 func (conf *OnboardingConfig) HasToken() bool {
 	return conf.TokenValue != ""
-}
-
-// RenewableJoinMethod indicates that certificate renewal should be used with
-// this join method rather than rejoining each time.
-func (conf *OnboardingConfig) RenewableJoinMethod() bool {
-	return conf.JoinMethod == types.JoinMethodToken
 }
 
 // SetToken stores the value for --token or auth_token in the config
@@ -251,12 +231,10 @@ func (conf *OnboardingConfig) Token() (string, error) {
 }
 
 // BotConfig is the bot's root config object.
-// This is currently at version "v2".
 type BotConfig struct {
-	Version    Version          `yaml:"version"`
-	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
-	Storage    *StorageConfig   `yaml:"storage,omitempty"`
-	Outputs    Outputs          `yaml:"outputs,omitempty"`
+	Onboarding   *OnboardingConfig    `yaml:"onboarding,omitempty"`
+	Storage      *StorageConfig       `yaml:"storage,omitempty"`
+	Destinations []*DestinationConfig `yaml:"destinations,omitempty"`
 
 	Debug           bool          `yaml:"debug"`
 	AuthServer      string        `yaml:"auth_server"`
@@ -273,14 +251,6 @@ type BotConfig struct {
 	// DiagAddr is the address the diagnostics http service should listen on.
 	// If not set, no diagnostics listener is created.
 	DiagAddr string `yaml:"diag_addr,omitempty"`
-
-	// ReloadCh allows a channel to be injected into the bot to trigger a
-	// renewal.
-	ReloadCh <-chan struct{} `yaml:"-"`
-
-	// Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification.
-	// Do not use in production.
-	Insecure bool `yaml:"insecure,omitempty"`
 }
 
 func (conf *BotConfig) CipherSuites() []uint16 {
@@ -291,10 +261,6 @@ func (conf *BotConfig) CipherSuites() []uint16 {
 }
 
 func (conf *BotConfig) CheckAndSetDefaults() error {
-	if conf.Version == "" {
-		conf.Version = V2
-	}
-
 	if conf.Storage == nil {
 		conf.Storage = &StorageConfig{}
 	}
@@ -303,32 +269,9 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	destinationPaths := map[string]int{}
-	addDestinationToKnownPaths := func(d bot.Destination) {
-		switch d := d.(type) {
-		case *DestinationDirectory:
-			destinationPaths[fmt.Sprintf("file://%s", d.Path)]++
-		case *DestinationKubernetesSecret:
-			destinationPaths[fmt.Sprintf("kubernetes-secret://%s", d.Name)]++
-		}
-	}
-	for _, output := range conf.Outputs {
-		if err := output.CheckAndSetDefaults(); err != nil {
+	for _, dest := range conf.Destinations {
+		if err := dest.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
-		}
-		addDestinationToKnownPaths(output.GetDestination())
-	}
-
-	// Check for identical destinations being used. This is a deeply
-	// uncharted/unknown behavior area. For now we'll emit a heavy warning,
-	// in 15+ this will be an explicit area as outputs writing over one another
-	// is too complex to support.
-	addDestinationToKnownPaths(conf.Storage.Destination)
-	for path, count := range destinationPaths {
-		if count > 1 {
-			log.WithField("path", path).Error(
-				"Identical destinations used within config. This can produce unusable results. In Teleport 15.0, this will be a fatal error.",
-			)
 		}
 	}
 
@@ -340,138 +283,18 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		conf.RenewalInterval = DefaultRenewInterval
 	}
 
-	// We require the join method for `configure` and `start` but not for `init`
-	// Therefore, we need to check its valid here, but enforce its presence
-	// elsewhere.
-	if conf.Onboarding.JoinMethod != types.JoinMethodUnspecified {
-		if !slices.Contains(SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
-			return trace.BadParameter("unrecognized join method: %q", conf.Onboarding.JoinMethod)
-		}
-	}
-
-	// Validate Insecure and CA Settings
-	if conf.Insecure {
-		if len(conf.Onboarding.CAPins) > 0 {
-			return trace.BadParameter("the option ca-pin is mutually exclusive with --insecure")
-		}
-
-		if conf.Onboarding.CAPath != "" {
-			return trace.BadParameter("the option ca-path is mutually exclusive with --insecure")
-		}
-	} else {
-		if len(conf.Onboarding.CAPins) > 0 && conf.Onboarding.CAPath != "" {
-			return trace.BadParameter("the options ca-pin and ca-path are mutually exclusive")
-		}
-	}
-
 	return nil
 }
 
-// Outputs assists polymorphic unmarshaling of a slice of Outputs
-type Outputs []Output
-
-func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
-	var out []Output
-	for _, node := range node.Content {
-		header := struct {
-			Type string `yaml:"type"`
-		}{}
-		if err := node.Decode(&header); err != nil {
-			return trace.Wrap(err)
-		}
-
-		switch header.Type {
-		case IdentityOutputType:
-			v := &IdentityOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case ApplicationOutputType:
-			v := &ApplicationOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case KubernetesOutputType:
-			v := &KubernetesOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case DatabaseOutputType:
-			v := &DatabaseOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case SSHHostOutputType:
-			v := &SSHHostOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		default:
-			return trace.BadParameter("unrecognized output type (%s)", header.Type)
-		}
-	}
-
-	*o = out
-	return nil
-}
-
-func withTypeHeader[T any](payload T, payloadType string) (interface{}, error) {
-	header := struct {
-		Type    string `yaml:"type"`
-		Payload T      `yaml:",inline"`
-	}{
-		Type:    payloadType,
-		Payload: payload,
-	}
-
-	return header, nil
-}
-
-// unmarshalDestination takes a *yaml.Node and produces a bot.Destination by
-// considering the `type` field.
-func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
-	header := struct {
-		Type string `yaml:"type"`
-	}{}
-	if err := node.Decode(&header); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	switch header.Type {
-	case DestinationMemoryType:
-		v := &DestinationMemory{}
-		if err := node.Decode(v); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return v, nil
-	case DestinationDirectoryType:
-		v := &DestinationDirectory{}
-		if err := node.Decode(v); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return v, nil
-	case DestinationKubernetesSecretType:
-		v := &DestinationKubernetesSecret{}
-		if err := node.Decode(v); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return v, nil
-	default:
-		return nil, trace.BadParameter("unrecognized destination type (%s)", header.Type)
-	}
-}
-
-// GetOutputByPath attempts to fetch a Destination by its filesystem path.
+// GetDestinationByPath attempts to fetch a destination by its filesystem path.
 // Only valid for filesystem destinations; returns nil if no matching
-// Destination exists.
-func (conf *BotConfig) GetOutputByPath(path string) (Output, error) {
-	for _, output := range conf.Outputs {
-		destImpl := output.GetDestination()
+// destination exists.
+func (conf *BotConfig) GetDestinationByPath(path string) (*DestinationConfig, error) {
+	for _, dest := range conf.Destinations {
+		destImpl, err := dest.GetDestination()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		destDir, ok := destImpl.(*DestinationDirectory)
 		if !ok {
@@ -482,22 +305,19 @@ func (conf *BotConfig) GetOutputByPath(path string) (Output, error) {
 		// might want to compare .Abs() if that proves to be confusing (though
 		// this may have its own problems)
 		if destDir.Path == path {
-			return output, nil
+			return dest, nil
 		}
 	}
 
 	return nil, nil
 }
 
-// newTestConfig creates a new minimal bot configuration from defaults for use
-// in tests
-func newTestConfig(authServer string) (*BotConfig, error) {
+// NewDefaultConfig creates a new minimal bot configuration from defaults.
+// CheckAndSetDefaults() will be called.
+func NewDefaultConfig(authServer string) (*BotConfig, error) {
 	// Note: we need authServer for CheckAndSetDefaults to succeed.
 	cfg := BotConfig{
 		AuthServer: authServer,
-		Onboarding: OnboardingConfig{
-			JoinMethod: types.JoinMethodToken,
-		},
 	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -506,8 +326,14 @@ func newTestConfig(authServer string) (*BotConfig, error) {
 	return &cfg, nil
 }
 
-func destinationFromURI(uriString string) (bot.Destination, error) {
-	uri, err := url.Parse(uriString)
+// isJoinMethodDefault determines if the given join method (as input on the
+// CLI) is set to a default value.
+func isJoinMethodDefault(joinMethod string) bool {
+	return joinMethod == "" || joinMethod == DefaultJoinMethod
+}
+
+func storageConfigFromCLIConf(dataDir string) (*StorageConfig, error) {
+	uri, err := url.Parse(dataDir)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing --data-dir")
 	}
@@ -520,8 +346,12 @@ func destinationFromURI(uriString string) (bot.Destination, error) {
 		}
 		// TODO(strideynet): eventually we can allow for URI query parameters
 		// to be used to configure symlinks/acl protection.
-		return &DestinationDirectory{
-			Path: uri.Path,
+		return &StorageConfig{
+			DestinationMixin: DestinationMixin{
+				Directory: &DestinationDirectory{
+					Path: uri.Path,
+				},
+			},
 		}, nil
 	case "memory":
 		if uri.Host != "" || uri.Path != "" {
@@ -529,7 +359,11 @@ func destinationFromURI(uriString string) (bot.Destination, error) {
 				"memory-backed data storage should not have host or path specified",
 			)
 		}
-		return &DestinationMemory{}, nil
+		return &StorageConfig{
+			DestinationMixin: DestinationMixin{
+				Memory: &DestinationMemory{},
+			},
+		}, nil
 	default:
 		return nil, trace.BadParameter(
 			"unrecognized data storage scheme",
@@ -545,7 +379,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	var err error
 
 	if cf.ConfigPath != "" {
-		config, err = ReadConfigFromFile(cf.ConfigPath, false)
+		config, err = ReadConfigFromFile(cf.ConfigPath)
 
 		if err != nil {
 			return nil, trace.Wrap(err, "loading bot config from path %s", cf.ConfigPath)
@@ -585,56 +419,53 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 	// DataDir overrides any previously-configured storage config
 	if cf.DataDir != "" {
-		if config.Storage != nil && config.Storage.Destination != nil {
-			log.Warnf(
-				"CLI parameters are overriding storage location from %s",
-				cf.ConfigPath,
-			)
+		if config.Storage != nil {
+			if _, err := config.Storage.GetDestination(); err != nil {
+				log.Warnf(
+					"CLI parameters are overriding storage location from %s",
+					cf.ConfigPath,
+				)
+			}
 		}
-		dest, err := destinationFromURI(cf.DataDir)
+		config.Storage, err = storageConfigFromCLIConf(cf.DataDir)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		config.Storage = &StorageConfig{Destination: dest}
 	}
 
 	if cf.DestinationDir != "" {
-		// WARNING:
-		// See: https://github.com/gravitational/teleport/issues/27206 for
-		// potential gotchas that currently exist when dealing with this
-		// override behavior.
-
-		// CLI only supports a single filesystem Destination with SSH client config
+		// CLI only supports a single filesystem destination with SSH client config
 		// and all roles.
-		if len(config.Outputs) > 0 {
+		if len(config.Destinations) > 0 {
 			log.Warnf("CLI parameters are overriding destinations from %s", cf.ConfigPath)
 		}
 
-		// When using the CLI --Destination-dir we configure an Identity type
-		// output for that directory.
-		config.Outputs = []Output{
-			&IdentityOutput{
-				Destination: &DestinationDirectory{
+		// CheckAndSetDefaults() will configure default kinds and templates
+		config.Destinations = []*DestinationConfig{{
+			DestinationMixin: DestinationMixin{
+				Directory: &DestinationDirectory{
 					Path: cf.DestinationDir,
 				},
 			},
-		}
+		}}
 	}
 
 	// If any onboarding flags are set, override the whole section.
 	// (CAPath, CAPins, etc follow different codepaths so we don't want a
 	// situation where different fields become set weirdly due to struct
 	// merging)
-	if cf.Token != "" || cf.JoinMethod != "" || len(cf.CAPins) > 0 {
-		if !reflect.DeepEqual(config.Onboarding, OnboardingConfig{}) {
+	if cf.Token != "" || len(cf.CAPins) > 0 || !isJoinMethodDefault(cf.JoinMethod) {
+		onboarding := config.Onboarding
+		if onboarding != nil && (onboarding.HasToken() || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || !isJoinMethodDefault(cf.JoinMethod) {
 			// To be safe, warn about possible confusion.
 			log.Warnf("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
 		}
 
-		config.Onboarding = OnboardingConfig{
+		config.Onboarding = &OnboardingConfig{
 			CAPins:     cf.CAPins,
 			JoinMethod: types.JoinMethod(cf.JoinMethod),
 		}
+
 		config.Onboarding.SetToken(cf.Token)
 	}
 
@@ -653,75 +484,29 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		return nil, trace.Wrap(err, "validating merged bot config")
 	}
 
-	if cf.Insecure {
-		config.Insecure = true
-	}
-
 	return config, nil
 }
 
-// ReadConfigFromFile reads and parses a YAML config from a file.
-func ReadConfigFromFile(filePath string, manualMigration bool) (*BotConfig, error) {
-	f, err := utils.OpenFileAllowingUnsafeLinks(filePath)
+// ReadFromFile reads and parses a YAML config from a file.
+func ReadConfigFromFile(filePath string) (*BotConfig, error) {
+	f, err := os.Open(filePath)
 	if err != nil {
 		return nil, trace.Wrap(err, fmt.Sprintf("failed to open file: %v", filePath))
 	}
 
 	defer f.Close()
-	return ReadConfig(f, manualMigration)
+	return ReadConfig(f)
 }
 
-type Version string
-
-var (
-	V1 Version = "v1"
-	V2 Version = "v2"
-)
-
 // ReadConfig parses a YAML config file from a Reader.
-func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) {
-	var version struct {
-		Version Version `yaml:"version"`
-	}
+func ReadConfig(reader io.Reader) (*BotConfig, error) {
+	var config BotConfig
+
 	decoder := yaml.NewDecoder(reader)
-	if err := decoder.Decode(&version); err != nil {
-		return nil, trace.BadParameter("failed parsing config file version: %s", strings.Replace(err.Error(), "\n", "", -1))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&config); err != nil {
+		return nil, trace.BadParameter("failed parsing config file: %s", strings.Replace(err.Error(), "\n", "", -1))
 	}
 
-	// Reset reader and decoder
-	if _, err := reader.Seek(0, io.SeekStart); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	decoder = yaml.NewDecoder(reader)
-
-	switch version.Version {
-	case V1, "":
-		if !manualMigration {
-			log.Warn("Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration by following the guidance at https://goteleport.com/docs/machine-id/reference/v14-upgrade-guide/")
-		}
-		config := &configV1{}
-		if err := decoder.Decode(config); err != nil {
-			return nil, trace.BadParameter("failed parsing config file: %s", strings.Replace(err.Error(), "\n", "", -1))
-		}
-		latestConfig, err := config.migrate()
-		if err != nil {
-			return nil, trace.WithUserMessage(
-				trace.Wrap(err, "migrating v1 config"),
-				"Failed to migrate. See https://goteleport.com/docs/machine-id/reference/v14-upgrade-guide/",
-			)
-		}
-		return latestConfig, nil
-	case V2:
-		if manualMigration {
-			return nil, trace.BadParameter("configuration already the latest version. nothing to migrate.")
-		}
-		decoder.KnownFields(true)
-		config := &BotConfig{}
-		if err := decoder.Decode(config); err != nil {
-			return nil, trace.BadParameter("failed parsing config file: %s", strings.Replace(err.Error(), "\n", "", -1))
-		}
-		return config, nil
-	default:
-		return nil, trace.BadParameter("unrecognized config version %q", version.Version)
-	}
+	return &config, nil
 }

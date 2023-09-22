@@ -1,70 +1,44 @@
 ---
-title: Manage Access to Windows Resources
-description: Demonstrates how you can manage access to Windows desktops with Teleport.
+title: Desktop Access
+description: Teleport desktop access introduction and resources.
 videoBanner: n2h0GisWdss
 ---
 
-The topics in this guide describe how to configure Teleport to provide secure, passwordless 
-access to Microsoft Windows desktops and servers. For Windows, Teleport provides the
-following key features:
+Teleport manages graphical desktop access to remote hosts. With Teleport, you
+get:
 
-- Passwordless access to Windows hosts backed by secure cryptographic authentication.
-- Configurable role-based access controls (RBAC) for groups of hosts and users.
-- Configurable clipboard and directory sharing for copying and pasting to and from 
-remote Windows hosts.
-- Session recording for all desktop activity.
-- Audit logs that track user activity.
+- A password-less login experience backed by strong cryptographic
+  authentication.
+- Role-based access control (RBAC) for groups of hosts and users.
+- Support for copying and pasting to and from remote hosts.
+- Audit log and recording of all desktop connections.
 
-Teleport Windows Desktop Services relies on the remote desktop protocol (RDP) to connect to
-remote Windows hosts. Therefore, Teleport only supports the following Windows hosts that are 
-accessible over RDP:
+<Admonition
+  type="note"
+  title="Supported platforms"
+>
+  Only Windows hosts accessible over RDP are supported. Specifically:
 
-- Windows Server 2012 R2, or later.
-- Windows 10, or later.
+| Teleport Version              | Windows Desktop                                           | Active Directory |
+|-------------------------------|-----------------------------------------------------------|------------------|
+| Open source Teleport          | Windows Server 2012 R2 / Windows 10 or newer              | Required         |
+| Cloud and Enterprise Teleport | Windows Server 2012 R2 / Windows 10 or newer              | Optional         |
 
-The following diagram provides a simplified view of the architecture for managing
-access to Windows computers through Teleport:
-
-![Manage access to Windows through Teleport](../../img/desktop-access/windows-desktop-service-overview.png)
-
-It's worth noting that the Teleport Windows Desktop Service implements a minimal set 
-of remote desktop protocol features to minimize security vulnerabilities for Windows
-computers. Because secure access is the top priority, the Windows Desktop Service 
-might not be as performant as other RDP clients. 
-
-You should use the Teleport Windows Desktop Service to manage access 
-to Windows computers where you store or manipulate your most sensitive information, 
-rather than as a direct replacement for tools that provide general purpose access 
-to Windows computers.
+</Admonition>
 
 ## Getting started
 
-You can configure Teleport Windows Desktop Service to control access for the following 
-scenarios:
+- [Local users](./getting-started.mdx): Use Teleport Cloud or Enterprise to connect to Windows systems with local users.
+- [Active Directory](./active-directory.mdx): Use Teleport to connect to Windows systems with Active Directory users.
 
-- Local users who access computers that aren't joined to an Active Directory domain.
-- Domain users who access computers that are joined to an Active Directory domain.
+## Resources
 
-If you're managing access for combination of both local users and domain users, you'll 
-need to configure Teleport Windows Desktop Service for both scenarios. For more 
-information about configuring basic access using Teleport Windows Desktop Service, see 
-the following topics:
+- [Configuration](./reference/configuration.mdx): Configure Windows Desktop Service
+- [RBAC](./rbac.mdx): Role-based Access Control for Teleport Desktop Access
+- [CLI](./reference/cli.mdx): CLI Reference
+- [Audit](./reference/audit.mdx): Audit Events
 
-- [Configure access for local Windows users](./getting-started.mdx)
-- [Configure access for Active Directory with scripts](./active-directory.mdx)
-- [Configure access for Active Directory manually](./active-directory-manual.mdx)
+## Troubleshooting
 
-## Managing desktop access
-
-The following topics provide information about performing common tasks and 
-Windows-specific configuration settings, role-based permissions, and audit events:
-
-- [Configure Windows-specific role permissions](./rbac.mdx)
-- [Configure clipboard sharing](./reference/clipboard.mdx)
-- [Configure directory sharing](./directory-sharing.mdx)
-- [Record and play back sessions](./reference/sessions.mdx)
-- [Troubleshooting desktop access](./troubleshooting.mdx)
-- [Windows-specific audit events](./reference/audit.mdx)
-- [Windows-specific configuration settings](./reference/configuration.mdx)
-- [Windows-specific command reference](./reference/cli.mdx)
-
+If you hit any issues, check out the [Troubleshooting documentation](./troubleshooting.mdx)
+for common problems and solutions.

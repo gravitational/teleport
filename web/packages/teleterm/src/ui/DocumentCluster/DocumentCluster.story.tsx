@@ -24,7 +24,6 @@ import {
   ClustersServiceState,
 } from 'teleterm/ui/services/clusters';
 import { routing } from 'teleterm/ui/uri';
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
 import * as docTypes from '../services/workspacesService/documentsService/types';
 
@@ -50,43 +49,42 @@ const leafClusterDoc = {
 
 export const Online = () => {
   const state = createClusterServiceState();
-  state.clusters.set(
-    rootClusterDoc.clusterUri,
-    makeRootCluster({
-      uri: rootClusterDoc.clusterUri,
-      name: 'localhost',
-      proxyHost: 'localhost:3080',
-    })
-  );
+  state.clusters.set(rootClusterDoc.clusterUri, {
+    uri: rootClusterDoc.clusterUri,
+    leaf: false,
+    name: 'localhost',
+    connected: true,
+    proxyHost: 'localhost:3080',
+    authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
+  });
 
   return renderState(state, rootClusterDoc);
 };
 
 export const Offline = () => {
   const state = createClusterServiceState();
-  state.clusters.set(
-    rootClusterDoc.clusterUri,
-    makeRootCluster({
-      uri: rootClusterDoc.clusterUri,
-      name: 'localhost',
-      proxyHost: 'localhost:3080',
-      authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-    })
-  );
+  state.clusters.set(rootClusterDoc.clusterUri, {
+    uri: rootClusterDoc.clusterUri,
+    leaf: false,
+    name: 'localhost',
+    connected: false,
+    proxyHost: 'localhost:3080',
+    authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
+  });
 
   return renderState(state, rootClusterDoc);
 };
 
 export const Notfound = () => {
   const state = createClusterServiceState();
-  state.clusters.set(
-    rootClusterDoc.clusterUri,
-    makeRootCluster({
-      uri: rootClusterDoc.clusterUri,
-      name: 'localhost',
-      proxyHost: 'localhost:3080',
-    })
-  );
+  state.clusters.set(rootClusterDoc.clusterUri, {
+    uri: rootClusterDoc.clusterUri,
+    leaf: false,
+    name: 'localhost',
+    connected: true,
+    proxyHost: 'localhost:3080',
+    authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
+  });
   return renderState(state, leafClusterDoc);
 };
 

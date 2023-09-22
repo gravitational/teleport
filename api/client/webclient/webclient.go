@@ -399,11 +399,8 @@ type AuthenticationSettings struct {
 	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"private_key_policy"`
 	// DeviceTrustDisabled provides a clue to Teleport clients on whether to avoid
 	// device authentication.
-	// Deprecated: Use DeviceTrust.Disabled instead.
-	// DELETE IN 16.0, replaced by the DeviceTrust field (codingllama).
 	DeviceTrustDisabled bool `json:"device_trust_disabled,omitempty"`
-	// DeviceTrust holds cluster-wide device trust settings.
-	DeviceTrust DeviceTrustSettings `json:"device_trust,omitempty"`
+
 	// HasMessageOfTheDay is a flag indicating that the cluster has MOTD
 	// banner text that must be retrieved, displayed and acknowledged by
 	// the user.
@@ -455,13 +452,6 @@ type GithubSettings struct {
 	Name string `json:"name"`
 	// Display is the connector display name
 	Display string `json:"display"`
-}
-
-// DeviceTrustSettings holds cluster-wide device trust settings that are liable
-// to change client behavior.
-type DeviceTrustSettings struct {
-	Disabled   bool `json:"disabled,omitempty"`
-	AutoEnroll bool `json:"auto_enroll,omitempty"`
 }
 
 func (ps *ProxySettings) TunnelAddr() (string, error) {

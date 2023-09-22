@@ -89,8 +89,7 @@ function deserialize_prehog_v1alpha_SubmitEventsResponse(buffer_arg) {
 
 
 var TeleportReportingServiceService = exports.TeleportReportingServiceService = {
-  // equivalent to SubmitEvents with a single event, should be unused by now
-submitEvent: {
+  submitEvent: {
     path: '/prehog.v1alpha.TeleportReportingService/SubmitEvent',
     requestStream: false,
     responseStream: false,
@@ -101,16 +100,7 @@ submitEvent: {
     responseSerialize: serialize_prehog_v1alpha_SubmitEventResponse,
     responseDeserialize: deserialize_prehog_v1alpha_SubmitEventResponse,
   },
-  // encodes and forwards usage events to the PostHog event database; each
-// event is annotated with some properties that depend on the identity of the
-// caller:
-// - tp.account_id (UUID in string form, can be empty if missing from the
-//   license)
-// - tp.license_name (should always be a UUID)
-// - tp.license_authority (name of the authority that signed the license file
-//   used for authentication)
-// - tp.is_cloud (boolean)
-submitEvents: {
+  submitEvents: {
     path: '/prehog.v1alpha.TeleportReportingService/SubmitEvents',
     requestStream: false,
     responseStream: false,

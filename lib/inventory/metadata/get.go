@@ -44,7 +44,7 @@ func Get(ctx context.Context) (*Metadata, error) {
 		go func() {
 			defaultFetcher := &fetchConfig{}
 			defaultFetcher.setDefaults()
-			metadata = defaultFetcher.fetch(context.Background())
+			metadata = defaultFetcher.fetch()
 
 			// Signal that the metadata is ready.
 			close(metadataReady)

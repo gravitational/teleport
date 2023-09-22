@@ -78,10 +78,3 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
-
-  - it: does not create a PersistentVolumeClaim when chartMode=azure
-    set:
-      chartMode: azure
-    asserts:
-      - hasDocuments:
-          count: 0

@@ -17,24 +17,11 @@
 import React from 'react';
 import { render, screen } from 'design/utils/testing';
 
-import { KeysEnum } from 'teleport/services/localStorage';
-
 import { Loaded, Failed, Empty, EmptyReadOnly } from './Apps.story';
 
 jest.mock('teleport/useStickyClusterId', () =>
   jest.fn(() => ({ clusterId: 'im-a-cluster', isLeafCluster: false }))
 );
-
-// TODO (avatus) DELETE IN 15.0
-// this is to allow the tests to actually render
-// the correct tables
-beforeAll(() => {
-  localStorage.setItem(KeysEnum.UNIFIED_RESOURCES_DISABLED, 'true');
-});
-
-afterAll(() => {
-  localStorage.removeItem(KeysEnum.UNIFIED_RESOURCES_DISABLED);
-});
 
 test('loaded state', async () => {
   const { container } = render(<Loaded />);

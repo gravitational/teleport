@@ -1,6 +1,6 @@
 ---
 authors: Andrej Tokarčík (andrej@goteleport.com)
-state: implemented
+state: draft
 ---
 
 # RFD 16 - Dynamic Configuration
@@ -25,7 +25,7 @@ by deriving it from static configuration during auth server initialization.
 This RFD allows the dynamic configuration to be created/updated explicitly via
 `tctl`, independently of static configuration, for two main reasons:
 
-1. To facilitate automated/programmatic management of Teleport clusters.
+1. To faciliate automated/programmatic management of Teleport clusters.
 
 2. To add configuration capability to Teleport-as-a-service offerings that do
    not allow direct access to `teleport.yaml` files.
@@ -65,7 +65,7 @@ ensure backward compatibility with the already established workflows.
 #### Choice 2.A
 
 In this option, dynamic-configuration resources are understood to exist only
-if they have been comitted as a result of having been specified in static
+if they have been committed as a result of having been specified in static
 configuration or via `tctl create`.
 
 3. The command `tctl get cap` would therefore return an error saying

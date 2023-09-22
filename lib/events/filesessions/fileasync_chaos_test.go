@@ -36,7 +36,6 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -56,7 +55,7 @@ func TestChaosUpload(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	eventsC := make(chan events.UploadEvent, 100)
-	memUploader := eventstest.NewMemoryUploader(eventsC)
+	memUploader := events.NewMemoryUploader(eventsC)
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       memUploader,
 		MinUploadBytes: 1024,
@@ -70,8 +69,7 @@ func TestChaosUpload(t *testing.T) {
 
 	faultyStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
 		Inner: streamer,
-		OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
-			event := pe.GetAuditEvent()
+		OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
 			if event.GetIndex() > 700 && terminateConnection.Add(1) < 5 {
 				log.Debugf("Terminating connection at event %v", event.GetIndex())
 				return trace.ConnectionProblem(nil, "connection terminated")
@@ -139,7 +137,7 @@ func TestChaosUpload(t *testing.T) {
 	streamsCh := make(chan streamState, parallelStreams)
 	for i := 0; i < parallelStreams; i++ {
 		go func() {
-			inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 4096})
+			inEvents := events.GenerateTestSession(events.SessionParams{PrintEvents: 4096})
 			sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
 			s := streamState{
 				sid:    sid,
@@ -153,7 +151,7 @@ func TestChaosUpload(t *testing.T) {
 				return
 			}
 			for _, event := range inEvents {
-				err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
+				err := stream.EmitAuditEvent(ctx, event)
 				if err != nil {
 					s.err = err
 					streamsCh <- s

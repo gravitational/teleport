@@ -107,16 +107,6 @@ func (c *InstallerV1) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
-// GetRevision returns the revision
-func (c *InstallerV1) GetRevision() string {
-	return c.Metadata.GetRevision()
-}
-
-// SetRevision sets the revision
-func (c *InstallerV1) SetRevision(rev string) {
-	c.Metadata.SetRevision(rev)
-}
-
 // GetKind returns resource kind.
 func (c *InstallerV1) GetKind() string {
 	return c.Kind

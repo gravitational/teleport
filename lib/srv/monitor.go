@@ -157,7 +157,7 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 
 	tconn, ok := getTrackingReadConn(conn)
 	if !ok {
-		tctx, cancel := context.WithCancelCause(ctx)
+		tctx, cancel := context.WithCancel(ctx)
 		tconn, err = NewTrackingReadConn(TrackingReadConnConfig{
 			Conn:    conn,
 			Clock:   c.cfg.Clock,
@@ -405,10 +405,6 @@ func (w *Monitor) disconnectClientOnExpiredCert() {
 	w.disconnectClient(reason)
 }
 
-type withCauseCloser interface {
-	CloseWithCause(cause error) error
-}
-
 func (w *Monitor) disconnectClient(reason string) {
 	w.Entry.Debugf("Disconnecting client: %v", reason)
 	// Emit Audit event first to make sure that that underlying context will not be canceled during
@@ -416,15 +412,8 @@ func (w *Monitor) disconnectClient(reason string) {
 	if err := w.emitDisconnectEvent(reason); err != nil {
 		w.Entry.WithError(err).Warn("Failed to emit audit event.")
 	}
-
-	if connWithCauseCloser, ok := w.Conn.(withCauseCloser); ok {
-		if err := connWithCauseCloser.CloseWithCause(trace.AccessDenied(reason)); err != nil {
-			w.Entry.WithError(err).Error("Failed to close connection.")
-		}
-	} else {
-		if err := w.Conn.Close(); err != nil {
-			w.Entry.WithError(err).Error("Failed to close connection.")
-		}
+	if err := w.Conn.Close(); err != nil {
+		w.Entry.WithError(err).Error("Failed to close connection.")
 	}
 }
 
@@ -493,7 +482,7 @@ type TrackingReadConnConfig struct {
 	// Context is an external context to cancel the operation.
 	Context context.Context
 	// Cancel is called whenever client context is closed.
-	Cancel context.CancelCauseFunc
+	Cancel context.CancelFunc
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -547,16 +536,8 @@ func (t *TrackingReadConn) Read(b []byte) (int, error) {
 	return n, err
 }
 
-// Close cancels the context with io.EOF and closes the underlying connection.
 func (t *TrackingReadConn) Close() error {
-	t.cfg.Cancel(io.EOF)
-	return t.Conn.Close()
-}
-
-// CloseWithCause cancels the context with provided cause and closes the
-// underlying connection.
-func (t *TrackingReadConn) CloseWithCause(cause error) error {
-	t.cfg.Cancel(cause)
+	t.cfg.Cancel()
 	return t.Conn.Close()
 }
 

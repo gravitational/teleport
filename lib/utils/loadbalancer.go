@@ -108,8 +108,6 @@ type LoadBalancer struct {
 	connections map[NetAddr]map[int64]net.Conn
 	waitCtx     context.Context
 	waitCancel  context.CancelFunc
-
-	PROXYHeader []byte // optional PROXY header that load balancer will send to the backend on every new connection.
 }
 
 // trackeConnection adds connection to the connection tracker
@@ -200,7 +198,7 @@ func (l *LoadBalancer) Listen() error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	l.Debugf("created listening socket on %q", l.listener.Addr())
+	l.Debugf("created listening socket")
 	return nil
 }
 
@@ -263,12 +261,6 @@ func (l *LoadBalancer) forward(conn net.Conn) error {
 		return trace.ConvertSystemError(err)
 	}
 	defer backendConn.Close()
-
-	if len(l.PROXYHeader) > 0 {
-		if _, err := backendConn.Write(l.PROXYHeader); err != nil {
-			return trace.Wrap(err)
-		}
-	}
 
 	backendConnID := l.trackConnection(backend, backendConn)
 	defer l.untrackConnection(backend, backendConnID)

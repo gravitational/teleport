@@ -46,27 +46,20 @@ func NewNetworkRestrictions() NetworkRestrictions {
 	}
 }
 
-func (r *NetworkRestrictionsV4) setStaticFields() {
-	if r.Version == "" {
-		r.Version = V4
-	}
-	if r.Kind == "" {
-		r.Kind = KindNetworkRestrictions
-	}
-	if r.Metadata.Name == "" {
-		r.Metadata.Name = MetaNameNetworkRestrictions
-	}
-}
-
 // CheckAndSetDefaults validates NetworkRestrictions fields and populates empty fields
 // with default values.
 func (r *NetworkRestrictionsV4) CheckAndSetDefaults() error {
-	r.setStaticFields()
+	r.Metadata.Name = MetaNameNetworkRestrictions
 
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-
+	if r.Kind == "" {
+		return trace.BadParameter("NetworkRestrictions missing Kind field")
+	}
+	if r.Version == "" {
+		r.Version = V1
+	}
 	return nil
 }
 
@@ -104,16 +97,6 @@ func (r *NetworkRestrictionsV4) GetResourceID() int64 {
 
 func (r *NetworkRestrictionsV4) SetResourceID(id int64) {
 	r.Metadata.SetID(id)
-}
-
-// GetRevision returns the revision
-func (r *NetworkRestrictionsV4) GetRevision() string {
-	return r.Metadata.GetRevision()
-}
-
-// SetRevision sets the revision
-func (r *NetworkRestrictionsV4) SetRevision(rev string) {
-	r.Metadata.SetRevision(rev)
 }
 
 func (r *NetworkRestrictionsV4) Expiry() time.Time {

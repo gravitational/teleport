@@ -79,7 +79,7 @@ type Config struct {
 	// User is a user who runs SCP command
 	User string
 	// AuditLog is AuditLog log
-	AuditLog events.AuditLogSessionStreamer
+	AuditLog events.IAuditLog
 	// ProgressWriter is a writer for printing the progress
 	// (used only on the client)
 	ProgressWriter io.Writer

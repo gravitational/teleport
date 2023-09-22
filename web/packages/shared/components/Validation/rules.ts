@@ -20,16 +20,13 @@ limitations under the License.
  * @param message The custom error message to display to users.
  * @param value The value user entered.
  */
-const requiredField =
-  (message: string) =>
-  <T = string>(value: string | T[]) =>
-  () => {
-    const valid = !(!value || value.length === 0);
-    return {
-      valid,
-      message: !valid ? message : '',
-    };
+const requiredField = (message: string) => (value: string) => () => {
+  const valid = !(!value || value.length === 0);
+  return {
+    valid,
+    message: !valid ? message : '',
   };
+};
 
 const requiredToken = (value: string) => () => {
   if (!value || value.length === 0) {

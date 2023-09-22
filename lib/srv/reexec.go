@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/pam"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -312,7 +311,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 
 		// Open the PAM context.
-		pamContext, err := pam.Open(&servicecfg.PAMConfig{
+		pamContext, err := pam.Open(&pam.Config{
 			ServiceName: c.PAMConfig.ServiceName,
 			UsePAMAuth:  c.PAMConfig.UsePAMAuth,
 			Login:       c.Login,
@@ -641,7 +640,7 @@ func RunForward() (errw io.Writer, code int, err error) {
 	// launch the shell under.
 	if c.PAMConfig != nil {
 		// Open the PAM context.
-		pamContext, err := pam.Open(&servicecfg.PAMConfig{
+		pamContext, err := pam.Open(&pam.Config{
 			ServiceName: c.PAMConfig.ServiceName,
 			Login:       c.Login,
 			Stdin:       os.Stdin,
@@ -691,8 +690,6 @@ func runCheckHomeDir() (errw io.Writer, code int, err error) {
 
 // runPark does nothing, forever.
 func runPark() (errw io.Writer, code int, err error) {
-	// Do not replace this with an empty select because there are no other
-	// goroutines running so it will panic.
 	for {
 		time.Sleep(time.Hour)
 	}

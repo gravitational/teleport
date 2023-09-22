@@ -9,7 +9,7 @@ issues:
     # TODO(hugoShaka): Remove once https://github.com/dominikh/go-tools/issues/1294 is fixed
     - linters:
       - unused
-      path: 'integrations/operator/controllers/resources/(.+)_controller_test\.go'
+      path: 'operator/controllers/resources/(.+)_controller_test\.go'
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -48,12 +48,8 @@ linters-settings:
             desc: 'use "github.com/sirupsen/logrus" instead'
           - pkg: github.com/siddontang/go/log
             desc: 'use "github.com/sirupsen/logrus" instead'
-          - pkg: github.com/tj/assert
-            desc: 'use "github.com/stretchr/testify/assert" instead'
           - pkg: go.uber.org/atomic
             desc: 'use "sync/atomic" instead'
-          - pkg: golang.design
-            desc: 'experimental project, not to be confused with official Go packages'
   gci:
     sections:
       - standard # Standard section: captures all standard packages.
@@ -76,8 +72,7 @@ output:
   uniq-by-line: false
 
 run:
-  go: '1.21'
-  build-tags: []
+  go: '1.19'
   skip-dirs:
     - (^|/)node_modules/
     - ^api/gen/
@@ -86,4 +81,4 @@ run:
     - ^rfd/
     - ^web/
   skip-dirs-use-default: false
-  timeout: 15m
+  timeout: 5m

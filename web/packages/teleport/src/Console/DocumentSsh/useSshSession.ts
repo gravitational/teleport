@@ -46,6 +46,7 @@ export default function useSshSession(doc: DocumentSsh) {
   }
 
   React.useEffect(() => {
+    // initializes tty instances
     function initTty(session, mode?: ParticipantMode) {
       tracer.startActiveSpan(
         'initTTY',
@@ -65,7 +66,6 @@ export default function useSshSession(doc: DocumentSsh) {
             const data = JSON.parse(payload);
             data.session.kind = 'ssh';
             data.session.resourceName = data.session.server_hostname;
-            setSession(data.session);
             handleTtyConnect(ctx, data.session, doc.id);
           });
 
@@ -77,6 +77,12 @@ export default function useSshSession(doc: DocumentSsh) {
         }
       );
     }
+
+    // cleanup by unsubscribing from tty
+    function cleanup() {
+      ttyRef.current && ttyRef.current.removeAllListeners();
+    }
+
     initTty(
       {
         login,
@@ -87,11 +93,10 @@ export default function useSshSession(doc: DocumentSsh) {
       mode
     );
 
-    function teardownTty() {
-      ttyRef.current && ttyRef.current.removeAllListeners();
-    }
+    return cleanup;
 
-    return teardownTty;
+    // Only run this once on the initial render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {

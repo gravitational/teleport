@@ -1,6 +1,6 @@
 ---
 authors: Andrew Lytvynov (andrew@goteleport.com)
-state: implemented
+state: draft
 ---
 
 # RFD 34 - Desktop Access - Windows
@@ -160,7 +160,7 @@ Smart card authentication and emulator are described in more detail in RFD 35.
 #### Username/password
 
 Although username and password are the most universal, a major part of
-Teleport's value is to provide strong authentication using short-lived
+Teleport's value is to provide strong autentication using short-lived
 certificates. Supporting username and password authentication would weaken the
 overall security of the system and as such will not be implemented.
 

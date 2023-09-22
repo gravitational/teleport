@@ -1,6 +1,6 @@
 ---
 authors: Noah Stride <noah@goteleport.com>
-state: implemented (v11.0.0)
+state: implemented(v11.0.0)
 ---
 
 # RFD 79 - OIDC JWT Joining
@@ -37,7 +37,7 @@ The work on OIDC joining is broken down into two parts:
 - Support in the Auth server for trusting an OP issued JWT. This work will have a general base that can be shared between all providers, and then have a small, provider-specific part to provide additional validation that lets us guide users to correct and safe configurations.
 - Support in nodes for fetching their workload identity token from their environment. This work will be specific to each platform we intend to support.
 
-OIDC supports multiple types of token (`id_token`: a JWT encoding information about the identity, which can be verified using the issuer's public key and `access_token`: an opaque token that can be used with a `userinfo` endpoint on the issuer to obtain information about the identity). However, in the case of workload identities, `id_token` is the most prevalent. For this reason, our initial implementation will solely support `id_token`.
+OIDC supports multiple types of token (`id_token`: a JWT encoding information about the identity, which can be verified using the issuer's public key and `access_token`: an opaque token that can be used with a `userinfo` endpoint on the issuer to obtain information about the identity). However, in the case of workload identities, `id_token` is the most prevelant. For this reason, our initial implementation will solely support `id_token`.
 
 ### Auth server support
 
@@ -69,7 +69,7 @@ We will cache these for two reasons:
 
 - Improve the performance of validating JWTs, as we will not need to make a HTTPS request to the issuer.
 - Improve the reliability, as we can validate JWTs even if the issuer is experiencing some downtime.
-- Reduce the impact of Teleport on an issuer. If onboarding a large number of nodes, we do not want to unduly place pressure on the issuer.
+- Reduce the impact of Teleport on an issuer. If onboarding a large number of nodes, we do not want to unduly place pressure on the issuer. 
 
 We should keep in mind the following considerations:
 
@@ -85,7 +85,7 @@ Whilst out of scope for an initial implementation, we should eventually allow th
 
 #### Configuration
 
-In order to introduce support for GHA joining, we will introduce a new field to `ProvisionTokenV2` called `github`. This RFD sets a new standard for expansion of the `ProvisionTokenV2` with all future providers recommended to create their own top level fields, rather than continuing to expand the existing `Allow` field. Work will eventually begin to migrate IAM and EC2 joining to their own fields.
+In order to introduce support for GHA joining, we will introduce a new field to `ProvisionTokenV2` called `github`. This RFD sets a new standard for expansion of the `ProvisionTokenV2` with all future providers recommended to create their own top level fields, rather than continuing to expand the existing `Allow` field. Work will eventually beging to migrate IAM and EC2 joining to their own fields.
 
 `ProvisionTokenSpecV2` with fields added to support GHA:
 
@@ -133,7 +133,7 @@ message ProvisionTokenSpecV2GitHub {
   // when trying to create rules around which workflows should be allowed to
   // authenticate against a cluster.
   message Rule {
-    // Sub also known as Subject is a string that roughly uniquely identifies
+    // Sub also known as Subject is a string that roughly uniquely indentifies
     // the workload. The format of this varies depending on the type of
     // github action run.
     string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];

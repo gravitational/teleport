@@ -24,13 +24,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type mockClients struct {
@@ -40,7 +40,7 @@ type mockClients struct {
 	azureClient azure.VirtualMachinesClient
 }
 
-func (c *mockClients) GetAWSEC2Client(ctx context.Context, region string, _ ...cloud.AWSAssumeRoleOptionFn) (ec2iface.EC2API, error) {
+func (c *mockClients) GetAWSEC2Client(region string) (ec2iface.EC2API, error) {
 	return c.ec2Client, nil
 }
 
@@ -141,24 +141,24 @@ func TestEC2Watcher(t *testing.T) {
 	clients := mockClients{
 		ec2Client: &mockEC2Client{},
 	}
-	matchers := []types.AWSMatcher{
+	matchers := []services.AWSMatcher{
 		{
-			Params: &types.InstallerParams{
+			Params: services.InstallerParams{
 				InstallTeleport: true,
 			},
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"teleport": {"yes"}},
-			SSM:     &types.AWSSSM{},
+			SSM:     &services.AWSSSM{},
 		},
 		{
-			Params: &types.InstallerParams{
+			Params: services.InstallerParams{
 				InstallTeleport: true,
 			},
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"env": {"dev"}},
-			SSM:     &types.AWSSSM{},
+			SSM:     &services.AWSSSM{},
 		},
 	}
 	ctx := context.Background()
@@ -216,7 +216,7 @@ func TestEC2Watcher(t *testing.T) {
 		}},
 	}
 	clients.ec2Client.output = &output
-	watcher, err := NewEC2Watcher(ctx, matchers, &clients, make(<-chan []types.Server))
+	watcher, err := NewEC2Watcher(ctx, matchers, &clients)
 	require.NoError(t, err)
 
 	go watcher.Run()
@@ -224,38 +224,13 @@ func TestEC2Watcher(t *testing.T) {
 	result := <-watcher.InstancesC
 	require.Equal(t, EC2Instances{
 		Region:     "us-west-2",
-		Instances:  []EC2Instance{toEC2Instance(&present)},
+		Instances:  []*ec2.Instance{&present},
 		Parameters: map[string]string{"token": "", "scriptName": ""},
-	}, *result.EC2)
+	}, *result.EC2Instances)
 	result = <-watcher.InstancesC
 	require.Equal(t, EC2Instances{
 		Region:     "us-west-2",
-		Instances:  []EC2Instance{toEC2Instance(&presentOther)},
+		Instances:  []*ec2.Instance{&presentOther},
 		Parameters: map[string]string{"token": "", "scriptName": ""},
-	}, *result.EC2)
-}
-
-func TestConvertEC2InstancesToServerInfos(t *testing.T) {
-	t.Parallel()
-	expected, err := types.NewServerInfo(types.Metadata{
-		Name: "myaccount-myinstance",
-	}, types.ServerInfoSpecV1{
-		NewLabels: map[string]string{"aws/foo": "bar"},
-	})
-	require.NoError(t, err)
-
-	ec2Instances := &EC2Instances{
-		AccountID: "myaccount",
-		Instances: []EC2Instance{
-			{
-				InstanceID: "myinstance",
-				Tags:       map[string]string{"foo": "bar"},
-			},
-		},
-	}
-	serverInfos, err := ec2Instances.ServerInfos()
-	require.NoError(t, err)
-	require.Len(t, serverInfos, 1)
-
-	require.Empty(t, cmp.Diff(expected, serverInfos[0]))
+	}, *result.EC2Instances)
 }

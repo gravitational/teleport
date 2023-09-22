@@ -18,15 +18,16 @@ package auth
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -42,6 +43,7 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	ctx := context.Background()
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
+	a := p.a
 
 	// create a static token
 	staticToken := types.ProvisionTokenV1{
@@ -55,23 +57,13 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	err = p.a.SetStaticTokens(staticTokens)
 	require.NoError(t, err)
 
-	// create a valid dynamic token
-	dynamicToken := generateTestToken(
-		ctx,
-		t,
-		types.SystemRoles{types.RoleNode},
-		p.a.GetClock().Now().Add(time.Minute*30),
-		p.a,
-	)
-
-	// create an expired dynamic token
-	expiredDynamicToken := generateTestToken(
-		ctx,
-		t,
-		types.SystemRoles{types.RoleNode},
-		p.a.GetClock().Now().Add(-time.Minute*30),
-		p.a,
-	)
+	// create a dynamic token
+	dynamicToken, err := a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+		Roles: types.SystemRoles{types.RoleNode},
+		TTL:   proto.Duration(time.Hour),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, dynamicToken)
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -80,11 +72,11 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	require.NoError(t, err)
 
 	testcases := []struct {
-		desc             string
-		req              *types.RegisterUsingTokenRequest
-		certsAssertion   func(*proto.Certs)
-		errorAssertion   func(error) bool
-		waitTokenDeleted bool // Expired tokens are deleted in background, might need slight delay in relevant test
+		desc           string
+		req            *types.RegisterUsingTokenRequest
+		certsAssertion func(*proto.Certs)
+		errorAssertion func(error) bool
+		clock          clockwork.Clock
 	}{
 		{
 			desc:           "reject empty",
@@ -223,42 +215,41 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 		{
 			desc: "reject expired dynamic token",
 			req: &types.RegisterUsingTokenRequest{
-				Token:        expiredDynamicToken,
+				Token:        dynamicToken,
 				HostID:       "localhost",
 				NodeName:     "node-name",
 				Role:         types.RoleNode,
 				PublicSSHKey: sshPublicKey,
 				PublicTLSKey: tlsPublicKey,
 			},
-			waitTokenDeleted: true,
-			errorAssertion:   trace.IsAccessDenied,
+			clock:          clockwork.NewFakeClockAt(time.Now().Add(time.Hour + 1)),
+			errorAssertion: trace.IsAccessDenied,
 		},
 		{
 			// relies on token being deleted during previous testcase
 			desc: "expired token should be gone",
 			req: &types.RegisterUsingTokenRequest{
-				Token:        expiredDynamicToken,
+				Token:        dynamicToken,
 				HostID:       "localhost",
 				NodeName:     "node-name",
 				Role:         types.RoleNode,
 				PublicSSHKey: sshPublicKey,
 				PublicTLSKey: tlsPublicKey,
 			},
+			clock:          clockwork.NewRealClock(),
 			errorAssertion: trace.IsAccessDenied,
 		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.desc, func(t *testing.T) {
-			certs, err := p.a.RegisterUsingToken(ctx, tc.req)
+			if tc.clock == nil {
+				tc.clock = clockwork.NewRealClock()
+			}
+			a.SetClock(tc.clock)
+			certs, err := a.RegisterUsingToken(ctx, tc.req)
 			if tc.errorAssertion != nil {
 				require.True(t, tc.errorAssertion(err))
-				if tc.waitTokenDeleted {
-					require.Eventually(t, func() bool {
-						_, err := p.a.ValidateToken(ctx, tc.req.Token)
-						return err != nil && strings.Contains(err.Error(), TokenExpiredOrNotFound)
-					}, time.Millisecond*100, time.Millisecond*10)
-				}
 				return
 			}
 			require.NoError(t, err)
@@ -391,13 +382,15 @@ func TestRegister_Bot(t *testing.T) {
 				require.True(t, id.Renewable)
 
 				// Check audit event
-				evts, _, err := srv.Auth().SearchEvents(ctx, events.SearchEventsRequest{
-					From:       start,
-					To:         srv.Clock().Now(),
-					EventTypes: []string{events.BotJoinEvent},
-					Limit:      1,
-					Order:      types.EventOrderDescending,
-				})
+				evts, _, err := srv.Auth().SearchEvents(
+					start,
+					srv.Clock().Now(),
+					apidefaults.Namespace,
+					[]string{events.BotJoinEvent},
+					1,
+					types.EventOrderDescending,
+					"",
+				)
 				require.NoError(t, err)
 				require.Len(t, evts, 1)
 				evt, ok := evts[0].(*apievents.BotJoin)

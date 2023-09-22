@@ -18,7 +18,8 @@ import React, { useRef, useState } from 'react';
 import { Text, Flex, Button, Card, ButtonIcon } from 'design';
 import styled from 'styled-components';
 import { Notification } from 'shared/components/Notification';
-import { Warning, Cross } from 'design/Icon';
+import { Warning, Close } from 'design/Icon';
+import { orange } from 'design/theme/palette';
 import { useClickOutside } from 'shared/hooks/useClickOutside';
 
 import type { NotificationItem } from 'shared/components/Notification';
@@ -46,7 +47,7 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
   });
 
   return (
-    <>
+    <StyledRelative ref={ref}>
       <StyledButton
         title={'Warnings'}
         hasWarnings={warnings.length > 0}
@@ -54,7 +55,7 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
         onClick={toggleDropdown}
       >
         <Flex alignItems="center" justifyContent="space-between">
-          <Warning size={20} mr={2} /> {warnings.length}
+          <StyledWarningIcon mr={2} /> {warnings.length}
         </Flex>
       </StyledButton>
       {showDropdown && (
@@ -70,12 +71,12 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
               {warnings.length} {warnings.length > 1 ? 'Warnings' : 'Warning'}
             </Text>
             <ButtonIcon size={1} ml={1} mr={2} onClick={toggleDropdown}>
-              <Cross size="medium" />
+              <Close />
             </ButtonIcon>
           </Flex>
           <StyledOverflow flexWrap="wrap" gap={2}>
             {warnings.map(warning => (
-              <StyledNotification
+              <Notification
                 key={warning.id}
                 item={warning}
                 onRemove={() => onRemoveWarning(warning.id)}
@@ -87,24 +88,27 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
           </StyledOverflow>
         </StyledCard>
       )}
-    </>
+    </StyledRelative>
   );
 }
 
+const StyledWarningIcon = styled(Warning)`
+  font-weight: ${({ theme }) => theme.fontWeights.bold};
+  font-size: ${({ theme }) => theme.fontSizes[2] + 'px'};
+  align-self: 'center';
+`;
+
 const StyledButton = styled(Button)`
-  color: ${({ theme }) => theme.colors.light};
   min-height: 0;
   height: ${({ theme }) => theme.fontSizes[7] + 'px'};
   background-color: ${props =>
     props.hasWarnings
       ? props.theme.colors.warning.main
-      : props.theme.colors.spotBackground[1]};
+      : props.theme.colors.action.disabled};
   &:hover,
   &:focus {
     background-color: ${props =>
-      props.hasWarnings
-        ? props.theme.colors.warning.hover
-        : props.theme.colors.spotBackground[2]};
+      props.hasWarnings ? orange.A700 : props.theme.colors.action.disabled};
   }
 `;
 
@@ -114,14 +118,11 @@ const StyledCard = styled(Card)`
   position: absolute;
   right: 0;
   top: ${({ theme }) => theme.fontSizes[7] + 'px'};
-  background-color: ${({ theme }) => theme.colors.levels.elevated};
+  background-color: ${({ theme }) => theme.colors.levels.surfaceSecondary};
 `;
 
-const StyledNotification = styled(Notification)`
-  background: ${({ theme }) => theme.colors.spotBackground[0]};
-  ${({ theme }) =>
-    theme.type === 'light' && `border: 1px solid ${theme.colors.text.muted};`}
-  box-shadow: none;
+const StyledRelative = styled.div`
+  position: relative;
 `;
 
 const StyledOverflow = styled(Flex)`

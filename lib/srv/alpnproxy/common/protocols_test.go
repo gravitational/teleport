@@ -45,6 +45,8 @@ func TestWithPingProtocols(t *testing.T) {
 func TestIsDBTLSProtocol(t *testing.T) {
 	require.True(t, IsDBTLSProtocol("teleport-redis"))
 	require.True(t, IsDBTLSProtocol("teleport-redis-ping"))
+	require.True(t, IsDBTLSProtocol("teleport-mongodb"))
+	require.True(t, IsDBTLSProtocol("teleport-mongodb-ping"))
 	require.False(t, IsDBTLSProtocol("teleport-tcp"))
 	require.False(t, IsDBTLSProtocol(""))
 }

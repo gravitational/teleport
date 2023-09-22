@@ -15,4 +15,3 @@ limitations under the License.
 */
 
 export * from './TabHost';
-export { useNewTabOpener } from './useNewTabOpener';

@@ -18,6 +18,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
@@ -26,85 +27,116 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// newRedshiftServerlessFetcher returns a new AWS fetcher for Redshift
-// Serverless databases.
-func newRedshiftServerlessFetcher(cfg awsFetcherConfig) (common.Fetcher, error) {
-	return newAWSFetcher(cfg, &redshiftServerlessPlugin{})
+// redshiftServerlessFetcherConfig is the Redshift Serverless databases fetcher
+// configuration.
+type redshiftServerlessFetcherConfig struct {
+	// Labels is a selector to match cloud databases.
+	Labels types.Labels
+	// Region is the AWS region to query databases in.
+	Region string
+	// Client is the Redshift Serverless API client.
+	Client redshiftserverlessiface.RedshiftServerlessAPI
 }
 
-type workgroupWithTags struct {
+// CheckAndSetDefaults validates the config and sets defaults.
+func (c *redshiftServerlessFetcherConfig) CheckAndSetDefaults() error {
+	if len(c.Labels) == 0 {
+		return trace.BadParameter("missing parameter Labels")
+	}
+	if c.Region == "" {
+		return trace.BadParameter("missing parameter Region")
+	}
+	if c.Client == nil {
+		return trace.BadParameter("missing parameter Client")
+	}
+	return nil
+}
+
+type redshiftServerlessWorkgroupWithTags struct {
 	*redshiftserverless.Workgroup
 
 	Tags []*redshiftserverless.Tag
 }
 
-// redshiftServerlessPlugin retrieves Redshift Serverless databases.
-type redshiftServerlessPlugin struct{}
+// redshiftServerlessFetcher retrieves Redshift Serverless databases.
+type redshiftServerlessFetcher struct {
+	awsFetcher
 
-func (f *redshiftServerlessPlugin) ComponentShortName() string {
-	// (r)ed(s)hift (s)erver(<)less
-	return "rss<"
+	cfg redshiftServerlessFetcherConfig
+	log logrus.FieldLogger
 }
 
-// rssAPI is a type alias for brevity alone.
-type rssAPI = redshiftserverlessiface.RedshiftServerlessAPI
-
-// GetDatabases returns Redshift Serverless databases matching the watcher's selectors.
-func (f *redshiftServerlessPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
-	client, err := cfg.AWSClients.GetAWSRedshiftServerlessClient(ctx, cfg.Region,
-		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID))
-	if err != nil {
+// newRedshiftServerlessFetcher returns a new Redshift Serverless databases
+// fetcher instance.
+func newRedshiftServerlessFetcher(config redshiftServerlessFetcherConfig) (common.Fetcher, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	databases, workgroups, err := getDatabasesFromWorkgroups(ctx, client, cfg.Log)
+	return &redshiftServerlessFetcher{
+		cfg: config,
+		log: logrus.WithFields(logrus.Fields{
+			trace.Component: "watch:rss<", // (r)ed(s)hift (s)erver(<)less
+			"labels":        config.Labels,
+			"region":        config.Region,
+		}),
+	}, nil
+}
+
+// Get returns Redshift Serverless databases matching the watcher's selectors.
+func (f *redshiftServerlessFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
+	databases, workgroups, err := f.getDatabasesFromWorkgroups(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if len(workgroups) > 0 {
-		vpcEndpointDatabases, err := getDatabasesFromVPCEndpoints(ctx, workgroups, client, cfg.Log)
+		vpcEndpointDatabases, err := f.getDatabasesFromVPCEndpoints(ctx, workgroups)
 		if err != nil {
 			if trace.IsAccessDenied(err) {
-				cfg.Log.Debugf("No permission to get Redshift Serverless VPC endpoints: %v.", err)
+				f.log.Debugf("No permission to get Redshift Serverless VPC endpoints: %v.", err)
 			} else {
-				cfg.Log.Warnf("Failed to get Redshift Serverless VPC endpoints: %v.", err)
+				f.log.Warnf("Failed to get Redshift Serverless VPC endpoints: %v.", err)
 			}
 		}
 
 		databases = append(databases, vpcEndpointDatabases...)
 	}
-	return databases, nil
+	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log).AsResources(), nil
 }
 
-func getDatabasesFromWorkgroups(ctx context.Context, client rssAPI, log logrus.FieldLogger) (types.Databases, []*workgroupWithTags, error) {
-	workgroups, err := getRSSWorkgroups(ctx, client)
+// String returns the fetcher's string description.
+func (f *redshiftServerlessFetcher) String() string {
+	return fmt.Sprintf("redshiftServerlessFetcher(Region=%v, Labels=%v)", f.cfg.Region, f.cfg.Labels)
+}
+
+func (f *redshiftServerlessFetcher) getDatabasesFromWorkgroups(ctx context.Context) (types.Databases, []*redshiftServerlessWorkgroupWithTags, error) {
+	workgroups, err := f.getWorkgroups(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	var databases types.Databases
-	var workgroupsWithTags []*workgroupWithTags
+	var workgroupsWithTags []*redshiftServerlessWorkgroupWithTags
 	for _, workgroup := range workgroups {
 		if !services.IsAWSResourceAvailable(workgroup, workgroup.Status) {
-			log.Debugf("The current status of Redshift Serverless workgroup %v is %v. Skipping.", aws.StringValue(workgroup.WorkgroupName), aws.StringValue(workgroup.Status))
+			f.log.Debugf("The current status of Redshift Serverless workgroup %v is %v. Skipping.", aws.StringValue(workgroup.WorkgroupName), aws.StringValue(workgroup.Status))
 			continue
 		}
 
-		tags := getRSSResourceTags(ctx, workgroup.WorkgroupArn, client, log)
+		tags := f.getResourceTags(ctx, workgroup.WorkgroupArn)
 		database, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(workgroup, tags)
 		if err != nil {
-			log.WithError(err).Infof("Could not convert Redshift Serverless workgroup %q to database resource.", aws.StringValue(workgroup.WorkgroupName))
+			f.log.WithError(err).Infof("Could not convert Redshift Serverless workgroup %q to database resource.", aws.StringValue(workgroup.WorkgroupName))
 			continue
 		}
 
 		databases = append(databases, database)
-		workgroupsWithTags = append(workgroupsWithTags, &workgroupWithTags{
+		workgroupsWithTags = append(workgroupsWithTags, &redshiftServerlessWorkgroupWithTags{
 			Workgroup: workgroup,
 			Tags:      tags,
 		})
@@ -112,8 +144,8 @@ func getDatabasesFromWorkgroups(ctx context.Context, client rssAPI, log logrus.F
 	return databases, workgroupsWithTags, nil
 }
 
-func getDatabasesFromVPCEndpoints(ctx context.Context, workgroups []*workgroupWithTags, client rssAPI, log logrus.FieldLogger) (types.Databases, error) {
-	endpoints, err := getRSSVPCEndpoints(ctx, client)
+func (f *redshiftServerlessFetcher) getDatabasesFromVPCEndpoints(ctx context.Context, workgroups []*redshiftServerlessWorkgroupWithTags) (types.Databases, error) {
+	endpoints, err := f.getVPCEndpoints(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -122,12 +154,12 @@ func getDatabasesFromVPCEndpoints(ctx context.Context, workgroups []*workgroupWi
 	for _, endpoint := range endpoints {
 		workgroup, found := findWorkgroupWithName(workgroups, aws.StringValue(endpoint.WorkgroupName))
 		if !found {
-			log.Debugf("Could not find matching workgroup for Redshift Serverless endpoint %v. Skipping.", aws.StringValue(endpoint.EndpointName))
+			f.log.Debugf("Could not find matching workgroup for Redshift Serverless endpoint %v. Skipping.", aws.StringValue(endpoint.EndpointName))
 			continue
 		}
 
 		if !services.IsAWSResourceAvailable(endpoint, endpoint.EndpointStatus) {
-			log.Debugf("The current status of Redshift Serverless endpoint %v is %v. Skipping.", aws.StringValue(endpoint.EndpointName), aws.StringValue(endpoint.EndpointStatus))
+			f.log.Debugf("The current status of Redshift Serverless endpoint %v is %v. Skipping.", aws.StringValue(endpoint.EndpointName), aws.StringValue(endpoint.EndpointStatus))
 			continue
 		}
 
@@ -135,7 +167,7 @@ func getDatabasesFromVPCEndpoints(ctx context.Context, workgroups []*workgroupWi
 		// tags from the workgroups instead.
 		database, err := services.NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint, workgroup.Workgroup, workgroup.Tags)
 		if err != nil {
-			log.WithError(err).Infof("Could not convert Redshift Serverless endpoint %q to database resource.", aws.StringValue(endpoint.EndpointName))
+			f.log.WithError(err).Infof("Could not convert Redshift Serverless endpoint %q to database resource.", aws.StringValue(endpoint.EndpointName))
 			continue
 		}
 		databases = append(databases, database)
@@ -143,41 +175,41 @@ func getDatabasesFromVPCEndpoints(ctx context.Context, workgroups []*workgroupWi
 	return databases, nil
 }
 
-func getRSSResourceTags(ctx context.Context, arn *string, client rssAPI, log logrus.FieldLogger) []*redshiftserverless.Tag {
-	output, err := client.ListTagsForResourceWithContext(ctx, &redshiftserverless.ListTagsForResourceInput{
+func (f *redshiftServerlessFetcher) getResourceTags(ctx context.Context, arn *string) []*redshiftserverless.Tag {
+	output, err := f.cfg.Client.ListTagsForResourceWithContext(ctx, &redshiftserverless.ListTagsForResourceInput{
 		ResourceArn: arn,
 	})
 	if err != nil {
 		// Log errors here and return nil.
 		if trace.IsAccessDenied(err) {
-			log.WithError(err).Debugf("No Permission to get tags for %q.", aws.StringValue(arn))
+			f.log.WithError(err).Debugf("No Permission to get tags for %q.", aws.StringValue(arn))
 		} else {
-			log.WithError(err).Warnf("Failed to get tags for %q.", aws.StringValue(arn))
+			f.log.WithError(err).Warnf("Failed to get tags for %q.", aws.StringValue(arn))
 		}
 		return nil
 	}
 	return output.Tags
 }
 
-func getRSSWorkgroups(ctx context.Context, client rssAPI) ([]*redshiftserverless.Workgroup, error) {
+func (f *redshiftServerlessFetcher) getWorkgroups(ctx context.Context) ([]*redshiftserverless.Workgroup, error) {
 	var pages [][]*redshiftserverless.Workgroup
-	err := client.ListWorkgroupsPagesWithContext(ctx, nil, func(page *redshiftserverless.ListWorkgroupsOutput, lastPage bool) bool {
+	err := f.cfg.Client.ListWorkgroupsPagesWithContext(ctx, nil, func(page *redshiftserverless.ListWorkgroupsOutput, lastPage bool) bool {
 		pages = append(pages, page.Workgroups)
 		return len(pages) <= maxAWSPages
 	})
 	return flatten(pages), libcloudaws.ConvertRequestFailureError(err)
 }
 
-func getRSSVPCEndpoints(ctx context.Context, client rssAPI) ([]*redshiftserverless.EndpointAccess, error) {
+func (f *redshiftServerlessFetcher) getVPCEndpoints(ctx context.Context) ([]*redshiftserverless.EndpointAccess, error) {
 	var pages [][]*redshiftserverless.EndpointAccess
-	err := client.ListEndpointAccessPagesWithContext(ctx, nil, func(page *redshiftserverless.ListEndpointAccessOutput, lastPage bool) bool {
+	err := f.cfg.Client.ListEndpointAccessPagesWithContext(ctx, nil, func(page *redshiftserverless.ListEndpointAccessOutput, lastPage bool) bool {
 		pages = append(pages, page.Endpoints)
 		return len(pages) <= maxAWSPages
 	})
 	return flatten(pages), libcloudaws.ConvertRequestFailureError(err)
 }
 
-func findWorkgroupWithName(workgroups []*workgroupWithTags, name string) (*workgroupWithTags, bool) {
+func findWorkgroupWithName(workgroups []*redshiftServerlessWorkgroupWithTags, name string) (*redshiftServerlessWorkgroupWithTags, bool) {
 	for _, workgroup := range workgroups {
 		if aws.StringValue(workgroup.WorkgroupName) == name {
 			return workgroup, true

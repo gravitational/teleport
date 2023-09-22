@@ -313,13 +313,12 @@ const (
 	ALPNSNIAuthProtocol = "teleport-auth@"
 	// ALPNSNIProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ALPNSNIProtocolReverseTunnel = "teleport-reversetunnel"
-	// ALPNSNIProtocolSSH is the TLS ALPN protocol value used to indicate Proxy SSH protocol.
-	ALPNSNIProtocolSSH = "teleport-proxy-ssh"
-	// ALPNSNIProtocolPingSuffix is TLS ALPN suffix used to wrap connections with Ping.
-	ALPNSNIProtocolPingSuffix = "-ping"
 )
 
 const (
+	// KubeSNIPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
+	// DELETE IN 13.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
+	KubeSNIPrefix = "kube."
 	// KubeTeleportProxyALPNPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
 	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
 )
@@ -372,10 +371,6 @@ const (
 	// allowed database users.
 	TraitDBUsers = "db_users"
 
-	// TraitDBRoles is the name of the role variable used to store
-	// allowed database roles.
-	TraitDBRoles = "db_roles"
-
 	// TraitAWSRoleARNs is the name of the role variable used to store
 	// allowed AWS role ARNs.
 	TraitAWSRoleARNs = "aws_role_arns"
@@ -387,57 +382,17 @@ const (
 	// TraitGCPServiceAccounts is the name of the role variable used to store
 	// allowed GCP service accounts.
 	TraitGCPServiceAccounts = "gcp_service_accounts"
-
-	// TraitHostUserUID is the name of the variable used to specify
-	// the UID to create host user account with.
-	TraitHostUserUID = "host_user_uid"
-
-	// TraitHostUserGID is the name of the variable used to specify
-	// the GID to create host user account with.
-	TraitHostUserGID = "host_user_gid"
+)
+const (
+	// ProxyHelloSignature is a string which Teleport proxy will send
+	// right after the initial SSH "handshake/version" message if it detects
+	// talking to a Teleport server.
+	//
+	// This is also leveraged by tsh to propagate its tracing span ID.
+	ProxyHelloSignature = "Teleport-Proxy"
 )
 
 const (
 	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
 	TimeoutGetClusterAlerts = time.Millisecond * 750
-)
-
-const (
-	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
-	// call.
-	WebAPIConnUpgrade = "/webapi/connectionupgrade"
-	// WebAPIConnUpgradeHeader is the header used to indicate the requested
-	// connection upgrade types in the connection upgrade API.
-	WebAPIConnUpgradeHeader = "Upgrade"
-	// WebAPIConnUpgradeTeleportHeader is a Teleport-specific header used to
-	// indicate the requested connection upgrade types in the connection
-	// upgrade API. This header is sent in addition to "Upgrade" header in case
-	// a load balancer/reverse proxy removes "Upgrade".
-	WebAPIConnUpgradeTeleportHeader = "X-Teleport-Upgrade"
-	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
-	// the upgraded connection should be handled by the ALPN handler.
-	WebAPIConnUpgradeTypeALPN = "alpn"
-	// WebAPIConnUpgradeTypeALPNPing is a connection upgrade type that
-	// specifies the upgraded connection should be handled by the ALPN handler
-	// wrapped with the Ping protocol.
-	//
-	// This should be used when the tunneled TLS Routing protocol cannot keep
-	// long-lived connections alive as L7 LB usually ignores TCP keepalives and
-	// has very short idle timeouts.
-	WebAPIConnUpgradeTypeALPNPing = "alpn-ping"
-	// WebAPIConnUpgradeConnectionHeader is the standard header that controls
-	// whether the network connection stays open after the current transaction
-	// finishes.
-	WebAPIConnUpgradeConnectionHeader = "Connection"
-	// WebAPIConnUpgradeConnectionType is the value of the "Connection" header
-	// used for connection upgrades.
-	WebAPIConnUpgradeConnectionType = "Upgrade"
-)
-
-const (
-	// InitiateFileTransfer is used when creating a new file transfer request
-	InitiateFileTransfer string = "file-transfer@goteleport.com"
-	// FileTransferDecision is a request that will approve or deny an active file transfer.
-	// Multiple decisions can be sent for the same request if the policy requires it.
-	FileTransferDecision string = "file-transfer-decision@goteleport.com"
 )

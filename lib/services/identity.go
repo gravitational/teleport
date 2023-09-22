@@ -279,6 +279,8 @@ type Identity interface {
 type AppSession interface {
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
+	// GetAppSessions gets all application web sessions.
+	GetAppSessions(context.Context) ([]types.WebSession, error)
 	// ListAppSessions gets a paginated list of application web sessions.
 	ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
 	// UpsertAppSession upserts an application web session.
@@ -326,9 +328,6 @@ type HeadlessAuthenticationService interface {
 	// GetHeadlessAuthentication gets a headless authentication.
 	GetHeadlessAuthentication(ctx context.Context, username, name string) (*types.HeadlessAuthentication, error)
 
-	// GetHeadlessAuthentications gets all headless authentications.
-	GetHeadlessAuthentications(ctx context.Context) ([]*types.HeadlessAuthentication, error)
-
 	// UpsertHeadlessAuthentication upserts a headless authentication.
 	UpsertHeadlessAuthentication(ctx context.Context, ha *types.HeadlessAuthentication) error
 
@@ -338,9 +337,6 @@ type HeadlessAuthenticationService interface {
 
 	// DeleteHeadlessAuthentication deletes a headless authentication from the backend.
 	DeleteHeadlessAuthentication(ctx context.Context, username, name string) error
-
-	// DeleteAllHeadlessAuthentications deletes all headless authentications from the backend.
-	DeleteAllHeadlessAuthentications(ctx context.Context) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),

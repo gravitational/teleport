@@ -156,7 +156,7 @@ type mockAccessPoint struct {
 	ca types.CertAuthority
 }
 
-func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	return ap.ca, nil
 }
 
@@ -172,15 +172,9 @@ func TestCreateRemoteAccessPoint(t *testing.T) {
 			assertion: require.Error,
 		},
 		{
-			name:      "remote running 13.0.0",
+			name:      "remote running 12.0.0",
 			assertion: require.NoError,
-			version:   "13.0.0",
-		},
-		{
-			name:           "remote running 12.0.0",
-			assertion:      require.NoError,
-			version:        "12.0.0",
-			oldRemoteProxy: true,
+			version:   "12.0.0",
 		},
 		{
 			name:           "remote running 11.0.0",

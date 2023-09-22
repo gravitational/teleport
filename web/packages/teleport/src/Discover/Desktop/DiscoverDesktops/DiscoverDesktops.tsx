@@ -83,8 +83,8 @@ const ContentBox = styled.div`
 `;
 
 const ViewLink = styled(NavLink)`
-  background: ${props => props.theme.colors.buttons.link.default};
-  color: ${props => props.theme.colors.text.main};
+  background: #0091ea;
+  color: white;
   border-radius: 5px;
   margin-top: 10px;
   text-decoration: none;
@@ -93,7 +93,7 @@ const ViewLink = styled(NavLink)`
   cursor: pointer;
 
   &:hover {
-    background: ${props => props.theme.colors.buttons.link.hover};
+    background: #4db2f0;
   }
 `;
 
@@ -101,7 +101,7 @@ export function DiscoverDesktops() {
   const ctx = useTeleport();
   const { emitEvent, nextStep } = useDiscover();
 
-  const { joinToken } = useJoinTokenSuspender([ResourceKind.Desktop]);
+  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
   const { result: desktopService, active } =
     usePingTeleport<WindowsDesktopService>(joinToken);
 

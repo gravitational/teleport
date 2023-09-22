@@ -596,7 +596,6 @@ func TestHostUniqueCheck(t *testing.T) {
 				types.RoleDatabase,
 				types.RoleApp,
 				types.RoleWindowsDesktop,
-				types.RoleMDM,
 				types.RoleDiscovery,
 				types.RoleOkta,
 			},
@@ -686,16 +685,6 @@ func TestHostUniqueCheck(t *testing.T) {
 					types.DatabaseServerSpecV3{
 						HostID:   name,
 						Hostname: "test-db",
-						Database: &types.DatabaseV3{
-							Metadata: types.Metadata{
-								Name:      "test-db",
-								Namespace: defaults.Namespace,
-							},
-							Spec: types.DatabaseSpecV3{
-								Protocol: types.DatabaseProtocolPostgreSQL,
-								URI:      "https://db.localhost",
-							},
-						},
 					})
 				require.NoError(t, err)
 				_, err = a.UpsertDatabaseServer(context.Background(), db)
@@ -771,9 +760,6 @@ func TestHostUniqueCheck(t *testing.T) {
 		},
 		{
 			role: types.RoleDiscovery,
-		},
-		{
-			role: types.RoleMDM,
 		},
 	}
 

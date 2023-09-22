@@ -69,19 +69,6 @@ player supports toggling between play and pause, but does not support seeking to
 a specific point in the stream, rewinding, or restarting playback when the end
 of the stream is reached. To replay a session, refresh the page.
 
-To export desktop session recordings to video for playback outside of Teleport,
-use the `tsh recordings export` command:
-
-```code
-$ tsh recordings export <SESSION_ID>
-```
-
-Note: video encoding is done client-side to avoid consuming server resources.
-
-<Admonition type="tip" title="Listing recordings">
-Use `tsh recordings ls` to list available recordings.
-</Admonition>
-
 ## Storage
 
 Be aware, desktop session recordings save PNGs of changing sections of the

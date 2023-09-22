@@ -14,11 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import React from 'react';
-import Table, {
-  Cell,
-  ClickableLabelCell,
-  StyledTableWrapper,
-} from 'design/DataTable';
+import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
 import { Danger } from 'design/Alert';
 import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
 import { SearchPanel, SearchPagination } from 'shared/components/Search';
@@ -30,6 +26,7 @@ import { GatewayProtocol } from 'teleterm/services/tshd/types';
 import { makeDatabase } from 'teleterm/ui/services/clusters';
 import { DatabaseUri } from 'teleterm/ui/uri';
 
+import { MenuLoginTheme } from '../MenuLoginTheme';
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
 import { getEmptyTableText } from '../getEmptyTableText';
 
@@ -62,61 +59,59 @@ function DatabaseList(props: State) {
       {fetchAttempt.status === 'error' && (
         <Danger>{fetchAttempt.statusText}</Danger>
       )}
-      <StyledTableWrapper borderRadius={3}>
-        <SearchPanel
-          updateQuery={updateQuery}
-          updateSearch={updateSearch}
-          pageIndicators={pageCount}
-          filter={agentFilter}
-          showSearchBar={true}
-          disableSearch={disabled}
+      <SearchPanel
+        updateQuery={updateQuery}
+        updateSearch={updateSearch}
+        pageIndicators={pageCount}
+        filter={agentFilter}
+        showSearchBar={true}
+        disableSearch={disabled}
+      />
+      <DarkenWhileDisabled disabled={disabled}>
+        <Table
+          data={dbs}
+          columns={[
+            {
+              key: 'name',
+              headerText: 'Name',
+              isSortable: true,
+            },
+            {
+              key: 'description',
+              headerText: 'Description',
+              isSortable: true,
+            },
+            {
+              key: 'type',
+              headerText: 'Type',
+              isSortable: true,
+            },
+            {
+              key: 'labels',
+              headerText: 'Labels',
+              render: ({ labels }) => (
+                <ClickableLabelCell
+                  labels={labels}
+                  onClick={onAgentLabelClick}
+                />
+              ),
+            },
+            {
+              altKey: 'connect-btn',
+              render: db => (
+                <ConnectButton
+                  dbUri={db.uri}
+                  protocol={db.protocol as GatewayProtocol}
+                  onConnect={dbUser => connect(db, dbUser)}
+                />
+              ),
+            },
+          ]}
+          customSort={customSort}
+          emptyText={emptyText}
         />
-        <DarkenWhileDisabled disabled={disabled}>
-          <Table
-            data={dbs}
-            columns={[
-              {
-                key: 'name',
-                headerText: 'Name',
-                isSortable: true,
-              },
-              {
-                key: 'description',
-                headerText: 'Description',
-                isSortable: true,
-              },
-              {
-                key: 'type',
-                headerText: 'Type',
-                isSortable: true,
-              },
-              {
-                key: 'labels',
-                headerText: 'Labels',
-                render: ({ labels }) => (
-                  <ClickableLabelCell
-                    labels={labels}
-                    onClick={onAgentLabelClick}
-                  />
-                ),
-              },
-              {
-                altKey: 'connect-btn',
-                render: db => (
-                  <ConnectButton
-                    dbUri={db.uri}
-                    protocol={db.protocol as GatewayProtocol}
-                    onConnect={dbUser => connect(db, dbUser)}
-                  />
-                ),
-              },
-            ]}
-            customSort={customSort}
-            emptyText={emptyText}
-          />
-          <SearchPagination prevPage={prevPage} nextPage={nextPage} />
-        </DarkenWhileDisabled>
-      </StyledTableWrapper>
+        <SearchPagination prevPage={prevPage} nextPage={nextPage} />
+      </DarkenWhileDisabled>
     </>
   );
 }
@@ -134,22 +129,24 @@ function ConnectButton({
 
   return (
     <Cell align="right">
-      <MenuLogin
-        {...getMenuLoginOptions(protocol)}
-        width="195px"
-        getLoginItems={() => getDatabaseUsers(appContext, dbUri)}
-        onSelect={(_, user) => {
-          onConnect(user);
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-        anchorOrigin={{
-          vertical: 'center',
-          horizontal: 'right',
-        }}
-      />
+      <MenuLoginTheme>
+        <MenuLogin
+          {...getMenuLoginOptions(protocol)}
+          width="195px"
+          getLoginItems={() => getDatabaseUsers(appContext, dbUri)}
+          onSelect={(_, user) => {
+            onConnect(user);
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+          anchorOrigin={{
+            vertical: 'center',
+            horizontal: 'right',
+          }}
+        />
+      </MenuLoginTheme>
     </Cell>
   );
 }
@@ -173,7 +170,7 @@ function getMenuLoginOptions(
 async function getDatabaseUsers(appContext: IAppContext, dbUri: DatabaseUri) {
   try {
     const dbUsers = await retryWithRelogin(appContext, dbUri, () =>
-      appContext.resourcesService.getDbUsers(dbUri)
+      appContext.clustersService.getDbUsers(dbUri)
     );
     return dbUsers.map(user => ({ login: user, url: '' }));
   } catch (e) {

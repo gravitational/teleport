@@ -23,25 +23,14 @@ import (
 )
 
 func FuzzNewExpression(f *testing.F) {
-	f.Add("")
-	f.Add("foo")
-	f.Add("{{external.foo}}")
-	f.Add(`{{regexp.replace(internal.foo, "foo-(.*)-(.*)", "$1.$2")}}`)
-
 	f.Fuzz(func(t *testing.T, variable string) {
 		require.NotPanics(t, func() {
-			NewTraitsTemplateExpression(variable)
+			NewExpression(variable)
 		})
 	})
 }
 
 func FuzzNewMatcher(f *testing.F) {
-	f.Add("")
-	f.Add("foo")
-	f.Add("*")
-	f.Add("^foo$")
-	f.Add(`{{regexp.match("foo.*")}}`)
-
 	f.Fuzz(func(t *testing.T, value string) {
 		require.NotPanics(t, func() {
 			NewMatcher(value)

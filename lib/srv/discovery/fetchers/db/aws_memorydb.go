@@ -17,39 +17,70 @@ package db
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// memoryDBPlugin retrieves MemoryDB Redis databases.
-type memoryDBPlugin struct{}
-
-// newMemoryDBFetcher returns a new AWS fetcher for MemoryDB databases.
-func newMemoryDBFetcher(cfg awsFetcherConfig) (common.Fetcher, error) {
-	return newAWSFetcher(cfg, &memoryDBPlugin{})
+// memoryDBFetcherConfig is the MemoryDB databases fetcher configuration.
+type memoryDBFetcherConfig struct {
+	// Labels is a selector to match cloud databases.
+	Labels types.Labels
+	// MemoryDB is the MemoryDB API client.
+	MemoryDB memorydbiface.MemoryDBAPI
+	// Region is the AWS region to query databases in.
+	Region string
 }
 
-func (f *memoryDBPlugin) ComponentShortName() string {
-	return "memorydb"
+// CheckAndSetDefaults validates the config and sets defaults.
+func (c *memoryDBFetcherConfig) CheckAndSetDefaults() error {
+	if len(c.Labels) == 0 {
+		return trace.BadParameter("missing parameter Labels")
+	}
+	if c.MemoryDB == nil {
+		return trace.BadParameter("missing parameter MemoryDB")
+	}
+	if c.Region == "" {
+		return trace.BadParameter("missing parameter Region")
+	}
+	return nil
 }
 
-// GetDatabases returns MemoryDB databases matching the watcher's selectors.
-func (f *memoryDBPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
-	memDBClient, err := cfg.AWSClients.GetAWSMemoryDBClient(ctx, cfg.Region,
-		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID))
-	if err != nil {
+// memoryDBFetcher retrieves MemoryDB Redis databases.
+type memoryDBFetcher struct {
+	awsFetcher
+
+	cfg memoryDBFetcherConfig
+	log logrus.FieldLogger
+}
+
+// newMemoryDBFetcher returns a new MemoryDB databases fetcher instance.
+func newMemoryDBFetcher(config memoryDBFetcherConfig) (common.Fetcher, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusters, err := getMemoryDBClusters(ctx, memDBClient)
+	return &memoryDBFetcher{
+		cfg: config,
+		log: logrus.WithFields(logrus.Fields{
+			trace.Component: "watch:memorydb",
+			"labels":        config.Labels,
+			"region":        config.Region,
+		}),
+	}, nil
+}
+
+// Get returns MemoryDB databases matching the watcher's selectors.
+func (f *memoryDBFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
+	clusters, err := getMemoryDBClusters(ctx, f.cfg.MemoryDB)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -57,12 +88,12 @@ func (f *memoryDBPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 	var eligibleClusters []*memorydb.Cluster
 	for _, cluster := range clusters {
 		if !services.IsMemoryDBClusterSupported(cluster) {
-			cfg.Log.Debugf("MemoryDB cluster %q is not supported. Skipping.", aws.StringValue(cluster.Name))
+			f.log.Debugf("MemoryDB cluster %q is not supported. Skipping.", aws.StringValue(cluster.Name))
 			continue
 		}
 
 		if !services.IsMemoryDBClusterAvailable(cluster) {
-			cfg.Log.Debugf("The current status of MemoryDB cluster %q is %q. Skipping.",
+			f.log.Debugf("The current status of MemoryDB cluster %q is %q. Skipping.",
 				aws.StringValue(cluster.Name),
 				aws.StringValue(cluster.Status))
 			continue
@@ -72,40 +103,46 @@ func (f *memoryDBPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 	}
 
 	if len(eligibleClusters) == 0 {
-		return nil, nil
+		return types.ResourcesWithLabels{}, nil
 	}
 
 	// Fetch more information to provide extra labels. Do not fail because some
 	// of these labels are missing.
-	allSubnetGroups, err := getMemoryDBSubnetGroups(ctx, memDBClient)
+	allSubnetGroups, err := getMemoryDBSubnetGroups(ctx, f.cfg.MemoryDB)
 	if err != nil {
 		if trace.IsAccessDenied(err) {
-			cfg.Log.WithError(err).Debug("No permissions to describe subnet groups")
+			f.log.WithError(err).Debug("No permissions to describe subnet groups")
 		} else {
-			cfg.Log.WithError(err).Info("Failed to describe subnet groups.")
+			f.log.WithError(err).Info("Failed to describe subnet groups.")
 		}
 	}
 
 	var databases types.Databases
 	for _, cluster := range eligibleClusters {
-		tags, err := getMemoryDBResourceTags(ctx, memDBClient, cluster.ARN)
+		tags, err := getMemoryDBResourceTags(ctx, f.cfg.MemoryDB, cluster.ARN)
 		if err != nil {
 			if trace.IsAccessDenied(err) {
-				cfg.Log.WithError(err).Debug("No permissions to list resource tags")
+				f.log.WithError(err).Debug("No permissions to list resource tags")
 			} else {
-				cfg.Log.WithError(err).Infof("Failed to list resource tags for MemoryDB cluster %q.", aws.StringValue(cluster.Name))
+				f.log.WithError(err).Infof("Failed to list resource tags for MemoryDB cluster %q.", aws.StringValue(cluster.Name))
 			}
 		}
 
 		extraLabels := services.ExtraMemoryDBLabels(cluster, tags, allSubnetGroups)
 		database, err := services.NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
 		if err != nil {
-			cfg.Log.WithError(err).Infof("Could not convert memorydb cluster %q configuration endpoint to database resource.", aws.StringValue(cluster.Name))
+			f.log.WithError(err).Infof("Could not convert memorydb cluster %q configuration endpoint to database resource.", aws.StringValue(cluster.Name))
 		} else {
 			databases = append(databases, database)
 		}
 	}
-	return databases, nil
+	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log).AsResources(), nil
+}
+
+// String returns the fetcher's string description.
+func (f *memoryDBFetcher) String() string {
+	return fmt.Sprintf("memorydbFetcher(Region=%v, Labels=%v)",
+		f.cfg.Region, f.cfg.Labels)
 }
 
 // getMemoryDBClusters fetches all MemoryDB clusters.

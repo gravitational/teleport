@@ -76,9 +76,11 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
   );
 
   return (
-    <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
+    <Box maxWidth="590px" width="100%" mx="auto" mt="4" px="5">
       <Flex justifyContent="space-between" mb="4" flexWrap="wrap" gap={2}>
-        <Text typography="h3">Database Connection</Text>
+        <Text typography="h3" color="text.slightlyMuted">
+          Database Connection
+        </Text>
         <ButtonSecondary size="small" onClick={props.disconnect}>
           Close Connection
         </ButtonSecondary>
@@ -95,7 +97,7 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
             mb={2}
           />
           <ConfigFieldInput
-            label="Database Name"
+            label="Database name"
             defaultValue={gateway.targetSubresourceName}
             onChange={e => handleChangeDbName(e.target.value)}
             spellCheck={false}

@@ -18,11 +18,8 @@ import { useStore } from 'shared/libs/stores';
 
 import * as types from 'teleterm/services/tshd/types';
 import { RootClusterUri } from 'teleterm/ui/uri';
-import { ResourceSearchError } from 'teleterm/ui/services/resources';
 
 import { ImmutableStore } from '../immutableStore';
-
-import type * as uri from 'teleterm/ui/uri';
 
 type State = {
   // At most two modals can be displayed at the same time.
@@ -186,29 +183,10 @@ export interface DialogUserJobRole {
   onCancel(): void;
 }
 
-export interface DialogResourceSearchErrors {
-  kind: 'resource-search-errors';
-  errors: ResourceSearchError[];
-  getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
-  onCancel: () => void;
-}
-
-export interface DialogHeadlessAuthentication {
-  kind: 'headless-authn';
-  rootClusterUri: RootClusterUri;
-  headlessAuthenticationId: string;
-  headlessAuthenticationClientIp: string;
-  skipConfirm: boolean;
-  onSuccess(): void;
-  onCancel(): void;
-}
-
 export type Dialog =
   | DialogClusterConnect
   | DialogClusterLogout
   | DialogDocumentsReopen
   | DialogUsageData
   | DialogUserJobRole
-  | DialogResourceSearchErrors
-  | DialogHeadlessAuthentication
   | DialogNone;

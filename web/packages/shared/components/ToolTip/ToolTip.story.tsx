@@ -50,12 +50,3 @@ export const LongContent = () => (
     </ToolTipInfo>
   </Flex>
 );
-
-export const WithMutedIconColor = () => (
-  <>
-    <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
-      Hover the icon
-    </span>
-    <ToolTipInfo muteIconColor>"some popover content"</ToolTipInfo>
-  </>
-);

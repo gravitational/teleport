@@ -247,7 +247,7 @@ app_service:
      # from the server running the app_service.
      uri: http://localhost:8080
      # Public address is used to override the default address the application
-     # is available at.
+     # is avaiable at.
      public_addr: jenkins.acme.teleport.dev
      # Insecure skip verify is used to disable server TLS certificate
      # verification. Useful for internal applications using a self signed
@@ -288,7 +288,7 @@ $ teleport start \
    --app-name="jenkins" \
    # Define the URI that the application is running at.
    --app-uri="http://localhost:8080" \
-   # Define the public address, used to override the automatically generated
+   # Define the public address, used to overide the automatically generated
    # address of appName.proxyPublicAddr.
    --app-public-addr="jenkins.acme.teleport.dev"
 ```

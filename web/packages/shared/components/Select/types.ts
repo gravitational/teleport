@@ -35,7 +35,6 @@ export type Props = {
   options: Option<any, any>[];
   width?: string | number;
   menuPlacement?: string;
-  name?: string;
   minMenuHeight?: number;
   components?: any;
   customProps?: Record<string, any>;
@@ -43,8 +42,6 @@ export type Props = {
   inputValue?: string;
   filterOption?(): null | boolean;
   onInputChange?(value: string, actionMeta: ActionMeta): void;
-  // Whether or not the element is on an elevated platform (such as a dialog).
-  elevated?: boolean;
 };
 
 export type AsyncProps = Omit<Props, 'options'> & {
@@ -65,27 +62,4 @@ export type Option<T = string, S = string> = {
 
 export type ActionMeta = {
   action: 'set-value' | 'input-change' | 'input-blur' | 'menu-close';
-};
-
-/**
- * CustomSelectComponentProps defines a prop type for the custom
- * components you define for react-select's `components` prop.
- *
- * @template CustomProps - type defining all the custom props being passed
- * down to custom component.
- *
- * @template CustomOption - the data type used for react-select `options`
- */
-export type CustomSelectComponentProps<
-  CustomProps,
-  CustomOption = Option
-> = CustomOption & {
-  /**
-   * selectProps is the field to use to access the props that were
-   * passed down to react-select's component.
-   *
-   * Use `customProps` field to easily identify non react-select props
-   * that are intended to be used in custom components.
-   */
-  selectProps: { customProps: CustomProps };
 };

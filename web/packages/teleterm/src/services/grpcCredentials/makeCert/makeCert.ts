@@ -39,9 +39,8 @@
  limitations under the License.
  */
 
-import { promisify } from 'util';
-
 import { pki, md } from 'node-forge';
+import { promisify } from 'util';
 
 const generateKeyPair = promisify(pki.rsa.generateKeyPair.bind(pki.rsa));
 

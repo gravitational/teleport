@@ -29,7 +29,6 @@ export default function makeUserContext(json: any): UserContext {
   const acl = makeAcl(json.userAcl);
   const accessStrategy = json.accessStrategy || defaultStrategy;
   const accessCapabilities = makeAccessCapabilities(json.accessCapabilities);
-  const allowedSearchAsRoles = json.allowedSearchAsRoles || [];
 
   return {
     username,
@@ -39,7 +38,6 @@ export default function makeUserContext(json: any): UserContext {
     accessStrategy,
     accessCapabilities,
     accessRequestId,
-    allowedSearchAsRoles,
   };
 }
 

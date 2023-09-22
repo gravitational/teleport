@@ -38,19 +38,6 @@ func IsValidAccountID(accountID string) error {
 	return nil
 }
 
-// IsValidIAMRoleName checks whether the role name is a valid AWS IAM Role identifier.
-//
-// > Length Constraints: Minimum length of 1. Maximum length of 64.
-// > Pattern: [\w+=,.@-]+
-// https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreateRole.html
-func IsValidIAMRoleName(roleName string) error {
-	if len(roleName) == 0 || len(roleName) > 64 || !matchRoleName(roleName) {
-		return trace.BadParameter("role is invalid")
-	}
-
-	return nil
-}
-
 // IsValidRegion ensures the region looks to be valid.
 // It does not do a full validation, because AWS doesn't provide documentation for that.
 // However, they usually only have the following chars: [a-z0-9\-]
@@ -62,9 +49,6 @@ func IsValidRegion(region string) error {
 }
 
 var (
-	// matchRoleName is a regex that matches against AWS IAM Role Names.
-	matchRoleName = regexp.MustCompile(`^[\w+=,.@-]+$`).MatchString
-
 	// matchRegion is a regex that defines the format of AWS regions.
 	//
 	// The regex matches the following from left to right:

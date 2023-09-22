@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 Restart=on-failure
 EnvironmentFile=-/etc/default/teleport
-ExecStart=/usr/local/bin/teleport start --config /etc/teleport.yaml --pid-file=/run/teleport.pid
+ExecStart=/usr/local/bin/teleport start --pid-file=/run/teleport.pid
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/teleport.pid
 LimitNOFILE=524288

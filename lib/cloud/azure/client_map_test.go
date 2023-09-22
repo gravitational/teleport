@@ -22,7 +22,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,9 +34,7 @@ func TestClientMap(t *testing.T) {
 		}
 		return nil, trace.BadParameter("failed to create")
 	}
-	clock := clockwork.NewFakeClock()
-	clientMap, err := NewClientMap(mockNewClientFunc, withClock(clock))
-	require.NoError(t, err)
+	clientMap := NewClientMap(mockNewClientFunc)
 
 	// Note that some test cases (e.g. "get from cache") depend on previous
 	// test cases. Thus running in sequence.
@@ -76,21 +73,4 @@ func TestClientMap(t *testing.T) {
 		require.NotNil(t, client)
 		require.IsType(t, NewRedisClientByAPI(nil), client)
 	})
-
-	t.Run("expire from cache", func(t *testing.T) {
-		oldClient, err := clientMap.Get("good-sub", func() (azcore.TokenCredential, error) {
-			return nil, nil
-		})
-		require.NoError(t, err)
-		require.NotNil(t, oldClient)
-
-		clock.Advance(2 * clientExpireTime)
-		newClient, err := clientMap.Get("good-sub", func() (azcore.TokenCredential, error) {
-			return nil, nil
-		})
-		require.NoError(t, err)
-		require.NotNil(t, newClient)
-		require.NotSame(t, oldClient, newClient)
-	})
-
 }

@@ -141,16 +141,6 @@ func (o *SAMLConnectorV2) SetResourceID(id int64) {
 	o.Metadata.ID = id
 }
 
-// GetRevision returns the revision
-func (o *SAMLConnectorV2) GetRevision() string {
-	return o.Metadata.GetRevision()
-}
-
-// SetRevision sets the revision
-func (o *SAMLConnectorV2) SetRevision(rev string) {
-	o.Metadata.SetRevision(rev)
-}
-
 // WithoutSecrets returns an instance of resource without secrets.
 func (o *SAMLConnectorV2) WithoutSecrets() Resource {
 	k1 := o.GetSigningKeyPair()

@@ -50,11 +50,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing UpdateMeta")
 	}
 	if c.Clients == nil {
-		cloudClients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.Clients = cloudClients
+		c.Clients = cloud.NewClients()
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()

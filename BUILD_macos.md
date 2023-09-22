@@ -3,7 +3,6 @@
 The instructions below are provided as in a best-effort basis.
 PRs with corrections and updates are welcome!
 
-* Install [Homebrew](https://brew.sh/)
 * `Go` version from
   [go.mod](https://github.com/gravitational/teleport/blob/master/go.mod#L3)
   
@@ -71,9 +70,6 @@ PRs with corrections and updates are welcome!
   brew install libfido2
   ```
 
-* To install `yarn` for building the UI
-  * `brew install node yarn`
-  * Currently, [`yarn`](https://classic.yarnpkg.com/en/docs/install) (< 2.0.0) is required
 ##### Local Tests Dependencies
  
 To run a full test suite locally, you will need

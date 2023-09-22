@@ -17,8 +17,23 @@ limitations under the License.
 package slack
 
 import (
+	"net/http"
+
 	"github.com/gravitational/teleport/api/types"
 )
+
+func statusFromStatusCode(httpCode int) types.PluginStatus {
+	var code types.PluginStatusCode
+	switch {
+	case httpCode == http.StatusUnauthorized:
+		code = types.PluginStatusCode_UNAUTHORIZED
+	case httpCode >= 200 && httpCode < 400:
+		code = types.PluginStatusCode_RUNNING
+	default:
+		code = types.PluginStatusCode_OTHER_ERROR
+	}
+	return &types.PluginStatusV1{Code: code}
+}
 
 // statusFromResponse tries to map a Slack API error string
 // to a PluginStatus.

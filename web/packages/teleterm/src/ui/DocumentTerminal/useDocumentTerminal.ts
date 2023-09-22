@@ -87,12 +87,6 @@ async function initializePtyProcess(
   documentsService: DocumentsService,
   doc: types.DocumentTerminal
 ) {
-  // DELETE IN 14.0.0
-  //
-  // Logging in to an arbitrary host was removed in 13.0 together with the command bar.
-  // However, there's a slight chance that some users upgrading from 12.x to 13.0 still have
-  // documents with loginHost in the app state (e.g. if the doc failed to connect to the server).
-  // Let's just remove this in 14.0.0 instead to make sure those users can safely upgrade the app.
   if (isDocumentTshNodeWithLoginHost(doc)) {
     doc = await resolveLoginHost(ctx, logger, documentsService, doc);
   }
@@ -233,19 +227,14 @@ async function setUpPtyProcess(
   if (doc.kind === 'doc.terminal_tsh_node') {
     ctx.usageService.captureProtocolUse(clusterUri, 'ssh', doc.origin);
   }
-  if (doc.kind === 'doc.terminal_tsh_kube' || doc.kind === 'doc.gateway_kube') {
+  if (doc.kind === 'doc.terminal_tsh_kube') {
     ctx.usageService.captureProtocolUse(clusterUri, 'kube', doc.origin);
   }
 
   const openContextMenu = () => ctx.mainProcessClient.openTerminalContextMenu();
 
   const refreshTitle = async () => {
-    // TODO(ravicious): Enable updating cwd in doc.gateway_kube titles by
-    // moving title-updating logic to DocumentsService. The logic behind
-    // updating the title should be encapsulated in a single place, so that
-    // useDocumentTerminal doesn't need to know the details behind the title of
-    // each document kind.
-    if (doc.kind !== 'doc.terminal_shell') {
+    if (cmd.kind !== 'pty.shell') {
       return;
     }
 
@@ -256,10 +245,24 @@ async function setUpPtyProcess(
     });
   };
 
+  const removeInitCommand = () => {
+    if (doc.kind !== 'doc.terminal_shell') {
+      return;
+    }
+    // The initCommand has to be launched only once, not every time we recreate the document from
+    // the state.
+    //
+    // Imagine that someone creates a new terminal document with `rm -rf /tmp` as initCommand.
+    // We'd execute the command each time the document gets recreated from the state, which is not
+    // what the user would expect.
+    documentsService.update(doc.uri, { initCommand: undefined });
+  };
+
   // We don't need to clean up the listeners added on ptyProcess in this function. The effect which
   // calls setUpPtyProcess automatically disposes of the process on cleanup, removing all listeners.
   ptyProcess.onOpen(() => {
     refreshTitle();
+    removeInitCommand();
   });
 
   // TODO(ravicious): Refactor runOnce to not use the `n` variable. Otherwise runOnce subtracts 1
@@ -352,7 +355,6 @@ function createCmd(
     };
   }
 
-  // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
   if (doc.kind === 'doc.terminal_tsh_kube') {
     return {
       ...doc,
@@ -395,44 +397,12 @@ function createCmd(
     };
   }
 
-  if (doc.kind === 'doc.gateway_kube') {
-    const gateway = clustersService.findGatewayByConnectionParams(
-      doc.targetUri,
-      ''
-    );
-    if (!gateway) {
-      throw new Error(`No gateway found for ${doc.targetUri}`);
-    }
-
-    const env = tshdGateway.getCliCommandEnv(gateway.gatewayCliCommand);
-
-    if ('KUBECONFIG' in env === false) {
-      // This shouldn't happen as 'KUBECONFIG' is the sole purpose of the CLI
-      // command for a kube gateway.
-      throw new Error(
-        `No KUBECONFIG provided for gateway ${gateway.targetUri}`
-      );
-    }
-    const initMessage =
-      `Started a local proxy for Kubernetes cluster "${gateway.targetName}".\r\n\r\n` +
-      'The KUBECONFIG env var can be used with third-party tools as long as the proxy is running.\r\n' +
-      'Close the proxy from Connections in the top left corner or by closing Teleport Connect.\r\n\r\n' +
-      'Try "kubectl version" to test the connection.\r\n\r\n';
-
-    return {
-      kind: 'pty.shell',
-      proxyHost,
-      clusterName,
-      env,
-      initMessage,
-    };
-  }
-
   return {
     ...doc,
     kind: 'pty.shell',
     proxyHost,
     clusterName,
     cwd: doc.cwd,
+    initCommand: doc.initCommand,
   };
 }

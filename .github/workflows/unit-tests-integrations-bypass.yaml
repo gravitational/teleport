@@ -16,24 +16,18 @@ on:
     paths-ignore:
       - '/go.mod'
       - '/go.sum'
-      - 'integrations/**'
+      - 'operator/**'
       - 'api/types/**'
-      - 'gen/**'
       - 'lib/tbot/**'
-      - 'Makefile'
-      - '.github/workflows/unit-tests-integrations.yaml'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
   merge_group:
     paths-ignore:
       - '/go.mod'
       - '/go.sum'
-      - 'integrations/**'
+      - 'operator/**'
       - 'api/types/**'
-      - 'gen/**'
       - 'lib/tbot/**'
-      - 'Makefile'
-      - '.github/workflows/unit-tests-integrations.yaml'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
 

@@ -78,14 +78,11 @@ func (t *testCertGetter) GetCertificateBytes(context.Context) (*WindowsCAAndKeyP
 type testCase struct {
 	name           string
 	initializer    *PKInit
-	expectErr      require.ErrorAssertionFunc
-	expectCacheNil require.ValueAssertionFunc
-	expectConfNil  require.ValueAssertionFunc
+	expectErr      func(t require.TestingT, err error, msgAndArgs ...interface{})
+	expectCacheNil func(t require.TestingT, object interface{}, msgAndArgs ...interface{})
 }
 
-func step(t *testing.T, name string, cg CommandGenerator, c *testCertGetter, expectErr require.ErrorAssertionFunc, expectNil require.ValueAssertionFunc) *testCase {
-	t.Helper()
-
+func step(t *testing.T, name string, cg CommandGenerator, c *testCertGetter, expectErr func(t require.TestingT, err error, msgAndArgs ...interface{}), expectNil func(t require.TestingT, object interface{}, msgAndArgs ...interface{})) *testCase {
 	dir := t.TempDir()
 	var err error
 	dir, err = os.MkdirTemp(dir, "krb5_cache")
@@ -105,51 +102,49 @@ func step(t *testing.T, name string, cg CommandGenerator, c *testCertGetter, exp
 			})),
 		expectErr:      expectErr,
 		expectCacheNil: expectNil,
-		expectConfNil:  expectNil,
 	}
 }
 
 func TestNewWithCommandLineProvider(t *testing.T) {
 
 	for _, tt := range []struct {
-		name         string
-		cg           CommandGenerator
-		c            *testCertGetter
-		expectErr    require.ErrorAssertionFunc
-		expectReturn require.ValueAssertionFunc
+		name           string
+		cg             CommandGenerator
+		c              *testCertGetter
+		expectErr      require.ErrorAssertionFunc
+		expectCacheNil require.ValueAssertionFunc
 	}{
 
 		{
-			name:         "CommandSuccessCase",
-			cg:           &staticCache{t: t, pass: true},
-			c:            &testCertGetter{pass: true},
-			expectErr:    require.NoError,
-			expectReturn: require.NotNil},
+			name:           "CommandSuccessCase",
+			cg:             &staticCache{t: t, pass: true},
+			c:              &testCertGetter{pass: true},
+			expectErr:      require.NoError,
+			expectCacheNil: require.NotNil},
 		{
-			name:         "CertificateFailureCase",
-			cg:           &staticCache{t: t, pass: true},
-			c:            &testCertGetter{pass: false},
-			expectErr:    require.Error,
-			expectReturn: require.Nil},
+			name:           "CertificateFailureCase",
+			cg:             &staticCache{t: t, pass: true},
+			c:              &testCertGetter{pass: false},
+			expectErr:      require.Error,
+			expectCacheNil: require.Nil},
 		{
-			name:         "CommandFailureCase",
-			cg:           &staticCache{t: t, pass: false},
-			c:            &testCertGetter{pass: true},
-			expectErr:    require.Error,
-			expectReturn: require.Nil},
+			name:           "CommandFailureCase",
+			cg:             &staticCache{t: t, pass: false},
+			c:              &testCertGetter{pass: true},
+			expectErr:      require.Error,
+			expectCacheNil: require.Nil},
 		{
-			name:         "BadCacheData",
-			cg:           &badCache{t: t},
-			c:            &testCertGetter{pass: true},
-			expectErr:    require.Error,
-			expectReturn: require.Nil},
+			name:           "BadCacheData",
+			cg:             &badCache{t: t},
+			c:              &testCertGetter{pass: true},
+			expectErr:      require.Error,
+			expectCacheNil: require.Nil},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			tc := step(t, tt.name, tt.cg, tt.c, tt.expectErr, tt.expectReturn)
-			c, conf, err := tc.initializer.UseOrCreateCredentialsCache(context.Background())
+			tc := step(t, tt.name, tt.cg, tt.c, tt.expectErr, tt.expectCacheNil)
+			c, err := tc.initializer.UseOrCreateCredentialsCache(context.Background())
 			tc.expectErr(t, err)
 			tc.expectCacheNil(t, c)
-			tc.expectConfNil(t, conf)
 		})
 	}
 
@@ -166,7 +161,7 @@ const (
   kdc = host.example.com
   admin_server = host.example.com
   pkinit_eku_checking = kpServerAuth
-  pkinit_kdc_hostname = instance.host.example.com
+  pkinit_kdc_hostname = host.example.com
  }`
 )
 
@@ -175,11 +170,10 @@ func TestKRBConfString(t *testing.T) {
 		CommandConfig{
 			User:        "alice",
 			Realm:       "example.com",
-			KDCHost:     "instance.host.example.com",
+			KDCHost:     "host.example.com",
 			AdminServer: "host.example.com",
 			Command:     &staticCache{t: t, pass: true},
 			CertGetter:  &testCertGetter{pass: true},
-			DataDir:     t.TempDir(),
 		})
 
 	tmp := t.TempDir()
@@ -192,15 +186,4 @@ func TestKRBConfString(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, expectedConfString, string(data))
-
-	// Ensure that the returned configuration matches the information from the
-	// generated file. PKINIT options are not available on the go-krb5 config.
-	_, conf, err := cli.UseOrCreateCredentials(context.Background())
-	require.NoError(t, err)
-	require.Len(t, conf.Realms, 1)
-	require.Equal(t, "example.com", conf.Realms[0].Realm)
-	require.ElementsMatch(t, []string{"host.example.com"}, conf.Realms[0].AdminServer)
-	require.ElementsMatch(t, []string{"host.example.com:88"}, conf.Realms[0].KDC)
-	require.Equal(t, "example.com", conf.LibDefaults.DefaultRealm)
-	require.False(t, conf.LibDefaults.RDNS)
 }

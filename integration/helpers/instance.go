@@ -56,16 +56,13 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
-	websession "github.com/gravitational/teleport/lib/web/session"
 )
 
 const (
@@ -258,8 +255,8 @@ type TeleInstance struct {
 
 	// Internal stuff...
 	Process              *service.TeleportProcess
-	Config               *servicecfg.Config
-	Tunnel               reversetunnelclient.Server
+	Config               *service.Config
+	Tunnel               reversetunnel.Server
 	RemoteClusterWatcher *reversetunnel.RemoteClusterTunnelManager
 
 	// Nodes is a list of additional nodes
@@ -276,7 +273,7 @@ type TeleInstance struct {
 	// Log specifies the instance logger
 	Log utils.Logger
 	InstanceListeners
-	Fds []servicecfg.FileDescriptor
+	Fds []service.FileDescriptor
 }
 
 // InstanceConfig is an instance configuration
@@ -298,7 +295,7 @@ type InstanceConfig struct {
 	// Ports is a collection of instance ports.
 	Listeners *InstanceListeners
 
-	Fds []servicecfg.FileDescriptor
+	Fds []service.FileDescriptor
 }
 
 // NewInstance creates a new Teleport process instance.
@@ -408,7 +405,7 @@ func (i *TeleInstance) GetSiteAPI(siteName string) auth.ClientI {
 // Create creates a new instance of Teleport which trusts a list of other clusters (other
 // instances)
 func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, enableSSH bool, console io.Writer) error {
-	tconf := servicecfg.MakeDefaultConfig()
+	tconf := service.MakeDefaultConfig()
 	tconf.SSH.Enabled = enableSSH
 	tconf.Console = console
 	tconf.Log = i.Log
@@ -420,7 +417,7 @@ func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, e
 }
 
 // GenerateConfig generates instance config
-func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSecrets, tconf *servicecfg.Config) (*servicecfg.Config, error) {
+func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSecrets, tconf *service.Config) (*service.Config, error) {
 	var err error
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
@@ -429,7 +426,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	if tconf == nil {
-		tconf = servicecfg.MakeDefaultConfig()
+		tconf = service.MakeDefaultConfig()
 	}
 	if tconf.InstanceMetadataClient == nil {
 		tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
@@ -569,7 +566,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 //
 // Unlike Create() it allows for greater customization because it accepts
 // a full Teleport config structure
-func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets, tconf *servicecfg.Config) error {
+func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets, tconf *service.Config) error {
 	tconf, err := i.GenerateConfig(t, trustedSecrets, tconf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -579,7 +576,7 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 }
 
 // CreateWithConf creates a new instance of Teleport using the supplied config
-func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) error {
+func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *service.Config) error {
 	i.Config = tconf
 	var err error
 	i.Process, err = service.NewTeleport(tconf)
@@ -637,7 +634,7 @@ func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) er
 }
 
 // StartNode starts a SSH node and connects it to the cluster.
-func (i *TeleInstance) StartNode(tconf *servicecfg.Config) (*service.TeleportProcess, error) {
+func (i *TeleInstance) StartNode(tconf *service.Config) (*service.TeleportProcess, error) {
 	_, port, err := net.SplitHostPort(i.Auth)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -646,7 +643,7 @@ func (i *TeleInstance) StartNode(tconf *servicecfg.Config) (*service.TeleportPro
 }
 
 // StartReverseTunnelNode starts a SSH node and connects it to the cluster via reverse tunnel.
-func (i *TeleInstance) StartReverseTunnelNode(tconf *servicecfg.Config) (*service.TeleportProcess, error) {
+func (i *TeleInstance) StartReverseTunnelNode(tconf *service.Config) (*service.TeleportProcess, error) {
 	_, port, err := net.SplitHostPort(i.Web)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -655,7 +652,7 @@ func (i *TeleInstance) StartReverseTunnelNode(tconf *servicecfg.Config) (*servic
 }
 
 // StartNodeWithTargetPort starts a node and connects it to the cluster via a specified port.
-func (i *TeleInstance) StartNodeWithTargetPort(tconf *servicecfg.Config, authPort string) (*service.TeleportProcess, error) {
+func (i *TeleInstance) StartNodeWithTargetPort(tconf *service.Config, authPort string) (*service.TeleportProcess, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -678,7 +675,7 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *servicecfg.Config, authPor
 
 	tconf.SetToken("token")
 	tconf.UploadEventsC = i.UploadEventsC
-	tconf.CachePolicy = servicecfg.CachePolicy{
+	tconf.CachePolicy = service.CachePolicy{
 		Enabled: true,
 	}
 	tconf.SSH.PublicAddrs = []utils.NetAddr{
@@ -719,7 +716,7 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *servicecfg.Config, authPor
 	return process, nil
 }
 
-func (i *TeleInstance) StartApp(conf *servicecfg.Config) (*service.TeleportProcess, error) {
+func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -761,7 +758,7 @@ func (i *TeleInstance) StartApp(conf *servicecfg.Config) (*service.TeleportProce
 	return process, nil
 }
 
-func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.TeleportProcess, error) {
+func (i *TeleInstance) StartApps(configs []*service.Config) ([]*service.TeleportProcess, error) {
 	type result struct {
 		process *service.TeleportProcess
 		tmpDir  string
@@ -770,7 +767,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 
 	results := make(chan result, len(configs))
 	for _, conf := range configs {
-		go func(cfg *servicecfg.Config) {
+		go func(cfg *service.Config) {
 			dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 			if err != nil {
 				results <- result{err: err}
@@ -831,7 +828,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 }
 
 // StartDatabase starts the database access service with the provided config.
-func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.TeleportProcess, *auth.Client, error) {
+func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportProcess, *auth.Client, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -845,7 +842,6 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 	})
 	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
-	conf.Databases.Enabled = true
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
 	conf.Apps.Enabled = false
@@ -893,7 +889,7 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 	return process, client, nil
 }
 
-func (i *TeleInstance) StartKube(t *testing.T, conf *servicecfg.Config, clusterName string) (*service.TeleportProcess, error) {
+func (i *TeleInstance) StartKube(t *testing.T, conf *service.Config, clusterName string) (*service.TeleportProcess, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -948,7 +944,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 
 	i.tempDirs = append(i.tempDirs, dataDir)
 
-	tconf := servicecfg.MakeDefaultConfig()
+	tconf := service.MakeDefaultConfig()
 
 	tconf.Log = i.Log
 	authServer := utils.MustParseAddr(i.Auth)
@@ -958,7 +954,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	tconf.Hostname = name
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.DataDir = dataDir
-	tconf.CachePolicy = servicecfg.CachePolicy{
+	tconf.CachePolicy = service.CachePolicy{
 		Enabled: true,
 	}
 
@@ -1020,8 +1016,6 @@ type ProxyConfig struct {
 	SSHAddr string
 	// WebAddr the address the web service should listen on
 	WebAddr string
-	// KubeAddr is the kube proxy address.
-	KubeAddr string
 	// ReverseTunnelAddr the address the reverse proxy service should listen on
 	ReverseTunnelAddr string
 	// Disable the web service
@@ -1031,23 +1025,23 @@ type ProxyConfig struct {
 	// Disable ALPN routing
 	DisableALPNSNIListener bool
 	// FileDescriptors holds FDs to be injected into the Teleport process
-	FileDescriptors []servicecfg.FileDescriptor
+	FileDescriptors []service.FileDescriptor
 }
 
 // StartProxy starts another Proxy Server and connects it to the cluster.
-func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunnelclient.Server, *service.TeleportProcess, error) {
+func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *service.TeleportProcess, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName+"-"+cfg.Name)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	i.tempDirs = append(i.tempDirs, dataDir)
 
-	tconf := servicecfg.MakeDefaultConfig()
+	tconf := service.MakeDefaultConfig()
 	tconf.Console = nil
 	tconf.Log = i.Log
 	authServer := utils.MustParseAddr(i.Auth)
 	tconf.SetAuthServerAddress(*authServer)
-	tconf.CachePolicy = servicecfg.CachePolicy{Enabled: true}
+	tconf.CachePolicy = service.CachePolicy{Enabled: true}
 	tconf.DataDir = dataDir
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.HostUUID = cfg.Name
@@ -1072,8 +1066,6 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	}
 	tconf.Proxy.ReverseTunnelListenAddr.Addr = cfg.ReverseTunnelAddr
 	tconf.Proxy.WebAddr.Addr = cfg.WebAddr
-	tconf.Proxy.Kube.Enabled = cfg.KubeAddr != ""
-	tconf.Proxy.Kube.ListenAddr.Addr = cfg.KubeAddr
 	tconf.Proxy.DisableReverseTunnel = false
 	tconf.Proxy.DisableWebService = cfg.DisableWebService
 	tconf.Proxy.DisableWebInterface = cfg.DisableWebInterface
@@ -1081,10 +1073,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	tconf.FileDescriptors = cfg.FileDescriptors
-	// apply options
-	for _, o := range opts {
-		o(tconf)
-	}
+
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
 	process, err := service.NewTeleport(tconf)
@@ -1109,12 +1098,12 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	log.Debugf("Teleport proxy (in instance %v) started: %v/%v events received.",
 		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
 
-	// Extract and set reversetunnelclient.Server and reversetunnel.AgentPool upon
+	// Extract and set reversetunnel.Server and reversetunnel.AgentPool upon
 	// receipt of a ProxyReverseTunnelReady event
 	for _, re := range receivedEvents {
 		switch re.Name {
 		case service.ProxyReverseTunnelReady:
-			ts, ok := re.Payload.(reversetunnelclient.Server)
+			ts, ok := re.Payload.(reversetunnel.Server)
 			if ok {
 				return ts, process, nil
 			}
@@ -1126,18 +1115,6 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	// in `StartAndWait()`.
 	return nil, nil, trace.Errorf("Missing expected %v event in %v",
 		service.ProxyReverseTunnelReady, receivedEvents)
-}
-
-// Option is a functional option for configuring a ProxyConfig
-type Option func(*servicecfg.Config)
-
-// WithLegacyKubeProxy enables the legacy kube proxy.
-func WithLegacyKubeProxy(kubeconfig string) Option {
-	return func(tconf *servicecfg.Config) {
-		tconf.Proxy.Kube.Enabled = true
-		tconf.Proxy.Kube.KubeconfigPath = kubeconfig
-		tconf.Proxy.Kube.LegacyKubeProxy = true
-	}
 }
 
 // Reset re-creates the teleport instance based on the same configuration
@@ -1214,10 +1191,6 @@ func (i *TeleInstance) Start() error {
 		expectedEvents = append(expectedEvents, service.KubernetesReady)
 	}
 
-	if i.Config.Discovery.Enabled {
-		expectedEvents = append(expectedEvents, service.DiscoveryReady)
-	}
-
 	expectedEvents = append(expectedEvents, service.InstanceReady)
 
 	// Start the process and block until the expected events have arrived.
@@ -1226,12 +1199,12 @@ func (i *TeleInstance) Start() error {
 		return trace.Wrap(err)
 	}
 
-	// Extract and set reversetunnelclient.Server and reversetunnel.AgentPool upon
+	// Extract and set reversetunnel.Server and reversetunnel.AgentPool upon
 	// receipt of a ProxyReverseTunnelReady and ProxyAgentPoolReady respectively.
 	for _, re := range receivedEvents {
 		switch re.Name {
 		case service.ProxyReverseTunnelReady:
-			ts, ok := re.Payload.(reversetunnelclient.Server)
+			ts, ok := re.Payload.(reversetunnel.Server)
 			if ok {
 				i.Tunnel = ts
 			}
@@ -1250,8 +1223,6 @@ func (i *TeleInstance) Start() error {
 
 // ClientConfig is a client configuration
 type ClientConfig struct {
-	// TeleportUser is Teleport username
-	TeleportUser string
 	// Login is SSH login name
 	Login string
 	// Cluster is a cluster name to connect to
@@ -1283,8 +1254,6 @@ type ClientConfig struct {
 	Stderr io.Writer
 	// Stdout overrides standard output for the session
 	Stdout io.Writer
-	// ALBAddr is the address to a local server that simulates a layer 7 load balancer.
-	ALBAddr string
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1309,21 +1278,13 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 
 	var webProxyAddr string
 	var sshProxyAddr string
-	var kubeProxyAddr string
 
-	switch {
-	case cfg.Proxy != nil:
-		webProxyAddr = cfg.Proxy.WebAddr
-		sshProxyAddr = cfg.Proxy.SSHAddr
-		kubeProxyAddr = cfg.Proxy.KubeAddr
-	case cfg.ALBAddr != "":
-		webProxyAddr = cfg.ALBAddr
-		sshProxyAddr = cfg.ALBAddr
-		kubeProxyAddr = cfg.ALBAddr
-	default:
+	if cfg.Proxy == nil {
 		webProxyAddr = i.Web
 		sshProxyAddr = i.SSHProxy
-		kubeProxyAddr = i.Config.Proxy.Kube.ListenAddr.Addr
+	} else {
+		webProxyAddr = cfg.Proxy.WebAddr
+		sshProxyAddr = cfg.Proxy.SSHAddr
 	}
 
 	fwdAgentMode := client.ForwardAgentNo
@@ -1331,32 +1292,26 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		fwdAgentMode = client.ForwardAgentYes
 	}
 
-	if cfg.TeleportUser == "" {
-		cfg.TeleportUser = cfg.Login
-	}
-
 	cconf := &client.Config{
-		Username:                      cfg.TeleportUser,
-		Host:                          cfg.Host,
-		HostPort:                      cfg.Port,
-		HostLogin:                     cfg.Login,
-		InsecureSkipVerify:            true,
-		KeysDir:                       keyDir,
-		SiteName:                      cfg.Cluster,
-		ForwardAgent:                  fwdAgentMode,
-		Labels:                        cfg.Labels,
-		WebProxyAddr:                  webProxyAddr,
-		SSHProxyAddr:                  sshProxyAddr,
-		KubeProxyAddr:                 kubeProxyAddr,
-		InteractiveCommand:            cfg.Interactive,
-		TLSRoutingEnabled:             i.IsSinglePortSetup,
-		TLSRoutingConnUpgradeRequired: cfg.ALBAddr != "",
-		Tracer:                        tracing.NoopProvider().Tracer("test"),
-		EnableEscapeSequences:         cfg.EnableEscapeSequences,
-		Stderr:                        cfg.Stderr,
-		Stdin:                         cfg.Stdin,
-		Stdout:                        cfg.Stdout,
-		NonInteractive:                true,
+		Username:              cfg.Login,
+		Host:                  cfg.Host,
+		HostPort:              cfg.Port,
+		HostLogin:             cfg.Login,
+		InsecureSkipVerify:    true,
+		KeysDir:               keyDir,
+		SiteName:              cfg.Cluster,
+		ForwardAgent:          fwdAgentMode,
+		Labels:                cfg.Labels,
+		WebProxyAddr:          webProxyAddr,
+		SSHProxyAddr:          sshProxyAddr,
+		InteractiveCommand:    cfg.Interactive,
+		TLSRoutingEnabled:     i.IsSinglePortSetup,
+		Tracer:                tracing.NoopProvider().Tracer("test"),
+		EnableEscapeSequences: cfg.EnableEscapeSequences,
+		Stderr:                cfg.Stderr,
+		Stdin:                 cfg.Stdin,
+		Stdout:                cfg.Stdout,
+		NonInteractive:        true,
 	}
 
 	// JumpHost turns on jump host mode
@@ -1420,8 +1375,8 @@ func (i *TeleInstance) NewWebClient(cfg ClientConfig) (*WebClient, error) {
 		return nil, trace.BadParameter("unexpected number of cookies returned; got %d, want %d", len(cookies), 1)
 	}
 	cookie := cookies[0]
-	if cookie.Name != websession.CookieName {
-		return nil, trace.BadParameter("unexpected session cookies returned; got %s, want %s", cookie.Name, websession.CookieName)
+	if cookie.Name != web.CookieName {
+		return nil, trace.BadParameter("unexpected session cookies returned; got %s, want %s", cookie.Name, web.CookieName)
 	}
 
 	tc, err := i.NewUnauthenticatedClient(cfg)
@@ -1567,22 +1522,21 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error
 		return nil, trace.Wrap(err)
 	}
 
-	stream := web.NewTerminalStream(context.Background(), ws, utils.NewLoggerForTests())
+	stream, err := web.NewTerminalStream(ws)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return stream, nil
 }
 
 // AddClientCredentials adds authenticated credentials to a client.
 // (server CAs and signed session key).
 func (i *TeleInstance) AddClientCredentials(tc *client.TeleportClient, cfg ClientConfig) (*client.TeleportClient, error) {
-	login := cfg.Login
-	if cfg.TeleportUser != "" {
-		login = cfg.TeleportUser
-	}
-
 	// Generate certificates for the user simulating login.
 	creds, err := GenerateUserCreds(UserCredsRequest{
 		Process:  i.Process,
-		Username: login,
+		Username: cfg.Login,
 		SourceIP: cfg.SourceIP,
 	})
 	if err != nil {
@@ -1643,27 +1597,6 @@ func (i *TeleInstance) StopNodes() error {
 		}
 	}
 	return trace.NewAggregate(errors...)
-}
-
-// RestartAuth stops and then starts the auth service.
-func (i *TeleInstance) RestartAuth() error {
-	if i.Process == nil {
-		return nil
-	}
-
-	i.Log.Infof("Asking Teleport instance %q to stop", i.Secrets.SiteName)
-	err := i.Process.Close()
-	if err != nil {
-		i.Log.WithError(err).Error("Failed closing the teleport process.")
-		return trace.Wrap(err)
-	}
-	i.Log.Infof("Teleport instance %q stopped!", i.Secrets.SiteName)
-
-	if err := i.Process.Wait(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(i.Process.Start())
 }
 
 // StopAuth stops the auth server process. If removeData is true, the data

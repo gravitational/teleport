@@ -16,19 +16,15 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { Popover, Box } from 'design';
+import { Text, Popover, Box } from 'design';
 
 type Props = {
   borderRadius?: number;
-  badgeTitle?: BadgeTitle;
-  sticky?: boolean;
 };
 
 export const ToolTipNoPermBadge: React.FC<Props> = ({
   children,
   borderRadius = 2,
-  badgeTitle = BadgeTitle.LackingPermissions,
-  sticky = false,
 }) => {
   const [anchorEl, setAnchorEl] = useState();
   const open = Boolean(anchorEl);
@@ -47,7 +43,7 @@ export const ToolTipNoPermBadge: React.FC<Props> = ({
         data-testid="tooltip"
         aria-owns={open ? 'mouse-over-popover' : undefined}
         onMouseEnter={handlePopoverOpen}
-        onMouseLeave={!sticky ? handlePopoverClose : undefined}
+        onMouseLeave={handlePopoverClose}
         borderTopRightRadius={borderRadius}
         borderBottomLeftRadius={borderRadius}
         css={`
@@ -59,10 +55,10 @@ export const ToolTipNoPermBadge: React.FC<Props> = ({
           background-color: ${p => p.theme.colors.error.main};
         `}
       >
-        {badgeTitle}
+        Lacking Permissions
       </Box>
       <Popover
-        modalCss={() => `pointer-events: ${sticky ? 'auto' : 'none'}`}
+        modalCss={() => `pointer-events: none;`}
         onClose={handlePopoverClose}
         open={open}
         anchorEl={anchorEl}
@@ -75,12 +71,7 @@ export const ToolTipNoPermBadge: React.FC<Props> = ({
           horizontal: 'left',
         }}
       >
-        <StyledOnHover
-          px={3}
-          py={2}
-          data-testid="tooltip-msg"
-          onMouseLeave={handlePopoverClose}
-        >
+        <StyledOnHover px={3} py={2} data-testid="tooltip-msg">
           {children}
         </StyledOnHover>
       </Popover>
@@ -88,13 +79,8 @@ export const ToolTipNoPermBadge: React.FC<Props> = ({
   );
 };
 
-const StyledOnHover = styled(Box)`
+const StyledOnHover = styled(Text)`
   background-color: white;
   color: black;
   max-width: 350px;
 `;
-
-export enum BadgeTitle {
-  LackingPermissions = 'Lacking Permissions',
-  LackingEnterpriseLicense = 'Enterprise Only',
-}

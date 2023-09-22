@@ -17,7 +17,7 @@ levels of access to Azure CLIs.
 
 The Teleport Application Service connects to the Teleport Proxy Service over a
 reverse tunnel, so you can run the Application Service in a private network and
-prevent unauthorized access to your organization's Azure identities. 
+prevent unauthorized access to your organization's Azure identities.
 
 ## Prerequisites
 
@@ -34,12 +34,12 @@ prevent unauthorized access to your organization's Azure identities.
 - The ability to create a user-assigned Azure managed identity and attach it to
   your VM. Azure requires three role assignments in your Azure account in order
   to do this: Managed Identity Contributor, Managed Identity Operator, and
-  Virtual Machine Contributor. 
+  Virtual Machine Contributor.
 
   <Admonition type="tip" title="Using existing identities">
 
   In this guide, we will create a user-assigned managed identity to demonstrate
-  Azure CLI access with Teleport. 
+  Azure CLI access with Teleport.
 
   If you have another identity you would like Azure CLI users to assume via
   Teleport, you can use that instead. In this case, you will not need the
@@ -99,7 +99,7 @@ the **Access control (IAM)** tab. In the row of buttons at the top of the
 **Access control (IAM)** panel, click **Add > Add role assignment**.
 
 Within the **Add role assignment** screen, click **Reader**, a built-in role
-with view-only access to resources. 
+with view-only access to resources.
 
 ![Add a role
 assignment](../../../img/application-access/azure/add-role-assignment.png)
@@ -111,7 +111,7 @@ identity**. Click **Select members**.
 
 On the right sidebar, find the **Managed identity** dropdown menu and select
 **User-assigned managed identity**. Choose the `teleport-azure` identity you
-created earlier. 
+created earlier.
 
 ![Select managed
 identities](../../../img/application-access/azure/select-managed-identities.png)
@@ -133,7 +133,7 @@ identity in order to proxy Azure CLI traffic.
 In the [Virtual machines
 view](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Compute%2FVirtualMachines)
 of Azure Portal, click on the name of the VM you are using to host the Teleport
-Application Service. 
+Application Service.
 
 On the right side panel, click the **Identity** tab, then within the
 **Identity** view, click the **User assigned** tab. Click **+Add**, then select
@@ -151,7 +151,7 @@ identity](../../../img/application-access/azure/verify-id.png)
 ## Step 2/4. Deploy the Teleport Application Service
 
 In this step, you will run the Teleport Application Service on the Azure VM you
-assigned the `teleport-azure` identity to. 
+assigned the `teleport-azure` identity to.
 
 (!docs/pages/includes/application-access/app-service-join-token.mdx!)
 
@@ -192,7 +192,7 @@ and port of your Teleport Proxy Service or Teleport Cloud tenant, e.g.,
 `mytenant.teleport.sh:443`.
 
 The `app_service` field configures the Teleport Application Service. Each item
-within `app_service.apps` is an application configuration. 
+within `app_service.apps` is an application configuration.
 
 In this example, we have enabled Azure CLI access by setting `cloud` to `Azure`.
 With this setting configured, the Application Service will proxy user commands
@@ -349,7 +349,7 @@ $ tctl create -f azure-cli-access.yaml
 
 You can define a Teleport role that denies a user access to one or more Azure
 identities. To do so, assign values to the `azure_identities` field within the
-`spec.deny` section of a `role` resource. 
+`spec.deny` section of a `role` resource.
 
 For example, this role denies the user access to all Azure identities:
 
@@ -370,7 +370,7 @@ spec:
 The `no-azure-identities` role enables the user to access all registered
 applications, but makes use of the wildcard character (`*`) within the
 `deny.azure_identities` field to prevent the user from assuming any Azure
-identity. 
+identity.
 
 Unlike values of `allow.azure_identities`, values of `deny.azure_identities` can
 include wildcard expressions in addition to the URIs of specific Azure
@@ -413,7 +413,7 @@ $ tsh apps login azure-cli --azure-identity teleport-azure
 This command validates the value of the `--azure-identity` flag against the ones
 the user is authorized to assume. The value of the flag can either be the full
 URI of the identity (e.g., the URI you copied earlier in this guide) or the name
-of the identity, e.g., `teleport-azure`. 
+of the identity, e.g., `teleport-azure`.
 
 A user can omit the `--azure-identity` flag if they are only authorized to
 access a single Azure identity, but otherwise an empty `--azure-identity` will
@@ -477,7 +477,7 @@ CLI application uses to authenticate requests to Azure's APIs.
 To start the local proxy, run the following `tsh` command:
 
 ```code
-$ tsh proxy azure 
+$ tsh proxy azure
 ```
 
 <Notice type="tip">

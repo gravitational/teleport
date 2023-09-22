@@ -17,9 +17,6 @@
 import React from 'react';
 import { act, render } from '@testing-library/react';
 
-/**
- * @deprecated Use renderHook provided by @testing-library/react-hooks instead.
- */
 export default function renderHook<T extends (...args: any) => any>(
   hooks: T,
   options?: Options

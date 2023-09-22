@@ -52,10 +52,6 @@ type AccessRequest interface {
 	// SetAccessExpiry sets the expiration time for the elevated certificate
 	// that will be issued if the Access Request is approved.
 	SetAccessExpiry(time.Time)
-	// GetSessionTLL gets the session TTL for generated certificates.
-	GetSessionTLL() time.Time
-	// SetSessionTLL sets the session TTL for generated certificates.
-	SetSessionTLL(time.Time)
 	// GetRequestReason gets the reason for the request's creation.
 	GetRequestReason() string
 	// SetRequestReason sets the reason for the request's creation.
@@ -102,10 +98,6 @@ type AccessRequest interface {
 	GetLoginHint() string
 	// SetLoginHint sets the requested login hint.
 	SetLoginHint(string)
-	// GetMaxDuration gets the maximum time at which the access should be approved for.
-	GetMaxDuration() time.Time
-	// SetMaxDuration sets the maximum time at which the access should be approved for.
-	SetMaxDuration(time.Time)
 	// GetDryRun returns true if this request should not be created and is only
 	// a dry run to validate request capabilities.
 	GetDryRun() bool
@@ -189,16 +181,6 @@ func (r *AccessRequestV3) GetAccessExpiry() time.Time {
 // SetAccessExpiry sets AccessExpiry
 func (r *AccessRequestV3) SetAccessExpiry(expiry time.Time) {
 	r.Spec.Expires = expiry.UTC()
-}
-
-// GetSessionTLL gets SessionTLL
-func (r *AccessRequestV3) GetSessionTLL() time.Time {
-	return r.Spec.SessionTTL
-}
-
-// SetSessionTLL sets SessionTLL
-func (r *AccessRequestV3) SetSessionTLL(t time.Time) {
-	r.Spec.SessionTTL = t.UTC()
 }
 
 // GetRequestReason gets RequestReason
@@ -406,16 +388,6 @@ func (r *AccessRequestV3) SetResourceID(id int64) {
 	r.Metadata.SetID(id)
 }
 
-// GetRevision returns the revision
-func (r *AccessRequestV3) GetRevision() string {
-	return r.Metadata.GetRevision()
-}
-
-// SetRevision sets the revision
-func (r *AccessRequestV3) SetRevision(rev string) {
-	r.Metadata.SetRevision(rev)
-}
-
 // GetRequestedResourceIDs gets the resource IDs to which access is being requested.
 func (r *AccessRequestV3) GetRequestedResourceIDs() []ResourceID {
 	return append([]ResourceID{}, r.Spec.RequestedResourceIDs...)
@@ -440,16 +412,6 @@ func (r *AccessRequestV3) SetLoginHint(login string) {
 // a dry run to validate request capabilities.
 func (r *AccessRequestV3) GetDryRun() bool {
 	return r.Spec.DryRun
-}
-
-// GetMaxDuration gets the maximum time at which the access should be approved for.
-func (r *AccessRequestV3) GetMaxDuration() time.Time {
-	return r.Spec.MaxDuration
-}
-
-// SetMaxDuration sets the maximum time at which the access should be approved for.
-func (r *AccessRequestV3) SetMaxDuration(t time.Time) {
-	r.Spec.MaxDuration = t
 }
 
 // SetDryRun sets the dry run flag on the request.

@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import { ButtonSecondary, ButtonWarning, Text } from 'design';
 import * as Alerts from 'design/Alert';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { useAttempt } from 'shared/hooks';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -27,11 +27,11 @@ import Dialog, {
 
 export default function DeleteTrustedClusterDialog(props: Props) {
   const { name, onClose, onDelete } = props;
-  const { attempt, run } = useAttempt('');
-  const isDisabled = attempt.status === 'processing';
+  const [attempt, attempActions] = useAttempt({ isProcessing: false });
+  const isDisabled = attempt.isProcessing;
 
   function onOk() {
-    run(() => onDelete()).then(() => onClose());
+    attempActions.do(() => onDelete()).then(() => onClose());
   }
 
   return (
@@ -40,12 +40,10 @@ export default function DeleteTrustedClusterDialog(props: Props) {
         <DialogTitle>Remove Trusted Cluster?</DialogTitle>
       </DialogHeader>
       <DialogContent width="540px">
-        {attempt.status === 'failed' && (
-          <Alerts.Danger>{attempt.statusText}</Alerts.Danger>
-        )}
+        {attempt.isFailed && <Alerts.Danger>{attempt.message}</Alerts.Danger>}
         <Text typography="paragraph" mb="6">
           Are you sure you want to delete trusted cluster{' '}
-          <Text as="span" bold color="text.main">
+          <Text as="span" bold color="text.contrast">
             {name}
           </Text>
           ?

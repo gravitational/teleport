@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"path/filepath"
 	"sort"
@@ -28,6 +29,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -42,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	s3metrics "github.com/gravitational/teleport/lib/observability/metrics/s3"
 	"github.com/gravitational/teleport/lib/session"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // s3AllowedACL is the set of canned ACLs that S3 accepts
@@ -90,7 +91,7 @@ type Config struct {
 
 	// Insecure is an optional switch to opt out of https connections
 	Insecure bool
-	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
+	//DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption bool
 }
 
@@ -263,7 +264,7 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 	}
 	_, err = h.uploader.UploadWithContext(ctx, uploadInput)
 	if err != nil {
-		return "", awsutils.ConvertS3Error(err)
+		return "", ConvertS3Error(err)
 	}
 	return fmt.Sprintf("%v://%v/%v", teleport.SchemeS3, h.Bucket, path), nil
 }
@@ -286,8 +287,9 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.
 		Key:       aws.String(h.path(sessionID)),
 		VersionId: aws.String(versionID),
 	})
+
 	if err != nil {
-		return awsutils.ConvertS3Error(err)
+		return ConvertS3Error(err)
 	}
 	if written == 0 {
 		return trace.NotFound("recording for %v is not found", sessionID)
@@ -324,7 +326,7 @@ func (h *Handler) getOldestVersion(ctx context.Context, bucket string, prefix st
 		return !lastPage
 	})
 	if err != nil {
-		return "", awsutils.ConvertS3Error(err)
+		return "", ConvertS3Error(err)
 	}
 	if len(versions) == 0 {
 		return "", trace.NotFound("%v/%v not found", bucket, prefix)
@@ -344,7 +346,7 @@ func (h *Handler) deleteBucket(ctx context.Context) error {
 		Bucket: aws.String(h.Bucket),
 	})
 	if err != nil {
-		return awsutils.ConvertS3Error(err)
+		return ConvertS3Error(err)
 	}
 	for _, ver := range out.Versions {
 		_, err := h.client.DeleteObjectWithContext(ctx, &s3.DeleteObjectInput{
@@ -353,13 +355,13 @@ func (h *Handler) deleteBucket(ctx context.Context) error {
 			VersionId: ver.VersionId,
 		})
 		if err != nil {
-			return awsutils.ConvertS3Error(err)
+			return ConvertS3Error(err)
 		}
 	}
 	_, err = h.client.DeleteBucketWithContext(ctx, &s3.DeleteBucketInput{
 		Bucket: aws.String(h.Bucket),
 	})
-	return awsutils.ConvertS3Error(err)
+	return ConvertS3Error(err)
 }
 
 func (h *Handler) path(sessionID session.ID) string {
@@ -378,7 +380,7 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 	_, err := h.client.HeadBucketWithContext(ctx, &s3.HeadBucketInput{
 		Bucket: aws.String(h.Bucket),
 	})
-	err = awsutils.ConvertS3Error(err)
+	err = ConvertS3Error(err)
 	// assumes that bucket is administered by other entity
 	if err == nil {
 		return nil
@@ -392,7 +394,7 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 		ACL:    aws.String("private"),
 	}
 	_, err = h.client.CreateBucketWithContext(ctx, input)
-	err = awsutils.ConvertS3Error(err, fmt.Sprintf("bucket %v already exists", aws.String(h.Bucket)))
+	err = ConvertS3Error(err, fmt.Sprintf("bucket %v already exists", aws.String(h.Bucket)))
 	if err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
@@ -409,7 +411,7 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 		},
 	}
 	_, err = h.client.PutBucketVersioningWithContext(ctx, ver)
-	err = awsutils.ConvertS3Error(err, fmt.Sprintf("failed to set versioning state for bucket %q", h.Bucket))
+	err = ConvertS3Error(err, fmt.Sprintf("failed to set versioning state for bucket %q", h.Bucket))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -426,10 +428,31 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 				}},
 			},
 		})
-		err = awsutils.ConvertS3Error(err, fmt.Sprintf("failed to set versioning state for bucket %q", h.Bucket))
+		err = ConvertS3Error(err, fmt.Sprintf("failed to set versioning state for bucket %q", h.Bucket))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return nil
+}
+
+// ConvertS3Error wraps S3 error and returns trace equivalent
+func ConvertS3Error(err error, args ...interface{}) error {
+	if err == nil {
+		return nil
+	}
+	if rerr, ok := err.(awserr.RequestFailure); ok && rerr.StatusCode() == http.StatusForbidden {
+		return trace.AccessDenied(rerr.Message())
+	}
+	if aerr, ok := err.(awserr.Error); ok {
+		switch aerr.Code() {
+		case s3.ErrCodeNoSuchKey, s3.ErrCodeNoSuchBucket, s3.ErrCodeNoSuchUpload, "NotFound":
+			return trace.NotFound(aerr.Error(), args...)
+		case s3.ErrCodeBucketAlreadyExists, s3.ErrCodeBucketAlreadyOwnedByYou:
+			return trace.AlreadyExists(aerr.Error(), args...)
+		default:
+			return trace.BadParameter(aerr.Error(), args...)
+		}
+	}
+	return err
 }

@@ -61,7 +61,7 @@ join token from the Teleport Auth Service:
 
 ```code
 # Create a join token for the Teleport Kubernetes Service to authenticate
-$ TOKEN=$(tctl tokens add --type=kube,app,discovery --ttl=1h --format=text)
+$ TOKEN=$(tctl tokens add --type=kube --ttl=1h --format=text)
 $ echo $TOKEN
 ```
 
@@ -90,7 +90,7 @@ $ CLUSTER=<Var name="cookie" />
 $ cat > values.yaml << EOF
 authToken: "${TOKEN}"
 proxyAddr: "${PROXY_ADDR}"
-roles: "kube,app,discovery"
+roles: "kube"
 joinParams:
   method: "token"
   tokenName: "${TOKEN}"
@@ -118,7 +118,7 @@ $ CLUSTER=<Var name="cookie" />
 $ cat > values.yaml << EOF
 authToken: "${TOKEN}"
 proxyAddr: "${PROXY_ADDR}"
-roles: "kube,app,discovery"
+roles: "kube"
 joinParams:
   method: "token"
   tokenName: "${TOKEN}"
@@ -148,7 +148,7 @@ $ CLUSTER=<Var name="cookie" />
 $ cat > values.yaml << EOF
 authToken: "${TOKEN}"
 proxyAddr: "${PROXY_ADDR}"
-roles: "kube,app,discovery"
+roles: "kube"
 joinParams:
   method: "token"
   tokenName: "${TOKEN}"
@@ -165,15 +165,6 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
 
 </TabItem>
 </Tabs>
-
-Make sure that the Teleport agent pod is running. You should see one Teleport
-agent pod pod with a single ready container:
-
-```code
-$ kubectl -n teleport get pods
-NAME               READY   STATUS    RESTARTS   AGE
-teleport-agent-0   1/1     Running   0          32s
-```
 
 ## Step 3/3 Access your Kubernetes cluster
 

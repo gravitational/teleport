@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // CreateUpload creates a multipart upload
@@ -58,7 +57,7 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 
 	resp, err := h.client.CreateMultipartUploadWithContext(ctx, input)
 	if err != nil {
-		return nil, awsutils.ConvertS3Error(err)
+		return nil, ConvertS3Error(err)
 	}
 
 	return &events.StreamUpload{SessionID: sessionID, ID: *resp.UploadId}, nil
@@ -87,7 +86,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 
 	resp, err := h.client.UploadPartWithContext(ctx, params)
 	if err != nil {
-		return nil, awsutils.ConvertS3Error(err)
+		return nil, ConvertS3Error(err)
 	}
 
 	return &events.StreamPart{ETag: *resp.ETag, Number: partNumber}, nil
@@ -101,7 +100,7 @@ func (h *Handler) abortUpload(ctx context.Context, upload events.StreamUpload) e
 	}
 	_, err := h.client.AbortMultipartUploadWithContext(ctx, req)
 	if err != nil {
-		return awsutils.ConvertS3Error(err)
+		return ConvertS3Error(err)
 	}
 	return nil
 }
@@ -144,7 +143,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 	_, err := h.client.CompleteMultipartUploadWithContext(ctx, params)
 	if err != nil {
-		return awsutils.ConvertS3Error(err)
+		return ConvertS3Error(err)
 	}
 	return nil
 }
@@ -161,7 +160,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 			PartNumberMarker: partNumberMarker,
 		})
 		if err != nil {
-			return nil, awsutils.ConvertS3Error(err)
+			return nil, ConvertS3Error(err)
 		}
 		for _, part := range re.Parts {
 			parts = append(parts, events.StreamPart{
@@ -200,7 +199,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		}
 		re, err := h.client.ListMultipartUploadsWithContext(ctx, input)
 		if err != nil {
-			return nil, awsutils.ConvertS3Error(err)
+			return nil, ConvertS3Error(err)
 		}
 		for _, upload := range re.Uploads {
 			uploads = append(uploads, events.StreamUpload{

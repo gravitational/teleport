@@ -22,13 +22,10 @@ import (
 
 	"github.com/gravitational/trace"
 
-	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
-
-const databaseEventPrefix = "db/"
 
 func (s *Server) startDatabaseWatchers() error {
 	if len(s.databaseFetchers) == 0 {
@@ -63,8 +60,6 @@ func (s *Server) startDatabaseWatchers() error {
 		Fetchers:       s.databaseFetchers,
 		Log:            s.Log.WithField("kind", types.KindDatabase),
 		DiscoveryGroup: s.DiscoveryGroup,
-		Interval:       s.PollInterval,
-		Origin:         types.OriginCloud,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -116,28 +111,11 @@ func (s *Server) onDatabaseCreate(ctx context.Context, resource types.ResourceWi
 	// In this case, we need to update the resource with the
 	// discovery group label to ensure the user doesn't have to manually delete
 	// the resource.
-	// TODO(tigrato): DELETE on 15.0.0
+	// TODO(tigrato): DELETE on 14.0.0
 	if trace.IsAlreadyExists(err) {
 		return trace.Wrap(s.onDatabaseUpdate(ctx, resource))
 	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
-		databaseEventPrefix + database.GetName(): {
-			ResourceType:   types.DiscoveredResourceDatabase,
-			ResourceOrigin: types.OriginCloud,
-			CloudProvider:  database.GetCloud(),
-			Database: &usageeventsv1.DiscoveredDatabaseMetadata{
-				DbType:     database.GetType(),
-				DbProtocol: database.GetProtocol(),
-			},
-		},
-	})
-	if err != nil {
-		s.Log.WithError(err).Debug("Error emitting usage event.")
-	}
-	return nil
+	return trace.Wrap(err)
 }
 
 func (s *Server) onDatabaseUpdate(ctx context.Context, resource types.ResourceWithLabels) error {
@@ -161,7 +139,7 @@ func (s *Server) onDatabaseDelete(ctx context.Context, resource types.ResourceWi
 func filterResources[T types.ResourceWithLabels, S ~[]T](all S, wantOrigin, wantResourceGroup string) (filtered S) {
 	for _, resource := range all {
 		resourceDiscoveryGroup, _ := resource.GetLabel(types.TeleportInternalDiscoveryGroupName)
-		if (wantOrigin != "" && resource.Origin() != wantOrigin) || resourceDiscoveryGroup != wantResourceGroup {
+		if resource.Origin() != wantOrigin || resourceDiscoveryGroup != wantResourceGroup {
 			continue
 		}
 		filtered = append(filtered, resource)

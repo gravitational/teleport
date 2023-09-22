@@ -21,7 +21,7 @@ import DialogConfirmation, {
   DialogHeader,
 } from 'design/DialogConfirmation';
 import { ButtonIcon, ButtonPrimary, ButtonSecondary, Link, Text } from 'design';
-import { Cross } from 'design/Icon';
+import { Close } from 'design/Icon';
 
 interface UsageDataProps {
   onCancel(): void;
@@ -60,7 +60,7 @@ export function UsageData(props: UsageDataProps) {
             onClick={props.onCancel}
             color="text.slightlyMuted"
           >
-            <Cross size="medium" />
+            <Close fontSize={5} />
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>

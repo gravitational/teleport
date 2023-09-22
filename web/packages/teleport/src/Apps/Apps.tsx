@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { Box, Indicator } from 'design';
+import { Indicator, Box } from 'design';
 
 import useTeleport from 'teleport/useTeleport';
 import {
@@ -25,16 +25,11 @@ import {
 } from 'teleport/components/Layout';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
-import cfg from 'teleport/config';
-import history from 'teleport/services/history/history';
-import localStorage from 'teleport/services/localStorage';
 
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
-import { SearchResource } from 'teleport/Discover/SelectResource';
-
 import AppList from './AppList';
-import { State, useApps } from './useApps';
+import { useApps, State } from './useApps';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -68,18 +63,13 @@ export function Apps(props: State) {
     fetchedData.agents.length === 0 &&
     isSearchEmpty;
 
-  const enabled = localStorage.areUnifiedResourcesEnabled();
-  if (enabled) {
-    history.replace(cfg.getUnifiedResourcesRoute(clusterId));
-  }
-
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Applications</FeatureHeaderTitle>
         {attempt.status === 'success' && !hasNoApps && (
           <AgentButtonAdd
-            agent={SearchResource.APPLICATION}
+            agent="application"
             beginsWithVowel={true}
             isLeafCluster={isLeafCluster}
             canCreate={canCreate}
@@ -126,7 +116,7 @@ const emptyStateInfo: EmptyStateInfo = {
   byline:
     'Teleport Application Access provides secure access to internal applications.',
   docsURL: 'https://goteleport.com/docs/application-access/getting-started/',
-  resourceType: SearchResource.APPLICATION,
+  resourceType: 'application',
   readOnly: {
     title: 'No Applications Found',
     resource: 'applications',

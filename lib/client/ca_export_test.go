@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type mockAuthClient struct {
@@ -38,12 +39,12 @@ func (m *mockAuthClient) GetDomainName(ctx context.Context) (string, error) {
 	return m.server.GetDomainName()
 }
 
-func (m *mockAuthClient) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
-	return m.server.GetCertAuthorities(ctx, caType, loadKeys)
+func (m *mockAuthClient) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+	return m.server.GetCertAuthorities(ctx, caType, loadKeys, opts...)
 }
 
-func (m *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
-	return m.server.GetCertAuthority(ctx, id, loadKeys)
+func (m *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+	return m.server.GetCertAuthority(ctx, id, loadKeys, opts...)
 }
 
 func TestExportAuthorities(t *testing.T) {

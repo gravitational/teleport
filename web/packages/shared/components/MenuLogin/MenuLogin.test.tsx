@@ -30,7 +30,7 @@ test('does not accept an empty value when required is set to true', async () => 
     />
   );
 
-  fireEvent.click(await screen.findByText(/connect/i));
+  fireEvent.click(await screen.findByText('CONNECT'));
   fireEvent.keyPress(await screen.findByPlaceholderText('MenuLogin input'), {
     key: 'Enter',
     keyCode: 13,
@@ -50,7 +50,7 @@ test('accepts an empty value when required is set to false', async () => {
     />
   );
 
-  fireEvent.click(await screen.findByText(/connect/i));
+  fireEvent.click(await screen.findByText('CONNECT'));
   fireEvent.keyPress(await screen.findByPlaceholderText('MenuLogin input'), {
     key: 'Enter',
     keyCode: 13,

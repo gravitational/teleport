@@ -22,14 +22,14 @@ import {
   ServerLightGreen1,
 } from 'teleport/Discover/Desktop/DiscoverDesktops/ServerIcon';
 
-const ripple = rippleColor => keyframes`
+const ripple = keyframes`
   0% {
     box-shadow: 0 0 0 0 rgba(255, 255, 255, 0),
-    0 0 0 40px ${rippleColor};
+    0 0 0 40px rgba(255, 255, 255, 0.18);
   }
   100% {
-    box-shadow: 0 0 0 40px ${rippleColor},
-    0 0 0 40px rgba(255, 255, 255, 0);
+    box-shadow: 0 0 0 40px rgba(255, 255, 255, 0.18),
+    0 0 0 40px rgba(204, 233, 251, 0);
   }
 `;
 
@@ -43,8 +43,7 @@ const Container = styled.div`
 `;
 
 const Ripple = styled.div`
-  animation: ${({ theme }) => ripple(theme.colors.spotBackground[2])} 1.5s
-    linear infinite;
+  animation: ${ripple} 1.5s linear infinite;
   border-radius: 50%;
   width: 100px;
   height: 100px;
@@ -62,6 +61,7 @@ const Ripple = styled.div`
     display: block;
     width: 100px;
     height: 100px;
+    background: rgba(34, 44, 89, 1);
     transform: scale(1);
   }
 `;

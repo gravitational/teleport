@@ -27,7 +27,6 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -43,14 +42,14 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AuthCommand implements `tctl auth` group of commands
 type AuthCommand struct {
-	config                     *servicecfg.Config
+	config                     *service.Config
 	authType                   string
 	genPubPath                 string
 	genPrivPath                string
@@ -77,8 +76,6 @@ type AuthCommand struct {
 	signOverwrite              bool
 	password                   string
 	caType                     string
-	streamTarfile              bool
-	identityWriter             identityfile.ConfigWriter
 
 	rotateGracePeriod time.Duration
 	rotateType        string
@@ -97,7 +94,7 @@ type AuthCommand struct {
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
-func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	a.config = config
 	// operations with authorities
 	auth := app.Command("auth", "Operations with user and host certificate authorities (CAs).").Hidden()
@@ -117,9 +114,8 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	a.authSign.Flag("user", "Teleport user name").StringVar(&a.genUser)
 	a.authSign.Flag("host", "Teleport host name").StringVar(&a.genHost)
 	a.authSign.Flag("out", "Identity output").Short('o').Required().StringVar(&a.output)
-	a.authSign.Flag("format",
-		fmt.Sprintf("Identity format: %s. %s is the default.",
-			identityfile.KnownFileFormats.String(), identityfile.DefaultFormat)).
+	a.authSign.Flag("format", fmt.Sprintf("Identity format: %s. %s is the default.",
+		identityfile.KnownFileFormats.String(), identityfile.DefaultFormat)).
 		Default(string(identityfile.DefaultFormat)).
 		StringVar((*string)(&a.outputFormat))
 	a.authSign.Flag("ttl", "TTL (time to live) for the generated certificate.").
@@ -128,7 +124,6 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	a.authSign.Flag("compat", "OpenSSH compatibility flag").StringVar(&a.compatibility)
 	a.authSign.Flag("proxy", `Address of the Teleport proxy. When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file`).StringVar(&a.proxyAddr)
 	a.authSign.Flag("overwrite", "Whether to overwrite existing destination files. When not set, user will be prompted before overwriting any existing file.").BoolVar(&a.signOverwrite)
-	a.authSign.Flag("tar", "Create a tarball of the resulting certificates and stream to stdout.").BoolVar(&a.streamTarfile)
 	// --kube-cluster was an unfortunately chosen flag name, before teleport
 	// supported kubernetes_service and registered kubernetes clusters that are
 	// not trusted teleport clusters.
@@ -150,14 +145,14 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 		Default(fmt.Sprintf("%v", defaults.RotationGracePeriod)).
 		DurationVar(&a.rotateGracePeriod)
 	a.authRotate.Flag("manual", "Activate manual rotation , set rotation phases manually").BoolVar(&a.rotateManualMode)
-	a.authRotate.Flag("type", fmt.Sprintf("Certificate authority to rotate, one of: %s", strings.Join(getCertAuthTypes(), ", "))).Required().EnumVar(&a.rotateType, getCertAuthTypes()...)
+	a.authRotate.Flag("type", fmt.Sprintf("Certificate authority to rotate, one of: %s", strings.Join(getCertAuthTypes(), ", "))).EnumVar(&a.rotateType, getCertAuthTypes()...)
 	a.authRotate.Flag("phase", fmt.Sprintf("Target rotation phase to set, used in manual rotation, one of: %v", strings.Join(types.RotatePhases, ", "))).StringVar(&a.rotateTargetPhase)
 
 	a.authLS = auth.Command("ls", "List connected auth servers.")
 	a.authLS.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&a.format)
 
 	a.authCRL = auth.Command("crl", "Export empty certificate revocation list (CRL) for certificate authorities.")
-	a.authCRL.Flag("type", fmt.Sprintf("Certificate authority type, one of: %s", strings.Join(allowedCRLCertificateTypes, ", "))).Required().EnumVar(&a.caType, allowedCRLCertificateTypes...)
+	a.authCRL.Flag("type", "certificate authority type").EnumVar(&a.caType, allowedCRLCertificateTypes...)
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
@@ -254,12 +249,6 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.ClientI) error {
-	if a.streamTarfile {
-		tarWriter := newTarWriter(os.Stdout, clockwork.NewRealClock())
-		defer tarWriter.Close()
-		a.identityWriter = tarWriter
-	}
-
 	switch a.outputFormat {
 	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach,
 		identityfile.FormatRedis, identityfile.FormatElasticsearch:
@@ -313,7 +302,6 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI auth.C
 	}
 
 	certDER, _, err := windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
-		CAType:             types.UserCA,
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
 		ActiveDirectorySID: a.windowsSID,
@@ -336,7 +324,6 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI auth.C
 		},
 		Format:               a.outputFormat,
 		OverwriteDestination: a.signOverwrite,
-		Writer:               a.identityWriter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -373,18 +360,25 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 		Key:                  key,
 		Format:               a.outputFormat,
 		OverwriteDestination: a.signOverwrite,
-		Writer:               a.identityWriter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	return trace.Wrap(
-		writeHelperMessageDBmTLS(a.helperMsgDst(), filesWritten, "", a.outputFormat, "", a.streamTarfile))
+		writeHelperMessageDBmTLS(os.Stdout, filesWritten, "", a.outputFormat, ""),
+	)
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process
 func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client auth.ClientI) error {
+	if a.rotateType == "" {
+		return trace.BadParameter("required flag --type not provided; previous versions defaulted to --type=all which is deprecated and will be removed in a future version")
+	}
+	if a.rotateType == string(types.CertAuthTypeAll) {
+		fmt.Println("\033[0;31mNOTICE:\033[0m --type=all will be deprecated in a future version")
+	}
+
 	req := auth.RotateRequest{
 		Type:        types.CertAuthType(a.rotateType),
 		GracePeriod: &a.rotateGracePeriod,
@@ -491,14 +485,11 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 		Key:                  key,
 		Format:               a.outputFormat,
 		OverwriteDestination: a.signOverwrite,
-		Writer:               a.identityWriter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	fmt.Fprintf(a.helperMsgDst(), "\nThe credentials have been written to %s\n", strings.Join(filesWritten, ", "))
-
+	fmt.Printf("\nThe credentials have been written to %s\n", strings.Join(filesWritten, ", "))
 	return nil
 }
 
@@ -526,14 +517,13 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 		TTL:                a.genTTL,
 		Key:                key,
 		Password:           a.password,
-		IdentityFileWriter: a.identityWriter,
 	}
 	filesWritten, err := db.GenerateDatabaseCertificates(ctx, dbCertReq)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(writeHelperMessageDBmTLS(a.helperMsgDst(), filesWritten, a.output, a.outputFormat, a.password, a.streamTarfile))
+	return trace.Wrap(writeHelperMessageDBmTLS(os.Stdout, filesWritten, a.output, a.outputFormat, a.password))
 }
 
 var mapIdentityFileFormatHelperTemplate = map[identityfile.Format]*template.Template{
@@ -548,7 +538,7 @@ var mapIdentityFileFormatHelperTemplate = map[identityfile.Format]*template.Temp
 	identityfile.FormatOracle:        oracleAuthSignTpl,
 }
 
-func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output string, outputFormat identityfile.Format, password string, tarOutput bool) error {
+func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output string, outputFormat identityfile.Format, password string) error {
 	if writer == nil {
 		return nil
 	}
@@ -560,10 +550,9 @@ func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output st
 		return nil
 	}
 	tplVars := map[string]interface{}{
-		"files":     strings.Join(filesWritten, ", "),
-		"password":  password,
-		"output":    output,
-		"tarOutput": tarOutput,
+		"files":    strings.Join(filesWritten, ", "),
+		"password": password,
+		"output":   output,
 	}
 	if outputFormat == defaults.ProtocolOracle {
 		tplVars["manualOrapkiFlow"] = len(filesWritten) != 1
@@ -575,14 +564,7 @@ func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output st
 
 var (
 	// dbAuthSignTpl is printed when user generates credentials for a self-hosted database.
-	dbAuthSignTpl = template.Must(template.New("").Parse(
-		`{{if .tarOutput }}
-To unpack the tar archive, pipe the output of tctl to 'tar x'. For example: 
-
-$ tctl auth sign ${FLAGS} | tar -xv
-{{else}}
-Database credentials have been written to {{.files}}.
-{{end}}
+	dbAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
 
 To enable mutual TLS on your PostgreSQL server, add the following to its postgresql.conf configuration file:
 
@@ -600,14 +582,7 @@ ssl-key=/path/to/{{.output}}.key
 ssl-ca=/path/to/{{.output}}.cas
 `))
 	// mongoAuthSignTpl is printed when user generates credentials for a MongoDB database.
-	mongoAuthSignTpl = template.Must(template.New("").Parse(
-		`{{- if .tarOutput -}}
-To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example: 
-
-$ tctl auth sign ${FLAGS} | tar -x
-{{- else -}}
-Database credentials have been written to {{.files}}.
-{{- end }}
+	mongoAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
 
 To enable mutual TLS on your MongoDB server, add the following to its
 mongod.yaml configuration file:
@@ -628,15 +603,8 @@ cockroach start \
   # other flags...
 `))
 
-	redisAuthSignTpl = template.Must(template.New("").Parse(
-		`{{- if .tarOutput }}
-Unpack the tar archive by piping the output of tctl to 'tar x'. For example: 
+	redisAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
 
-$ tctl auth sign ${CERT_FLAGS} | tar -xv
-{{else}}
-Database credentials have been written to {{.files}}.
-{{end}}	
-	
 To enable mutual TLS on your Redis server, add the following to your redis.conf:
 
 tls-ca-cert-file /path/to/{{.output}}.cas
@@ -651,14 +619,7 @@ Please add the generated key to the Snowflake users as described here:
 https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-public-key-to-a-snowflake-user
 `))
 
-	elasticsearchAuthSignTpl = template.Must(template.New("").Parse(
-		`{{- if .tarOutput -}}
-To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example: 
-
-$ tctl auth sign ${FLAGS} | tar -x
-{{- else -}}
-Database credentials have been written to {{.files}}.
-{{- end }}
+	elasticsearchAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
 
 To enable mutual TLS on your Elasticsearch server, add the following to your elasticsearch.yml:
 
@@ -679,15 +640,7 @@ For more information on configuring security settings in Elasticsearch, see:
 https://www.elastic.co/guide/en/elasticsearch/reference/current/security-settings.html
 `))
 
-	cassandraAuthSignTpl = template.Must(template.New("").Parse(
-		`{{- if .tarOutput -}}
-To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example: 
-
-$ tctl auth sign ${FLAGS} | tar -x
-{{- else -}}
-Database credentials have been written to {{.files}}.
-{{- end }}
-
+	cassandraAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
 To enable mutual TLS on your Cassandra server, add the following to your
 cassandra.yaml configuration file:
 client_encryption_options:
@@ -704,13 +657,8 @@ client_encryption_options:
    cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]
 `))
 
-	oracleAuthSignTpl = template.Must(template.New("").Parse(
-		`{{- if .tarOutput -}}
-To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example: 
-
-$ tctl auth sign ${FLAGS} | tar -x
-{{- end }}
-{{- if .manualOrapkiFlow}}
+	oracleAuthSignTpl = template.Must(template.New("").Parse(`
+{{if .manualOrapkiFlow}}
 Orapki binary was not found. Please create oracle wallet file manually by running the following commands on the Oracle server:
 
 orapki wallet create -wallet {{.walletDir}} -auto_login_only
@@ -904,7 +852,6 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		KubeClusterName:      a.kubeCluster,
 		KubeTLSServerName:    kubeTLSServerName,
 		OverwriteDestination: a.signOverwrite,
-		Writer:               a.identityWriter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -915,8 +862,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		os.Stderr,
 		"\nGenerating credentials to allow a machine access to Teleport? We recommend Teleport's Machine ID! Find out more at https://goteleport.com/r/machineid-tip",
 	)
-
-	fmt.Fprintf(a.helperMsgDst(), "The credentials have been written to %s\n", strings.Join(filesWritten, ", "))
+	fmt.Printf("The credentials have been written to %s\n", strings.Join(filesWritten, ", "))
 
 	return nil
 }
@@ -1132,12 +1078,6 @@ func getCertAuthTypes() []string {
 	for _, at := range types.CertAuthTypes {
 		t = append(t, string(at))
 	}
+	t = append(t, string(types.CertAuthTypeAll))
 	return t
-}
-
-func (a *AuthCommand) helperMsgDst() io.Writer {
-	if a.streamTarfile {
-		return os.Stderr
-	}
-	return os.Stdout
 }

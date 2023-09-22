@@ -17,7 +17,7 @@ limitations under the License.
 import React, { useEffect, useRef, useState } from 'react';
 import styled, { css, useTheme } from 'styled-components';
 import { ButtonIcon, Flex, Link, Text } from 'design';
-import { Cross } from 'design/Icon';
+import { Close } from 'design/Icon';
 
 import type { NotificationItem, NotificationItemContent } from './types';
 
@@ -89,7 +89,7 @@ export function Notification(props: NotificationProps) {
         onRemove();
       }}
     >
-      <Cross size="small" />
+      <Close />
     </ButtonIcon>
   );
 
@@ -112,7 +112,7 @@ export function Notification(props: NotificationProps) {
       {...styleProps}
     >
       <Flex alignItems="center" mr={1} minWidth="0" width="100%">
-        <Icon color={getColor(theme)} mr={3} size="medium" />
+        <Icon color={getColor(theme)} mr={3} fontSize={16} />
         {getRenderedContent(item.content, isExpanded, removeIcon)}
       </Flex>
     </Container>
@@ -232,7 +232,7 @@ const shortTextCss = css`
 const Container = styled(Flex)`
   flex-direction: row;
   justify-content: space-between;
-  background: ${props => props.theme.colors.levels.elevated};
+  background: ${props => props.theme.colors.levels.surface};
   min-height: 40px;
   width: 320px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);

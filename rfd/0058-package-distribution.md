@@ -23,7 +23,7 @@ GCP Artifact Registry is in preview and has not had an update since 11/2021. It'
 As discussed below, JFrog Artifactory and PackageCloud are non-starters due to their signing key requirements.
 
 #### Implementation details and proof of concept
-The following channel scheme is proposed for APT and YUM with the S3-hosted option:
+The follwing channel scheme is proposed for APT and YUM with the S3-hosted option:
 
 APT: `deb https://apt.<domain>/<os> <os version> non-free/<stable/testing/nightly>/<v6/v7/v8/...>`
 
@@ -36,11 +36,11 @@ A tool implementing the required APT changes is available [here](./build.assets/
 ### Future work
 While a specific solution is outside of the scope of this RFD, it is pertinent to discuss a disaster scenario that is common to all solutions, including the current one. If the hosting solution that contains the repo (i.e. a S3 bucket or GCP Artifact Registry) is deleted then all artifacts must be rebuilt and published from scratch. It looks like the Drone pipeline for Teleport takes around 90 minutes to run. Depending on how many instances can be ran at once without conflicting with each other, it could take several hours to get the repository back online to it's previous state. This could be alleviated by backing up artifacts after they're built, or by backing up the entire hosting solution. 
 
-#### Backwards compatibility
+#### Backwards compatiblity
 To maintain backwards compatibility with our current solution we will host both the new and old repos in parallel. We will also remove the old repo from Teleport's documentation, replacing it with the new repo. This will prevent our customers from seeing a breaking change while migrating new users to the new repo.
 
 ### Research
-The current solution consists of using `reprepro` to build a new APT repo with only that latest Teleport version. There is no channel support and while all previous releases of Teleport are stored in the APT S3 bucket, `reprepro` only lists the most recent release in the index. YUM repositories are created with the `createrepo` tool. This tool has the flexibility we require to support multiple channels, but the pipelines are not currently configured to do so.
+The current solution consists of using `reprepro` to build a new APT repo with only thet latest Teleport version. There is no channel support and while all previous releases of Teleport are stored in the APT S3 bucket, `reprepro` only lists the most recent release in the index. YUM repositories are created with the `createrepo` tool. This tool has the flexibility we require to support multiple channels, but the pipelines are not currently configured to do so.
 
 Fixing the current solution without moving to a third-part hosting solution is broadly defined as replacing `reprepro` with `aptly`, and by updating the APT and RPM publishing tool's configuration in the Drone pipeline to support channels.
 
@@ -60,7 +60,7 @@ Several potential solutions were investigated and their features compared as sho
 | Supports self hosting                      | N/A                        | N/A                                                                                                          | Yes                                                                     | Yes                                            | No                                                                                |
 | Has official Terraform provider            | N/A                        | N/A                                                                                                          | Yes                                                                     | No                                             | Yes                                                                               |
 | Pricing ($)                                | N/A                        | N/A                                                                                                          | $700/month                                                              | $700/month                                     | $0.1/GB/month stored, $0.09/GB/month egress                                       |
-| Notes:                                     |                            | Can do anything we want, just depends on the amount of initial and recurring engineering effort is required | Higher complexity, but supports pretty much any use case we'd ever need | Easy to use but probably not the best solution | Still in preview, not generally available                                         |
+| Notes:                                     |                            | Can do anything we want, just depends on the amount of initial and reoccuring engineering effort is required | Higher complexity, but supports pretty much any use case we'd ever need | Easy to use but probably not the best solution | Still in preview, not generally available                                         |
 
 ### Signing key management
 JFrog Artifactory and PackageCloud require handing over our repo signing keys to them, which is a non-starter. While GCP requires using their own signing key (which is used for all GCP repositories in a given region), it is assumed that their security is sufficient to protect said key. Lastly, fixing the current solution will keep us in control of the key, but will require us to continuing storing and securing it ourselves.

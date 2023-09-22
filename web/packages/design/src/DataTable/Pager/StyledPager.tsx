@@ -16,20 +16,36 @@
 
 import styled from 'styled-components';
 
-import { ButtonIcon } from 'design';
+import Icon from 'design/Icon';
 
-export const StyledArrowBtn = styled(ButtonIcon)`
-  svg {
+export const StyledArrowBtn = styled.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+
+  ${Icon} {
     font-size: 20px;
+    transition: all 0.3s;
+    opacity: 0.5;
   }
-  svg:before {
-    // arrow icons have some padding that makes them look slightly off-center, padding compensates it
-    padding-left: 1px;
+
+  &:hover,
+  &:focus {
+    ${Icon} {
+      opacity: 1;
+    }
+  }
+
+  &:disabled {
+    cursor: default;
+    ${Icon} {
+      opacity: 0.1;
+    }
   }
 `;
 
 export const StyledFetchMoreBtn = styled.button`
-  color: ${props => props.theme.colors.buttons.link.default};
+  color: ${props => props.theme.colors.link};
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -45,7 +61,7 @@ export const StyledFetchMoreBtn = styled.button`
   }
 
   &:disabled {
-    color: ${props => props.theme.colors.text.disabled};
+    color: ${props => props.theme.colors.action.disabled};
     cursor: wait;
   }
 `;

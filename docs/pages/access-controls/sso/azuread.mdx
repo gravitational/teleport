@@ -46,7 +46,7 @@ Before you get started, you’ll need:
    Teleport), and select **Integrate any other application you don't find in
    the gallery (Non-gallery)**.
 
-   ![Select Non-gallery application](../../../img/azuread/azuread-3-createnongalleryapp.png)
+   ![Select Non-gallery application](../../../img/azuread/azuread-3-selectnongalleryapp.png)
 
 1. Select **Properties** under **Manage** and set **Assignment required?** to **No**
 
@@ -72,19 +72,19 @@ Before you get started, you’ll need:
 
    ![Put in Entity ID and Reply URL](../../../img/azuread/azuread-7-entityandreplyurl.png)
 
-   Click **Save** before proceeding to the next step.
+ Click **Save** before proceeding to the next step.
 
 1. In **SAML Certificates** section, copy the **App Federation
    Metadata URL** link and save it for use in our Teleport connector configuration:
 
-   ![Download Federation Metadata XML](../../../img/azuread/azuread-9-fedmeatadataxml.png)
+   ![Download Federation Metadata XML](../../../img/azuread/azuread-10-fedmeatadataxml.png)
 
 ### Edit attributes & claims
 
 1. Click on **Unique User Identifier (Name ID)** under **Required claim**.
 
 1. Change the "name identifier format" to **Default**. Make sure the source
-  attribute is `user.userprincipalname`.
+   attribute is `user.userprincipalname`.
 
    ![Confirm Name Identifier](../../../img/azuread/azuread-8a-nameidentifier.png)
 
@@ -200,16 +200,18 @@ $ tctl create dev.yaml
 
 (!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
-## Token encryption (Optional)
+## Token encryption
 
 Azure AD's SAML token encryption encrypts the SAML assertions sent to Teleport
 during SSO redirect.
 
-Token encryption is an Azure Active Directory premium feature and requires a
-separate license. Since traffic between Azure AD and the Teleport Proxy Service
-already uses HTTPS, token encryption is optional. To determine whether you
-should enable token encryption, read the Azure AD
-[documentation](https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/howto-saml-token-encryption).
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  This is Azure Active Directory Premium feature and requires a separate license.
+  You can read more about it [here](https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/howto-saml-token-encryption).
+</Admonition>
 
 ### Set up Teleport token encryption
 

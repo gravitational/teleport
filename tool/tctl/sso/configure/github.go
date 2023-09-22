@@ -49,15 +49,8 @@ func addGithubCommand(cmd *SSOConfigureCommand) *AuthKindCommand {
 	sub.Flag("display", "Sets the connector display name.").StringVar(&spec.Display)
 	sub.Flag("id", "GitHub app client ID.").PlaceHolder("ID").Required().StringVar(&spec.ClientID)
 	sub.Flag("secret", "GitHub app client secret.").Required().PlaceHolder("SECRET").StringVar(&spec.ClientSecret)
-	sub.Flag("endpoint-url", "Endpoint URL for GitHub instance.").
-		PlaceHolder("URL").
-		Default(types.GithubURL).
-		StringVar(&spec.EndpointURL)
-
-	sub.Flag("api-endpoint-url", "API endpoint URL for GitHub instance.").
-		PlaceHolder("URL").
-		Default(types.GithubAPIURL).
-		StringVar(&spec.APIEndpointURL)
+	sub.Flag("endpoint-url", "Endpoint URL for GitHub instance.").StringVar(&spec.EndpointURL)
+	sub.Flag("api-endpoint-url", "API endpoint URL for GitHub instance.").StringVar(&spec.APIEndpointURL)
 
 	// auto
 	sub.Flag("redirect-url", "Authorization callback URL.").PlaceHolder("URL").StringVar(&spec.RedirectURL)

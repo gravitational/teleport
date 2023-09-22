@@ -45,6 +45,6 @@ test('search generates correct url params', () => {
   fireEvent.submit(screen.getByPlaceholderText(/SEARCH.../i));
 
   expect(replaceHistory).toHaveBeenCalledWith(
-    'test.com/cluster/one/desktops?search=test&sort=name%3Aasc'
+    'test.com/cluster/one/desktops?search=test&sort=name:asc'
   );
 });

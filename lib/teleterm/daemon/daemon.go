@@ -16,23 +16,17 @@ package daemon
 
 import (
 	"context"
-	"os/exec"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
-	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/teleterm/services/connectmycomputer"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
@@ -42,13 +36,6 @@ const (
 	// should be used for quick one-off calls where the client doesn't need the server or the user to
 	// perform any additional work, such as the SendNotification RPC.
 	tshdEventsTimeout = time.Second
-
-	// imporantModalWaitDuraiton is the amount of time to wait between sending tshd events that
-	// display important modals in the Electron App. This ensures a clear transition between modals.
-	imporantModalWaitDuraiton = time.Second / 2
-
-	// The Electron App can only display one important modal at a time.
-	maxConcurrentImportantModals = 1
 )
 
 // New creates an instance of Daemon service
@@ -68,70 +55,12 @@ func New(cfg Config) (*Service, error) {
 	go connectUsageReporter.Run(closeContext)
 
 	return &Service{
-		cfg:                    &cfg,
-		closeContext:           closeContext,
-		cancel:                 cancel,
-		gateways:               make(map[string]gateway.Gateway),
-		usageReporter:          connectUsageReporter,
-		headlessWatcherClosers: make(map[string]context.CancelFunc),
+		cfg:           &cfg,
+		closeContext:  closeContext,
+		cancel:        cancel,
+		gateways:      make(map[string]*gateway.Gateway),
+		usageReporter: connectUsageReporter,
 	}, nil
-}
-
-// relogin makes the Electron app display a login modal to trigger re-login.
-func (s *Service) relogin(ctx context.Context, req *api.ReloginRequest) error {
-	// Relogin may be triggered by multiple gateways simultaneously. To prevent
-	// redundant relogin requests, cut short additional relogin requests.
-	if !s.reloginMu.TryLock() {
-		return trace.AlreadyExists("another relogin request is in progress")
-	}
-	defer s.reloginMu.Unlock()
-
-	if err := s.importantModalSemaphore.Acquire(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-	defer s.importantModalSemaphore.Release()
-
-	const reloginUserTimeout = time.Minute
-	timeoutCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, reloginUserTimeout)
-	defer cancelTshdEventsCtx()
-
-	if _, err := s.tshdEventsClient.Relogin(timeoutCtx, req); err != nil {
-		if status.Code(err) == codes.DeadlineExceeded {
-			return trace.Wrap(err, "the user did not refresh the session within %s", reloginUserTimeout.String())
-		}
-
-		return trace.Wrap(err, "could not refresh the session")
-	}
-
-	return nil
-}
-
-// retryWithRelogin tries the given function. If the function returns an error that appears to be
-// resolvable with relogin, then it requests relogin and tries the function a second time.
-//
-// retryWithRelogin is reserved for cases where the retryable request does not originate from the
-// Electron app, for example when the request is made a long-running goroutine such as a gateway.
-// When the request originates from the Electron app and daemon.Service is merely an intermediary,
-// the retry flow is handled by clusters.addMetadataToRetryableError and the JavaScript version of
-// client.RetryWithRelogin with the same name.
-func (s *Service) retryWithRelogin(ctx context.Context, reloginReq *api.ReloginRequest, fn func() error) error {
-	err := fn()
-	if err == nil {
-		return nil
-	}
-
-	// Do not ask for relogin if the error cannot be resolved with relogin.
-	if !client.IsErrorResolvableWithRelogin(err) {
-		return trace.Wrap(err)
-	}
-
-	err = s.relogin(ctx, reloginReq)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = fn()
-	return trace.Wrap(err)
 }
 
 // ListRootClusters returns a list of root clusters
@@ -146,7 +75,7 @@ func (s *Service) ListRootClusters(ctx context.Context) ([]*clusters.Cluster, er
 
 // ListLeafClusters returns a list of leaf clusters
 func (s *Service) ListLeafClusters(ctx context.Context, uri string) ([]clusters.LeafCluster, error) {
-	cluster, _, err := s.ResolveCluster(uri)
+	cluster, err := s.ResolveCluster(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -166,7 +95,7 @@ func (s *Service) ListLeafClusters(ctx context.Context, uri string) ([]clusters.
 
 // AddCluster adds a cluster
 func (s *Service) AddCluster(ctx context.Context, webProxyAddress string) (*clusters.Cluster, error) {
-	cluster, _, err := s.cfg.Storage.Add(ctx, webProxyAddress)
+	cluster, err := s.cfg.Storage.Add(ctx, webProxyAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -176,7 +105,7 @@ func (s *Service) AddCluster(ctx context.Context, webProxyAddress string) (*clus
 
 // RemoveCluster removes cluster
 func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
-	cluster, _, err := s.ResolveCluster(uri)
+	cluster, err := s.ResolveCluster(uri)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -198,45 +127,34 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 //
 // It doesn't make network requests so the returned clusters.Cluster will not include full
 // information returned from the web/auth servers.
-func (s *Service) ResolveCluster(path string) (*clusters.Cluster, *client.TeleportClient, error) {
-	resourceURI, err := uri.Parse(path)
+func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
+	cluster, err := s.cfg.Storage.GetByResourceURI(uri)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	cluster, clusterClient, err := s.ResolveClusterURI(resourceURI)
-	return cluster, clusterClient, trace.Wrap(err)
-}
 
-// ResolveClusterURI is like ResolveCluster, but it accepts an already parsed URI instead of a
-// string.
-//
-// In the future, we should migrate towards ResolveClusterURI. Transforming strings into URIs should
-// be done on the outermost layer, that is the gRPC handlers, so that the inner core doesn't have to
-// worry about parsing URIs and can assume they are correct.
-func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
-	cluster, clusterClient, err := s.cfg.Storage.GetByResourceURI(uri)
-	return cluster, clusterClient, trace.Wrap(err)
+	return cluster, nil
 }
 
 // ResolveClusterWithDetails returns fully detailed cluster information. It makes requests to the auth server and includes
 // details about the cluster and logged in user.
-func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*clusters.ClusterWithDetails, *client.TeleportClient, error) {
-	cluster, clusterClient, err := s.ResolveCluster(uri)
+func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*clusters.ClusterWithDetails, error) {
+	cluster, err := s.ResolveCluster(uri)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	withDetails, err := cluster.GetWithDetails(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return withDetails, clusterClient, nil
+	return withDetails, nil
 }
 
 // ClusterLogout logs a user out from the cluster
 func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
-	cluster, _, err := s.ResolveCluster(uri)
+	cluster, err := s.ResolveCluster(uri)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -245,15 +163,11 @@ func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := s.StopHeadlessWatcher(uri); err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 
 // CreateGateway creates a gateway to given targetURI
-func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
+func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -266,27 +180,20 @@ func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams)
 }
 
 type GatewayCreator interface {
-	CreateGateway(context.Context, clusters.CreateGatewayParams) (gateway.Gateway, error)
+	CreateGateway(context.Context, clusters.CreateGatewayParams) (*gateway.Gateway, error)
 }
 
 // createGateway assumes that mu is already held by a public method.
-func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
-	targetURI, err := uri.ParseGatewayTargetURI(params.TargetURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if gateway, ok := s.shouldReuseGateway(targetURI); ok {
-		return gateway, nil
-	}
-
+func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
+	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.cfg.Storage, dbcmd.SystemExecer{})
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
-		TargetURI:             targetURI,
+		TargetURI:             params.TargetURI,
 		TargetUser:            params.TargetUser,
 		TargetSubresourceName: params.TargetSubresourceName,
 		LocalPort:             params.LocalPort,
-		OnExpiredCert:         s.reissueGatewayCerts,
-		KubeconfigsDir:        s.cfg.KubeconfigsDir,
+		CLICommandProvider:    cliCommandProvider,
+		TCPPortAllocator:      s.cfg.TCPPortAllocator,
+		OnExpiredCert:         s.onExpiredGatewayCert,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -305,56 +212,13 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	return gateway, nil
 }
 
-// reissueGatewayCerts tries to reissue gateway certs.
-func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) error {
-	reloginReq := &api.ReloginRequest{
-		RootClusterUri: g.TargetURI().GetClusterURI().String(),
-		Reason: &api.ReloginRequest_GatewayCertExpired{
-			GatewayCertExpired: &api.GatewayCertExpired{
-				GatewayUri: g.URI().String(),
-				TargetUri:  g.TargetURI().String(),
-			},
-		},
-	}
-
-	reissueDBCerts := func() error {
-		cluster, _, err := s.ResolveClusterURI(g.TargetURI())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := cluster.ReissueGatewayCerts(ctx, g); err != nil {
-			return trace.Wrap(err)
-		}
-
-		return trace.Wrap(g.ReloadCert())
-	}
-
-	// If the gateway certs have expired but the user cert is active,
-	// new certs can be obtained without having to relogin first.
-	//
-	// This can happen if the user cert was refreshed by anything other than the gateway itself. For
-	// example, if you execute `tsh ssh` within Connect after your user cert expires or there are two
-	// gateways that subsequently go through this flow.
-	if err := s.retryWithRelogin(ctx, reloginReq, reissueDBCerts); err != nil {
-		notifyErr := s.notifyApp(ctx, &api.SendNotificationRequest{
-			Subject: &api.SendNotificationRequest_CannotProxyGatewayConnection{
-				CannotProxyGatewayConnection: &api.CannotProxyGatewayConnection{
-					GatewayUri: g.URI().String(),
-					TargetUri:  g.TargetURI().String(),
-					Error:      err.Error(),
-				},
-			},
-		})
-		if notifyErr != nil {
-			s.cfg.Log.WithError(notifyErr).Error("Failed to send a notification for an error encountered during gateway cert reissue")
-		}
-
-		// Return the error to the alpn.LocalProxy's middleware.
+func (s *Service) onExpiredGatewayCert(ctx context.Context, gateway *gateway.Gateway) error {
+	cluster, err := s.ResolveCluster(gateway.TargetURI())
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	return trace.Wrap(s.cfg.GatewayCertReissuer.ReissueCert(ctx, gateway, cluster))
 }
 
 // RemoveGateway removes cluster gateway
@@ -375,7 +239,7 @@ func (s *Service) RemoveGateway(gatewayURI string) error {
 }
 
 // removeGateway assumes that mu is already held by a public method.
-func (s *Service) removeGateway(gateway gateway.Gateway) error {
+func (s *Service) removeGateway(gateway *gateway.Gateway) error {
 	// If gateway.Close() fails it most likely means it was called on a gateway that was already
 	// closed and that we have a race condition. Let's return an error in that case.
 	if err := gateway.Close(); err != nil {
@@ -388,7 +252,7 @@ func (s *Service) removeGateway(gateway gateway.Gateway) error {
 }
 
 // findGateway assumes that mu is already held by a public method.
-func (s *Service) findGateway(gatewayURI string) (gateway.Gateway, error) {
+func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
 	if gateway, ok := s.gateways[gatewayURI]; ok {
 		return gateway, nil
 	}
@@ -403,37 +267,15 @@ func (s *Service) ListGateways() []gateway.Gateway {
 
 	gws := make([]gateway.Gateway, 0, len(s.gateways))
 	for _, gateway := range s.gateways {
-		gws = append(gws, gateway)
+		gws = append(gws, *gateway)
 	}
 
 	return gws
 }
 
-// GetGatewayCLICommand creates the CLI command used for the provided gateway.
-func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (*exec.Cmd, error) {
-	targetURI := gateway.TargetURI()
-	switch {
-	case targetURI.IsDB():
-		cluster, _, err := s.cfg.Storage.GetByResourceURI(targetURI)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		cmd, err := cmd.NewDBCLICommand(cluster, gateway)
-		return cmd, trace.Wrap(err)
-
-	case targetURI.IsKube():
-		cmd, err := cmd.NewKubeCLICommand(gateway)
-		return cmd, trace.Wrap(err)
-
-	default:
-		return nil, trace.NotImplemented("gateway not supported for %v", targetURI)
-	}
-}
-
 // SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
 // s.gateways.
-func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceName string) (gateway.Gateway, error) {
+func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceName string) (*gateway.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -456,7 +298,7 @@ func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceN
 // correct that mistake and choose a different port.
 //
 // SetGatewayLocalPort is a noop if port is equal to the existing port.
-func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gateway, error) {
+func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -502,7 +344,7 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 
 // GetServers accepts parameterized input to enable searching, sorting, and pagination.
 func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) (*clusters.GetServersResponse, error) {
-	cluster, _, err := s.ResolveCluster(req.ClusterUri)
+	cluster, err := s.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -516,7 +358,7 @@ func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) (*
 }
 
 func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*api.GetRequestableRolesResponse, error) {
-	cluster, _, err := s.ResolveCluster(req.ClusterUri)
+	cluster, err := s.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -534,7 +376,7 @@ func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 
 // GetAccessRequests returns all access requests with filtered input
 func (s *Service) GetAccessRequests(ctx context.Context, req *api.GetAccessRequestsRequest) ([]clusters.AccessRequest, error) {
-	cluster, _, err := s.ResolveCluster(req.ClusterUri)
+	cluster, err := s.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -552,7 +394,7 @@ func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessReques
 		return nil, trace.BadParameter("missing request id")
 	}
 
-	cluster, _, err := s.ResolveCluster(req.ClusterUri)
+	cluster, err := s.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -569,7 +411,7 @@ func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessReques
 
 // CreateAccessRequest creates an access request
 func (s *Service) CreateAccessRequest(ctx context.Context, req *api.CreateAccessRequestRequest) (*clusters.AccessRequest, error) {
-	cluster, _, err := s.ResolveCluster(req.RootClusterUri)
+	cluster, err := s.ResolveCluster(req.RootClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -582,7 +424,7 @@ func (s *Service) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 }
 
 func (s *Service) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccessRequestRequest) (*clusters.AccessRequest, error) {
-	cluster, _, err := s.ResolveCluster(req.RootClusterUri)
+	cluster, err := s.ResolveCluster(req.RootClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -599,7 +441,7 @@ func (s *Service) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 		return trace.BadParameter("missing request id")
 	}
 
-	cluster, _, err := s.ResolveCluster(req.RootClusterUri)
+	cluster, err := s.ResolveCluster((req.RootClusterUri))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -613,7 +455,7 @@ func (s *Service) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 }
 
 func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) error {
-	cluster, _, err := s.ResolveCluster(req.RootClusterUri)
+	cluster, err := s.ResolveCluster(req.RootClusterUri)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -628,7 +470,7 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 
 // GetKubes accepts parameterized input to enable searching, sorting, and pagination.
 func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clusters.GetKubesResponse, error) {
-	cluster, _, err := s.ResolveCluster(req.ClusterUri)
+	cluster, err := s.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -660,8 +502,6 @@ func (s *Service) Stop() {
 	for _, gateway := range s.gateways {
 		gateway.Close()
 	}
-
-	s.StopHeadlessWatchers()
 
 	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
 	defer cancel()
@@ -697,29 +537,15 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	}
 
 	client := api.NewTshdEventsServiceClient(conn)
-
-	s.tshdEventsClient = client
-	s.importantModalSemaphore = newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton)
-
-	// Resume headless watchers for any active login sessions.
-	if err := s.StartHeadlessWatchers(); err != nil {
-		return trace.Wrap(err)
-	}
+	// If the need arises to reuse the client in other places,
+	// read https://github.com/gravitational/teleport/pull/17950#discussion_r1039434456
+	s.cfg.GatewayCertReissuer.TSHDEventsClient = client
 
 	return nil
 }
 
-// notifyApp sends a notification (usually an error) to the Electron App.
-func (s *Service) notifyApp(ctx context.Context, notification *api.SendNotificationRequest) error {
-	tshdEventsCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, tshdEventsTimeout)
-	defer cancelTshdEventsCtx()
-
-	_, err := s.tshdEventsClient.SendNotification(tshdEventsCtx, notification)
-	return trace.Wrap(err)
-}
-
 func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress clusters.FileTransferProgressSender) error {
-	cluster, _, err := s.ResolveCluster(request.GetServerUri())
+	cluster, err := s.ResolveCluster(request.GetServerUri())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -727,213 +553,20 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 	return cluster.TransferFile(ctx, request, sendProgress)
 }
 
-// CreateConnectMyComputerRole creates a role which allows access to nodes with the label
-// teleport.dev/connect-my-computer/owner: <cluster user> and allows logging in to those nodes as
-// the current system user.
-func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.CreateConnectMyComputerRoleRequest) (*api.CreateConnectMyComputerRoleResponse, error) {
-	cluster, clusterClient, err := s.ResolveCluster(req.RootClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response := &api.CreateConnectMyComputerRoleResponse{}
-	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		result, err := s.cfg.ConnectMyComputerRoleSetup.Run(ctx, authClient, proxyClient, cluster)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		response.CertsReloaded = result.CertsReloaded
-		return nil
-	})
-
-	return response, trace.Wrap(err)
-}
-
-// CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes.
-func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClusterUri string) (*connectmycomputer.NodeToken, error) {
-	cluster, clusterClient, err := s.ResolveCluster(rootClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var nodeToken *connectmycomputer.NodeToken
-	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		nodeToken, err = s.cfg.ConnectMyComputerTokenProvisioner.CreateNodeToken(ctx, authClient, cluster)
-		return trace.Wrap(err)
-	})
-
-	return nodeToken, trace.Wrap(err)
-}
-
-// DeleteConnectMyComputerNode deletes the Connect My Computer node.
-func (s *Service) DeleteConnectMyComputerNode(ctx context.Context, req *api.DeleteConnectMyComputerNodeRequest) (*api.DeleteConnectMyComputerNodeResponse, error) {
-	cluster, clusterClient, err := s.ResolveCluster(req.GetRootClusterUri())
-	if err != nil {
-		return &api.DeleteConnectMyComputerNodeResponse{}, trace.Wrap(err)
-	}
-	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		err = s.cfg.ConnectMyComputerNodeDelete.Run(ctx, authClient, cluster)
-		return trace.Wrap(err)
-	})
-
-	return &api.DeleteConnectMyComputerNodeResponse{}, trace.Wrap(err)
-}
-
-// GetConnectMyComputerNodeName reads the Connect My Computer node name (UUID) from a disk.
-func (s *Service) GetConnectMyComputerNodeName(req *api.GetConnectMyComputerNodeNameRequest) (*api.GetConnectMyComputerNodeNameResponse, error) {
-	cluster, _, err := s.ResolveCluster(req.GetRootClusterUri())
-	if err != nil {
-		return &api.GetConnectMyComputerNodeNameResponse{}, trace.Wrap(err)
-	}
-
-	uuid, err := s.cfg.ConnectMyComputerNodeName.Get(cluster)
-	return &api.GetConnectMyComputerNodeNameResponse{Name: uuid}, trace.Wrap(err)
-}
-
-// DeleteConnectMyComputerToken deletes a join token.
-func (s *Service) DeleteConnectMyComputerToken(ctx context.Context, req *api.DeleteConnectMyComputerTokenRequest) (*api.DeleteConnectMyComputerTokenResponse, error) {
-	_, clusterClient, err := s.ResolveCluster(req.RootClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response := &api.DeleteConnectMyComputerTokenResponse{}
-	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		err = s.cfg.ConnectMyComputerTokenProvisioner.DeleteToken(ctx, authClient, req.Token)
-		return trace.Wrap(err)
-	})
-
-	return response, trace.Wrap(err)
-}
-
-// WaitForConnectMyComputerNodeJoin returns a response only after detecting that a Connect My
-// Computer node for the given cluster has joined the cluster.
-func (s *Service) WaitForConnectMyComputerNodeJoin(ctx context.Context, rootClusterURI uri.ResourceURI) (clusters.Server, error) {
-	cluster, clusterClient, err := s.ResolveClusterURI(rootClusterURI)
-	if err != nil {
-		return clusters.Server{}, trace.Wrap(err)
-	}
-
-	var server clusters.Server
-	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		server, err = s.cfg.ConnectMyComputerNodeJoinWait.Run(ctx, authClient, cluster)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	})
-
-	return server, trace.Wrap(err)
-}
-
-func (s *Service) shouldReuseGateway(targetURI uri.ResourceURI) (gateway.Gateway, bool) {
-	// A single gateway can be shared for all terminals of the same kube
-	// cluster.
-	if targetURI.IsKube() {
-		return s.findGatewayByTargetURI(targetURI)
-	}
-	return nil, false
-}
-
-func (s *Service) findGatewayByTargetURI(targetURI uri.ResourceURI) (gateway.Gateway, bool) {
-	for _, gateway := range s.gateways {
-		if gateway.TargetURI() == targetURI {
-			return gateway, true
-		}
-	}
-	return nil, false
-}
-
 // Service is the daemon service
 type Service struct {
 	cfg *Config
 	// mu guards gateways and the creation of tshdEventsClient.
 	mu sync.RWMutex
-
 	// closeContext is canceled when Service is getting stopped. It is used as a context for the calls
 	// to the tshd events gRPC client.
 	closeContext context.Context
 	cancel       context.CancelFunc
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
-	gateways map[string]gateway.Gateway
-	// tshdEventsClient is a client to send events to the Electron App.
-	tshdEventsClient api.TshdEventsServiceClient
-	// The Electron App can only display one important Modal at a time. tshd events
-	// that trigger an important modal (relogin, headless login) should use this
-	// lock to ensure it doesn't overwrite existing tshd-initiated important modals.
-	//
-	// We use a semaphore instead of a mutex in order to cancel important modals that
-	// are no longer relevant before acquisition.
-	//
-	// We use a waitSemaphore in order to make sure there is a clear transition between modals.
-	importantModalSemaphore *waitSemaphore
+	gateways map[string]*gateway.Gateway
 	// usageReporter batches the events and sends them to prehog
 	usageReporter *usagereporter.UsageReporter
-	// reloginMu is used when a goroutine needs to request a relogin from the Electron app. Since the
-	// app can show only one login modal at a time, we need to submit only one request at a time.
-	reloginMu sync.Mutex
-	// headlessWatcherClosers holds a map of root cluster URIs to headless watchers.
-	headlessWatcherClosers   map[string]context.CancelFunc
-	headlessWatcherClosersMu sync.Mutex
 }
 
 type CreateGatewayParams struct {
@@ -941,34 +574,4 @@ type CreateGatewayParams struct {
 	TargetUser            string
 	TargetSubresourceName string
 	LocalPort             string
-}
-
-// waitSemaphore is a semaphore that waits for a specified duration between acquisitions.
-type waitSemaphore struct {
-	semC         chan struct{}
-	lastRelease  time.Time
-	waitDuration time.Duration
-}
-
-func newWaitSemaphore(maxConcurrency int, waitDuration time.Duration) *waitSemaphore {
-	return &waitSemaphore{
-		semC:         make(chan struct{}, maxConcurrency),
-		waitDuration: waitDuration,
-	}
-}
-
-func (s *waitSemaphore) Acquire(ctx context.Context) error {
-	select {
-	case s.semC <- struct{}{}:
-		// wait up to the specified wait duration before returning.
-		time.Sleep(s.waitDuration - time.Since(s.lastRelease))
-		return nil
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err())
-	}
-}
-
-func (s *waitSemaphore) Release() {
-	s.lastRelease = time.Now()
-	<-s.semC
 }

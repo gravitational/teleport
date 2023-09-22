@@ -18,7 +18,7 @@ import React from 'react';
 import { components } from 'react-select';
 import styled from 'styled-components';
 import { Box, Flex, Text } from 'design';
-import { SelectAsync } from 'shared/components/Select';
+import { SelectAsync, DarkStyledSelect } from 'shared/components/Select';
 
 const ValueContainer = ({ children, ...props }) => (
   <components.ValueContainer {...props}>
@@ -83,22 +83,24 @@ export default function ClusterSelector({
 
   return (
     <StyledBox {...styles} className="teleport-cluster-selector">
-      <StyledSelectAsync
-        components={{ ValueContainer }}
-        noOptionsMessage={getNoOptionsMessage}
-        value={selectedOption}
-        onChange={onChangeOption}
-        loadOptions={onLoadOptions}
-        defaultMenuIsOpen={defaultMenuIsOpen}
-        hasError={false}
-        maxMenuHeight={600}
-        menuPosition="fixed"
-        isSearchable
-        isSimpleValue={false}
-        isClearable={false}
-        defaultOptions
-        cacheOptions
-      />
+      <StyledSelect>
+        <SelectAsync
+          components={{ ValueContainer }}
+          noOptionsMessage={getNoOptionsMessage}
+          value={selectedOption}
+          onChange={onChangeOption}
+          loadOptions={onLoadOptions}
+          defaultMenuIsOpen={defaultMenuIsOpen}
+          hasError={false}
+          maxMenuHeight={600}
+          menuPosition="fixed"
+          isSearchable
+          isSimpleValue={false}
+          isClearable={false}
+          defaultOptions
+          cacheOptions
+        />
+      </StyledSelect>
     </StyledBox>
   );
 }
@@ -112,7 +114,7 @@ function filterOptions(value = '', options: Option[] = []) {
 
 type Option = { value: string; label: string };
 
-const StyledSelectAsync = styled(SelectAsync)`
+const StyledSelect = styled(DarkStyledSelect)`
   .react-select__value-container {
     padding: 0 16px;
   }
@@ -129,22 +131,19 @@ const StyledSelectAsync = styled(SelectAsync)`
   .react-select__control {
     min-height: 42px;
     height: 42px;
-
-    .react-select__dropdown-indicator {
-      color: ${props => props.theme.colors.text.slightlyMuted};
-    }
+    border-color: #1f264b;
 
     &:focus,
     &:active {
-      background: ${props => props.theme.colors.levels.surface};
-      border-color: ${props => props.theme.colors.text.main};
+      border-color: #1f264b;
+      background: #1f264b;
     }
     &:hover {
-      background: ${props => props.theme.colors.levels.surface};
-      border-color: ${props => props.theme.colors.text.main};
+      border-color: #1f264b;
+      background: #1f264b;
 
       .react-select__dropdown-indicator {
-        color: ${props => props.theme.colors.text.main};
+        color: white;
       }
     }
   }
@@ -152,18 +151,18 @@ const StyledSelectAsync = styled(SelectAsync)`
   .react-select__indicator,
   .react-select__dropdown-indicator {
     padding: 4px 16px;
-    color: ${props => props.theme.colors.text.slightlyMuted};
+    color: white;
     &:hover {
-      color: ${props => props.theme.colors.text.main};
+      color: white;
     }
   }
 
   .react-select__control--menu-is-open {
     .react-select__indicator,
     .react-select__dropdown-indicator {
-      color: ${props => props.theme.colors.text.main};
+      color: white !important;
       &:hover {
-        color: ${props => props.theme.colors.text.main};
+        color: white !important;
       }
     }
   }

@@ -18,13 +18,10 @@ import React from 'react';
 
 import { render, fireEvent, screen } from 'design/utils/testing';
 
-import {
-  SingleFlowInPlaceSlider,
-  MultiFlowWheelSlider,
-} from './StepSlider.story';
+import { SingleStaticFlow, MultiCardFlow } from './StepSlider.story';
 
 test('single flow', () => {
-  render(<SingleFlowInPlaceSlider />);
+  render(<SingleStaticFlow />);
 
   // Test initial render.
   expect(screen.getByTestId('single-body1')).toBeVisible();
@@ -49,7 +46,7 @@ test('single flow', () => {
 });
 
 test('switching between multi flow', () => {
-  render(<MultiFlowWheelSlider />);
+  render(<MultiCardFlow />);
 
   // Test initial primary flow.
   expect(screen.getByTestId('multi-primary1')).toBeVisible();

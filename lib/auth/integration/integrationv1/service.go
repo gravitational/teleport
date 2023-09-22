@@ -38,7 +38,7 @@ type CAGetter interface {
 
 	// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 	// controls if signing keys are loaded
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetKeyStore returns the KeyStore used by the auth server
 	GetKeyStore() *keystore.Manager

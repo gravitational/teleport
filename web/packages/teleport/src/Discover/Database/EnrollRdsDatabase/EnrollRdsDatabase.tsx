@@ -15,7 +15,7 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Text } from 'design';
+import { Box } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
 
@@ -30,7 +30,6 @@ import {
   integrationService,
 } from 'teleport/services/integrations';
 import { DatabaseEngine } from 'teleport/Discover/SelectResource';
-import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
 import { Database } from 'teleport/services/databases';
 
 import { ActionButtons, Header } from '../../Shared';
@@ -38,6 +37,7 @@ import { ActionButtons, Header } from '../../Shared';
 import { useCreateDatabase } from '../CreateDatabase/useCreateDatabase';
 import { CreateDatabaseDialog } from '../CreateDatabase/CreateDatabaseDialog';
 
+import { AwsRegionSelector } from './AwsRegionSelector';
 import { DatabaseList } from './RdsDatabaseList';
 
 type TableData = {
@@ -98,7 +98,7 @@ export function EnrollRdsDatabase() {
   }
 
   async function fetchDatabases(data: TableData) {
-    const integrationName = (agentMeta as DbMeta).integration.name;
+    const integrationName = (agentMeta as DbMeta).integrationName;
 
     setTableData({ ...data, fetchStatus: 'loading' });
     setFetchDbAttempt({ status: 'processing' });
@@ -190,7 +190,10 @@ export function EnrollRdsDatabase() {
         protocol: selectedDb.engine,
         uri: selectedDb.uri,
         labels: selectedDb.labels,
-        awsRds: selectedDb,
+        awsRds: {
+          accountId: selectedDb.accountId,
+          resourceId: selectedDb.resourceId,
+        },
       },
       // Corner case where if registering db fails a user can:
       //   1) change region, which will list new databases or
@@ -205,9 +208,6 @@ export function EnrollRdsDatabase() {
       {fetchDbAttempt.status === 'failed' && (
         <Danger mt={3}>{fetchDbAttempt.statusText}</Danger>
       )}
-      <Text mt={4}>
-        Select the AWS Region you would like to see databases for:
-      </Text>
       <AwsRegionSelector
         onFetch={fetchDatabasesWithNewRegion}
         onRefresh={refreshDatabaseList}

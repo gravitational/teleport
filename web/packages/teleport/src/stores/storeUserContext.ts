@@ -88,10 +88,6 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.billing;
   }
 
-  getLockAccess() {
-    return this.state.acl.lock;
-  }
-
   getDatabaseServerAccess() {
     return this.state.acl.dbServers;
   }
@@ -173,18 +169,11 @@ export default class StoreUserContext extends Store<UserContext> {
   }
 
   hasDiscoverAccess() {
-    return (
-      this.hasPrereqAccessToAddAgents() ||
-      (this.hasAccessToQueryAgent() && !cfg.hideInaccessibleFeatures)
-    );
+    return this.hasPrereqAccessToAddAgents() || this.hasAccessToQueryAgent();
   }
 
   getPluginsAccess() {
     return this.state.acl.plugins;
-  }
-
-  getDeviceTrustAccess() {
-    return this.state.acl.deviceTrust;
   }
 
   getIntegrationsAccess() {
@@ -193,13 +182,5 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getAssistantAccess() {
     return this.state.acl.assist;
-  }
-
-  getAllowedSearchAsRoles() {
-    return this.state.allowedSearchAsRoles;
-  }
-
-  getAccessListAccess() {
-    return this.state.acl.accessList;
   }
 }

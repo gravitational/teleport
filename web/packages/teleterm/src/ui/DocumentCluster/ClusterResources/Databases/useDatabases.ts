@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { Database, GetResourcesParams } from 'teleterm/services/tshd/types';
+import { Database, ServerSideParams } from 'teleterm/services/tshd/types';
 import { makeDatabase } from 'teleterm/ui/services/clusters';
 import { connectToDatabase } from 'teleterm/ui/services/workspacesService';
 
@@ -27,7 +27,7 @@ export function useDatabases() {
   const { fetchAttempt, ...serverSideResources } =
     useServerSideResources<Database>(
       { fieldName: 'name', dir: 'ASC' }, // default sort
-      (params: GetResourcesParams) =>
+      (params: ServerSideParams) =>
         appContext.resourcesService.fetchDatabases(params)
     );
 

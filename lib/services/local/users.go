@@ -1584,5 +1584,4 @@ const (
 	attestationsPrefix          = "key_attestations"
 	assistantMessagePrefix      = "assistant_messages"
 	assistantConversationPrefix = "assistant_conversations"
-	userPreferencesPrefix       = "user_preferences"
 )

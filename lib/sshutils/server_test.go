@@ -17,17 +17,28 @@ limitations under the License.
 package sshutils
 
 import (
+	"bytes"
 	"context"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"net"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
 )
@@ -250,6 +261,121 @@ func TestHostSignerFIPS(t *testing.T) {
 		)
 		tt.assert(t, err)
 	}
+}
+
+// TestConnectionWrapper_Read makes sure connectionWrapper can correctly process ProxyHelloSignature and PROXY protocol
+// on the wire.
+func TestConnectionWrapper_Read(t *testing.T) {
+	testCases := []struct {
+		desc     string
+		sendData []byte
+	}{
+		{
+			desc:     "Plain connection without any special headers",
+			sendData: nil,
+		},
+		{
+			desc:     "Sending ProxyHelloSignature",
+			sendData: getProxyHelloSignaturePayload(t),
+		},
+		{
+			desc:     "Sending PROXY header",
+			sendData: getPROXYProtocolPayload(),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			t.Cleanup(func() { listener.Close() })
+
+			go startSSHServer(t, listener)
+
+			conn, err := net.Dial("tcp", listener.Addr().String())
+			require.NoError(t, err)
+
+			_, err = conn.Write(tc.sendData)
+			require.NoError(t, err)
+
+			sconn, nc, r, err := ssh.NewClientConn(conn, "", &ssh.ClientConfig{
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+				Timeout:         time.Second,
+			})
+			require.NoError(t, err)
+			require.Equal(t, "SSH-2.0-Go", string(sconn.ServerVersion()))
+
+			client := ssh.NewClient(sconn, nc, r)
+			require.NoError(t, err)
+
+			// Make sure SSH connection works correctly
+			ok, response, err := client.SendRequest("echo", true, []byte("beep"))
+			require.NoError(t, err)
+			require.True(t, ok)
+			require.Equal(t, "beep", string(response))
+		})
+	}
+}
+
+func getPROXYProtocolPayload() []byte {
+	proxyV2Prefix := []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
+	// source=127.0.0.1:12345 destination=127.0.0.2:42
+	sampleIPv4Addresses := []byte{0x7F, 0x00, 0x00, 0x01, 0x7F, 0x00, 0x00, 0x02, 0x30, 0x39, 0x00, 0x2A}
+	// {0x21, 0x11, 0x00, 0x0C} - 4 bits version, 4 bits command, 4 bits address family, 4 bits protocol, 16 bits length
+	sampleProxyV2Line := bytes.Join([][]byte{proxyV2Prefix, {0x21, 0x11, 0x00, 0x0C}, sampleIPv4Addresses}, nil)
+
+	return sampleProxyV2Line
+}
+
+func getProxyHelloSignaturePayload(t *testing.T) []byte {
+	t.Helper()
+
+	hp := &apisshutils.HandshakePayload{
+		ClientAddr:     "127.0.0.1:12345",
+		TracingContext: tracing.PropagationContextFromContext(context.Background()),
+	}
+	payloadJSON, err := json.Marshal(hp)
+	require.NoError(t, err)
+
+	return []byte(fmt.Sprintf("%s%s\x00", constants.ProxyHelloSignature, payloadJSON))
+}
+
+func startSSHServer(t *testing.T, listener net.Listener) {
+	nConn, err := listener.Accept()
+	assert.NoError(t, err)
+
+	t.Cleanup(func() { nConn.Close() })
+
+	wConn := wrapConnection(nConn, nil, "", clockwork.NewRealClock(), logrus.New())
+
+	block, _ := pem.Decode(fixtures.LocalhostKey)
+	pkey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	assert.NoError(t, err)
+
+	signer, err := ssh.NewSignerFromKey(pkey)
+	assert.NoError(t, err)
+
+	config := &ssh.ServerConfig{NoClientAuth: true}
+	config.AddHostKey(signer)
+
+	conn, _, reqs, err := ssh.NewServerConn(wConn, config)
+	assert.NoError(t, err)
+	if err != nil {
+		return
+	}
+	t.Cleanup(func() { conn.Close() })
+
+	go func() {
+		for newReq := range reqs {
+			if newReq.Type == "echo" {
+				err := newReq.Reply(true, newReq.Payload)
+				assert.NoError(t, err)
+				continue
+			}
+			err := newReq.Reply(false, nil)
+			assert.NoError(t, err)
+		}
+	}()
 }
 
 func pass(need string) PasswordFunc {

@@ -18,12 +18,9 @@ import React from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Image } from 'design';
-import { AWSIcon } from 'design/SVGIcon';
+import awsIcon from 'design/assets/images/icons/aws.svg';
 import slackIcon from 'design/assets/images/icons/slack.svg';
 import openaiIcon from 'design/assets/images/icons/openai.svg';
-import jamfIcon from 'design/assets/images/icons/jamf.svg';
-import opsgenieIcon from 'design/assets/images/icons/opsgenie.svg';
-import oktaIcon from 'design/assets/images/icons/okta.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { ToolTipInfo } from 'shared/components/ToolTip';
@@ -168,7 +165,7 @@ const StatusLight = styled(Box)`
       return theme.colors.success;
     }
     if (status === Status.Error) {
-      return theme.colors.error.main;
+      return theme.colors.error.light;
     }
     if (status === Status.Warning) {
       return theme.colors.warning.main;
@@ -190,29 +187,13 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         formattedText = 'OpenAI';
         icon = <IconContainer src={openaiIcon} />;
         break;
-      case 'jamf':
-        formattedText = 'Jamf';
-        icon = <IconContainer src={jamfIcon} />;
-        break;
-      case 'okta':
-        formattedText = 'Okta';
-        icon = <IconContainer src={oktaIcon} />;
-        break;
-      case 'opsgenie':
-        formattedText = 'Opsgenie';
-        icon = <IconContainer src={opsgenieIcon} />;
-        break;
     }
   } else {
     // Default is integration.
     switch (item.kind) {
       case IntegrationKind.AwsOidc:
         formattedText = item.name;
-        icon = (
-          <SvgIconContainer>
-            <AWSIcon />
-          </SvgIconContainer>
-        );
+        icon = <IconContainer src={awsIcon} />;
         break;
     }
   }
@@ -233,9 +214,5 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
 
 const IconContainer = styled(Image)`
   width: 22px;
-  margin-right: 10px;
-`;
-
-const SvgIconContainer = styled(Flex)`
-  margin-right: 10px;
+  padding-right: 8px;
 `;

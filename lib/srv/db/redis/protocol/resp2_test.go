@@ -26,8 +26,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/trace"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
 
@@ -138,7 +138,6 @@ func TestReadWriteStatus(t *testing.T) {
 }
 
 func TestMakeUnknownCommandErrorForCmd(t *testing.T) {
-	ctx := context.Background()
 	tests := []struct {
 		name          string
 		command       []interface{}
@@ -168,7 +167,7 @@ func TestMakeUnknownCommandErrorForCmd(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := redis.NewCmd(ctx, test.command...)
+			cmd := redis.NewCmd(context.TODO(), test.command...)
 			actualError := MakeUnknownCommandErrorForCmd(cmd)
 			require.Equal(t, test.expectedError, actualError)
 		})

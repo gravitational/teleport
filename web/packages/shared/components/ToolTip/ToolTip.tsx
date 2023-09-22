@@ -17,13 +17,10 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 
-import { Popover, Text } from 'design';
+import { Text, Popover } from 'design';
 import * as Icons from 'design/Icon';
 
-export const ToolTipInfo: React.FC<{ muteIconColor?: boolean }> = ({
-  children,
-  muteIconColor,
-}) => {
+export const ToolTipInfo: React.FC = ({ children }) => {
   const [anchorEl, setAnchorEl] = useState();
   const open = Boolean(anchorEl);
 
@@ -38,7 +35,6 @@ export const ToolTipInfo: React.FC<{ muteIconColor?: boolean }> = ({
   return (
     <>
       <span
-        role="icon"
         aria-owns={open ? 'mouse-over-popover' : undefined}
         onMouseEnter={handlePopoverOpen}
         onMouseLeave={handlePopoverClose}
@@ -51,7 +47,7 @@ export const ToolTipInfo: React.FC<{ muteIconColor?: boolean }> = ({
           height: 18px;
         `}
       >
-        <InfoIcon $muteIconColor={muteIconColor} size="medium" />
+        <Icons.Info fontSize={4} />
       </span>
       <Popover
         modalCss={modalCss}
@@ -80,13 +76,7 @@ const modalCss = () => `
 `;
 
 const StyledOnHover = styled(Text)`
-  color: ${props => props.theme.colors.text.main};
-  background-color: ${props => props.theme.colors.tooltip.background};
+  background-color: white;
+  color: black;
   max-width: 350px;
-`;
-
-const InfoIcon = styled(Icons.Info)`
-  height: 18px;
-  width: 18px;
-  color: ${p => (p.$muteIconColor ? p.theme.colors.text.disabled : 'inherit')};
 `;

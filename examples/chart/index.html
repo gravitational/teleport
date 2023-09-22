@@ -28,7 +28,6 @@
       helm install ${RELEASE_NAME?} teleport/teleport-kube-agent \
         --create-namespace \
         --namespace ${NAMESPACE?} \
-        --set roles="kube\,app\,discovery" \
         --set proxyAddr=${PROXY_ENDPOINT?} \
         --set authToken=${JOIN_TOKEN?} \
         --set kubeClusterName=${KUBERNETES_CLUSTER_NAME?}</pre>

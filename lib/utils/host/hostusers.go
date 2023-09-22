@@ -33,20 +33,13 @@ const GroupExistExit = 9
 const UserExistExit = 9
 const UserLoggedInExit = 8
 
-// GroupAdd creates a group on a host using `groupadd` optionally
-// specifying the GID to create the group with.
-func GroupAdd(groupname string, gid string) (exitCode int, err error) {
+// GroupAdd creates a group on a host using `groupadd`
+func GroupAdd(groupname string) (exitCode int, err error) {
 	groupaddBin, err := exec.LookPath("groupadd")
 	if err != nil {
 		return -1, trace.Wrap(err, "cant find groupadd binary")
 	}
-	var args []string
-	if gid != "" {
-		args = append(args, "--gid", gid)
-	}
-	args = append(args, groupname)
-
-	cmd := exec.Command(groupaddBin, args...)
+	cmd := exec.Command(groupaddBin, groupname)
 	output, err := cmd.CombinedOutput()
 	log.Debugf("%s output: %s", cmd.Path, string(output))
 	if cmd.ProcessState.ExitCode() == GroupExistExit {
@@ -56,7 +49,7 @@ func GroupAdd(groupname string, gid string) (exitCode int, err error) {
 }
 
 // UserAdd creates a user on a host using `useradd`
-func UserAdd(username string, groups []string, home, uid, gid string) (exitCode int, err error) {
+func UserAdd(username string, groups []string, home string) (exitCode int, err error) {
 	useraddBin, err := exec.LookPath("useradd")
 	if err != nil {
 		return -1, trace.Wrap(err, "cant find useradd binary")
@@ -71,13 +64,6 @@ func UserAdd(username string, groups []string, home, uid, gid string) (exitCode 
 	if len(groups) != 0 {
 		args = append(args, "--groups", strings.Join(groups, ","))
 	}
-	if uid != "" {
-		args = append(args, "--uid", uid)
-	}
-	if gid != "" {
-		args = append(args, "--gid", gid)
-	}
-
 	cmd := exec.Command(useraddBin, args...)
 	output, err := cmd.CombinedOutput()
 	log.Debugf("%s output: %s", cmd.Path, string(output))
@@ -103,7 +89,7 @@ func AddUserToGroups(username string, groups []string) (exitCode int, err error)
 	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
 }
 
-// UserDel deletes a user on a host using `userdel`.
+// UserDel creates a user on a host using `userdel`
 func UserDel(username string) (exitCode int, err error) {
 	userdelBin, err := exec.LookPath("userdel")
 	if err != nil {

@@ -1,0 +1,18 @@
+#!groovy
+pipeline {
+    agent any
+    options {
+        ansiColor(colorMapName: 'XTerm')
+        disableConcurrentBuilds()
+        timestamps()
+    }
+    stages {
+        stage('Run Packer') {
+            steps {
+                dir('assets/aws') {
+                    sh 'make oss'
+                }
+            }
+        }
+    }
+}

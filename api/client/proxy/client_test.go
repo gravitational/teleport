@@ -16,12 +16,11 @@ package proxy
 
 import (
 	"context"
-	"crypto/tls"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/asn1"
-	"errors"
-	"fmt"
+	"encoding/pem"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -29,88 +28,156 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
-	"github.com/gravitational/teleport/api/utils/grpc/stream"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
-type fakeGetClusterDetails func(context.Context, *transportv1pb.GetClusterDetailsRequest) (*transportv1pb.GetClusterDetailsResponse, error)
-
-type fakeProxySSHServer func(transportv1pb.TransportService_ProxySSHServer) error
-
-type fakeProxyClusterServer func(transportv1pb.TransportService_ProxyClusterServer) error
-
-// fakeTransportService is a [transportv1pb.TransportServiceServer] implementation
-// that allows tests to manipulate the server side of various RPCs.
-type fakeTransportService struct {
-	transportv1pb.UnimplementedTransportServiceServer
-
-	details fakeGetClusterDetails
-	ssh     fakeProxySSHServer
-	cluster fakeProxyClusterServer
+type fakeSSHServer struct {
+	listener net.Listener
+	cfg      fakeSSHServerConfig
 }
 
-func (s fakeTransportService) GetClusterDetails(ctx context.Context, req *transportv1pb.GetClusterDetailsRequest) (*transportv1pb.GetClusterDetailsResponse, error) {
-	if s.details == nil {
-		return s.UnimplementedTransportServiceServer.GetClusterDetails(ctx, req)
-	}
-	return s.details(ctx, req)
-}
-
-func (s fakeTransportService) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer) error {
-	if s.ssh == nil {
-		return s.UnimplementedTransportServiceServer.ProxySSH(stream)
-	}
-	return s.ssh(stream)
-}
-
-func (s fakeTransportService) ProxyCluster(stream transportv1pb.TransportService_ProxyClusterServer) error {
-	if s.cluster == nil {
-		return s.UnimplementedTransportServiceServer.ProxyCluster(stream)
-	}
-	return s.cluster(stream)
-}
-
-// newGRPCServer creates a [grpc.Server] and registers the
-// provided [transportv1pb.TransportServiceServer].
-func newGRPCServer(t *testing.T, srv transportv1pb.TransportServiceServer) *fakeGRPCServer {
-	// gRPC testPack.
-	lis := bufconn.Listen(100)
-	t.Cleanup(func() { require.NoError(t, lis.Close()) })
-
-	s := grpc.NewServer()
-	t.Cleanup(s.Stop)
-
-	// Register service.
-	if srv != nil {
-		transportv1pb.RegisterTransportServiceServer(s, srv)
-	}
-
-	// Start.
-	go func() {
-		if err := s.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
-			panic(fmt.Sprintf("Serve returned err = %v", err))
+func (s *fakeSSHServer) run() {
+	for {
+		conn, err := s.listener.Accept()
+		if err != nil {
+			return
 		}
-	}()
 
-	return &fakeGRPCServer{Listener: lis}
+		go func() {
+			sconn, chans, reqs, err := ssh.NewServerConn(conn, s.cfg.config)
+			if err != nil {
+				return
+			}
+			s.cfg.handler(sconn, chans, reqs)
+		}()
+	}
 }
 
-type fakeGRPCServer struct {
-	*bufconn.Listener
+func (s *fakeSSHServer) Stop() error {
+	return s.listener.Close()
+}
+
+func generateSigner(t *testing.T) ssh.Signer {
+	private, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	block := &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(private),
+	}
+
+	privatePEM := pem.EncodeToMemory(block)
+	signer, err := ssh.ParsePrivateKey(privatePEM)
+	require.NoError(t, err)
+	return signer
+}
+
+func (s *fakeSSHServer) clientConfig() *ssh.ClientConfig {
+	return &ssh.ClientConfig{
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(s.cfg.cSigner)},
+		HostKeyCallback: ssh.FixedHostKey(s.cfg.hSigner.PublicKey()),
+	}
+}
+
+func (s *fakeSSHServer) newClientConn() (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
+	conn, err := net.Dial("tcp", s.listener.Addr().String())
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	sconn, nc, r, err := ssh.NewClientConn(conn, "", s.clientConfig())
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	return sconn, nc, r, nil
+}
+
+type sshHandler func(*ssh.ServerConn, <-chan ssh.NewChannel, <-chan *ssh.Request)
+
+type fakeSSHServerConfig struct {
+	config  *ssh.ServerConfig
+	handler sshHandler
+	cSigner ssh.Signer
+	hSigner ssh.Signer
+}
+
+func discardHandler(conn *ssh.ServerConn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
+	defer func() { _ = conn.Close() }()
+
+	go ssh.DiscardRequests(reqs)
+
+	for ch := range chans {
+		_ = ch.Reject(ssh.Prohibited, "discard")
+	}
+}
+
+func proxySubsystemHandler(details sshDetails, handleConn func(conn *ssh.ServerConn, ch ssh.Channel)) sshHandler {
+	return func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
+		defer func() { _ = conn.Close() }()
+
+		go func() {
+			for req := range requests {
+				if req.Type == clusterDetailsRequest {
+					_ = req.Reply(true, ssh.Marshal(details))
+				}
+			}
+		}()
+
+		for nch := range channels {
+			if nch.ChannelType() != "session" {
+				_ = nch.Reject(ssh.UnknownChannelType, "unknown channel")
+				continue
+			}
+
+			ch, reqs, err := nch.Accept()
+			if err != nil {
+				return
+			}
+
+			go func() {
+				defer func() { _ = ch.Close() }()
+
+				for req := range reqs {
+					ok := req.Type == "subsystem"
+
+					if req.WantReply {
+						_ = req.Reply(ok, nil)
+					}
+
+					if !ok {
+						continue
+					}
+
+					handleConn(conn, ch)
+				}
+			}()
+		}
+	}
+}
+
+func echoHandler(details sshDetails) sshHandler {
+	return proxySubsystemHandler(details, func(conn *ssh.ServerConn, ch ssh.Channel) {
+		_, _ = io.Copy(ch, ch)
+	})
+}
+
+func authHandler(t *testing.T) sshHandler {
+	return proxySubsystemHandler(sshDetails{}, func(conn *ssh.ServerConn, ch ssh.Channel) {
+		auth := newFakeAuthServer(t, sshutils.NewChConn(conn, ch))
+		t.Cleanup(auth.Stop)
+		_ = auth.Serve()
+	})
 }
 
 type fakeAuthServer struct {
@@ -187,36 +254,62 @@ func (l oneShotListener) Addr() net.Addr {
 	return addr("127.0.0.1")
 }
 
-// addr is a [net.Addr] implementation for static tcp addresses.
-type addr string
+func newSSHServer(t *testing.T, cfg fakeSSHServerConfig) *fakeSSHServer {
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
 
-func (a addr) Network() string {
-	return "tcp"
-}
+	srv := &fakeSSHServer{
+		listener: listener,
+		cfg:      cfg,
+	}
 
-func (a addr) String() string {
-	return string(a)
+	go srv.run()
+
+	t.Cleanup(func() { require.NoError(t, srv.Stop()) })
+	return srv
 }
 
 type fakeProxy struct {
-	*fakeGRPCServer
+	*fakeSSHServer
 }
 
-func newFakeProxy(t *testing.T, transportService transportv1pb.TransportServiceServer) *fakeProxy {
-	grpcSrv := newGRPCServer(t, transportService)
+func newFakeProxy(t *testing.T, sshHandler sshHandler) *fakeProxy {
+	cSigner := generateSigner(t)
+	hSigner := generateSigner(t)
+
+	sshConfig := &ssh.ServerConfig{
+		NoClientAuth:  true,
+		ServerVersion: "SSH-2.0-Teleport",
+	}
+	sshConfig.AddHostKey(hSigner)
+
+	sshSrv := newSSHServer(t, fakeSSHServerConfig{
+		config:  sshConfig,
+		handler: sshHandler,
+		cSigner: cSigner,
+		hSigner: hSigner,
+	})
 
 	return &fakeProxy{
-		fakeGRPCServer: grpcSrv,
+		fakeSSHServer: sshSrv,
 	}
 }
 
 func (f *fakeProxy) clientConfig(t *testing.T) ClientConfig {
 	return ClientConfig{
-		ProxyAddress: "127.0.0.1",
-		SSHConfig:    &ssh.ClientConfig{},
-		DialOpts: []grpc.DialOption{grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
-			return f.fakeGRPCServer.DialContext(ctx)
-		})},
+		ProxyWebAddress: "127.0.0.1",
+		ProxySSHAddress: "127.0.0.1",
+		SSHDialer: SSHDialerFunc(func(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
+			conn, chans, reqs, err := f.fakeSSHServer.newClientConn()
+			if err != nil {
+				return nil, err
+			}
+
+			clt := &tracessh.Client{Client: ssh.NewClient(conn, chans, reqs)}
+			t.Cleanup(func() { _ = clt.Close() })
+			return clt, err
+		}),
+		SSHConfig: f.fakeSSHServer.clientConfig(),
 	}
 }
 
@@ -225,28 +318,13 @@ func TestNewClient(t *testing.T) {
 
 	ctx := context.Background()
 	tests := []struct {
-		name      string
-		srv       transportv1pb.TransportServiceServer
-		assertion func(t *testing.T, clt *Client, err error)
+		name       string
+		sshHandler sshHandler
+		assertion  func(t *testing.T, clt *Client, err error)
 	}{
 		{
-			name: "does not implement transport",
-			assertion: func(t *testing.T, clt *Client, err error) {
-				require.NoError(t, err)
-				require.NotNil(t, clt)
-
-				details, err := clt.transport.ClusterDetails(context.Background())
-				require.Error(t, err)
-				require.Nil(t, details)
-			},
-		},
-		{
-			name: "compliant grpc server",
-			srv: fakeTransportService{
-				details: func(ctx context.Context, request *transportv1pb.GetClusterDetailsRequest) (*transportv1pb.GetClusterDetailsResponse, error) {
-					return &transportv1pb.GetClusterDetailsResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: true}}, nil
-				},
-			},
+			name:       "no grpc server and ssh server",
+			sshHandler: discardHandler,
 			assertion: func(t *testing.T, clt *Client, err error) {
 				require.NoError(t, err)
 				require.NotNil(t, clt)
@@ -256,7 +334,7 @@ func TestNewClient(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			proxy := newFakeProxy(t, test.srv)
+			proxy := newFakeProxy(t, test.sshHandler)
 			cfg := proxy.clientConfig(t)
 
 			clt, err := NewClient(ctx, cfg)
@@ -273,31 +351,24 @@ func TestClient_ClusterDetails(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name      string
-		srv       transportv1pb.TransportServiceServer
-		assertion func(t *testing.T, details ClusterDetails, err error)
+		name       string
+		sshHandler sshHandler
+		assertion  func(t *testing.T, details ClusterDetails, err error)
 	}{
 		{
-			name: "cluster details",
-			srv: fakeTransportService{
-				details: func(ctx context.Context, request *transportv1pb.GetClusterDetailsRequest) (*transportv1pb.GetClusterDetailsResponse, error) {
-					return &transportv1pb.GetClusterDetailsResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: false}}, nil
-				},
-			},
+			name: "cluster details via ssh",
+			sshHandler: echoHandler(sshDetails{
+				RecordingProxy: true,
+				FIPSEnabled:    true,
+			}),
 			assertion: func(t *testing.T, details ClusterDetails, err error) {
 				require.NoError(t, err)
-				require.False(t, details.FIPS)
+				require.True(t, details.FIPS)
 			},
 		},
 		{
-			name: "cluster details fails",
-			srv: fakeTransportService{
-				details: func() func(ctx context.Context, request *transportv1pb.GetClusterDetailsRequest) (*transportv1pb.GetClusterDetailsResponse, error) {
-					return func(ctx context.Context, request *transportv1pb.GetClusterDetailsRequest) (*transportv1pb.GetClusterDetailsResponse, error) {
-						return nil, trace.ConnectionProblem(nil, "connection closed")
-					}
-				}(),
-			},
+			name:       "cluster details via ssh fails",
+			sshHandler: discardHandler,
 			assertion: func(t *testing.T, details ClusterDetails, err error) {
 				require.Error(t, err)
 			},
@@ -306,10 +377,8 @@ func TestClient_ClusterDetails(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			proxy := newFakeProxy(t, test.srv)
+			proxy := newFakeProxy(t, test.sshHandler)
 			cfg := proxy.clientConfig(t)
-
-			cfg.DialOpts = append(cfg.DialOpts, grpc.WithDisableRetry())
 
 			clt, err := NewClient(ctx, cfg)
 			require.NoError(t, err)
@@ -326,68 +395,23 @@ func TestClient_DialHost(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name      string
-		srv       transportv1pb.TransportServiceServer
-		keyring   agent.ExtendedAgent
-		assertion func(t *testing.T, conn net.Conn, details ClusterDetails, err error)
+		name       string
+		sshHandler sshHandler
+		keyring    agent.ExtendedAgent
+		assertion  func(t *testing.T, conn net.Conn, details ClusterDetails, err error)
 	}{
 		{
-			name: "grpc connection fails",
-			srv: fakeTransportService{
-				details: func(ctx context.Context, request *transportv1pb.GetClusterDetailsRequest) (*transportv1pb.GetClusterDetailsResponse, error) {
-					return &transportv1pb.GetClusterDetailsResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: true}}, nil
-				},
-				ssh: func(server transportv1pb.TransportService_ProxySSHServer) error {
-					_, err := server.Recv()
-					if err != nil {
-						return trail.ToGRPC(trace.Wrap(err))
-					}
-
-					return trail.ToGRPC(trace.ConnectionProblem(nil, "connection closed"))
-				},
-			},
+			name:       "ssh connection fails",
+			sshHandler: discardHandler,
 			assertion: func(t *testing.T, conn net.Conn, details ClusterDetails, err error) {
-				require.ErrorIs(t, err, trace.ConnectionProblem(nil, "connection closed"))
+				require.Error(t, err)
 				require.Nil(t, conn)
 				require.False(t, details.FIPS)
 			},
 		},
 		{
-			name: "grpc connection established",
-			srv: fakeTransportService{
-				details: func(ctx context.Context, request *transportv1pb.GetClusterDetailsRequest) (*transportv1pb.GetClusterDetailsResponse, error) {
-					return &transportv1pb.GetClusterDetailsResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: true}}, nil
-				},
-				ssh: func(server transportv1pb.TransportService_ProxySSHServer) error {
-					_, err := server.Recv()
-					if err != nil {
-						return trail.ToGRPC(trace.Wrap(err))
-					}
-
-					if err := server.Send(&transportv1pb.ProxySSHResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: true}}); err != nil {
-						return trail.ToGRPC(err)
-					}
-
-					req, err := server.Recv()
-					if err != nil {
-						return trail.ToGRPC(trace.Wrap(err))
-					}
-
-					switch f := req.Frame.(type) {
-					case *transportv1pb.ProxySSHRequest_Ssh:
-						if err := server.Send(&transportv1pb.ProxySSHResponse{
-							Details: nil,
-							Frame:   &transportv1pb.ProxySSHResponse_Ssh{Ssh: &transportv1pb.Frame{Payload: f.Ssh.Payload}},
-						}); err != nil {
-							return trail.ToGRPC(trace.Wrap(err))
-						}
-					default:
-						return trace.BadParameter("unexpected frame type received")
-					}
-
-					return nil
-				},
-			},
+			name:       "ssh connection established",
+			sshHandler: echoHandler(sshDetails{RecordingProxy: false, FIPSEnabled: true}),
 			assertion: func(t *testing.T, conn net.Conn, details ClusterDetails, err error) {
 				require.NoError(t, err)
 				require.NotNil(t, conn)
@@ -412,7 +436,7 @@ func TestClient_DialHost(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			proxy := newFakeProxy(t, test.srv)
+			proxy := newFakeProxy(t, test.sshHandler)
 			cfg := proxy.clientConfig(t)
 
 			clt, err := NewClient(ctx, cfg)
@@ -430,58 +454,27 @@ func TestClient_DialCluster(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name      string
-		authCfg   func(config *client.Config)
-		srv       transportv1pb.TransportServiceServer
-		keyring   agent.ExtendedAgent
-		assertion func(t *testing.T, clt *client.Client, err error)
+		name       string
+		authCfg    func(config *client.Config)
+		sshHandler sshHandler
+		keyring    agent.ExtendedAgent
+		assertion  func(t *testing.T, clt *client.Client, err error)
 	}{
 		{
-			name: "grpc connection fails",
+			name: "ssh connection fails",
 			authCfg: func(config *client.Config) {
 				config.DialTimeout = 500 * time.Millisecond // speed up dial failure
 			},
-			srv: fakeTransportService{
-				details: func(ctx context.Context, request *transportv1pb.GetClusterDetailsRequest) (*transportv1pb.GetClusterDetailsResponse, error) {
-					return &transportv1pb.GetClusterDetailsResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: true}}, nil
-				},
-				cluster: func(server transportv1pb.TransportService_ProxyClusterServer) error {
-					_, err := server.Recv()
-					if err != nil {
-						return trace.Wrap(err)
-					}
-
-					return trace.ConnectionProblem(nil, "connection closed")
-				},
-			},
+			sshHandler: discardHandler,
 			assertion: func(t *testing.T, clt *client.Client, err error) {
 				require.Error(t, err)
 				require.Nil(t, clt)
 			},
 		},
 		{
-			name:    "grpc connection established",
-			authCfg: func(config *client.Config) {},
-			srv: fakeTransportService{
-				details: func(ctx context.Context, request *transportv1pb.GetClusterDetailsRequest) (*transportv1pb.GetClusterDetailsResponse, error) {
-					return &transportv1pb.GetClusterDetailsResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: true}}, nil
-				},
-				cluster: func(server transportv1pb.TransportService_ProxyClusterServer) error {
-					_, err := server.Recv()
-					if err != nil {
-						return trace.Wrap(err)
-					}
-
-					rw, err := stream.NewReadWriter(clusterStream{stream: server})
-					if err != nil {
-						return trace.Wrap(err)
-					}
-
-					auth := newFakeAuthServer(t, stream.NewConn(rw, nil, nil))
-					err = auth.Serve()
-					return trace.Wrap(err)
-				},
-			},
+			name:       "ssh connection established",
+			authCfg:    func(config *client.Config) {},
+			sshHandler: authHandler(t),
 			assertion: func(t *testing.T, clt *client.Client, err error) {
 				require.NoError(t, err)
 				require.NotNil(t, clt)
@@ -501,7 +494,7 @@ func TestClient_DialCluster(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			proxy := newFakeProxy(t, test.srv)
+			proxy := newFakeProxy(t, test.sshHandler)
 			cfg := proxy.clientConfig(t)
 
 			clt, err := NewClient(ctx, cfg)
@@ -531,33 +524,10 @@ func TestClient_DialCluster(t *testing.T) {
 	}
 }
 
-// clusterStream implements the [streamutils.Source] interface
-// for a [transportv1pb.TransportService_ProxyClusterServer].
-type clusterStream struct {
-	stream transportv1pb.TransportService_ProxyClusterServer
-}
-
-func (c clusterStream) Recv() ([]byte, error) {
-	req, err := c.stream.Recv()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if req.Frame == nil {
-		return nil, trace.BadParameter("received invalid frame")
-	}
-
-	return req.Frame.Payload, nil
-}
-
-func (c clusterStream) Send(frame []byte) error {
-	return trace.Wrap(c.stream.Send(&transportv1pb.ProxyClusterResponse{Frame: &transportv1pb.Frame{Payload: frame}}))
-}
-
 func TestClient_SSHConfig(t *testing.T) {
 	t.Parallel()
 
-	proxy := newFakeProxy(t, fakeTransportService{})
+	proxy := newFakeProxy(t, discardHandler)
 	cfg := proxy.clientConfig(t)
 
 	clt, err := NewClient(context.Background(), cfg)
@@ -571,101 +541,71 @@ func TestClient_SSHConfig(t *testing.T) {
 	require.Empty(t, cmp.Diff(cfg.SSHConfig, sshConfig, cmpopts.IgnoreFields(ssh.ClientConfig{}, "User", "Auth", "HostKeyCallback")))
 }
 
-type fakeTransportCredentials struct {
-	credentials.TransportCredentials
-	info credentials.AuthInfo
-	err  error
-}
+type fakePublicKey struct{}
 
-type fakeAuthInfo struct{}
-
-func (f fakeAuthInfo) AuthType() string {
+func (f fakePublicKey) Type() string {
 	return "test"
 }
 
-func (t fakeTransportCredentials) ClientHandshake(ctx context.Context, addr string, conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
-	return conn, t.info, t.err
+func (f fakePublicKey) Marshal() []byte {
+	return nil
 }
 
-func TestClusterCredentials(t *testing.T) {
+func (f fakePublicKey) Verify(data []byte, sig *ssh.Signature) error {
+	return trace.NotImplemented("")
+}
+
+func TestClusterCallback(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
 		name                string
+		hostKeyCB           ssh.HostKeyCallback
+		publicKey           ssh.PublicKey
 		expectedClusterName string
-		credentials         fakeTransportCredentials
 		errAssertion        require.ErrorAssertionFunc
 	}{
 		{
-			name:         "handshake error",
-			credentials:  fakeTransportCredentials{err: context.Canceled},
+			name: "handshake failure",
+			hostKeyCB: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+				return context.Canceled
+			},
 			errAssertion: require.Error,
 		},
 		{
-			name:         "no tls auth info",
-			credentials:  fakeTransportCredentials{info: fakeAuthInfo{}},
+			name:      "invalid certificate",
+			publicKey: fakePublicKey{},
+			hostKeyCB: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+				return nil
+			},
 			errAssertion: require.NoError,
 		},
 		{
-			name:         "no server cert",
-			credentials:  fakeTransportCredentials{info: credentials.TLSInfo{}},
-			errAssertion: require.NoError,
-		},
-		{
-			name: "no cluster oid set",
-			credentials: fakeTransportCredentials{info: credentials.TLSInfo{
-				State: tls.ConnectionState{
-					PeerCertificates: []*x509.Certificate{
-						{
-							Subject: pkix.Name{
-								Names: []pkix.AttributeTypeAndValue{
-									{
-										Type: asn1.ObjectIdentifier{1, 3, 9999, 0, 1},
-									},
-									{
-										Type: asn1.ObjectIdentifier{1, 3, 9999, 2, 1},
-									},
-									{
-										Type: asn1.ObjectIdentifier{1, 3, 9999, 0, 2},
-									},
-									{
-										Type: asn1.ObjectIdentifier{1, 3, 9999, 2, 2},
-									},
-								},
-							},
-						},
-					},
+			name: "no authority present",
+			publicKey: &ssh.Certificate{
+				Permissions: ssh.Permissions{
+					Extensions: map[string]string{},
 				},
-			}},
+			},
+			hostKeyCB: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+				return nil
+			},
 			errAssertion: require.NoError,
-		}, {
+		},
+
+		{
 			name:                "cluster name presented",
 			expectedClusterName: "test-cluster",
-			credentials: fakeTransportCredentials{info: credentials.TLSInfo{
-				State: tls.ConnectionState{
-					PeerCertificates: []*x509.Certificate{
-						{
-							Subject: pkix.Name{
-								Names: []pkix.AttributeTypeAndValue{
-									{
-										Type: asn1.ObjectIdentifier{1, 3, 9999, 2, 1},
-									},
-									{
-										Type: asn1.ObjectIdentifier{1, 3, 9999, 0, 2},
-									},
-									{
-										Type: asn1.ObjectIdentifier{1, 3, 9999, 2, 2},
-									},
-									{
-										Type:  teleportClusterASN1ExtensionOID,
-										Value: "test-cluster",
-									},
-								},
-							},
-						},
+			publicKey: &ssh.Certificate{
+				Permissions: ssh.Permissions{
+					Extensions: map[string]string{
+						teleportAuthority: "test-cluster",
 					},
 				},
-			}},
+			},
+			hostKeyCB: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+				return nil
+			},
 			errAssertion: require.NoError,
 		},
 	}
@@ -673,64 +613,10 @@ func TestClusterCredentials(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			c := &clusterName{}
-			creds := clusterCredentials{TransportCredentials: test.credentials, clusterName: c}
-			_, _, err := creds.ClientHandshake(context.Background(), "127.0.0.1", nil)
+			err := clusterCallback(c, test.hostKeyCB)("test", addr("127.0.0.1"), test.publicKey)
 			test.errAssertion(t, err)
 			require.Equal(t, test.expectedClusterName, c.get())
+
 		})
 	}
-}
-
-func TestNewDialerForGRPCClient(t *testing.T) {
-	t.Run("Check that PROXYHeaderGetter if present sends PROXY header as first bytes on the connection", func(t *testing.T) {
-		listener, err := net.Listen("tcp", "127.0.0.1:0")
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			require.NoError(t, listener.Close())
-		})
-
-		prefix := []byte("FAKEPROXY")
-		proxyHeaderGetter := func() ([]byte, error) {
-			return prefix, nil
-		}
-
-		ctx := context.Background()
-		cfg := &ClientConfig{
-			PROXYHeaderGetter: proxyHeaderGetter,
-		}
-		dialer := newDialerForGRPCClient(ctx, cfg)
-
-		resultChan := make(chan bool)
-		// Start listening, emulating receiving end of connection
-		go func() {
-			conn, err := listener.Accept()
-			if err != nil {
-				assert.Fail(t, err.Error())
-				return
-			}
-
-			buf := make([]byte, len(prefix))
-			_, err = conn.Read(buf)
-			assert.NoError(t, err)
-			t.Cleanup(func() {
-				require.NoError(t, conn.Close())
-			})
-
-			// On the received connection first bytes should be our PROXY prefix
-			resultChan <- slices.Equal(buf, prefix)
-		}()
-
-		conn, err := dialer(ctx, listener.Addr().String())
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			require.NoError(t, conn.Close())
-		})
-
-		select {
-		case res := <-resultChan:
-			require.True(t, res, "Didn't receive required prefix as first bytes on the connection")
-		case <-time.After(time.Second):
-			require.Fail(t, "Timed out waiting for connection")
-		}
-	})
 }

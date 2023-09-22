@@ -60,7 +60,7 @@ func BuildCollector() prometheus.Collector {
 	)
 }
 
-// CreateGRPCServerMetrics creates server gRPC metrics configuration that is to be registered and used by the caller
+// CreateGRPCServerMetrics creates server grpc metrics configuration that is to be registered and used by the caller
 // in an openmetrics unary and/or stream interceptor
 func CreateGRPCServerMetrics(latencyEnabled bool, labels prometheus.Labels) *om.ServerMetrics {
 	serverOpts := []om.ServerMetricsOption{om.WithServerCounterOptions(om.WithConstLabels(labels))}
@@ -71,7 +71,7 @@ func CreateGRPCServerMetrics(latencyEnabled bool, labels prometheus.Labels) *om.
 	return om.NewServerMetrics(serverOpts...)
 }
 
-// CreateGRPCClientMetrics creates client gRPC metrics configuration that is to be registered and used by the caller
+// CreateGRPCClientMetrics creates client grpc metrics configuration that is to be registered and used by the caller
 // in an openmetrics unary and/or stream interceptor
 func CreateGRPCClientMetrics(latencyEnabled bool, labels prometheus.Labels) *om.ClientMetrics {
 	clientOpts := []om.ClientMetricsOption{om.WithClientCounterOptions(om.WithConstLabels(labels))}

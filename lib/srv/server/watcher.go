@@ -22,76 +22,55 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 // Instances contains information about discovered cloud instances from any provider.
 type Instances struct {
-	EC2   *EC2Instances
-	Azure *AzureInstances
-	GCP   *GCPInstances
+	*EC2Instances
+	*AzureInstances
 }
 
 // Fetcher fetches instances from a particular cloud provider.
 type Fetcher interface {
 	// GetInstances gets a list of cloud instances.
-	GetInstances(ctx context.Context, rotation bool) ([]Instances, error)
-	// GetMatchingInstances finds Instances from the list of nodes
-	// that the fetcher matches.
-	GetMatchingInstances(nodes []types.Server, rotation bool) ([]Instances, error)
+	GetInstances(context.Context) ([]Instances, error)
 }
 
 // Watcher allows callers to discover cloud instances matching specified filters.
 type Watcher struct {
 	// InstancesC can be used to consume newly discovered instances.
-	InstancesC     chan Instances
-	missedRotation <-chan []types.Server
+	InstancesC chan Instances
 
-	fetchers     []Fetcher
-	pollInterval time.Duration
-	ctx          context.Context
-	cancel       context.CancelFunc
-}
-
-func (w *Watcher) sendInstancesOrLogError(instancesColl []Instances, err error) {
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return
-		}
-		log.WithError(err).Error("Failed to fetch instances")
-		return
-	}
-	for _, inst := range instancesColl {
-		select {
-		case w.InstancesC <- inst:
-		case <-w.ctx.Done():
-		}
-	}
+	fetchers      []Fetcher
+	fetchInterval time.Duration
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
 // Run starts the watcher's main watch loop.
 func (w *Watcher) Run() {
-	if len(w.fetchers) == 0 {
-		return
-	}
-	ticker := time.NewTicker(w.pollInterval)
+	ticker := time.NewTicker(w.fetchInterval)
 	defer ticker.Stop()
-
-	for _, fetcher := range w.fetchers {
-		w.sendInstancesOrLogError(fetcher.GetInstances(w.ctx, false))
-	}
-
 	for {
+		for _, fetcher := range w.fetchers {
+			instancesColl, err := fetcher.GetInstances(w.ctx)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					continue
+				}
+				log.WithError(err).Error("Failed to fetch instances")
+				continue
+			}
+			for _, inst := range instancesColl {
+				select {
+				case w.InstancesC <- inst:
+				case <-w.ctx.Done():
+				}
+			}
+		}
 		select {
-		case insts := <-w.missedRotation:
-			for _, fetcher := range w.fetchers {
-				w.sendInstancesOrLogError(fetcher.GetMatchingInstances(insts, true))
-			}
 		case <-ticker.C:
-			for _, fetcher := range w.fetchers {
-				w.sendInstancesOrLogError(fetcher.GetInstances(w.ctx, false))
-			}
+			continue
 		case <-w.ctx.Done():
 			return
 		}

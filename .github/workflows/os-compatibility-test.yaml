@@ -12,7 +12,7 @@ on:
       - 'docs/**'
       - 'web/**'
       - 'rfd/**'
-      - '**/*.md*'      
+      - '**/*.md*'
 
 jobs:
   build:
@@ -24,14 +24,14 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport14
+      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport12
       env:
         GOCACHE: /tmp/gocache
         WEBASSETS_SKIP_BUILD: 1
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
+        uses: actions/checkout@v3
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
@@ -56,7 +56,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Download binaries
         uses: actions/download-artifact@v3

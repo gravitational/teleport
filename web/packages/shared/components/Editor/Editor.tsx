@@ -315,7 +315,6 @@ const LineNumber = styled.div<LineNumberProps>`
 
 const Code = styled.div`
   width: 100%;
-  color: white;
 `;
 
 const ActiveLine = styled.div`

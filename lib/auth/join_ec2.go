@@ -319,9 +319,6 @@ func (a *Server) tryToDetectIdentityReuse(ctx context.Context, req *types.Regist
 	case types.RoleDiscovery:
 		// no appropriate check exists for the Discovery role
 		instanceExists = false
-	case types.RoleMDM:
-		// no appropriate check exists for the MDM role
-		instanceExists = false
 	default:
 		return trace.BadParameter("unsupported role: %q", req.Role)
 	}

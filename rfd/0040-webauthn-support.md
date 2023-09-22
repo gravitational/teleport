@@ -73,7 +73,7 @@ Authentication (also referred simply as Login) follows a similar "challenge ->
 sign -> verify" protocol. In simple terms, the client requests a
 [CredentialAssertion](https://pkg.go.dev/github.com/duo-labs/webauthn/protocol#CredentialAssertion)
 from the server, signs it by calling
-[navigator.credentials.get()](https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/get),
+[navigartor.credentials.get()](https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/get),
 and replies with a
 [CredentialAssertionResponse](https://pkg.go.dev/github.com/duo-labs/webauthn/protocol#CredentialAssertionResponse).
 Once again, assuming all is well, login is complete.
@@ -506,11 +506,11 @@ suggested, only changes to existing messages to accommodate WebAuthn challenges
 are required.
 
 __MFAAuthenticateChallenge__ and __MFAAuthenticateResponse__ must change to
-accommodate, respectively, a CredentialAssertion and
+accomodate, respectivelly, a CredentialAssertion and
 CredentialAssertionResponse (modeled as protos).
 
 __MFARegisterChallenge__ and __MFARegisterResponse__, similarly to their
-authenticate counterparts, must change to accommodate a
+authenticate counterparts, must change to accomodate a
 [CredentialCreation](https://pkg.go.dev/github.com/duo-labs/webauthn/protocol#CredentialCreation)
 and a
 [CredentialCreationResponse](https://pkg.go.dev/github.com/duo-labs/webauthn/protocol#CredentialCreationResponse)

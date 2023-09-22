@@ -19,7 +19,6 @@ import React from 'react';
 import { ContextProvider } from 'teleport';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import useSessions from 'teleport/Sessions/useSessions';
 
 import { Sessions } from './Sessions';
 import { sessions } from './fixtures';
@@ -29,7 +28,16 @@ export default {
 };
 
 export function Loaded() {
-  const props = makeSessionProps({ attempt: { isSuccess: true } });
+  const props = {
+    sessions,
+    attempt: {
+      isSuccess: true,
+      isProcessing: false,
+      isFailed: false,
+      message: '',
+    },
+    showActiveSessionsCTA: false,
+  };
 
   return (
     <ContextProvider ctx={ctx}>
@@ -38,24 +46,17 @@ export function Loaded() {
   );
 }
 
-export function ActiveSessionsCTA() {
-  const props = makeSessionProps({
-    attempt: { isSuccess: true },
+export function LoadedWithCTA() {
+  const props = {
+    sessions,
+    attempt: {
+      isSuccess: true,
+      isProcessing: false,
+      isFailed: false,
+      message: '',
+    },
     showActiveSessionsCTA: true,
-  });
-
-  return (
-    <ContextProvider ctx={ctx}>
-      <Sessions {...props} />
-    </ContextProvider>
-  );
-}
-
-export function ModeratedSessionsCTA() {
-  const props = makeSessionProps({
-    attempt: { isSuccess: true },
-    showModeratedSessionsCTA: true,
-  });
+  };
 
   return (
     <ContextProvider ctx={ctx}>
@@ -65,22 +66,3 @@ export function ModeratedSessionsCTA() {
 }
 
 const ctx = createTeleportContext();
-
-const makeSessionProps = (
-  overrides: Partial<typeof useSessions> = {}
-): ReturnType<typeof useSessions> => {
-  return Object.assign(
-    {
-      sessions,
-      attempt: {
-        isSuccess: false,
-        isProcessing: false,
-        isFailed: false,
-        message: '',
-      },
-      showActiveSessionsCTA: false,
-      showModeratedSessionsCTA: false,
-    },
-    overrides
-  );
-};

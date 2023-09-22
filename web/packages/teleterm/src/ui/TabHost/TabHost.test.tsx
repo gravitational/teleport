@@ -69,7 +69,7 @@ function getTestSetup({ documents }: { documents: Document[] }) {
       return {
         closeTab: 'Command-W',
         newTab: 'Command-T',
-        openSearchBar: 'Command-K',
+        openCommandBar: 'Command-K',
         openConnections: 'Command-P',
         openClusters: 'Command-E',
         openProfiles: 'Command-I',
@@ -154,7 +154,7 @@ function getTestSetup({ documents }: { documents: Document[] }) {
 
   const utils = render(
     <MockAppContextProvider appContext={appContext}>
-      <TabHost ctx={appContext} topBarContainerRef={undefined} />
+      <TabHost ctx={appContext} />
     </MockAppContextProvider>
   );
 

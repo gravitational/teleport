@@ -1,10 +1,10 @@
 ---
-title: Kubernetes Clusters Discovery
-description: Detailed guides for configuring Kubernetes Clusters Discovery.
+title: Kubernetes Auto-Discovery (Preview)
+description: Detailed guides for configuring Kubernetes Auto-Discovery.
 layout: tocless-doc
 ---
 
-Kubernetes Clusters Discovery allows Kubernetes clusters
+Kubernetes Auto-Discovery allows Kubernetes clusters
 hosted on cloud providers to be discovered and enrolled automatically.
 
 While discovering a new Kubernetes cluster, Teleport does not install any component
@@ -13,14 +13,14 @@ minimal access permissions.
 
 ## Supported clouds
 
-- [AWS](./discovery/aws.mdx): Discovery for AWS EKS clusters.
-- [Azure](./discovery/azure.mdx): Discovery for Azure AKS clusters.
-- [Google Cloud](./discovery/google-cloud.mdx): Discovery for
+- [AWS](./discovery/aws.mdx): Kubernetes Auto-Discovery for AWS EKS clusters.
+- [Azure](./discovery/azure.mdx): Kubernetes Auto-Discovery for Azure AKS clusters.
+- [Google Cloud](./discovery/google-cloud.mdx): Kubernetes Auto-Discovery for
   Google Kubernetes Engine clusters.
 
-## How Kubernetes Clusters Discovery works
+## How Kubernetes Auto-Discovery works
 
-Kubernetes Clusters Discovery consists of two steps:
+Kubernetes Auto-Discovery consists of two steps:
 
 ### Polling cloud APIs
 

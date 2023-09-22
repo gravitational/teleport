@@ -25,13 +25,11 @@ test('correct formatting of nodes fetch response', async () => {
   expect(response).toEqual({
     agents: [
       {
-        kind: 'node',
         id: '00a53f99-993b-40bc-af51-5ba259af4e43',
         clusterId: 'im-a-cluster-name',
         hostname: 'im-a-nodename',
         labels: [{ name: 'env', value: 'dev' }],
         addr: '192.168.86.132:3022',
-        subKind: 'SSH Server',
         tunnel: false,
         sshLogins: ['root'],
       },

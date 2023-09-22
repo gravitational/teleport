@@ -41,16 +41,16 @@ import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
 import {
   ActionButtons,
-  Header,
   HeaderSubtitle,
   Mark,
   ResourceKind,
   TextIcon,
   useShowHint,
+  Header,
 } from '../../Shared';
 
 import type { AgentStepProps } from '../../types';
-import type { JoinRole, JoinToken } from 'teleport/services/joinToken';
+import type { JoinToken } from 'teleport/services/joinToken';
 import type { AgentMeta, KubeMeta } from 'teleport/Discover/useDiscover';
 import type { Kube } from 'teleport/services/kube';
 
@@ -63,13 +63,7 @@ export default function Container(props: AgentStepProps) {
     // This outer CatchError and Suspense handles
     // join token api fetch error and loading states.
     <CatchError
-      onRetry={() =>
-        clearCachedJoinTokenResult([
-          ResourceKind.Kubernetes,
-          ResourceKind.Application,
-          ResourceKind.Discovery,
-        ])
-      }
+      onRetry={() => clearCachedJoinTokenResult(ResourceKind.Kubernetes)}
       fallbackFn={fallbackProps => (
         <Box>
           <Heading />
@@ -153,11 +147,9 @@ export function HelmChart(
     setClusterName(c: string): void;
   }
 ) {
-  const { joinToken, reloadJoinToken } = useJoinTokenSuspender([
-    ResourceKind.Kubernetes,
-    ResourceKind.Application,
-    ResourceKind.Discovery,
-  ]);
+  const { joinToken, reloadJoinToken } = useJoinTokenSuspender(
+    ResourceKind.Kubernetes
+  );
 
   return (
     <Box>
@@ -307,7 +299,7 @@ const StepTwo = ({
       {error && (
         <Box>
           <TextIcon mt={3}>
-            <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
+            <Icons.Warning ml={1} color="danger" />
             Encountered Error: {error.message}
           </TextIcon>
         </Box>
@@ -326,7 +318,6 @@ const generateCmd = (data: {
   isEnterprise: boolean;
   isCloud: boolean;
   automaticUpgradesEnabled: boolean;
-  roles: JoinRole[];
 }) => {
   let extraYAMLConfig = '';
 
@@ -345,10 +336,8 @@ const generateCmd = (data: {
     extraYAMLConfig += '        minAvailable: 1\n';
   }
 
-  const yamlRoles = data.roles.join(',').toLowerCase();
-
   return `cat << EOF > prod-cluster-values.yaml
-roles: ${yamlRoles}
+roles: kube
 authToken: ${data.tokenId}
 proxyAddr: ${data.proxyAddr}
 kubeClusterName: ${data.clusterName}
@@ -424,7 +413,7 @@ const InstallHelmChart = ({
             white-space: pre;
           `}
         >
-          <Icons.Restore size="medium" mr={2} />
+          <Icons.Restore fontSize={4} />
         </TextIcon>
         After running the command above, we'll automatically detect your new
         Kubernetes cluster.
@@ -451,7 +440,6 @@ const InstallHelmChart = ({
     isEnterprise: ctx.isEnterprise,
     isCloud: ctx.isCloud,
     automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
-    roles: ['Kube', 'App', 'Discovery'],
   });
 
   return (

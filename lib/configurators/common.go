@@ -18,54 +18,11 @@ import (
 	"context"
 )
 
-// TargetService is the target service for bootstrapping.
-type TargetService int
-
-const (
-	// DatabaseService indicates the bootstrap is for database service. Cloud
-	// matchers and static databases are scanned from `database_service` and
-	// both discovery and access/auth permissions will be collected.
-	DatabaseService TargetService = iota
-	// DiscoveryService indicates the bootstrap is for discovery service. Cloud
-	// matchers are scanned from `discovery_service` and discovery permissions
-	// will be collected.
-	DiscoveryService
-	// DatabaseServiceByDiscoveryServiceConfig indicates the bootstrap is for
-	// database service that is receiving dynamic/discovered resources from the
-	// discovery service. Cloud matchers are scanned from `discovery_service`
-	// and access/auth permissions will be collected.
-	DatabaseServiceByDiscoveryServiceConfig
-)
-
-// Name returns the target service name.
-func (t TargetService) Name() string {
-	switch t {
-	case DatabaseService,
-		DatabaseServiceByDiscoveryServiceConfig:
-		return "Database Service"
-	case DiscoveryService:
-		return "Discovery Service"
-	default:
-		return "unknown service"
-	}
-}
-
-// IsDiscovery returns true if target is discovery service.
-func (t TargetService) IsDiscovery() bool {
-	return t == DiscoveryService
-}
-
-// UseDiscoveryServiceConfig returns true if target is using discovery service
-// config.
-func (t TargetService) UseDiscoveryServiceConfig() bool {
-	return t == DiscoveryService || t == DatabaseServiceByDiscoveryServiceConfig
-}
-
 // BootstrapFlags flags provided by users to configure and define how the
 // configurators will work.
 type BootstrapFlags struct {
-	// Service specifies the target service for bootstrapping.
-	Service TargetService
+	// DiscoveryService indicates the bootstrap is for the discovery service.
+	DiscoveryService bool
 	// ConfigPath database agent configuration path.
 	ConfigPath string
 	// Manual boolean indicating if the configurator will perform the
@@ -95,12 +52,6 @@ type BootstrapFlags struct {
 	ForceAWSKeyspacesPermissions bool
 	// ForceDynamoDBPermissions forces the presence of DynamoDB permissions.
 	ForceDynamoDBPermissions bool
-	// ForceOpenSearchPermissions forces the presence of OpenSearch permissions.
-	ForceOpenSearchPermissions bool
-	// Proxy is the address of the Teleport proxy to use.
-	Proxy string
-	// ForceAssumesRoles forces the presence of additional external AWS IAM roles to assume.
-	ForceAssumesRoles string
 }
 
 // ConfiguratorActionContext context passed across configurator actions. It is
@@ -139,8 +90,6 @@ type Configurator interface {
 	Actions() []ConfiguratorAction
 	// Name returns the configurator name.
 	Name() string
-	// Description returns a brief description of the configurator.
-	Description() string
 	// IsEmpty defines if the configurator will have to perform any action.
 	IsEmpty() bool
 }

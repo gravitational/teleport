@@ -25,26 +25,13 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/lib/utils"
 )
-
-// Opt is a creation option for [E]
-type Opt func(*E)
-
-// WithAutoCreateDevice instructs EnrollDevice to automatically create the
-// requested device, if it wasn't previously registered.
-// See also [FakeEnrollmentToken].
-func WithAutoCreateDevice(b bool) Opt {
-	return func(e *E) {
-		e.service.autoCreateDevice = b
-	}
-}
 
 // E is an integrated test environment for device trust.
 type E struct {
 	DevicesClient devicepb.DeviceTrustServiceClient
 
-	service *fakeDeviceService
 	closers []func() error
 }
 
@@ -61,8 +48,8 @@ func (e *E) Close() error {
 
 // MustNew creates a new E or panics.
 // Callers are required to defer e.Close() to release test resources.
-func MustNew(opts ...Opt) *E {
-	env, err := New(opts...)
+func MustNew() *E {
+	env, err := New()
 	if err != nil {
 		panic(err)
 	}
@@ -71,14 +58,8 @@ func MustNew(opts ...Opt) *E {
 
 // New creates a new E.
 // Callers are required to defer e.Close() to release test resources.
-func New(opts ...Opt) (*E, error) {
-	e := &E{
-		service: newFakeDeviceService(),
-	}
-
-	for _, opt := range opts {
-		opt(e)
-	}
+func New() (*E, error) {
+	e := &E{}
 
 	ok := false
 	defer func() {
@@ -94,8 +75,8 @@ func New(opts ...Opt) (*E, error) {
 
 	s := grpc.NewServer(
 		// Options below are similar to auth.GRPCServer.
-		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
-		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.StreamInterceptor(utils.GRPCServerStreamErrorInterceptor),
+		grpc.UnaryInterceptor(utils.GRPCServerUnaryErrorInterceptor),
 	)
 	e.closers = append(e.closers, func() error {
 		s.GracefulStop()
@@ -104,7 +85,7 @@ func New(opts ...Opt) (*E, error) {
 	})
 
 	// Register service.
-	devicepb.RegisterDeviceTrustServiceServer(s, e.service)
+	devicepb.RegisterDeviceTrustServiceServer(s, newFakeDeviceService())
 
 	// Start.
 	go func() {
@@ -121,8 +102,8 @@ func New(opts ...Opt) (*E, error) {
 			return lis.DialContext(ctx)
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
-		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
+		grpc.WithStreamInterceptor(utils.GRPCClientStreamErrorInterceptor),
+		grpc.WithUnaryInterceptor(utils.GRPCClientUnaryErrorInterceptor),
 	)
 	if err != nil {
 		return nil, err
@@ -132,16 +113,4 @@ func New(opts ...Opt) (*E, error) {
 
 	ok = true
 	return e, nil
-}
-
-// FakeDevice is implemented by the platform-native fakes and is used in tests
-// for device authentication and enrollment.
-type FakeDevice interface {
-	CollectDeviceData() (*devicepb.DeviceCollectedData, error)
-	EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
-	GetDeviceOSType() devicepb.OSType
-	SignChallenge(chal []byte) (sig []byte, err error)
-	SolveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge, debug bool) (*devicepb.TPMEnrollChallengeResponse, error)
-	SolveTPMAuthnDeviceChallenge(challenge *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error)
-	GetDeviceCredential() *devicepb.DeviceCredential
 }

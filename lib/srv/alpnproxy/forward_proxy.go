@@ -19,21 +19,21 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/api/utils/gcp"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -93,14 +93,7 @@ func NewForwardProxy(cfg ForwardProxyConfig) (*ForwardProxy, error) {
 
 // Start starts serving on the listener.
 func (p *ForwardProxy) Start() error {
-	server := &http.Server{
-		Handler:           p,
-		ReadTimeout:       apidefaults.DefaultIOTimeout,
-		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
-		WriteTimeout:      apidefaults.DefaultIOTimeout,
-		IdleTimeout:       apidefaults.DefaultIdleTimeout,
-	}
-	err := server.Serve(p.cfg.Listener)
+	err := http.Serve(p.cfg.Listener, p)
 	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
 		return trace.Wrap(err)
 	}
@@ -109,7 +102,7 @@ func (p *ForwardProxy) Start() error {
 
 // Close closes the forward proxy.
 func (p *ForwardProxy) Close() error {
-	if err := p.cfg.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+	if err := p.cfg.Listener.Close(); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -309,7 +302,7 @@ func (h *ForwardToSystemProxyHandler) Handle(ctx context.Context, clientConn net
 
 	// Send original CONNECT request to system proxy.
 	if err = req.WriteProxy(serverConn); err != nil {
-		log.WithError(err).Errorf("Failed to send CONNECT request to system proxy %q.", systemProxyURL.Host)
+		log.WithError(err).Errorf("Failed to send CONNTECT request to system proxy %q.", systemProxyURL.Host)
 		writeHeaderToHijackedConnection(clientConn, req, http.StatusBadGateway)
 		return
 	}
@@ -366,9 +359,38 @@ func startForwardProxy(ctx context.Context, clientConn, serverConn net.Conn, hos
 	log.Debugf("Started forwarding request for %q.", host)
 	defer log.Debugf("Stopped forwarding request for %q.", host)
 
-	if err := utils.ProxyConn(ctx, clientConn, serverConn); err != nil {
-		log.WithError(err).Errorf("Failed to proxy between %q and %q.", clientConn.LocalAddr(), serverConn.LocalAddr())
+	closeContext, closeCancel := context.WithCancel(ctx)
+	defer closeCancel()
+
+	// Forcefully close connections when input context is done, to make sure
+	// the stream goroutines exit.
+	go func() {
+		<-closeContext.Done()
+
+		clientConn.Close()
+		serverConn.Close()
+	}()
+
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	stream := func(reader, writer net.Conn) {
+		_, err := io.Copy(reader, writer)
+		if err != nil && !utils.IsOKNetworkError(err) {
+			log.WithError(err).Errorf("Failed to stream from %q to %q.", reader.LocalAddr(), writer.LocalAddr())
+		}
+
+		// Close one side at a time.
+		if readerConn, ok := reader.(*net.TCPConn); ok {
+			readerConn.CloseRead()
+		}
+		if writerConn, ok := writer.(*net.TCPConn); ok {
+			writerConn.CloseWrite()
+		}
+		wg.Done()
 	}
+	go stream(clientConn, serverConn)
+	go stream(serverConn, clientConn)
+	wg.Wait()
 }
 
 // hijackClientConnection hijacks client connection.

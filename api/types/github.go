@@ -28,8 +28,8 @@ import (
 )
 
 const (
-	GithubURL    = "https://github.com"
-	GithubAPIURL = "https://api.github.com"
+	githubURL    = "https://github.com"
+	githubAPIURL = "https://api.github.com"
 )
 
 // GithubConnector defines an interface for a Github OAuth2 connector
@@ -114,16 +114,6 @@ func (c *GithubConnectorV3) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (c *GithubConnectorV3) SetResourceID(id int64) {
 	c.Metadata.ID = id
-}
-
-// GetRevision returns the revision
-func (c *GithubConnectorV3) GetRevision() string {
-	return c.Metadata.GetRevision()
-}
-
-// SetRevision sets the revision
-func (c *GithubConnectorV3) SetRevision(rev string) {
-	c.Metadata.SetRevision(rev)
 }
 
 // GetName returns the name of the connector
@@ -279,12 +269,12 @@ func (c *GithubConnectorV3) SetDisplay(display string) {
 
 // GetEndpointURL returns the endpoint URL
 func (c *GithubConnectorV3) GetEndpointURL() string {
-	return GithubURL
+	return githubURL
 }
 
 // GetEndpointURL returns the API endpoint URL
 func (c *GithubConnectorV3) GetAPIEndpointURL() string {
-	return GithubAPIURL
+	return githubAPIURL
 }
 
 // MapClaims returns a list of logins based on the provided claims,

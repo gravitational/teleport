@@ -173,9 +173,6 @@ export class ResourceDetails extends jspb.Message {
     getHostname(): string;
     setHostname(value: string): ResourceDetails;
 
-    getFriendlyName(): string;
-    setFriendlyName(value: string): ResourceDetails;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ResourceDetails.AsObject;
@@ -190,7 +187,6 @@ export class ResourceDetails extends jspb.Message {
 export namespace ResourceDetails {
     export type AsObject = {
         hostname: string,
-        friendlyName: string,
     }
 }
 

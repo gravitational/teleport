@@ -18,6 +18,8 @@ import React from 'react';
 import styled from 'styled-components';
 import * as Icons from 'design/Icon';
 
+import { colors } from 'teleport/Console/colors';
+
 import Slider from './Slider';
 
 export default function ProgressBar(props: ProgressBarProps) {
@@ -40,25 +42,7 @@ export default function ProgressBar(props: ProgressBarProps) {
           className="grv-slider"
         />
       </SliderContainer>
-      <Restart onRestart={props.onRestart} />
     </StyledProgessBar>
-  );
-}
-
-function Restart(props: { onRestart?: () => void }) {
-  if (!props.onRestart) {
-    return null;
-  }
-
-  return (
-    <ActionButton
-      style={{
-        marginLeft: '16px',
-      }}
-      onClick={props.onRestart}
-    >
-      <Icons.Refresh />
-    </ActionButton>
   );
 }
 
@@ -73,7 +57,6 @@ export type ProgressBarProps = {
   style?: React.CSSProperties;
   id?: string;
   onPlaySpeedChange?: (newSpeed: number) => void;
-  onRestart?: () => void;
 };
 
 function PlaySpeedSelector(props: { onChange?: (speed: number) => void }) {
@@ -101,7 +84,8 @@ function PlaySpeedSelector(props: { onChange?: (speed: number) => void }) {
 const PlaySpeedSelectorItem = styled.select`
   margin-left: 8px;
   border: none;
-  background: inherit;
+  background: ${colors.dark};
+  color: ${colors.light};
 `;
 
 const SliderContainer = styled.div`
@@ -122,8 +106,9 @@ const TimeText = styled.div(
 );
 
 const ActionButton = styled.button`
-  background: inherit;
+  background: ${colors.dark};
   border: none;
+  color: ${colors.light};
   cursor: pointer;
   font-size: 24px;
   height: 24px;
@@ -134,15 +119,11 @@ const ActionButton = styled.button`
   transition: all 0.3s;
   width: 24px;
 
-  .icon {
-    color: ${props => props.theme.colors.text.main};
-  }
-
   &:hover {
     opacity: 1;
 
     .icon {
-      color: ${props => props.theme.colors.success};
+      color: ${colors.progressBarColor};
     }
   }
 
@@ -153,9 +134,9 @@ const ActionButton = styled.button`
 `;
 
 const StyledProgessBar = styled.div`
-  background: ${props => props.theme.colors.levels.surface};
+  background-color: ${colors.dark};
   display: flex;
-  color: ${props => props.theme.colors.text.main};
+  color: ${colors.light};
   padding: 16px;
 
   .grv-slider {
@@ -171,7 +152,7 @@ const StyledProgessBar = styled.div`
   }
 
   .grv-slider .handle {
-    background-color: ${props => props.theme.colors.text.main};
+    background-color: ${colors.light};
     border-radius: 200px;
     box-shadow: 0 0 4px rgba(0, 0, 0, 0.12), 0 4px 4px rgba(0, 0, 0, 0.24);
     width: 16px;
@@ -181,11 +162,11 @@ const StyledProgessBar = styled.div`
   }
 
   .grv-slider .bar-0 {
-    background-color: ${props => props.theme.colors.success};
+    background-color: ${colors.success};
     box-shadow: none;
   }
 
   .grv-slider .bar-1 {
-    background-color: ${props => props.theme.colors.spotBackground[2]};
+    background-color: ${colors.text};
   }
 `;

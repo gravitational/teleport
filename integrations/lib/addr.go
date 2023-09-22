@@ -21,8 +21,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// AddrToURL transforms an address string that may or may not contain
-// a leading protocol or trailing port number into a well-formed URL
 func AddrToURL(addr string) (*url.URL, error) {
 	var (
 		result *url.URL

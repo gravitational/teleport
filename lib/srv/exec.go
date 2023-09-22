@@ -37,11 +37,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -100,10 +98,9 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 		}, nil
 	}
 
-	// If this is a registered OpenSSH node or proxy recoding mode is
-	// enabled, execute the command on a remote host. This is used by
-	// in-memory forwarding nodes.
-	if types.IsOpenSSHNodeSubKind(ctx.ServerSubKind) || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	// When in recording mode, return an *remoteExec which will execute the
+	// command on a remote host. This is used by in-memory forwarding nodes.
+	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return &remoteExec{
 			ctx:     ctx,
 			command: command,
@@ -161,7 +158,6 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	e.Cmd.Stderr = channel.Stderr()
 
 	if e.Ctx.recordNonInteractiveSession {
-		e.Ctx.Tracef("Starting local exec and recording non-interactive session")
 		e.Cmd.Stdout = io.MultiWriter(e.Ctx.multiWriter, channel)
 	} else {
 		e.Cmd.Stdout = channel
@@ -257,16 +253,21 @@ func (e *localExec) String() string {
 }
 
 func (e *localExec) transformSecureCopy() error {
-	isSCPCmd, err := checkSCPAllowed(e.Ctx, e.GetCommand())
-	if err != nil {
+	// split up command by space to grab the first word. if we don't have anything
+	// it's an interactive shell the user requested and not scp, return
+	args := strings.Split(e.GetCommand(), " ")
+	if len(args) == 0 {
+		return nil
+	}
+
+	// see the user is not requesting scp, return
+	_, f := filepath.Split(args[0])
+	if f != teleport.SCP {
+		return nil
+	}
+
+	if err := e.Ctx.CheckFileCopyingAllowed(); err != nil {
 		return trace.Wrap(err)
-	}
-	if !isSCPCmd {
-		return nil
-	}
-	_, scpArgs, ok := strings.Cut(e.GetCommand(), " ")
-	if !ok {
-		return nil
 	}
 
 	// for scp requests update the command to execute to launch teleport with
@@ -279,31 +280,12 @@ func (e *localExec) transformSecureCopy() error {
 		teleportBin,
 		e.Ctx.ServerConn.RemoteAddr().String(),
 		e.Ctx.ServerConn.LocalAddr().String(),
-		scpArgs,
-	)
+		strings.Join(args[1:], " "))
 
 	return nil
 }
 
-// checkSCPAllowed will return false if the command is not a SCP command,
-// and if it is it will return true and potentially an error if file
-// copying is not allowed.
-func checkSCPAllowed(scx *ServerContext, command string) (bool, error) {
-	// split up command by space to grab the first word. if we don't have anything
-	// it's an interactive shell the user requested and not scp, return
-	args := strings.Split(command, " ")
-	if len(args) == 0 {
-		return false, nil
-	}
-	// see the user is not requesting scp, return
-	if _, f := filepath.Split(args[0]); f != teleport.SCP {
-		return false, nil
-	}
-
-	return true, trace.Wrap(scx.CheckFileCopyingAllowed())
-}
-
-// waitForSignal will wait 10 seconds for the other side of the pipe to signal, if not
+// waitForSignal will wait the provided timeout for the other side of the pipe to signal, if not
 // received, it will stop waiting and exit.
 func waitForSignal(fd *os.File, timeout time.Duration) error {
 	waitCh := make(chan error, 1)
@@ -353,18 +335,8 @@ func (e *remoteExec) SetCommand(command string) {
 // Start launches the given command returns (nil, nil) if successful.
 // ExecResult is only used to communicate an error while launching.
 func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, error) {
-	if _, err := checkSCPAllowed(e.ctx, e.GetCommand()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// hook up stdout/err the channel so the user can interact with the command
-	if e.ctx.recordNonInteractiveSession {
-		e.ctx.Tracef("Starting remote exec and recording non-interactive session")
-		e.session.Stdout = io.MultiWriter(e.ctx.multiWriter, ch)
-	} else {
-		e.session.Stdout = ch
-	}
-
+	e.session.Stdout = ch
 	e.session.Stderr = ch.Stderr()
 	inputWriter, err := e.session.StdinPipe()
 	if err != nil {
@@ -527,7 +499,7 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 	envRootPath := defaultEnvRootPath
 
 	// open file, if it doesn't exist return a default path and move on
-	f, err := utils.OpenFileAllowingUnsafeLinks(loginDefsPath)
+	f, err := os.Open(loginDefsPath)
 	if err != nil {
 		if uid == "0" {
 			log.Infof("Unable to open %q: %v: returning default su path: %q", loginDefsPath, err, defaultEnvRootPath)
@@ -593,7 +565,7 @@ func parseSecureCopy(path string) (string, string, bool, error) {
 		action = events.SCPActionUpload
 	}
 
-	// Extract the name of the Teleport executable on disk.
+	// Exract the name of the Teleport executable on disk.
 	teleportPath, err := os.Executable()
 	if err != nil {
 		return "", "", false, trace.Wrap(err)

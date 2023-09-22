@@ -32,7 +32,6 @@ import (
 type RedshiftServerlessMock struct {
 	redshiftserverlessiface.RedshiftServerlessAPI
 
-	Unauth               bool
 	Workgroups           []*redshiftserverless.Workgroup
 	Endpoints            []*redshiftserverless.EndpointAccess
 	TagsByARN            map[string][]*redshiftserverless.Tag
@@ -40,10 +39,6 @@ type RedshiftServerlessMock struct {
 }
 
 func (m RedshiftServerlessMock) GetWorkgroupWithContext(_ aws.Context, input *redshiftserverless.GetWorkgroupInput, _ ...request.Option) (*redshiftserverless.GetWorkgroupOutput, error) {
-	if m.Unauth {
-		return nil, trace.AccessDenied("unauthorized")
-	}
-
 	for _, workgroup := range m.Workgroups {
 		if aws.StringValue(workgroup.WorkgroupName) == aws.StringValue(input.WorkgroupName) {
 			return new(redshiftserverless.GetWorkgroupOutput).SetWorkgroup(workgroup), nil
@@ -52,9 +47,6 @@ func (m RedshiftServerlessMock) GetWorkgroupWithContext(_ aws.Context, input *re
 	return nil, trace.NotFound("workgroup %q not found", aws.StringValue(input.WorkgroupName))
 }
 func (m RedshiftServerlessMock) GetEndpointAccessWithContext(_ aws.Context, input *redshiftserverless.GetEndpointAccessInput, _ ...request.Option) (*redshiftserverless.GetEndpointAccessOutput, error) {
-	if m.Unauth {
-		return nil, trace.AccessDenied("unauthorized")
-	}
 	for _, endpoint := range m.Endpoints {
 		if aws.StringValue(endpoint.EndpointName) == aws.StringValue(input.EndpointName) {
 			return new(redshiftserverless.GetEndpointAccessOutput).SetEndpoint(endpoint), nil
@@ -63,27 +55,18 @@ func (m RedshiftServerlessMock) GetEndpointAccessWithContext(_ aws.Context, inpu
 	return nil, trace.NotFound("endpoint %q not found", aws.StringValue(input.EndpointName))
 }
 func (m RedshiftServerlessMock) ListWorkgroupsPagesWithContext(_ aws.Context, input *redshiftserverless.ListWorkgroupsInput, fn func(*redshiftserverless.ListWorkgroupsOutput, bool) bool, _ ...request.Option) error {
-	if m.Unauth {
-		return trace.AccessDenied("unauthorized")
-	}
 	fn(&redshiftserverless.ListWorkgroupsOutput{
 		Workgroups: m.Workgroups,
 	}, true)
 	return nil
 }
 func (m RedshiftServerlessMock) ListEndpointAccessPagesWithContext(_ aws.Context, input *redshiftserverless.ListEndpointAccessInput, fn func(*redshiftserverless.ListEndpointAccessOutput, bool) bool, _ ...request.Option) error {
-	if m.Unauth {
-		return trace.AccessDenied("unauthorized")
-	}
 	fn(&redshiftserverless.ListEndpointAccessOutput{
 		Endpoints: m.Endpoints,
 	}, true)
 	return nil
 }
 func (m RedshiftServerlessMock) ListTagsForResourceWithContext(_ aws.Context, input *redshiftserverless.ListTagsForResourceInput, _ ...request.Option) (*redshiftserverless.ListTagsForResourceOutput, error) {
-	if m.Unauth {
-		return nil, trace.AccessDenied("unauthorized")
-	}
 	if m.TagsByARN == nil {
 		return &redshiftserverless.ListTagsForResourceOutput{}, nil
 	}
@@ -92,7 +75,7 @@ func (m RedshiftServerlessMock) ListTagsForResourceWithContext(_ aws.Context, in
 	}, nil
 }
 func (m RedshiftServerlessMock) GetCredentialsWithContext(aws.Context, *redshiftserverless.GetCredentialsInput, ...request.Option) (*redshiftserverless.GetCredentialsOutput, error) {
-	if m.Unauth || m.GetCredentialsOutput == nil {
+	if m.GetCredentialsOutput == nil {
 		return nil, trace.AccessDenied("access denied")
 	}
 	return m.GetCredentialsOutput, nil

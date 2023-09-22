@@ -24,12 +24,10 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/coreos/go-oidc"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -522,51 +520,4 @@ func GenerateKeyPair() ([]byte, []byte, error) {
 	}
 
 	return public, private, nil
-}
-
-// CheckNotBefore ensures the token was not issued in the future.
-// https://www.rfc-editor.org/rfc/rfc7519#section-4.1.5
-// 4.1.5.  "nbf" (Not Before) Claim
-// TODO(strideynet): upstream support for `nbf` into the go-oidc lib.
-func CheckNotBefore(now time.Time, leeway time.Duration, token *oidc.IDToken) error {
-	claims := struct {
-		NotBefore *JSONTime `json:"nbf"`
-	}{}
-	if err := token.Claims(&claims); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if claims.NotBefore != nil {
-		adjustedNow := now.Add(leeway)
-		nbf := time.Time(*claims.NotBefore)
-		if adjustedNow.Before(nbf) {
-			return trace.AccessDenied("token not before in future")
-		}
-	}
-
-	return nil
-}
-
-// JSONTime unmarshaling sourced from https://github.com/gravitational/go-oidc/blob/master/oidc.go#L295
-// TODO(strideynet): upstream support for `nbf` into the go-oidc lib.
-type JSONTime time.Time
-
-func (j *JSONTime) UnmarshalJSON(b []byte) error {
-	var n json.Number
-	if err := json.Unmarshal(b, &n); err != nil {
-		return err
-	}
-	var unix int64
-
-	if t, err := n.Int64(); err == nil {
-		unix = t
-	} else {
-		f, err := n.Float64()
-		if err != nil {
-			return err
-		}
-		unix = int64(f)
-	}
-	*j = JSONTime(time.Unix(unix, 0))
-	return nil
 }

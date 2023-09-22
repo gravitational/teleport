@@ -24,37 +24,36 @@ import { space } from 'design/system';
 const kind = ({ kind, theme }) => {
   if (kind === 'secondary') {
     return {
-      backgroundColor: theme.colors.spotBackground[0],
+      backgroundColor: theme.colors.levels.sunkenSecondary,
       color: theme.colors.text.main,
-      fontWeight: 400,
     };
   }
 
   if (kind === 'warning') {
     return {
       backgroundColor: theme.colors.warning.main,
-      color: theme.colors.text.primaryInverse,
+      color: theme.colors.text.contrast,
     };
   }
 
   if (kind === 'danger') {
     return {
-      backgroundColor: theme.colors.error.main,
-      color: theme.colors.text.primaryInverse,
+      backgroundColor: theme.colors.danger,
+      color: theme.colors.text.contrast,
     };
   }
 
   if (kind === 'success') {
     return {
       backgroundColor: theme.colors.success,
-      color: theme.colors.text.primaryInverse,
+      color: theme.colors.text.contrast,
     };
   }
 
   // default is primary
   return {
     backgroundColor: theme.colors.brand,
-    color: theme.colors.text.primaryInverse,
+    color: theme.colors.text.contrast,
   };
 };
 

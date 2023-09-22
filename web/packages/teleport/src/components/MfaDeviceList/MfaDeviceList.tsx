@@ -133,14 +133,4 @@ const StyledTable = styled(Table)`
       height: 32px;
     }
   }
-  ${props =>
-    !props.isSearchable &&
-    `border-radius: 8px; overflow: hidden; box-shadow: ${props.theme.boxShadow[0]};   
-    & > tbody {
-      background: ${props.theme.colors.levels.elevated};
-    }
-    & > thead > tr > th {
-      background: ${props.theme.colors.spotBackground[1]};
-  }
-  `}
 ` as typeof Table;

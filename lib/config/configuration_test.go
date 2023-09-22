@@ -49,7 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -358,8 +358,6 @@ func TestConfigReading(t *testing.T) {
 					Tags: map[string]apiutils.Strings{
 						"a": {"b"},
 					},
-					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-					ExternalID:    "externalID123",
 					InstallParams: &InstallParams{
 						JoinParams: JoinParams{
 							TokenName: "aws-discovery-iam-token",
@@ -386,7 +384,7 @@ func TestConfigReading(t *testing.T) {
 				{
 					Types:     []string{"gke"},
 					Locations: []string{"uswest1"},
-					Labels: map[string]apiutils.Strings{
+					Tags: map[string]apiutils.Strings{
 						"a": {"b"},
 					},
 					ProjectIDs: []string{"p1", "p2"},
@@ -466,16 +464,7 @@ func TestConfigReading(t *testing.T) {
 			ResourceMatchers: []ResourceMatcher{
 				{
 					Labels: map[string]apiutils.Strings{
-						"a": {"b"},
-					},
-				},
-				{
-					Labels: map[string]apiutils.Strings{
-						"c": {"d"},
-					},
-					AWS: ResourceMatcherAWS{
-						AssumeRoleARN: "arn:aws:iam::123456789012:role/DBAccess",
-						ExternalID:    "externalID123",
+						"*": {"*"},
 					},
 				},
 			},
@@ -486,8 +475,6 @@ func TestConfigReading(t *testing.T) {
 					Tags: map[string]apiutils.Strings{
 						"a": {"b"},
 					},
-					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-					ExternalID:    "externalID123",
 				},
 				{
 					Types:   []string{"rds"},
@@ -495,7 +482,6 @@ func TestConfigReading(t *testing.T) {
 					Tags: map[string]apiutils.Strings{
 						"c": {"d"},
 					},
-					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
 				},
 			},
 			AzureMatchers: []AzureMatcher{
@@ -596,7 +582,7 @@ func TestConfigReading(t *testing.T) {
 }
 
 func TestLabelParsing(t *testing.T) {
-	var conf servicecfg.SSHConfig
+	var conf service.SSHConfig
 	var err error
 	// empty spec. no errors, no labels
 	err = parseLabelsApply("", &conf)
@@ -712,7 +698,7 @@ func TestApplyConfig(t *testing.T) {
 	require.NotNil(t, conf)
 	require.Equal(t, apiutils.Strings{"web3:443"}, conf.Proxy.PublicAddr)
 
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	err = ApplyFileConfig(conf, cfg)
 	require.NoError(t, err)
 
@@ -764,7 +750,7 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "tcp://mysql.example:3306", cfg.Proxy.MySQLPublicAddrs[0].FullAddress())
 	require.Len(t, cfg.Proxy.MongoPublicAddrs, 1)
 	require.Equal(t, "tcp://mongo.example:27017", cfg.Proxy.MongoPublicAddrs[0].FullAddress())
-	require.Equal(t, "tcp://peerhost:1234", cfg.Proxy.PeerAddress.FullAddress())
+	require.Equal(t, "tcp://peerhost:1234", cfg.Proxy.PeerAddr.FullAddress())
 	require.Equal(t, "tcp://peer.example:1234", cfg.Proxy.PeerPublicAddr.FullAddress())
 	require.Equal(t, true, cfg.Proxy.IdP.SAMLIdP.Enabled)
 	require.Equal(t, "", cfg.Proxy.IdP.SAMLIdP.BaseURL)
@@ -821,7 +807,6 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 					Enabled: types.NewBoolOption(true),
 				},
 			},
-			Okta: &types.OktaOptions{},
 		},
 	}, protocmp.Transform()))
 
@@ -832,21 +817,8 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.ElementsMatch(t, []string{"ca-pin-from-string", "ca-pin-from-file1", "ca-pin-from-file2"}, cfg.CAPins)
 
 	require.True(t, cfg.Databases.Enabled)
-	require.Empty(t, cmp.Diff(cfg.Databases.ResourceMatchers,
-		[]services.ResourceMatcher{
-			{
-				Labels: map[string]apiutils.Strings{
-					"*": {"*"},
-				},
-				AWS: services.ResourceMatcherAWS{
-					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBAccess",
-					ExternalID:    "externalID123",
-				},
-			},
-		},
-	))
 	require.Empty(t, cmp.Diff(cfg.Databases.AzureMatchers,
-		[]types.AzureMatcher{
+		[]services.AzureMatcher{
 			{
 				Subscriptions:  []string{"sub1", "sub2"},
 				ResourceGroups: []string{"group1", "group2"},
@@ -863,17 +835,6 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 				Regions:        []string{"westus"},
 				ResourceTags: map[string]apiutils.Strings{
 					"c": {"d"},
-				},
-			},
-		}))
-	require.Empty(t, cmp.Diff(cfg.Databases.AWSMatchers,
-		[]types.AWSMatcher{
-			{
-				Types:   []string{"rds"},
-				Regions: []string{"us-west-1"},
-				AssumeRole: &types.AssumeRole{
-					RoleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
-					ExternalID: "externalID123",
 				},
 			},
 		}))
@@ -898,9 +859,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.True(t, cfg.Discovery.Enabled)
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].Regions, []string{"eu-central-1"})
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].Types, []string{"ec2"})
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.RoleARN, "arn:aws:iam::123456789012:role/DBDiscoverer")
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.ExternalID, "externalID123")
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].Params, &types.InstallerParams{
+	require.Equal(t, cfg.Discovery.AWSMatchers[0].Params, services.InstallerParams{
 		InstallTeleport: true,
 		JoinMethod:      "iam",
 		JoinToken:       defaults.IAMInviteTokenName,
@@ -911,7 +870,6 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.True(t, cfg.Okta.Enabled)
 	require.Equal(t, cfg.Okta.APIEndpoint, "https://some-endpoint")
 	require.Equal(t, cfg.Okta.APITokenPath, oktaAPITokenPath)
-	require.Equal(t, cfg.Okta.SyncPeriod, time.Second*300)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -920,7 +878,7 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 	conf, err := ReadConfig(bytes.NewBufferString(NoServicesConfigString))
 	require.NoError(t, err)
 
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	err = ApplyFileConfig(conf, cfg)
 	require.NoError(t, err)
 
@@ -948,7 +906,7 @@ func TestApplyDefaultAuthResources(t *testing.T) {
 	conf, err := ReadConfig(bytes.NewBufferString(DefaultAuthResourcesConfigString))
 	require.NoError(t, err)
 
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	err = ApplyFileConfig(conf, cfg)
 	require.NoError(t, err)
 
@@ -966,7 +924,7 @@ func TestApplyCustomAuthPreference(t *testing.T) {
 	conf, err := ReadConfig(bytes.NewBufferString(CustomAuthPreferenceConfigString))
 	require.NoError(t, err)
 
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	err = ApplyFileConfig(conf, cfg)
 	require.NoError(t, err)
 
@@ -985,7 +943,7 @@ func TestApplyCustomAuthPreferenceWithMOTD(t *testing.T) {
 	conf, err := ReadConfig(bytes.NewBufferString(AuthPreferenceConfigWithMOTDString))
 	require.NoError(t, err)
 
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	err = ApplyFileConfig(conf, cfg)
 	require.NoError(t, err)
 
@@ -1004,7 +962,7 @@ func TestApplyCustomNetworkingConfig(t *testing.T) {
 	conf, err := ReadConfig(bytes.NewBufferString(CustomNetworkingConfigString))
 	require.NoError(t, err)
 
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	err = ApplyFileConfig(conf, cfg)
 	require.NoError(t, err)
 
@@ -1023,7 +981,7 @@ func TestApplyCustomSessionRecordingConfig(t *testing.T) {
 	conf, err := ReadConfig(bytes.NewBufferString(CustomSessionRecordingConfigString))
 	require.NoError(t, err)
 
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	err = ApplyFileConfig(conf, cfg)
 	require.NoError(t, err)
 
@@ -1109,7 +1067,7 @@ func TestPostgresPublicAddr(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 			err := applyProxyConfig(test.fc, cfg)
 			require.NoError(t, err)
 			require.EqualValues(t, test.out, utils.NetAddrsToStrings(cfg.Proxy.PostgresPublicAddrs))
@@ -1156,7 +1114,7 @@ func TestProxyPeeringPublicAddr(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 			err := applyProxyConfig(test.fc, cfg)
 			if test.wantErr {
 				require.Error(t, err)
@@ -1168,7 +1126,7 @@ func TestProxyPeeringPublicAddr(t *testing.T) {
 }
 
 func TestProxyMustJoinViaAuth(t *testing.T) {
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 
 	err := ApplyFileConfig(&FileConfig{
 		Version: defaults.TeleportConfigVersionV3,
@@ -1179,13 +1137,13 @@ func TestProxyMustJoinViaAuth(t *testing.T) {
 }
 
 func TestBackendDefaults(t *testing.T) {
-	read := func(val string) *servicecfg.Config {
+	read := func(val string) *service.Config {
 		// Default value is lite backend.
 		conf, err := ReadConfig(bytes.NewBufferString(val))
 		require.NoError(t, err)
 		require.NotNil(t, conf)
 
-		cfg := servicecfg.MakeDefaultConfig()
+		cfg := service.MakeDefaultConfig()
 		err = ApplyFileConfig(conf, cfg)
 		require.NoError(t, err)
 		return cfg
@@ -1290,7 +1248,7 @@ func TestTunnelStrategy(t *testing.T) {
 			conf, err := ReadConfig(bytes.NewBufferString(tc.config))
 			tc.readErr(t, err)
 
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 			err = ApplyFileConfig(conf, cfg)
 			tc.applyErr(t, err)
 
@@ -1309,14 +1267,14 @@ func TestTunnelStrategy(t *testing.T) {
 func TestParseCachePolicy(t *testing.T) {
 	tcs := []struct {
 		in  *CachePolicy
-		out *servicecfg.CachePolicy
+		out *service.CachePolicy
 		err error
 	}{
-		{in: &CachePolicy{EnabledFlag: "yes", TTL: "never"}, out: &servicecfg.CachePolicy{Enabled: true}},
-		{in: &CachePolicy{EnabledFlag: "true", TTL: "10h"}, out: &servicecfg.CachePolicy{Enabled: true}},
-		{in: &CachePolicy{Type: "whatever", EnabledFlag: "false", TTL: "10h"}, out: &servicecfg.CachePolicy{Enabled: false}},
-		{in: &CachePolicy{Type: "name", EnabledFlag: "yes", TTL: "never"}, out: &servicecfg.CachePolicy{Enabled: true}},
-		{in: &CachePolicy{EnabledFlag: "no"}, out: &servicecfg.CachePolicy{Enabled: false}},
+		{in: &CachePolicy{EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true}},
+		{in: &CachePolicy{EnabledFlag: "true", TTL: "10h"}, out: &service.CachePolicy{Enabled: true}},
+		{in: &CachePolicy{Type: "whatever", EnabledFlag: "false", TTL: "10h"}, out: &service.CachePolicy{Enabled: false}},
+		{in: &CachePolicy{Type: "name", EnabledFlag: "yes", TTL: "never"}, out: &service.CachePolicy{Enabled: true}},
+		{in: &CachePolicy{EnabledFlag: "no"}, out: &service.CachePolicy{Enabled: false}},
 	}
 	for i, tc := range tcs {
 		comment := fmt.Sprintf("test case #%v", i)
@@ -1489,11 +1447,9 @@ func makeConfigFixture() string {
 	conf.Discovery.EnabledFlag = "true"
 	conf.Discovery.AWSMatchers = []AWSMatcher{
 		{
-			Types:         []string{"ec2"},
-			Regions:       []string{"us-west-1", "us-east-1"},
-			Tags:          map[string]apiutils.Strings{"a": {"b"}},
-			AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-			ExternalID:    "externalID123",
+			Types:   []string{"ec2"},
+			Regions: []string{"us-west-1", "us-east-1"},
+			Tags:    map[string]apiutils.Strings{"a": {"b"}},
 		},
 	}
 
@@ -1513,7 +1469,7 @@ func makeConfigFixture() string {
 		{
 			Types:     []string{"gke"},
 			Locations: []string{"uswest1"},
-			Labels: map[string]apiutils.Strings{
+			Tags: map[string]apiutils.Strings{
 				"a": {"b"},
 			},
 			ProjectIDs: []string{"p1", "p2"},
@@ -1582,29 +1538,19 @@ func makeConfigFixture() string {
 	}
 	conf.Databases.ResourceMatchers = []ResourceMatcher{
 		{
-			Labels: map[string]apiutils.Strings{"a": {"b"}},
-		},
-		{
-			Labels: map[string]apiutils.Strings{"c": {"d"}},
-			AWS: ResourceMatcherAWS{
-				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBAccess",
-				ExternalID:    "externalID123",
-			},
+			Labels: map[string]apiutils.Strings{"*": {"*"}},
 		},
 	}
 	conf.Databases.AWSMatchers = []AWSMatcher{
 		{
-			Types:         []string{"rds"},
-			Regions:       []string{"us-west-1", "us-east-1"},
-			Tags:          map[string]apiutils.Strings{"a": {"b"}},
-			AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-			ExternalID:    "externalID123",
+			Types:   []string{"rds"},
+			Regions: []string{"us-west-1", "us-east-1"},
+			Tags:    map[string]apiutils.Strings{"a": {"b"}},
 		},
 		{
-			Types:         []string{"rds"},
-			Regions:       []string{"us-central-1"},
-			Tags:          map[string]apiutils.Strings{"c": {"d"}},
-			AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+			Types:   []string{"rds"},
+			Regions: []string{"us-central-1"},
+			Tags:    map[string]apiutils.Strings{"c": {"d"}},
 		},
 	}
 	conf.Databases.AzureMatchers = []AzureMatcher{
@@ -1710,7 +1656,7 @@ ssh_service:
 			ConfigString:          base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
 			PermitUserEnvironment: tt.inPermitUserEnvironment,
 		}
-		cfg := servicecfg.MakeDefaultConfig()
+		cfg := service.MakeDefaultConfig()
 
 		err := Configure(&clf, cfg, false)
 		require.NoError(t, err, comment)
@@ -1722,7 +1668,7 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 	tests := []struct {
 		desc string
 		fc   FileConfig
-		want servicecfg.ProxyConfig
+		want service.ProxyConfig
 	}{
 		{
 			desc: "v1 config should set default proxy listen addresses",
@@ -1734,20 +1680,21 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 					},
 				},
 			},
-			want: servicecfg.ProxyConfig{
+			want: service.ProxyConfig{
 				WebAddr:                 *utils.MustParseAddr("0.0.0.0:3080"),
 				ReverseTunnelListenAddr: *utils.MustParseAddr("0.0.0.0:3024"),
 				SSHAddr:                 *utils.MustParseAddr("0.0.0.0:3023"),
 				Enabled:                 true,
-				Kube: servicecfg.KubeProxyConfig{
+				EnableProxyProtocol:     true,
+				Kube: service.KubeProxyConfig{
 					Enabled: false,
 				},
 				Limiter: limiter.Config{
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,
 				},
-				IdP: servicecfg.IdP{
-					SAMLIdP: servicecfg.SAMLIdP{
+				IdP: service.IdP{
+					SAMLIdP: service.SAMLIdP{
 						Enabled: true,
 					},
 				},
@@ -1764,18 +1711,19 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 					WebAddr: "0.0.0.0:9999",
 				},
 			},
-			want: servicecfg.ProxyConfig{
-				WebAddr: *utils.MustParseAddr("0.0.0.0:9999"),
-				Enabled: true,
-				Kube: servicecfg.KubeProxyConfig{
+			want: service.ProxyConfig{
+				WebAddr:             *utils.MustParseAddr("0.0.0.0:9999"),
+				Enabled:             true,
+				EnableProxyProtocol: true,
+				Kube: service.KubeProxyConfig{
 					Enabled: true,
 				},
 				Limiter: limiter.Config{
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,
 				},
-				IdP: servicecfg.IdP{
-					SAMLIdP: servicecfg.SAMLIdP{
+				IdP: service.IdP{
+					SAMLIdP: service.SAMLIdP{
 						Enabled: true,
 					},
 				},
@@ -1784,7 +1732,7 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 
 			require.NoError(t, ApplyFileConfig(&tt.fc, cfg))
 			require.NoError(t, Configure(&CommandLineFlags{}, cfg, false))
@@ -1799,7 +1747,7 @@ func TestDebugFlag(t *testing.T) {
 	clf := CommandLineFlags{
 		Debug: true,
 	}
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	require.False(t, cfg.Debug)
 	err := Configure(&clf, cfg, false)
 	require.NoError(t, err)
@@ -1848,7 +1796,7 @@ func TestMergingCAPinConfig(t *testing.T) {
 					tt.configPins,
 				))),
 			}
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 			require.Empty(t, cfg.CAPins)
 			err := Configure(&clf, cfg, false)
 			require.NoError(t, err)
@@ -1879,7 +1827,7 @@ func TestLicenseFile(t *testing.T) {
 		},
 	}
 
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	require.Equal(t, filepath.Join(defaults.DataDir, defaults.LicenseFile), cfg.Auth.LicenseFile)
 
 	for _, tc := range testCases {
@@ -1930,9 +1878,9 @@ func TestFIPS(t *testing.T) {
 			FIPS:         tt.inFIPSMode,
 		}
 
-		cfg := servicecfg.MakeDefaultConfig()
-		servicecfg.ApplyDefaults(cfg)
-		servicecfg.ApplyFIPSDefaults(cfg)
+		cfg := service.MakeDefaultConfig()
+		service.ApplyDefaults(cfg)
+		service.ApplyFIPSDefaults(cfg)
 
 		err := Configure(&clf, cfg, false)
 		if tt.outError {
@@ -1948,13 +1896,13 @@ func TestProxyKube(t *testing.T) {
 		desc     string
 		cfg      Proxy
 		version  string
-		want     servicecfg.KubeProxyConfig
+		want     service.KubeProxyConfig
 		checkErr require.ErrorAssertionFunc
 	}{
 		{
 			desc: "not configured",
 			cfg:  Proxy{},
-			want: servicecfg.KubeProxyConfig{
+			want: service.KubeProxyConfig{
 				Enabled: false,
 			},
 			checkErr: require.NoError,
@@ -1964,7 +1912,7 @@ func TestProxyKube(t *testing.T) {
 			cfg: Proxy{Kube: KubeProxy{
 				Service: Service{EnabledFlag: "yes", ListenAddress: "0.0.0.0:8080"},
 			}},
-			want: servicecfg.KubeProxyConfig{
+			want: service.KubeProxyConfig{
 				Enabled:         true,
 				ListenAddr:      *utils.MustParseAddr("0.0.0.0:8080"),
 				LegacyKubeProxy: true,
@@ -1976,13 +1924,13 @@ func TestProxyKube(t *testing.T) {
 			cfg: Proxy{Kube: KubeProxy{
 				Service:        Service{EnabledFlag: "yes", ListenAddress: "0.0.0.0:8080"},
 				KubeconfigFile: "/tmp/kubeconfig",
-				PublicAddr:     apiutils.Strings([]string{constants.KubeTeleportProxyALPNPrefix + "example.com:443"}),
+				PublicAddr:     apiutils.Strings([]string{"kube.example.com:443"}),
 			}},
-			want: servicecfg.KubeProxyConfig{
+			want: service.KubeProxyConfig{
 				Enabled:         true,
 				ListenAddr:      *utils.MustParseAddr("0.0.0.0:8080"),
 				KubeconfigPath:  "/tmp/kubeconfig",
-				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr(constants.KubeTeleportProxyALPNPrefix + "example.com:443")},
+				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr("kube.example.com:443")},
 				LegacyKubeProxy: true,
 			},
 			checkErr: require.NoError,
@@ -1990,7 +1938,7 @@ func TestProxyKube(t *testing.T) {
 		{
 			desc: "new format",
 			cfg:  Proxy{KubeAddr: "0.0.0.0:8080"},
-			want: servicecfg.KubeProxyConfig{
+			want: service.KubeProxyConfig{
 				Enabled:    true,
 				ListenAddr: *utils.MustParseAddr("0.0.0.0:8080"),
 			},
@@ -2013,10 +1961,10 @@ func TestProxyKube(t *testing.T) {
 				Kube: KubeProxy{
 					Service:        Service{EnabledFlag: "no", ListenAddress: "0.0.0.0:8080"},
 					KubeconfigFile: "/tmp/kubeconfig",
-					PublicAddr:     apiutils.Strings([]string{constants.KubeTeleportProxyALPNPrefix + "example.com:443"}),
+					PublicAddr:     apiutils.Strings([]string{"kube.example.com:443"}),
 				},
 			},
-			want: servicecfg.KubeProxyConfig{
+			want: service.KubeProxyConfig{
 				Enabled:    true,
 				ListenAddr: *utils.MustParseAddr("0.0.0.0:8080"),
 			},
@@ -2026,7 +1974,7 @@ func TestProxyKube(t *testing.T) {
 			desc:    "v2 kube service should be enabled by default",
 			version: defaults.TeleportConfigVersionV2,
 			cfg:     Proxy{},
-			want: servicecfg.KubeProxyConfig{
+			want: service.KubeProxyConfig{
 				Enabled: true,
 			},
 			checkErr: require.NoError,
@@ -2038,7 +1986,7 @@ func TestProxyKube(t *testing.T) {
 				Version: tt.version,
 				Proxy:   tt.cfg,
 			}
-			cfg := &servicecfg.Config{
+			cfg := &service.Config{
 				Version: tt.version,
 			}
 			err := applyProxyConfig(fc, cfg)
@@ -2053,7 +2001,7 @@ func TestProxyConfigurationVersion(t *testing.T) {
 	tests := []struct {
 		desc     string
 		fc       FileConfig
-		want     servicecfg.ProxyConfig
+		want     service.ProxyConfig
 		checkErr require.ErrorAssertionFunc
 	}{
 		{
@@ -2066,18 +2014,19 @@ func TestProxyConfigurationVersion(t *testing.T) {
 					},
 				},
 			},
-			want: servicecfg.ProxyConfig{
-				WebAddr: *utils.MustParseAddr("0.0.0.0:3080"),
-				Enabled: true,
-				Kube: servicecfg.KubeProxyConfig{
+			want: service.ProxyConfig{
+				WebAddr:             *utils.MustParseAddr("0.0.0.0:3080"),
+				Enabled:             true,
+				EnableProxyProtocol: true,
+				Kube: service.KubeProxyConfig{
 					Enabled: true,
 				},
 				Limiter: limiter.Config{
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,
 				},
-				IdP: servicecfg.IdP{
-					SAMLIdP: servicecfg.SAMLIdP{
+				IdP: service.IdP{
+					SAMLIdP: service.SAMLIdP{
 						Enabled: true,
 					},
 				},
@@ -2095,18 +2044,19 @@ func TestProxyConfigurationVersion(t *testing.T) {
 					WebAddr: "0.0.0.0:9999",
 				},
 			},
-			want: servicecfg.ProxyConfig{
-				Enabled: true,
-				WebAddr: *utils.MustParseAddr("0.0.0.0:9999"),
-				Kube: servicecfg.KubeProxyConfig{
+			want: service.ProxyConfig{
+				Enabled:             true,
+				EnableProxyProtocol: true,
+				WebAddr:             *utils.MustParseAddr("0.0.0.0:9999"),
+				Kube: service.KubeProxyConfig{
 					Enabled: true,
 				},
 				Limiter: limiter.Config{
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,
 				},
-				IdP: servicecfg.IdP{
-					SAMLIdP: servicecfg.SAMLIdP{
+				IdP: service.IdP{
+					SAMLIdP: service.SAMLIdP{
 						Enabled: true,
 					},
 				},
@@ -2116,7 +2066,7 @@ func TestProxyConfigurationVersion(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 			err := ApplyFileConfig(&tt.fc, cfg)
 			tt.checkErr(t, err)
 			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, cmpopts.EquateEmpty()))
@@ -2271,7 +2221,7 @@ func TestWindowsDesktopService(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			fc := &FileConfig{}
 			test.mutate(fc)
-			cfg := &servicecfg.Config{}
+			cfg := &service.Config{}
 			err := applyWindowsDesktopConfig(fc, cfg)
 			test.expectError(t, err)
 		})
@@ -2336,31 +2286,13 @@ app_service:
 			inComment: "config is missing internal address",
 			outError:  true,
 		},
-		{
-			inConfigString: `
-app_service:
-  enabled: true
-  apps:
-    -
-      name: foo
-      public_addr: "foo.example.com"
-      uri: "http://127.0.0.1:8080"
-  resources:
-  - labels:
-      '*': '*'
-    aws:
-      assume_role_arn: "arn:aws:iam::123456789012:role/AppAccess"
-`,
-			inComment: "assume_role_arn is not supported",
-			outError:  true,
-		},
 	}
 
 	for _, tt := range tests {
 		clf := CommandLineFlags{
 			ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
 		}
-		cfg := servicecfg.MakeDefaultConfig()
+		cfg := service.MakeDefaultConfig()
 
 		err := Configure(&clf, cfg, false)
 		require.Equal(t, err != nil, tt.outError, tt.inComment)
@@ -2377,7 +2309,7 @@ func TestAppsCLF(t *testing.T) {
 		inAppURI         string
 		inAppCloud       string
 		inLegacyAppFlags bool
-		outApps          []servicecfg.App
+		outApps          []service.App
 		requireError     require.ErrorAssertionFunc
 	}{
 		{
@@ -2385,7 +2317,7 @@ func TestAppsCLF(t *testing.T) {
 			inRoles:   defaults.RoleApp,
 			inAppName: "foo",
 			inAppURI:  "http://localhost:8080",
-			outApps: []servicecfg.App{
+			outApps: []service.App{
 				{
 					Name:          "foo",
 					URI:           "http://localhost:8080",
@@ -2468,7 +2400,7 @@ func TestAppsCLF(t *testing.T) {
 			desc:      "valid name and uri",
 			inAppName: "foo",
 			inAppURI:  "http://localhost:8080",
-			outApps: []servicecfg.App{
+			outApps: []service.App{
 				{
 					Name:          "foo",
 					URI:           "http://localhost:8080",
@@ -2482,7 +2414,7 @@ func TestAppsCLF(t *testing.T) {
 			desc:       "valid name and cloud",
 			inAppName:  "foo",
 			inAppCloud: types.CloudGCP,
-			outApps: []servicecfg.App{
+			outApps: []service.App{
 				{
 					Name:          "foo",
 					URI:           "cloud://GCP",
@@ -2522,7 +2454,7 @@ func TestAppsCLF(t *testing.T) {
 				AppURI:   tt.inAppURI,
 				AppCloud: tt.inAppCloud,
 			}
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 			err := Configure(&clf, cfg, tt.inLegacyAppFlags)
 			tt.requireError(t, err)
 			require.Equal(t, tt.outApps, cfg.Apps.Apps)
@@ -2620,7 +2552,7 @@ db_service:
 			clf := CommandLineFlags{
 				ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
 			}
-			err := Configure(&clf, servicecfg.MakeDefaultConfig(), false)
+			err := Configure(&clf, service.MakeDefaultConfig(), false)
 			if tt.outError != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.outError)
@@ -2640,7 +2572,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 	tests := []struct {
 		inFlags     CommandLineFlags
 		desc        string
-		outDatabase servicecfg.Database
+		outDatabase service.Database
 		outError    string
 	}{
 		{
@@ -2651,7 +2583,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				DatabaseURI:      "localhost:5432",
 				Labels:           "env=test,hostname=[1h:hostname]",
 			},
-			outDatabase: servicecfg.Database{
+			outDatabase: service.Database{
 				Name:     "foo",
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
@@ -2665,8 +2597,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 						Command: []string{"hostname"},
 					},
 				},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
 				},
 			},
 		},
@@ -2699,30 +2631,24 @@ func TestDatabaseCLIFlags(t *testing.T) {
 		{
 			desc: "RDS database",
 			inFlags: CommandLineFlags{
-				DatabaseName:             "rds",
-				DatabaseProtocol:         defaults.ProtocolMySQL,
-				DatabaseURI:              "localhost:3306",
-				DatabaseAWSRegion:        "us-east-1",
-				DatabaseAWSAccountID:     "123456789012",
-				DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-				DatabaseAWSExternalID:    "externalID123",
+				DatabaseName:      "rds",
+				DatabaseProtocol:  defaults.ProtocolMySQL,
+				DatabaseURI:       "localhost:3306",
+				DatabaseAWSRegion: "us-east-1",
 			},
-			outDatabase: servicecfg.Database{
+			outDatabase: service.Database{
 				Name:     "rds",
 				Protocol: defaults.ProtocolMySQL,
 				URI:      "localhost:3306",
-				AWS: servicecfg.DatabaseAWS{
-					Region:        "us-east-1",
-					AccountID:     "123456789012", // this gets derived from the assumed role.
-					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-					ExternalID:    "externalID123",
+				AWS: service.DatabaseAWS{
+					Region: "us-east-1",
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
 				},
 			},
 		},
@@ -2734,28 +2660,23 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				DatabaseURI:                  "localhost:5432",
 				DatabaseAWSRegion:            "us-east-1",
 				DatabaseAWSRedshiftClusterID: "redshift-cluster-1",
-				DatabaseAWSAssumeRoleARN:     "arn:aws:iam::123456789012:role/DBDiscoverer",
-				DatabaseAWSExternalID:        "externalID123",
 			},
-			outDatabase: servicecfg.Database{
+			outDatabase: service.Database{
 				Name:     "redshift",
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
-				AWS: servicecfg.DatabaseAWS{
+				AWS: service.DatabaseAWS{
 					Region: "us-east-1",
-					Redshift: servicecfg.DatabaseAWSRedshift{
+					Redshift: service.DatabaseAWSRedshift{
 						ClusterID: "redshift-cluster-1",
 					},
-					AccountID:     "123456789012", // this gets derived from the assumed role.
-					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-					ExternalID:    "externalID123",
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
 				},
 			},
 		},
@@ -2769,15 +2690,15 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				DatabaseGCPProjectID:  "gcp-project-1",
 				DatabaseGCPInstanceID: "gcp-instance-1",
 			},
-			outDatabase: servicecfg.Database{
+			outDatabase: service.Database{
 				Name:     "gcp",
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
-				TLS: servicecfg.DatabaseTLS{
-					Mode:   servicecfg.VerifyFull,
+				TLS: service.DatabaseTLS{
+					Mode:   service.VerifyFull,
 					CACert: fixtures.LocalhostCert,
 				},
-				GCP: servicecfg.DatabaseGCP{
+				GCP: service.DatabaseGCP{
 					ProjectID:  "gcp-project-1",
 					InstanceID: "gcp-instance-1",
 				},
@@ -2797,14 +2718,14 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				DatabaseADDomain:     "EXAMPLE.COM",
 				DatabaseADSPN:        "MSSQLSvc/sqlserver.example.com:1433",
 			},
-			outDatabase: servicecfg.Database{
+			outDatabase: service.Database{
 				Name:     "sqlserver",
 				Protocol: defaults.ProtocolSQLServer,
 				URI:      "localhost:1433",
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
 				},
-				AD: servicecfg.DatabaseAD{
+				AD: service.DatabaseAD{
 					KeytabFile: "/etc/keytab",
 					Krb5File:   defaults.Krb5FilePath,
 					Domain:     "EXAMPLE.COM",
@@ -2824,15 +2745,15 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				DatabaseURI:                "localhost:3306",
 				DatabaseMySQLServerVersion: "8.0.28",
 			},
-			outDatabase: servicecfg.Database{
+			outDatabase: service.Database{
 				Name:     "mysql-foo",
 				Protocol: defaults.ProtocolMySQL,
 				URI:      "localhost:3306",
-				MySQL: servicecfg.MySQLOptions{
+				MySQL: service.MySQLOptions{
 					ServerVersion: "8.0.28",
 				},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile,
@@ -2843,60 +2764,54 @@ func TestDatabaseCLIFlags(t *testing.T) {
 		{
 			desc: "AWS Keyspaces",
 			inFlags: CommandLineFlags{
-				DatabaseName:             "keyspace",
-				DatabaseProtocol:         defaults.ProtocolCassandra,
-				DatabaseURI:              "cassandra.us-east-1.amazonaws.com:9142",
-				DatabaseAWSAccountID:     "123456789012",
-				DatabaseAWSRegion:        "us-east-1",
-				DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-				DatabaseAWSExternalID:    "externalID123",
+				DatabaseName:         "keyspace",
+				DatabaseProtocol:     defaults.ProtocolCassandra,
+				DatabaseURI:          "cassandra.us-east-1.amazonaws.com:9142",
+				DatabaseAWSAccountID: "123456789012",
+				DatabaseAWSRegion:    "us-east-1",
 			},
-			outDatabase: servicecfg.Database{
+			outDatabase: service.Database{
 				Name:     "keyspace",
 				Protocol: defaults.ProtocolCassandra,
 				URI:      "cassandra.us-east-1.amazonaws.com:9142",
-				AWS: servicecfg.DatabaseAWS{
-					Region:        "us-east-1",
-					AccountID:     "123456789012",
-					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-					ExternalID:    "externalID123",
+				AWS: service.DatabaseAWS{
+					Region:    "us-east-1",
+					AccountID: "123456789012",
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
 				},
 			},
 		},
 		{
 			desc: "AWS DynamoDB",
 			inFlags: CommandLineFlags{
-				DatabaseName:             "ddb",
-				DatabaseProtocol:         defaults.ProtocolDynamoDB,
-				DatabaseURI:              "dynamodb.us-east-1.amazonaws.com",
-				DatabaseAWSAccountID:     "123456789012",
-				DatabaseAWSRegion:        "us-east-1",
-				DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-				DatabaseAWSExternalID:    "externalID123",
+				DatabaseName:          "ddb",
+				DatabaseProtocol:      defaults.ProtocolDynamoDB,
+				DatabaseURI:           "dynamodb.us-east-1.amazonaws.com",
+				DatabaseAWSAccountID:  "123456789012",
+				DatabaseAWSExternalID: "12345678901234",
+				DatabaseAWSRegion:     "us-east-1",
 			},
-			outDatabase: servicecfg.Database{
+			outDatabase: service.Database{
 				Name:     "ddb",
 				Protocol: defaults.ProtocolDynamoDB,
 				URI:      "dynamodb.us-east-1.amazonaws.com",
-				AWS: servicecfg.DatabaseAWS{
-					Region:        "us-east-1",
-					AccountID:     "123456789012",
-					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-					ExternalID:    "externalID123",
+				AWS: service.DatabaseAWS{
+					Region:     "us-east-1",
+					AccountID:  "123456789012",
+					ExternalID: "12345678901234",
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
 				},
 			},
 		},
@@ -2907,7 +2822,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 
-			config := servicecfg.MakeDefaultConfig()
+			config := service.MakeDefaultConfig()
 			err := Configure(&tt.inFlags, config, false)
 			if tt.outError != "" {
 				require.Contains(t, err.Error(), tt.outError)
@@ -2915,7 +2830,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t,
 					config.Databases.Databases,
-					[]servicecfg.Database{tt.outDatabase},
+					[]service.Database{tt.outDatabase},
 				)
 			}
 		})
@@ -3031,7 +2946,7 @@ func TestTLSCert(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 
 			err = ApplyFileConfig(tt.conf, cfg)
 			require.NoError(t, err)
@@ -3075,7 +2990,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			auth: Auth{
 				CAKeyParams: nil,
 			},
-			want: servicecfg.MakeDefaultConfig().Auth.KeyStore,
+			want: service.MakeDefaultConfig().Auth.KeyStore,
 		},
 		{
 			name: "correct config",
@@ -3202,7 +3117,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 
 			err := applyKeyStoreConfig(&FileConfig{
 				Auth: tt.auth,
@@ -3270,7 +3185,7 @@ func TestApplyConfigSessionRecording(t *testing.T) {
 			conf, err := ReadConfig(bytes.NewBufferString(fileconfig))
 			require.NoError(t, err)
 
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 			err = ApplyFileConfig(conf, cfg)
 			require.NoError(t, err)
 
@@ -3361,7 +3276,7 @@ teleport:
 			conf, err := ReadConfig(strings.NewReader(tc.input))
 			require.NoError(t, err)
 
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 			err = ApplyFileConfig(conf, cfg)
 
 			if tc.expectError {
@@ -3414,7 +3329,7 @@ func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
 				TestBuildType: test.buildType,
 			})
 
-			defaultCfg := servicecfg.MakeDefaultConfig()
+			defaultCfg := service.MakeDefaultConfig()
 			err := ApplyFileConfig(&FileConfig{
 				Auth: Auth{
 					Service: Service{
@@ -3429,145 +3344,6 @@ func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
 				assert.Error(t, err, "ApplyFileConfig mismatch")
 			} else {
 				assert.NoError(t, err, "ApplyFileConfig mismatch")
-			}
-		})
-	}
-}
-
-func TestApplyConfig_JamfService(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// Write a password file, valid configs require one.
-	const password = "supersecret!!1!"
-	passwordFile := filepath.Join(tempDir, "test_jamf_password.txt")
-	require.NoError(t,
-		os.WriteFile(passwordFile, []byte(password+"\n"), 0o400),
-		"WriteFile(%q) failed", passwordFile)
-
-	minimalYAML := fmt.Sprintf(`
-jamf_service:
-  enabled: true
-  api_endpoint: https://yourtenant.jamfcloud.com
-  username: llama
-  password_file: %v
-`, passwordFile)
-
-	tests := []struct {
-		name    string
-		yaml    string
-		wantErr string
-		want    servicecfg.JamfConfig
-	}{
-		{
-			name: "minimal config",
-			yaml: minimalYAML,
-			want: servicecfg.JamfConfig{
-				Spec: &types.JamfSpecV1{
-					Enabled:     true,
-					ApiEndpoint: "https://yourtenant.jamfcloud.com",
-					Username:    "llama",
-					Password:    password,
-				},
-			},
-		},
-		{
-			name: "all fields",
-			yaml: minimalYAML + `  name: jamf2
-  sync_delay: 1m
-  exit_on_sync: true
-  inventory:
-  - filter_rsql: 1==1
-    sync_period_partial: 4h
-    sync_period_full: 48h
-    on_missing: NOOP
-  - {}`,
-			want: servicecfg.JamfConfig{
-				Spec: &types.JamfSpecV1{
-					Enabled:     true,
-					Name:        "jamf2",
-					SyncDelay:   types.Duration(1 * time.Minute),
-					ApiEndpoint: "https://yourtenant.jamfcloud.com",
-					Username:    "llama",
-					Password:    password,
-					Inventory: []*types.JamfInventoryEntry{
-						{
-							FilterRsql:        "1==1",
-							SyncPeriodPartial: types.Duration(4 * time.Hour),
-							SyncPeriodFull:    types.Duration(48 * time.Hour),
-							OnMissing:         "NOOP",
-						},
-						{},
-					},
-				},
-				ExitOnSync: true,
-			},
-		},
-
-		{
-			name:    "listen_addr not supported",
-			yaml:    minimalYAML + `  listen_addr: localhost:55555`,
-			wantErr: "listen_addr",
-		},
-		{
-			name: "password_file empty",
-			yaml: `
-jamf_service:
-  enabled: true
-  api_endpoint: https://yourtenant.jamfcloud.com
-  username: llama`,
-			wantErr: "password_file required",
-		},
-		{
-			name: "password_file invalid",
-			yaml: `
-jamf_service:
-  enabled: true
-  api_endpoint: https://yourtenant.jamfcloud.com
-  username: llama
-  password_file: /path/to/file/that/doesnt/exist.txt`,
-			wantErr: "password_file",
-		},
-		{
-			name: "spec is validated",
-			yaml: minimalYAML + `  inventory:
-  - on_missing: BANANA`,
-			wantErr: "on_missing",
-		},
-
-		{
-			name: "absent config ignored",
-			yaml: ``,
-		},
-		{
-			name: "empty config ignored",
-			yaml: `jamf_service: {}`,
-		},
-		{
-			name: "disabled config is validated",
-			yaml: `
-jamf_service:
-  enabled: false
-  api_endpoint: https://yourtenant.jamfcloud.com
-  username: llama`,
-			wantErr: "password_file",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			fc, err := ReadConfig(strings.NewReader(test.yaml))
-			require.NoError(t, err, "ReadConfig failed")
-
-			cfg := servicecfg.MakeDefaultConfig()
-			err = ApplyFileConfig(fc, cfg)
-			if test.wantErr == "" {
-				require.NoError(t, err, "ApplyFileConfig failed")
-			} else {
-				assert.ErrorContains(t, err, test.wantErr, "ApplyFileConfig error mismatch")
-				return
-			}
-
-			if diff := cmp.Diff(test.want, cfg.Jamf, protocmp.Transform()); diff != "" {
-				t.Errorf("ApplyFileConfig: JamfConfig mismatch (-want +got)\n%s", diff)
 			}
 		})
 	}
@@ -3598,7 +3374,7 @@ func TestAuthHostedPlugins(t *testing.T) {
 		config   string
 		readErr  require.ErrorAssertionFunc
 		applyErr require.ErrorAssertionFunc
-		assert   func(t *testing.T, p servicecfg.HostedPluginsConfig)
+		assert   func(t *testing.T, p service.HostedPluginsConfig)
 	}{
 		{
 			desc: "Plugins disabled by default",
@@ -3608,7 +3384,7 @@ func TestAuthHostedPlugins(t *testing.T) {
 			}, "\n"),
 			readErr:  require.NoError,
 			applyErr: require.NoError,
-			assert: func(t *testing.T, p servicecfg.HostedPluginsConfig) {
+			assert: func(t *testing.T, p service.HostedPluginsConfig) {
 				require.False(t, p.Enabled)
 			},
 		},
@@ -3697,7 +3473,7 @@ func TestAuthHostedPlugins(t *testing.T) {
 			}, "\n"),
 			readErr:  require.NoError,
 			applyErr: require.NoError,
-			assert: func(t *testing.T, p servicecfg.HostedPluginsConfig) {
+			assert: func(t *testing.T, p service.HostedPluginsConfig) {
 				require.True(t, p.Enabled)
 				require.NotNil(t, p.OAuthProviders.Slack)
 				require.Equal(t, "foo", p.OAuthProviders.Slack.ID)
@@ -3711,7 +3487,7 @@ func TestAuthHostedPlugins(t *testing.T) {
 			conf, err := ReadConfig(bytes.NewBufferString(tc.config))
 			tc.readErr(t, err)
 
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 			err = ApplyFileConfig(conf, cfg)
 			tc.applyErr(t, err)
 			if tc.assert != nil {
@@ -3726,12 +3502,12 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 	tests := []struct {
 		name              string
 		discoveryConfig   Discovery
-		expectedDiscovery servicecfg.DiscoveryConfig
+		expectedDiscovery service.DiscoveryConfig
 	}{
 		{
 			name:            "no matchers",
 			discoveryConfig: Discovery{},
-			expectedDiscovery: servicecfg.DiscoveryConfig{
+			expectedDiscovery: service.DiscoveryConfig{
 				Enabled: true,
 			},
 		},
@@ -3753,13 +3529,13 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 					},
 				},
 			},
-			expectedDiscovery: servicecfg.DiscoveryConfig{
+			expectedDiscovery: service.DiscoveryConfig{
 				Enabled: true,
-				AzureMatchers: []types.AzureMatcher{
+				AzureMatchers: []services.AzureMatcher{
 					{
 						Subscriptions: []string{"abcd"},
 						Types:         []string{"aks", "vm"},
-						Params: &types.InstallerParams{
+						Params: services.InstallerParams{
 							JoinMethod:      "azure",
 							JoinToken:       "azure-token",
 							ScriptName:      "default-installer",
@@ -3779,9 +3555,9 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 					},
 				},
 			},
-			expectedDiscovery: servicecfg.DiscoveryConfig{
+			expectedDiscovery: service.DiscoveryConfig{
 				Enabled: true,
-				AzureMatchers: []types.AzureMatcher{
+				AzureMatchers: []services.AzureMatcher{
 					{
 						Subscriptions: []string{"abcd"},
 						Types:         []string{"aks"},
@@ -3797,7 +3573,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 			require.NoError(t, err)
 			fc.Discovery = tc.discoveryConfig
 			fc.Discovery.EnabledFlag = "yes"
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 			require.NoError(t, applyDiscoveryConfig(fc, cfg))
 			require.Equal(t, tc.expectedDiscovery, cfg.Discovery)
 		})
@@ -3810,7 +3586,7 @@ func TestApplyOktaConfig(t *testing.T) {
 		desc             string
 		createTokenFile  bool
 		oktaConfig       Okta
-		expectedOkta     servicecfg.OktaConfig
+		expectedOkta     service.OktaConfig
 		errAssertionFunc require.ErrorAssertionFunc
 	}{
 		{
@@ -3822,7 +3598,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				},
 				APIEndpoint: "https://test-endpoint",
 			},
-			expectedOkta: servicecfg.OktaConfig{
+			expectedOkta: service.OktaConfig{
 				Enabled:     true,
 				APIEndpoint: "https://test-endpoint",
 			},
@@ -3923,7 +3699,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				fc.Okta.APITokenPath = file.Name()
 				expectedOkta.APITokenPath = file.Name()
 			}
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 			err = applyOktaConfig(fc, cfg)
 			test.errAssertionFunc(t, err, fc.Okta.APITokenPath)
 			if err == nil {
@@ -3979,7 +3755,7 @@ proxy_service:
 			conf, err := ReadConfig(strings.NewReader(tc.input))
 			require.NoError(t, err)
 
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 			err = ApplyFileConfig(conf, cfg)
 
 			if tc.expectError {
@@ -3988,130 +3764,6 @@ proxy_service:
 			}
 
 			require.Equal(t, tc.expectKey, cfg.Proxy.AssistAPIKey)
-		})
-	}
-}
-
-func TestApplyKubeConfig(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name              string
-		inputFileConfig   Kube
-		wantServiceConfig servicecfg.KubeConfig
-		wantError         bool
-	}{
-		{
-			name: "invalid listener address",
-			inputFileConfig: Kube{
-				Service: Service{
-					ListenAddress: "0.0.0.0:a",
-				},
-				KubeconfigFile: "path-to-kubeconfig",
-			},
-			wantError: true,
-		},
-		{
-			name: "assume_role_arn is not supported",
-			inputFileConfig: Kube{
-				Service: Service{
-					ListenAddress: "0.0.0.0:8888",
-				},
-				KubeconfigFile: "path-to-kubeconfig",
-				ResourceMatchers: []ResourceMatcher{
-					{
-						Labels: map[string]apiutils.Strings{"a": {"b"}},
-						AWS: ResourceMatcherAWS{
-							AssumeRoleARN: "arn:aws:iam::123456789012:role/KubeAccess",
-							ExternalID:    "externalID123",
-						},
-					},
-				},
-			},
-			wantError: false,
-			wantServiceConfig: servicecfg.KubeConfig{
-				ListenAddr:     utils.MustParseAddr("0.0.0.0:8888"),
-				KubeconfigPath: "path-to-kubeconfig",
-				ResourceMatchers: []services.ResourceMatcher{
-					{
-						Labels: map[string]apiutils.Strings{"a": {"b"}},
-						AWS: services.ResourceMatcherAWS{
-							AssumeRoleARN: "arn:aws:iam::123456789012:role/KubeAccess",
-							ExternalID:    "externalID123",
-						},
-					},
-				},
-				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
-				},
-			},
-		},
-		{
-			name: "valid",
-			inputFileConfig: Kube{
-				Service: Service{
-					ListenAddress: "0.0.0.0:8888",
-				},
-				PublicAddr:      apiutils.Strings{"example.com", "example.with.port.com:4444"},
-				KubeconfigFile:  "path-to-kubeconfig",
-				KubeClusterName: "kube-name",
-				ResourceMatchers: []ResourceMatcher{{
-					Labels: map[string]apiutils.Strings{"a": {"b"}},
-				}},
-				StaticLabels: map[string]string{
-					"env":     "dev",
-					"product": "test",
-				},
-				DynamicLabels: []CommandLabel{{
-					Name:    "hostname",
-					Command: []string{"hostname"},
-					Period:  time.Hour,
-				}},
-			},
-			wantServiceConfig: servicecfg.KubeConfig{
-				ListenAddr:      utils.MustParseAddr("0.0.0.0:8888"),
-				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr("example.com:3026"), *utils.MustParseAddr("example.with.port.com:4444")},
-				KubeconfigPath:  "path-to-kubeconfig",
-				KubeClusterName: "kube-name",
-				ResourceMatchers: []services.ResourceMatcher{
-					{
-						Labels: map[string]apiutils.Strings{"a": {"b"}},
-					},
-				},
-				StaticLabels: map[string]string{
-					"env":     "dev",
-					"product": "test",
-				},
-				DynamicLabels: services.CommandLabels{
-					"hostname": &types.CommandLabelV2{
-						Period:  types.Duration(time.Hour),
-						Command: []string{"hostname"},
-					},
-				},
-				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
-				},
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			fc, err := ReadConfig(bytes.NewBufferString(NoServicesConfigString))
-			require.NoError(t, err)
-			fc.Kube = test.inputFileConfig
-			fc.Kube.EnabledFlag = "yes"
-
-			cfg := servicecfg.MakeDefaultConfig()
-			err = applyKubeConfig(fc, cfg)
-			if test.wantError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, test.wantServiceConfig, cfg.Kube)
-			}
 		})
 	}
 }

@@ -30,14 +30,12 @@ export default function generateResourcePath(
       processedParams[param] = `${params[param].fieldName}:${params[
         param
       ].dir.toLowerCase()}`;
-    } else if (param === 'kinds') {
-      processedParams[param] = (params[param] ?? []).join('&kinds=');
-    } else
+    } else {
       processedParams[param] = params[param]
         ? encodeURIComponent(params[param])
         : '';
+    }
   }
-
   const output = path
     .replace(':clusterId', params.clusterId)
     .replace(':limit?', params.limit)
@@ -45,8 +43,7 @@ export default function generateResourcePath(
     .replace(':query?', processedParams.query || '')
     .replace(':search?', processedParams.search || '')
     .replace(':searchAsRoles?', processedParams.searchAsRoles || '')
-    .replace(':sort?', processedParams.sort || '')
-    .replace(':kinds?', processedParams.kinds || '');
+    .replace(':sort?', processedParams.sort || '');
 
   return output;
 }

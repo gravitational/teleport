@@ -50,15 +50,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 	if len(watch.Kinds) == 0 {
 		return nil, trace.BadParameter("global watches are not supported yet")
 	}
-
-	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	var parsers []resourceParser
 	var prefixes [][]byte
 	for _, kind := range watch.Kinds {
 		if kind.Name != "" && kind.Kind != types.KindNamespace {
-			if watch.AllowPartialSuccess {
-				continue
-			}
 			return nil, trace.BadParameter("watch with Name is only supported for Namespace resource")
 		}
 		var parser resourceParser
@@ -100,14 +95,16 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		case types.KindAccessRequest:
 			p, err := newAccessRequestParser(kind.Filter)
 			if err != nil {
-				if watch.AllowPartialSuccess {
-					continue
-				}
 				return nil, trace.Wrap(err)
 			}
 			parser = p
 		case types.KindAppServer:
-			parser = newAppServerV3Parser()
+			switch kind.Version {
+			case types.V2: // DELETE IN 9.0.
+				parser = newAppServerV2Parser()
+			default:
+				parser = newAppServerV3Parser()
+			}
 		case types.KindWebSession:
 			switch kind.SubKind {
 			case types.KindSAMLIdPSession:
@@ -119,9 +116,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			case types.KindWebSession:
 				parser = newWebSessionParser()
 			default:
-				if watch.AllowPartialSuccess {
-					continue
-				}
 				return nil, trace.BadParameter("watcher on object subkind %q is not supported", kind.SubKind)
 			}
 		case types.KindWebToken:
@@ -130,6 +124,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newRemoteClusterParser()
 		case types.KindKubeServer:
 			parser = newKubeServerParser()
+		case types.KindKubeService:
+			parser = newKubeServiceParser()
 		case types.KindDatabaseServer:
 			parser = newDatabaseServerParser()
 		case types.KindDatabaseService:
@@ -162,36 +158,12 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newOktaAssignmentParser()
 		case types.KindIntegration:
 			parser = newIntegrationParser()
-		case types.KindHeadlessAuthentication:
-			p, err := newHeadlessAuthenticationParser(kind.Filter)
-			if err != nil {
-				if watch.AllowPartialSuccess {
-					continue
-				}
-				return nil, trace.Wrap(err)
-			}
-			parser = p
-		case types.KindAccessList:
-			parser = newAccessListParser()
-		case types.KindUserLoginState:
-			parser = newUserLoginStateParser()
-		case types.KindAccessListMember:
-			parser = newAccessListMemberParser()
 		default:
-			if watch.AllowPartialSuccess {
-				continue
-			}
 			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
 		prefixes = append(prefixes, parser.prefixes()...)
 		parsers = append(parsers, parser)
-		validKinds = append(validKinds, kind)
 	}
-
-	if len(validKinds) == 0 {
-		return nil, trace.BadParameter("none of the requested kinds can be watched")
-	}
-
 	w, err := e.backend.NewWatcher(ctx, backend.Watch{
 		Name:            watch.Name,
 		Prefixes:        prefixes,
@@ -201,16 +173,15 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newWatcher(w, e.Entry, parsers, validKinds), nil
+	return newWatcher(w, e.Entry, parsers), nil
 }
 
-func newWatcher(backendWatcher backend.Watcher, l *logrus.Entry, parsers []resourceParser, kinds []types.WatchKind) *watcher {
+func newWatcher(backendWatcher backend.Watcher, l *logrus.Entry, parsers []resourceParser) *watcher {
 	w := &watcher{
 		backendWatcher: backendWatcher,
 		Entry:          l,
 		parsers:        parsers,
 		eventsC:        make(chan types.Event),
-		kinds:          kinds,
 	}
 	go w.forwardEvents()
 	return w
@@ -221,7 +192,6 @@ type watcher struct {
 	parsers        []resourceParser
 	backendWatcher backend.Watcher
 	eventsC        chan types.Event
-	kinds          []types.WatchKind
 }
 
 func (w *watcher) Error() error {
@@ -230,7 +200,7 @@ func (w *watcher) Error() error {
 
 func (w *watcher) parseEvent(e backend.Event) ([]types.Event, []error) {
 	if e.Type == types.OpInit {
-		return []types.Event{{Type: e.Type, Resource: types.NewWatchStatus(w.kinds)}}, nil
+		return []types.Event{{Type: e.Type}}, nil
 	}
 	events := []types.Event{}
 	errs := []error{}
@@ -688,7 +658,7 @@ type roleParser struct {
 func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindRole, types.V7, 1)
+		return resourceHeader(event, types.KindRole, types.V6, 1)
 	case types.OpPut:
 		resource, err := services.UnmarshalRole(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
@@ -936,6 +906,21 @@ func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
+func newAppServerV2Parser() *appServerV2Parser {
+	return &appServerV2Parser{
+		baseParser: newBaseParser(backend.Key(appsPrefix, serversPrefix, apidefaults.Namespace)),
+	}
+}
+
+// DELETE IN 9.0. Deprecated, replaced by applicationServerParser.
+type appServerV2Parser struct {
+	baseParser
+}
+
+func (p *appServerV2Parser) parse(event backend.Event) (types.Resource, error) {
+	return parseServer(event, types.KindAppServer)
+}
+
 func newSAMLIdPSessionParser() *webSessionParser {
 	return &webSessionParser{
 		baseParser: newBaseParser(backend.Key(samlIdPPrefix, sessionsPrefix)),
@@ -968,7 +953,6 @@ func newAppSessionParser() *webSessionParser {
 		},
 	}
 }
-
 func newWebSessionParser() *webSessionParser {
 	return &webSessionParser{
 		baseParser: newBaseParser(backend.Key(webPrefix, sessionsPrefix)),
@@ -1066,6 +1050,20 @@ func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
+}
+
+func newKubeServiceParser() *kubeServiceParser {
+	return &kubeServiceParser{
+		baseParser: newBaseParser(backend.Key(kubeServicesPrefix)),
+	}
+}
+
+type kubeServiceParser struct {
+	baseParser
+}
+
+func (p *kubeServiceParser) parse(event backend.Event) (types.Resource, error) {
+	return parseServer(event, types.KindKubeService)
 }
 
 func newDatabaseServerParser() *databaseServerParser {
@@ -1558,113 +1556,6 @@ func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindIntegration, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalIntegration(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
-			services.WithExpires(event.Item.Expires),
-		)
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
-func newHeadlessAuthenticationParser(m map[string]string) (*headlessAuthenticationParser, error) {
-	var filter types.HeadlessAuthenticationFilter
-	if err := filter.FromMap(m); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &headlessAuthenticationParser{
-		baseParser: newBaseParser(backend.Key(headlessAuthenticationPrefix)),
-		filter:     filter,
-	}, nil
-}
-
-type headlessAuthenticationParser struct {
-	baseParser
-	filter types.HeadlessAuthenticationFilter
-}
-
-func (p *headlessAuthenticationParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		return resourceHeader(event, types.KindHeadlessAuthentication, types.V1, 0)
-	case types.OpPut:
-		ha, err := unmarshalHeadlessAuthentication(event.Item.Value)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if !p.filter.Match(ha) {
-			return nil, nil
-		}
-		return ha, nil
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
-func newAccessListParser() *accessListParser {
-	return &accessListParser{
-		baseParser: newBaseParser(backend.Key(accessListPrefix)),
-	}
-}
-
-type accessListParser struct {
-	baseParser
-}
-
-func (p *accessListParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		return resourceHeader(event, types.KindAccessList, types.V1, 0)
-	case types.OpPut:
-		return services.UnmarshalAccessList(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
-			services.WithExpires(event.Item.Expires),
-		)
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
-func newUserLoginStateParser() *userLoginStateParser {
-	return &userLoginStateParser{
-		baseParser: newBaseParser(backend.Key(userLoginStatePrefix)),
-	}
-}
-
-type userLoginStateParser struct {
-	baseParser
-}
-
-func (p *userLoginStateParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		return resourceHeader(event, types.KindUserLoginState, types.V1, 0)
-	case types.OpPut:
-		return services.UnmarshalUserLoginState(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
-			services.WithExpires(event.Item.Expires),
-		)
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
-func newAccessListMemberParser() *accessListMemberParser {
-	return &accessListMemberParser{
-		baseParser: newBaseParser(backend.Key(accessListMemberPrefix)),
-	}
-}
-
-type accessListMemberParser struct {
-	baseParser
-}
-
-func (p *accessListMemberParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		return resourceHeader(event, types.KindAccessListMember, types.V1, 0)
-	case types.OpPut:
-		return services.UnmarshalAccessListMember(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)

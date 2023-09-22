@@ -18,7 +18,6 @@ import { Desktop } from 'teleport/services/desktops';
 
 export const desktops: Desktop[] = [
   {
-    kind: 'windows_desktop',
     os: 'windows',
     name: 'bb8411a4-ba50-537c-89b3-226a00447bc6',
     addr: 'host.com',
@@ -26,7 +25,6 @@ export const desktops: Desktop[] = [
     logins: ['Administrator'],
   },
   {
-    kind: 'windows_desktop',
     os: 'windows',
     name: 'd96e7dd6-26b6-56d5-8259-778f943f90f2',
     addr: 'another.com',
@@ -34,7 +32,6 @@ export const desktops: Desktop[] = [
     logins: ['Administrator'],
   },
   {
-    kind: 'windows_desktop',
     os: 'windows',
     name: '18cd6652-2f9a-5475-8138-2a56d44e1645',
     addr: 'yetanother.com',

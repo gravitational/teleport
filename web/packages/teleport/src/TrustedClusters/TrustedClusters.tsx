@@ -36,24 +36,24 @@ import useTrustedClusters from './useTrustedClusters';
 import { emptyPng } from './assets';
 
 export default function TrustedClusters() {
-  const { items, canCreate, remove, save, attempt } = useTrustedClusters();
-  const isEmpty = attempt.status === 'success' && items.length === 0;
-  const hasClusters = attempt.status === 'success' && items.length > 0;
-  const resources = useResources(items, templates);
+  const tclusters = useTrustedClusters();
+  const isEmpty = tclusters.isSuccess && tclusters.items.length === 0;
+  const hasClusters = tclusters.isSuccess && tclusters.items.length > 0;
+  const resources = useResources(tclusters.items, templates);
 
   const title =
     resources.status === 'creating'
       ? 'Add a new trusted cluster'
       : 'Edit trusted cluster';
 
-  function onRemove() {
-    return remove(resources.item.name);
+  function remove() {
+    return tclusters.remove(resources.item.name);
   }
 
-  function onSave(content: string) {
+  function save(content: string) {
     const name = resources.item.name;
     const isNew = resources.status === 'creating';
-    return save(name, content, isNew);
+    return tclusters.save(name, content, isNew);
   }
 
   return (
@@ -62,7 +62,7 @@ export default function TrustedClusters() {
         <FeatureHeaderTitle>Trusted Clusters</FeatureHeaderTitle>
         {hasClusters && (
           <ButtonPrimary
-            disabled={!canCreate}
+            disabled={!tclusters.canCreate}
             ml="auto"
             width="240px"
             onClick={() => resources.create('trusted_cluster')}
@@ -71,15 +71,15 @@ export default function TrustedClusters() {
           </ButtonPrimary>
         )}
       </FeatureHeader>
-      {attempt.status === 'failed' && <Danger>{attempt.statusText} </Danger>}
-      {attempt.status === 'processing' && (
+      {tclusters.isFailed && <Danger>{tclusters.message} </Danger>}
+      {tclusters.isProcessing && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
       {isEmpty && (
         <Empty
-          disabled={!canCreate}
+          disabled={!tclusters.canCreate}
           onCreate={() => resources.create('trusted_cluster')}
         />
       )}
@@ -88,7 +88,7 @@ export default function TrustedClusters() {
           <TrustedList
             mt="4"
             flex="1"
-            items={items}
+            items={tclusters.items}
             onEdit={resources.edit}
             onDelete={resources.remove}
           />
@@ -102,7 +102,7 @@ export default function TrustedClusters() {
       )}
       {(resources.status === 'creating' || resources.status === 'editing') && (
         <ResourceEditor
-          onSave={onSave}
+          onSave={save}
           title={title}
           onClose={resources.disregard}
           text={resources.item.content}
@@ -114,7 +114,7 @@ export default function TrustedClusters() {
         <DeleteTrust
           name={resources.item.name}
           onClose={resources.disregard}
-          onDelete={onRemove}
+          onDelete={remove}
         />
       )}
     </FeatureBox>
@@ -135,7 +135,7 @@ const Info = props => (
     <Text typography="subtitle1" mb={2}>
       Please{' '}
       <Link
-        color="text.main"
+        color="light"
         href="https://goteleport.com/docs/setup/admin/trustedclusters/"
         target="_blank"
       >

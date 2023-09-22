@@ -46,7 +46,6 @@ func windowsTagPipeline() pipeline {
 	p.Steps = []step{
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		updateWindowsSubreposStep(p.Workspace.Path),
-		installWindowsRustToolchainStep(p.Workspace.Path),
 		installWindowsNodeToolchainStep(p.Workspace.Path),
 		installWindowsGoToolchainStep(p.Workspace.Path),
 		buildWindowsAuthenticationPackageStep(p.Workspace.Path),
@@ -112,7 +111,6 @@ func windowsPushPipeline() pipeline {
 	p.Steps = []step{
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		updateWindowsSubreposStep(p.Workspace.Path),
-		installWindowsRustToolchainStep(p.Workspace.Path),
 		installWindowsNodeToolchainStep(p.Workspace.Path),
 		installWindowsGoToolchainStep(p.Workspace.Path),
 		buildWindowsTshStep(p.Workspace.Path),
@@ -174,24 +172,6 @@ func updateWindowsSubreposStep(workspace string) step {
 			`cd $TeleportSrc`,
 			`git submodule update --init e`,
 			`Reset-Git -Workspace $Workspace`,
-		},
-	}
-}
-
-func installWindowsRustToolchainStep(workspacePath string) step {
-	return step{
-		Name:        "Install Rust Toolchain",
-		Environment: map[string]value{"WORKSPACE_DIR": {raw: workspacePath}},
-		Commands: []string{
-			`$ProgressPreference = 'SilentlyContinue'`,
-			`$ErrorActionPreference = 'Stop'`,
-			`$Workspace = "` + perBuildWorkspace + `"`,
-			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
-			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
-			`Push-Location "$TeleportSrc/build.assets"`,
-			`$RustVersion = $(make print-rust-version).Trim()`,
-			`Pop-Location`,
-			`Install-Rust -RustVersion $RustVersion -ToolchainDir "$Workspace` + toolchainDir + `"`,
 		},
 	}
 }
@@ -310,7 +290,6 @@ func buildWindowsAuthenticationPackageStep(workspace string) step {
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Go -ToolchainDir "$Workspace` + toolchainDir + `"`,
-			`Enable-Rust -ToolchainDir "$Workspace` + toolchainDir + `"`,
 			`cd $TeleportSrc`,
 			`$TeleportVersion=$(make print-version).Trim()`,
 			`cd "$TeleportSrc\e\windowsauth"`,

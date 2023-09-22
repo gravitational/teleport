@@ -31,6 +31,7 @@ export const FormPasswordless = ({
       px={3}
       border={1}
       borderRadius={2}
+      borderColor="text.muted"
       width="100%"
       onClick={onLoginWithPasswordless}
       disabled={loginAttempt.status === 'processing'}
@@ -38,7 +39,7 @@ export const FormPasswordless = ({
     >
       <Flex alignItems="center" justifyContent="space-between">
         <Flex alignItems="center">
-          <Key mr={3} size="medium" />
+          <Key mr={3} fontSize={16} />
           <Box>
             <Text typography="h6">Passwordless</Text>
             <Text fontSize={1} color="text.slightlyMuted">
@@ -46,7 +47,7 @@ export const FormPasswordless = ({
             </Text>
           </Box>
         </Flex>
-        <ArrowForward size="medium" />
+        <ArrowForward fontSize={16} />
       </Flex>
     </StyledPaswordlessBtn>
   </Box>
@@ -55,20 +56,17 @@ export const FormPasswordless = ({
 const StyledPaswordlessBtn = styled(ButtonText)`
   display: block;
   text-align: left;
-  border: 1px solid ${({ theme }) => theme.colors.buttons.border.border};
+  border: 1px solid ${({ theme }) => theme.colors.text.muted};
 
   &:hover,
+  &:active,
   &:focus {
-    background: ${({ theme }) => theme.colors.buttons.border.hover};
+    border-color: ${({ theme }) => theme.colors.action.active};
     text-decoration: none;
-  }
-
-  &:active {
-    background: ${({ theme }) => theme.colors.buttons.border.active};
   }
 
   &[disabled] {
     pointer-events: none;
-    background: ${({ theme }) => theme.colors.buttons.bgDisabled};
+    opacity: 0.7;
   }
 `;

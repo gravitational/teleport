@@ -16,10 +16,6 @@ limitations under the License.
 
 package types
 
-import (
-	"github.com/gravitational/teleport/api/types/common"
-)
-
 const (
 	// DefaultAPIGroup is a default group of permissions API,
 	// lets us to add different permission types
@@ -128,40 +124,14 @@ const (
 	// KindProxy is proxy resource
 	KindProxy = "proxy"
 
-	// KindNode is node resource. It can be either a Teleport node or
-	// a registered OpenSSH (agentless) node.
+	// KindNode is node resource
 	KindNode = "node"
-
-	// SubKindTeleportNode is a Teleport node.
-	SubKindTeleportNode = "teleport"
-
-	// SubKindOpenSSHNode is a registered OpenSSH (agentless) node.
-	SubKindOpenSSHNode = "openssh"
-
-	// SubKindOpenSSHEICENode is a registered OpenSSH (agentless) node that doesn't require trust in Teleport CA.
-	// For each session an SSH Key is created and uploaded to the target host using a side-channel.
-	//
-	// For Amazon EC2 Instances, it uploads the key using:
-	// https://docs.aws.amazon.com/ec2-instance-connect/latest/APIReference/API_SendSSHPublicKey.html
-	// This Key is valid for 60 seconds.
-	//
-	// It uses the private key created above to SSH into the host.
-	SubKindOpenSSHEICENode = "openssh-ec2-ice"
-
-	// KindUnifiedResource is a meta Kind that is used for the unified resource search present on
-	// the webUI and Connect. It allows us to query and return multiple kinds at the same time
-	KindUnifiedResource = "unified_resource"
 
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
 
 	// KindApp is a web app resource.
 	KindApp = "app"
-
-	// KindAppOrSAMLIdPServiceProvider represent an App Server resource or a SAML IdP Service Provider (SAML Application) resource.
-	// This is not a real resource stored in the backend, it is a pseudo resource used only to provide a common interface to
-	// the ListResources RPC in order to be able to list both AppServers and SAMLIdPServiceProviders in the same request.
-	KindAppOrSAMLIdPServiceProvider = "app_server_or_saml_idp_sp"
 
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
@@ -178,68 +148,8 @@ const (
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
 
-	// KindKubePod is a Kubernetes Pod resource type.
+	// KindKubePod is an Kubernetes Pod resource type.
 	KindKubePod = "pod"
-
-	// KindKubeSecret is a Kubernetes Secret resource type.
-	KindKubeSecret = "secret"
-
-	// KindKubeConfigMap is a Kubernetes Configmap resource type.
-	KindKubeConfigmap = "configmap"
-
-	// KindKubeNamespace is a Kubernetes namespace resource type.
-	KindKubeNamespace = "namespace"
-
-	// KindKubeService is a Kubernetes Service resource type.
-	KindKubeService = "service"
-
-	// KindKubeServiceAccount is an Kubernetes Service Account resource type.
-	KindKubeServiceAccount = "serviceaccount"
-
-	// KindKubeNode is a Kubernetes Node resource type.
-	KindKubeNode = "kube_node"
-
-	// KindKubePersistentVolume is a Kubernetes Persistent Volume resource type.
-	KindKubePersistentVolume = "persistentvolume"
-
-	// KindKubePersistentVolumeClaim is a Kubernetes Persistent Volume Claim resource type.
-	KindKubePersistentVolumeClaim = "persistentvolumeclaim"
-
-	// KindKubeDeployment is a Kubernetes Deployment resource type.
-	KindKubeDeployment = "deployment"
-
-	// KindKubeReplicaSet is a Kubernetes Replicaset resource type.
-	KindKubeReplicaSet = "replicaset"
-
-	// KindKubeStatefulset is a Kubernetes Statefulset resource type.
-	KindKubeStatefulset = "statefulset"
-
-	// KindKubeDaemonSet is a Kubernetes Daemonset resource type.
-	KindKubeDaemonSet = "daemonset"
-
-	// KindKubeClusterRole is a Kubernetes ClusterRole resource type.
-	KindKubeClusterRole = "clusterrole"
-
-	// KindKubeRole is a Kubernetes Role resource type.
-	KindKubeRole = "kube_role"
-
-	// KindKubeClusterRoleBinding is a Kubernetes Cluster Role Binding resource type.
-	KindKubeClusterRoleBinding = "clusterrolebinding"
-
-	// KindKubeRoleBinding is a Kubernetes Role Binding resource type.
-	KindKubeRoleBinding = "rolebinding"
-
-	// KindKubeCronjob is a Kubernetes Cronjob resource type.
-	KindKubeCronjob = "cronjob"
-
-	// KindKubeJob is a Kubernetes job resource type.
-	KindKubeJob = "job"
-
-	// KindKubeCertificateSigningRequest is a Certificate Signing Request resource type.
-	KindKubeCertificateSigningRequest = "certificatesigningrequest"
-
-	// KindKubeIngress is a Kubernetes Ingress resource type.
-	KindKubeIngress = "ingress"
 
 	// KindToken is a provisioning token resource
 	KindToken = "token"
@@ -308,9 +218,6 @@ const (
 	// MetaNameClusterName is the name of a configuration resource for cluster name.
 	MetaNameClusterName = "cluster-name"
 
-	// MetaNameWatchStatus is the name of a watch status resource.
-	MetaNameWatchStatus = "watch-status"
-
 	// KindStaticTokens is a type of configuration resource that contains static tokens.
 	KindStaticTokens = "static_tokens"
 
@@ -344,6 +251,10 @@ const (
 
 	// KindState is local on disk process state
 	KindState = "state"
+
+	// KindKubeService is a kubernetes service resource
+	// DELETE in 13.0.0
+	KindKubeService = "kube_service"
 
 	// KindMFADevice is an MFA device for a user.
 	KindMFADevice = "mfa_device"
@@ -409,9 +320,6 @@ const (
 	// KindPlugin represents a plugin instance
 	KindPlugin = "plugin"
 
-	// KindPluginStaticCredentials represents plugin static credentials.
-	KindPluginStaticCredentials = "plugin_static_credentials"
-
 	// KindSAMLIdPServiceProvider is a SAML service provider for the built in Teleport IdP.
 	KindSAMLIdPServiceProvider = "saml_idp_service_provider"
 
@@ -434,35 +342,6 @@ const (
 	// KindIntegration is a connection to a 3rd party system API.
 	KindIntegration = "integration"
 
-	// KindClusterMaintenanceConfig determines maintenance times for the cluster.
-	KindClusterMaintenanceConfig = "cluster_maintenance_config"
-
-	// KindServerInfo contains info that should be applied to joining Nodes.
-	KindServerInfo = "server_info"
-
-	// SubKindCloudInfo is a ServerInfo that was created by the Discovery
-	// service to match with a single discovered instance.
-	SubKindCloudInfo = "cloud_info"
-
-	// MetaNameClusterMaintenanceConfig is the only allowed metadata.name value for the maintenance
-	// window singleton resource.
-	MetaNameClusterMaintenanceConfig = "cluster-maintenance-config"
-
-	// KindWatchStatus is a kind for WatchStatus resource which contains information about a successful Watch request.
-	KindWatchStatus = "watch_status"
-
-	// KindAccessList is an AccessList resource
-	KindAccessList = "access_list"
-
-	// KindUserLoginState is a UserLoginState resource
-	KindUserLoginState = "user_login_state"
-
-	// KindAccessListMember is an AccessListMember resource
-	KindAccessListMember = "access_list_member"
-
-	// V7 is the seventh version of resources.
-	V7 = "v7"
-
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
@@ -484,7 +363,7 @@ const (
 )
 
 // WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
@@ -530,53 +409,38 @@ const (
 	// account that the label might be removed, modified or could have been set by the user.
 	//
 	// See also TeleportInternalLabelPrefix and TeleportHiddenLabelPrefix.
-	TeleportNamespace = common.TeleportNamespace
+	TeleportNamespace = "teleport.dev"
 
 	// OriginLabel is a resource metadata label name used to identify a source
 	// that the resource originates from.
-	OriginLabel = common.OriginLabel
-
-	// ClusterLabel is a label that identifies the current cluster when creating resources on another systems.
-	// Eg, when creating a resource in AWS, this label must be set as a Tag in the resource.
-	ClusterLabel = TeleportNamespace + "/cluster"
+	OriginLabel = TeleportNamespace + "/origin"
 
 	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
 	ADLabel = TeleportNamespace + "/ad"
 
 	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
-	OriginDefaults = common.OriginDefaults
+	OriginDefaults = "defaults"
 
 	// OriginConfigFile is an origin value indicating that the resource is
 	// derived from static configuration.
-	OriginConfigFile = common.OriginConfigFile
+	OriginConfigFile = "config-file"
 
 	// OriginDynamic is an origin value indicating that the resource was
 	// committed as dynamic configuration.
-	OriginDynamic = common.OriginDynamic
+	OriginDynamic = "dynamic"
 
 	// OriginCloud is an origin value indicating that the resource was
 	// imported from a cloud provider.
-	OriginCloud = common.OriginCloud
+	OriginCloud = "cloud"
 
 	// OriginKubernetes is an origin value indicating that the resource was
 	// created from the Kubernetes Operator.
-	OriginKubernetes = common.OriginKubernetes
+	OriginKubernetes = "kubernetes"
 
 	// OriginOkta is an origin value indicating that the resource was
 	// created from the Okta service.
-	OriginOkta = common.OriginOkta
-
-	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
-	// created from the AWS OIDC Integration.
-	OriginIntegrationAWSOIDC = common.OriginIntegrationAWSOIDC
-
-	// OriginDiscoveryKubernetes indicates that the resource was imported
-	// from kubernetes cluster by discovery service.
-	OriginDiscoveryKubernetes = common.OriginDiscoveryKubernetes
-
-	// IntegrationLabel is a resource metadata label name used to identify the integration name that created the resource.
-	IntegrationLabel = TeleportNamespace + "/integration"
+	OriginOkta = "okta"
 
 	// AWSAccountIDLabel is used to identify nodes by AWS account ID
 	// found via automatic discovery, to avoid re-running installation
@@ -586,9 +450,6 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
-	// AWSInstanceRegion is used to identify the region an EC2
-	// instance is running in
-	AWSInstanceRegion = TeleportNamespace + "/aws-region"
 	// SubscriptionIDLabel is used to identify virtual machines by Azure
 	// subscription ID found via automatic discovery, to avoid re-running
 	// installation commands on the node.
@@ -597,25 +458,9 @@ const (
 	// via automatic discovery, to avoid re-running installation commands
 	// on the node.
 	VMIDLabel = TeleportNamespace + "/vm-id"
-	// ProjectIDLabel is used to identify virtual machines by GCP project
-	// id found via automatic discovery, to avoid re-running
-	// installation commands on the node.
-	ProjectIDLabel = TeleportNamespace + "/project-id"
-	// ZoneLabek is used to identify virtual machines by GCP zone
-	// found via automatic discovery, to avoid re-running installation
-	// commands on the node.
-	ZoneLabel = TeleportNamespace + "/zone"
-	// NameLabel is used to identify virtual machines by GCP VM name
-	// found via automatic discovery, to avoid re-running installation
-	// commands on the node.
-	NameLabel = TeleportNamespace + "/name"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
-
-	// DatabaseAdminLabel is used to identify database admin user for auto-
-	// discovered databases.
-	DatabaseAdminLabel = TeleportNamespace + "/db-admin"
 
 	// cloudKubeClusterNameOverrideLabel is a cloud agnostic label key for
 	// overriding kubernetes cluster name in discovered cloud kube clusters.
@@ -643,25 +488,6 @@ const (
 	// kubernetes cluster name override for discovered GCP kube clusters.
 	GCPKubeClusterNameOverrideLabel = cloudKubeClusterNameOverrideLabel
 
-	// KubernetesClusterLabel indicates name of the kubernetes cluster for auto-discovered services inside kubernetes.
-	KubernetesClusterLabel = TeleportNamespace + "/kubernetes-cluster"
-
-	// DiscoveryTypeLabel specifies type of discovered service that should be created from Kubernetes service.
-	DiscoveryTypeLabel = TeleportNamespace + "/discovery-type"
-	// DiscoveryPortLabel specifies preferred port for a discovered app created from Kubernetes service.
-	DiscoveryPortLabel = TeleportNamespace + "/port"
-	// DiscoveryProtocolLabel specifies protocol for a discovered app created from Kubernetes service.
-	DiscoveryProtocolLabel = TeleportNamespace + "/protocol"
-	// DiscoveryAppRewriteLabel specifies rewrite rules for a discovered app created from Kubernetes service.
-	DiscoveryAppRewriteLabel = TeleportNamespace + "/app-rewrite"
-	// DiscoveryAppNameLabel specifies explicitly name of an app created from Kubernetes service.
-	DiscoveryAppNameLabel = TeleportNamespace + "/name"
-
-	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
-	ReqAnnotationSchedulesLabel = "/schedules"
-	// ReqAnnotationNotifyServicesLabel is the request annotation key at which notify services are stored for access plugins.
-	ReqAnnotationNotifyServicesLabel = "/notify-services"
-
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
 	// CloudAzure identifies that a resource was discovered in Azure.
@@ -669,21 +495,8 @@ const (
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
 
-	// DiscoveredResourceNode identifies a discovered SSH node.
-	DiscoveredResourceNode = "node"
-	// DiscoveredResourceDatabase identifies a discovered database.
-	DiscoveredResourceDatabase = "db"
-	// DiscoveredResourceKubernetes identifies a discovered kubernetes cluster.
-	DiscoveredResourceKubernetes = "k8s"
-	// DiscoveredResourceAgentlessNode identifies a discovered agentless SSH node.
-	DiscoveredResourceAgentlessNode = "node.openssh"
-
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
-
-	// ConnectMyComputerNodeOwnerLabel is a label used to control access to the node managed by
-	// Teleport Connect as part of Connect My Computer. See [teleterm.connectmycomputer.RoleSetup].
-	ConnectMyComputerNodeOwnerLabel = TeleportNamespace + "/connect-my-computer/owner"
 )
 
 var (
@@ -759,18 +572,18 @@ const (
 
 	// DiscoveryLabelWindowsDNSHostName is the DNS hostname of an LDAP object.
 	DiscoveryLabelWindowsDNSHostName = TeleportNamespace + "/dns_host_name"
-	// DiscoveryLabelWindowsComputerName is the name of an LDAP object.
+	//DiscoveryLabelWindowsComputerName is the name of an LDAP object.
 	DiscoveryLabelWindowsComputerName = TeleportNamespace + "/computer_name"
-	// DiscoveryLabelWindowsOS is the operating system of an LDAP object.
+	//DiscoveryLabelWindowsOS is the operating system of an LDAP object.
 	DiscoveryLabelWindowsOS = TeleportNamespace + "/os"
-	// DiscoveryLabelWindowsOSVersion operating system version of an LDAP object.
+	//DiscoveryLabelWindowsOSVersion operating system version of an LDAP object.
 	DiscoveryLabelWindowsOSVersion = TeleportNamespace + "/os_version"
-	// DiscoveryLabelWindowsOU is an LDAP objects's OU.
+	//DiscoveryLabelWindowsOU is an LDAP objects's OU.
 	DiscoveryLabelWindowsOU = TeleportNamespace + "/ou"
-	// DiscoveryLabelWindowsIsDomainController is whether an LDAP object is a
+	//DiscoveryLabelWindowsIsDomainController is whether an LDAP object is a
 	// domain controller.
 	DiscoveryLabelWindowsIsDomainController = TeleportNamespace + "/is_domain_controller"
-	// DiscoveryLabelWindowsDomain is an Active Directory domain name.
+	//DiscoveryLabelWindowsDomain is an Active Directory domain name.
 	DiscoveryLabelWindowsDomain = TeleportNamespace + "/windows_domain"
 	// DiscoveryLabelLDAPPrefix is the prefix used when applying any custom
 	// labels per the discovery LDAP attribute labels configuration.
@@ -789,12 +602,6 @@ const (
 	//
 	// See also TeleportNamespace and TeleportInternalLabelPrefix.
 	TeleportHiddenLabelPrefix = "teleport.hidden/"
-
-	// DiscoveredNameLabel is a resource metadata label name used to identify
-	// the discovered name of a resource, i.e. the name of a resource before a
-	// uniquely distinguishing suffix is added by the discovery service.
-	// See: RFD 129 - Avoid Discovery Resource Name Collisions.
-	DiscoveredNameLabel = TeleportInternalLabelPrefix + "discovered-name"
 
 	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
 	BotLabel = TeleportInternalLabelPrefix + "bot"
@@ -840,47 +647,6 @@ const (
 	// that the discovered resource is owned by. It is used to differentiate resources
 	// that belong to different discovery services that operate on different sets of resources.
 	TeleportInternalDiscoveryGroupName = TeleportInternalLabelPrefix + "discovery-group-name"
-
-	// TeleportDowngradedLabel identifies resources that have been automatically
-	// downgraded before being returned to clients on older versions that do not
-	// support one or more features enabled in that resource.
-	TeleportDowngradedLabel = TeleportInternalLabelPrefix + "downgraded"
-
-	// TeleportInternalResourceType indicates the type of internal Teleport resource a resource is.
-	// Valid values are:
-	// - system: These resources will be automatically created and overwritten on startup. Users should
-	//           not change these resources.
-	// - preset: These resources will be created if they don't exist. Updates may be applied to them,
-	//           but user changes to these resources will be preserved.
-	TeleportInternalResourceType = TeleportInternalLabelPrefix + "resource-type"
-
-	// TeleportResourceRevision marks a teleport-managed resource with a reversion
-	// number to aid future migrations. Label value is expected to be a number.
-	TeleportResourceRevision = TeleportInternalLabelPrefix + "revision"
-
-	// SystemResource are resources that will be automatically created and overwritten on startup. Users
-	// should not change these resources.
-	SystemResource = "system"
-
-	// PresetResource are resources resources will be created if they don't exist. Updates may be applied
-	// to them, but user changes to these resources will be preserved.
-	PresetResource = "preset"
-
-	// ProxyGroupIDLabel is the internal-use label for proxy heartbeats that's
-	// used by reverse tunnel agents to keep track of multiple independent sets
-	// of proxies in proxy peering mode.
-	ProxyGroupIDLabel = TeleportInternalLabelPrefix + "proxygroup-id"
-
-	// ProxyGroupGenerationLabel is the internal-use label for proxy heartbeats
-	// that's used by reverse tunnel agents to know which proxies in each proxy
-	// group they should attempt to be connected to.
-	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
-)
-
-const (
-	// InstallMethodAWSOIDCDeployServiceEnvVar is the env var used to detect if the agent was installed
-	// using the DeployService action of the AWS OIDC integration.
-	InstallMethodAWSOIDCDeployServiceEnvVar = "TELEPORT_INSTALL_METHOD_AWSOIDC_DEPLOYSERVICE"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
@@ -896,7 +662,14 @@ const (
 )
 
 // OriginValues lists all possible origin values.
-var OriginValues = common.OriginValues
+var OriginValues = []string{
+	OriginDefaults,
+	OriginConfigFile,
+	OriginDynamic,
+	OriginCloud,
+	OriginKubernetes,
+	OriginOkta,
+}
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
@@ -976,9 +749,6 @@ const (
 
 	// ResourceSpecType refers to a resource field named "type".
 	ResourceSpecType = "type"
-
-	// ResourceKind refers to a resource field named "kind".
-	ResourceKind = "kind"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.
@@ -988,102 +758,13 @@ var RequestableResourceKinds = []string{
 	KindDatabase,
 	KindApp,
 	KindWindowsDesktop,
-	KindUserGroup,
 	KindKubePod,
-	KindKubeSecret,
-	KindKubeConfigmap,
-	KindKubeNamespace,
-	KindKubeService,
-	KindKubeServiceAccount,
-	KindKubeNode,
-	KindKubePersistentVolume,
-	KindKubePersistentVolumeClaim,
-	KindKubeDeployment,
-	KindKubeReplicaSet,
-	KindKubeStatefulset,
-	KindKubeDaemonSet,
-	KindKubeClusterRole,
-	KindKubeRole,
-	KindKubeClusterRoleBinding,
-	KindKubeRoleBinding,
-	KindKubeCronjob,
-	KindKubeJob,
-	KindKubeCertificateSigningRequest,
-	KindKubeIngress,
+	KindUserGroup,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
 var KubernetesResourcesKinds = []string{
 	KindKubePod,
-	KindKubeSecret,
-	KindKubeConfigmap,
-	KindKubeNamespace,
-	KindKubeService,
-	KindKubeServiceAccount,
-	KindKubeNode,
-	KindKubePersistentVolume,
-	KindKubePersistentVolumeClaim,
-	KindKubeDeployment,
-	KindKubeReplicaSet,
-	KindKubeStatefulset,
-	KindKubeDaemonSet,
-	KindKubeClusterRole,
-	KindKubeRole,
-	KindKubeClusterRoleBinding,
-	KindKubeRoleBinding,
-	KindKubeCronjob,
-	KindKubeJob,
-	KindKubeCertificateSigningRequest,
-	KindKubeIngress,
-}
-
-const (
-	// KubeVerbGet is the Kubernetes verb for "get".
-	KubeVerbGet = "get"
-	// KubeVerbCreate is the Kubernetes verb for "create".
-	KubeVerbCreate = "create"
-	// KubeVerbUpdate is the Kubernetes verb for "update".
-	KubeVerbUpdate = "update"
-	// KubeVerbPatch is the Kubernetes verb for "patch".
-	KubeVerbPatch = "patch"
-	// KubeVerbDelete is the Kubernetes verb for "delete".
-	KubeVerbDelete = "delete"
-	// KubeVerbList is the Kubernetes verb for "list".
-	KubeVerbList = "list"
-	// KubeVerbWatch is the Kubernetes verb for "watch".
-	KubeVerbWatch = "watch"
-	// KubeVerbDeleteCollection is the Kubernetes verb for "deletecollection".
-	KubeVerbDeleteCollection = "deletecollection"
-	// KubeVerbExec is the Kubernetes verb for "pod/exec".
-	KubeVerbExec = "exec"
-	// KubeVerbPortForward is the Kubernetes verb for "pod/portforward".
-	KubeVerbPortForward = "portforward"
-)
-
-// KubernetesVerbs lists the supported Kubernetes verbs.
-var KubernetesVerbs = []string{
-	Wildcard,
-	KubeVerbGet,
-	KubeVerbCreate,
-	KubeVerbUpdate,
-	KubeVerbPatch,
-	KubeVerbDelete,
-	KubeVerbList,
-	KubeVerbWatch,
-	KubeVerbDeleteCollection,
-	KubeVerbExec,
-	KubeVerbPortForward,
-}
-
-// KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
-// that are not namespaced.
-var KubernetesClusterWideResourceKinds = []string{
-	KindKubeNamespace,
-	KindKubeNode,
-	KindKubePersistentVolume,
-	KindKubeClusterRole,
-	KindKubeClusterRoleBinding,
-	KindKubeCertificateSigningRequest,
 }
 
 const (
@@ -1098,8 +779,6 @@ const (
 	JWTClaimsRewriteRolesAndTraits = "roles-and-traits"
 	// JWTClaimsRewriteRoles includes only the roles in the JWT token.
 	JWTClaimsRewriteRoles = "roles"
-	// JWTClaimsRewriteTraits includes only the traits in the JWT token.
-	JWTClaimsRewriteTraits = "traits"
 	// JWTClaimsRewriteNone include neither traits nor roles in the JWT token.
 	JWTClaimsRewriteNone = "none"
 )

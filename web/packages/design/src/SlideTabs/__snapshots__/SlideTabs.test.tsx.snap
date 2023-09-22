@@ -19,7 +19,7 @@ exports[`design/SlideTabs supports a round medium size 1`] = `
 }
 
 .c4 {
-  background-color: #9F85FF;
+  background-color: #512FC9;
   border-radius: 60px;
   box-shadow: 0px 2px 6px rgba(12,12,14,0.1);
   height: 40px;
@@ -33,17 +33,11 @@ exports[`design/SlideTabs supports a round medium size 1`] = `
 
 .c1 {
   align-items: center;
-  background-color: rgba(255,255,255,0.07);
+  background-color: rgba(255,255,255,0.05);
   border-radius: 60px;
   display: flex;
   height: 47px;
   justify-content: space-around;
-  color: #FFFFFF;
-}
-
-.c1 .selected {
-  color: #000000;
-  transition: color 0.2s ease-in 0s;
 }
 
 <div>
@@ -55,7 +49,7 @@ exports[`design/SlideTabs supports a round medium size 1`] = `
       role="tablist"
     >
       <label
-        class="c2 selected"
+        class="c2"
         for="slide-tab-aws"
         role="tab"
       >
@@ -120,7 +114,7 @@ exports[`design/SlideTabs supports a round xlarge appearance 1`] = `
 }
 
 .c4 {
-  background-color: #9F85FF;
+  background-color: #512FC9;
   border-radius: 60px;
   box-shadow: 0px 2px 6px rgba(12,12,14,0.1);
   height: 56px;
@@ -134,17 +128,11 @@ exports[`design/SlideTabs supports a round xlarge appearance 1`] = `
 
 .c1 {
   align-items: center;
-  background-color: rgba(255,255,255,0.07);
+  background-color: rgba(255,255,255,0.05);
   border-radius: 60px;
   display: flex;
   height: 80px;
   justify-content: space-around;
-  color: #FFFFFF;
-}
-
-.c1 .selected {
-  color: #000000;
-  transition: color 0.2s ease-in 0s;
 }
 
 <div>
@@ -156,7 +144,7 @@ exports[`design/SlideTabs supports a round xlarge appearance 1`] = `
       role="tablist"
     >
       <label
-        class="c2 selected"
+        class="c2"
         for="slide-tab-aws"
         role="tab"
       >
@@ -221,7 +209,7 @@ exports[`design/SlideTabs supports a square medium size 1`] = `
 }
 
 .c4 {
-  background-color: #9F85FF;
+  background-color: #512FC9;
   border-radius: 8px;
   box-shadow: 0px 2px 6px rgba(12,12,14,0.1);
   height: 40px;
@@ -235,17 +223,11 @@ exports[`design/SlideTabs supports a square medium size 1`] = `
 
 .c1 {
   align-items: center;
-  background-color: rgba(255,255,255,0.07);
+  background-color: rgba(255,255,255,0.05);
   border-radius: 8px;
   display: flex;
   height: 47px;
   justify-content: space-around;
-  color: #FFFFFF;
-}
-
-.c1 .selected {
-  color: #000000;
-  transition: color 0.2s ease-in 0s;
 }
 
 <div>
@@ -257,7 +239,7 @@ exports[`design/SlideTabs supports a square medium size 1`] = `
       role="tablist"
     >
       <label
-        class="c2 selected"
+        class="c2"
         for="slide-tab-aws"
         role="tab"
       >
@@ -322,7 +304,7 @@ exports[`design/SlideTabs supports a square xlarge appearance (default) 1`] = `
 }
 
 .c4 {
-  background-color: #9F85FF;
+  background-color: #512FC9;
   border-radius: 8px;
   box-shadow: 0px 2px 6px rgba(12,12,14,0.1);
   height: 56px;
@@ -336,17 +318,11 @@ exports[`design/SlideTabs supports a square xlarge appearance (default) 1`] = `
 
 .c1 {
   align-items: center;
-  background-color: rgba(255,255,255,0.07);
+  background-color: rgba(255,255,255,0.05);
   border-radius: 8px;
   display: flex;
   height: 80px;
   justify-content: space-around;
-  color: #FFFFFF;
-}
-
-.c1 .selected {
-  color: #000000;
-  transition: color 0.2s ease-in 0s;
 }
 
 <div>
@@ -358,7 +334,7 @@ exports[`design/SlideTabs supports a square xlarge appearance (default) 1`] = `
       role="tablist"
     >
       <label
-        class="c2 selected"
+        class="c2"
         for="slide-tab-aws"
         role="tab"
       >
@@ -423,7 +399,7 @@ exports[`design/SlideTabs supports passing in a selected index 1`] = `
 }
 
 .c4 {
-  background-color: #9F85FF;
+  background-color: #512FC9;
   border-radius: 8px;
   box-shadow: 0px 2px 6px rgba(12,12,14,0.1);
   height: 56px;
@@ -437,17 +413,11 @@ exports[`design/SlideTabs supports passing in a selected index 1`] = `
 
 .c1 {
   align-items: center;
-  background-color: rgba(255,255,255,0.07);
+  background-color: rgba(255,255,255,0.05);
   border-radius: 8px;
   display: flex;
   height: 80px;
   justify-content: space-around;
-  color: #FFFFFF;
-}
-
-.c1 .selected {
-  color: #000000;
-  transition: color 0.2s ease-in 0s;
 }
 
 <div>
@@ -472,7 +442,7 @@ exports[`design/SlideTabs supports passing in a selected index 1`] = `
         />
       </label>
       <label
-        class="c2 selected"
+        class="c2"
         for="slide-tab-automatically"
         role="tab"
       >

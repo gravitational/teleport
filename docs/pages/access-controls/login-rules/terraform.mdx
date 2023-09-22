@@ -1,5 +1,5 @@
 ---
-title: Deploy Login Rules via Terraform 
+title: Deploy Login Rules via Terraform (Preview)
 description: Use Teleport's Terraform Provider to deploy Login Rules to your cluster
 ---
 
@@ -31,7 +31,7 @@ For simplicity, this guide will configure the Terraform provider to use your
 current logged-in user's Teleport credentials obtained from `tsh login`.
 
 <Admonition type="note">
-The [Terraform provider guide](../../management/dynamic-resources/terraform-provider.mdx)
+The [Terraform provider guide](../../management/guides/terraform-provider.mdx)
 includes instructions for configuring a dedicated `terraform` user and role,
 which is a better option when running Terraform in a non-interactive
 environment.
@@ -59,7 +59,7 @@ spec:
     rules:
       - resources: [login_rule]
         verbs: [list, read, create, update, delete]
-version: v7
+version: v6
 ```
 
 Create the role with `tctl`:
@@ -78,7 +78,7 @@ provider and create two example Login Rules.
 Make sure to update the `addr = "teleport.example.com:443"` field with the
 public address of your Teleport Proxy.
 
-```hcl
+```
 (!examples/resources/terraform/terraform-login-rules.tf!)
 ```
 
@@ -156,7 +156,7 @@ logins:
 
 ## Next Steps
 
-- Read the [Terraform Guide](../../management/dynamic-resources/terraform-provider.mdx) to
+- Read the [Terraform Guide](../../management/guides/terraform-provider.mdx) to
   learn more about configuring the Terraform provider.
 - Read the [Login Rules reference](./reference.mdx) to learn mode about the
   Login Rule expression syntax.

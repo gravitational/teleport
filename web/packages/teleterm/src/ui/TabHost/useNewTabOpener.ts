@@ -17,7 +17,7 @@
 import { useCallback } from 'react';
 
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
-import { ClusterUri, routing } from 'teleterm/ui/uri';
+import { ClusterUri } from 'teleterm/ui/uri';
 
 export function useNewTabOpener({
   documentsService,
@@ -27,29 +27,15 @@ export function useNewTabOpener({
   localClusterUri: ClusterUri;
 }) {
   const openClusterTab = useCallback(() => {
-    if (!localClusterUri) {
-      return;
+    if (localClusterUri) {
+      const clusterDocument = documentsService.createClusterDocument({
+        clusterUri: localClusterUri,
+      });
+
+      documentsService.add(clusterDocument);
+      documentsService.open(clusterDocument.uri);
     }
-
-    const clusterDocument = documentsService.createClusterDocument({
-      clusterUri: localClusterUri,
-    });
-
-    documentsService.add(clusterDocument);
-    documentsService.open(clusterDocument.uri);
   }, [documentsService, localClusterUri]);
 
-  const openTerminalTab = useCallback(() => {
-    if (!localClusterUri) {
-      return;
-    }
-
-    const { params } = routing.parseClusterUri(localClusterUri);
-    documentsService.openNewTerminal({
-      rootClusterId: params.rootClusterId,
-      leafClusterId: params.leafClusterId,
-    });
-  }, [documentsService, localClusterUri]);
-
-  return { openClusterTab, openTerminalTab };
+  return { openClusterTab };
 }

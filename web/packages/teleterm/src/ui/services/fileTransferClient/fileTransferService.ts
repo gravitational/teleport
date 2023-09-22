@@ -34,7 +34,6 @@ export class FileTransferService {
     abortController: AbortController
   ): FileTransferListeners {
     const abortSignal = {
-      aborted: false,
       addEventListener: (cb: (...args: any[]) => void) => {
         abortController.signal.addEventListener('abort', cb);
       },
@@ -42,13 +41,6 @@ export class FileTransferService {
         abortController.signal.removeEventListener('abort', cb);
       },
     };
-    abortController.signal.addEventListener(
-      'abort',
-      () => {
-        abortSignal.aborted = true;
-      },
-      { once: true }
-    );
     const listeners = this.tshClient.transferFile(options, abortSignal);
     if (
       options.direction ===

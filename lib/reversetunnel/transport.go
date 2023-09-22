@@ -18,6 +18,7 @@ package reversetunnel
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -32,13 +33,92 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/proxy"
 )
+
+// NewTunnelAuthDialer creates a new instance of TunnelAuthDialer
+func NewTunnelAuthDialer(config TunnelAuthDialerConfig) (*TunnelAuthDialer, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &TunnelAuthDialer{
+		TunnelAuthDialerConfig: config,
+	}, nil
+}
+
+// TunnelAuthDialerConfig specifies TunnelAuthDialer configuration.
+type TunnelAuthDialerConfig struct {
+	// Resolver retrieves the address of the proxy
+	Resolver Resolver
+	// ClientConfig is SSH tunnel client config
+	ClientConfig *ssh.ClientConfig
+	// Log is used for logging.
+	Log logrus.FieldLogger
+	// InsecureSkipTLSVerify is whether to skip certificate validation.
+	InsecureSkipTLSVerify bool
+}
+
+func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
+	if c.Resolver == nil {
+		return trace.BadParameter("missing tunnel address resolver")
+	}
+	return nil
+}
+
+// TunnelAuthDialer connects to the Auth Server through the reverse tunnel.
+type TunnelAuthDialer struct {
+	// TunnelAuthDialerConfig is the TunnelAuthDialer configuration.
+	TunnelAuthDialerConfig
+}
+
+// DialContext dials auth server via SSH tunnel
+func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
+	// Connect to the reverse tunnel server.
+	opts := []proxy.DialerOptionFunc{
+		proxy.WithInsecureSkipTLSVerify(t.InsecureSkipTLSVerify),
+	}
+
+	addr, mode, err := t.Resolver(ctx)
+	if err != nil {
+		t.Log.Errorf("Failed to resolve tunnel address: %v", err)
+		return nil, trace.Wrap(err)
+	}
+
+	if mode == types.ProxyListenerMode_Multiplex {
+		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
+			NextProtos: []string{
+				string(alpncommon.ProtocolReverseTunnelV2),
+				string(alpncommon.ProtocolReverseTunnel),
+			},
+		}))
+	}
+
+	dialer := proxy.DialerFromEnvironment(addr.Addr, opts...)
+	sconn, err := dialer.Dial(ctx, addr.AddrNetwork, addr.Addr, t.ClientConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Build a net.Conn over the tunnel. Make this an exclusive connection:
+	// close the net.Conn as well as the channel upon close.
+	conn, _, err := sshutils.ConnectProxyTransport(
+		sconn.Conn,
+		&sshutils.DialReq{
+			Address: RemoteAuthServer,
+		},
+		true,
+	)
+	if err != nil {
+		return nil, trace.NewAggregate(err, sconn.Close())
+	}
+	return conn, nil
+}
 
 // parseDialReq parses the dial request. Is backward compatible with legacy
 // payload.
@@ -76,14 +156,14 @@ type transport struct {
 	sconn sshutils.Conn
 
 	// reverseTunnelServer holds all reverse tunnel connections.
-	reverseTunnelServer reversetunnelclient.Server
+	reverseTunnelServer Server
 
 	// server is either an SSH or application server. It can handle a connection
 	// (perform handshake and handle request).
 	server ServerHandler
 
-	// emitter is an audit event emitter.
-	emitter apievents.Emitter
+	// emitter is an audit stream emitter.
+	emitter events.StreamEmitter
 
 	// proxySigner is used to sign PROXY headers and securely propagate client IP information
 	proxySigner multiplexer.PROXYHeaderSigner
@@ -157,7 +237,7 @@ func (p *transport) start() {
 	// Handle special non-resolvable addresses first.
 	switch dreq.Address {
 	// Connect to an Auth Server.
-	case reversetunnelclient.RemoteAuthServer:
+	case RemoteAuthServer:
 		if len(p.authServers) == 0 {
 			p.log.Errorf("connection rejected: no auth servers configured")
 			p.reply(req, false, []byte("no auth servers configured"))
@@ -167,7 +247,7 @@ func (p *transport) start() {
 
 		directAddress = utils.ChooseRandomString(p.authServers)
 	// Connect to the Kubernetes proxy.
-	case reversetunnelclient.LocalKubernetes:
+	case LocalKubernetes:
 		switch p.component {
 		case teleport.ComponentReverseTunnelServer:
 			p.reply(req, false, []byte("connection rejected: no remote kubernetes proxy"))
@@ -210,7 +290,7 @@ func (p *transport) start() {
 		}
 
 	// LocalNode requests are for the single server running in the agent pool.
-	case reversetunnelclient.LocalNode, reversetunnelclient.LocalWindowsDesktop:
+	case LocalNode, LocalWindowsDesktop:
 		// Transport is allocated with both teleport.ComponentReverseTunnelAgent
 		// and teleport.ComponentReverseTunnelServer. However, dialing to this address
 		// only makes sense when running within a teleport.ComponentReverseTunnelAgent.
@@ -272,7 +352,8 @@ func (p *transport) start() {
 		clientDst = dst
 	}
 	var signedHeader []byte
-	if shouldSendSignedPROXYHeader(p.proxySigner, useTunnel, dreq.IsAgentlessNode, clientSrc, clientDst) {
+	isKubeOrAuth := dreq.ConnType == types.KubeTunnel || dreq.Address == RemoteAuthServer
+	if shouldSendSignedPROXYHeader(p.proxySigner, dreq.TeleportVersion, useTunnel, !isKubeOrAuth, clientSrc, clientDst) {
 		signedHeader, err = p.proxySigner.SignPROXYHeader(clientSrc, clientDst)
 		if err != nil {
 			errorMessage := fmt.Sprintf("connection rejected - could not create signed PROXY header: %v", err)
@@ -301,7 +382,7 @@ func (p *transport) start() {
 
 	errorCh := make(chan error, 2)
 
-	if len(signedHeader) > 0 {
+	if signedHeader != nil {
 		_, err = conn.Write(signedHeader)
 		if err != nil {
 			p.log.Errorf("Could not write PROXY header to the connection: %v", err)
@@ -376,11 +457,11 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 		// a direct dial, return right away.
 		switch r.ConnType {
 		case types.AppTunnel:
-			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoApplicationTunnel)
+			return nil, false, trace.ConnectionProblem(err, NoApplicationTunnel)
 		case types.OktaTunnel:
-			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoOktaTunnel)
+			return nil, false, trace.ConnectionProblem(err, NoOktaTunnel)
 		case types.DatabaseTunnel:
-			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoDatabaseTunnel)
+			return nil, false, trace.ConnectionProblem(err, NoDatabaseTunnel)
 		}
 
 		errTun := err

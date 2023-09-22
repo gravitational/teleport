@@ -55,7 +55,7 @@ const Container = styled.div<OpenProps>`
 
   &:focus {
     outline: none;
-    background: ${props => props.theme.colors.spotBackground[0]};
+    background: rgba(255, 255, 255, 0.05);
   }
 
   ${LinkContent} {
@@ -90,11 +90,11 @@ const DropdownLink = styled(NavLink)`
   ${commonNavigationItemStyles};
 
   &:focus {
-    background: ${props => props.theme.colors.spotBackground[0]};
+    background: rgba(255, 255, 255, 0.05);
   }
 
   &.active {
-    background: ${props => props.theme.colors.spotBackground[1]};
+    background: rgba(255, 255, 255, 0.05);
 
     ${LinkContent} {
       font-weight: 700;
@@ -109,7 +109,7 @@ const DropdownLink = styled(NavLink)`
       transform: translate(0, -50%);
       left: 37px;
       border-radius: 2px;
-      background: ${props => props.theme.colors.brand};
+      background: #6520ff;
       content: '';
     }
   }

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package events_test
+package events
 
 import (
 	"bufio"
@@ -26,11 +26,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -48,17 +49,17 @@ func TestProtoStreamer(t *testing.T) {
 		{
 			name:           "5MB similar to S3 min size in bytes",
 			minUploadBytes: 1024 * 1024 * 5,
-			events:         eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1}),
+			events:         GenerateTestSession(SessionParams{PrintEvents: 1}),
 		},
 		{
 			name:           "get a part per message",
 			minUploadBytes: 1,
-			events:         eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1}),
+			events:         GenerateTestSession(SessionParams{PrintEvents: 1}),
 		},
 		{
 			name:           "small load test with some uneven numbers",
 			minUploadBytes: 1024,
-			events:         eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1000}),
+			events:         GenerateTestSession(SessionParams{PrintEvents: 1000}),
 		},
 		{
 			name:           "no events",
@@ -67,17 +68,17 @@ func TestProtoStreamer(t *testing.T) {
 		{
 			name:           "one event using the whole part",
 			minUploadBytes: 1,
-			events:         eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 0})[:1],
+			events:         GenerateTestSession(SessionParams{PrintEvents: 0})[:1],
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
 	for i, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			uploader := eventstest.NewMemoryUploader()
-			streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+			uploader := NewMemoryUploader()
+			streamer, err := NewProtoStreamer(ProtoStreamerConfig{
 				Uploader:       uploader,
 				MinUploadBytes: tc.minUploadBytes,
 			})
@@ -87,9 +88,9 @@ func TestProtoStreamer(t *testing.T) {
 			stream, err := streamer.CreateAuditStream(ctx, sid)
 			require.Nil(t, err)
 
-			evts := tc.events
-			for _, event := range evts {
-				err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
+			events := tc.events
+			for _, event := range events {
+				err := stream.EmitAuditEvent(ctx, event)
 				if tc.err != nil {
 					require.IsType(t, tc.err, err)
 					return
@@ -106,51 +107,50 @@ func TestProtoStreamer(t *testing.T) {
 			require.Nil(t, err)
 
 			for _, part := range parts {
-				reader := events.NewProtoReader(bytes.NewReader(part))
+				reader := NewProtoReader(bytes.NewReader(part))
 				out, err := reader.ReadAll(ctx)
 				require.Nil(t, err, "part crash %#v", part)
 				outEvents = append(outEvents, out...)
 			}
 
-			require.Equal(t, evts, outEvents)
+			require.Equal(t, events, outEvents)
 		})
 	}
 }
 
 func TestWriterEmitter(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
 	defer cancel()
 
-	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 0})
+	events := GenerateTestSession(SessionParams{PrintEvents: 0})
 	buf := &bytes.Buffer{}
-	emitter := events.NewWriterEmitter(utils.NopWriteCloser(buf))
+	emitter := NewWriterEmitter(utils.NopWriteCloser(buf))
 
-	for _, event := range evts {
+	for _, event := range events {
 		err := emitter.EmitAuditEvent(ctx, event)
 		require.NoError(t, err)
 	}
 
 	scanner := bufio.NewScanner(buf)
 	for i := 0; scanner.Scan(); i++ {
-		require.Contains(t, scanner.Text(), evts[i].GetCode())
+		require.Contains(t, scanner.Text(), events[i].GetCode())
 	}
 }
 
 func TestAsyncEmitter(t *testing.T) {
-	ctx := context.Background()
-	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 20})
+	events := GenerateTestSession(SessionParams{PrintEvents: 20})
 
 	// Slow tests that async emitter does not block
 	// on slow emitters
 	t.Run("Slow", func(t *testing.T) {
-		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
+		emitter, err := NewAsyncEmitter(AsyncEmitterConfig{
 			Inner: eventstest.NewSlowEmitter(time.Hour),
 		})
 		require.NoError(t, err)
 		defer emitter.Close()
-		ctx, cancel := context.WithTimeout(ctx, time.Second)
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
 		defer cancel()
-		for _, event := range evts {
+		for _, event := range events {
 			err := emitter.EmitAuditEvent(ctx, event)
 			require.NoError(t, err)
 		}
@@ -159,24 +159,24 @@ func TestAsyncEmitter(t *testing.T) {
 
 	// Receive makes sure all events are recevied in the same order as they are sent
 	t.Run("Receive", func(t *testing.T) {
-		chanEmitter := eventstest.NewChannelEmitter(len(evts))
-		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
+		chanEmitter := eventstest.NewChannelEmitter(len(events))
+		emitter, err := NewAsyncEmitter(AsyncEmitterConfig{
 			Inner: chanEmitter,
 		})
 
 		require.NoError(t, err)
 		defer emitter.Close()
-		ctx, cancel := context.WithTimeout(ctx, time.Second)
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
 		defer cancel()
-		for _, event := range evts {
+		for _, event := range events {
 			err := emitter.EmitAuditEvent(ctx, event)
 			require.NoError(t, err)
 		}
 
-		for i := 0; i < len(evts); i++ {
+		for i := 0; i < len(events); i++ {
 			select {
 			case event := <-chanEmitter.C():
-				require.Equal(t, evts[i], event)
+				require.Equal(t, events[i], event)
 			case <-time.After(time.Second):
 				t.Fatalf("timeout at event %v", i)
 			}
@@ -186,17 +186,17 @@ func TestAsyncEmitter(t *testing.T) {
 	// Close makes sure that close cancels operations and context
 	t.Run("Close", func(t *testing.T) {
 		counter := eventstest.NewCountingEmitter()
-		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
+		emitter, err := NewAsyncEmitter(AsyncEmitterConfig{
 			Inner:      counter,
-			BufferSize: len(evts),
+			BufferSize: len(events),
 		})
 		require.NoError(t, err)
 
-		ctx, cancel := context.WithTimeout(ctx, time.Second)
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
 		defer cancel()
 
-		emitsDoneC := make(chan struct{}, len(evts))
-		for _, e := range evts {
+		emitsDoneC := make(chan struct{}, len(events))
+		for _, e := range events {
 			go func(event apievents.AuditEvent) {
 				emitter.EmitAuditEvent(ctx, event)
 				emitsDoneC <- struct{}{}
@@ -205,10 +205,17 @@ func TestAsyncEmitter(t *testing.T) {
 
 		// context will not wait until all events have been submitted
 		emitter.Close()
-		require.True(t, int(counter.Count()) <= len(evts))
+		require.True(t, int(counter.Count()) <= len(events))
+
+		// make sure context is done to prevent context leaks
+		select {
+		case <-emitter.ctx.Done():
+		default:
+			t.Fatal("Context leak, should be closed")
+		}
 
 		// make sure all emit calls returned after context is done
-		for range evts {
+		for range events {
 			select {
 			case <-time.After(time.Second):
 				t.Fatal("Timed out waiting for emit events.")
@@ -221,19 +228,19 @@ func TestAsyncEmitter(t *testing.T) {
 // TestExport tests export to JSON format.
 func TestExport(t *testing.T) {
 	sid := session.NewID()
-	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1, SessionID: sid.String()})
-	uploader := eventstest.NewMemoryUploader()
-	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+	events := GenerateTestSession(SessionParams{PrintEvents: 1, SessionID: sid.String()})
+	uploader := NewMemoryUploader()
+	streamer, err := NewProtoStreamer(ProtoStreamerConfig{
 		Uploader: uploader,
 	})
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := context.TODO()
 	stream, err := streamer.CreateAuditStream(ctx, sid)
 	require.NoError(t, err)
 
-	for _, event := range evts {
-		err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
+	for _, event := range events {
+		err := stream.EmitAuditEvent(ctx, event)
 		require.NoError(t, err)
 	}
 	err = stream.Complete(ctx)
@@ -254,7 +261,7 @@ func TestExport(t *testing.T) {
 		_, err := f.Write(part)
 		require.NoError(t, err)
 	}
-	reader := events.NewProtoReader(io.MultiReader(readers...))
+	reader := NewProtoReader(io.MultiReader(readers...))
 	outEvents, err := reader.ReadAll(ctx)
 	require.NoError(t, err)
 
@@ -262,7 +269,7 @@ func TestExport(t *testing.T) {
 	require.NoError(t, err)
 
 	buf := &bytes.Buffer{}
-	err = events.Export(ctx, f, buf, teleport.JSON)
+	err = Export(ctx, f, buf, teleport.JSON)
 	require.NoError(t, err)
 
 	count := 0
@@ -273,4 +280,89 @@ func TestExport(t *testing.T) {
 	}
 	require.NoError(t, snl.Err())
 	require.Equal(t, len(outEvents), count)
+}
+
+// TestEnforcesClusterNameDefault validates that different emitter/stream/streamer
+// implementations enforce cluster name defaults
+func TestEnforcesClusterNameDefault(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+
+	t.Run("CheckingStream", func(t *testing.T) {
+		emitter := NewCheckingStream(&DiscardStream{}, clock, "cluster")
+		event := &apievents.SessionStart{
+			Metadata: apievents.Metadata{
+				ID:   "event.id",
+				Code: "event.code",
+				Type: "event.type",
+			},
+		}
+		require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
+		require.Empty(t, cmp.Diff(event, &apievents.SessionStart{
+			Metadata: apievents.Metadata{
+				ID:          "event.id",
+				Code:        "event.code",
+				Type:        "event.type",
+				Time:        clock.Now(),
+				ClusterName: "cluster",
+			},
+		}))
+	})
+	t.Run("CheckingStreamer.CreateAuditStream", func(t *testing.T) {
+		streamer := &CheckingStreamer{
+			CheckingStreamerConfig: CheckingStreamerConfig{
+				Inner:        &DiscardEmitter{},
+				Clock:        clock,
+				ClusterName:  "cluster",
+				UIDGenerator: utils.NewFakeUID(),
+			},
+		}
+		emitter, err := streamer.CreateAuditStream(context.Background(), "session.id")
+		require.NoError(t, err)
+		event := &apievents.SessionStart{
+			Metadata: apievents.Metadata{
+				ID:   "event.id",
+				Code: "event.code",
+				Type: "event.type",
+			},
+		}
+		require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
+		require.Empty(t, cmp.Diff(event, &apievents.SessionStart{
+			Metadata: apievents.Metadata{
+				ID:          "event.id",
+				Code:        "event.code",
+				Type:        "event.type",
+				Time:        clock.Now(),
+				ClusterName: "cluster",
+			},
+		}))
+	})
+	t.Run("CheckingStreamer.ResumeAuditStream", func(t *testing.T) {
+		streamer := &CheckingStreamer{
+			CheckingStreamerConfig: CheckingStreamerConfig{
+				Inner:        &DiscardEmitter{},
+				Clock:        clock,
+				ClusterName:  "cluster",
+				UIDGenerator: utils.NewFakeUID(),
+			},
+		}
+		emitter, err := streamer.ResumeAuditStream(context.Background(), "session.id", "upload.id")
+		require.NoError(t, err)
+		event := &apievents.SessionStart{
+			Metadata: apievents.Metadata{
+				ID:   "event.id",
+				Code: "event.code",
+				Type: "event.type",
+			},
+		}
+		require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
+		require.Empty(t, cmp.Diff(event, &apievents.SessionStart{
+			Metadata: apievents.Metadata{
+				ID:          "event.id",
+				Code:        "event.code",
+				Type:        "event.type",
+				Time:        clock.Now(),
+				ClusterName: "cluster",
+			},
+		}))
+	})
 }

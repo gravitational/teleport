@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -89,7 +90,7 @@ func (c *HTTPClientConfig) CheckAndSetDefaults() error {
 	// Set the next protocol. This is needed due to the Auth Server using a
 	// multiplexer for protocol detection. Unless next protocol is specified
 	// it will attempt to upgrade to HTTP2 and at that point there is no way
-	// to distinguish between HTTP2/JSON or gRPC.
+	// to distinguish between HTTP2/JSON or GPRC.
 	c.TLS.NextProtos = []string{teleport.HTTPNextProtoTLS}
 
 	// Configure ALPN SNI direct dial TLS routing information used by ALPN SNI proxy in order to
@@ -358,6 +359,76 @@ func (c *HTTPClient) RotateExternalCertAuthority(ctx context.Context, ca types.C
 	return trace.Wrap(err)
 }
 
+// UpsertCertAuthority updates or inserts new cert authority
+func (c *HTTPClient) UpsertCertAuthority(ca types.CertAuthority) error {
+	if err := services.ValidateCertAuthority(ca); err != nil {
+		return trace.Wrap(err)
+	}
+
+	data, err := services.MarshalCertAuthority(ca)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.PostJSON(context.TODO(), c.Endpoint("authorities", string(ca.GetType())),
+		&upsertCertAuthorityRawReq{CA: data})
+	return trace.Wrap(err)
+}
+
+// GetCertAuthorities returns a list of certificate authorities
+func (c *HTTPClient) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+	if err := caType.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.Get(ctx, c.Endpoint("authorities", string(caType)), url.Values{
+		"load_keys": []string{fmt.Sprintf("%t", loadKeys)},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(resp.Bytes(), &items); err != nil {
+		return nil, err
+	}
+	cas := make([]types.CertAuthority, 0, len(items))
+	for _, raw := range items {
+		ca, err := services.UnmarshalCertAuthority(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cas = append(cas, ca)
+	}
+
+	return cas, nil
+}
+
+// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
+// controls if signing keys are loaded
+func (c *HTTPClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+	if err := id.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out, err := c.Get(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName), url.Values{
+		"load_keys": []string{fmt.Sprintf("%t", loadSigningKeys)},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := services.UnmarshalCertAuthority(out.Bytes(), opts...)
+	return ca, trace.Wrap(err)
+}
+
+// DeleteCertAuthority deletes cert authority by ID
+func (c *HTTPClient) DeleteCertAuthority(id types.CertAuthID) error {
+	if err := id.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	_, err := c.Delete(context.TODO(), c.Endpoint("authorities", string(id.Type), id.DomainName))
+	return trace.Wrap(err)
+}
+
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
 // which was previously issued via CreateToken/UpsertToken.
 func (c *HTTPClient) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
@@ -543,11 +614,11 @@ func (c *HTTPClient) GetRemoteCluster(clusterName string) (types.RemoteCluster, 
 }
 
 // DeleteRemoteCluster deletes remote cluster by name
-func (c *HTTPClient) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
+func (c *HTTPClient) DeleteRemoteCluster(clusterName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing parameter cluster name")
 	}
-	_, err := c.Delete(ctx, c.Endpoint("remoteclusters", clusterName))
+	_, err := c.Delete(context.TODO(), c.Endpoint("remoteclusters", clusterName))
 	return trace.Wrap(err)
 }
 
@@ -907,13 +978,16 @@ func (c *HTTPClient) GetSessionChunk(namespace string, sid session.ID, offsetByt
 //
 // afterN allows to filter by "newer than N" value where N is the cursor ID
 // of previously returned bunch (good for polling for latest)
-func (c *HTTPClient) GetSessionEvents(namespace string, sid session.ID, afterN int) (retval []events.EventFields, err error) {
+func (c *HTTPClient) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) (retval []events.EventFields, err error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
 	}
 	query := make(url.Values)
 	if afterN > 0 {
 		query.Set("after", strconv.Itoa(afterN))
+	}
+	if includePrintEvents {
+		query.Set("print", fmt.Sprintf("%v", includePrintEvents))
 	}
 	response, err := c.Get(context.TODO(), c.Endpoint("namespaces", namespace, "sessions", string(sid), "events"), query)
 	if err != nil {

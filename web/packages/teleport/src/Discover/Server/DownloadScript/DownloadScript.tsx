@@ -56,11 +56,11 @@ const SHOW_HINT_TIMEOUT = 1000 * 60 * 5; // 5 minutes
 export default function Container(props: AgentStepProps) {
   return (
     <CatchError
-      onRetry={() => clearCachedJoinTokenResult([ResourceKind.Server])}
+      onRetry={() => clearCachedJoinTokenResult(ResourceKind.Server)}
       fallbackFn={fbProps => (
         <Template prevStep={props.prevStep} nextStep={() => null}>
           <TextIcon mt={2} mb={3}>
-            <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
+            <Icons.Warning ml={1} color="danger" />
             Encountered Error: {fbProps.error.message}
           </TextIcon>
         </Template>
@@ -85,7 +85,7 @@ export default function Container(props: AgentStepProps) {
 
 export function DownloadScript(props: AgentStepProps) {
   // Fetches join token.
-  const { joinToken } = useJoinTokenSuspender([ResourceKind.Server]);
+  const { joinToken } = useJoinTokenSuspender(ResourceKind.Server);
   // Starts resource querying interval.
   const { result, active } = usePingTeleport<Node>(joinToken);
 
@@ -146,7 +146,7 @@ export function DownloadScript(props: AgentStepProps) {
             white-space: pre;
           `}
         >
-          <Icons.Restore size="medium" mr={2} />
+          <Icons.Restore fontSize={4} />
         </TextIcon>
         After running the command above, we'll automatically detect your new
         Teleport instance.

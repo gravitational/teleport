@@ -109,28 +109,6 @@ type Session struct {
 	Moderated bool `json:"moderated"`
 }
 
-// FileTransferRequestParams contain parameters for requesting a file transfer
-type FileTransferRequestParams struct {
-	// Download is true if the request is a download, false if it is an upload
-	Download bool `json:"direction"`
-	// Location is location of file to download, or where to put an upload
-	Location string `json:"location"`
-	// Filename is the name of the file to be uploaded
-	Filename string `json:"filename"`
-	// Requester is the authenticated Teleport user who requested the file transfer
-	Requester string `json:"requester"`
-	// Approvers is a list of teleport users who have approved the file transfer request
-	Approvers []Party `json:"approvers"`
-}
-
-// FileTransferDecisionParams contains parameters for approving or denying a file transfer request
-type FileTransferDecisionParams struct {
-	// RequestID is the ID of the request being responded to
-	RequestID string `json:"requestId"`
-	// Approved is true if the response approves a file transfer request
-	Approved bool `json:"approved"`
-}
-
 // Participants returns the usernames of the current session participants.
 func (s *Session) Participants() []string {
 	participants := make([]string, 0, len(s.Parties))

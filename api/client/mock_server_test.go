@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/testhelpers/mtls"
-	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
 // mockServer mocks an Auth Server.
@@ -46,8 +45,6 @@ func newMockServer(t *testing.T, addr string, service proto.AuthServiceServer) *
 
 	m.grpc = grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(m.mtlsConfig.ServerTLS)),
-		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
-		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
 
 	proto.RegisterAuthServiceServer(m.grpc, service)

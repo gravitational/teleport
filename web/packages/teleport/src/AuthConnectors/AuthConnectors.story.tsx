@@ -13,9 +13,6 @@ limitations under the License.
 
 import React from 'react';
 
-import { ContextProvider } from 'teleport';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-
 import { AuthConnectors } from './AuthConnectors';
 
 export default {
@@ -24,42 +21,25 @@ export default {
 
 export function Processing() {
   return (
-    <ContextWrapper>
-      <AuthConnectors {...sample} attempt={{ status: 'processing' as any }} />
-    </ContextWrapper>
+    <AuthConnectors {...sample} attempt={{ status: 'processing' as any }} />
   );
 }
 
 export function Loaded() {
-  return (
-    <ContextWrapper>
-      <AuthConnectors {...sample} />
-    </ContextWrapper>
-  );
+  return <AuthConnectors {...sample} />;
 }
 
 export function Empty() {
-  return (
-    <ContextWrapper>
-      <AuthConnectors {...sample} items={[]} />
-    </ContextWrapper>
-  );
+  return <AuthConnectors {...sample} items={[]} />;
 }
 
 export function Failed() {
   return (
-    <ContextWrapper>
-      <AuthConnectors
-        {...sample}
-        attempt={{ status: 'failed', statusText: 'some error message' }}
-      />
-    </ContextWrapper>
+    <AuthConnectors
+      {...sample}
+      attempt={{ status: 'failed', statusText: 'some error message' }}
+    />
   );
-}
-
-function ContextWrapper({ children }: { children: JSX.Element }) {
-  const ctx = createTeleportContext();
-  return <ContextProvider ctx={ctx}>{children}</ContextProvider>;
 }
 
 const connectors = [

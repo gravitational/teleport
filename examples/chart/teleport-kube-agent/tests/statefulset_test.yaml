@@ -7,8 +7,8 @@ tests:
     template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
-    release:
-      upgrade: true
+    elease:
+      isupgrade: true
     asserts:
       - isKind:
           of: StatefulSet
@@ -209,11 +209,11 @@ tests:
     values:
       - ../.lint/stateful.yaml
     set:
-      teleportVersionOverride: 12.2.1
+      teleportVersionOverride: 8.3.4
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: public.ecr.aws/gravitational/teleport-distroless:12.2.1
+          value: public.ecr.aws/gravitational/teleport:8.3.4
       - matchSnapshot:
           path: spec.template.spec
 
@@ -372,7 +372,7 @@ tests:
   - it: should not add emptyDir for data when using StatefulSet
     template: statefulset.yaml
     release:
-      upgrade: true
+      isupgrade: true
     set:
       unitTestUpgrade: true
     values:
@@ -408,7 +408,7 @@ tests:
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     release:
-      upgrade: true
+      isupgrade: true
     asserts:
       - isNotNull:
           path: spec.volumeClaimTemplates[0].spec
@@ -435,7 +435,7 @@ tests:
     values:
       - ../.lint/stateful.yaml
     release:
-      upgrade: true
+      isupgrade: true
     set:
       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
       # https://github.com/helm/helm/issues/8137
@@ -455,7 +455,7 @@ tests:
     values:
       - ../.lint/stateful.yaml
     release:
-      upgrade: true
+      isupgrade: true
     set:
       storage:
         requests: 256Mi
@@ -624,11 +624,11 @@ tests:
   - it: should generate Statefulset when storage is disabled and mode is a Upgrade
     template: statefulset.yaml
     release:
-      upgrade: true
+      isupgrade: true
     values:
       - ../.lint/stateful.yaml
     set:
-      unitTestUpgrade: true
+      unitTestUpgrade: false
       storage: 
         enabled: false
     asserts:
@@ -679,18 +679,6 @@ tests:
           path: spec.template.spec.containers[0].securityContext
           value: null
 
-  - it: should enable maintenance schedule export when updater is enabled
-    template: statefulset.yaml
-    values:
-      - ../.lint/existing-tls-secret-with-ca.yaml
-      - ../.lint/updater.yaml
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: TELEPORT_EXT_UPGRADER
-            value: kube
-
   - it: should set the installation method environment variable
     template: statefulset.yaml
     values:
@@ -701,21 +689,3 @@ tests:
           content:
             name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
             value: "true"
-
-  - it: should set the hostAliases when specified
-    template: statefulset.yaml
-    values:
-      - ../.lint/stateful.yaml
-      - ../.lint/host-aliases.yaml
-    asserts:
-      - equal:
-          path: spec.template.spec.hostAliases
-          value:
-            - ip: "127.0.0.1"
-              hostnames:
-                - "foo.local"
-                - "bar.local"
-            - ip: "10.1.2.3"
-              hostnames:
-                - "foo.remote"
-                - "bar.remote"

@@ -1,63 +1,26 @@
 ---
-title: Database Access with Microsoft SQL Server with Active Directory authentication
+title: Database Access with Microsoft SQL Server with Active Directory authentication (Preview)
 description: How to configure Teleport database access with Microsoft SQL Server with Active Directory authentication.
 videoBanner: k2wz79XCexY
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Microsoft SQL Server" dbConfigure="Microsoft SQL Server database with Active Directory authentication" dbName="Microsoft SQL Server" !)
+<Admonition type="warning" title="Preview">
+  Database access for Microsoft SQL Server is currently in Preview mode.
+</Admonition>
+
+This guide will help you to:
+
+- Install and configure Teleport.
+- Set up access to SQL Server using Active Directory authentication.
+- Connect to SQL Server through Teleport.
 
 <Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-```mermaid
-%%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
-graph LR
-a(Users)
-b[Teleport Proxy]
-style b fill: #844cff,color: #ffffff
-a-->b
-b-->c
-subgraph local [Private Network]
-style local fill:#C0C0C0,stroke: #000000
-  c[Teleport DB Service]
-  style c fill: #a379ff,color: #ffffff
-  subgraph ad [ ]
-  direction TB
-  style ad fill:none,stroke:none
-    e[(SQL Servers)]
-    d{Active Directory Users}
-  end
-  c-->d
-  c-->e
-  e-->d
-end
-```
+<TabItem label="Self-Hosted" scope={["oss", "enterprise"]}>
+![Teleport Database Access SQL Server Self-Hosted](../../../img/database-access/guides/sqlserver_selfhosted.png)
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-```mermaid
-%%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
-graph LR
-a(Users)
-b[Teleport Cloud Tenant]
-style b fill: #844cff,color: #ffffff
-a-->b
-b-->c
-subgraph local [Private Network]
-style local fill:#C0C0C0,stroke: #000000
-  c[Teleport DB Service]
-  style c fill: #a379ff,color: #ffffff
-  subgraph ad [ ]
-  direction TB
-  style ad fill:none,stroke:none
-    e[(SQL Servers)]
-    d{Active Directory Users}
-  end
-  c-->d
-  c-->e
-  e-->d
-end
-```
+<TabItem label="Teleport Cloud" scope={["team", "cloud"]}>
+![Teleport Database Access SQL Server Cloud](../../../img/database-access/guides/sqlserver_cloud.png)
 </TabItem>
-
 </Tabs>
 
 This guide will focus on Amazon RDS for SQL Server using AWS-managed Active
@@ -409,10 +372,8 @@ If your `tsh db connect` error includes the following text, the certificate used
 Error message: TLS Handshake failed: x509: certificate signed by unknown authority
 ```
 
-To solve this, you can add the CA configuration to the database like the
-following:
-
-```diff
+Add the Certificate Authority (CA) `ca_cert_file` into the `tls` section so Teleport can validate the certificate. 
+```yaml
   databases:
   - name: sqlserver
     protocol: sqlserver
@@ -423,17 +384,9 @@ following:
       spn: MSSQLSvc/sqlserver.example.com:1433
     static_labels:
       "env": "dev"
-+   tls:
-+     # Point it to your Database CA PEM certificate.
-+     ca_cert_file: "rdsca.pem"
-+     # If your database certificate has an empty CN filed, you must change
-+     # the TLS mode to only verify the CA.
-+     mode: verify-ca
+    tls:
+      ca_cert_file: /var/lib/teleport/cert.pem
 ```
-
-If you’re unable to acquire the database CA, you can skip TLS verification by
-providing the configuration `tls.mode: "insecure"`. However, we do not recommend
-skipping TLS verification in production environments.
 
 ## Next steps
 

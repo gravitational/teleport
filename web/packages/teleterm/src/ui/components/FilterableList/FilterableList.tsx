@@ -42,7 +42,7 @@ export function FilterableList<T>(props: FilterableListProps<T>) {
 
   return (
     <>
-      <StyledInput
+      <DarkInput
         role="searchbox"
         onChange={e => {
           const { value } = e.target;
@@ -78,10 +78,26 @@ const UnorderedList = styled.ul`
   margin: 0;
 `;
 
-const StyledInput = styled(Input)`
+const DarkInput = styled(Input)`
   background: inherit;
+  border: 1px ${props => props.theme.colors.action.disabledBackground} solid;
   border-radius: 51px;
-  margin-bottom: 8px;
+  color: ${props => props.theme.colors.text.main};
+  margin-bottom: 10px;
   font-size: 14px;
   height: 34px;
+  transition: border 300ms ease-out;
+
+  ::placeholder {
+    opacity: 1;
+    color: ${props => props.theme.colors.text.slightlyMuted};
+  }
+
+  &:hover {
+    border-color: ${props => props.theme.colors.text.slightlyMuted};
+  }
+
+  &:focus {
+    border-color: ${props => props.theme.colors.brand};
+  }
 `;

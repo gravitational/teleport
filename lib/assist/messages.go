@@ -19,19 +19,22 @@
 
 package assist
 
-import (
-	"fmt"
-)
+import "github.com/gravitational/teleport/lib/ai"
 
-// CommandExecSummary is a payload for the COMMAND_RESULT_SUMMARY message.
-type CommandExecSummary struct {
-	ExecutionID string `json:"execution_id"`
-	Summary     string `json:"summary"`
-	Command     string `json:"command"`
+// commandPayload is a payload for a command message.
+type commandPayload struct {
+	Command string     `json:"command,omitempty"`
+	Nodes   []string   `json:"nodes,omitempty"`
+	Labels  []ai.Label `json:"labels,omitempty"`
 }
 
-// String implements the Stringer interface and formats the message for AI
-// model consumption.
-func (s CommandExecSummary) String() string {
-	return fmt.Sprintf("Command: `%s` executed. The command output summary is: %s", s.Command, s.Summary)
+// partialMessagePayload is a payload for a partial message.
+type partialMessagePayload struct {
+	Content string `json:"content,omitempty"`
+	Idx     int    `json:"idx,omitempty"`
+}
+
+// partialFinalizePayload is a payload for a partial finalize message.
+type partialFinalizePayload struct {
+	Idx int `json:"idx,omitempty"`
 }

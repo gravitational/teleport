@@ -25,18 +25,6 @@ import (
 )
 
 func FuzzGetQueryFromRequestBody(f *testing.F) {
-	// unit test examples
-	f.Add([]byte("{\"query\":{\"bool\":{\"must\":{\"term\":{\"user.id\":\"pam\"}}," +
-		"\"filter\":{\"term\":{\"tags\":\"production\"}}}}}"))
-	f.Add([]byte("{\n  \"query\": \"SELECT * FROM library ORDER BY page_count DESC LIMIT 5\"\n}"))
-	f.Add([]byte("{\"knn\":{\"field\":\"image_vector\",\"query_vector\":[0.3,0.1,1.2]," +
-		"\"k\":10,\"num_candidates\":100},\"_source\":[\"name\",\"file_type\"]}"))
-	f.Add([]byte("_source:\n- name\n- file_type\n" +
-		"knn:\n  field: image_vector\n  k: 10\n  num_candidates: 100\n  query_vector:\n  - 0.3\n  - 0.1\n  - 1.2"))
-	f.Add([]byte("query:\n  bool:\n    filter:\n      term:\n        tags: production\n    must:\n      term:\n        user.id: pam"))
-	f.Add([]byte("query: SELECT * FROM library ORDER BY page_count DESC LIMIT 5"))
-	f.Add([]byte("{ \"query\": \"SELECT 42\" }"))
-
 	mkEngine := func() *Engine {
 		e := &Engine{}
 		log := logrus.New()
@@ -45,10 +33,10 @@ func FuzzGetQueryFromRequestBody(f *testing.F) {
 		return e
 	}
 
-	f.Fuzz(func(t *testing.T, body []byte) {
+	f.Fuzz(func(t *testing.T, contentType string, body []byte) {
 		require.NotPanics(t, func() {
-			GetQueryFromRequestBody(mkEngine().EngineConfig, "application/yaml", body)
-			GetQueryFromRequestBody(mkEngine().EngineConfig, "application/json", body)
+			e := mkEngine()
+			e.getQueryFromRequestBody(contentType, body)
 		})
 	})
 }

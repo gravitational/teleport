@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
 )
 
@@ -66,7 +65,7 @@ func TestTrimDurationSuffix(t *testing.T) {
 }
 
 func TestUserAdd(t *testing.T) {
-	dynAddr := helpers.NewDynamicServiceAddr(t)
+	dynAddr := newDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -74,11 +73,11 @@ func TestUserAdd(t *testing.T) {
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: dynAddr.AuthAddr,
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 	ctx := context.Background()
 	client := getAuthClient(ctx, t, fileConfig)
 
@@ -218,7 +217,7 @@ func TestUserAdd(t *testing.T) {
 }
 
 func TestUserUpdate(t *testing.T) {
-	dynAddr := helpers.NewDynamicServiceAddr(t)
+	dynAddr := newDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -226,11 +225,11 @@ func TestUserUpdate(t *testing.T) {
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: dynAddr.AuthAddr,
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 	ctx := context.Background()
 	client := getAuthClient(ctx, t, fileConfig)
 
@@ -302,13 +301,6 @@ func TestUserUpdate(t *testing.T) {
 			args: []string{"--set-db-names", "d4,d5,d6"},
 			wantTraits: map[string][]string{
 				constants.TraitDBNames: {"d4", "d5", "d6"},
-			},
-		},
-		{
-			name: "new db roles",
-			args: []string{"--set-db-roles", "d7,d8,d9"},
-			wantTraits: map[string][]string{
-				constants.TraitDBRoles: {"d7", "d8", "d9"},
 			},
 		},
 		{

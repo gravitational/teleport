@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func (c *mockClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
@@ -79,12 +80,12 @@ func TestAzureWatcher(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		matcher types.AzureMatcher
+		matcher services.AzureMatcher
 		wantVMs []string
 	}{
 		{
 			name: "all vms",
-			matcher: types.AzureMatcher{
+			matcher: services.AzureMatcher{
 				ResourceGroups: []string{"rg1", "rg2"},
 				Regions:        []string{"location1", "location2"},
 				ResourceTags:   types.Labels{"*": []string{"*"}},
@@ -93,7 +94,7 @@ func TestAzureWatcher(t *testing.T) {
 		},
 		{
 			name: "filter by resource group",
-			matcher: types.AzureMatcher{
+			matcher: services.AzureMatcher{
 				ResourceGroups: []string{"rg1"},
 				Regions:        []string{"location1", "location2"},
 				ResourceTags:   types.Labels{"*": []string{"*"}},
@@ -102,7 +103,7 @@ func TestAzureWatcher(t *testing.T) {
 		},
 		{
 			name: "filter by location",
-			matcher: types.AzureMatcher{
+			matcher: services.AzureMatcher{
 				ResourceGroups: []string{"rg1", "rg2"},
 				Regions:        []string{"location2"},
 				ResourceTags:   types.Labels{"*": []string{"*"}},
@@ -111,21 +112,12 @@ func TestAzureWatcher(t *testing.T) {
 		},
 		{
 			name: "filter by tag",
-			matcher: types.AzureMatcher{
+			matcher: services.AzureMatcher{
 				ResourceGroups: []string{"rg1", "rg2"},
 				Regions:        []string{"location1", "location2"},
 				ResourceTags:   types.Labels{"teleport": []string{"yes"}},
 			},
 			wantVMs: []string{"vm2", "vm4"},
-		},
-		{
-			name: "location wildcard",
-			matcher: types.AzureMatcher{
-				ResourceGroups: []string{"rg1", "rg2"},
-				Regions:        []string{types.Wildcard},
-				ResourceTags:   types.Labels{"*": []string{"*"}},
-			},
-			wantVMs: []string{"vm1", "vm2", "vm3", "vm4", "vm5", "vm6"},
 		},
 	}
 
@@ -136,7 +128,7 @@ func TestAzureWatcher(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			t.Cleanup(cancel)
-			watcher, err := NewAzureWatcher(ctx, []types.AzureMatcher{tc.matcher}, &clients)
+			watcher, err := NewAzureWatcher(ctx, []services.AzureMatcher{tc.matcher}, &clients)
 			require.NoError(t, err)
 
 			go watcher.Run()
@@ -147,7 +139,7 @@ func TestAzureWatcher(t *testing.T) {
 			for len(vmIDs) < len(tc.wantVMs) {
 				select {
 				case results := <-watcher.InstancesC:
-					for _, vm := range results.Azure.Instances {
+					for _, vm := range results.AzureInstances.Instances {
 						vmIDs = append(vmIDs, *vm.ID)
 					}
 				case <-ctx.Done():

@@ -25,6 +25,7 @@ import AjaxPoller from 'teleport/components/AjaxPoller';
 
 import { useConsoleContext, useStoreDocs } from './consoleContextProvider';
 import * as stores from './stores/types';
+import { colors } from './colors';
 import Tabs from './Tabs';
 import ActionBar from './ActionBar';
 import DocumentSsh from './DocumentSsh';
@@ -95,7 +96,7 @@ export default function Console() {
       )}
       {attempt.status === 'success' && (
         <>
-          <Flex bg="levels.surface" height="32px">
+          <Flex bg={colors.terminalDark} height="32px">
             <Tabs
               flex="1"
               items={documents}
@@ -136,7 +137,7 @@ function MemoizedDocument(props: { doc: stores.Document; visible: boolean }) {
 }
 
 const StyledConsole = styled.div`
-  background-color: ${props => props.theme.colors.levels.sunken};
+  background-color: ${colors.bgTerminal};
   bottom: 0;
   left: 0;
   position: absolute;

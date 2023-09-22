@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -383,9 +384,8 @@ func (s *ProtoStream) Done() <-chan struct{} {
 	return s.cancelCtx.Done()
 }
 
-// RecordEvent emits a single audit event to the stream
-func (s *ProtoStream) RecordEvent(ctx context.Context, pe apievents.PreparedSessionEvent) error {
-	event := pe.GetAuditEvent()
+// EmitAuditEvent emits a single audit event to the stream
+func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	messageSize := event.Size()
 	if messageSize > MaxProtoMessageSizeBytes {
 		switch v := event.(type) {
@@ -406,7 +406,7 @@ func (s *ProtoStream) RecordEvent(ctx context.Context, pe apievents.PreparedSess
 	case s.eventsCh <- protoEvent{index: event.GetIndex(), oneof: oneof}:
 		diff := time.Since(start)
 		if diff > 100*time.Millisecond {
-			log.Debugf("[SLOW] RecordEvent took %v.", diff)
+			log.Debugf("[SLOW] EmitAuditEvent took %v.", diff)
 		}
 		return nil
 	case <-s.cancelCtx.Done():
@@ -653,7 +653,7 @@ func (w *sliceWriter) submitEvent(event protoEvent) error {
 		}
 	}
 
-	return w.current.recordEvent(event)
+	return w.current.emitAuditEvent(event)
 }
 
 // completeStream waits for in-flight uploads to finish
@@ -854,8 +854,8 @@ func (s *slice) shouldUpload() bool {
 	return int64(s.buffer.Len()) >= s.proto.cfg.MinUploadBytes
 }
 
-// recordEvent emits a single session event to the stream
-func (s *slice) recordEvent(event protoEvent) error {
+// emitAuditEvent emits a single audit event to the stream
+func (s *slice) emitAuditEvent(event protoEvent) error {
 	bytes := s.proto.cfg.SlicePool.Get()
 	defer s.proto.cfg.SlicePool.Put(bytes)
 
@@ -892,10 +892,10 @@ func NewProtoReader(r io.Reader) *ProtoReader {
 	}
 }
 
-// SessionReader provides method to read
-// session events one by one
-type SessionReader interface {
-	// Read reads session events
+// AuditReader provides method to read
+// audit events one by one
+type AuditReader interface {
+	// Read reads audit events
 	Read(context.Context) (apievents.AuditEvent, error)
 }
 
@@ -1123,6 +1123,246 @@ func (r *ProtoReader) ReadAll(ctx context.Context) ([]apievents.AuditEvent, erro
 		}
 		events = append(events, event)
 	}
+}
+
+// NewMemoryUploader returns a new memory uploader implementing multipart
+// upload
+func NewMemoryUploader(eventsC ...chan UploadEvent) *MemoryUploader {
+	up := &MemoryUploader{
+		mtx:     &sync.RWMutex{},
+		uploads: make(map[string]*MemoryUpload),
+		objects: make(map[session.ID][]byte),
+	}
+	if len(eventsC) != 0 {
+		up.eventsC = eventsC[0]
+	}
+	return up
+}
+
+// MemoryUploader uploads all bytes to memory, used in tests
+type MemoryUploader struct {
+	mtx     *sync.RWMutex
+	uploads map[string]*MemoryUpload
+	objects map[session.ID][]byte
+	eventsC chan UploadEvent
+
+	Clock clockwork.Clock
+}
+
+// MemoryUpload is used in tests
+type MemoryUpload struct {
+	// id is the upload ID
+	id string
+	// parts is the upload parts
+	parts map[int64][]byte
+	// sessionID is the session ID associated with the upload
+	sessionID session.ID
+	//completed specifies upload as completed
+	completed bool
+	// Initiated contains the timestamp of when the upload
+	// was initiated, not always initialized
+	Initiated time.Time
+}
+
+func (m *MemoryUploader) trySendEvent(event UploadEvent) {
+	if m.eventsC == nil {
+		return
+	}
+	select {
+	case m.eventsC <- event:
+	default:
+	}
+}
+
+// Reset resets all state, removes all uploads and objects
+func (m *MemoryUploader) Reset() {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	m.uploads = make(map[string]*MemoryUpload)
+	m.objects = make(map[session.ID][]byte)
+}
+
+// CreateUpload creates a multipart upload
+func (m *MemoryUploader) CreateUpload(ctx context.Context, sessionID session.ID) (*StreamUpload, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	upload := &StreamUpload{
+		ID:        uuid.New().String(),
+		SessionID: sessionID,
+	}
+	if m.Clock != nil {
+		upload.Initiated = m.Clock.Now()
+	}
+	m.uploads[upload.ID] = &MemoryUpload{
+		id:        upload.ID,
+		sessionID: sessionID,
+		parts:     make(map[int64][]byte),
+		Initiated: upload.Initiated,
+	}
+	return upload, nil
+}
+
+// CompleteUpload completes the upload
+func (m *MemoryUploader) CompleteUpload(ctx context.Context, upload StreamUpload, parts []StreamPart) error {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	up, ok := m.uploads[upload.ID]
+	if !ok {
+		return trace.NotFound("upload not found")
+	}
+	if up.completed {
+		return trace.BadParameter("upload already completed")
+	}
+	// verify that all parts have been uploaded
+	var result []byte
+	partsSet := make(map[int64]bool, len(parts))
+	for _, part := range parts {
+		partsSet[part.Number] = true
+		data, ok := up.parts[part.Number]
+		if !ok {
+			return trace.NotFound("part %v has not been uploaded", part.Number)
+		}
+		result = append(result, data...)
+	}
+	// exclude parts that are not requested to be completed
+	for number := range up.parts {
+		if !partsSet[number] {
+			delete(up.parts, number)
+		}
+	}
+	m.objects[upload.SessionID] = result
+	up.completed = true
+	m.trySendEvent(UploadEvent{SessionID: string(upload.SessionID), UploadID: upload.ID})
+	return nil
+}
+
+// UploadPart uploads part and returns the part
+func (m *MemoryUploader) UploadPart(ctx context.Context, upload StreamUpload, partNumber int64, partBody io.ReadSeeker) (*StreamPart, error) {
+	data, err := io.ReadAll(partBody)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	up, ok := m.uploads[upload.ID]
+	if !ok {
+		return nil, trace.NotFound("upload %q is not found", upload.ID)
+	}
+	up.parts[partNumber] = data
+	return &StreamPart{Number: partNumber}, nil
+}
+
+// ListUploads lists uploads that have been initiated but not completed with
+// earlier uploads returned first.
+func (m *MemoryUploader) ListUploads(ctx context.Context) ([]StreamUpload, error) {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+	uploads := make([]StreamUpload, 0, len(m.uploads))
+	for id, upload := range m.uploads {
+		uploads = append(uploads, StreamUpload{
+			ID:        id,
+			SessionID: upload.sessionID,
+			Initiated: upload.Initiated,
+		})
+	}
+	sort.Slice(uploads, func(i, j int) bool {
+		return uploads[i].Initiated.Before(uploads[j].Initiated)
+	})
+	return uploads, nil
+}
+
+// GetParts returns upload parts uploaded up to date, sorted by part number
+func (m *MemoryUploader) GetParts(uploadID string) ([][]byte, error) {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	up, ok := m.uploads[uploadID]
+	if !ok {
+		return nil, trace.NotFound("upload %q is not found", uploadID)
+	}
+
+	partNumbers := make([]int64, 0, len(up.parts))
+	sortedParts := make([][]byte, 0, len(up.parts))
+	for partNumber := range up.parts {
+		partNumbers = append(partNumbers, partNumber)
+	}
+	sort.Slice(partNumbers, func(i, j int) bool {
+		return partNumbers[i] < partNumbers[j]
+	})
+	for _, partNumber := range partNumbers {
+		sortedParts = append(sortedParts, up.parts[partNumber])
+	}
+	return sortedParts, nil
+}
+
+// ListParts returns all uploaded parts for the completed upload in sorted order
+func (m *MemoryUploader) ListParts(ctx context.Context, upload StreamUpload) ([]StreamPart, error) {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	up, ok := m.uploads[upload.ID]
+	if !ok {
+		return nil, trace.NotFound("upload %v is not found", upload.ID)
+	}
+
+	partNumbers := make([]int64, 0, len(up.parts))
+	sortedParts := make([]StreamPart, 0, len(up.parts))
+	for partNumber := range up.parts {
+		partNumbers = append(partNumbers, partNumber)
+	}
+	sort.Slice(partNumbers, func(i, j int) bool {
+		return partNumbers[i] < partNumbers[j]
+	})
+	for _, partNumber := range partNumbers {
+		sortedParts = append(sortedParts, StreamPart{Number: partNumber})
+	}
+	return sortedParts, nil
+}
+
+// Upload uploads session tarball and returns URL with uploaded file
+// in case of success.
+func (m *MemoryUploader) Upload(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	_, ok := m.objects[sessionID]
+	if ok {
+		return "", trace.AlreadyExists("session %q already exists", sessionID)
+	}
+	data, err := io.ReadAll(readCloser)
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+	m.objects[sessionID] = data
+	return string(sessionID), nil
+}
+
+// Download downloads session tarball and writes it to writer
+func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	data, ok := m.objects[sessionID]
+	if !ok {
+		return trace.NotFound("session %q is not found", sessionID)
+	}
+	_, err := io.Copy(writer.(io.Writer), bytes.NewReader(data))
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
+}
+
+// GetUploadMetadata gets the session upload metadata
+func (m *MemoryUploader) GetUploadMetadata(sid session.ID) UploadMetadata {
+	return UploadMetadata{
+		URL:       "memory",
+		SessionID: sid,
+	}
+}
+
+// ReserveUploadPart reserves an upload part.
+func (m *MemoryUploader) ReserveUploadPart(ctx context.Context, upload StreamUpload, partNumber int64) error {
+	return nil
 }
 
 // isReserveUploadPartError identifies uploader reserve part errors.

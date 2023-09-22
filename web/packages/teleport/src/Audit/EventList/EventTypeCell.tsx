@@ -17,19 +17,18 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Cell } from 'design/DataTable';
-import * as Icons from 'design/Icon';
+import Icon, * as Icons from 'design/Icon/Icon';
 
 import { eventCodes, Event, EventCode } from 'teleport/services/audit';
 import cfg from 'teleport/config';
 
-const EventIconMap: Record<EventCode, any> = {
+const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.AUTH_ATTEMPT_FAILURE]: Icons.Info,
   [eventCodes.EXEC_FAILURE]: Icons.Cli,
   [eventCodes.EXEC]: Icons.Cli,
   [eventCodes.TRUSTED_CLUSTER_TOKEN_CREATED]: Icons.Info,
   [eventCodes.TRUSTED_CLUSTER_CREATED]: Icons.Info,
   [eventCodes.TRUSTED_CLUSTER_DELETED]: Icons.Info,
-  [eventCodes.PROVISION_TOKEN_CREATED]: Icons.Info,
   [eventCodes.GITHUB_CONNECTOR_CREATED]: Icons.Info,
   [eventCodes.GITHUB_CONNECTOR_DELETED]: Icons.Info,
   [eventCodes.OIDC_CONNECTOR_CREATED]: Icons.Info,
@@ -153,9 +152,6 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.CASSANDRA_PREPARE_EVENT]: Icons.Database,
   [eventCodes.CASSANDRA_REGISTER_EVENT]: Icons.Database,
   [eventCodes.ELASTICSEARCH_REQUEST]: Icons.Database,
-  [eventCodes.ELASTICSEARCH_REQUEST_FAILURE]: Icons.Database,
-  [eventCodes.OPENSEARCH_REQUEST]: Icons.Database,
-  [eventCodes.OPENSEARCH_REQUEST_FAILURE]: Icons.Database,
   [eventCodes.DYNAMODB_REQUEST]: Icons.Database,
   [eventCodes.DYNAMODB_REQUEST_FAILURE]: Icons.Database,
   [eventCodes.DESKTOP_SESSION_STARTED]: Icons.Desktop,
@@ -175,13 +171,12 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.DEVICE_ENROLL]: Icons.Info,
   [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: Icons.Info,
   [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: Icons.Info,
-  [eventCodes.DEVICE_UPDATE]: Icons.Info,
   [eventCodes.MFA_DEVICE_ADD]: Icons.Info,
   [eventCodes.MFA_DEVICE_DELETE]: Icons.Info,
-  [eventCodes.BILLING_CARD_CREATE]: Icons.CreditCard,
-  [eventCodes.BILLING_CARD_DELETE]: Icons.CreditCard,
-  [eventCodes.BILLING_CARD_UPDATE]: Icons.CreditCard,
-  [eventCodes.BILLING_INFORMATION_UPDATE]: Icons.CreditCard,
+  [eventCodes.BILLING_CARD_CREATE]: Icons.CreditCardAlt2,
+  [eventCodes.BILLING_CARD_DELETE]: Icons.CreditCardAlt2,
+  [eventCodes.BILLING_CARD_UPDATE]: Icons.CreditCardAlt2,
+  [eventCodes.BILLING_INFORMATION_UPDATE]: Icons.CreditCardAlt2,
   [eventCodes.CLIENT_DISCONNECT]: Icons.Info,
   [eventCodes.PORTFORWARD]: Icons.Info,
   [eventCodes.PORTFORWARD_FAILURE]: Icons.Info,
@@ -221,32 +216,16 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE]: Icons.Warning,
   [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: Icons.Info,
   [eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE]: Icons.Warning,
-  [eventCodes.ACCESS_LIST_CREATE]: Icons.Info,
-  [eventCodes.ACCESS_LIST_CREATE_FAILURE]: Icons.Warning,
-  [eventCodes.ACCESS_LIST_UPDATE]: Icons.Info,
-  [eventCodes.ACCESS_LIST_UPDATE_FAILURE]: Icons.Warning,
-  [eventCodes.ACCESS_LIST_DELETE]: Icons.Info,
-  [eventCodes.ACCESS_LIST_DELETE_FAILURE]: Icons.Warning,
-  [eventCodes.ACCESS_LIST_REVIEW]: Icons.Info,
-  [eventCodes.ACCESS_LIST_REVIEW_FAILURE]: Icons.Warning,
-  [eventCodes.ACCESS_LIST_MEMBER_CREATE]: Icons.User,
-  [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: Icons.Warning,
-  [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: Icons.User,
-  [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: Icons.Warning,
-  [eventCodes.ACCESS_LIST_MEMBER_DELETE]: Icons.User,
-  [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: Icons.Warning,
-  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: Icons.User,
-  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]:
-    Icons.Warning,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 
 export default function renderTypeCell(event: Event, clusterId: string) {
-  const Icon = EventIconMap[event.code] || Icons.ListThin;
+  const IconType = EventIconMap[event.code] || Icons.List;
 
   const iconProps = {
-    p: 1,
-    mr: 3,
+    p: '1',
+    mr: '3',
+    fontSize: '3',
   };
 
   // use button for interactive ssh sessions
@@ -283,7 +262,7 @@ export default function renderTypeCell(event: Event, clusterId: string) {
   return (
     <Cell style={{ verticalAlign: 'inherit' }}>
       <StyledEventType>
-        <Icon {...iconProps} size="medium" />
+        <Icon {...iconProps} as={IconType} />
         {event.codeDesc}
       </StyledEventType>
     </Cell>
@@ -292,9 +271,9 @@ export default function renderTypeCell(event: Event, clusterId: string) {
 
 const StyledCliIcon = styled(Icons.Cli)(
   props => `
-  background: ${props.theme.colors.levels.deep};
-  border: 2px solid ${props.theme.colors.brand};
-  color: ${props.theme.colors.text.slightlyMuted};
+  background: ${props.theme.colors.dark};
+  border: 2px solid ${props.theme.colors.brandAccent};
+  color: ${props.theme.colors.text.main};
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -308,8 +287,8 @@ const StyledCliIcon = styled(Icons.Cli)(
   &:hover,
   &:active,
   &:focus {
-    background: ${props.theme.colors.levels.sunken};
-    color: ${props.theme.colors.text.main};
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+    color: ${props.theme.colors.light};
   }
 
   &:active {

@@ -66,14 +66,14 @@ func TestRootHostUsersBackend(t *testing.T) {
 	})
 
 	t.Run("Test CreateGroup", func(t *testing.T) {
-		err := backend.CreateGroup(testgroup, "")
+		err := backend.CreateGroup(testgroup)
 		require.NoError(t, err)
-		err = backend.CreateGroup(testgroup, "")
+		err = backend.CreateGroup(testgroup)
 		require.True(t, trace.IsAlreadyExists(err))
 	})
 
 	t.Run("Test CreateUser and group", func(t *testing.T) {
-		err := backend.CreateUser(testuser, []string{testgroup}, "", "")
+		err := backend.CreateUser(testuser, []string{testgroup})
 		require.NoError(t, err)
 
 		tuser, err := backend.Lookup(testuser)
@@ -86,7 +86,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, tuserGids, group.Gid)
 
-		err = backend.CreateUser(testuser, []string{}, "", "")
+		err = backend.CreateUser(testuser, []string{})
 		require.True(t, trace.IsAlreadyExists(err))
 
 		require.NoFileExists(t, filepath.Join("/home", testuser))
@@ -111,7 +111,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 			}
 		})
 		for _, u := range checkUsers {
-			err := backend.CreateUser(u, []string{}, "", "")
+			err := backend.CreateUser(u, []string{})
 			require.NoError(t, err)
 		}
 
@@ -129,7 +129,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.NoError(t, err)
 		invalidSudoersEntry := []byte("yipee i broke sudo!!!!")
 		err = backend.CheckSudoers(invalidSudoersEntry)
-		require.Contains(t, err.Error(), "visudo: invalid sudoers file")
+		require.EqualError(t, err, "parse error in stdin near line 1\n\n\tvisudo: invalid sudoers file")
 		// test sudoers entry containing . or ~
 		require.NoError(t, backend.WriteSudoersFile("user.name", validSudoersEntry))
 		_, err = os.Stat(filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))
@@ -140,7 +140,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 	})
 
 	t.Run("Test CreateHomeDirectory does not follow symlinks", func(t *testing.T) {
-		err := backend.CreateUser(testuser, []string{testgroup}, "", "")
+		err := backend.CreateUser(testuser, []string{testgroup})
 		require.NoError(t, err)
 
 		tuser, err := backend.Lookup(testuser)
@@ -213,41 +213,6 @@ func TestRootHostUsers(t *testing.T) {
 		u, err := user.Lookup(testuser)
 		require.NoError(t, err)
 		requireUserInGroups(t, u, testGroups)
-
-		require.NoError(t, closer.Close())
-		_, err = user.Lookup(testuser)
-		require.Equal(t, err, user.UnknownUserError(testuser))
-	})
-
-	t.Run("test create user with uid and gid", func(t *testing.T) {
-		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
-
-		testUID := "1234"
-		testGID := "1337"
-
-		_, err := user.LookupGroupId(testGID)
-		require.ErrorIs(t, err, user.UnknownGroupIdError(testGID))
-
-		closer, err := users.CreateUser(testuser, &services.HostUsersInfo{
-			Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
-			UID:  testUID,
-			GID:  testGID,
-		})
-		require.NoError(t, err)
-
-		t.Cleanup(cleanupUsersAndGroups([]string{testuser}, []string{types.TeleportServiceGroup}))
-
-		group, err := user.LookupGroupId(testGID)
-		require.NoError(t, err)
-		require.Equal(t, testuser, group.Name)
-
-		u, err := user.Lookup(testuser)
-		require.NoError(t, err)
-
-		require.Equal(t, u.Uid, testUID)
-		require.Equal(t, u.Gid, testGID)
-
-		require.FileExists(t, filepath.Join("/home", testuser, ".bashrc"))
 
 		require.NoError(t, closer.Close())
 		_, err = user.Lookup(testuser)

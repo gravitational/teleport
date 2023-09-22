@@ -53,7 +53,6 @@ const props: State = {
   authType: 'local',
   clusterId: 'some-cluster-id',
   db: {
-    kind: 'db',
     name: 'dbname',
     description: 'some desc',
     type: 'self-hosted',

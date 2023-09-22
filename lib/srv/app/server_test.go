@@ -38,6 +38,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/oxy/forward"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/square/go-jose.v2/jwt"
@@ -53,11 +54,10 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
+	libsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -85,9 +85,6 @@ type Suite struct {
 	testhttp              *httptest.Server
 	clientCertificate     tls.Certificate
 	awsConsoleCertificate tls.Certificate
-
-	appFoo *types.AppV3
-	appAWS *types.AppV3
 
 	user       types.User
 	role       types.Role
@@ -121,7 +118,7 @@ type suiteConfig struct {
 	OnReconcile func(types.Apps)
 	// Apps are the apps to configure.
 	Apps types.Apps
-	// ServerStreamer is the auth server session events streamer.
+	// ServerStreamer is the auth server audit events streamer.
 	ServerStreamer events.Streamer
 	// ValidateRequest is a function that will validate the request received by the application.
 	ValidateRequest func(*Suite, *http.Request)
@@ -139,7 +136,8 @@ type suiteConfig struct {
 	Login string
 }
 
-type fakeConnMonitor struct{}
+type fakeConnMonitor struct {
+}
 
 func (f fakeConnMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error) {
 	return ctx, conn, nil
@@ -264,7 +262,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	// Create apps that will be used for each test.
-	s.appFoo, err = types.NewAppV3(types.Metadata{
+	appFoo, err := types.NewAppV3(types.Metadata{
 		Name:   "foo",
 		Labels: appLabels,
 	}, types.AppSpecV3{
@@ -275,7 +273,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		Rewrite:            config.Rewrite,
 	})
 	require.NoError(t, err)
-	s.appAWS, err = types.NewAppV3(types.Metadata{
+	appAWS, err := types.NewAppV3(types.Metadata{
 		Name:   "awsconsole",
 		Labels: staticLabels,
 	}, types.AppSpecV3{
@@ -322,10 +320,12 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		lockWatcher.Close()
 	})
 
-	apps := types.Apps{s.appFoo.Copy(), s.appAWS.Copy()}
+	apps := types.Apps{appFoo, appAWS}
 	if len(config.Apps) > 0 {
 		apps = config.Apps
 	}
+
+	discard := events.NewDiscardEmitter()
 
 	s.appServer, err = New(s.closeContext, &Config{
 		Clock:             s.clock,
@@ -343,7 +343,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		Cloud:             &testCloud{},
 		ResourceMatchers:  config.ResourceMatchers,
 		OnReconcile:       config.OnReconcile,
-		Emitter:           s.authClient,
+		Emitter:           discard,
 		CloudLabels:       config.CloudImporter,
 		ConnectionMonitor: fakeConnMonitor{},
 	})
@@ -397,18 +397,31 @@ func TestStart(t *testing.T) {
 
 	// Check that the services.Server sent via heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
-	appFoo := s.appFoo.Copy()
-	appAWS := s.appAWS.Copy()
-
-	appFoo.SetDynamicLabels(map[string]types.CommandLabel{
-		dynamicLabelName: &types.CommandLabelV2{
-			Period:  dynamicLabelPeriod,
-			Command: dynamicLabelCommand,
-			Result:  "4",
+	appFoo, err := types.NewAppV3(types.Metadata{
+		Name:   "foo",
+		Labels: staticLabels,
+	}, types.AppSpecV3{
+		URI:                s.testhttp.URL,
+		PublicAddr:         "foo.example.com",
+		InsecureSkipVerify: true,
+		DynamicLabels: map[string]types.CommandLabelV2{
+			dynamicLabelName: {
+				Period:  dynamicLabelPeriod,
+				Command: dynamicLabelCommand,
+				Result:  "4",
+			},
 		},
 	})
-
+	require.NoError(t, err)
 	serverFoo, err := types.NewAppServerV3FromApp(appFoo, "test", s.hostUUID)
+	require.NoError(t, err)
+	appAWS, err := types.NewAppV3(types.Metadata{
+		Name:   "awsconsole",
+		Labels: staticLabels,
+	}, types.AppSpecV3{
+		URI:        constants.AWSConsoleURL,
+		PublicAddr: "aws.example.com",
+	})
 	require.NoError(t, err)
 	serverAWS, err := types.NewAppServerV3FromApp(appAWS, "test", s.hostUUID)
 	require.NoError(t, err)
@@ -659,7 +672,7 @@ func TestHandleConnection(t *testing.T) {
 	s := SetUpSuiteWithConfig(t, suiteConfig{
 		ValidateRequest: func(_ *Suite, r *http.Request) {
 			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
-			require.Equal(t, "443", r.Header.Get(reverseproxy.XForwardedPort))
+			require.Equal(t, "443", r.Header.Get(forward.XForwardedPort))
 		},
 	})
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
@@ -676,9 +689,9 @@ func TestHandleConnectionWS(t *testing.T) {
 	s := SetUpSuiteWithConfig(t, suiteConfig{
 		ValidateRequest: func(s *Suite, r *http.Request) {
 			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
-			// The port is not rewritten for WebSocket requests because it uses
-			// the same port as the original request.
-			require.Equal(t, "443", r.Header.Get(reverseproxy.XForwardedPort))
+			// Websockets will pass on the server port at this level due to the
+			// websocket transport header rewriter delegate.
+			require.Equal(t, s.serverPort, r.Header.Get(forward.XForwardedPort))
 		},
 	})
 
@@ -753,15 +766,6 @@ func TestRewriteJWT(t *testing.T) {
 			expectedRoles:  []string{"foo"},
 			expectedTraits: wrappers.Traits{},
 			jwtRewrite:     types.JWTClaimsRewriteRoles,
-		},
-
-		{
-			name:          "test traits behavior",
-			expectedRoles: nil,
-			expectedTraits: wrappers.Traits{
-				"logins": []string{login},
-			},
-			jwtRewrite: types.JWTClaimsRewriteTraits,
 		},
 		{
 			name:           "test none behavior",
@@ -954,9 +958,8 @@ func TestRequestAuditEvents(t *testing.T) {
 	var requestEventsReceived atomic.Uint64
 	var chunkEventsReceived atomic.Uint64
 	serverStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
-		Inner: events.NewDiscardStreamer(),
-		OnRecordEvent: func(_ context.Context, _ session.ID, pe apievents.PreparedSessionEvent) error {
-			event := pe.GetAuditEvent()
+		Inner: events.NewDiscardEmitter(),
+		OnEmitAuditEvent: func(_ context.Context, _ libsession.ID, event apievents.AuditEvent) error {
 			switch event.GetType() {
 			case events.AppSessionChunkEvent:
 				chunkEventsReceived.Add(1)
@@ -1029,14 +1032,7 @@ func TestRequestAuditEvents(t *testing.T) {
 		}, 500*time.Millisecond, 50*time.Millisecond, "app.session.request event not generated")
 	})
 
-	ctx := context.Background()
-	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
-		From:       time.Time{},
-		To:         time.Now().Add(time.Minute),
-		EventTypes: []string{events.AppSessionChunkEvent},
-		Limit:      10,
-		Order:      types.EventOrderDescending,
-	})
+	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.AppSessionChunkEvent}, 10, types.EventOrderDescending, "")
 	require.NoError(t, err)
 	require.Len(t, searchEvents, 1)
 

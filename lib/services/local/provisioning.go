@@ -18,11 +18,13 @@ package local
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -68,6 +70,9 @@ func (s *ProvisioningService) CreateToken(ctx context.Context, p types.Provision
 func (s *ProvisioningService) tokenToItem(p types.ProvisionToken) (*backend.Item, error) {
 	if err := p.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if p.Expiry().IsZero() || p.Expiry().Sub(s.Clock().Now().UTC()) < time.Second {
+		p.SetExpiry(s.Clock().Now().UTC().Add(defaults.ProvisioningTokenTTL))
 	}
 	data, err := services.MarshalProvisionToken(p)
 	if err != nil {

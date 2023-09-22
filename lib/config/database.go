@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -66,30 +66,16 @@ db_service:
 	{{- range $name, $value := $resourceLabel }}
       "{{ $name }}": "{{ $value }}"
     {{- end }}
-    {{- if $.DatabaseAWSAssumeRoleARN }}
-    aws:
-      {{- if $.DatabaseAWSAssumeRoleARN }}
-      assume_role_arn: "{{ $.DatabaseAWSAssumeRoleARN }}"
-      {{- end }}
-      {{- if $.DatabaseAWSExternalID }}
-      external_id: "{{ $.DatabaseAWSExternalID }}"
-      {{- end }}
-    {{- end }}
   {{- end }}
   {{- else }}
   #
   # resources:
   # - labels:
   #     "env": "dev"
-  #   # Optional AWS role that the Database Service will assume to access the
-  #   # databases.
-  #   aws:
-  #     assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
-  #     external_id: "example-external-id"
   {{- end }}
 
   # Matchers for registering AWS-hosted databases.
-  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .RedshiftServerlessDiscoveryRegions .ElastiCacheDiscoveryRegions .MemoryDBDiscoveryRegions .OpenSearchDiscoveryRegions}}
+  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .RedshiftServerlessDiscoveryRegions .ElastiCacheDiscoveryRegions .MemoryDBDiscoveryRegions}}
   aws:
   {{- else }}
   # For more information about AWS auto-discovery:
@@ -98,7 +84,6 @@ db_service:
   # Redshift: https://goteleport.com/docs/database-access/guides/postgres-redshift/
   # Redshift Serverless: https://goteleport.com/docs/database-access/guides/postgres-redshift-serverless/
   # ElastiCache/MemoryDB: https://goteleport.com/docs/database-access/guides/redis-aws/
-  # OpenSearch: https://goteleport.com/docs/database-access/guides/aws-opensearch/
   #
   # aws:
   #   # Database types. Valid options are:
@@ -108,8 +93,7 @@ db_service:
   #   # 'redshift-serverless' - discovers and registers AWS Redshift Serverless databases.
   #   # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
   #   # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
-  #   # 'opensearch' - discovers and registers AWS OpenSearch domains.
-  # - types: ["rds", "rdsproxy", "redshift", "redshift-serverless", "elasticache", "memorydb", "opensearch"]
+  # - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "memorydb"]
   #   # AWS regions to register databases from.
   #   regions: ["us-west-1", "us-east-2"]
   #   # AWS resource tags to match when registering databases.
@@ -198,21 +182,6 @@ db_service:
     # AWS regions to register databases from.
     regions:
     {{- range .MemoryDBDiscoveryRegions }}
-    - "{{ . }}"
-    {{- end }}
-    # AWS resource tags to match when registering databases.
-    tags:
-    {{- range $name, $value := .AWSTags }}
-      "{{ $name }}": "{{ $value }}"
-    {{- end }}
-  {{- end }}
-  {{- if .OpenSearchDiscoveryRegions }}
-  # OpenSearch databases auto-discovery.
-  # For more information about OpenSearch auto-discovery: https://goteleport.com/docs/database-access/guides/aws-opensearch/
-  - types: ["opensearch"]
-    # AWS regions to register databases from.
-    regions:
-    {{- range .OpenSearchDiscoveryRegions }}
     - "{{ . }}"
     {{- end }}
     # AWS resource tags to match when registering databases.
@@ -364,16 +333,13 @@ db_service:
     tls:
       ca_cert_file: "{{ .DatabaseCACertFile }}"
     {{- end }}
-    {{- if or .DatabaseAWSRegion .DatabaseAWSAccountID .DatabaseAWSAssumeRoleARN .DatabaseAWSExternalID .DatabaseAWSRedshiftClusterID .DatabaseAWSRDSInstanceID .DatabaseAWSRDSClusterID .DatabaseAWSElastiCacheGroupID .DatabaseAWSMemoryDBClusterName }}
+    {{- if or .DatabaseAWSRegion .DatabaseAWSAccountID .DatabaseAWSExternalID .DatabaseAWSRedshiftClusterID .DatabaseAWSRDSInstanceID .DatabaseAWSRDSClusterID .DatabaseAWSElastiCacheGroupID .DatabaseAWSMemoryDBClusterName }}
     aws:
       {{- if .DatabaseAWSRegion }}
       region: "{{ .DatabaseAWSRegion }}"
       {{- end }}
       {{- if .DatabaseAWSAccountID }}
       account_id: "{{ .DatabaseAWSAccountID }}"
-      {{- end }}
-      {{- if .DatabaseAWSAssumeRoleARN }}
-      assume_role_arn: "{{ .DatabaseAWSAssumeRoleARN }}"
       {{- end }}
       {{- if .DatabaseAWSExternalID }}
       external_id: "{{ .DatabaseAWSExternalID }}"
@@ -519,17 +485,6 @@ db_service:
   #     memorydb:
   #       # MemoryDB cluster name.
   #       cluster_name: my-memorydb
-  # # OpenSearch database static configuration.
-  # - name: opensearch
-  #   description: AWS OpenSearch domain configuration example.
-  #   protocol: opensearch
-  #   # Database connection endpoint. Must be reachable from Database service.
-  #   uri: search-my-domain-xxxxxx.us-east-1.es.amazonaws.com:443
-  #   # AWS specific configuration.
-  #   aws:
-  #     # Region the database is deployed in.
-  #     region: us-east-1
-  #     account_id: "123456789000"
   # # Self-hosted static configuration.
   # - name: self-hosted
   #   description: Self-hosted database configuration.
@@ -615,9 +570,6 @@ type DatabaseSampleFlags struct {
 	// MemoryDBDiscoveryRegions is a list of regions the MemoryDB
 	// auto-discovery is configured.
 	MemoryDBDiscoveryRegions []string
-	// OpenSearchDiscoveryRegions is a list of regions the OpenSearch
-	// auto-discovery is configured.
-	OpenSearchDiscoveryRegions []string
 	// AWSTags is the list of the AWS resource tags used for AWS discoveries.
 	AWSTags map[string]string
 	// AWSRawTags is the "raw" list of AWS resource tags used for AWS discoveries.
@@ -628,8 +580,6 @@ type DatabaseSampleFlags struct {
 	DatabaseAWSRegion string
 	// DatabaseAWSAccountID is an optional AWS account ID e.g. when using Keyspaces or DynamoDB.
 	DatabaseAWSAccountID string
-	// DatabaseAWSAssumeRoleARN is an optional AWS IAM role ARN to assume when accessing the database.
-	DatabaseAWSAssumeRoleARN string
 	// DatabaseAWSExternalID is an optional AWS database external ID, used when assuming roles.
 	DatabaseAWSExternalID string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
@@ -658,7 +608,7 @@ type DatabaseSampleFlags struct {
 
 // CheckAndSetDefaults checks and sets default values for the flags.
 func (f *DatabaseSampleFlags) CheckAndSetDefaults() error {
-	conf := servicecfg.MakeDefaultConfig()
+	conf := service.MakeDefaultConfig()
 	f.DatabaseProtocols = defaults.DatabaseProtocols
 
 	if f.NodeName == "" {
@@ -723,7 +673,7 @@ func MakeDatabaseAgentConfigString(flags DatabaseSampleFlags) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	if err = ApplyFileConfig(fc, cfg); err != nil {
 		return "", trace.Wrap(err)
 	}

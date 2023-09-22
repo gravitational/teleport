@@ -3,6 +3,18 @@ title: Session and Identity Locking
 description: How to lock compromised users or agents
 ---
 
+<Details
+  title="Version warning"
+  opened={true}
+  scope={["oss", "enterprise"]}
+  scopeOnly={true}
+  min="7.1"
+>
+  Locking support was introduced in Teleport v7.1. To fully enforce the locks
+  at all components, you should update **all** `teleport` binaries in your
+  deployment.
+</Details>
+
 System administrators can disable a compromised user or Teleport agent—or
 prevent access during cluster maintenance—by placing a lock
 on a session, user or host identity.
@@ -16,7 +28,7 @@ A lock can target the following objects or attributes:
 - a Teleport user by the user's name
 - a Teleport [RBAC](../reference.mdx) role by the role's name
 - a Teleport [trusted device](
-  ../device-trust/enforcing-device-trust.mdx#locking-a-device) by the device ID
+  ../device-trust/guide.mdx#optional-locking-a-device) by the device ID
 - an MFA device by the device's UUID
 - an OS/UNIX login
 - a Teleport agent by the agent's server UUID (effectively unregistering it from the

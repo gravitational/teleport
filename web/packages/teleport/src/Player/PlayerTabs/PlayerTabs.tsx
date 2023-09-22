@@ -43,12 +43,12 @@ const StyledTabItem = styled(Box)`
   &:hover,
   &.active,
   &:focus {
-    color: ${props => props.theme.colors.text.main};
+    color: ${props => props.theme.colors.text.contrast};
   }
 
   ${({ theme }) => ({
-    backgroundColor: theme.colors.levels.sunken,
-    color: theme.colors.text.main,
+    backgroundColor: theme.colors.bgTerminal,
+    color: theme.colors.text.contrast,
     fontWeight: 'bold',
     transition: 'none',
   })}
@@ -56,9 +56,9 @@ const StyledTabItem = styled(Box)`
   ${({ theme }) => {
     return {
       border: 'none',
-      borderRight: `1px solid ${theme.colors.levels.sunken}`,
+      borderRight: `1px solid ${theme.colors.bgTerminal}`,
       '&:hover, &:focus': {
-        color: theme.colors.text.main,
+        color: theme.colors.text.contrast,
         transition: 'color .3s',
       },
     };

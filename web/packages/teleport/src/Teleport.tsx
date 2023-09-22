@@ -14,18 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { lazy, Suspense } from 'react';
+import React, { Suspense } from 'react';
 import ThemeProvider from 'design/ThemeProvider';
 
-import { Route, Router, Switch } from 'teleport/components/Router';
+import { Router, Route, Switch } from 'teleport/components/Router';
 import { CatchError } from 'teleport/components/CatchError';
 import Authenticated from 'teleport/components/Authenticated';
 
 import { getOSSFeatures } from 'teleport/features';
-
-import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
-import { UserContextProvider } from 'teleport/User';
-import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
 import TeleportContextProvider from './TeleportContextProvider';
 import TeleportContext from './teleportContext';
@@ -33,7 +29,9 @@ import cfg from './config';
 
 import type { History } from 'history';
 
-const AppLauncher = lazy(() => import('./AppLauncher'));
+const AppLauncher = React.lazy(
+  () => import(/* webpackChunkName: "app-launcher" */ './AppLauncher')
+);
 
 const Teleport: React.FC<Props> = props => {
   const { ctx, history } = props;
@@ -43,47 +41,59 @@ const Teleport: React.FC<Props> = props => {
   return (
     <CatchError>
       <ThemeProvider>
-        <LayoutContextProvider>
-          <Router history={history}>
-            <Suspense fallback={null}>
-              <Switch>
-                {createPublicRoutes()}
-                <Route path={cfg.routes.root}>
-                  <Authenticated>
-                    <UserContextProvider>
-                      <TeleportContextProvider ctx={ctx}>
-                        <Switch>
-                          <Route
-                            path={cfg.routes.appLauncher}
-                            component={AppLauncher}
-                          />
-                          <Route>{createPrivateRoutes()}</Route>
-                        </Switch>
-                      </TeleportContextProvider>
-                    </UserContextProvider>
-                  </Authenticated>
-                </Route>
-              </Switch>
-            </Suspense>
-          </Router>
-        </LayoutContextProvider>
+        <Router history={history}>
+          <Suspense fallback={null}>
+            <Switch>
+              {createPublicRoutes()}
+              <Route path={cfg.routes.root}>
+                <Authenticated>
+                  <TeleportContextProvider ctx={ctx}>
+                    <Switch>
+                      <Route
+                        path={cfg.routes.appLauncher}
+                        component={AppLauncher}
+                      />
+                      <Route>{createPrivateRoutes()}</Route>
+                    </Switch>
+                  </TeleportContextProvider>
+                </Authenticated>
+              </Route>
+            </Switch>
+          </Suspense>
+        </Router>
       </ThemeProvider>
     </CatchError>
   );
 };
 
-const LoginFailed = lazy(() => import('./Login/LoginFailed'));
-const LoginSuccess = lazy(() => import('./Login/LoginSuccess'));
-const Login = lazy(() => import('./Login'));
-const Welcome = lazy(() => import('./Welcome'));
+const LoginFailed = React.lazy(
+  () => import(/* webpackChunkName: "login-failed" */ './Login/LoginFailed')
+);
+const LoginSuccess = React.lazy(
+  () => import(/* webpackChunkName: "login-success" */ './Login/LoginSuccess')
+);
+const Login = React.lazy(
+  () => import(/* webpackChunkName: "login" */ './Login')
+);
+const Welcome = React.lazy(
+  () => import(/* webpackChunkName: "welcome" */ './Welcome')
+);
 
-const Console = lazy(() => import('./Console'));
-const Player = lazy(() => import('./Player'));
-const DesktopSession = lazy(() => import('./DesktopSession'));
+const Console = React.lazy(
+  () => import(/* webpackChunkName: "console" */ './Console')
+);
+const Player = React.lazy(
+  () => import(/* webpackChunkName: "player" */ './Player')
+);
+const DesktopSession = React.lazy(
+  () => import(/* webpackChunkName: "desktop-session" */ './DesktopSession')
+);
 
-const HeadlessRequest = lazy(() => import('./HeadlessRequest'));
+const HeadlessRequest = React.lazy(
+  () => import(/* webpackChunkName: "headless-request" */ './HeadlessRequest')
+);
 
-const Main = lazy(() => import('./Main'));
+const Main = React.lazy(() => import(/* webpackChunkName: "main" */ './Main'));
 
 function publicOSSRoutes() {
   return [
@@ -121,13 +131,13 @@ export function getSharedPublicRoutes() {
       key="invite"
       title="Invite"
       path={cfg.routes.userInvite}
-      render={() => <Welcome NewCredentials={NewCredentials} />}
+      component={Welcome}
     />,
     <Route
       key="password-reset"
       title="Password Reset"
       path={cfg.routes.userReset}
-      render={() => <Welcome NewCredentials={NewCredentials} />}
+      component={Welcome}
     />,
   ];
 }

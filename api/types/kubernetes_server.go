@@ -47,8 +47,6 @@ type KubeServer interface {
 	String() string
 	// Copy returns a copy of this kube server object.
 	Copy() KubeServer
-	// CloneResource returns a copy of the KubeServer as a ResourceWithLabels
-	CloneResource() ResourceWithLabels
 	// GetCluster returns the Kubernetes Cluster this kube server proxies.
 	GetCluster() KubeCluster
 	// SetCluster sets the kube cluster this kube server server proxies.
@@ -78,6 +76,51 @@ func NewKubernetesServerV3FromCluster(cluster *KubernetesClusterV3, hostname, ho
 		HostID:   hostID,
 		Cluster:  cluster,
 	})
+}
+
+// NewLegacyKubeServer creates legacy Kube server object. Used in tests.
+//
+// DELETE IN 13.0.0
+func NewLegacyKubeServer(cluster *KubernetesClusterV3, hostname, hostID string) (Server, error) {
+	return NewServer(hostID, KindKubeService,
+		ServerSpecV2{
+			Hostname: hostname,
+			KubernetesClusters: []*KubernetesCluster{
+				{
+					Name:          cluster.GetName(),
+					DynamicLabels: LabelsToV2(cluster.GetDynamicLabels()),
+					StaticLabels:  cluster.GetStaticLabels(),
+				},
+			},
+		})
+}
+
+// NewKubeServersV3FromServer creates a list of kube servers from a legacy Server resource.
+//
+// DELETE IN 13.0.0
+func NewKubeServersV3FromServer(server Server) (result []KubeServer, err error) {
+	for _, legacyCluster := range server.GetKubernetesClusters() {
+		kubeCluster, err := NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), legacyCluster)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		kubeServer, err := NewKubernetesServerV3(Metadata{
+			Name:    kubeCluster.GetName(),
+			Expires: server.GetMetadata().Expires,
+		}, KubernetesServerSpecV3{
+			Version:  server.GetTeleportVersion(),
+			Hostname: server.GetAddr(),
+			HostID:   server.GetName(),
+			Rotation: server.GetRotation(),
+			Cluster:  kubeCluster,
+			ProxyIDs: server.GetProxyIDs(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result = append(result, kubeServer)
+	}
+	return result, nil
 }
 
 // GetVersion returns the kubernetes server resource version.
@@ -123,16 +166,6 @@ func (s *KubernetesServerV3) GetResourceID() int64 {
 // SetResourceID sets the resource ID.
 func (s *KubernetesServerV3) SetResourceID(id int64) {
 	s.Metadata.ID = id
-}
-
-// GetRevision returns the revision
-func (s *KubernetesServerV3) GetRevision() string {
-	return s.Metadata.GetRevision()
-}
-
-// SetRevision sets the revision
-func (s *KubernetesServerV3) SetRevision(rev string) {
-	s.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns the resource metadata.
@@ -292,11 +325,6 @@ func (s *KubernetesServerV3) SetStaticLabels(sl map[string]string) {
 // Copy returns a copy of this kube server object.
 func (s *KubernetesServerV3) Copy() KubeServer {
 	return utils.CloneProtoMsg(s)
-}
-
-// CloneResource returns a copy of this kube server object.
-func (s *KubernetesServerV3) CloneResource() ResourceWithLabels {
-	return s.Copy()
 }
 
 // MatchSearch goes through select field values and tries to

@@ -44,7 +44,7 @@ import (
 func TestCreateResetPasswordToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	mockEmitter := &eventstest.MockRecorderEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	// Configure cluster and user for MFA, registering various devices.
@@ -91,10 +91,9 @@ func TestCreateResetPasswordToken(t *testing.T) {
 func TestCreateResetPasswordTokenErrors(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
 
 	username := "joe@example.com"
-	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
 	require.NoError(t, err)
 
 	type testCase struct {
@@ -142,7 +141,7 @@ func TestCreateResetPasswordTokenErrors(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			_, err := srv.Auth().CreateResetPasswordToken(ctx, tc.req)
+			_, err := srv.Auth().CreateResetPasswordToken(context.TODO(), tc.req)
 			require.Error(t, err)
 		})
 	}
@@ -226,7 +225,7 @@ func TestUserTokenSecretsCreationSettings(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	username := "joe@example.com"
-	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -260,7 +259,7 @@ func TestUserTokenCreationSettings(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	username := "joe@example.com"
-	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
 	require.NoError(t, err)
 
 	req := CreateUserTokenRequest{
@@ -282,7 +281,7 @@ func TestCreatePrivilegeToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	fakeClock := srv.Clock().(clockwork.FakeClock)
-	mockEmitter := &eventstest.MockRecorderEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 	ctx := context.Background()
 

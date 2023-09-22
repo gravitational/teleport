@@ -1,0 +1,153 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.okta.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/legacy/types/types.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1";
+
+// OktaService provides CRUD methods for Okta resources.
+service OktaService {
+  // ListOktaImportRules returns a paginated list of all Okta import rule resources.
+  rpc ListOktaImportRules(ListOktaImportRulesRequest) returns (ListOktaImportRulesResponse);
+  // GetOktaImportRule returns the specified Okta import rule resources.
+  rpc GetOktaImportRule(GetOktaImportRuleRequest) returns (types.OktaImportRuleV1);
+  // CreateOktaImportRule creates a new Okta import rule resource.
+  rpc CreateOktaImportRule(CreateOktaImportRuleRequest) returns (types.OktaImportRuleV1);
+  // UpdateOktaImportRule updates an existing Okta import rule resource.
+  rpc UpdateOktaImportRule(UpdateOktaImportRuleRequest) returns (types.OktaImportRuleV1);
+  // DeleteOktaImportRule removes the specified Okta import rule resource.
+  rpc DeleteOktaImportRule(DeleteOktaImportRuleRequest) returns (google.protobuf.Empty);
+  // DeleteAllOktaImportRules removes all Okta import rules.
+  rpc DeleteAllOktaImportRules(DeleteAllOktaImportRulesRequest) returns (google.protobuf.Empty);
+
+  // ListOktaAssignments returns a paginated list of all Okta assignment resources.
+  rpc ListOktaAssignments(ListOktaAssignmentsRequest) returns (ListOktaAssignmentsResponse);
+  // GetOktaAssignment returns the specified Okta assignment resources.
+  rpc GetOktaAssignment(GetOktaAssignmentRequest) returns (types.OktaAssignmentV1);
+  // CreateOktaAssignment creates a new Okta assignment resource.
+  rpc CreateOktaAssignment(CreateOktaAssignmentRequest) returns (types.OktaAssignmentV1);
+  // UpdateOktaAssignment updates an existing Okta assignment resource.
+  rpc UpdateOktaAssignment(UpdateOktaAssignmentRequest) returns (types.OktaAssignmentV1);
+  // UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
+  // status is a valid transition. Invalid transitions will be skipped.
+  rpc UpdateOktaAssignmentActionStatuses(UpdateOktaAssignmentActionStatusesRequest) returns (types.OktaAssignmentV1);
+  // DeleteOktaAssignment removes the specified Okta assignment resource.
+  rpc DeleteOktaAssignment(DeleteOktaAssignmentRequest) returns (google.protobuf.Empty);
+  // DeleteAllOktaAssignments removes all Okta assignments.
+  rpc DeleteAllOktaAssignments(DeleteAllOktaAssignmentsRequest) returns (google.protobuf.Empty);
+}
+
+// ListOktaImportRulesRequest is the request for listing paginated Okta import rules.
+message ListOktaImportRulesRequest {
+  // page_size is the number of results to return. If page_size is 0, a default page size of 200 will be chosen.
+  int32 page_size = 1;
+
+  // page_token is the next_token value returned from a previous List request if any.
+  string page_token = 2;
+}
+
+// ListOktaImportRulesResponse is the response for listing paginated Okta import rules.
+message ListOktaImportRulesResponse {
+  // import_rules is the list of import rules.
+  repeated types.OktaImportRuleV1 import_rules = 1;
+
+  // next_page_token is the next page token. If there are no more results, it will be empty.
+  string next_page_token = 2;
+}
+
+// GetOktaImportRuleRequest is the request for retrieving an Okta import rule.
+message GetOktaImportRuleRequest {
+  // name is the name of the Okta import rule.
+  string name = 1;
+}
+
+// CreateOktaImportRuleRequest is a request for creating an Okta import rule.
+message CreateOktaImportRuleRequest {
+  // import_rule is the Okta import rule to create.
+  types.OktaImportRuleV1 import_rule = 1;
+}
+
+// UpdateOktaImportRuleRequest is a request for updating an Okta import rule.
+message UpdateOktaImportRuleRequest {
+  // import_rule is the Okta import rule to update.
+  types.OktaImportRuleV1 import_rule = 1;
+}
+
+// DeleteOktaImportRuleRequest is the request for deleting an Okta import rule.
+message DeleteOktaImportRuleRequest {
+  // name is the name of the Okta import rule.
+  string name = 1;
+}
+
+// DeleteAllOktaImportRulesRequest is the request for deleting all Okta import rules.
+message DeleteAllOktaImportRulesRequest {}
+
+// ListOktaAssignmentsRequest is the request for listing paginated Okta assignments.
+message ListOktaAssignmentsRequest {
+  // page_size is the number of results to return. If page_size is 0, a default page size of 200 will be chosen.
+  int32 page_size = 1;
+
+  // page_token is the next page token to use when retrieving results.
+  string page_token = 2;
+}
+
+// ListOktaAssignmentsResponse is the response for listing paginated Okta assignments.
+message ListOktaAssignmentsResponse {
+  // assignments is the list of assignments.
+  repeated types.OktaAssignmentV1 assignments = 1;
+
+  // next_page_token is the next page token. If there are no more results, it will be empty.
+  string next_page_token = 2;
+}
+
+// GetOktaAssignmentRequest is the request for retrieving an Okta assignment.
+message GetOktaAssignmentRequest {
+  // name is the name of the Okta assignment.
+  string name = 1;
+}
+
+// CreateOktaAssignmentRequest is a request for creating an Okta assignment.
+message CreateOktaAssignmentRequest {
+  // assignment is the Okta assignment to create.
+  types.OktaAssignmentV1 assignment = 1;
+}
+
+// UpdateOktaAssignmentRequest is a request for updating an Okta assignment.
+message UpdateOktaAssignmentRequest {
+  // assignment is the Okta assignment to update.
+  types.OktaAssignmentV1 assignment = 1;
+}
+
+// UpdateOktaAssignmentActionStatuses is a request for updating all action statuses in an
+// Okta assignment.
+message UpdateOktaAssignmentActionStatusesRequest {
+  // name is the name of the Okta assignment.
+  string name = 1;
+  // status is the status to update all actions to.
+  types.OktaAssignmentActionV1.OktaAssignmentActionStatus status = 2;
+}
+
+// DeleteOktaAssignmentRequest is the request for deleting an Okta assignment.
+message DeleteOktaAssignmentRequest {
+  // name is the name of the Okta assignment.
+  string name = 1;
+}
+
+// DeleteAllOktaAssignmentsRequest is the request for deleting all Okta assignments.
+message DeleteAllOktaAssignmentsRequest {}

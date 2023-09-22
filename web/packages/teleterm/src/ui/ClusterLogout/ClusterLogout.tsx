@@ -23,7 +23,7 @@ import DialogConfirmation, {
 import * as Alerts from 'design/Alert';
 import { ButtonIcon, ButtonPrimary, Text } from 'design';
 
-import { Cross } from 'design/Icon';
+import { Close } from 'design/Icon';
 
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -76,7 +76,7 @@ export function ClusterLogout({
             onClick={onClose}
             color="text.slightlyMuted"
           >
-            <Cross size="medium" />
+            <Close fontSize={5} />
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>

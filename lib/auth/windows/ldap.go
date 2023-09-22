@@ -25,8 +25,6 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
@@ -299,22 +297,10 @@ func CombineLDAPFilters(filters []string) string {
 	return "(&" + strings.Join(filters, "") + ")"
 }
 
-func crlContainerDN(config LDAPConfig, caType types.CertAuthType) string {
-	return fmt.Sprintf("CN=%s,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,%s", crlKeyName(caType), config.DomainDN())
+func crlContainerDN(config LDAPConfig) string {
+	return "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration," + config.DomainDN()
 }
 
-func crlDN(clusterName string, config LDAPConfig, caType types.CertAuthType) string {
-	return "CN=" + clusterName + "," + crlContainerDN(config, caType)
-}
-
-// crlKeyName returns the appropriate LDAP key given the CA type.
-//
-// Note: UserCA must use "Teleport" to keep backwards compatibility.
-func crlKeyName(caType types.CertAuthType) string {
-	switch caType {
-	case types.DatabaseCA:
-		return "TeleportDB"
-	default:
-		return "Teleport"
-	}
+func crlDN(clusterName string, config LDAPConfig) string {
+	return "CN=" + clusterName + "," + crlContainerDN(config)
 }

@@ -23,7 +23,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -77,7 +76,7 @@ func StreamResumeManyParts(t *testing.T, handler events.MultipartHandler) {
 func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params StreamParams) {
 	ctx := context.TODO()
 
-	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: params.PrintEvents})
+	inEvents := events.GenerateTestSession(events.SessionParams{PrintEvents: params.PrintEvents})
 	sid := session.ID(inEvents[0].(events.SessionMetadataGetter).GetSessionID())
 
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
@@ -98,7 +97,7 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 	}
 
 	for _, event := range inEvents {
-		err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
+		err := stream.EmitAuditEvent(ctx, event)
 		require.Nil(t, err)
 	}
 
@@ -133,7 +132,7 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, params StreamParams) {
 	ctx := context.TODO()
 
-	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: params.PrintEvents})
+	inEvents := events.GenerateTestSession(events.SessionParams{PrintEvents: params.PrintEvents})
 	sid := session.ID(inEvents[0].(events.SessionMetadataGetter).GetSessionID())
 
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
@@ -150,7 +149,7 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 	require.Nil(t, err)
 
 	for _, event := range inEvents {
-		err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
+		err := stream.EmitAuditEvent(ctx, event)
 		require.Nil(t, err)
 	}
 

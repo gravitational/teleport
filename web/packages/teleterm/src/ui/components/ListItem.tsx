@@ -35,11 +35,11 @@ export const ListItem = styled.li`
   border: none;
   border-radius: 4px;
 
-  background: ${props =>
-    props.isActive ? props.theme.colors.spotBackground[0] : null};
+  background: ${props => (props.isActive ? 'rgba(255, 255, 255, 0.05)' : null)};
 
   &:focus,
   &:hover {
-    background: ${props => props.theme.colors.spotBackground[0]};
+    background: rgba(255, 255, 255, 0.05);
+    color: ${props => props.theme.colors.text.contrast};
   }
 `;

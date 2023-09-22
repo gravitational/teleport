@@ -40,7 +40,7 @@ flowchart TB
     BC[Browser Client]
     NC[Native Client]
     subgraph WADLL[WEBAUTHN.dll]
-        PA[Platform Authenticator]
+        PA[Platorm Authenticator]
         CPA[Cross-platform Authenticator]
     end
   end
@@ -57,7 +57,7 @@ flowchart TB
 ```
 
 `Webauthn.dll` is designed to work with Webauthn protocol, that's why
-integration with it results mostly in passing parameters from and back to
+integration with it results moslty in passing parameters from and back to
 server.
 
 **Important:** Windows system without `webauthn.dll` (older than Windows 10 19H1)
@@ -238,7 +238,7 @@ troubleshooting and credential management.
 Libfido2 c library (which is used on mac/linux for FIDO keys) supports Windows
 Hello via `webauthn.dll` and FIDO devices during old implementation. However
 starting from version Windows 10 19H1, access to FIDO devices using old
-implementation required administrator privileges and it is recommended to use
+implementation required administrator privlidges and it is recommented to use
 `webauthn.dll` for FIDO2 devices. Libfido2 API is limited and you cannot really
 specify if you want to use platform or cross-platform attachment.
 

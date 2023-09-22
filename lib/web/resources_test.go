@@ -58,7 +58,6 @@ metadata:
 }
 
 func TestCheckResourceUpsert(t *testing.T) {
-	ctx := context.Background()
 	tests := []struct {
 		desc                string
 		httpMethod          string
@@ -149,7 +148,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
-			err := CheckResourceUpsert(ctx, tc.httpMethod, tc.httpParams, tc.payloadResourceName, tc.get)
+			err := CheckResourceUpsert(context.TODO(), tc.httpMethod, tc.httpParams, tc.payloadResourceName, tc.get)
 			tc.assertErr(t, err)
 		})
 	}
@@ -218,7 +217,6 @@ spec:
   deny: {}
   options:
     cert_format: standard
-    create_db_user: false
     create_desktop_user: false
     desktop_clipboard: true
     desktop_directory_sharing: true
@@ -236,7 +234,7 @@ spec:
       default: best_effort
       desktop: true
     ssh_file_copy: true
-version: v7
+version: v6
 `
 	role, err := types.NewRole("roleName", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -627,7 +625,15 @@ func TestListResources(t *testing.T) {
 			httpReq, err := http.NewRequest("", tc.url, nil)
 			require.NoError(t, err)
 
-			_, err = convertListResourcesRequest(httpReq, types.KindNode)
+			m := &mockedResourceAPIGetter{}
+			m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+				if !tc.wantBadParamErr {
+					require.Equal(t, tc.expected, req)
+				}
+				return nil, nil
+			}
+
+			_, err = listResources(m, httpReq, types.KindNode)
 			if tc.wantBadParamErr {
 				require.True(t, trace.IsBadParameter(err))
 			} else {

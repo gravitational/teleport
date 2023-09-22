@@ -15,21 +15,21 @@
  */
 
 import React from 'react';
-import { ButtonPrimary, Flex, Image, Text } from 'design';
-
-import { OnboardCard } from 'design/Onboard/OnboardCard';
+import { ButtonPrimary, Card, Flex, Image, Text } from 'design';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
-import { RegisterSuccessProps } from './types';
 import shieldCheck from './shield-check.png';
 
 export function RegisterSuccess({
   redirect,
   resetMode = false,
   username = '',
-  isDashboard,
-}: RegisterSuccessProps) {
+}: {
+  redirect(): void;
+  resetMode: boolean;
+  username?: string;
+}) {
   const actionTxt = resetMode ? 'reset' : 'registration';
 
   const handleRedirect = () => {
@@ -44,9 +44,16 @@ export function RegisterSuccess({
   };
 
   return (
-    <OnboardCard center>
+    <Card
+      width="540px"
+      p={6}
+      bg="levels.surface"
+      mt={6}
+      mx="auto"
+      textAlign="center"
+    >
       <Text
-        typography="h4"
+        typography="h3"
         color="text"
         mb={3}
         style={{ textTransform: 'capitalize' }}
@@ -62,8 +69,8 @@ export function RegisterSuccess({
         Proceed to access your account.
       </Text>
       <ButtonPrimary width="100%" size="large" onClick={handleRedirect}>
-        Go to {isDashboard ? 'Dashboard' : 'Cluster'}
+        Go to Dashboard
       </ButtonPrimary>
-    </OnboardCard>
+    </Card>
   );
 }

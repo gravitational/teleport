@@ -14,7 +14,6 @@ TELEPORT_LICENSE_PATH=/home/gus/downloads/teleport/license-gus.pem
 TELEPORT_LOCKS_TABLE_NAME=gus-tftestkube4-locks
 TELEPORT_S3_BUCKET=gus-tftestkube4.gravitational.io
 USE_ACM=false
-USE_TLS_ROUTING=false
 EOF
     export TELEPORT_TEST_FIPS_MODE=true
 }
@@ -59,16 +58,16 @@ load fixtures/common
 @test "[${TEST_SUITE?}] auth_service.cluster_name is set correctly" {
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${AUTH_BLOCK?}"
-    echo "${AUTH_BLOCK?}" | grep -E "^  cluster_name: ${TELEPORT_CLUSTER_NAME?}"
+    echo "${AUTH_BLOCK?}" | grep -E "^  cluster_name:" | grep -q "${TELEPORT_CLUSTER_NAME?}"
 }
 
 @test "[${TEST_SUITE?}] auth_service.listen_addr is set correctly" {
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${AUTH_BLOCK?}"
-    echo "${AUTH_BLOCK?}" | grep -E "^  listen_addr: 0.0.0.0:3025"
+    echo "${AUTH_BLOCK?}" | grep -E "^  listen_addr:" | grep -q "0.0.0.0:3025"
 }
 
-@test "[${TEST_SUITE?}] auth_service.authentication.local_auth is false in FIPS mode" {
+@test "[${TEST_SUITE?}] auth_service.local_auth is false in FIPS mode" {
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${AUTH_BLOCK?}"
     echo "${AUTH_BLOCK?}" | grep -E "^  authentication:" -A2 | grep -q "local_auth: false"
@@ -77,17 +76,5 @@ load fixtures/common
 @test "[${TEST_SUITE?}] auth_service.authentication.type is set correctly" {
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${AUTH_BLOCK?}"
-    echo "${AUTH_BLOCK?}" | grep -E "^    type: saml"
-}
-
-@test "[${TEST_SUITE?}] auth_service.authentication.webauthn.rp_id is set" {
-    load ${TELEPORT_CONFD_DIR?}/conf
-    echo "${AUTH_BLOCK?}"
-    echo "${AUTH_BLOCK?}" | grep -E "^  authentication:" -A5 | grep -q "rp_id: ${TELEPORT_DOMAIN_NAME?}"
-}
-
-@test "[${TEST_SUITE?}] auth_service.authentication.second_factor config line is present" {
-    load ${TELEPORT_CONFD_DIR?}/conf
-    echo "${AUTH_BLOCK?}"
-    echo "${AUTH_BLOCK?}" | grep -E "^  authentication:" -A3 | grep -q "second_factor:"
+    echo "${AUTH_BLOCK?}" | grep -E "^    type:" | grep -q "saml"
 }

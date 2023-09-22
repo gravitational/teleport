@@ -196,7 +196,7 @@ The safest way would be to not interact with it and let the plugin deal with it.
 
 Using `suggested_reviewer` implies the user knows which plugin will be used to send the access request.
 The string has to make sense and be allowed by the plugin. Today most plugins support email addresses
-and reject other recipients, but some are just ignoring the field (pagerduty). We might want to clarify
+and reject other recipients, but somes are just ignoring the field (pagerduty). We might want to clarify
 what can be entered in this field and how different plugins are reacting to it so user has insights on
 what to type and what to expect.
 
@@ -312,7 +312,7 @@ the role `"prod-rw"` but not the role `"prod-ro"`.
 ```
 kind: role
 metadata:
- name: developer
+ name: developper
 spec:
  allow:
   request:
@@ -330,7 +330,7 @@ impacts. We might want to guide users towards model in the documentation.
 
 This change must be backward compatible:
 - old plugins should ignore `targets` and get the recipients from the `role_to_recipient` map (or annotation for pagerduty);
-- each plugin should expose an `honor_suggested_reviewers` configuration, true by default;
+- each plugin should expose an `honor_suggested_reviwers` configuration, true by default;
 - each plugin should have a default name and listen to it by default in the `targets`, this name should be the same used to store plugin data;
 - admins can configure the plugin name through its configuration, names should always be prefixed by the plugin type (e.g. `slack-teamA`,
   `msteams-teamB`) to limit conflicts between two plugins with the same names;
@@ -360,7 +360,7 @@ If `dict[key]` is empty or it does not exist, it will return an empty set.
 ```
 dict(
   pair("fruits", set("apple", "banana")),
-  pair("vegetables", set("asparagus", "broccoli")),
+  pair("vegetables", set("asparagus", "brocolli")),
 ).get("fruits")
 ```
 returns the set `("apple","bananas")`.

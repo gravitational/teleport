@@ -23,13 +23,6 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/stringset"
 )
 
-const (
-	// RecipientKindSchedule shows a recipient is a schedule.
-	RecipientKindSchedule = "schedule"
-	// RecipientKindRotation shows a recipient is a rotation.
-	RecipientKindRotation = "rota"
-)
-
 // RawRecipientsMap is a mapping of roles to recipient(s).
 type RawRecipientsMap map[string][]string
 

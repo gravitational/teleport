@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // TestAzureDBServerFetchers tests common azureFetcher functionalities and the
@@ -74,12 +73,12 @@ func TestAzureDBServerFetchers(t *testing.T) {
 	tests := []struct {
 		name          string
 		inputClients  cloud.AzureClients
-		inputMatchers []types.AzureMatcher
+		inputMatchers []services.AzureMatcher
 		wantDatabases types.Databases
 	}{
 		{
 			name: "match labels",
-			inputMatchers: []types.AzureMatcher{
+			inputMatchers: []services.AzureMatcher{
 				{
 					Subscriptions:  []string{subscription1},
 					ResourceGroups: []string{group1},
@@ -117,7 +116,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 		},
 		{
 			name: "match labels with all subscriptions, resource groups, and regions",
-			inputMatchers: []types.AzureMatcher{
+			inputMatchers: []services.AzureMatcher{
 				{
 					Subscriptions:  []string{"*"},
 					ResourceGroups: []string{"*"},
@@ -157,7 +156,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 		},
 		{
 			name: "skip unsupported and unknown database versions",
-			inputMatchers: []types.AzureMatcher{
+			inputMatchers: []services.AzureMatcher{
 				{
 					Subscriptions:  []string{subscription1},
 					ResourceGroups: []string{"*"},
@@ -191,7 +190,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 		},
 		{
 			name: "skip unavailable",
-			inputMatchers: []types.AzureMatcher{
+			inputMatchers: []services.AzureMatcher{
 				{
 					Subscriptions:  []string{subscription1},
 					ResourceGroups: []string{"*"},
@@ -226,7 +225,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 		},
 		{
 			name: "skip access denied errors",
-			inputMatchers: []types.AzureMatcher{
+			inputMatchers: []services.AzureMatcher{
 				{
 					Subscriptions:  []string{subscription1, subscription2},
 					ResourceGroups: []string{"*"},
@@ -265,7 +264,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 		},
 		{
 			name: "skip group not found errors",
-			inputMatchers: []types.AzureMatcher{
+			inputMatchers: []services.AzureMatcher{
 				{
 					Subscriptions:  []string{subscription1},
 					ResourceGroups: []string{"foobar", group1, "baz"},
@@ -346,7 +345,6 @@ func makeAzureMySQLServer(t *testing.T, name, subscription, group, region string
 
 	database, err := services.NewDatabaseFromAzureServer(azureDBServer)
 	require.NoError(t, err)
-	common.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherMySQL)
 	return server, database
 }
 
@@ -382,7 +380,6 @@ func makeAzurePostgresServer(t *testing.T, name, subscription, group, region str
 
 	database, err := services.NewDatabaseFromAzureServer(azureDBServer)
 	require.NoError(t, err)
-	common.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherPostgres)
 	return server, database
 }
 

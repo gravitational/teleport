@@ -3,52 +3,60 @@
     "allowSyntheticDefaultImports": true,
     "allowJs": true,
     "baseUrl": ".",
-    "useDefineForClassFields": true,
     "esModuleInterop": true,
     "importHelpers": true,
-    "forceConsistentCasingInFileNames": true,
-    "isolatedModules": true,
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "jsx": "react-jsx",
+    "lib": [
+      "dom",
+      "esnext"
+    ],
+    "jsx": "preserve",
     "module": "esnext",
     "moduleResolution": "node",
     "noEmitHelpers": true,
-    "resolveJsonModule": true,
+    "pretty": true,
     "skipLibCheck": true,
-    "sourceMap": false,
+    "sourceMap": true,
+    "stripInternal": true,
     "target": "esnext",
-    "types": ["node", "@emotion/core", "@types/wicg-file-system-access"],
+    "types": [
+      "node",
+      "@emotion/core",
+      "@types/wicg-file-system-access"
+    ],
     "paths": {
-      "//": [
-        "generator still uses 'grpc' package that has been deprecated in favor of '@grpc/grpc-js'"
+      "grpc": [
+        "node_modules/@grpc/grpc-js"
+      ], // generator still uses "grpc" package that has been deprecated in favor of "@grpc/grpc-js"
+      "shared/*": [
+        "web/packages/shared/*"
       ],
-      "grpc": ["node_modules/@grpc/grpc-js"],
-      "shared/*": ["web/packages/shared/*"],
-      "design/*": ["web/packages/design/src/*"],
-      "design": ["web/packages/design/src/"],
-      "teleport/*": ["web/packages/teleport/src/*"],
-      "teleport": ["web/packages/teleport/src/"],
-      "teleterm/*": ["web/packages/teleterm/src/*"],
-      "e-teleport/*": ["e/web/teleport/src/*"],
-      "e-teleterm/*": ["e/web/teleterm/src/*"],
-      "gen-proto-js/*": ["gen/proto/js/*"]
-    },
-    "outDir": "dist"
+      "design/*": [
+        "web/packages/design/src/*"
+      ],
+      "design": [
+        "web/packages/design/src/"
+      ],
+      "teleport/*": [
+        "web/packages/teleport/src/*"
+      ],
+      "teleport": [
+        "web/packages/teleport/src/"
+      ],
+      "teleterm/*": [
+        "web/packages/teleterm/src/*"
+      ],
+      "e-teleport/*": [
+        "e/web/teleport/src/*"
+      ],
+      "e-teleterm/*": [
+        "e/web/teleterm/src/*"
+      ],
+      "gen-proto-js/*": [
+        "gen/proto/js/*"
+      ]
+    }
   },
-  "include": [
-    "e/web/**/*.ts",
-    "e/web/**/*.tsx",
-    "e/web/**/*.js",
-    "e/web/**/*.jsx",
-    "web/**/*.ts",
-    "web/**/*.tsx",
-    "web/**/*.js",
-    "web/**/*.jsx"
-  ],
-  "references": [{ "path": "./tsconfig.node.json" }],
   "exclude": [
-    "**/vite.config.ts",
-    "web/packages/build/vite/*",
     "node_modules",
     "**/node_modules/*",
     "dist",

@@ -1,6 +1,6 @@
 ---
 authors: Tiago Silva (tiago.silva@goteleport.com)
-state: implemented (v12.0.1)
+state: draft
 ---
 
 # RFD 101 - Kubernetes Per-pod RBAC
@@ -139,7 +139,7 @@ briefly describe the implementation details and their limitations.
 When a user has at least one role that has a non-empty list of `kubernetes_resources`,
 Teleport will only allow access to the Pods included in the list. For cases
 where multiple roles match the same Pod, Teleport will forward all Kubernetes
-RBAC principals defined for roles that fulfill the cluster's labels and pod names.
+RBAC principals defined for roles that fullfill the cluster's labels and pod names.
 `kubernetes_resources` is a subset of the super-set allowed by the user's
 Kubernetes RBAC principals. It means that Teleport won't be able to include
 pods allowed by Teleport `kubernetes_resources` but whose access is denied by
@@ -260,7 +260,7 @@ user to connect to the target cluster without requiring an extra access request
 to the cluster.
 
 ```bash
-$ tsh request search --kind pod --kube-cluster=<kube-cluster> [--kube-namespace=<namespace>|--all-kube-namespaces]
+$ tsh request search --kind pod --kube-cluster=<kube-cluster>
 
 Found 3 items:
 name    namespace     id
@@ -271,7 +271,7 @@ nginx-2 dev           /<teleport-cluster>/pod/<kube-cluster>/dev/nginx-2
 $ tsh request create --resources "..."
 Waiting for request to be approved...
 Approved!
-$ kubectl get pods
+$ kubectl get pods 
 ```
 
 An alternative process is available by using the `tsh kubectl` wrapper. This
@@ -281,7 +281,7 @@ retry the command afterward.
 ```bash
 $ tsh kubectl exec/logs/edit -it <podName> -n <namespace>
 Access to pod <namespace>/<podName> denied.
-Submitting an access request.
+Submiting an access request.
 Waiting for request to be approved...
 Approved!
 # <podName>
@@ -299,7 +299,7 @@ spec:
     request:
       # search_as_roles allows a member of the response team
       # to search for resources accessible to users with the kube-admins role,
-      # which they will be allowed to request access to. This includes Pods in
+      # which they will be allowed to request access to. This includes Pods in 
       # the target Kubernetes Cluster.
       search_as_roles: [kube-admin]
 ```
@@ -311,11 +311,11 @@ metadata:
   name: kube-admin
 spec:
   allow:
-    # kubernetes_groups will be used by Teleport to fetch the Pods available in
-    # the target cluster. The kubernetes_groups field is used by Kubernetes RBAC
+    # kubernetes_groups will be used by Teleport to fetch the Pods available in 
+    # the target cluster. The kubernetes_groups field is used by Kubernetes RBAC 
     # to limit the Pods the user can request access to.
     kubernetes_groups: ["system:masters"]
-    # kubernetes_labels defines which Kubernetes clusters the user is able to
+    # kubernetes_labels defines which Kubernetes clusters the user is able to 
     # request Pod access into.
     kubernetes_labels:
        owner: prod_team
@@ -329,7 +329,7 @@ While requesting access to a Pod or searching for Pods, the user must identify
 which cluster he wants to request access to. If the user does not provide any
 cluster, `tsh` will fill it with the default Teleport context from `kubeconfig`.
 
-When an access request is of Type `pod`, Teleport allows the user to access other
+When a access request is of Type `pod`, Teleport allows the user to access other
 Kubernetes resources such as `secrets`, `configmaps`... In order to control the
 scope, the `search_as_role`'s Kubernetes principals must allow access to
 `pods` and forbid every other resource.
@@ -347,7 +347,7 @@ will deny it. The user's permissions are the intersection of the
 permissions allowed by Kubernetes RBAC and the list of Pods defined in `kubernetes_resources`.
 
 When accessing a pod in a Kube cluster, Teleport evaluates if any Role matches
-this Kube cluster labels and if it allows access to the Pod - pod's name and
+this Kube cluster labels and if it allows the access to the Pod - pod's name and
 namespace. If everything matches, Teleport collects the
 Kubernetes RBAC principals associated with those roles and forwards the request to
 the Kubernetes Cluster with the collected principals. If no match is found, Teleport
@@ -370,12 +370,12 @@ for the roles that also match the cluster labels. For this request,
 `kubernetes_groups`: [ `kube_group1` ]. If the user tries to execute
 `kubectl logs special_pod -n default` into the same cluster, Teleport collects
 `kubernetes_groups`: [`kube_group1`, `kube_group3`] because the `role3` now matches the pod
-name. When forwarding the request to the Kubernetes Cluster, the user will
+name. When forwarding the request to the Kubernertes Cluster, the user will
 impersonate `kube_group1` and `kube_group2` instead of `kube_group1` for the previous
-request.
+request. 
 
 When listing pods - `kubect get pods [--all-namespaces,-n=<namespace>]`, Teleport
-will collect all `kubernetes_groups` that apply to the cluster based on
+will collect all `kubernetes_groups` that are apllicable to the cluster based on
 its labels - pod name is not available - and forward them to the cluster.
 Once it receives the response, it
 will filter out the pods the user doesn't have access to by checking if no role denies
@@ -386,10 +386,10 @@ not know if the rule is correctly applied. It means that if one Role allows acce
 to pods in the `default` namespace, and a role that grants `system:masters` access
 to `kind: pod, name: some_pod, namespace:default`, Teleport will
 leak every Pod in the cluster because the `*/*` rule is always true against
-any pod. In order to avoid this issue, if your Kubernetes RBAC principal is
+any pod. In order to avoid this issues, if your Kubernetes RBAC principal is
 namespaced, lock the `kubernetes_resources` to that namespace with `<namespace>/*`.
 
-Below we introduce in-depth examples and combinations.
+Below we introduce a more indepth examples and combinations.
 
 ### Single Role
 
@@ -405,7 +405,7 @@ spec:
     kubernetes_groups: ["kube_group"]
     kubernetes_resources:
     - kind: pod
-      name: B
+      name: B 
       namespace: default
     - kind: pod
       name: C
@@ -454,7 +454,7 @@ This section describes examples when a user has multiple Teleport Roles assigned
 
 #### Examples
 
-Given the clusters and the Roles represented above, the following table
+Given the clusters and the Roles represented above, the following table shows
 describes execution flows.
 
 | User Name | Cluster |  Roles | `kubectl get pods --all-namespaces` | `kubectl exec owned_pod` | `kubectl exec other_pod` |
@@ -462,9 +462,9 @@ describes execution flows.
 | user1 |  `cluster1` | `role4`, `role1` |  pods in every namespace (sends `dev-admin`) | allowed by Teleport, allowed by `dev-admin` | allowed by Teleport, allowed by `dev-admin` |
 | user2 |  `cluster2` | `role1` |  pods from `default` namespace (sends `viewer`) | allowed by Teleport, denied by `viewer` | allowed by Teleport, denied by `viewer` |
 | user2 |  `cluster2` | `role2` |  pods from `default` (sends `viewer`) | allowed by Teleport, denied by `viewer` | allowed by Teleport, denied by `viewer` |
-| user3 |  `cluster2` | `role3` |  `owned_pod` from `default` (sends `system:masters`) | allowed by Teleport, allowed by `system:masters` (sends: `system:masters`) | denied by Teleport |
-| user4 |  `cluster2` | `role1`, `role3` |  leaks every pod in every namespace (sends `viewer`,`system:masters`) | allowed by Teleport, allowed by `system:masters` (sends: `system:masters`,`viewer`) | allowed by Teleport, denied by `viewer` (sends:  `viewer`) |
-| user5 |  `cluster2` | `role2`, `role3` | returns every pod in `default` namespace (sends: `viewer`,`system:masters`) | allowed by Teleport, allowed by `system:masters` (sends: `system:masters`,`viewer`) | allowed by Teleport, denied by `viewer` (sends:  `viewer`) |
+| user3 |  `cluster2` | `role3` |  `owned_pod` from `default` (sends `system:masters`) | allowed by Teleport, alowed by `system:masters` (sends: `system:masters`) | denied by Teleport |
+| user4 |  `cluster2` | `role1`, `role3` |  leaks every pod in every namespace (sends `viewer`,`system:masters`) | allowed by Teleport, alowed by `system:masters` (sends: `system:masters`,`viewer`) | allowed by Teleport, denied by `viewer` (sends:  `viewer`) |
+| user5 |  `cluster2` | `role2`, `role3` | returns every pod in `default` namespace (sends: `viewer`,`system:masters`) | allowed by Teleport, alowed by `system:masters` (sends: `system:masters`,`viewer`) | allowed by Teleport, denied by `viewer` (sends:  `viewer`) |
 
 ### Implementation details
 
@@ -500,12 +500,12 @@ This request is represented as `ResourceId` in the following way:
 types.ResourceId{
    Cluster: "<teleport_cluster>",
    Kind: "pod",
-   Name: "<kube_cluster>", //does not support wildcards
+   Name: "<kube_cluster>", //does not support wildcards 
    SubResource: "<pod_namespace>/<pod_name>" // both support wildcards matching
 }
 ```
 
-Once the approver approves the request, the `ResourceId` is encoded into the user's
+Once the approver aproves the request, the `ResourceId` is encoded into the user's
 certificate and *every* role available in `search_as_role` that matches the target
 cluster and the pod name is included in the certificate's roles.
 
@@ -522,8 +522,8 @@ at runtime the Kubernetes principals defined in the roles that match the cluster
 and pod name/namespace.
 
 Each time a user requests an endpoint prefixed with `/api/v1/namespaces/{namespace}/pods/{name}`,
-Teleport Kubernetes Service intercepts the request and extracts the `{name}` and `{namespace}`.
-After, it will validate if the `{name}` and `{namespace}` are included in the `kubernetes_resources`
+Teleport Kubernetes Service intercepts the request and extracts the `{name}`.
+After, it will validate if the `{name}` is included in the `kubernetes_resources`
 array or if it satisfies any wildcard pattern defined on it. If allowed, Teleport
 will forward the request to Kubernetes with the RBAC principals as Impersonation
 headers. Kubernetes will apply a second authorization layer using Kubernetes RBAC
@@ -589,40 +589,36 @@ to a subset of the pods available, it's a requirement that the union of every
 [Restricted Pod Access](#restrict-pod-access-selected) examples. Otherwise,
 Teleport will leak the Pods when the user lists them.
 
-When using the search-as feature, the user's access is restricted to the roles
-that match the cluster labels. This means that the user will only be able to
-access the Pods that are included in the `kubernetes_resources` array of the
-roles that match the cluster labels. Moreover, the user will only be able to
-see the Pod's names, namespaces, and labels and not the Pod's Spec content. This
-prevents the leaking of sensitive information embedded in the Pod's Spec.
-
-When a user requests access to specific pods, the user's access to other resource types
-in the Kubernetes cluster is allowed by Teleport. This means that the user can
-list secrets, deployments, namespaces, etc. To prevent it, the `kubernetes_groups`
-and `kubernetes_users` principals must deny access to those resources and allow access
-to the Pods only.
+When a user lists pods - `kubectl get pods`, using the Kubernetes RBAC given by
+`search_as_roles` or by a Kubernetes RBAC principal that allows listing pods
+before requesting access to a certain Pod, the user has access
+to other details besides the Pod name. It happens because `kubectl get pods -o json|yaml`
+API response returns Pod description that includes env variables, secrets used,
+and other details. This might be a security concern because Pods YAML might contain
+secrets that can be leaked even before creating an access request.
 
 When a user has the ability to `exec` into a Pod, it's also a security concern
 because at that time Teleport access control can be bypassed and the user is able
 to send requests directly to the Kubernetes API endpoint using the Pod's credentials.
-If the target Pod has RBAC permissions attached such as `Impersonation`, delete pods, logs...
+If the target Pod has RBAC permissions atached such as `Impersonation`, delete pods, logs...
 the user bypasses Teleport and is able to execute the commands. Take into consideration
 each RBAC policy attached to each pod.
 
 ### Limitations
 
-1. Difficult to extend to other resources such as namespaces, deployments... It's
+1. Difficult to extend to other resources such as namespaces, deployments... It's 
 difficult to extend them because it would require special handlers for each
 resource type (unmarshal logic + filtering).
 
 2. Teleport must hijack every request that is targeted to endpoints without Pod names.
-Methods to list Pods or delete Pods from a certain namespace must be tampered
+Methods to list Pods or delete Pods from a certain namespace must be tampered 
 with to filter out Pods that the user should not access.
 
 3. Might cause incompatibilities concerns while dealing with different Pod objects.
 
 4. If in the future Pod endpoints are moved to `v2`, Teleport needs to upgrade them accordingly
 
+5. Difficult to support `kubectl delete pods --namespace {namespace}` requests.
 
 ## Teleport will delegate access control to Kubernetes RBAC (**alternative option**)
 
@@ -679,7 +675,7 @@ The changes to Teleport `Role` are defined below.
     - selfsubjectrulesreviews
     verbs:
     - create
-+ - apiGroups:
++ - apiGroups: 
 +   - rbac.authorization.k8s.io
 +   resources:
 +   - rolebindings
@@ -749,14 +745,14 @@ Once the access request expires, Teleport will clean every `Role` and `RoleBindi
 created in the target cluster during the process.
 
 Creating, updating, and deleting `Roles` and `RoleBindings` is the responsibility
-of Teleport Kubernetes Service.
+of Teleport Kubernetes Service. 
 
 ### Limitations
 
 1. Teleport Kubernetes Service - agentless or not - must have permission to create
 `Role` and `RoleBindings` on the cluster. This might become a security concern.
 
-2. Teleport must have watchers to constantly monitor the cluster's Pods and update
+2. Teleport must have watchers to constantly monitor the cluster's Pods and update 
 the `Role` object with every pod that matches the pattern.
 
 ## Appendix

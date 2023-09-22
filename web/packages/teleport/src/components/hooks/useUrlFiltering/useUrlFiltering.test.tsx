@@ -31,7 +31,6 @@ test('extracting params from URL with simple search and sort params', () => {
       dir: 'DESC',
     },
     query: null,
-    kinds: null,
   };
 
   const history = createMemoryHistory({ initialEntries: [url] });
@@ -56,7 +55,6 @@ test('extracting params from URL with advanced search and sort params', () => {
       dir: 'DESC',
     },
     search: null,
-    kinds: null,
   };
 
   const history = createMemoryHistory({ initialEntries: [url] });
@@ -77,7 +75,6 @@ test('extracting params from URL with simple search param but no sort param', ()
     search: 'test! special characters are "totally" 100% cool $_$',
     sort: initialSort,
     query: null,
-    kinds: null,
   };
 
   const history = createMemoryHistory({ initialEntries: [url] });
@@ -97,7 +94,6 @@ test('extracting params from URL with no search param and with sort param with u
     sort: { fieldName: 'name', dir: 'ASC' },
     search: null,
     query: null,
-    kinds: null,
   };
 
   const history = createMemoryHistory({ initialEntries: [url] });
@@ -109,25 +105,6 @@ test('extracting params from URL with no search param and with sort param with u
   });
 
   expect(result.current.params).toEqual(expected);
-});
-
-test('extracting params from URL with resource kinds', () => {
-  const url = '/test?kinds=node&kinds=db';
-  const expected = {
-    kinds: ['node', 'db'],
-    search: null,
-    sort: initialSort,
-    query: null,
-  };
-
-  const history = createMemoryHistory({ initialEntries: [url] });
-
-  const { current } = renderHook(() => useUrlFiltering(initialSort), {
-    wrapper: Wrapper,
-    wrapperProps: { history },
-  });
-
-  expect(current.params).toEqual(expected);
 });
 
 const initialSort: SortType = {

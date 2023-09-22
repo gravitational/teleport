@@ -34,7 +34,7 @@ We can create two roles, one for each user in file `roles.yaml`:
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: alice
 spec:
@@ -46,13 +46,12 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-      - kind: '*'
-        namespace: '*'
-        name: '*'
-        verbs: ['*']
+      - kind: pod
+        namespace: "*"
+        name: "*"
 ---
 kind: role
-version: v7
+version: v6
 metadata:
   name: bob
 spec:
@@ -64,10 +63,9 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-      - kind: '*'
-        namespace: '*'
-        name: '*'
-        verbs: ['*']
+      - kind: pod
+        namespace: "*"
+        name: "*"
 ```
 
 You can create roles and invite Alice and Bob as local users:
@@ -86,7 +84,7 @@ Let's create a role template called `devs.yaml`:
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: devs
 spec:
@@ -98,10 +96,9 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-      - kind: '*'
-        namespace: '*'
-        name: '*'
-        verbs: ['*']
+      - kind: pod
+        namespace: "*"
+        name: "*"
 ```
 
 Any role becomes a template once it starts using template variables.
@@ -215,7 +212,7 @@ Let's create a role template called `sso-users` that expects external attribute
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: sso-users
 spec:
@@ -226,10 +223,9 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-      - kind: '*'
-        namespace: '*'
-        name: '*'
-        verbs: ['*']
+      - kind: pod
+        namespace: "*"
+        name: "*"
 ```
 
 A GitHub connector called `github.yaml` maps every member of team `cyber` in
@@ -326,7 +322,7 @@ Let's see how these variables are used with role template `interpolation`:
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: interpolation
 spec:
@@ -353,10 +349,9 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-      - kind: '*'
-        namespace: '*'
-        name: '*'
-        verbs: ['*']
+      - kind: pod
+        namespace: "*"
+        name: "*"
 ```
 
 After interpolation with Alice's SSO user attributes, the role template will
@@ -364,7 +359,7 @@ behave as the following role:
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: interpolation
 spec:
@@ -395,10 +390,9 @@ spec:
       '*': '*'
 
     kubernetes_resources:
-      - kind: '*'
-        namespace: '*'
-        name: '*'
-        verbs: ['*']
+      - kind: pod
+        namespace: "*"
+        name: "*"
 ```
 
 Available interpolation functions include:

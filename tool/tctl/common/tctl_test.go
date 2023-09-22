@@ -21,15 +21,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 )
 
 // TestConnect tests client config and connection logic.
 func TestConnect(t *testing.T) {
-	dynAddr := helpers.NewDynamicServiceAddr(t)
+	dynAddr := newDynamicServiceAddr(t)
 	ctx := context.Background()
 
 	fileConfig := &config.FileConfig{
@@ -39,11 +38,11 @@ func TestConnect(t *testing.T) {
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: dynAddr.AuthAddr,
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	username := "admin"
 	mustAddUser(t, fileConfig, "admin", "access")
@@ -51,7 +50,7 @@ func TestConnect(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
 		cliFlags     GlobalCLIFlags
-		modifyConfig func(*servicecfg.Config)
+		modifyConfig func(*service.Config)
 	}{
 		{
 			name: "default to data dir",
@@ -59,7 +58,7 @@ func TestConnect(t *testing.T) {
 				AuthServerAddr: []string{fileConfig.Auth.ListenAddress},
 				Insecure:       true,
 			},
-			modifyConfig: func(cfg *servicecfg.Config) {
+			modifyConfig: func(cfg *service.Config) {
 				cfg.DataDir = fileConfig.DataDir
 			},
 		}, {
@@ -84,7 +83,7 @@ func TestConnect(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 			cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			if tc.modifyConfig != nil {
 				tc.modifyConfig(cfg)

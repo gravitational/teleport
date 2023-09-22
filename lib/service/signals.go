@@ -32,7 +32,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -82,16 +81,9 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				process.Shutdown(ctx)
 				process.log.Infof("All services stopped, exiting.")
 				return nil
-			case syscall.SIGTERM, syscall.SIGINT:
-				timeout := getShutdownTimeout(process.log)
-				cancelCtx, cancelFunc := context.WithTimeout(ctx, timeout)
-				process.log.Infof("Got signal %q, exiting within %vs.", signal, timeout.Seconds())
-				go func() {
-					defer cancelFunc()
-					process.Shutdown(cancelCtx)
-				}()
-				<-cancelCtx.Done()
-				process.log.Infof("All services stopped or timeout passed, exiting immediately.")
+			case syscall.SIGTERM, syscall.SIGKILL, syscall.SIGINT:
+				process.log.Infof("Got signal %q, exiting immediately.", signal)
+				process.Close()
 				return nil
 			case syscall.SIGUSR1:
 				// All programs placed diagnostics on the standard output.
@@ -158,31 +150,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 	}
 }
 
-const defaultShutdownTimeout = time.Second * 3
-const maxShutdownTimeout = time.Minute * 10
-
-func getShutdownTimeout(log logrus.FieldLogger) time.Duration {
-	timeout := defaultShutdownTimeout
-
-	// read undocumented env var TELEPORT_UNSTABLE_SHUTDOWN_TIMEOUT.
-	// TODO(Tener): DELETE IN 15.0. after ironing out all possible shutdown bugs.
-	override := os.Getenv("TELEPORT_UNSTABLE_SHUTDOWN_TIMEOUT")
-	if override != "" {
-		t, err := time.ParseDuration(override)
-		if err != nil {
-			log.Warnf("Cannot parse timeout override %q, using default instead.", override)
-		}
-		if err == nil {
-			if t > maxShutdownTimeout {
-				log.Warnf("Timeout override %q exceeds maximum value, reducing.", override)
-				t = maxShutdownTimeout
-			}
-			timeout = t
-		}
-	}
-	return timeout
-}
-
 // ErrTeleportReloading is returned when signal waiter exits
 // because the teleport process has initiaded shutdown
 var ErrTeleportReloading = &trace.CompareFailedError{Message: "teleport process is reloading"}
@@ -220,7 +187,7 @@ func (process *TeleportProcess) closeImportedDescriptors(prefix string) error {
 	defer process.Unlock()
 
 	var errors []error
-	openDescriptors := make([]servicecfg.FileDescriptor, 0, len(process.importedDescriptors))
+	openDescriptors := make([]FileDescriptor, 0, len(process.importedDescriptors))
 	for _, d := range process.importedDescriptors {
 		if strings.HasPrefix(d.Type, prefix) {
 			process.log.Infof("Closing imported but unused descriptor %v %v.", d.Type, d.Address)
@@ -353,8 +320,8 @@ func (process *TeleportProcess) stopListeners() error {
 }
 
 // ExportFileDescriptors exports file descriptors to be passed to child process
-func (process *TeleportProcess) ExportFileDescriptors() ([]servicecfg.FileDescriptor, error) {
-	var out []servicecfg.FileDescriptor
+func (process *TeleportProcess) ExportFileDescriptors() ([]FileDescriptor, error) {
+	var out []FileDescriptor
 	process.Lock()
 	defer process.Unlock()
 	for _, r := range process.registeredListeners {
@@ -362,17 +329,13 @@ func (process *TeleportProcess) ExportFileDescriptors() ([]servicecfg.FileDescri
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		out = append(out, servicecfg.FileDescriptor{
-			File:    file,
-			Type:    string(r.typ),
-			Address: r.address,
-		})
+		out = append(out, FileDescriptor{File: file, Type: string(r.typ), Address: r.address})
 	}
 	return out, nil
 }
 
 // importFileDescriptors imports file descriptors from environment if there are any
-func importFileDescriptors(log logrus.FieldLogger) ([]servicecfg.FileDescriptor, error) {
+func importFileDescriptors(log logrus.FieldLogger) ([]FileDescriptor, error) {
 	// These files may be passed in by the parent process
 	filesString := os.Getenv(teleportFilesEnvVar)
 	os.Unsetenv(teleportFilesEnvVar)
@@ -403,26 +366,25 @@ type registeredListener struct {
 	listener net.Listener
 }
 
-const teleportFilesEnvVar = "TELEPORT_OS_FILES"
-
-func execPath() (string, error) {
-	name, err := exec.LookPath(os.Args[0])
-	if err != nil {
-		return "", err
-	}
-	if _, err = os.Stat(name); nil != err {
-		return "", err
-	}
-	return name, err
+// FileDescriptor is a file descriptor associated
+// with a listener
+type FileDescriptor struct {
+	// Type is a listener type, e.g. auth:ssh
+	Type string
+	// Address is an address of the listener, e.g. 127.0.0.1:3025
+	Address string
+	// File is a file descriptor associated with the listener
+	File *os.File
 }
 
-const (
-	signalPipeName = "teleport-signal-pipe"
-	// signalPipeTimeout is a time parent process is expecting
-	// the child process to initialize and write back,
-	// or child process is blocked on write to the pipe
-	signalPipeTimeout = 2 * time.Minute
-)
+func (fd *FileDescriptor) ToListener() (net.Listener, error) {
+	listener, err := net.FileListener(fd.File)
+	if err != nil {
+		return nil, err
+	}
+	fd.File.Close()
+	return listener, nil
+}
 
 type fileDescriptor struct {
 	Address  string `json:"addr"`
@@ -432,7 +394,7 @@ type fileDescriptor struct {
 }
 
 // filesToString serializes file descriptors as well as accompanying information (like socket host and port)
-func filesToString(files []servicecfg.FileDescriptor) (string, error) {
+func filesToString(files []FileDescriptor) (string, error) {
 	out := make([]fileDescriptor, len(files))
 	for i, f := range files {
 		out[i] = fileDescriptor{
@@ -452,15 +414,28 @@ func filesToString(files []servicecfg.FileDescriptor) (string, error) {
 	return string(bytes), nil
 }
 
+const teleportFilesEnvVar = "TELEPORT_OS_FILES"
+
+func execPath() (string, error) {
+	name, err := exec.LookPath(os.Args[0])
+	if err != nil {
+		return "", err
+	}
+	if _, err = os.Stat(name); nil != err {
+		return "", err
+	}
+	return name, err
+}
+
 // filesFromString de-serializes the file descriptors and turns them in the os.Files
-func filesFromString(in string) ([]servicecfg.FileDescriptor, error) {
+func filesFromString(in string) ([]FileDescriptor, error) {
 	var out []fileDescriptor
 	if err := json.Unmarshal([]byte(in), &out); err != nil {
 		return nil, err
 	}
-	files := make([]servicecfg.FileDescriptor, len(out))
+	files := make([]FileDescriptor, len(out))
 	for i, o := range out {
-		files[i] = servicecfg.FileDescriptor{
+		files[i] = FileDescriptor{
 			File:    os.NewFile(uintptr(o.FileFD), o.FileName),
 			Address: o.Address,
 			Type:    o.Type,
@@ -468,6 +443,14 @@ func filesFromString(in string) ([]servicecfg.FileDescriptor, error) {
 	}
 	return files, nil
 }
+
+const (
+	signalPipeName = "teleport-signal-pipe"
+	// signalPipeTimeout is a time parent process is expecting
+	// the child process to initialize and write back,
+	// or child process is blocked on write to the pipe
+	signalPipeTimeout = 2 * time.Minute
+)
 
 func (process *TeleportProcess) forkChild() error {
 	readPipe, writePipe, err := os.Pipe()
@@ -496,7 +479,7 @@ func (process *TeleportProcess) forkChild() error {
 		return trace.Wrap(err)
 	}
 
-	listenerFiles = append(listenerFiles, servicecfg.FileDescriptor{
+	listenerFiles = append(listenerFiles, FileDescriptor{
 		File:    writePipe,
 		Type:    signalPipeName,
 		Address: "127.0.0.1:0",

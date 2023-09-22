@@ -46,7 +46,7 @@ export TF_VAR_cluster_name="teleport.example.com"
 # OSS: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
 # Enterprise: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-export TF_VAR_ami_name="gravitational-teleport-ami-ent-14.0.0"
+export TF_VAR_ami_name="gravitational-teleport-ami-ent-11.2.1"
 
 # AWS SSH key name to provision in installed instances, should be available in the region
 export TF_VAR_key_name="example"
@@ -54,14 +54,7 @@ export TF_VAR_key_name="example"
 # (optional) Set to true to use ACM (Amazon Certificate Manager) to provision certificates rather than Let's Encrypt
 # If you wish to use a pre-existing ACM certificate rather than having Terraform generate one for you, you can import it:
 # Terraform import aws_acm_certificate.cert <certificate_arn>
-export TF_VAR_use_acm="false"
-
-# (optional) Set to true to use TLS routing to multiplex all Teleport traffic over one port
-# See https://goteleport.com/docs/architecture/tls-routing for more information
-# Setting this will disable ALL separate listener ports. If you also use ACM, then:
-# - you must use Teleport and tsh v13+
-# - you must use `tsh proxy` commands for Kubernetes/database access
-export TF_VAR_use_tls_routing="false"
+# export TF_VAR_use_acm="false"
 
 # Full absolute path to the license file for Teleport Enterprise.
 # This license will be copied into SSM and then pulled down on the auth nodes to enable Enterprise functionality
@@ -79,15 +72,12 @@ export TF_VAR_route53_domain="cluster.example.com"
 export TF_VAR_add_wildcard_route53_record="true"
 
 # Enable adding MongoDB listeners in Teleport proxy, load balancer ports, and security groups
-# This will be ignored if TF_VAR_use_tls_routing=true
 export TF_VAR_enable_mongodb_listener="true"
 
 # Enable adding MySQL listeners in Teleport proxy, load balancer ports, and security groups
-# This will be ignored if TF_VAR_use_tls_routing=true
 export TF_VAR_enable_mysql_listener="true"
 
 # Enable adding Postgres listeners in Teleport proxy, load balancer ports, and security groups
-# This will be ignored if TF_VAR_use_tls_routing=true
 export TF_VAR_enable_postgres_listener="true"
 
 # (optional) If using ACM, set an additional DNS alias which will be added pointing to the NLB. This can
@@ -95,7 +85,6 @@ export TF_VAR_enable_postgres_listener="true"
 # Teleport Kubernetes config to prevent certificate SNI issues. You can use this DNS name with commands like:
 # `tctl auth sign --user=foo --format=kubernetes --out=kubeconfig --proxy=https://cluster-nlb.example.com:3026`
 # This setting only takes effect when using ACM, it will be ignored otherwise.
-# This setting only takes effect when TLS routing is _not_ enabled, it will be ignored otherwise.
 #export TF_VAR_route53_domain_acm_nlb_alias="cluster-nlb.example.com"
 
 # Bucket name to store encrypted Let's Encrypt certificates.

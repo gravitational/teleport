@@ -14,97 +14,99 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { lazy } from 'react';
+import React from 'react';
 
 import {
-  AddCircle,
-  Application,
-  CirclePlay,
-  ClipboardUser,
-  Cluster,
-  Database,
-  Desktop,
-  EqualizersVertical,
-  Integrations as IntegrationsIcon,
-  Kubernetes,
-  Laptop,
-  ListThin,
-  Lock,
-  Question,
-  Server,
-  ShieldCheck,
-  SlidersVertical,
-  Terminal,
-  UserCircleGear,
-  Users as UsersIcon,
-} from 'design/Icon';
+  ActiveSessionsIcon,
+  AddIcon,
+  ApplicationsIcon,
+  AuditLogIcon,
+  AuthConnectorsIcon,
+  DatabasesIcon,
+  DesktopsIcon,
+  IntegrationsIcon,
+  KubernetesIcon,
+  ManageClustersIcon,
+  RolesIcon,
+  ServersIcon,
+  SessionRecordingsIcon,
+  SupportIcon,
+  TrustedClustersIcon,
+  UserSettingsIcon,
+  UsersIcon,
+} from 'design/SVGIcon';
 
 import cfg from 'teleport/config';
-
-import localStorage from 'teleport/services/localStorage';
 
 import {
   ManagementSection,
   NavigationCategory,
 } from 'teleport/Navigation/categories';
 
-import { NavTitle } from './types';
+import type { TeleportFeature, FeatureFlags } from './types';
 
-import type { FeatureFlags, TeleportFeature } from './types';
-
-const Audit = lazy(() => import('./Audit'));
-const Nodes = lazy(() => import('./Nodes'));
-const Sessions = lazy(() => import('./Sessions'));
-const UnifiedResources = lazy(() => import('./UnifiedResources'));
-const Account = lazy(() => import('./Account'));
-const Applications = lazy(() => import('./Apps'));
-const Kubes = lazy(() => import('./Kubes'));
-const Support = lazy(() => import('./Support'));
-const Clusters = lazy(() => import('./Clusters'));
-const Trust = lazy(() => import('./TrustedClusters'));
-const Users = lazy(() => import('./Users'));
-const Roles = lazy(() => import('./Roles'));
-const DeviceTrust = lazy(() => import('./DeviceTrust'));
-const Recordings = lazy(() => import('./Recordings'));
-const AuthConnectors = lazy(() => import('./AuthConnectors'));
-const Locks = lazy(() => import('./LocksV2/Locks'));
-const NewLock = lazy(() => import('./LocksV2/NewLock'));
-const Databases = lazy(() => import('./Databases'));
-const Desktops = lazy(() => import('./Desktops'));
-const Discover = lazy(() => import('./Discover'));
-const LockedAccessRequests = lazy(() => import('./AccessRequests'));
-const Integrations = lazy(() => import('./Integrations'));
-const IntegrationEnroll = lazy(
-  () => import('@gravitational/teleport/src/Integrations/Enroll')
+const Audit = React.lazy(
+  () => import(/* webpackChunkName: "audit" */ './Audit')
 );
+const Nodes = React.lazy(
+  () => import(/* webpackChunkName: "nodes" */ './Nodes')
+);
+const Sessions = React.lazy(
+  () => import(/* webpackChunkName: "sessions" */ './Sessions')
+);
+const Account = React.lazy(
+  () => import(/* webpackChunkName: "account" */ './Account')
+);
+const Applications = React.lazy(
+  () => import(/* webpackChunkName: "apps" */ './Apps')
+);
+const Kubes = React.lazy(
+  () => import(/* webpackChunkName: "kubes" */ './Kubes')
+);
+const Support = React.lazy(
+  () => import(/* webpackChunkName: "support" */ './Support')
+);
+const Clusters = React.lazy(
+  () => import(/* webpackChunkName: "clusters" */ './Clusters')
+);
+const Trust = React.lazy(
+  () => import(/* webpackChunkName: "trusted-clusters" */ './TrustedClusters')
+);
+const Users = React.lazy(
+  () => import(/* webpackChunkName: "users" */ './Users')
+);
+const Roles = React.lazy(
+  () => import(/* webpackChunkName: "roles" */ './Roles')
+);
+const Recordings = React.lazy(
+  () => import(/* webpackChunkName: "recordings" */ './Recordings')
+);
+const AuthConnectors = React.lazy(
+  () => import(/* webpackChunkName: "auth-connectors" */ './AuthConnectors')
+);
+const Databases = React.lazy(
+  () => import(/* webpackChunkName: "databases" */ './Databases')
+);
+const Desktops = React.lazy(
+  () => import(/* webpackChunkName: "desktop" */ './Desktops')
+);
+const Discover = React.lazy(
+  () => import(/* webpackChunkName: "discover" */ './Discover')
+);
+const Integrations = React.lazy(
+  () => import(/* webpackChunkName: "integrations" */ './Integrations')
+);
+const IntegrationEnroll = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "integration-enroll" */ '@gravitational/teleport/src/Integrations/Enroll'
+    )
+);
+const Assist = React.lazy(() => import('./Assist'));
 
 // ****************************
 // Resource Features
 // ****************************
-
-class AccessRequests implements TeleportFeature {
-  category = NavigationCategory.Resources;
-
-  route = {
-    title: 'Access Requests',
-    path: cfg.routes.accessRequest,
-    exact: true,
-    component: LockedAccessRequests,
-  };
-
-  hasAccess() {
-    return true;
-  }
-
-  navigationItem = {
-    title: NavTitle.AccessRequests,
-    icon: <EqualizersVertical />,
-    exact: true,
-    getLink() {
-      return cfg.routes.accessRequest;
-    },
-  };
-}
 
 export class FeatureNodes implements TeleportFeature {
   route = {
@@ -115,46 +117,18 @@ export class FeatureNodes implements TeleportFeature {
   };
 
   navigationItem = {
-    title: NavTitle.Servers,
-    icon: <Server />,
+    title: 'Servers',
+    icon: <ServersIcon />,
     exact: true,
     getLink(clusterId: string) {
       return cfg.getNodesRoute(clusterId);
     },
   };
 
-  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
-
   category = NavigationCategory.Resources;
 
   hasAccess(flags: FeatureFlags) {
     return flags.nodes;
-  }
-}
-
-export class FeatureUnifiedResources implements TeleportFeature {
-  route = {
-    title: 'Resources',
-    path: cfg.routes.unifiedResources,
-    exact: true,
-    component: UnifiedResources,
-  };
-
-  navigationItem = {
-    title: NavTitle.Resources,
-    icon: <Server />,
-    exact: true,
-    getLink(clusterId: string) {
-      return cfg.getUnifiedResourcesRoute(clusterId);
-    },
-  };
-
-  hideFromNavigation = !localStorage.areUnifiedResourcesEnabled();
-
-  category = NavigationCategory.Resources;
-
-  hasAccess() {
-    return true;
   }
 }
 
@@ -168,15 +142,13 @@ export class FeatureApps implements TeleportFeature {
     component: Applications,
   };
 
-  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
-
   hasAccess(flags: FeatureFlags) {
     return flags.applications;
   }
 
   navigationItem = {
-    title: NavTitle.Applications,
-    icon: <Application />,
+    title: 'Applications',
+    icon: <ApplicationsIcon />,
     exact: true,
     getLink(clusterId: string) {
       return cfg.getAppsRoute(clusterId);
@@ -194,15 +166,13 @@ export class FeatureKubes implements TeleportFeature {
     component: Kubes,
   };
 
-  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
-
   hasAccess(flags: FeatureFlags) {
     return flags.kubernetes;
   }
 
   navigationItem = {
-    title: NavTitle.Kubernetes,
-    icon: <Kubernetes />,
+    title: 'Kubernetes',
+    icon: <KubernetesIcon />,
     exact: true,
     getLink(clusterId: string) {
       return cfg.getKubernetesRoute(clusterId);
@@ -220,15 +190,13 @@ export class FeatureDatabases implements TeleportFeature {
     component: Databases,
   };
 
-  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
-
   hasAccess(flags: FeatureFlags) {
     return flags.databases;
   }
 
   navigationItem = {
-    title: NavTitle.Databases,
-    icon: <Database />,
+    title: 'Databases',
+    icon: <DatabasesIcon />,
     exact: true,
     getLink(clusterId: string) {
       return cfg.getDatabasesRoute(clusterId);
@@ -246,15 +214,13 @@ export class FeatureDesktops implements TeleportFeature {
     component: Desktops,
   };
 
-  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
-
   hasAccess(flags: FeatureFlags) {
     return flags.desktops;
   }
 
   navigationItem = {
-    title: NavTitle.Desktops,
-    icon: <Desktop />,
+    title: 'Desktops',
+    icon: <DesktopsIcon />,
     exact: true,
     getLink(clusterId: string) {
       return cfg.getDesktopsRoute(clusterId);
@@ -277,8 +243,8 @@ export class FeatureSessions implements TeleportFeature {
   }
 
   navigationItem = {
-    title: NavTitle.ActiveSessions,
-    icon: <Terminal />,
+    title: 'Active Sessions',
+    icon: <ActiveSessionsIcon />,
     exact: true,
     getLink(clusterId: string) {
       return cfg.getSessionsRoute(clusterId);
@@ -308,7 +274,7 @@ export class FeatureUsers implements TeleportFeature {
   }
 
   navigationItem = {
-    title: NavTitle.Users,
+    title: 'Users',
     icon: <UsersIcon />,
     exact: true,
     getLink() {
@@ -333,8 +299,8 @@ export class FeatureRoles implements TeleportFeature {
   }
 
   navigationItem = {
-    title: NavTitle.Roles,
-    icon: <ClipboardUser />,
+    title: 'Roles',
+    icon: <RolesIcon />,
     exact: true,
     getLink() {
       return cfg.routes.roles;
@@ -358,57 +324,13 @@ export class FeatureAuthConnectors implements TeleportFeature {
   }
 
   navigationItem = {
-    title: NavTitle.AuthConnectors,
-    icon: <ShieldCheck />,
+    title: 'Auth Connectors',
+    icon: <AuthConnectorsIcon />,
     exact: false,
     getLink() {
       return cfg.routes.sso;
     },
   };
-}
-
-export class FeatureLocks implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Access;
-
-  route = {
-    title: 'Manage Session & Identity Locks',
-    path: cfg.routes.locks,
-    exact: true,
-    component: Locks,
-  };
-
-  hasAccess(flags: FeatureFlags) {
-    return flags.locks;
-  }
-
-  navigationItem = {
-    title: NavTitle.SessionAndIdentityLocks,
-    icon: <Lock />,
-    exact: false,
-    getLink() {
-      return cfg.getLocksRoute();
-    },
-  };
-}
-
-export class FeatureNewLock implements TeleportFeature {
-  route = {
-    title: 'Create New Lock',
-    path: cfg.routes.newLock,
-    exact: true,
-    component: NewLock,
-  };
-
-  hasAccess(flags: FeatureFlags) {
-    return flags.newLocks;
-  }
-
-  // getRoute allows child class extending this
-  // parent class to refer to this parent's route.
-  getRoute() {
-    return this.route;
-  }
 }
 
 export class FeatureDiscover implements TeleportFeature {
@@ -420,8 +342,8 @@ export class FeatureDiscover implements TeleportFeature {
   };
 
   navigationItem = {
-    title: NavTitle.EnrollNewResource,
-    icon: <AddCircle />,
+    title: 'Enroll New Resource',
+    icon: <AddIcon />,
     exact: true,
     getLink() {
       return cfg.routes.discover;
@@ -456,7 +378,7 @@ export class FeatureIntegrations implements TeleportFeature {
   };
 
   navigationItem = {
-    title: NavTitle.Integrations,
+    title: 'Integrations',
     icon: <IntegrationsIcon />,
     exact: true,
     getLink() {
@@ -485,8 +407,8 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
   }
 
   navigationItem = {
-    title: NavTitle.EnrollNewIntegration,
-    icon: <AddCircle />,
+    title: 'Enroll New Integration',
+    icon: <AddIcon />,
     getLink() {
       return cfg.getIntegrationEnrollRoute(null);
     },
@@ -517,8 +439,8 @@ export class FeatureRecordings implements TeleportFeature {
   }
 
   navigationItem = {
-    title: NavTitle.SessionRecordings,
-    icon: <CirclePlay />,
+    title: 'Session Recordings',
+    icon: <SessionRecordingsIcon />,
     exact: true,
     getLink(clusterId: string) {
       return cfg.getRecordingsRoute(clusterId);
@@ -541,8 +463,8 @@ export class FeatureAudit implements TeleportFeature {
   }
 
   navigationItem = {
-    title: NavTitle.AuditLog,
-    icon: <ListThin />,
+    title: 'Audit Log',
+    icon: <AuditLogIcon />,
     getLink(clusterId: string) {
       return cfg.getAuditRoute(clusterId);
     },
@@ -567,8 +489,8 @@ export class FeatureClusters implements TeleportFeature {
   }
 
   navigationItem = {
-    title: NavTitle.ManageClusters,
-    icon: <SlidersVertical />,
+    title: 'Manage Clusters',
+    icon: <ManageClustersIcon />,
     exact: false,
     getLink() {
       return cfg.routes.clusters;
@@ -591,34 +513,10 @@ export class FeatureTrust implements TeleportFeature {
   }
 
   navigationItem = {
-    title: NavTitle.TrustedClusters,
-    icon: <Cluster />,
+    title: 'Trusted Clusters',
+    icon: <TrustedClustersIcon />,
     getLink() {
       return cfg.routes.trustedClusters;
-    },
-  };
-}
-
-class FeatureDeviceTrust implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Access;
-  route = {
-    title: 'Manage Trusted Devices',
-    path: cfg.routes.deviceTrust,
-    exact: true,
-    component: DeviceTrust,
-  };
-
-  hasAccess(flags: FeatureFlags) {
-    return flags.deviceTrust;
-  }
-
-  navigationItem = {
-    title: NavTitle.TrustedDevices,
-    icon: <Laptop />,
-    exact: true,
-    getLink() {
-      return cfg.routes.deviceTrust;
     },
   };
 }
@@ -639,8 +537,8 @@ export class FeatureAccount implements TeleportFeature {
   }
 
   topMenuItem = {
-    title: NavTitle.AccountSettings,
-    icon: <UserCircleGear />,
+    title: 'Account Settings',
+    icon: <UserSettingsIcon size={16} />,
     getLink() {
       return cfg.routes.account;
     },
@@ -660,8 +558,8 @@ export class FeatureHelpAndSupport implements TeleportFeature {
   }
 
   topMenuItem = {
-    title: NavTitle.HelpAndSupport,
-    icon: <Question />,
+    title: 'Help & Support',
+    icon: <SupportIcon size={16} />,
     exact: true,
     getLink() {
       return cfg.routes.support;
@@ -669,16 +567,29 @@ export class FeatureHelpAndSupport implements TeleportFeature {
   };
 }
 
+export class FeatureAssist implements TeleportFeature {
+  category = NavigationCategory.Assist;
+
+  route = {
+    title: 'Assist',
+    path: cfg.routes.assist,
+    exact: false,
+    component: Assist,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.assist;
+  }
+}
+
 export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
-    new FeatureUnifiedResources(),
     new FeatureNodes(),
     new FeatureApps(),
     new FeatureKubes(),
     new FeatureDatabases(),
     new FeatureDesktops(),
-    new AccessRequests(),
     new FeatureSessions(),
 
     // Management
@@ -686,10 +597,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     // - Access
     new FeatureUsers(),
     new FeatureRoles(),
-    new FeatureDeviceTrust(),
     new FeatureAuthConnectors(),
-    new FeatureLocks(),
-    new FeatureNewLock(),
     new FeatureIntegrations(),
     new FeatureDiscover(),
     new FeatureIntegrationEnroll(),
@@ -705,5 +613,6 @@ export function getOSSFeatures(): TeleportFeature[] {
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
+    new FeatureAssist(),
   ];
 }

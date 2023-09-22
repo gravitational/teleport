@@ -48,7 +48,7 @@ export function DeleteIntegrationDialog(props: Props) {
         {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
         <Text typography="paragraph" mb="6">
           Are you sure you want to delete integration{' '}
-          <Text as="span" bold color="text.main">
+          <Text as="span" bold color="text.contrast">
             {props.name}
           </Text>{' '}
           ?

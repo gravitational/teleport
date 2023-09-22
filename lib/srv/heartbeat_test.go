@@ -34,7 +34,7 @@ import (
 func TestHeartbeatKeepAlive(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	var tests = []struct {
 		name       string
 		mode       HeartbeatMode
 		makeServer func() types.Resource
@@ -83,11 +83,36 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 					Version: types.V3,
 					Metadata: types.Metadata{
 						Namespace: apidefaults.Namespace,
-						Name:      "db-1",
+						Name:      "1",
 					},
 					Spec: types.DatabaseServerSpecV3{
-						Database: mustCreateDatabase(t, "db-1", defaults.ProtocolPostgres, "127.0.0.1:1234"),
+						Protocol: defaults.ProtocolPostgres,
+						URI:      "127.0.0.1:1234",
 						Hostname: "2",
+					},
+				}
+			},
+		},
+		{
+			name: "keep alive kubernetes server",
+			mode: HeartbeatModeKube,
+			makeServer: func() types.Resource {
+				return &types.KubernetesServerV3{
+					Kind:    types.KindKubeService,
+					Version: types.V2,
+					Metadata: types.Metadata{
+						Namespace: apidefaults.Namespace,
+						Name:      "1",
+					},
+					Spec: types.KubernetesServerSpecV3{
+						Hostname: "127.0.0.1:1234",
+						Cluster: &types.KubernetesClusterV3{
+							Metadata: types.Metadata{
+								Namespace: apidefaults.Namespace,
+								Name:      "1",
+							},
+							Spec: types.KubernetesClusterSpecV3{},
+						},
 					},
 				}
 			},
@@ -116,7 +141,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 			clock := clockwork.NewFakeClock()
 			announcer := newFakeAnnouncer(ctx)
@@ -210,20 +235,6 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 	}
 }
 
-func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
-	database, err := types.NewDatabaseV3(
-		types.Metadata{
-			Name: name,
-		},
-		types.DatabaseSpecV3{
-			Protocol: protocol,
-			URI:      uri,
-		},
-	)
-	require.NoError(t, err)
-	return database
-}
-
 // TestHeartbeatAnnounce tests announce cycles used for proxies and auth servers
 func TestHeartbeatAnnounce(t *testing.T) {
 	t.Parallel()
@@ -237,7 +248,7 @@ func TestHeartbeatAnnounce(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.mode.String(), func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 			clock := clockwork.NewFakeClock()
 
@@ -290,7 +301,7 @@ func TestHeartbeatAnnounce(t *testing.T) {
 			require.Equal(t, hb.state, HeartbeatStateAnnounceWait)
 
 			// advance time, and heartbeat will move to announce
-			clock.Advance(hb.AnnouncePeriod + time.Second)
+			clock.Advance(hb.AnnouncePeriod * time.Second)
 			err = hb.fetch()
 			require.NoError(t, err)
 			require.Equal(t, hb.state, HeartbeatStateAnnounce)
@@ -376,6 +387,19 @@ func (f *fakeAnnouncer) UpsertAuthServer(ctx context.Context, s types.Server) er
 	return f.err
 }
 
+func (f *fakeAnnouncer) UpsertKubeService(ctx context.Context, s types.Server) error {
+	f.upsertCalls[HeartbeatModeKube]++
+	return f.err
+}
+
+func (f *fakeAnnouncer) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+	f.upsertCalls[HeartbeatModeKube]++
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &types.KeepAlive{}, f.err
+}
+
 func (f *fakeAnnouncer) UpsertKubernetesServer(ctx context.Context, s types.KubeServer) (*types.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeKube]++
 	if f.err != nil {
@@ -392,7 +416,12 @@ func (f *fakeAnnouncer) UpsertWindowsDesktopService(ctx context.Context, s types
 	return &types.KeepAlive{}, nil
 }
 
-func (f *fakeAnnouncer) UpsertWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
+func (f *fakeAnnouncer) CreateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
+	f.upsertCalls[HeartbeatModeWindowsDesktop]++
+	return f.err
+}
+
+func (f *fakeAnnouncer) UpdateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
 	f.upsertCalls[HeartbeatModeWindowsDesktop]++
 	return f.err
 }
@@ -404,7 +433,6 @@ func (f *fakeAnnouncer) UpsertDatabaseService(ctx context.Context, s types.Datab
 	}
 	return &types.KeepAlive{}, nil
 }
-
 func (f *fakeAnnouncer) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
 	return f, f.err
 }

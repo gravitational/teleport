@@ -20,6 +20,7 @@ import { TestLayout } from 'teleport/Console/Console.story';
 import ConsoleContext from 'teleport/Console/consoleContext';
 
 import ClusterSelector from './ClusterSelector';
+import ThemeProvider from './../ThemeProvider';
 
 export default {
   title: 'Teleport/Console/DocumentNodes/ClusterSelector',
@@ -57,15 +58,17 @@ export const Failed = () => {
 function renderlusterSelector(ctx, { ...props } = {}) {
   return (
     <TestLayout ctx={ctx}>
-      <ClusterSelector
-        mx="auto"
-        open={true}
-        value={'clusterId'}
-        width="400px"
-        maxMenuHeight={200}
-        onChange={() => null}
-        {...props}
-      />
+      <ThemeProvider>
+        <ClusterSelector
+          mx="auto"
+          open={true}
+          value={'clusterId'}
+          width="400px"
+          maxMenuHeight={200}
+          onChange={() => null}
+          {...props}
+        />
+      </ThemeProvider>
     </TestLayout>
   );
 }

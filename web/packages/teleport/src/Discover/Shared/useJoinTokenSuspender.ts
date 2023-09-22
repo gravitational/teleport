@@ -25,7 +25,7 @@ import {
 
 import { useDiscover } from '../useDiscover';
 
-import type { ResourceLabel } from 'teleport/services/agents';
+import type { AgentLabel } from 'teleport/services/agents';
 import type { JoinMethod, JoinToken } from 'teleport/services/joinToken';
 
 interface SuspendResult {
@@ -35,15 +35,15 @@ interface SuspendResult {
 }
 
 let abortController: AbortController;
-let joinTokenCache = new Map<string, SuspendResult>();
+let joinTokenCache = new Map<ResourceKind, SuspendResult>();
 
-export function clearCachedJoinTokenResult(resourceKinds: ResourceKind[]) {
-  joinTokenCache.delete(resourceKinds.sort().join());
+export function clearCachedJoinTokenResult(resourceKind: ResourceKind) {
+  joinTokenCache.delete(resourceKind);
 }
 
 export function useJoinTokenSuspender(
-  resourceKinds: ResourceKind[],
-  suggestedAgentMatcherLabels: ResourceLabel[] = [],
+  resourceKind: ResourceKind,
+  suggestedAgentMatcherLabels: AgentLabel[] = [],
   joinMethod: JoinMethod = 'token'
 ): {
   joinToken: JoinToken;
@@ -54,8 +54,6 @@ export function useJoinTokenSuspender(
 
   const [, rerender] = useState(0);
 
-  const kindsKey = resourceKinds.sort().join();
-
   function run() {
     abortController = new AbortController();
 
@@ -65,7 +63,7 @@ export function useJoinTokenSuspender(
       promise: ctx.joinTokenService
         .fetchJoinToken(
           {
-            roles: resourceKinds.map(resourceKindToJoinRole),
+            roles: [resourceKindToJoinRole(resourceKind)],
             method: joinMethod,
             suggestedAgentMatcherLabels,
           },
@@ -87,7 +85,7 @@ export function useJoinTokenSuspender(
         }),
     };
 
-    joinTokenCache.set(kindsKey, result);
+    joinTokenCache.set(resourceKind, result);
 
     return result;
   }
@@ -98,7 +96,7 @@ export function useJoinTokenSuspender(
     };
   }, []);
 
-  const existing = joinTokenCache.get(kindsKey);
+  const existing = joinTokenCache.get(resourceKind);
 
   if (existing) {
     if (existing.error) {
@@ -112,7 +110,7 @@ export function useJoinTokenSuspender(
           // Delete the cached token and force a rerender
           // so that this hook runs again and creates a new one.
 
-          joinTokenCache.delete(kindsKey);
+          joinTokenCache.delete(resourceKind);
 
           rerender(c => c + 1);
         },

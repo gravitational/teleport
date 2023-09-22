@@ -138,7 +138,7 @@ const (
 // secrecy (ECDHE).
 //
 // Note that TLS_RSA_WITH_AES_128_GCM_SHA{256,384} have been dropped due to
-// being banned by HTTP2 which breaks gRPC clients. For more information see:
+// being banned by HTTP2 which breaks GRPC clients. For more information see:
 // https://tools.ietf.org/html/rfc7540#appendix-A. These two can still be
 // manually added if needed.
 func DefaultCipherSuites() []uint16 {

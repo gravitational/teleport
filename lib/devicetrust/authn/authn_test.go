@@ -28,9 +28,7 @@ import (
 )
 
 func TestRunCeremony(t *testing.T) {
-	env := testenv.MustNew(
-		testenv.WithAutoCreateDevice(true),
-	)
+	env := testenv.MustNew()
 	defer env.Close()
 
 	devices := env.DevicesClient
@@ -40,24 +38,16 @@ func TestRunCeremony(t *testing.T) {
 	// data to verify challenge signatures.
 	macOSDev1, err := testenv.NewFakeMacOSDevice()
 	require.NoError(t, err, "NewFakeMacOSDevice failed")
-	windowsDev1 := testenv.NewFakeWindowsDevice()
+	require.NoError(t, enrollDevice(ctx, devices, macOSDev1), "enrollDevice failed")
 
 	tests := []struct {
 		name  string
-		dev   testenv.FakeDevice
+		dev   *testenv.FakeMacOSDevice
 		certs *devicepb.UserCertificates
 	}{
 		{
-			name: "macOS ok",
+			name: "ok",
 			dev:  macOSDev1,
-			certs: &devicepb.UserCertificates{
-				// SshAuthorizedKey is not parsed by the fake server.
-				SshAuthorizedKey: []byte("<a proper SSH certificate goes here>"),
-			},
-		},
-		{
-			name: "windows ok",
-			dev:  windowsDev1,
 			certs: &devicepb.UserCertificates{
 				// SshAuthorizedKey is not parsed by the fake server.
 				SshAuthorizedKey: []byte("<a proper SSH certificate goes here>"),
@@ -68,20 +58,11 @@ func TestRunCeremony(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ceremony := authn.Ceremony{
 				GetDeviceCredential: func() (*devicepb.DeviceCredential, error) {
-					return test.dev.GetDeviceCredential(), nil
+					return test.dev.DeviceCredential(), nil
 				},
-				CollectDeviceData:            test.dev.CollectDeviceData,
-				SignChallenge:                test.dev.SignChallenge,
-				SolveTPMAuthnDeviceChallenge: test.dev.SolveTPMAuthnDeviceChallenge,
-				GetDeviceOSType:              test.dev.GetDeviceOSType,
+				CollectDeviceData: test.dev.CollectDeviceData,
+				SignChallenge:     test.dev.SignChallenge,
 			}
-
-			// We need to enroll the device before we can test device auth
-			require.NoError(
-				t,
-				enrollDevice(ctx, devices, test.dev),
-				"enrollDevice failed",
-			)
 
 			_, err := ceremony.Run(ctx, devices, test.certs)
 			// A nil error is good enough for this test.
@@ -90,21 +71,27 @@ func TestRunCeremony(t *testing.T) {
 	}
 }
 
-func enrollDevice(ctx context.Context, devices devicepb.DeviceTrustServiceClient, dev testenv.FakeDevice) error {
+func enrollDevice(ctx context.Context, devices devicepb.DeviceTrustServiceClient, dev *testenv.FakeMacOSDevice) error {
 	stream, err := devices.EnrollDevice(ctx)
 	if err != nil {
 		return err
 	}
 
 	// 1. Init.
-	enrollDeviceInit, err := dev.EnrollDeviceInit()
+	cd, err := dev.CollectDeviceData()
 	if err != nil {
-		return fmt.Errorf("enroll device init: %w", err)
+		return err
 	}
-	enrollDeviceInit.Token = testenv.FakeEnrollmentToken
 	if err := stream.Send(&devicepb.EnrollDeviceRequest{
 		Payload: &devicepb.EnrollDeviceRequest_Init{
-			Init: enrollDeviceInit,
+			Init: &devicepb.EnrollDeviceInit{
+				Token:        "fake enroll token",
+				CredentialId: dev.ID,
+				DeviceData:   cd,
+				Macos: &devicepb.MacOSEnrollPayload{
+					PublicKeyDer: dev.PubKeyDER,
+				},
+			},
 		},
 	}); err != nil {
 		return err
@@ -115,35 +102,18 @@ func enrollDevice(ctx context.Context, devices devicepb.DeviceTrustServiceClient
 	if err != nil {
 		return fmt.Errorf("challenge Recv: %w", err)
 	}
-	switch osType := dev.GetDeviceOSType(); osType {
-	case devicepb.OSType_OS_TYPE_MACOS:
-		sig, err := dev.SignChallenge(resp.GetMacosChallenge().Challenge)
-		if err != nil {
-			return err
-		}
-		if err := stream.Send(&devicepb.EnrollDeviceRequest{
-			Payload: &devicepb.EnrollDeviceRequest_MacosChallengeResponse{
-				MacosChallengeResponse: &devicepb.MacOSEnrollChallengeResponse{
-					Signature: sig,
-				},
+	sig, err := dev.SignChallenge(resp.GetMacosChallenge().Challenge)
+	if err != nil {
+		return err
+	}
+	if err := stream.Send(&devicepb.EnrollDeviceRequest{
+		Payload: &devicepb.EnrollDeviceRequest_MacosChallengeResponse{
+			MacosChallengeResponse: &devicepb.MacOSEnrollChallengeResponse{
+				Signature: sig,
 			},
-		}); err != nil {
-			return err
-		}
-	case devicepb.OSType_OS_TYPE_WINDOWS:
-		solution, err := dev.SolveTPMEnrollChallenge(resp.GetTpmChallenge(), false /* debug */)
-		if err != nil {
-			return err
-		}
-		if err := stream.Send(&devicepb.EnrollDeviceRequest{
-			Payload: &devicepb.EnrollDeviceRequest_TpmChallengeResponse{
-				TpmChallengeResponse: solution,
-			},
-		}); err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("unrecognized device os type %q", osType)
+		},
+	}); err != nil {
+		return err
 	}
 
 	// 3. Success.

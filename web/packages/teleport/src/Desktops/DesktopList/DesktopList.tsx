@@ -21,7 +21,7 @@ import { FetchStatus, SortType } from 'design/DataTable/types';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 
 import { Desktop } from 'teleport/services/desktops';
-import { ResourceLabel, ResourceFilter } from 'teleport/services/agents';
+import { AgentLabel, AgentFilter } from 'teleport/services/agents';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
 
 import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
@@ -156,12 +156,12 @@ type Props = {
   fetchNext: () => void;
   fetchPrev: () => void;
   fetchStatus: FetchStatus;
-  params: ResourceFilter;
-  setParams: (params: ResourceFilter) => void;
+  params: AgentFilter;
+  setParams: (params: AgentFilter) => void;
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
-  onLabelClick: (label: ResourceLabel) => void;
+  onLabelClick: (label: AgentLabel) => void;
   pageIndicators: PageIndicators;
 };
 

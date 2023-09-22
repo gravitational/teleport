@@ -19,27 +19,12 @@ package prehog.v1alpha;
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
-// a successful user login
-//
-// PostHog event: tp.user.login
 message UserLoginEvent {
-  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64;
-  // should always be a real user as bots and service accounts with long-term
-  // credentials don't ever login
-  //
-  // PostHog property: tp.user_name
+  // anonymized
   string user_name = 1;
-
-  // type of the auth connector used in the login, should be
-  // "local"/"github"/"saml"/"oidc"
-  //
-  // PostHog property: tp.connector_type
+  // local/github/saml/oidc
   string connector_type = 2;
-
-  // anonymized device ID, empty or 32 bytes (HMAC-SHA-256) encoded in base64;
-  // for logins where device trust is enabled
-  //
-  // PostHog property: tp.device_id
+  // The anonymized device ID, for logins where device trust is enabled.
   string device_id = 3;
 }
 
@@ -48,107 +33,39 @@ message SSOCreateEvent {
   string connector_type = 1;
 }
 
-// ResourceCreateEvent is emitted when a resource is created.
 message ResourceCreateEvent {
-  // resource_type is the type of resource ("node", "node.openssh", "db", "k8s").
+  // TODO(espadolini): is a resource the teleport process or the
+  // databases/desktops/kube clusters accessed through it?
   string resource_type = 1;
-  // resource_origin is the origin of the resource ("cloud").
-  string resource_origin = 2;
-  // cloud_provider is the cloud provider the resource came from ("AWS", "Azure", "GCP").
-  string cloud_provider = 3;
-  // database contains additional database information if resource_type == "db".
-  DiscoveredDatabaseMetadata database = 4;
-}
 
-// DiscoveredDatabaseMetadata contains additional database information.
-message DiscoveredDatabaseMetadata {
-  // database type.
-  string db_type = 1;
-  // database protocol.
-  string db_protocol = 2;
+  // TODO(espadolini): flags for Discover, autodiscovery, join scripts?
 }
 
 // the kind of a "resource" as intended by ResourceHeartbeatEvent
 enum ResourceKind {
   RESOURCE_KIND_UNSPECIFIED = 0;
-
-  // PostHog property value: "node"
   RESOURCE_KIND_NODE = 1;
-
-  // PostHog property value: "app_server"
   RESOURCE_KIND_APP_SERVER = 2;
-
-  // PostHog property value: "kube_server"
   RESOURCE_KIND_KUBE_SERVER = 3;
-
-  // PostHog property value: "db_server"
   RESOURCE_KIND_DB_SERVER = 4;
-
-  // PostHog property value: "windows_desktop"
   RESOURCE_KIND_WINDOWS_DESKTOP = 5;
-
-  // ServerV3 ("node") heartbeat with a subkind of "openssh" (as opposed to
-  // empty or "teleport"); not used in keepalives
-  //
-  // PostHog property value: "node.openssh"
   RESOURCE_KIND_NODE_OPENSSH = 6;
-
-  // ServerV3 ("node") heartbeat with a subkind of "openssh-ec2-ice".
-  // Nodes that map EC2 instances and are accessed using EC2 Instance Connect Endpoint.
-  // Not used in keepalives.
-  // This is the SubKind SubKindOpenSSHEICENode in teleport repo.
-  //
-  // PostHog property value: "node.openssh_ec2_ice"
-  RESOURCE_KIND_NODE_OPENSSH_EICE = 7;
 }
 
 // a heartbeat for a resource served by a Teleport instance outside of the
 // control plane (i.e. not auth, not proxy)
-//
-// PostHog event: tp.resource.hb
 message ResourceHeartbeatEvent {
-  // anonymized name of the resource, 32 bytes (HMAC-SHA-256); the name is the
-  // host ID for nodes but the actual user-facing name for other resources, so
-  // an app or a database served by multiple agents won't be counted multiple
-  // times
-  //
-  // PreHog property: tp.resource_name (in base64)
+  // anonymized, 32 bytes (HMAC-SHA-256)
   bytes resource_name = 1;
-
-  // kind of the resource (node, app, db)
-  //
-  // PostHog property: tp.resource_type (as a string, see ResourceKind)
   ResourceKind resource_kind = 2;
-
   // true if the heartbeat has no expiration
-  //
-  // PostHog property: tp.is_static
   bool static = 3;
 }
 
-// an event representing one of several audit events: session.start, port,
-// app.session.start, db.session.start, windows.desktop.session.start; i.e. a
-// SSH shell or port-forward, kubectl exec or kubectl port-forward, DB, App or
-// Desktop connection
-//
-// an earlier encoding (as "tp.session.start") mixed SSH sessions and kubectl
-// execs under a session type of "ssh"
-//
-// PostHog event: tp.session.start
 message SessionStartEvent {
-  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64
-  //
-  // PostHog property: tp.user_name
+  // anonymized
   string user_name = 1;
-
-  // type of the session, should be "ssh"/"k8s"/"db"/"app"/"desktop" (matching
-  // the values for api/types.SessionKind) or "app_tcp", "ssh_port_v2" or
-  // "k8s_port" for TCP Application Access connections, SSH port forwards and
-  // kubectl port-forward respectively; a type of "ssh_port" represents either a
-  // SSH port forwarding connection or a kubectl port-forward (not used in new
-  // events)
-  //
-  // PostHog property: tp.session_type
+  // ssh/kube/desktop, maybe db?
   string session_type = 2;
 
   // if session_type == "db" the database struct contains  additional information
@@ -168,35 +85,21 @@ message SessionStartDatabaseMetadata {
   string db_origin = 3;
 }
 
-// the issuance of a user certificate from the user CA
-//
-// PostHog event: tp.certificate.issued
 message UserCertificateIssuedEvent {
-  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64; it
-  // can be the username of a bot user rather than of a regular user
-  //
-  // PostHog property: tp.user_name
+  // The anonymized username/principal of the entity that requested the
+  // certificate.
   string user_name = 1;
-
-  // the TTL of the issued certificate, typically 8 or 12 hours
-  //
-  // PostHog property: tp.ttl_minutes (in minutes, rounded up)
+  // The issued certificate TTL.
   google.protobuf.Duration ttl = 2;
-
   // If true, the certificate was requested by a bot (i.e. Machine ID) user.
-  // PostHog property: tp.is_bot
   bool is_bot = 3;
   // If true, the certificate usage is restricted to database access.
-  // PostHog property: tp.usage_database
   bool usage_database = 4;
   // If true, the certificate usage is restricted to app access.
-  // PostHog property: tp.usage_app
   bool usage_app = 5;
   // If true, the certificate usage is restricted to Kubernetes access.
-  // PostHog property: tp.usage_kubernetes
   bool usage_kubernetes = 6;
   // If true, the certificate usage is restricted to desktop access.
-  // PostHog property: tp.usage_desktop
   bool usage_desktop = 7;
 }
 
@@ -408,34 +311,6 @@ message UIDiscoverDeployServiceEvent {
   DiscoverMetadata metadata = 1;
   DiscoverResourceMetadata resource = 2;
   DiscoverStepStatus status = 3;
-
-  // DeployMethod describes the method used to deploy a service.
-  enum DeployMethod {
-    // DEPLOY_METHOD_UNSPECIFIED means there was an existing service
-    // so deploying step got skipped.
-    DEPLOY_METHOD_UNSPECIFIED = 0;
-    // DEPLOY_METHOD_AUTO means Teleport deployed a service for the user.
-    DEPLOY_METHOD_AUTO = 1;
-    // DEPLOY_METHOD_MANUAL means a user deployed a service by themselves.
-    DEPLOY_METHOD_MANUAL = 2;
-  }
-
-  DeployMethod deploy_method = 4;
-
-  // DeployType describes the type of deployment.
-  enum DeployType {
-    // DEPLOY_METHOD_UNSPECIFIED means there was an existing service
-    // so deploying step got skipped.
-    DEPLOY_TYPE_UNSPECIFIED = 0;
-    // DEPLOY_TYPE_INSTALL_SCRIPT means service was deployed using an
-    // install script.
-    DEPLOY_TYPE_INSTALL_SCRIPT = 1;
-    // DEPLOY_TYPE_AMAZON_ECS means service was deployed using amazon's
-    // elastic container service.
-    DEPLOY_TYPE_AMAZON_ECS = 2;
-  }
-
-  DeployType deploy_type = 5;
 }
 
 // UIDiscoverDatabaseRegisterEvent is emitted when a user is finished with the step that registers a database resource.
@@ -582,27 +457,15 @@ enum CTA {
   CTA_PREMIUM_SUPPORT = 4;
   CTA_TRUSTED_DEVICES = 5;
   CTA_UPGRADE_BANNER = 6;
-  CTA_BILLING_SUMMARY = 7;
 }
 
-// a request forwarded to a kube cluster's API server (other than exec and
-// port-forward)
-//
-// PostHog event: tp.kube.request
 message KubeRequestEvent {
-  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64
-  //
-  // PostHog property: tp.user_name
+  // anonymized
   string user_name = 1;
 }
 
-// an sftp event, represents a single operation on a file
-//
-// PostHog event: tp.sftp
 message SFTPEvent {
-  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64
-  //
-  // PostHog property: tp.user_name
+  // anonymized
   string user_name = 1;
   // matching SFTPAction in teleport/api/types/events/events.proto
   int32 action = 2;
@@ -620,10 +483,6 @@ message AgentMetadataEvent {
   string container_runtime = 9;
   string container_orchestrator = 10;
   string cloud_environment = 11;
-
-  // external_upgrader is the name of the registered external upgrader. if non-empty, this field indicates
-  // that the associated agent is enrolled in automatic upgrades.
-  string external_upgrader = 12;
 }
 
 // AssistCompletionEvent is an event that is emitted
@@ -642,124 +501,6 @@ message AssistCompletionEvent {
   int64 prompt_tokens = 4;
   // CompletionTokens is the amount of tokens that the completion response consists of
   int64 completion_tokens = 5;
-}
-
-// AssistExecutionEvent is an event that is emitted when an Assist command
-// execution is triggered by the user.
-message AssistExecutionEvent {
-  // UserName is anonymized user name
-  string user_name = 1;
-  // ConversationId is the UUID that identifies a single Assist conversation
-  string conversation_id = 2;
-  // NodeCount is the number of nodes the command was executed on
-  int64 node_count = 3;
-  // TotalTokens is the total amount of token used to generate the command summary
-  int64 total_tokens = 4;
-  // PromptTokens is the amount of estimated tokens used by the prompt to generate the command summary
-  int64 prompt_tokens = 5;
-  // CompletionTokens is the amount of tokens that the summary completion response consists of
-  int64 completion_tokens = 6;
-}
-
-// AssistNewConversationEvent is an event that is emitted for each new Assist
-// conversation and contains the conversation category.
-message AssistNewConversationEvent {
-  // UserName is anonymized user name
-  string user_name = 1;
-  // Category is the conversation category. This represents what kind of request
-  // the user is asking Assist.
-  string category = 2;
-}
-
-// AssistAccessRequest is an event that is emitted when a user requests access
-// to a resource via Assist.
-message AssistAccessRequestEvent {
-  // UserName is anonymized user name
-  string user_name = 1;
-  // ResourceType describes the type of resource the user is requesting access to, e.g. "node", "db", "k8s" or "role".
-  string resource_type = 2;
-  // TotalTokens is the total amount of token used to generate the command summary
-  int64 total_tokens = 4;
-  // PromptTokens is the amount of estimated tokens used by the prompt to generate the command summary
-  int64 prompt_tokens = 5;
-  // CompletionTokens is the amount of tokens that the summary completion response consists of
-  int64 completion_tokens = 6;
-}
-
-// AssistAction is an event that is emitted when a user triggers an action (SSH command generation, output explain, etc.)
-// via Assist.
-message AssistActionEvent {
-  // UserName is anonymized user name
-  string user_name = 1;
-  // Action is the action that was triggered, e.g. "ssh-explain", "ssh-command-generate", etc.
-  string action = 2;
-  // TotalTokens is the total amount of token used to generate the command summary
-  int64 total_tokens = 4;
-  // PromptTokens is the amount of estimated tokens used by the prompt to generate the command summary
-  int64 prompt_tokens = 5;
-  // CompletionTokens is the amount of tokens that the summary completion response consists of
-  int64 completion_tokens = 6;
-}
-
-// AccessListMetadata contains common metadata for Access List related events.
-message AccessListMetadata {
-  // id uniquely identifies an Access List. Will allow correlation of events within an access list.
-  string id = 1;
-}
-
-// AccessListCreate is an event that is emitted when an access list is created.
-message AccessListCreateEvent {
-  // user_name is the anonymized user name
-  string user_name = 1;
-  AccessListMetadata metadata = 2;
-}
-
-// AccessListUpdate is an event that is emitted when an access list is updated.
-message AccessListUpdateEvent {
-  // user_name is the anonymized user name
-  string user_name = 1;
-  AccessListMetadata metadata = 2;
-}
-
-// AccessListDelete is an event that is emitted when an access list is deleted.
-message AccessListDeleteEvent {
-  // user_name is the anonymized user name
-  string user_name = 1;
-  AccessListMetadata metadata = 2;
-}
-
-// AccessListMemberCreate is an event that is emitted when a member is added to an access list.
-message AccessListMemberCreateEvent {
-  // user_name is the anonymized user name
-  string user_name = 1;
-  AccessListMetadata metadata = 2;
-}
-
-// AccessListMemberUpdate is an event that is emitted when a member is updated in an access list.
-message AccessListMemberUpdateEvent {
-  // user_name is the anonymized user name
-  string user_name = 1;
-  AccessListMetadata metadata = 2;
-}
-
-// AccessListMemberDelete is an event that is emitted when a member is removed from an access list.
-message AccessListMemberDeleteEvent {
-  // user_name is anonymized user name
-  string user_name = 1;
-  AccessListMetadata metadata = 2;
-}
-
-// AccessListGrantsToUser is an event that is emitted when access list permissions are granted to a user
-// on login.
-message AccessListGrantsToUserEvent {
-  // user_name is the anonymized user name
-  string user_name = 1;
-
-  // count_roles_granted is the number of roles granted to a user.
-  int32 count_roles_granted = 2;
-
-  // count_traits_granted is the number of traits granted to a user.
-  int32 count_traits_granted = 3;
 }
 
 // IntegrationEnrollKind represents the types of integration that
@@ -826,116 +567,13 @@ enum EditorChangeStatus {
   EDITOR_CHANGE_STATUS_ROLE_REMOVED = 2;
 }
 
-// Device authentication event
-message DeviceAuthenticateEvent {
-  // anonymized device ID, 32 bytes (HMAC-SHA-256) encoded in base64
-  //
-  // PostHog property: tp.device_id
-  string device_id = 1;
-
-  // anonymized username, 32 bytes (HMAC-SHA-256) encoded in base64
-  //
-  // PostHog property: tp.user_name
-  string user_name = 2;
-
-  // device OS type
-  //
-  // PostHog property: tp.device_os_type
-  string device_os_type = 3;
-}
-
-// Device Enrollment event
-//
-// PostHost event: tp.device.enroll
-message DeviceEnrollEvent {
-  // anonymized device ID, 32 bytes (HMAC-SHA-256) encoded in base64
-  //
-  // PostHog property: tp.device_id
-  string device_id = 1;
-
-  // anonymized username, 32 bytes (HMAC-SHA-256) encoded in base64
-  //
-  // PostHog property: tp.user_name
-  string user_name = 2;
-
-  // device OS type
-  //
-  // PostHog property: tp.device_os_type
-  string device_os_type = 3;
-
-  // device origin
-  //
-  // PostHog property: tp.device_origin
-  string device_origin = 4;
-}
-
-// FeatureRecommendationEvent captures event emitted when a feature is recommended to user or
-// when user completes the desired CTA for the feature.
-//
-// PostHost event: tp.ui.feature.recommendation
-message FeatureRecommendationEvent {
-  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64;
-  //
-  // PostHog property: tp.user_name
-  string user_name = 1;
-  // feature is name of the Teleport feature.
-  //
-  // PostHost property: tp.feature
-  Feature feature = 2;
-  // feature_recommendation_status records recommendation state, which can be 'NOTIFIED' (feature is recommended)
-  // OR 'DONE' (user completes desired CTA)
-  //
-  // PostHost property: tp.feature_recommendation_status
-  FeatureRecommendationStatus feature_recommendation_status = 3;
-}
-
-// Feature is name of Teleport feature
-enum Feature {
-  FEATURE_UNSPECIFIED = 0;
-  FEATURE_TRUSTED_DEVICES = 1;
-}
-
-// FeatureRecommendationStatus is feature recommendation status.
-enum FeatureRecommendationStatus {
-  FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED = 0;
-  // FEATURE_RECOMMENDATION_STATUS_NOTIFIED is emitted when a feature is recommended (notified in UI) to user.
-  FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1;
-  // FEATURE_RECOMMENDATION_STATUS_DONE is emitted when user completes the desired CTA.
-  FEATURE_RECOMMENDATION_STATUS_DONE = 2;
-}
-
-// LicenseLimitEvent is emitted when access to Teleport feature
-// is denied based on license limits
-//
-// PostHost event: tp.license.limit
-message LicenseLimitEvent {
-  // PostHost property: tp.license_limit
-  LicenseLimit license_limit = 1;
-}
-
-// LicenseLimit indicates event type that triggered LicenseLimitEvent.
-enum LicenseLimit {
-  LICENSE_LIMIT_UNSPECIFIED = 0;
-  // LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF is emitted if license does not
-  // allow Jamf integration (e.g. Team Plan)
-  LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF = 1;
-  // LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE is emitted when allowed enrolled device
-  // limit is reached
-  LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE = 2;
-}
-
 message SubmitEventRequest {
-  // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
-  //
-  // PostHog property: tp.cluster_name (still in base64)
+  // anonymized
   string cluster_name = 1;
 
   // optional, will default to the ingest time if unset
-  //
-  // PostHog timestamp
   google.protobuf.Timestamp timestamp = 2;
 
-  // the event being submitted
   oneof event {
     UserLoginEvent user_login = 3;
     SSOCreateEvent sso_create = 4;
@@ -1005,28 +643,6 @@ message SubmitEventRequest {
     UIOnboardQuestionnaireSubmitEvent ui_onboard_questionnaire_submit = 48;
 
     BotJoinEvent bot_join = 49;
-
-    AssistExecutionEvent assist_execution = 50;
-    AssistNewConversationEvent assist_new_conversation = 51;
-
-    DeviceAuthenticateEvent device_authenticate_event = 52;
-
-    FeatureRecommendationEvent feature_recommendation_event = 53;
-
-    AssistAccessRequestEvent assist_access_request = 54;
-    AssistActionEvent assist_action = 55;
-
-    DeviceEnrollEvent device_enroll_event = 56;
-
-    LicenseLimitEvent license_limit_event = 57;
-
-    AccessListCreateEvent access_list_create = 58;
-    AccessListUpdateEvent access_list_update = 59;
-    AccessListDeleteEvent access_list_delete = 60;
-    AccessListMemberCreateEvent access_list_member_create = 61;
-    AccessListMemberUpdateEvent access_list_member_update = 62;
-    AccessListMemberDeleteEvent access_list_member_delete = 63;
-    AccessListGrantsToUserEvent access_list_grants_to_user = 64;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
@@ -1035,7 +651,6 @@ message SubmitEventRequest {
 message SubmitEventResponse {}
 
 message SubmitEventsRequest {
-  // individual events to be submitted in a batch, up to 500 at once
   repeated SubmitEventRequest events = 1;
 }
 message SubmitEventsResponse {}
@@ -1044,21 +659,9 @@ message HelloTeleportRequest {}
 message HelloTeleportResponse {}
 
 service TeleportReportingService {
-  // equivalent to SubmitEvents with a single event, should be unused by now
   rpc SubmitEvent(SubmitEventRequest) returns (SubmitEventResponse) {
     option deprecated = true;
   }
-
-  // encodes and forwards usage events to the PostHog event database; each
-  // event is annotated with some properties that depend on the identity of the
-  // caller:
-  // - tp.account_id (UUID in string form, can be empty if missing from the
-  //   license)
-  // - tp.license_name (should always be a UUID)
-  // - tp.license_authority (name of the authority that signed the license file
-  //   used for authentication)
-  // - tp.is_cloud (boolean)
   rpc SubmitEvents(SubmitEventsRequest) returns (SubmitEventsResponse) {}
-
   rpc HelloTeleport(HelloTeleportRequest) returns (HelloTeleportResponse) {}
 }

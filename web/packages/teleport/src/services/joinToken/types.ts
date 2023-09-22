@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { ResourceLabel } from '../agents';
+import { AgentLabel } from '../agents';
 
 export type JoinToken = {
   id: string;
@@ -22,7 +22,7 @@ export type JoinToken = {
   expiryText?: string;
   // suggestedLabels are labels that the resource should add when adding
   // itself to the cluster
-  suggestedLabels?: ResourceLabel[];
+  suggestedLabels?: AgentLabel[];
   // internalResourceId will be the unique id used to identify that
   // a resource was added using this join token.
   //
@@ -38,14 +38,7 @@ export type JoinToken = {
 // - 'Kube' is a role for a kube service
 // - 'Node' is a role for a node in the cluster
 // - 'WindowsDesktop' is a role for a windows desktop service.
-// - 'Discovery' is a role for a discovery service.
-export type JoinRole =
-  | 'App'
-  | 'Node'
-  | 'Db'
-  | 'Kube'
-  | 'WindowsDesktop'
-  | 'Discovery';
+export type JoinRole = 'App' | 'Node' | 'Db' | 'Kube' | 'WindowsDesktop';
 
 // JoinMethod is the method used for new nodes to join the cluster.
 // Same hard-corded value as the backend.
@@ -74,6 +67,6 @@ export type JoinTokenRequest = {
   // on resources. When an agent uses this token, the agent should
   // monitor resources that match those labels. For databases, this
   // means adding the labels to `db_service.resources.labels`.
-  suggestedAgentMatcherLabels?: ResourceLabel[];
+  suggestedAgentMatcherLabels?: AgentLabel[];
   method?: JoinMethod;
 };

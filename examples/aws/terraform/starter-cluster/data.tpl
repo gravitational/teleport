@@ -16,9 +16,6 @@ TELEPORT_S3_BUCKET=${s3_bucket}
 TELEPORT_ENABLE_MONGODB=${enable_mongodb_listener}
 TELEPORT_ENABLE_MYSQL=${enable_mysql_listener}
 TELEPORT_ENABLE_POSTGRES=${enable_postgres_listener}
-# Note: Let's Encrypt will be automatically disabled if using ACM
 USE_LETSENCRYPT=${use_letsencrypt}
 USE_ACM=${use_acm}
-# Note: TLS routing will be automatically enabled by teleport-generate-config when using ACM with the starter-cluster Terraform
-USE_TLS_ROUTING=${use_tls_routing}
 EOF

@@ -29,19 +29,12 @@ import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
 import apiLabel from 'gen-proto-js/teleport/lib/teleterm/v1/label_pb';
 import apiService, {
   FileTransferDirection,
-  HeadlessAuthenticationState,
 } from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
 import apiAuthSettings from 'gen-proto-js/teleport/lib/teleterm/v1/auth_settings_pb';
 import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
 import apiUsageEvents from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_pb';
 
 import * as uri from 'teleterm/ui/uri';
-
-// We want to reexport both the type and the value of UserType. Because it's in a namespace, we have
-// to alias it first to do the reexport.
-// https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
-import UserType = apiCluster.LoggedInUser.UserType;
-export { UserType };
 
 export interface Kube extends apiKube.Kube.AsObject {
   uri: uri.KubeUri;
@@ -53,7 +46,7 @@ export interface Server extends apiServer.Server.AsObject {
 
 export interface Gateway extends apiGateway.Gateway.AsObject {
   uri: uri.GatewayUri;
-  targetUri: uri.DatabaseUri | uri.KubeUri;
+  targetUri: uri.DatabaseUri;
   // The type of gatewayCliCommand was repeated here just to refer to the type with the JSDoc.
   gatewayCliCommand: GatewayCLICommand;
 }
@@ -170,8 +163,8 @@ export type LoginPasswordlessRequest =
 export type TshClient = {
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: uri.RootClusterUri) => Promise<Cluster[]>;
-  getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
-  getDatabases: (params: GetResourcesParams) => Promise<GetDatabasesResponse>;
+  getKubes: (params: ServerSideParams) => Promise<GetKubesResponse>;
+  getDatabases: (params: ServerSideParams) => Promise<GetDatabasesResponse>;
   listDatabaseUsers: (dbUri: uri.DatabaseUri) => Promise<string[]>;
   assumeRole: (
     clusterUri: uri.RootClusterUri,
@@ -181,7 +174,7 @@ export type TshClient = {
   getRequestableRoles: (
     params: GetRequestableRolesParams
   ) => Promise<GetRequestableRolesResponse>;
-  getServers: (params: GetResourcesParams) => Promise<GetServersResponse>;
+  getServers: (params: ServerSideParams) => Promise<GetServersResponse>;
   getAccessRequests: (
     clusterUri: uri.RootClusterUri
   ) => Promise<AccessRequest[]>;
@@ -236,30 +229,6 @@ export type TshClient = {
     abortSignal?: TshAbortSignal
   ) => FileTransferListeners;
   reportUsageEvent: (event: ReportUsageEventRequest) => Promise<void>;
-
-  createConnectMyComputerRole: (
-    rootClusterUri: uri.RootClusterUri
-  ) => Promise<CreateConnectMyComputerRoleResponse>;
-  createConnectMyComputerNodeToken: (
-    clusterUri: uri.RootClusterUri
-  ) => Promise<CreateConnectMyComputerNodeTokenResponse>;
-  deleteConnectMyComputerToken: (
-    clusterUri: uri.RootClusterUri,
-    token: string
-  ) => Promise<void>;
-  waitForConnectMyComputerNodeJoin: (
-    rootClusterUri: uri.RootClusterUri,
-    abortSignal: TshAbortSignal
-  ) => Promise<WaitForConnectMyComputerNodeJoinResponse>;
-  deleteConnectMyComputerNode: (
-    clusterUri: uri.RootClusterUri
-  ) => Promise<void>;
-  getConnectMyComputerNodeName: (uri: uri.RootClusterUri) => Promise<string>;
-
-  updateHeadlessAuthenticationState: (
-    params: UpdateHeadlessAuthenticationStateParams,
-    abortSignal?: TshAbortSignal
-  ) => Promise<void>;
 };
 
 export type TshAbortController = {
@@ -268,7 +237,6 @@ export type TshAbortController = {
 };
 
 export type TshAbortSignal = {
-  readonly aborted: boolean;
   addEventListener(cb: (...args: any[]) => void): void;
   removeEventListener(cb: (...args: any[]) => void): void;
 };
@@ -293,30 +261,23 @@ export interface LoginPasswordlessParams extends LoginParamsBase {
 }
 
 export type CreateGatewayParams = {
-  targetUri: uri.DatabaseUri | uri.KubeUri;
+  targetUri: uri.DatabaseUri;
   port?: string;
   user: string;
   subresource_name?: string;
 };
 
-export type GetResourcesParams = {
+export type ServerSideParams = {
   clusterUri: uri.ClusterUri;
-  // sort is a required field because it has direct implications on performance of ListResources.
-  sort: SortType | null;
-  // limit cannot be omitted and must be greater than zero, otherwise ListResources is going to
-  // return an error.
-  limit: number;
   // search is used for regular search.
   search?: string;
   searchAsRoles?: string;
+  sort?: SortType;
   startKey?: string;
+  limit?: number;
   // query is used for advanced search.
   query?: string;
 };
-
-// Compatibility type to make sure teleport.e doesn't break.
-// TODO(ravicious): Remove after teleterm.e is updated to use GetResourcesParams.
-export type ServerSideParams = GetResourcesParams;
 
 export type ReviewAccessRequestParams = {
   state: RequestState;
@@ -348,22 +309,5 @@ export { FileTransferDirection };
 
 export type Label = apiLabel.Label.AsObject;
 
-export type CreateConnectMyComputerRoleResponse =
-  apiService.CreateConnectMyComputerRoleResponse.AsObject;
-export type CreateConnectMyComputerNodeTokenResponse =
-  apiService.CreateConnectMyComputerNodeTokenResponse.AsObject;
-export type WaitForConnectMyComputerNodeJoinResponse =
-  apiService.WaitForConnectMyComputerNodeJoinResponse.AsObject & {
-    server: Server;
-  };
-
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;
-
-export type UpdateHeadlessAuthenticationStateParams = {
-  rootClusterUri: uri.RootClusterUri;
-  headlessAuthenticationId: string;
-  state: apiService.HeadlessAuthenticationState;
-};
-
-export { HeadlessAuthenticationState };

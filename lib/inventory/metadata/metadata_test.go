@@ -25,8 +25,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 func TestFetchInstallMethods(t *testing.T) {
@@ -81,21 +79,6 @@ func TestFetchInstallMethods(t *testing.T) {
 			},
 			expected: []string{
 				"node_script",
-			},
-		},
-		{
-			desc: "awsoidc_deployservice if env var is present",
-			getenv: func(name string) string {
-				if name == types.InstallMethodAWSOIDCDeployServiceEnvVar {
-					return "true"
-				}
-				return ""
-			},
-			execCommand: func(name string, args ...string) ([]byte, error) {
-				return nil, trace.NotFound("command does not exist")
-			},
-			expected: []string{
-				"awsoidc_deployservice",
 			},
 		},
 		{
@@ -272,10 +255,11 @@ func TestFetchContainerOrchestrator(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			c := &fetchConfig{
-				getenv: tc.getenv,
-				httpDo: tc.httpDo,
+				context: context.Background(),
+				getenv:  tc.getenv,
+				httpDo:  tc.httpDo,
 			}
-			require.Equal(t, tc.expected, c.fetchContainerOrchestrator(context.Background()))
+			require.Equal(t, tc.expected, c.fetchContainerOrchestrator())
 		})
 	}
 }
@@ -299,45 +283,18 @@ func TestFetchCloudEnvironment(t *testing.T) {
 				if insecureSkipVerify {
 					return nil, trace.BadParameter("insecureSkipVerify should be false")
 				}
-
-				if req.URL.String() == "http://169.254.169.254/latest/api/token" {
-					if req.Method != http.MethodPut {
-						return nil, trace.NotFound("not found")
-					}
-					if len(req.Header) != 1 {
-						return nil, trace.NotFound("not found")
-					}
-					if len(req.Header["X-Aws-Ec2-Metadata-Token-Ttl-Seconds"]) != 1 {
-						return nil, trace.NotFound("not found")
-					}
-					if req.Header["X-Aws-Ec2-Metadata-Token-Ttl-Seconds"][0] != "300" {
-						return nil, trace.NotFound("not found")
-					}
-					return &http.Response{
-						StatusCode: 200,
-						Body:       io.NopCloser(strings.NewReader("thisIsAFakeTestToken")),
-					}, nil
+				if req.URL.String() != "http://169.254.169.254/latest/meta-data/" {
+					return nil, trace.NotFound("not found")
 				}
-
-				if req.URL.String() == "http://169.254.169.254/latest/meta-data/" {
-					if len(req.Header) != 1 {
-						return nil, trace.NotFound("not found")
-					}
-					if len(req.Header["X-Aws-Ec2-Metadata-Token"]) != 1 {
-						return nil, trace.NotFound("not found")
-					}
-					if req.Header["X-Aws-Ec2-Metadata-Token"][0] != "thisIsAFakeTestToken" {
-						return nil, trace.NotFound("not found")
-					}
-					return success, nil
+				if len(req.Header) != 0 {
+					return nil, trace.NotFound("not found")
 				}
-
-				return nil, trace.NotFound("not found")
+				return success, nil
 			},
 			expected: "aws",
 		},
 		{
-			desc: "gcp if on gcp",
+			desc: "gcp if on gcp ",
 			httpDo: func(req *http.Request, insecureSkipVerify bool) (*http.Response, error) {
 				if insecureSkipVerify {
 					return nil, trace.BadParameter("insecureSkipVerify should be false")
@@ -395,9 +352,10 @@ func TestFetchCloudEnvironment(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			c := &fetchConfig{
-				httpDo: tc.httpDo,
+				context: context.Background(),
+				httpDo:  tc.httpDo,
 			}
-			require.Equal(t, tc.expected, c.fetchCloudEnvironment(context.Background()))
+			require.Equal(t, tc.expected, c.fetchCloudEnvironment())
 		})
 	}
 }

@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -42,15 +42,14 @@ import (
 // AccessRequestCommand implements `tctl users` set of commands
 // It implements CLICommand interface
 type AccessRequestCommand struct {
-	config *servicecfg.Config
+	config *service.Config
 	reqIDs string
 
-	user                 string
-	roles                string
-	requestedResourceIDs []string
-	delegator            string
-	reason               string
-	annotations          string
+	user        string
+	roles       string
+	delegator   string
+	reason      string
+	annotations string
 	// format is the output format, e.g. text or json
 	format string
 
@@ -70,7 +69,7 @@ type AccessRequestCommand struct {
 }
 
 // Initialize allows AccessRequestCommand to plug itself into the CLI parser
-func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	c.config = config
 	requests := app.Command("requests", "Manage access requests.").Alias("request")
 
@@ -96,8 +95,7 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 
 	c.requestCreate = requests.Command("create", "Create pending access request.")
 	c.requestCreate.Arg("username", "Name of target user").Required().StringVar(&c.user)
-	c.requestCreate.Flag("roles", "Roles to be requested").StringVar(&c.roles)
-	c.requestCreate.Flag("resource", "Resource ID to be requested").StringsVar(&c.requestedResourceIDs)
+	c.requestCreate.Flag("roles", "Roles to be requested").Default("*").StringVar(&c.roles)
 	c.requestCreate.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestCreate.Flag("dry-run", "Don't actually generate the access request").BoolVar(&c.dryRun)
 
@@ -262,14 +260,7 @@ func (c *AccessRequestCommand) Deny(ctx context.Context, client auth.ClientI) er
 }
 
 func (c *AccessRequestCommand) Create(ctx context.Context, client auth.ClientI) error {
-	if len(c.roles) == 0 && len(c.requestedResourceIDs) == 0 {
-		c.roles = "*"
-	}
-	requestedResourceIDs, err := types.ResourceIDsFromStrings(c.requestedResourceIDs)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	req, err := services.NewAccessRequestWithResources(c.user, c.splitRoles(), requestedResourceIDs)
+	req, err := services.NewAccessRequest(c.user, c.splitRoles()...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -282,8 +273,7 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client auth.ClientI) 
 		}
 		return trace.Wrap(printJSON(req, "request"))
 	}
-	req, err = client.CreateAccessRequestV2(ctx, req)
-	if err != nil {
+	if err := client.CreateAccessRequest(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("%s\n", req.GetName())

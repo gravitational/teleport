@@ -1,0 +1,161 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+#
+# This Vagrantfile is for quick making a multi-host environment
+# to experiment & play with Teleport.
+#
+#   1. Creates several identical VMs
+#   2. Based on Debian Jessie 8
+#   3. With private networking
+#   4. With Docker installed
+#
+DOCKER_VER ||= "1.10.3"
+
+# for each node make sure to have conf/<name> directory with Teleport configuration
+NODES ||= {
+  "a-auth" => ["10.0.10.10"],
+  "b-auth" => ["10.0.10.20"], 
+  "b-node" => ["10.0.10.21"], 
+}
+
+
+Vagrant.configure(2) do |config|
+  # grab necessary vagrant plugin(s)
+  config.vagrant.plugins = ["vagrant-vbguest"]
+  # provider-neutral configuration:
+  basic_config(config.vm)
+  configure_ssh(config.vm)
+  apt_update(config.vm)
+  install_docker(config.vm, DOCKER_VER)
+  #install_teleport(config.vm)
+  #configure_teleport(config.vm)
+  
+  NODES.each do |role, array|
+      ip = array[0]
+      config.vm.define role do |config|
+          config.vm.hostname = role
+          config.vm.network "private_network", ip: ip
+      end
+  end 
+
+  # libvirt:
+  config.vm.provider "libvirt" do |v|
+      config.vm.box = "debian/contrib-jessie64"
+      config.vm.box_check_update = false
+      config.vm.synced_folder "../", "/home/vagrant/teleport", type: "9p", disabled: false, accessmode: "mapped"
+      config.vm.synced_folder "opt", "/opt", type: "9p", disabled: false, accessmode: "mapped"
+      v.driver = "kvm"
+      v.cpus = 1
+      v.memory = 512
+  end if RUBY_PLATFORM=~/linux/
+
+  # virtualbox:
+  config.vm.provider "virtualbox" do |v|
+      config.vbguest.auto_update = true
+      config.vm.box = "debian/contrib-jessie64"
+      config.vm.box_check_update = false
+      config.vm.synced_folder "../", "/home/vagrant/teleport"
+      config.vm.synced_folder "opt", "/opt"
+      v.cpus = 1
+      v.memory = 512
+  end if RUBY_PLATFORM=~/darwin/
+
+  # vmware_fusion:
+  config.vm.provider "vmware_fusion" do |v|
+      config.vm.box = "bento/debian-8"
+      config.vm.box_check_update = false
+      config.vm.synced_folder "../", "/home/vagrant/teleport"
+      config.vm.synced_folder "opt", "/opt"
+      v.cpus = 1
+      v.memory = 512
+  end if RUBY_PLATFORM=~/darwin/
+end
+
+
+
+def configure_teleport(vm)
+  vm.provision "file", source: 'teleport.service', destination: '/tmp/teleport.service'
+  vm.provision "shell", inline: <<-SHELL
+    cp -f /tmp/teleport.service /etc/systemd/system/
+    systemctl daemon-reload
+    systemctl enable teleport.service
+    systemctl start teleport.service
+  SHELL
+end
+
+
+def install_docker(vm, docker_version)
+  vm.provision "file", source: 'docker.service', destination: '/tmp/docker.service'
+  vm.provision "file", source: 'docker.socket', destination: '/tmp/docker.socket'
+
+  vm.provision "shell", inline: <<-SHELL
+    echo "Installing Docker..."
+    groupadd docker
+    gpasswd -a vagrant docker
+    ls /tmp/docker*
+    mv /tmp/docker* /etc/systemd/system/
+    if [ ! -s /usr/bin/docker ]; then
+        echo "Downloading Docker #{docker_version}..."
+        wget -qO /usr/bin/docker https://get.docker.com/builds/Linux/x86_64/docker-#{docker_version} 
+        chmod +x /usr/bin/docker
+    fi
+    systemctl daemon-reload
+    systemctl enable docker.socket
+    systemctl enable docker.service
+    echo "Starting Docker..."
+    systemctl restart docker
+  SHELL
+end
+
+
+# this updates all apt packages (especially important for VirtualBox guest addition packages)
+def apt_update(vm)
+  vm.provision "shell", inline: <<-SHELL
+    if [ ! -f /root/apt.updated ]; then
+        apt-get -y update
+        apt-get -y purge exim4-* libcairo*
+        apt-get -y autoremove
+        #apt-get -y upgrade
+        #apt-get -y dist-upgrade
+        apt-get -y install htop tree vim aufs-tools screen curl
+        touch /root/apt.updated
+    fi
+  SHELL
+end
+
+# basic/recommended configuration of every machine:
+def basic_config(vm)
+  hosts = NODES.map { |hostname, array| "#{array[0]} #{hostname}" }.join("\n")
+  bashrc="/home/vagrant/.bashrc"
+  vm.provision "shell", inline: <<-SHELL
+    if ! grep -q "git-core" #{bashrc} ; then 
+        echo "customizing ~/bashrc"
+        echo "\n\n# Customizations from Vagrantfile:" >> #{bashrc}
+        echo "export PS1='\\[\\033[31;1m\\]\\h\\[\\033[0;32m\\] \\w\\[\\033[00m\\]: '" >> #{bashrc}
+        echo export PATH="\$PATH:/usr/lib/git-core:/home/vagrant/teleport/build" >> #{bashrc}
+        echo export GREP_OPTIONS="--color=auto" >> #{bashrc}
+        echo "alias ll='ls -lh'" >> #{bashrc}
+        echo "alias tsh='tsh --insecure'" >> #{bashrc}
+    fi
+    if ! grep -q "Teleport" /etc/hosts ; then 
+        echo "# Teleport entries added by Vagrant:" >> /etc/hosts
+        echo -e "#{hosts}" >> /etc/hosts
+    fi
+    mkdir -p -m0700 /var/lib/teleport
+    chown vagrant:vagrant /var/lib/teleport
+  SHELL
+end
+
+
+# re-creates clean ~/.ssh on a VM, populated with your (host) ssh credentials
+def configure_ssh(vm)
+  vm.provision "shell", inline: <<-SHELL
+    mkdir -p /home/vagrant/.ssh
+    rm -rf /home/vagrant/.ssh/id_rsa*
+    chown vagrant:vagrant /home/vagrant/.ssh
+  SHELL
+  vm.provision "file", source: '~/.ssh/id_rsa', destination: '~/.ssh/id_rsa'
+  vm.provision "file", source: '~/.ssh/id_rsa.pub', destination: '~/.ssh/id_rsa.pub'
+  vm.provision "file", source: '~/.ssh/id_rsa.pub', destination: '~/.ssh/authorized_keys'
+  vm.provision "file", source: '~/.screenrc', destination: '~/' if File.exists? "~/.screnrc"
+end

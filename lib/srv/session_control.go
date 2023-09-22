@@ -24,7 +24,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -33,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -141,53 +139,6 @@ func NewSessionController(cfg SessionControllerConfig) (*SessionController, erro
 	return &SessionController{cfg: cfg}, nil
 }
 
-// WebSessionContext contains information associated with a session
-// established via the web ui.
-type WebSessionContext interface {
-	GetUserAccessChecker() (services.AccessChecker, error)
-	GetSSHCertificate() (*ssh.Certificate, error)
-	GetUser() string
-}
-
-// WebSessionController is a wrapper around [SessionController] which can be
-// used to create an [IdentityContext] and apply session controls for a web session.
-// This allows `lib/web` to not depend on `lib/srv`.
-func WebSessionController(controller *SessionController) func(ctx context.Context, sctx WebSessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
-	return func(ctx context.Context, sctx WebSessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
-		accessChecker, err := sctx.GetUserAccessChecker()
-		if err != nil {
-			return ctx, trace.Wrap(err)
-		}
-
-		sshCert, err := sctx.GetSSHCertificate()
-		if err != nil {
-			return ctx, trace.Wrap(err)
-		}
-
-		unmappedRoles, err := services.ExtractRolesFromCert(sshCert)
-		if err != nil {
-			return ctx, trace.Wrap(err)
-		}
-
-		accessRequestIDs, err := ParseAccessRequestIDs(sshCert.Extensions[teleport.CertExtensionTeleportActiveRequests])
-		if err != nil {
-			return ctx, trace.Wrap(err)
-		}
-
-		identity := IdentityContext{
-			AccessChecker:  accessChecker,
-			TeleportUser:   sctx.GetUser(),
-			Login:          login,
-			Certificate:    sshCert,
-			UnmappedRoles:  unmappedRoles,
-			ActiveRequests: accessRequestIDs,
-			Impersonator:   sshCert.Extensions[teleport.CertExtensionImpersonator],
-		}
-		ctx, err = controller.AcquireSessionContext(ctx, identity, localAddr, remoteAddr)
-		return ctx, trace.Wrap(err)
-	}
-}
-
 // AcquireSessionContext attempts to create a context for the session. If the session is
 // not allowed due to session control an error is returned. The returned
 // context is scoped to the session and will be canceled in the event the semaphore lock
@@ -235,43 +186,25 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 		return ctx, trace.Wrap(err)
 	}
 
-	ctx, err = s.EnforceConnectionLimits(
-		ctx,
-		auth.ConnectionIdentity{
-			Username:       identity.TeleportUser,
-			MaxConnections: identity.AccessChecker.MaxConnections(),
-			LocalAddr:      localAddr,
-			RemoteAddr:     remoteAddr,
-			UserMetadata:   identity.GetUserMetadata(),
-		},
-		closers...,
-	)
-	return ctx, trace.Wrap(err)
-}
-
-// EnforceConnectionLimits retrieves a semaphore lock to ensure that connection limits
-// for the identity are enforced. If the lock is closed for any reason prior to the connection
-// being terminated any of the provided closers will be closed.
-func (s *SessionController) EnforceConnectionLimits(ctx context.Context, identity auth.ConnectionIdentity, closers ...io.Closer) (context.Context, error) {
-	maxConnections := identity.MaxConnections
+	maxConnections := identity.AccessChecker.MaxConnections()
 	if maxConnections == 0 {
 		// concurrent session control is not active, nothing
 		// else needs to be done here.
 		return ctx, nil
 	}
 
-	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
+	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(spanCtx)
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
 
-	semLock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
+	semLock, err := services.AcquireSemaphoreLock(spanCtx, services.SemaphoreLockConfig{
 		Service: s.cfg.Semaphores,
 		Clock:   s.cfg.Clock,
 		Expiry:  netConfig.GetSessionControlTimeout(),
 		Params: types.AcquireSemaphoreRequest{
 			SemaphoreKind: types.SemaphoreKindConnection,
-			SemaphoreName: identity.Username,
+			SemaphoreName: identity.TeleportUser,
 			MaxLeases:     maxConnections,
 			Holder:        s.cfg.ServerID,
 		},
@@ -280,9 +213,9 @@ func (s *SessionController) EnforceConnectionLimits(ctx context.Context, identit
 		if strings.Contains(err.Error(), teleport.MaxLeases) {
 			// user has exceeded their max concurrent ssh connections.
 			userSessionLimitHitCount.Inc()
-			s.emitRejection(ctx, identity.UserMetadata, identity.LocalAddr, identity.RemoteAddr, events.SessionRejectedEvent, maxConnections)
+			s.emitRejection(spanCtx, identity.GetUserMetadata(), localAddr, remoteAddr, events.SessionRejectedEvent, maxConnections)
 
-			return ctx, trace.AccessDenied("too many concurrent ssh connections for user %q (max=%d)", identity.Username, maxConnections)
+			return ctx, trace.AccessDenied("too many concurrent ssh connections for user %q (max=%d)", identity.TeleportUser, maxConnections)
 		}
 
 		return ctx, trace.Wrap(err)

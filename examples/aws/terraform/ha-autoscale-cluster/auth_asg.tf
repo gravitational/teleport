@@ -10,12 +10,8 @@ resource "aws_autoscaling_group" "auth" {
   health_check_type         = "EC2"
   desired_capacity          = length(local.azs)
   force_delete              = false
+  launch_configuration      = aws_launch_configuration.auth.name
   vpc_zone_identifier       = aws_subnet.auth.*.id
-
-  launch_template {
-    name    = aws_launch_template.auth.name
-    version = "$Latest"
-  }
 
   // These are target groups of the auth server network load balancer
   // this autoscaling group is associated with target groups of the NLB
@@ -44,14 +40,14 @@ resource "aws_autoscaling_group" "auth" {
   }
 }
 
-resource "aws_launch_template" "auth" {
+resource "aws_launch_configuration" "auth" {
   lifecycle {
     create_before_destroy = true
   }
   name_prefix   = "${var.cluster_name}-auth-"
   image_id      = data.aws_ami.base.id
   instance_type = var.auth_instance_type
-  user_data = base64encode(templatefile(
+  user_data = templatefile(
     "${path.module}/auth-user-data.tpl",
     {
       region                   = var.region
@@ -68,36 +64,17 @@ resource "aws_launch_template" "auth" {
       telegraf_version         = var.telegraf_version
       teleport_uid             = var.teleport_uid
       use_acm                  = var.use_acm
-      use_tls_routing          = var.use_tls_routing
     }
-  ))
-
+  )
   metadata_options {
-    http_tokens   = "required"
-    http_endpoint = "enabled"
-
+    http_tokens = "required"
   }
-
-  block_device_mappings {
-    device_name = "/dev/xvda"
-    ebs {
-      delete_on_termination = true
-      encrypted             = true
-      iops                  = 3000
-      throughput            = 125
-      volume_type           = "gp3"
-    }
+  root_block_device {
+    encrypted = true
   }
-
-  key_name      = var.key_name
-  ebs_optimized = true
-
-  network_interfaces {
-    associate_public_ip_address = false
-    security_groups             = [aws_security_group.auth.id]
-  }
-
-  iam_instance_profile {
-    name = aws_iam_instance_profile.auth.name
-  }
+  key_name                    = var.key_name
+  ebs_optimized               = true
+  associate_public_ip_address = false
+  security_groups             = [aws_security_group.auth.id]
+  iam_instance_profile        = aws_iam_instance_profile.auth.id
 }

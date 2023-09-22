@@ -19,10 +19,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
-	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
-	"github.com/gravitational/teleport/api/types/userloginstate"
-	userloginstatev1conv "github.com/gravitational/teleport/api/types/userloginstate/convert/v1"
 )
 
 // EventToGRPC converts types.Event to proto.Event.
@@ -35,13 +31,6 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		Type: eventType,
 	}
 	if in.Type == types.OpInit {
-		watchStatus, ok := in.Resource.(*types.WatchStatusV1)
-		if !ok {
-			return nil, trace.BadParameter("unexpected resource type %T for Init event", in.Resource)
-		}
-		out.Resource = &proto.Event_WatchStatus{
-			WatchStatus: watchStatus,
-		}
 		return &out, nil
 	}
 	switch r := in.Resource.(type) {
@@ -210,22 +199,6 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_Integration{
 			Integration: r,
 		}
-	case *types.HeadlessAuthentication:
-		out.Resource = &proto.Event_HeadlessAuthentication{
-			HeadlessAuthentication: r,
-		}
-	case *accesslist.AccessList:
-		out.Resource = &proto.Event_AccessList{
-			AccessList: accesslistv1conv.ToProto(r),
-		}
-	case *userloginstate.UserLoginState:
-		out.Resource = &proto.Event_UserLoginState{
-			UserLoginState: userloginstatev1conv.ToProto(r),
-		}
-	case *accesslist.AccessListMember:
-		out.Resource = &proto.Event_AccessListMember{
-			AccessListMember: accesslistv1conv.ToMemberProto(r),
-		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -247,7 +220,7 @@ func EventTypeToGRPC(in types.OpType) (proto.Operation, error) {
 }
 
 // EventFromGRPC converts proto.Event to types.Event
-func EventFromGRPC(in *proto.Event) (*types.Event, error) {
+func EventFromGRPC(in proto.Event) (*types.Event, error) {
 	eventType, err := EventTypeFromGRPC(in.Type)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -256,9 +229,6 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		Type: eventType,
 	}
 	if eventType == types.OpInit {
-		if r := in.GetWatchStatus(); r != nil {
-			out.Resource = r
-		}
 		return &out, nil
 	}
 	if r := in.GetResourceHeader(); r != nil {
@@ -377,27 +347,6 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		return &out, nil
 	} else if r := in.GetIntegration(); r != nil {
 		out.Resource = r
-		return &out, nil
-	} else if r := in.GetHeadlessAuthentication(); r != nil {
-		out.Resource = r
-		return &out, nil
-	} else if r := in.GetAccessList(); r != nil {
-		out.Resource, err = accesslistv1conv.FromProto(r)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &out, nil
-	} else if r := in.GetUserLoginState(); r != nil {
-		out.Resource, err = userloginstatev1conv.FromProto(r)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &out, nil
-	} else if r := in.GetAccessListMember(); r != nil {
-		out.Resource, err = accesslistv1conv.FromMemberProto(r)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)

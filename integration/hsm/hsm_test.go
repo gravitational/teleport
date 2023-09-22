@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -60,13 +59,13 @@ func TestMain(m *testing.M) {
 type teleportService struct {
 	name           string
 	log            utils.Logger
-	config         *servicecfg.Config
+	config         *service.Config
 	process        *service.TeleportProcess
 	serviceChannel chan *service.TeleportProcess
 	errorChannel   chan error
 }
 
-func newTeleportService(t *testing.T, config *servicecfg.Config, name string) *teleportService {
+func newTeleportService(t *testing.T, config *service.Config, name string) *teleportService {
 	s := &teleportService{
 		config:         config,
 		name:           name,
@@ -92,7 +91,7 @@ func (t *teleportService) Close() error {
 
 func (t *teleportService) start(ctx context.Context) {
 	go func() {
-		t.errorChannel <- service.Run(ctx, *t.config, func(cfg *servicecfg.Config) (service.Process, error) {
+		t.errorChannel <- service.Run(ctx, *t.config, func(cfg *service.Config) (service.Process, error) {
 			t.log.Debugf("(Re)starting %s", t.name)
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
@@ -237,11 +236,11 @@ func (s TeleportServices) waitForPhaseChange(ctx context.Context) error {
 	return s.forEach(func(t *teleportService) error { return t.waitForPhaseChange(ctx) })
 }
 
-func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig *backend.Config, log utils.Logger) *servicecfg.Config {
+func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig *backend.Config, log utils.Logger) *service.Config {
 	hostName, err := os.Hostname()
 	require.NoError(t, err)
 
-	config := servicecfg.MakeDefaultConfig()
+	config := service.MakeDefaultConfig()
 	config.PollingPeriod = 1 * time.Second
 	config.SSH.Enabled = false
 	config.Proxy.Enabled = false
@@ -286,11 +285,11 @@ func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig *backend.
 	return config
 }
 
-func newProxyConfig(ctx context.Context, t *testing.T, authAddr utils.NetAddr, log utils.Logger) *servicecfg.Config {
+func newProxyConfig(ctx context.Context, t *testing.T, authAddr utils.NetAddr, log utils.Logger) *service.Config {
 	hostName, err := os.Hostname()
 	require.NoError(t, err)
 
-	config := servicecfg.MakeDefaultConfig()
+	config := service.MakeDefaultConfig()
 	config.PollingPeriod = 1 * time.Second
 	config.SetToken("foo")
 	config.SSH.Enabled = false

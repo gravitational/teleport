@@ -17,9 +17,7 @@ limitations under the License.
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { SearchResource } from 'teleport/Discover/SelectResource';
-
-import AgentButtonAdd, { Props } from './AgentButtonAdd';
+import AgentButtocnAdd, { Props } from './AgentButtonAdd';
 
 export default {
   title: 'Teleport/AgentButtonAdd',
@@ -27,21 +25,21 @@ export default {
 
 export const CanCreate = () => (
   <MemoryRouter>
-    <AgentButtonAdd {...props} />
+    <AgentButtocnAdd {...props} />
   </MemoryRouter>
 );
 
 export const CannotCreate = () => (
   <MemoryRouter>
-    <AgentButtonAdd {...props} canCreate={false} />
+    <AgentButtocnAdd {...props} canCreate={false} />
   </MemoryRouter>
 );
 
 export const CannotCreateVowel = () => (
   <MemoryRouter>
-    <AgentButtonAdd
+    <AgentButtocnAdd
       {...props}
-      agent={SearchResource.APPLICATION}
+      agent="application"
       beginsWithVowel={true}
       canCreate={false}
     />
@@ -50,18 +48,18 @@ export const CannotCreateVowel = () => (
 
 export const OnLeaf = () => (
   <MemoryRouter>
-    <AgentButtonAdd {...props} isLeafCluster={true} />
+    <AgentButtocnAdd {...props} isLeafCluster={true} />
   </MemoryRouter>
 );
 
 export const OnLeafVowel = () => (
   <MemoryRouter>
-    <AgentButtonAdd {...props} isLeafCluster={true} beginsWithVowel={true} />
+    <AgentButtocnAdd {...props} isLeafCluster={true} beginsWithVowel={true} />
   </MemoryRouter>
 );
 
 const props: Props = {
-  agent: SearchResource.SERVER,
+  agent: 'server',
   beginsWithVowel: false,
   canCreate: true,
   isLeafCluster: false,

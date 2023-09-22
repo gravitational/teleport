@@ -47,7 +47,7 @@ export const Default = () => {
           value={'Second option'}
         />
       </Box>
-      <Box mr={6}>
+      <Box>
         <h4>Object options with value set</h4>
         <RadioGroup
           name="example3"
@@ -59,20 +59,6 @@ export const Default = () => {
             },
           ]}
           value={'1'}
-        />
-      </Box>
-      <Box>
-        <h4>With a disabled value</h4>
-        <RadioGroup
-          name="example3"
-          options={[
-            { value: '1', label: 'First option' },
-            {
-              value: '2',
-              label: 'Disabled option',
-              disabled: true,
-            },
-          ]}
         />
       </Box>
     </Flex>

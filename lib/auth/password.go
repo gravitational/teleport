@@ -63,7 +63,7 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 		}
 	}
 
-	webSession, err := s.createUserWebSession(ctx, user, req.LoginIP)
+	webSession, err := s.createUserWebSession(ctx, user)
 	if err != nil {
 		if keys.IsPrivateKeyPolicyError(err) {
 			// Do not return an error, otherwise

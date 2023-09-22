@@ -14,9 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import React from 'react';
-import { useTheme } from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 import { Text, TopNav, Flex } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
+
+import { colors } from 'teleport/Console/colors';
 
 import ActionMenu from './ActionMenu';
 import { WarningDropdown } from './WarningDropdown';
@@ -45,7 +47,7 @@ export default function TopBar(props: Props) {
   return (
     <TopNav
       height={`${TopBarHeight}px`}
-      bg="levels.deep"
+      bg={colors.dark}
       style={{
         justifyContent: 'space-between',
       }}
@@ -56,7 +58,7 @@ export default function TopBar(props: Props) {
 
       <Flex px={3}>
         <Flex alignItems="center">
-          <FolderShared
+          <StyledFolderShared
             style={primaryOnTrue(isSharingDirectory)}
             pr={3}
             title={
@@ -65,7 +67,7 @@ export default function TopBar(props: Props) {
                 : 'Directory Sharing Disabled'
             }
           />
-          <Clipboard
+          <StyledClipboard
             style={primaryOnTrue(clipboardSharingEnabled)}
             pr={3}
             title={
@@ -90,6 +92,18 @@ export default function TopBar(props: Props) {
 }
 
 export const TopBarHeight = 40;
+
+const StyledClipboard = styled(Clipboard)`
+  font-weight: ${({ theme }) => theme.fontWeights.bold};
+  font-size: ${({ theme }) => theme.fontSizes[4] + 'px'};
+  align-self: 'center';
+`;
+
+const StyledFolderShared = styled(FolderShared)`
+  font-weight: ${({ theme }) => theme.fontWeights.bold};
+  font-size: ${({ theme }) => theme.fontSizes[6] + 'px'};
+  align-self: 'center';
+`;
 
 type Props = {
   userHost: string;

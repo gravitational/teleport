@@ -23,12 +23,12 @@ import (
 
 	"cloud.google.com/go/firestore"
 	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
-	"cloud.google.com/go/firestore/apiv1/admin/adminpb"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
+	adminpb "google.golang.org/genproto/googleapis/firestore/admin/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -202,6 +202,8 @@ const (
 	valueDocProperty = "value"
 	// timeInBetweenIndexCreationStatusChecks
 	timeInBetweenIndexCreationStatusChecks = time.Second * 10
+	// commitLimit is the maximum number of writes per commit
+	commitLimit = 500
 )
 
 // GetName is a part of backend API and it returns Firestore backend type
@@ -789,38 +791,22 @@ func (b *Backend) purgeExpiredDocuments() error {
 // deleteDocuments removes documents from firestore in batches to stay within the
 // firestore write limits
 func (b *Backend) deleteDocuments(docs []*firestore.DocumentSnapshot) error {
-	seen := make(map[string]struct{}, len(docs))
-	batch := b.svc.BulkWriter(b.clientContext)
-	jobs := make([]*firestore.BulkWriterJob, 0, len(docs))
+	for i := 0; i < len(docs); i += commitLimit {
+		batch := b.svc.Batch()
 
-	for _, doc := range docs {
-		// Deduplicate documents. The Firestore SDK will error if duplicates are found,
-		// but existing callers of this function assume this is valid.
-		if _, ok := seen[doc.Ref.Path]; ok {
-			continue
+		for j := 0; j < commitLimit && i+j < len(docs); j++ {
+			batch.Delete(docs[i+j].Ref)
 		}
-		seen[doc.Ref.Path] = struct{}{}
 
-		job, err := batch.Delete(doc.Ref)
-		if err != nil {
+		if _, err := batch.Commit(b.clientContext); err != nil {
 			return ConvertGRPCError(err)
 		}
-
-		jobs = append(jobs, job)
 	}
 
-	batch.End()
-	var errs []error
-	for _, job := range jobs {
-		if _, err := job.Results(); err != nil {
-			errs = append(errs, ConvertGRPCError(err))
-		}
-	}
-
-	return trace.NewAggregate(errs...)
+	return nil
 }
 
-// ConvertGRPCError converts gRPC errors
+// ConvertGRPCError converts GRPC errors
 func ConvertGRPCError(err error, args ...interface{}) error {
 	if err == nil {
 		return nil

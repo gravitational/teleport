@@ -1,6 +1,6 @@
 # Create an alias to the assets image. Ref: https://github.com/docker/for-mac/issues/2155
 ARG BUILDARCH
-FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport14-${BUILDARCH} AS teleport-buildbox-centos7-assets
+FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport12-${BUILDARCH} AS teleport-buildbox-centos7-assets
 
 FROM centos:7 AS libbpf
 
@@ -21,7 +21,7 @@ RUN yum groupinstall -y 'Development Tools' && \
 # BUILD_STATIC_ONLY disables libbpf.so build as we don't need it.
 ARG LIBBPF_VERSION
 RUN mkdir -p /opt && cd /opt && \
-    curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    curl -Lf https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     scl enable devtoolset-11 "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install"
 
@@ -145,10 +145,6 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustc --version && \
     rustup component add rustfmt clippy && \
     rustup target add aarch64-unknown-linux-gnu
-
-ARG WASM_PACK_VERSION
-# Install wasm-pack for targeting WebAssembly from Rust.
-RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
 
 # Copy BoringSSL into the final image
 COPY --from=boringssl /opt/boringssl /opt/boringssl

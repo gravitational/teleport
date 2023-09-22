@@ -67,6 +67,25 @@ func (s *IdentityService) getSession(ctx context.Context, keyParts ...string) (t
 	return session, nil
 }
 
+// GetAppSessions gets all application web sessions.
+func (s *IdentityService) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
+	startKey := backend.Key(appsPrefix, sessionsPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := make([]types.WebSession, len(result.Items))
+	for i, item := range result.Items {
+		session, err := services.UnmarshalWebSession(item.Value)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out[i] = session
+	}
+	return out, nil
+}
+
 // maxPageSize is the maximum number of app sessions allowed in a page
 // returned by ListAppSessions
 const maxPageSize = 200

@@ -35,8 +35,6 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	DeviceTrustService_CreateDevice_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/CreateDevice"
-	DeviceTrustService_UpdateDevice_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/UpdateDevice"
-	DeviceTrustService_UpsertDevice_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/UpsertDevice"
 	DeviceTrustService_DeleteDevice_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/DeleteDevice"
 	DeviceTrustService_FindDevices_FullMethodName             = "/teleport.devicetrust.v1.DeviceTrustService/FindDevices"
 	DeviceTrustService_GetDevice_FullMethodName               = "/teleport.devicetrust.v1.DeviceTrustService/GetDevice"
@@ -45,8 +43,6 @@ const (
 	DeviceTrustService_CreateDeviceEnrollToken_FullMethodName = "/teleport.devicetrust.v1.DeviceTrustService/CreateDeviceEnrollToken"
 	DeviceTrustService_EnrollDevice_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/EnrollDevice"
 	DeviceTrustService_AuthenticateDevice_FullMethodName      = "/teleport.devicetrust.v1.DeviceTrustService/AuthenticateDevice"
-	DeviceTrustService_SyncInventory_FullMethodName           = "/teleport.devicetrust.v1.DeviceTrustService/SyncInventory"
-	DeviceTrustService_GetDevicesUsage_FullMethodName         = "/teleport.devicetrust.v1.DeviceTrustService/GetDevicesUsage"
 )
 
 // DeviceTrustServiceClient is the client API for DeviceTrustService service.
@@ -59,16 +55,6 @@ type DeviceTrustServiceClient interface {
 	// It is possible to create both a Device and a DeviceEnrollToken in a
 	// single invocation, see CreateDeviceRequest.create_enroll_token.
 	CreateDevice(ctx context.Context, in *CreateDeviceRequest, opts ...grpc.CallOption) (*Device, error)
-	// UpdateDevice is a masked device update.
-	//
-	// Only certain fields may be updated, see Device for details.
-	UpdateDevice(ctx context.Context, in *UpdateDeviceRequest, opts ...grpc.CallOption) (*Device, error)
-	// UpsertDevice creates or updates a device.
-	//
-	// UpsertDevice attempts a write of all mutable fields on updates, therefore
-	// reading a fresh copy of the device is recommended. Update semantics still
-	// apply.
-	UpsertDevice(ctx context.Context, in *UpsertDeviceRequest, opts ...grpc.CallOption) (*Device, error)
 	// DeleteDevice hard-deletes a device, removing it and all collected data
 	// history from the system.
 	//
@@ -106,18 +92,6 @@ type DeviceTrustServiceClient interface {
 	// An enrolled device is allowed, via AuthenticateDevice, to acquire
 	// certificates containing device extensions, thus gaining access to
 	// device-aware actions.
-	//
-	// macOS enrollment flow:
-	// -> EnrollDeviceInit (client)
-	// <- MacOSEnrollChallenge (server)
-	// -> MacOSEnrollChallengeResponse
-	// <- EnrollDeviceSuccess
-	//
-	// TPM enrollment flow:
-	// -> EnrollDeviceInit (client)
-	// <- TPMEnrollChallenge (server)
-	// -> TPMEnrollChallengeResponse
-	// <- EnrollDeviceSuccess
 	EnrollDevice(ctx context.Context, opts ...grpc.CallOption) (DeviceTrustService_EnrollDeviceClient, error)
 	// AuthenticateDevice performs the device authentication ceremony.
 	//
@@ -127,18 +101,6 @@ type DeviceTrustServiceClient interface {
 	//
 	// Only registered and enrolled devices may perform device authentication.
 	AuthenticateDevice(ctx context.Context, opts ...grpc.CallOption) (DeviceTrustService_AuthenticateDeviceClient, error)
-	// Syncs device inventory from a source exterior to Teleport, for example an
-	// MDM.
-	// Allows both partial and full syncs; for the latter, devices missing from
-	// the external inventory are handled as specified.
-	// Authorized either by a valid MDM service certificate or the appropriate
-	// "device" permissions (create/update/delete).
-	SyncInventory(ctx context.Context, opts ...grpc.CallOption) (DeviceTrustService_SyncInventoryClient, error)
-	// GetDevicesUsage retrieves device limits and usage numbers for the
-	// underlying account/license.
-	// Requires an authenticated user with billing/read permissions.
-	// See [DevicesUsage] for details.
-	GetDevicesUsage(ctx context.Context, in *GetDevicesUsageRequest, opts ...grpc.CallOption) (*DevicesUsage, error)
 }
 
 type deviceTrustServiceClient struct {
@@ -152,24 +114,6 @@ func NewDeviceTrustServiceClient(cc grpc.ClientConnInterface) DeviceTrustService
 func (c *deviceTrustServiceClient) CreateDevice(ctx context.Context, in *CreateDeviceRequest, opts ...grpc.CallOption) (*Device, error) {
 	out := new(Device)
 	err := c.cc.Invoke(ctx, DeviceTrustService_CreateDevice_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *deviceTrustServiceClient) UpdateDevice(ctx context.Context, in *UpdateDeviceRequest, opts ...grpc.CallOption) (*Device, error) {
-	out := new(Device)
-	err := c.cc.Invoke(ctx, DeviceTrustService_UpdateDevice_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *deviceTrustServiceClient) UpsertDevice(ctx context.Context, in *UpsertDeviceRequest, opts ...grpc.CallOption) (*Device, error) {
-	out := new(Device)
-	err := c.cc.Invoke(ctx, DeviceTrustService_UpsertDevice_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -292,46 +236,6 @@ func (x *deviceTrustServiceAuthenticateDeviceClient) Recv() (*AuthenticateDevice
 	return m, nil
 }
 
-func (c *deviceTrustServiceClient) SyncInventory(ctx context.Context, opts ...grpc.CallOption) (DeviceTrustService_SyncInventoryClient, error) {
-	stream, err := c.cc.NewStream(ctx, &DeviceTrustService_ServiceDesc.Streams[2], DeviceTrustService_SyncInventory_FullMethodName, opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &deviceTrustServiceSyncInventoryClient{stream}
-	return x, nil
-}
-
-type DeviceTrustService_SyncInventoryClient interface {
-	Send(*SyncInventoryRequest) error
-	Recv() (*SyncInventoryResponse, error)
-	grpc.ClientStream
-}
-
-type deviceTrustServiceSyncInventoryClient struct {
-	grpc.ClientStream
-}
-
-func (x *deviceTrustServiceSyncInventoryClient) Send(m *SyncInventoryRequest) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *deviceTrustServiceSyncInventoryClient) Recv() (*SyncInventoryResponse, error) {
-	m := new(SyncInventoryResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *deviceTrustServiceClient) GetDevicesUsage(ctx context.Context, in *GetDevicesUsageRequest, opts ...grpc.CallOption) (*DevicesUsage, error) {
-	out := new(DevicesUsage)
-	err := c.cc.Invoke(ctx, DeviceTrustService_GetDevicesUsage_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // DeviceTrustServiceServer is the server API for DeviceTrustService service.
 // All implementations must embed UnimplementedDeviceTrustServiceServer
 // for forward compatibility
@@ -342,16 +246,6 @@ type DeviceTrustServiceServer interface {
 	// It is possible to create both a Device and a DeviceEnrollToken in a
 	// single invocation, see CreateDeviceRequest.create_enroll_token.
 	CreateDevice(context.Context, *CreateDeviceRequest) (*Device, error)
-	// UpdateDevice is a masked device update.
-	//
-	// Only certain fields may be updated, see Device for details.
-	UpdateDevice(context.Context, *UpdateDeviceRequest) (*Device, error)
-	// UpsertDevice creates or updates a device.
-	//
-	// UpsertDevice attempts a write of all mutable fields on updates, therefore
-	// reading a fresh copy of the device is recommended. Update semantics still
-	// apply.
-	UpsertDevice(context.Context, *UpsertDeviceRequest) (*Device, error)
 	// DeleteDevice hard-deletes a device, removing it and all collected data
 	// history from the system.
 	//
@@ -389,18 +283,6 @@ type DeviceTrustServiceServer interface {
 	// An enrolled device is allowed, via AuthenticateDevice, to acquire
 	// certificates containing device extensions, thus gaining access to
 	// device-aware actions.
-	//
-	// macOS enrollment flow:
-	// -> EnrollDeviceInit (client)
-	// <- MacOSEnrollChallenge (server)
-	// -> MacOSEnrollChallengeResponse
-	// <- EnrollDeviceSuccess
-	//
-	// TPM enrollment flow:
-	// -> EnrollDeviceInit (client)
-	// <- TPMEnrollChallenge (server)
-	// -> TPMEnrollChallengeResponse
-	// <- EnrollDeviceSuccess
 	EnrollDevice(DeviceTrustService_EnrollDeviceServer) error
 	// AuthenticateDevice performs the device authentication ceremony.
 	//
@@ -410,18 +292,6 @@ type DeviceTrustServiceServer interface {
 	//
 	// Only registered and enrolled devices may perform device authentication.
 	AuthenticateDevice(DeviceTrustService_AuthenticateDeviceServer) error
-	// Syncs device inventory from a source exterior to Teleport, for example an
-	// MDM.
-	// Allows both partial and full syncs; for the latter, devices missing from
-	// the external inventory are handled as specified.
-	// Authorized either by a valid MDM service certificate or the appropriate
-	// "device" permissions (create/update/delete).
-	SyncInventory(DeviceTrustService_SyncInventoryServer) error
-	// GetDevicesUsage retrieves device limits and usage numbers for the
-	// underlying account/license.
-	// Requires an authenticated user with billing/read permissions.
-	// See [DevicesUsage] for details.
-	GetDevicesUsage(context.Context, *GetDevicesUsageRequest) (*DevicesUsage, error)
 	mustEmbedUnimplementedDeviceTrustServiceServer()
 }
 
@@ -431,12 +301,6 @@ type UnimplementedDeviceTrustServiceServer struct {
 
 func (UnimplementedDeviceTrustServiceServer) CreateDevice(context.Context, *CreateDeviceRequest) (*Device, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateDevice not implemented")
-}
-func (UnimplementedDeviceTrustServiceServer) UpdateDevice(context.Context, *UpdateDeviceRequest) (*Device, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateDevice not implemented")
-}
-func (UnimplementedDeviceTrustServiceServer) UpsertDevice(context.Context, *UpsertDeviceRequest) (*Device, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpsertDevice not implemented")
 }
 func (UnimplementedDeviceTrustServiceServer) DeleteDevice(context.Context, *DeleteDeviceRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteDevice not implemented")
@@ -461,12 +325,6 @@ func (UnimplementedDeviceTrustServiceServer) EnrollDevice(DeviceTrustService_Enr
 }
 func (UnimplementedDeviceTrustServiceServer) AuthenticateDevice(DeviceTrustService_AuthenticateDeviceServer) error {
 	return status.Errorf(codes.Unimplemented, "method AuthenticateDevice not implemented")
-}
-func (UnimplementedDeviceTrustServiceServer) SyncInventory(DeviceTrustService_SyncInventoryServer) error {
-	return status.Errorf(codes.Unimplemented, "method SyncInventory not implemented")
-}
-func (UnimplementedDeviceTrustServiceServer) GetDevicesUsage(context.Context, *GetDevicesUsageRequest) (*DevicesUsage, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetDevicesUsage not implemented")
 }
 func (UnimplementedDeviceTrustServiceServer) mustEmbedUnimplementedDeviceTrustServiceServer() {}
 
@@ -495,42 +353,6 @@ func _DeviceTrustService_CreateDevice_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DeviceTrustServiceServer).CreateDevice(ctx, req.(*CreateDeviceRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _DeviceTrustService_UpdateDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateDeviceRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DeviceTrustServiceServer).UpdateDevice(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: DeviceTrustService_UpdateDevice_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DeviceTrustServiceServer).UpdateDevice(ctx, req.(*UpdateDeviceRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _DeviceTrustService_UpsertDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpsertDeviceRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DeviceTrustServiceServer).UpsertDevice(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: DeviceTrustService_UpsertDevice_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DeviceTrustServiceServer).UpsertDevice(ctx, req.(*UpsertDeviceRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -695,50 +517,6 @@ func (x *deviceTrustServiceAuthenticateDeviceServer) Recv() (*AuthenticateDevice
 	return m, nil
 }
 
-func _DeviceTrustService_SyncInventory_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(DeviceTrustServiceServer).SyncInventory(&deviceTrustServiceSyncInventoryServer{stream})
-}
-
-type DeviceTrustService_SyncInventoryServer interface {
-	Send(*SyncInventoryResponse) error
-	Recv() (*SyncInventoryRequest, error)
-	grpc.ServerStream
-}
-
-type deviceTrustServiceSyncInventoryServer struct {
-	grpc.ServerStream
-}
-
-func (x *deviceTrustServiceSyncInventoryServer) Send(m *SyncInventoryResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *deviceTrustServiceSyncInventoryServer) Recv() (*SyncInventoryRequest, error) {
-	m := new(SyncInventoryRequest)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func _DeviceTrustService_GetDevicesUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetDevicesUsageRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DeviceTrustServiceServer).GetDevicesUsage(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: DeviceTrustService_GetDevicesUsage_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DeviceTrustServiceServer).GetDevicesUsage(ctx, req.(*GetDevicesUsageRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // DeviceTrustService_ServiceDesc is the grpc.ServiceDesc for DeviceTrustService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -749,14 +527,6 @@ var DeviceTrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateDevice",
 			Handler:    _DeviceTrustService_CreateDevice_Handler,
-		},
-		{
-			MethodName: "UpdateDevice",
-			Handler:    _DeviceTrustService_UpdateDevice_Handler,
-		},
-		{
-			MethodName: "UpsertDevice",
-			Handler:    _DeviceTrustService_UpsertDevice_Handler,
 		},
 		{
 			MethodName: "DeleteDevice",
@@ -782,10 +552,6 @@ var DeviceTrustService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "CreateDeviceEnrollToken",
 			Handler:    _DeviceTrustService_CreateDeviceEnrollToken_Handler,
 		},
-		{
-			MethodName: "GetDevicesUsage",
-			Handler:    _DeviceTrustService_GetDevicesUsage_Handler,
-		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -797,12 +563,6 @@ var DeviceTrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "AuthenticateDevice",
 			Handler:       _DeviceTrustService_AuthenticateDevice_Handler,
-			ServerStreams: true,
-			ClientStreams: true,
-		},
-		{
-			StreamName:    "SyncInventory",
-			Handler:       _DeviceTrustService_SyncInventory_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

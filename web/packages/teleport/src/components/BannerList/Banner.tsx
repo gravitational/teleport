@@ -41,9 +41,9 @@ export function Banner({
   onClose,
 }: Props) {
   const icon = {
-    info: <Info mr={3} size="medium" role="icon" />,
-    warning: <Info mr={3} size="medium" role="icon" />,
-    danger: <Warning mr={3} size="medium" role="icon" />,
+    info: <Info mr={3} fontSize="3" role="icon" />,
+    warning: <Info mr={3} fontSize="3" role="icon" />,
+    danger: <Warning mr={3} fontSize="3" role="icon" />,
   }[severity];
 
   const isValidTeleportLink = (link: string) => {
@@ -57,7 +57,7 @@ export function Banner({
 
   let backgroundColor;
   if (severity === 'danger') {
-    backgroundColor = 'error.main';
+    backgroundColor = 'danger';
   } else if (severity === 'warning') {
     backgroundColor = 'warning.main';
   } else {
@@ -72,7 +72,7 @@ export function Banner({
           <Link
             href={link}
             target="_blank"
-            color="text.primaryInverse"
+            color="light"
             style={{ fontWeight: 'bold' }}
             onClick={() =>
               userEventService.captureUserEvent({
@@ -91,7 +91,7 @@ export function Banner({
             onClose(id);
           }}
         >
-          <Cross size="medium" />
+          <Cross />
         </CloseButton>
       </Flex>
     </Box>

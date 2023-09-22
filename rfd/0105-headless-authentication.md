@@ -1,6 +1,6 @@
 ---
 authors: Brian Joerger (bjoerger@goteleport.com)
-state: implemented (v12.2)
+state: draft
 ---
 
 # RFD 105 - Headless Authentication
@@ -103,7 +103,7 @@ sequenceDiagram
     participant Headless Machine as Remote (Headless) Machine
     participant Teleport Proxy
     participant Teleport Auth
-
+    
     Note over Headless Machine: tsh --headless ssh user@node01
     Note over Headless Machine: print URL proxy.example.com/headless/<request_id>
     par headless client request
@@ -116,7 +116,7 @@ sequenceDiagram
         Note over Local Machine: proxy.example.com/headless/<request_id>
         opt user is not already logged in locally
             Local Machine->>Teleport Proxy: user logs in normally e.g. password+MFA
-            Teleport Proxy->>Local Machine:
+            Teleport Proxy->>Local Machine: 
         end
         Local Machine->>Teleport Auth: rpc GetHeadlessAuthentication (request_id)
         Teleport Auth ->> Backend: insert /headless_authentication/<request_id>
@@ -170,7 +170,7 @@ If the headless authentication is approved with a valid MFA challenge, the backe
 
 #### Certificate retrieval
 
-If the headless authentication is approved/denied, the Auth server's resource watcher will unblock to complete/deny the authentication attempt. If approved, the auth server will generate certificates for the user. These certs will have a 1 minute TTL and MFA-verified by the MFA device saved in the headless authentication resource.
+If the headless authentication is approved/denied, the Auth server's resource watcher will unblock to complete/deny the authentication attempt. If approved, the auth server will generate certificates for the user. These certs will have a 1 minute TTL and MFA-verfied by the MFA device saved in the headless authentication resource.
 
 The resulting user certificates will then be returned to the Proxy and then to the client. Now the client can complete the `tsh` request initially requested, e.g. `tsh ssh user@node01`.
 
@@ -215,7 +215,7 @@ message UpdateHeadlessAuthenticationStateRequest {
   State new_state = 2;
 
   // MFAResponse is an mfa challenge response used to verify the user.
-  // MFA Auth Challenges can be created for a user with the
+  // MFA Auth Challenges can be created for a user with the 
   // authservice.GenerateAuthenticateChallenge rpc.
   proto.MFAAuthenticateResponse mfa_response = 3;
 }
@@ -387,6 +387,6 @@ Teleport Connect will also be updated to handle the approval link `https://proxy
 
 ### Additional comments
 
-#### Utilizing the access request subsystem
+#### Utilizing the access request subsytem
 
 Headless authentication could be implemented by expanding the access request subsystem. `/webapi/login/headless` could submit a special headless authentication access request that can only be approved by the user with MFA, and could be used to assume the user's roles. I thoroughly investigated designs around this idea, but found they add too much complexity to the already heavily utilized access request subsystem.

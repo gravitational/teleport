@@ -35,8 +35,8 @@ exports[`auth2faType: off 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -45,19 +45,22 @@ exports[`auth2faType: off 1`] = `
   width: 100%;
 }
 
+.c9:active {
+  opacity: 0.56;
+}
+
 .c9:hover,
 .c9:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c9:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c0 {
@@ -68,9 +71,52 @@ exports[`auth2faType: off 1`] = `
   margin-bottom: 32px;
   padding-bottom: 24px;
   width: 464px;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
   background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c7 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #000000;
+  background-color: #FFFFFF;
+  margin-top: 4px;
+}
+
+.c7::-ms-clear {
+  display: none;
+}
+
+.c7::placeholder {
+  opacity: 0.4;
+}
+
+.c7:read-only {
+  cursor: not-allowed;
+}
+
+.c7:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
+.c6 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
 }
 
 .c1 {
@@ -81,55 +127,8 @@ exports[`auth2faType: off 1`] = `
   line-height: 32px;
   margin: 0px;
   padding-top: 24px;
+  color: #FFFFFF;
   text-align: center;
-}
-
-.c7 {
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  box-sizing: border-box;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 0 16px;
-  outline: none;
-  width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
-  margin-top: 4px;
-}
-
-.c7:hover,
-.c7:focus,
-.c7:active {
-  border: 1px solid rgba(255,255,255,0.72);
-}
-
-.c7::-ms-clear {
-  display: none;
-}
-
-.c7::placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c7:read-only {
-  cursor: not-allowed;
-}
-
-.c7:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
-}
-
-.c6 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
 }
 
 .c4 {
@@ -194,6 +193,7 @@ exports[`auth2faType: off 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Custom Title
   </div>
@@ -207,64 +207,62 @@ exports[`auth2faType: off 1`] = `
       <div
         class="c2"
       >
-        <div
-          class="c2"
+        <form
+          class="c4"
+          data-testid="userpassword"
         >
-          <form
-            class="c4"
-            data-testid="userpassword"
+          <div
+            class="c5"
+          >
+            <label
+              class="c6"
+              font-size="0"
+            >
+              Username
+              <input
+                autocomplete="off"
+                class="c7"
+                color="text.primaryInverse"
+                inputmode="text"
+                placeholder="Username"
+                type="text"
+                value=""
+              />
+            </label>
+          </div>
+          <div
+            class="c5"
           >
             <div
-              class="c5"
+              class="c8"
+              width="100%"
             >
               <label
                 class="c6"
                 font-size="0"
               >
-                Username
+                Password
                 <input
                   autocomplete="off"
                   class="c7"
+                  color="text.primaryInverse"
                   inputmode="text"
-                  placeholder="Username"
-                  type="text"
+                  placeholder="Password"
+                  type="password"
                   value=""
                 />
               </label>
             </div>
-            <div
-              class="c5"
-            >
-              <div
-                class="c8"
-                width="100%"
-              >
-                <label
-                  class="c6"
-                  font-size="0"
-                >
-                  Password
-                  <input
-                    autocomplete="off"
-                    class="c7"
-                    inputmode="text"
-                    placeholder="Password"
-                    type="password"
-                    value=""
-                  />
-                </label>
-              </div>
-            </div>
-            <button
-              class="c9"
-              kind="primary"
-              type="submit"
-              width="100%"
-            >
-              Sign In
-            </button>
-          </form>
-        </div>
+          </div>
+          <button
+            class="c9"
+            kind="primary"
+            type="submit"
+            width="100%"
+          >
+            Sign In
+          </button>
+        </form>
       </div>
     </div>
   </div>
@@ -314,8 +312,8 @@ exports[`auth2faType: optional rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -324,19 +322,22 @@ exports[`auth2faType: optional rendering 1`] = `
   width: 100%;
 }
 
+.c13:active {
+  opacity: 0.56;
+}
+
 .c13:hover,
 .c13:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c13:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c0 {
@@ -347,9 +348,62 @@ exports[`auth2faType: optional rendering 1`] = `
   margin-bottom: 32px;
   padding-bottom: 24px;
   width: 464px;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
   background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c7 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #000000;
+  background-color: #FFFFFF;
+  margin-top: 4px;
+}
+
+.c7::-ms-clear {
+  display: none;
+}
+
+.c7::placeholder {
+  opacity: 0.4;
+}
+
+.c7:read-only {
+  cursor: not-allowed;
+}
+
+.c7:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
+.c6 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c11 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .c1 {
@@ -360,63 +414,8 @@ exports[`auth2faType: optional rendering 1`] = `
   line-height: 32px;
   margin: 0px;
   padding-top: 24px;
+  color: #FFFFFF;
   text-align: center;
-}
-
-.c7 {
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  box-sizing: border-box;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 0 16px;
-  outline: none;
-  width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
-  margin-top: 4px;
-}
-
-.c7:hover,
-.c7:focus,
-.c7:active {
-  border: 1px solid rgba(255,255,255,0.72);
-}
-
-.c7::-ms-clear {
-  display: none;
-}
-
-.c7::placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c7:read-only {
-  cursor: not-allowed;
-}
-
-.c7:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
-}
-
-.c6 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
-}
-
-.c11 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
 }
 
 .c4 {
@@ -482,137 +481,57 @@ exports[`auth2faType: optional rendering 1`] = `
 }
 
 .c12 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
+  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c12 .react-select__control {
-  outline: none;
+.c12 .react-select__control,
+.c12 .react-select__control--is-focused {
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
   background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
   box-shadow: none;
 }
 
-.c12 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
-}
-
 .c12 .react-select__control:hover,
-.c12 .react-select__control:focus,
-.c12 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
+.c12 .react-select__control--is-focused:hover {
+  border-color: transparent;
   cursor: pointer;
-}
-
-.c12 .react-select__control:hover .react-select__dropdown-indicator,
-.c12 .react-select__control:focus .react-select__dropdown-indicator,
-.c12 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__control .react-select__indicator:hover,
-.c12 .react-select__control .react-select__dropdown-indicator:hover,
-.c12 .react-select__control .react-select__indicator:focus,
-.c12 .react-select__control .react-select__dropdown-indicator:focus,
-.c12 .react-select__control .react-select__indicator:active,
-.c12 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c12 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
-}
-
-.c12 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
 }
 
 .c12 .react-select__option:hover {
   cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c12 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c12 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c12 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
+  background-color: #cfd8dc;
   color: inherit;
-  font-weight: 500;
 }
 
 .c12 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c12 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
-}
-
-.c12 .react-select__clear-indicator:hover,
-.c12 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c12 .react-select__clear-indicator:hover svg,
-.c12 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
+  background-color: #cfd8dc;
 }
 
 .c12 .react-select__menu {
   margin-top: 0px;
-  background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c12 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
 }
 
 .c12 .react-select__indicator-separator {
@@ -623,26 +542,13 @@ exports[`auth2faType: optional rendering 1`] = `
   display: none;
 }
 
-.c12 .react-select--is-disabled,
-.c12 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
-}
-
 .c12 .react-select--is-disabled .react-select__single-value,
-.c12 .react-select__control--is-disabled .react-select__single-value,
-.c12 .react-select--is-disabled .react-select__placeholder,
-.c12 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+.c12 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
 }
 
-.c12 .react-select--is-disabled .react-select__indicator,
-.c12 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
-}
-
-.c12 .react-select__input {
-  color: #FFFFFF;
+.c12 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
 }
 
 <div
@@ -651,6 +557,7 @@ exports[`auth2faType: optional rendering 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Custom Title
   </div>
@@ -664,121 +571,119 @@ exports[`auth2faType: optional rendering 1`] = `
       <div
         class="c2"
       >
-        <div
-          class="c2"
+        <form
+          class="c4"
+          data-testid="userpassword"
         >
-          <form
-            class="c4"
-            data-testid="userpassword"
+          <div
+            class="c5"
+          >
+            <label
+              class="c6"
+              font-size="0"
+            >
+              Username
+              <input
+                autocomplete="off"
+                class="c7"
+                color="text.primaryInverse"
+                inputmode="text"
+                placeholder="Username"
+                type="text"
+                value=""
+              />
+            </label>
+          </div>
+          <div
+            class="c5"
           >
             <div
-              class="c5"
+              class="c8"
+              width="100%"
             >
               <label
                 class="c6"
                 font-size="0"
               >
-                Username
+                Password
                 <input
                   autocomplete="off"
                   class="c7"
+                  color="text.primaryInverse"
                   inputmode="text"
-                  placeholder="Username"
-                  type="text"
+                  placeholder="Password"
+                  type="password"
                   value=""
                 />
               </label>
             </div>
+          </div>
+          <div
+            class="c5"
+          >
             <div
-              class="c5"
+              class="c9"
             >
               <div
-                class="c8"
+                class="c10"
+                data-testid="mfa-select"
                 width="100%"
               >
                 <label
-                  class="c6"
+                  class="c11"
                   font-size="0"
+                  for="select"
                 >
-                  Password
-                  <input
-                    autocomplete="off"
-                    class="c7"
-                    inputmode="text"
-                    placeholder="Password"
-                    type="password"
-                    value=""
-                  />
+                  Two-factor type
                 </label>
-              </div>
-            </div>
-            <div
-              class="c5"
-            >
-              <div
-                class="c9"
-              >
                 <div
-                  class="c10"
-                  data-testid="mfa-select"
-                  width="100%"
+                  class="c12"
                 >
-                  <label
-                    class="c11"
-                    font-size="0"
-                    for="select"
-                  >
-                    Two-factor Type
-                  </label>
                   <div
-                    class="c12"
+                    class="react-select-container css-2b097c-container"
                   >
                     <div
-                      class="react-select-container css-2b097c-container"
+                      class="react-select__control css-yk16xz-control"
                     >
                       <div
-                        class="react-select__control css-yk16xz-control"
+                        class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
                       >
                         <div
-                          class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                          class="react-select__single-value css-1uccc91-singleValue"
                         >
-                          <div
-                            class="react-select__single-value css-1uccc91-singleValue"
-                          >
-                            Hardware Key
-                          </div>
-                          <input
-                            aria-autocomplete="list"
-                            class="css-62g3xt-dummyInput"
-                            id="select"
-                            readonly=""
-                            tabindex="0"
-                            value=""
-                          />
+                          Hardware Key
                         </div>
+                        <input
+                          aria-autocomplete="list"
+                          class="css-62g3xt-dummyInput"
+                          id="select"
+                          readonly=""
+                          tabindex="0"
+                          value=""
+                        />
+                      </div>
+                      <div
+                        class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                      >
+                        <span
+                          class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                        />
                         <div
-                          class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                          aria-hidden="true"
+                          class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
                         >
-                          <span
-                            class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                          />
-                          <div
+                          <svg
                             aria-hidden="true"
-                            class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                            class="css-6q0nyr-Svg"
+                            focusable="false"
+                            height="20"
+                            viewBox="0 0 20 20"
+                            width="20"
                           >
-                            <svg
-                              aria-hidden="true"
-                              class="css-6q0nyr-Svg"
-                              focusable="false"
-                              height="20"
-                              viewBox="0 0 20 20"
-                              width="20"
-                            >
-                              <path
-                                d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                              />
-                            </svg>
-                          </div>
+                            <path
+                              d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                            />
+                          </svg>
                         </div>
                       </div>
                     </div>
@@ -786,16 +691,16 @@ exports[`auth2faType: optional rendering 1`] = `
                 </div>
               </div>
             </div>
-            <button
-              class="c13"
-              kind="primary"
-              type="submit"
-              width="100%"
-            >
-              Sign In
-            </button>
-          </form>
-        </div>
+          </div>
+          <button
+            class="c13"
+            kind="primary"
+            type="submit"
+            width="100%"
+          >
+            Sign In
+          </button>
+        </form>
       </div>
     </div>
   </div>
@@ -851,8 +756,8 @@ exports[`auth2faType: otp rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -861,19 +766,22 @@ exports[`auth2faType: otp rendering 1`] = `
   width: 100%;
 }
 
+.c14:active {
+  opacity: 0.56;
+}
+
 .c14:hover,
 .c14:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c14:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c0 {
@@ -884,9 +792,62 @@ exports[`auth2faType: otp rendering 1`] = `
   margin-bottom: 32px;
   padding-bottom: 24px;
   width: 464px;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
   background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c7 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #000000;
+  background-color: #FFFFFF;
+  margin-top: 4px;
+}
+
+.c7::-ms-clear {
+  display: none;
+}
+
+.c7::placeholder {
+  opacity: 0.4;
+}
+
+.c7:read-only {
+  cursor: not-allowed;
+}
+
+.c7:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
+.c6 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c11 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .c1 {
@@ -897,63 +858,8 @@ exports[`auth2faType: otp rendering 1`] = `
   line-height: 32px;
   margin: 0px;
   padding-top: 24px;
+  color: #FFFFFF;
   text-align: center;
-}
-
-.c7 {
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  box-sizing: border-box;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 0 16px;
-  outline: none;
-  width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
-  margin-top: 4px;
-}
-
-.c7:hover,
-.c7:focus,
-.c7:active {
-  border: 1px solid rgba(255,255,255,0.72);
-}
-
-.c7::-ms-clear {
-  display: none;
-}
-
-.c7::placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c7:read-only {
-  cursor: not-allowed;
-}
-
-.c7:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
-}
-
-.c6 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
-}
-
-.c11 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
 }
 
 .c4 {
@@ -1019,137 +925,57 @@ exports[`auth2faType: otp rendering 1`] = `
 }
 
 .c12 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
+  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c12 .react-select__control {
-  outline: none;
+.c12 .react-select__control,
+.c12 .react-select__control--is-focused {
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
   background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
   box-shadow: none;
 }
 
-.c12 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
-}
-
 .c12 .react-select__control:hover,
-.c12 .react-select__control:focus,
-.c12 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
+.c12 .react-select__control--is-focused:hover {
+  border-color: transparent;
   cursor: pointer;
-}
-
-.c12 .react-select__control:hover .react-select__dropdown-indicator,
-.c12 .react-select__control:focus .react-select__dropdown-indicator,
-.c12 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__control .react-select__indicator:hover,
-.c12 .react-select__control .react-select__dropdown-indicator:hover,
-.c12 .react-select__control .react-select__indicator:focus,
-.c12 .react-select__control .react-select__dropdown-indicator:focus,
-.c12 .react-select__control .react-select__indicator:active,
-.c12 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c12 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
-}
-
-.c12 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
 }
 
 .c12 .react-select__option:hover {
   cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c12 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c12 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c12 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
+  background-color: #cfd8dc;
   color: inherit;
-  font-weight: 500;
 }
 
 .c12 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c12 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
-}
-
-.c12 .react-select__clear-indicator:hover,
-.c12 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c12 .react-select__clear-indicator:hover svg,
-.c12 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
+  background-color: #cfd8dc;
 }
 
 .c12 .react-select__menu {
   margin-top: 0px;
-  background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c12 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
 }
 
 .c12 .react-select__indicator-separator {
@@ -1160,26 +986,13 @@ exports[`auth2faType: otp rendering 1`] = `
   display: none;
 }
 
-.c12 .react-select--is-disabled,
-.c12 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
-}
-
 .c12 .react-select--is-disabled .react-select__single-value,
-.c12 .react-select__control--is-disabled .react-select__single-value,
-.c12 .react-select--is-disabled .react-select__placeholder,
-.c12 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+.c12 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
 }
 
-.c12 .react-select--is-disabled .react-select__indicator,
-.c12 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
-}
-
-.c12 .react-select__input {
-  color: #FFFFFF;
+.c12 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
 }
 
 <div
@@ -1188,6 +1001,7 @@ exports[`auth2faType: otp rendering 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Custom Title
   </div>
@@ -1201,157 +1015,156 @@ exports[`auth2faType: otp rendering 1`] = `
       <div
         class="c2"
       >
-        <div
-          class="c2"
+        <form
+          class="c4"
+          data-testid="userpassword"
         >
-          <form
-            class="c4"
-            data-testid="userpassword"
+          <div
+            class="c5"
+          >
+            <label
+              class="c6"
+              font-size="0"
+            >
+              Username
+              <input
+                autocomplete="off"
+                class="c7"
+                color="text.primaryInverse"
+                inputmode="text"
+                placeholder="Username"
+                type="text"
+                value=""
+              />
+            </label>
+          </div>
+          <div
+            class="c5"
           >
             <div
-              class="c5"
+              class="c8"
+              width="100%"
             >
               <label
                 class="c6"
                 font-size="0"
               >
-                Username
+                Password
                 <input
                   autocomplete="off"
                   class="c7"
+                  color="text.primaryInverse"
                   inputmode="text"
-                  placeholder="Username"
-                  type="text"
+                  placeholder="Password"
+                  type="password"
                   value=""
                 />
               </label>
             </div>
+          </div>
+          <div
+            class="c5"
+          >
             <div
-              class="c5"
+              class="c9"
             >
               <div
-                class="c8"
+                class="c10"
+                data-testid="mfa-select"
                 width="100%"
               >
                 <label
-                  class="c6"
+                  class="c11"
                   font-size="0"
+                  for="select"
                 >
-                  Password
-                  <input
-                    autocomplete="off"
-                    class="c7"
-                    inputmode="text"
-                    placeholder="Password"
-                    type="password"
-                    value=""
-                  />
+                  Two-factor type
                 </label>
-              </div>
-            </div>
-            <div
-              class="c5"
-            >
-              <div
-                class="c9"
-              >
                 <div
-                  class="c10"
-                  data-testid="mfa-select"
-                  width="100%"
+                  class="c12"
                 >
-                  <label
-                    class="c11"
-                    font-size="0"
-                    for="select"
-                  >
-                    Two-factor Type
-                  </label>
                   <div
-                    class="c12"
+                    class="react-select-container css-2b097c-container"
                   >
                     <div
-                      class="react-select-container css-2b097c-container"
+                      class="react-select__control css-yk16xz-control"
                     >
                       <div
-                        class="react-select__control css-yk16xz-control"
+                        class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
                       >
                         <div
-                          class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                          class="react-select__single-value css-1uccc91-singleValue"
                         >
-                          <div
-                            class="react-select__single-value css-1uccc91-singleValue"
-                          >
-                            Authenticator App
-                          </div>
-                          <input
-                            aria-autocomplete="list"
-                            class="css-62g3xt-dummyInput"
-                            id="select"
-                            readonly=""
-                            tabindex="0"
-                            value=""
-                          />
+                          Authenticator App
                         </div>
+                        <input
+                          aria-autocomplete="list"
+                          class="css-62g3xt-dummyInput"
+                          id="select"
+                          readonly=""
+                          tabindex="0"
+                          value=""
+                        />
+                      </div>
+                      <div
+                        class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                      >
+                        <span
+                          class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                        />
                         <div
-                          class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                          aria-hidden="true"
+                          class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
                         >
-                          <span
-                            class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                          />
-                          <div
+                          <svg
                             aria-hidden="true"
-                            class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                            class="css-6q0nyr-Svg"
+                            focusable="false"
+                            height="20"
+                            viewBox="0 0 20 20"
+                            width="20"
                           >
-                            <svg
-                              aria-hidden="true"
-                              class="css-6q0nyr-Svg"
-                              focusable="false"
-                              height="20"
-                              viewBox="0 0 20 20"
-                              width="20"
-                            >
-                              <path
-                                d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                              />
-                            </svg>
-                          </div>
+                            <path
+                              d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                            />
+                          </svg>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div
-                  class="c13"
-                  width="50%"
+              </div>
+              <div
+                class="c13"
+                width="50%"
+              >
+                <label
+                  class="c6"
+                  font-size="0"
                 >
-                  <label
-                    class="c6"
-                    font-size="0"
-                  >
-                    Authenticator Code
-                    <input
-                      autocomplete="one-time-code"
-                      class="c7"
-                      inputmode="numeric"
-                      placeholder="123 456"
-                      type="text"
-                      value=""
-                    />
-                  </label>
-                </div>
+                  Authenticator code
+                  <input
+                    autocomplete="one-time-code"
+                    class="c7"
+                    color="text.primaryInverse"
+                    inputmode="numeric"
+                    placeholder="123 456"
+                    type="text"
+                    value=""
+                  />
+                </label>
               </div>
             </div>
-            <button
-              class="c14"
-              kind="primary"
-              type="submit"
-              width="100%"
-            >
-              Sign In
-            </button>
-          </form>
-        </div>
+          </div>
+          <button
+            class="c14"
+            kind="primary"
+            type="submit"
+            width="100%"
+          >
+            Sign In
+          </button>
+        </form>
       </div>
     </div>
   </div>
@@ -1401,8 +1214,8 @@ exports[`auth2faType: webauthn rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -1411,19 +1224,22 @@ exports[`auth2faType: webauthn rendering 1`] = `
   width: 100%;
 }
 
+.c13:active {
+  opacity: 0.56;
+}
+
 .c13:hover,
 .c13:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c13:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c0 {
@@ -1434,9 +1250,62 @@ exports[`auth2faType: webauthn rendering 1`] = `
   margin-bottom: 32px;
   padding-bottom: 24px;
   width: 464px;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
   background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c7 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #000000;
+  background-color: #FFFFFF;
+  margin-top: 4px;
+}
+
+.c7::-ms-clear {
+  display: none;
+}
+
+.c7::placeholder {
+  opacity: 0.4;
+}
+
+.c7:read-only {
+  cursor: not-allowed;
+}
+
+.c7:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
+.c6 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c11 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .c1 {
@@ -1447,63 +1316,8 @@ exports[`auth2faType: webauthn rendering 1`] = `
   line-height: 32px;
   margin: 0px;
   padding-top: 24px;
+  color: #FFFFFF;
   text-align: center;
-}
-
-.c7 {
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  box-sizing: border-box;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 0 16px;
-  outline: none;
-  width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
-  margin-top: 4px;
-}
-
-.c7:hover,
-.c7:focus,
-.c7:active {
-  border: 1px solid rgba(255,255,255,0.72);
-}
-
-.c7::-ms-clear {
-  display: none;
-}
-
-.c7::placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c7:read-only {
-  cursor: not-allowed;
-}
-
-.c7:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
-}
-
-.c6 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
-}
-
-.c11 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
 }
 
 .c4 {
@@ -1569,137 +1383,57 @@ exports[`auth2faType: webauthn rendering 1`] = `
 }
 
 .c12 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
+  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c12 .react-select__control {
-  outline: none;
+.c12 .react-select__control,
+.c12 .react-select__control--is-focused {
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
   background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
   box-shadow: none;
 }
 
-.c12 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
-}
-
 .c12 .react-select__control:hover,
-.c12 .react-select__control:focus,
-.c12 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
+.c12 .react-select__control--is-focused:hover {
+  border-color: transparent;
   cursor: pointer;
-}
-
-.c12 .react-select__control:hover .react-select__dropdown-indicator,
-.c12 .react-select__control:focus .react-select__dropdown-indicator,
-.c12 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__control .react-select__indicator:hover,
-.c12 .react-select__control .react-select__dropdown-indicator:hover,
-.c12 .react-select__control .react-select__indicator:focus,
-.c12 .react-select__control .react-select__dropdown-indicator:focus,
-.c12 .react-select__control .react-select__indicator:active,
-.c12 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c12 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
-}
-
-.c12 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
 }
 
 .c12 .react-select__option:hover {
   cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c12 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c12 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c12 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
+  background-color: #cfd8dc;
   color: inherit;
-  font-weight: 500;
 }
 
 .c12 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c12 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
-}
-
-.c12 .react-select__clear-indicator:hover,
-.c12 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c12 .react-select__clear-indicator:hover svg,
-.c12 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
+  background-color: #cfd8dc;
 }
 
 .c12 .react-select__menu {
   margin-top: 0px;
-  background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c12 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
 }
 
 .c12 .react-select__indicator-separator {
@@ -1710,26 +1444,13 @@ exports[`auth2faType: webauthn rendering 1`] = `
   display: none;
 }
 
-.c12 .react-select--is-disabled,
-.c12 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
-}
-
 .c12 .react-select--is-disabled .react-select__single-value,
-.c12 .react-select__control--is-disabled .react-select__single-value,
-.c12 .react-select--is-disabled .react-select__placeholder,
-.c12 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+.c12 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
 }
 
-.c12 .react-select--is-disabled .react-select__indicator,
-.c12 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
-}
-
-.c12 .react-select__input {
-  color: #FFFFFF;
+.c12 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
 }
 
 <div
@@ -1738,6 +1459,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Custom Title
   </div>
@@ -1751,121 +1473,119 @@ exports[`auth2faType: webauthn rendering 1`] = `
       <div
         class="c2"
       >
-        <div
-          class="c2"
+        <form
+          class="c4"
+          data-testid="userpassword"
         >
-          <form
-            class="c4"
-            data-testid="userpassword"
+          <div
+            class="c5"
+          >
+            <label
+              class="c6"
+              font-size="0"
+            >
+              Username
+              <input
+                autocomplete="off"
+                class="c7"
+                color="text.primaryInverse"
+                inputmode="text"
+                placeholder="Username"
+                type="text"
+                value=""
+              />
+            </label>
+          </div>
+          <div
+            class="c5"
           >
             <div
-              class="c5"
+              class="c8"
+              width="100%"
             >
               <label
                 class="c6"
                 font-size="0"
               >
-                Username
+                Password
                 <input
                   autocomplete="off"
                   class="c7"
+                  color="text.primaryInverse"
                   inputmode="text"
-                  placeholder="Username"
-                  type="text"
+                  placeholder="Password"
+                  type="password"
                   value=""
                 />
               </label>
             </div>
+          </div>
+          <div
+            class="c5"
+          >
             <div
-              class="c5"
+              class="c9"
             >
               <div
-                class="c8"
+                class="c10"
+                data-testid="mfa-select"
                 width="100%"
               >
                 <label
-                  class="c6"
+                  class="c11"
                   font-size="0"
+                  for="select"
                 >
-                  Password
-                  <input
-                    autocomplete="off"
-                    class="c7"
-                    inputmode="text"
-                    placeholder="Password"
-                    type="password"
-                    value=""
-                  />
+                  Two-factor type
                 </label>
-              </div>
-            </div>
-            <div
-              class="c5"
-            >
-              <div
-                class="c9"
-              >
                 <div
-                  class="c10"
-                  data-testid="mfa-select"
-                  width="100%"
+                  class="c12"
                 >
-                  <label
-                    class="c11"
-                    font-size="0"
-                    for="select"
-                  >
-                    Two-factor Type
-                  </label>
                   <div
-                    class="c12"
+                    class="react-select-container css-2b097c-container"
                   >
                     <div
-                      class="react-select-container css-2b097c-container"
+                      class="react-select__control css-yk16xz-control"
                     >
                       <div
-                        class="react-select__control css-yk16xz-control"
+                        class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
                       >
                         <div
-                          class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                          class="react-select__single-value css-1uccc91-singleValue"
                         >
-                          <div
-                            class="react-select__single-value css-1uccc91-singleValue"
-                          >
-                            Hardware Key
-                          </div>
-                          <input
-                            aria-autocomplete="list"
-                            class="css-62g3xt-dummyInput"
-                            id="select"
-                            readonly=""
-                            tabindex="0"
-                            value=""
-                          />
+                          Hardware Key
                         </div>
+                        <input
+                          aria-autocomplete="list"
+                          class="css-62g3xt-dummyInput"
+                          id="select"
+                          readonly=""
+                          tabindex="0"
+                          value=""
+                        />
+                      </div>
+                      <div
+                        class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                      >
+                        <span
+                          class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                        />
                         <div
-                          class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                          aria-hidden="true"
+                          class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
                         >
-                          <span
-                            class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                          />
-                          <div
+                          <svg
                             aria-hidden="true"
-                            class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                            class="css-6q0nyr-Svg"
+                            focusable="false"
+                            height="20"
+                            viewBox="0 0 20 20"
+                            width="20"
                           >
-                            <svg
-                              aria-hidden="true"
-                              class="css-6q0nyr-Svg"
-                              focusable="false"
-                              height="20"
-                              viewBox="0 0 20 20"
-                              width="20"
-                            >
-                              <path
-                                d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                              />
-                            </svg>
-                          </div>
+                            <path
+                              d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                            />
+                          </svg>
                         </div>
                       </div>
                     </div>
@@ -1873,16 +1593,16 @@ exports[`auth2faType: webauthn rendering 1`] = `
                 </div>
               </div>
             </div>
-            <button
-              class="c13"
-              kind="primary"
-              type="submit"
-              width="100%"
-            >
-              Sign In
-            </button>
-          </form>
-        </div>
+          </div>
+          <button
+            class="c13"
+            kind="primary"
+            type="submit"
+            width="100%"
+          >
+            Sign In
+          </button>
+        </form>
       </div>
     </div>
   </div>
@@ -1947,26 +1667,29 @@ exports[`cloud auth2faType: on rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
+.c12:active {
+  opacity: 0.56;
+}
+
 .c12:hover,
 .c12:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c12:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c18 {
@@ -1988,8 +1711,8 @@ exports[`cloud auth2faType: on rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -1998,23 +1721,26 @@ exports[`cloud auth2faType: on rendering 1`] = `
   width: 100%;
 }
 
+.c18:active {
+  opacity: 0.56;
+}
+
 .c18:hover,
 .c18:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c18:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c18:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c11 {
-  color: #009EFF;
+  color: #03a9f4;
   font-weight: normal;
   background: none;
   text-decoration: underline;
@@ -2024,16 +1750,6 @@ exports[`cloud auth2faType: on rendering 1`] = `
 
 .c11:hover,
 .c11:focus {
-  color: #33B1FF;
-}
-
-.c11:active {
-  color: #66C5FF;
-}
-
-.c11:hover,
-.c11:focus,
-.c11:active {
   background: #222C59;
 }
 
@@ -2045,9 +1761,62 @@ exports[`cloud auth2faType: on rendering 1`] = `
   margin-bottom: 32px;
   padding-bottom: 24px;
   width: 464px;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
   background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c7 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #000000;
+  background-color: #FFFFFF;
+  margin-top: 4px;
+}
+
+.c7::-ms-clear {
+  display: none;
+}
+
+.c7::placeholder {
+  opacity: 0.4;
+}
+
+.c7:read-only {
+  cursor: not-allowed;
+}
+
+.c7:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
+.c6 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c16 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .c1 {
@@ -2058,63 +1827,8 @@ exports[`cloud auth2faType: on rendering 1`] = `
   line-height: 32px;
   margin: 0px;
   padding-top: 24px;
+  color: #FFFFFF;
   text-align: center;
-}
-
-.c7 {
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  box-sizing: border-box;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 0 16px;
-  outline: none;
-  width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
-  margin-top: 4px;
-}
-
-.c7:hover,
-.c7:focus,
-.c7:active {
-  border: 1px solid rgba(255,255,255,0.72);
-}
-
-.c7::-ms-clear {
-  display: none;
-}
-
-.c7::placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c7:read-only {
-  cursor: not-allowed;
-}
-
-.c7:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
-}
-
-.c6 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
-}
-
-.c16 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
 }
 
 .c4 {
@@ -2180,137 +1894,57 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c17 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
+  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c17 .react-select__control {
-  outline: none;
+.c17 .react-select__control,
+.c17 .react-select__control--is-focused {
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
   background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
   box-shadow: none;
 }
 
-.c17 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
-}
-
 .c17 .react-select__control:hover,
-.c17 .react-select__control:focus,
-.c17 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
+.c17 .react-select__control--is-focused:hover {
+  border-color: transparent;
   cursor: pointer;
-}
-
-.c17 .react-select__control:hover .react-select__dropdown-indicator,
-.c17 .react-select__control:focus .react-select__dropdown-indicator,
-.c17 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c17 .react-select__control .react-select__indicator:hover,
-.c17 .react-select__control .react-select__dropdown-indicator:hover,
-.c17 .react-select__control .react-select__indicator:focus,
-.c17 .react-select__control .react-select__dropdown-indicator:focus,
-.c17 .react-select__control .react-select__indicator:active,
-.c17 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c17 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c17 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c17 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c17 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
-}
-
-.c17 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c17 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c17 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c17 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
 }
 
 .c17 .react-select__option:hover {
   cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c17 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c17 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c17 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
+  background-color: #cfd8dc;
   color: inherit;
-  font-weight: 500;
 }
 
 .c17 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c17 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
-}
-
-.c17 .react-select__clear-indicator:hover,
-.c17 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c17 .react-select__clear-indicator:hover svg,
-.c17 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
+  background-color: #cfd8dc;
 }
 
 .c17 .react-select__menu {
   margin-top: 0px;
-  background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c17 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
 }
 
 .c17 .react-select__indicator-separator {
@@ -2321,26 +1955,13 @@ exports[`cloud auth2faType: on rendering 1`] = `
   display: none;
 }
 
-.c17 .react-select--is-disabled,
-.c17 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
-}
-
 .c17 .react-select--is-disabled .react-select__single-value,
-.c17 .react-select__control--is-disabled .react-select__single-value,
-.c17 .react-select--is-disabled .react-select__placeholder,
-.c17 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+.c17 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
 }
 
-.c17 .react-select--is-disabled .react-select__indicator,
-.c17 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
-}
-
-.c17 .react-select__input {
-  color: #FFFFFF;
+.c17 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
 }
 
 <div
@@ -2349,6 +1970,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Teleport Cloud
   </div>
@@ -2362,156 +1984,154 @@ exports[`cloud auth2faType: on rendering 1`] = `
       <div
         class="c2"
       >
-        <div
-          class="c2"
+        <form
+          class="c4"
+          data-testid="userpassword"
         >
-          <form
-            class="c4"
-            data-testid="userpassword"
+          <div
+            class="c5"
+          >
+            <label
+              class="c6"
+              font-size="0"
+            >
+              Username
+              <input
+                autocomplete="off"
+                class="c7"
+                color="text.primaryInverse"
+                inputmode="text"
+                placeholder="Username"
+                type="text"
+                value=""
+              />
+            </label>
+          </div>
+          <div
+            class="c8"
           >
             <div
-              class="c5"
+              class="c9"
+              width="100%"
             >
               <label
                 class="c6"
                 font-size="0"
               >
-                Username
+                Password
                 <input
                   autocomplete="off"
                   class="c7"
+                  color="text.primaryInverse"
                   inputmode="text"
-                  placeholder="Username"
-                  type="text"
+                  placeholder="Password"
+                  type="password"
                   value=""
                 />
               </label>
             </div>
             <div
-              class="c8"
+              class="c10"
+            >
+              <a
+                class="c11 c12"
+                kind="primary"
+                style="padding: 0px; min-height: 0;"
+              >
+                Forgot Password?
+              </a>
+            </div>
+          </div>
+          <div
+            class="c13"
+          >
+            <div
+              class="c14"
             >
               <div
-                class="c9"
+                class="c15"
+                data-testid="mfa-select"
                 width="100%"
               >
                 <label
-                  class="c6"
+                  class="c16"
                   font-size="0"
+                  for="select"
                 >
-                  Password
-                  <input
-                    autocomplete="off"
-                    class="c7"
-                    inputmode="text"
-                    placeholder="Password"
-                    type="password"
-                    value=""
-                  />
+                  Two-factor type
                 </label>
-              </div>
-              <div
-                class="c10"
-              >
-                <a
-                  class="c11 c12"
-                  kind="primary"
-                  style="padding: 0px; min-height: 0;"
-                >
-                  Forgot Password?
-                </a>
-              </div>
-            </div>
-            <div
-              class="c13"
-            >
-              <div
-                class="c14"
-              >
                 <div
-                  class="c15"
-                  data-testid="mfa-select"
-                  width="100%"
+                  class="c17"
                 >
-                  <label
-                    class="c16"
-                    font-size="0"
-                    for="select"
-                  >
-                    Two-factor Type
-                  </label>
                   <div
-                    class="c17"
+                    class="react-select-container css-2b097c-container"
                   >
                     <div
-                      class="react-select-container css-2b097c-container"
+                      class="react-select__control css-yk16xz-control"
                     >
                       <div
-                        class="react-select__control css-yk16xz-control"
+                        class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
                       >
                         <div
-                          class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                          class="react-select__single-value css-1uccc91-singleValue"
                         >
-                          <div
-                            class="react-select__single-value css-1uccc91-singleValue"
-                          >
-                            Hardware Key
-                          </div>
-                          <input
-                            aria-autocomplete="list"
-                            class="css-62g3xt-dummyInput"
-                            id="select"
-                            readonly=""
-                            tabindex="0"
-                            value=""
-                          />
+                          Hardware Key
                         </div>
+                        <input
+                          aria-autocomplete="list"
+                          class="css-62g3xt-dummyInput"
+                          id="select"
+                          readonly=""
+                          tabindex="0"
+                          value=""
+                        />
+                      </div>
+                      <div
+                        class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                      >
+                        <span
+                          class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                        />
                         <div
-                          class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                          aria-hidden="true"
+                          class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
                         >
-                          <span
-                            class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                          />
-                          <div
+                          <svg
                             aria-hidden="true"
-                            class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                            class="css-6q0nyr-Svg"
+                            focusable="false"
+                            height="20"
+                            viewBox="0 0 20 20"
+                            width="20"
                           >
-                            <svg
-                              aria-hidden="true"
-                              class="css-6q0nyr-Svg"
-                              focusable="false"
-                              height="20"
-                              viewBox="0 0 20 20"
-                              width="20"
-                            >
-                              <path
-                                d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                              />
-                            </svg>
-                          </div>
+                            <path
+                              d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                            />
+                          </svg>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-              <a
-                class="c11 c12"
-                kind="primary"
-                style="padding: 0px; min-height: 0;"
-              >
-                Lost Two-Factor Device?
-              </a>
             </div>
-            <button
-              class="c18"
+            <a
+              class="c11 c12"
               kind="primary"
-              type="submit"
-              width="100%"
+              style="padding: 0px; min-height: 0;"
             >
-              Sign In
-            </button>
-          </form>
-        </div>
+              Lost Two-Factor Device?
+            </a>
+          </div>
+          <button
+            class="c18"
+            kind="primary"
+            type="submit"
+            width="100%"
+          >
+            Sign In
+          </button>
+        </form>
       </div>
     </div>
   </div>
@@ -2534,8 +2154,8 @@ exports[`no login enabled 1`] = `
   line-height: 1.5;
   margin-top: 32px;
   margin-bottom: 32px;
-  background: #FF6257;
-  color: #000000;
+  background: #f50057;
+  color: #FFFFFF;
 }
 
 .c2 a {
@@ -2552,9 +2172,9 @@ exports[`no login enabled 1`] = `
   padding-left: 32px;
   padding-right: 32px;
   width: 464px;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
   background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
 }
 
 .c1 {
@@ -2565,6 +2185,7 @@ exports[`no login enabled 1`] = `
   line-height: 32px;
   margin: 0px;
   padding-top: 24px;
+  color: #FFFFFF;
   text-align: center;
 }
 
@@ -2584,6 +2205,7 @@ exports[`no login enabled 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Welcome!
   </div>
@@ -2618,8 +2240,8 @@ exports[`server error rendering 1`] = `
   line-height: 1.5;
   margin: 32px;
   margin-bottom: 0px;
-  background: #FF6257;
-  color: #000000;
+  background: #f50057;
+  color: #FFFFFF;
 }
 
 .c2 a {
@@ -2660,8 +2282,8 @@ exports[`server error rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -2670,19 +2292,22 @@ exports[`server error rendering 1`] = `
   width: 100%;
 }
 
+.c10:active {
+  opacity: 0.56;
+}
+
 .c10:hover,
 .c10:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c10:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c0 {
@@ -2693,9 +2318,52 @@ exports[`server error rendering 1`] = `
   margin-bottom: 32px;
   padding-bottom: 24px;
   width: 464px;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
   background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c8 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  color: #000000;
+  background-color: #FFFFFF;
+  margin-top: 4px;
+}
+
+.c8::-ms-clear {
+  display: none;
+}
+
+.c8::placeholder {
+  opacity: 0.4;
+}
+
+.c8:read-only {
+  cursor: not-allowed;
+}
+
+.c8:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
+.c7 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
 }
 
 .c1 {
@@ -2706,55 +2374,8 @@ exports[`server error rendering 1`] = `
   line-height: 32px;
   margin: 0px;
   padding-top: 24px;
+  color: #FFFFFF;
   text-align: center;
-}
-
-.c8 {
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  box-sizing: border-box;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 0 16px;
-  outline: none;
-  width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
-  margin-top: 4px;
-}
-
-.c8:hover,
-.c8:focus,
-.c8:active {
-  border: 1px solid rgba(255,255,255,0.72);
-}
-
-.c8::-ms-clear {
-  display: none;
-}
-
-.c8::placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c8:read-only {
-  cursor: not-allowed;
-}
-
-.c8:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
-}
-
-.c7 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
 }
 
 .c5 {
@@ -2819,6 +2440,7 @@ exports[`server error rendering 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Welcome!
   </div>
@@ -2838,64 +2460,62 @@ exports[`server error rendering 1`] = `
       <div
         class="c3"
       >
-        <div
-          class="c3"
+        <form
+          class="c5"
+          data-testid="userpassword"
         >
-          <form
-            class="c5"
-            data-testid="userpassword"
+          <div
+            class="c6"
+          >
+            <label
+              class="c7"
+              font-size="0"
+            >
+              Username
+              <input
+                autocomplete="off"
+                class="c8"
+                color="text.primaryInverse"
+                inputmode="text"
+                placeholder="Username"
+                type="text"
+                value=""
+              />
+            </label>
+          </div>
+          <div
+            class="c6"
           >
             <div
-              class="c6"
+              class="c9"
+              width="100%"
             >
               <label
                 class="c7"
                 font-size="0"
               >
-                Username
+                Password
                 <input
                   autocomplete="off"
                   class="c8"
+                  color="text.primaryInverse"
                   inputmode="text"
-                  placeholder="Username"
-                  type="text"
+                  placeholder="Password"
+                  type="password"
                   value=""
                 />
               </label>
             </div>
-            <div
-              class="c6"
-            >
-              <div
-                class="c9"
-                width="100%"
-              >
-                <label
-                  class="c7"
-                  font-size="0"
-                >
-                  Password
-                  <input
-                    autocomplete="off"
-                    class="c8"
-                    inputmode="text"
-                    placeholder="Password"
-                    type="password"
-                    value=""
-                  />
-                </label>
-              </div>
-            </div>
-            <button
-              class="c10"
-              kind="primary"
-              type="submit"
-              width="100%"
-            >
-              Sign In
-            </button>
-          </form>
-        </div>
+          </div>
+          <button
+            class="c10"
+            kind="primary"
+            type="submit"
+            width="100%"
+          >
+            Sign In
+          </button>
+        </form>
       </div>
     </div>
   </div>
@@ -2930,8 +2550,8 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
@@ -2940,22 +2560,25 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   width: 100%;
 }
 
+.c3:active {
+  opacity: 0.56;
+}
+
 .c3:hover,
 .c3:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c3:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c3:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
-.c7 {
+.c8 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -2974,8 +2597,8 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
@@ -2984,19 +2607,28 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   width: 100%;
 }
 
-.c7:hover,
-.c7:focus {
-  background: #B29DFF;
+.c8:active {
+  opacity: 0.56;
 }
 
-.c7:active {
-  background: #C5B6FF;
+.c8:hover,
+.c8:focus {
+  background: #651FFF;
 }
 
-.c7:disabled {
+.c8:active {
+  background: #354AA4;
+}
+
+.c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
+}
+
+.c7 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
 }
 
 .c0 {
@@ -3007,9 +2639,9 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   margin-bottom: 32px;
   padding-bottom: 24px;
   width: 464px;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
   background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
 }
 
 .c1 {
@@ -3020,14 +2652,8 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   line-height: 32px;
   margin: 0px;
   padding-top: 24px;
+  color: #FFFFFF;
   text-align: center;
-}
-
-.c6 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
 }
 
 .c4 {
@@ -3035,7 +2661,6 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   display: block;
   width: 100%;
   border: 1px solid transparent;
-  color: white;
   height: 40px;
   position: relative;
   box-sizing: border-box;
@@ -3047,28 +2672,29 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   border: 1px solid rgb(142,142,142);
 }
 
-.c4 svg {
+.c4 .c6 {
+  font-size: 20px;
   opacity: 0.87;
 }
 
-.c8 {
+.c9 {
   background-color: #dd4b39;
   display: block;
   width: 100%;
   border: 1px solid transparent;
-  color: white;
   height: 40px;
   position: relative;
   box-sizing: border-box;
 }
 
-.c8:hover,
-.c8:focus {
+.c9:hover,
+.c9:focus {
   background: rgb(198,67,51);
   border: 1px solid rgb(234,147,136);
 }
 
-.c8 svg {
+.c9 .c6 {
+  font-size: 20px;
   opacity: 0.87;
 }
 
@@ -3092,6 +2718,7 @@ exports[`sso list still renders when local auth is disabled 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Welcome!
   </div>
@@ -3108,28 +2735,15 @@ exports[`sso list still renders when local auth is disabled 1`] = `
         class="c5"
       >
         <span
-          class="c6 icon icon-github"
-          color="white"
+          class="c6 c7 icon icon-github "
+          color="light"
           data-testid="icon"
-        >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-          >
-            <path
-              clip-rule="evenodd"
-              d="M7.12482 2.25C8.06954 2.24978 8.9991 2.4875 9.82773 2.94123C10.5329 3.32738 11.1457 3.85939 11.6261 4.5H13.8739C14.3543 3.85939 14.9671 3.32738 15.6723 2.94123C16.5009 2.4875 17.4305 2.24978 18.3752 2.25C18.6429 2.25006 18.8902 2.39278 19.0242 2.62449C19.4445 3.35119 19.6966 4.16285 19.762 4.9998C19.8173 5.70844 19.7376 6.41996 19.5282 7.09681C19.9929 7.89994 20.2427 8.81191 20.25 9.74414L20.25 9.75L20.25 10.5C20.25 11.8924 19.6969 13.2277 18.7123 14.2123C17.8973 15.0273 16.842 15.5467 15.7129 15.7014C16.2204 16.3555 16.5 17.1633 16.5 18V21.75C16.5 22.1642 16.1642 22.5 15.75 22.5C15.3358 22.5 15 22.1642 15 21.75V18C15 17.4033 14.7629 16.831 14.341 16.409C13.919 15.9871 13.3467 15.75 12.75 15.75C12.1533 15.75 11.581 15.9871 11.159 16.409C10.7371 16.831 10.5 17.4033 10.5 18V21.75C10.5 22.1642 10.1642 22.5 9.75 22.5C9.33579 22.5 9 22.1642 9 21.75V20.25H6.75C5.75544 20.25 4.80161 19.8549 4.09835 19.1516C3.39509 18.4484 3 17.4946 3 16.5C3 15.9033 2.76295 15.331 2.34099 14.909C1.91903 14.4871 1.34674 14.25 0.75 14.25C0.335786 14.25 0 13.9142 0 13.5C0 13.0858 0.335786 12.75 0.75 12.75C1.74456 12.75 2.69839 13.1451 3.40165 13.8484C4.10491 14.5516 4.5 15.5054 4.5 16.5C4.5 17.0967 4.73705 17.669 5.15901 18.091C5.58097 18.5129 6.15326 18.75 6.75 18.75H9V18C9 17.1633 9.27961 16.3555 9.78707 15.7014C8.658 15.5467 7.60267 15.0273 6.78769 14.2123C5.80312 13.2277 5.25 11.8924 5.25 10.5V9.74414C5.25728 8.81191 5.50709 7.89994 5.97176 7.09681C5.76243 6.41996 5.68268 5.70844 5.73801 4.9998C5.80336 4.16285 6.05546 3.35119 6.47578 2.62449C6.6098 2.39278 6.85715 2.25006 7.12482 2.25ZM15 14.25H10.5C9.50544 14.25 8.55161 13.8549 7.84835 13.1517C7.14509 12.4484 6.75 11.4946 6.75 10.5V9.75306C6.75652 8.98906 6.98903 8.24406 7.41827 7.61196C7.55651 7.4084 7.5861 7.14997 7.49745 6.92043C7.27577 6.34642 7.18556 5.73002 7.23346 5.11655C7.26972 4.65213 7.38443 4.19833 7.57171 3.77413C8.10886 3.8325 8.63084 3.996 9.10731 4.2569C9.71496 4.58964 10.229 5.07006 10.6021 5.65385C10.7399 5.8695 10.9781 6 11.2341 6H14.2659C14.5219 6 14.7601 5.8695 14.8979 5.65385C15.271 5.07006 15.785 4.58964 16.3927 4.2569C16.8692 3.996 17.3911 3.8325 17.9283 3.77413C18.1156 4.19833 18.2303 4.65213 18.2665 5.11655C18.3144 5.73002 18.2242 6.34642 18.0025 6.92043C17.9139 7.14997 17.9435 7.4084 18.0817 7.61196C18.511 8.24406 18.7435 8.98906 18.75 9.75306V10.5C18.75 11.4946 18.3549 12.4484 17.6517 13.1517C16.9484 13.8549 15.9946 14.25 15 14.25Z"
-              fill-rule="evenodd"
-            />
-          </svg>
-        </span>
+        />
       </div>
       Login with github
     </button>
     <button
-      class="c7 c8"
+      class="c8 c9"
       color="#dd4b39"
       kind="primary"
     >
@@ -3137,23 +2751,10 @@ exports[`sso list still renders when local auth is disabled 1`] = `
         class="c5"
       >
         <span
-          class="c6 icon icon-google"
-          color="white"
+          class="c6 c7 icon icon-google-plus "
+          color="light"
           data-testid="icon"
-        >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-          >
-            <path
-              clip-rule="evenodd"
-              d="M13.3573 4.62289C11.6205 4.30329 9.82663 4.60681 8.29163 5.47999C6.75664 6.35317 5.579 7.74001 4.96613 9.39622C4.35326 11.0524 4.34448 12.8718 4.94134 14.5339C5.53819 16.1959 6.7024 17.594 8.2289 18.482C9.75539 19.37 11.5463 19.6908 13.2861 19.3879C15.0259 19.0851 16.6031 18.1781 17.7398 16.8266C18.7146 15.6675 19.3119 14.2453 19.4623 12.7499H12C11.5858 12.7499 11.25 12.4141 11.25 11.9999C11.25 11.5857 11.5858 11.2499 12 11.2499H20.25C20.4489 11.2499 20.6397 11.3289 20.7804 11.4696C20.921 11.6103 21 11.8011 21 12C20.9998 14.1192 20.2518 16.1703 18.8877 17.7921C17.5237 19.4139 15.6311 20.5023 13.5433 20.8657C11.4555 21.2291 9.30647 20.8441 7.47467 19.7786C5.64288 18.713 4.24583 17.0353 3.52961 15.0408C2.81338 13.0464 2.82391 10.8631 3.55935 8.87566C4.29479 6.8882 5.70796 5.224 7.54996 4.17618C9.39195 3.12836 11.5446 2.76413 13.6288 3.14765C15.713 3.53117 17.595 4.63784 18.9433 6.27273C19.2068 6.59228 19.1614 7.06498 18.8419 7.32853C18.5223 7.59208 18.0496 7.54667 17.7861 7.22711C16.6625 5.86471 15.0941 4.94249 13.3573 4.62289Z"
-              fill-rule="evenodd"
-            />
-          </svg>
-        </span>
+        />
       </div>
       Login with google
     </button>
@@ -3174,7 +2775,7 @@ exports[`sso providers rendering 1`] = `
   padding-right: 40px;
 }
 
-.c14 {
+.c15 {
   box-sizing: border-box;
   margin-top: -4px;
   padding-top: 16px;
@@ -3200,8 +2801,8 @@ exports[`sso providers rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
@@ -3210,22 +2811,25 @@ exports[`sso providers rendering 1`] = `
   width: 100%;
 }
 
+.c5:active {
+  opacity: 0.56;
+}
+
 .c5:hover,
 .c5:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c5:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c5:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
-.c12 {
+.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -3244,8 +2848,8 @@ exports[`sso providers rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
@@ -3254,22 +2858,25 @@ exports[`sso providers rendering 1`] = `
   width: 100%;
 }
 
-.c12:hover,
-.c12:focus {
-  background: #B29DFF;
+.c13:active {
+  opacity: 0.56;
 }
 
-.c12:active {
-  background: #C5B6FF;
+.c13:hover,
+.c13:focus {
+  background: #651FFF;
 }
 
-.c12:disabled {
+.c13:active {
+  background: #354AA4;
+}
+
+.c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
-.c15 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -3288,24 +2895,33 @@ exports[`sso providers rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
   background: none;
   text-transform: none;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c15:hover,
-.c15:focus {
+.c16:active {
+  opacity: 0.56;
+}
+
+.c16:hover,
+.c16:focus {
   background: none;
   text-decoration: underline;
 }
 
-.c15:disabled {
+.c16:disabled {
   background: none;
   color: rgba(255,255,255,0.3);
-  cursor: auto;
+}
+
+.c9 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
 }
 
 .c0 {
@@ -3316,9 +2932,9 @@ exports[`sso providers rendering 1`] = `
   margin-bottom: 32px;
   padding-bottom: 24px;
   width: 464px;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
   background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
 }
 
 .c1 {
@@ -3329,14 +2945,8 @@ exports[`sso providers rendering 1`] = `
   line-height: 32px;
   margin: 0px;
   padding-top: 24px;
+  color: #FFFFFF;
   text-align: center;
-}
-
-.c8 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
 }
 
 .c3 .prev-slide-enter {
@@ -3388,7 +2998,6 @@ exports[`sso providers rendering 1`] = `
   display: block;
   width: 100%;
   border: 1px solid transparent;
-  color: white;
   height: 40px;
   position: relative;
   box-sizing: border-box;
@@ -3400,37 +3009,16 @@ exports[`sso providers rendering 1`] = `
   border: 1px solid rgb(142,142,142);
 }
 
-.c6 svg {
-  opacity: 0.87;
-}
-
-.c9 {
-  background-color: #dd4b39;
-  display: block;
-  width: 100%;
-  border: 1px solid transparent;
-  color: white;
-  height: 40px;
-  position: relative;
-  box-sizing: border-box;
-}
-
-.c9:hover,
-.c9:focus {
-  background: rgb(198,67,51);
-  border: 1px solid rgb(234,147,136);
-}
-
-.c9 svg {
+.c6 .c8 {
+  font-size: 20px;
   opacity: 0.87;
 }
 
 .c10 {
-  background-color: #205081;
+  background-color: #dd4b39;
   display: block;
   width: 100%;
   border: 1px solid transparent;
-  color: white;
   height: 40px;
   position: relative;
   box-sizing: border-box;
@@ -3438,20 +3026,20 @@ exports[`sso providers rendering 1`] = `
 
 .c10:hover,
 .c10:focus {
-  background: rgb(28,72,116);
-  border: 1px solid rgb(121,150,179);
+  background: rgb(198,67,51);
+  border: 1px solid rgb(234,147,136);
 }
 
-.c10 svg {
+.c10 .c8 {
+  font-size: 20px;
   opacity: 0.87;
 }
 
 .c11 {
-  background-color: #f7931e;
+  background-color: #205081;
   display: block;
   width: 100%;
   border: 1px solid transparent;
-  color: white;
   height: 40px;
   position: relative;
   box-sizing: border-box;
@@ -3459,32 +3047,54 @@ exports[`sso providers rendering 1`] = `
 
 .c11:hover,
 .c11:focus {
-  background: rgb(222,132,27);
-  border: 1px solid rgb(250,190,120);
+  background: rgb(28,72,116);
+  border: 1px solid rgb(121,150,179);
 }
 
-.c11 svg {
+.c11 .c8 {
+  font-size: 20px;
   opacity: 0.87;
 }
 
-.c13 {
-  background-color: #2672ec;
+.c12 {
+  background-color: #f7931e;
   display: block;
   width: 100%;
   border: 1px solid transparent;
-  color: white;
   height: 40px;
   position: relative;
   box-sizing: border-box;
 }
 
-.c13:hover,
-.c13:focus {
+.c12:hover,
+.c12:focus {
+  background: rgb(222,132,27);
+  border: 1px solid rgb(250,190,120);
+}
+
+.c12 .c8 {
+  font-size: 20px;
+  opacity: 0.87;
+}
+
+.c14 {
+  background-color: #2672ec;
+  display: block;
+  width: 100%;
+  border: 1px solid transparent;
+  height: 40px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.c14:hover,
+.c14:focus {
   background: rgb(34,102,212);
   border: 1px solid rgb(124,170,243);
 }
 
-.c13 svg {
+.c14 .c8 {
+  font-size: 20px;
   opacity: 0.87;
 }
 
@@ -3508,6 +3118,7 @@ exports[`sso providers rendering 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Welcome!
   </div>
@@ -3522,189 +3133,99 @@ exports[`sso providers rendering 1`] = `
         class="c2"
       >
         <div
-          class="c2"
+          class="c4"
+          data-testid="sso-list"
         >
-          <div
-            class="c4"
-            data-testid="sso-list"
+          <button
+            class="c5 c6"
+            color="#444444"
+            kind="primary"
           >
-            <button
-              class="c5 c6"
-              color="#444444"
-              kind="primary"
+            <div
+              class="c7"
             >
-              <div
-                class="c7"
-              >
-                <span
-                  class="c8 icon icon-github"
-                  color="white"
-                  data-testid="icon"
-                >
-                  <svg
-                    fill="currentColor"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    width="24"
-                  >
-                    <path
-                      clip-rule="evenodd"
-                      d="M7.12482 2.25C8.06954 2.24978 8.9991 2.4875 9.82773 2.94123C10.5329 3.32738 11.1457 3.85939 11.6261 4.5H13.8739C14.3543 3.85939 14.9671 3.32738 15.6723 2.94123C16.5009 2.4875 17.4305 2.24978 18.3752 2.25C18.6429 2.25006 18.8902 2.39278 19.0242 2.62449C19.4445 3.35119 19.6966 4.16285 19.762 4.9998C19.8173 5.70844 19.7376 6.41996 19.5282 7.09681C19.9929 7.89994 20.2427 8.81191 20.25 9.74414L20.25 9.75L20.25 10.5C20.25 11.8924 19.6969 13.2277 18.7123 14.2123C17.8973 15.0273 16.842 15.5467 15.7129 15.7014C16.2204 16.3555 16.5 17.1633 16.5 18V21.75C16.5 22.1642 16.1642 22.5 15.75 22.5C15.3358 22.5 15 22.1642 15 21.75V18C15 17.4033 14.7629 16.831 14.341 16.409C13.919 15.9871 13.3467 15.75 12.75 15.75C12.1533 15.75 11.581 15.9871 11.159 16.409C10.7371 16.831 10.5 17.4033 10.5 18V21.75C10.5 22.1642 10.1642 22.5 9.75 22.5C9.33579 22.5 9 22.1642 9 21.75V20.25H6.75C5.75544 20.25 4.80161 19.8549 4.09835 19.1516C3.39509 18.4484 3 17.4946 3 16.5C3 15.9033 2.76295 15.331 2.34099 14.909C1.91903 14.4871 1.34674 14.25 0.75 14.25C0.335786 14.25 0 13.9142 0 13.5C0 13.0858 0.335786 12.75 0.75 12.75C1.74456 12.75 2.69839 13.1451 3.40165 13.8484C4.10491 14.5516 4.5 15.5054 4.5 16.5C4.5 17.0967 4.73705 17.669 5.15901 18.091C5.58097 18.5129 6.15326 18.75 6.75 18.75H9V18C9 17.1633 9.27961 16.3555 9.78707 15.7014C8.658 15.5467 7.60267 15.0273 6.78769 14.2123C5.80312 13.2277 5.25 11.8924 5.25 10.5V9.74414C5.25728 8.81191 5.50709 7.89994 5.97176 7.09681C5.76243 6.41996 5.68268 5.70844 5.73801 4.9998C5.80336 4.16285 6.05546 3.35119 6.47578 2.62449C6.6098 2.39278 6.85715 2.25006 7.12482 2.25ZM15 14.25H10.5C9.50544 14.25 8.55161 13.8549 7.84835 13.1517C7.14509 12.4484 6.75 11.4946 6.75 10.5V9.75306C6.75652 8.98906 6.98903 8.24406 7.41827 7.61196C7.55651 7.4084 7.5861 7.14997 7.49745 6.92043C7.27577 6.34642 7.18556 5.73002 7.23346 5.11655C7.26972 4.65213 7.38443 4.19833 7.57171 3.77413C8.10886 3.8325 8.63084 3.996 9.10731 4.2569C9.71496 4.58964 10.229 5.07006 10.6021 5.65385C10.7399 5.8695 10.9781 6 11.2341 6H14.2659C14.5219 6 14.7601 5.8695 14.8979 5.65385C15.271 5.07006 15.785 4.58964 16.3927 4.2569C16.8692 3.996 17.3911 3.8325 17.9283 3.77413C18.1156 4.19833 18.2303 4.65213 18.2665 5.11655C18.3144 5.73002 18.2242 6.34642 18.0025 6.92043C17.9139 7.14997 17.9435 7.4084 18.0817 7.61196C18.511 8.24406 18.7435 8.98906 18.75 9.75306V10.5C18.75 11.4946 18.3549 12.4484 17.6517 13.1517C16.9484 13.8549 15.9946 14.25 15 14.25Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </div>
-              Login with github
-            </button>
-            <button
-              class="c5 c9"
-              color="#dd4b39"
-              kind="primary"
-            >
-              <div
-                class="c7"
-              >
-                <span
-                  class="c8 icon icon-google"
-                  color="white"
-                  data-testid="icon"
-                >
-                  <svg
-                    fill="currentColor"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    width="24"
-                  >
-                    <path
-                      clip-rule="evenodd"
-                      d="M13.3573 4.62289C11.6205 4.30329 9.82663 4.60681 8.29163 5.47999C6.75664 6.35317 5.579 7.74001 4.96613 9.39622C4.35326 11.0524 4.34448 12.8718 4.94134 14.5339C5.53819 16.1959 6.7024 17.594 8.2289 18.482C9.75539 19.37 11.5463 19.6908 13.2861 19.3879C15.0259 19.0851 16.6031 18.1781 17.7398 16.8266C18.7146 15.6675 19.3119 14.2453 19.4623 12.7499H12C11.5858 12.7499 11.25 12.4141 11.25 11.9999C11.25 11.5857 11.5858 11.2499 12 11.2499H20.25C20.4489 11.2499 20.6397 11.3289 20.7804 11.4696C20.921 11.6103 21 11.8011 21 12C20.9998 14.1192 20.2518 16.1703 18.8877 17.7921C17.5237 19.4139 15.6311 20.5023 13.5433 20.8657C11.4555 21.2291 9.30647 20.8441 7.47467 19.7786C5.64288 18.713 4.24583 17.0353 3.52961 15.0408C2.81338 13.0464 2.82391 10.8631 3.55935 8.87566C4.29479 6.8882 5.70796 5.224 7.54996 4.17618C9.39195 3.12836 11.5446 2.76413 13.6288 3.14765C15.713 3.53117 17.595 4.63784 18.9433 6.27273C19.2068 6.59228 19.1614 7.06498 18.8419 7.32853C18.5223 7.59208 18.0496 7.54667 17.7861 7.22711C16.6625 5.86471 15.0941 4.94249 13.3573 4.62289Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </div>
-              Login with google
-            </button>
-            <button
-              class="c5 c10"
-              color="#205081"
-              kind="primary"
-            >
-              <div
-                class="c7"
-              >
-                <span
-                  class="c8 icon icon-key"
-                  color="white"
-                  data-testid="icon"
-                >
-                  <svg
-                    fill="currentColor"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    width="24"
-                  >
-                    <path
-                      d="M17.8125 7.125C17.8125 7.64277 17.3928 8.0625 16.875 8.0625C16.3572 8.0625 15.9375 7.64277 15.9375 7.125C15.9375 6.60723 16.3572 6.1875 16.875 6.1875C17.3928 6.1875 17.8125 6.60723 17.8125 7.125Z"
-                    />
-                    <path
-                      clip-rule="evenodd"
-                      d="M15.7546 1.53916C14.0354 1.36504 12.3087 1.78997 10.8666 2.74211C9.42448 3.69425 8.35541 5.11517 7.84013 6.76463C7.37496 8.2537 7.38688 9.84653 7.86716 11.3221L2.46967 16.7196C2.32902 16.8603 2.25 17.051 2.25 17.2499V20.9999C2.25 21.4142 2.58579 21.7499 3 21.7499H6.75C7.16421 21.7499 7.5 21.4142 7.5 20.9999V19.4999H9C9.41421 19.4999 9.75 19.1642 9.75 18.7499V17.2499H11.25C11.4489 17.2499 11.6397 17.1709 11.7803 17.0303L12.6778 16.1328C14.1534 16.6131 15.7462 16.625 17.2353 16.1598C18.8848 15.6445 20.3057 14.5755 21.2578 13.1334C22.21 11.6913 22.6349 9.96459 22.4608 8.24531C22.2867 6.52603 21.5242 4.91962 20.3023 3.69769C19.0803 2.47576 17.4739 1.71327 15.7546 1.53916ZM11.6931 3.99389C12.8467 3.23218 14.2281 2.89223 15.6035 3.03152C16.9789 3.17082 18.264 3.7808 19.2416 4.75835C20.2191 5.73589 20.8291 7.02102 20.9684 8.39645C21.1077 9.77187 20.7678 11.1532 20.0061 12.3069C19.2443 13.4606 18.1076 14.3158 16.788 14.728C15.4685 15.1403 14.047 15.0842 12.7641 14.5692C12.4853 14.4574 12.1667 14.5225 11.9544 14.7349L10.9393 15.7499H9C8.58579 15.7499 8.25 16.0857 8.25 16.4999V17.9999H6.75C6.33579 17.9999 6 18.3357 6 18.7499V20.2499H3.75V17.5606L9.26502 12.0456C9.47739 11.8332 9.54259 11.5146 9.43072 11.2359C8.91577 9.95291 8.85967 8.53148 9.27189 7.21191C9.68412 5.89234 10.5394 4.7556 11.6931 3.99389Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </div>
-              Login with bitbucket
-            </button>
-            <button
-              class="c5 c11"
-              color="#f7931e"
-              kind="primary"
-            >
-              <div
-                class="c7"
-              >
-                <span
-                  class="c8 icon icon-key"
-                  color="white"
-                  data-testid="icon"
-                >
-                  <svg
-                    fill="currentColor"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    width="24"
-                  >
-                    <path
-                      d="M17.8125 7.125C17.8125 7.64277 17.3928 8.0625 16.875 8.0625C16.3572 8.0625 15.9375 7.64277 15.9375 7.125C15.9375 6.60723 16.3572 6.1875 16.875 6.1875C17.3928 6.1875 17.8125 6.60723 17.8125 7.125Z"
-                    />
-                    <path
-                      clip-rule="evenodd"
-                      d="M15.7546 1.53916C14.0354 1.36504 12.3087 1.78997 10.8666 2.74211C9.42448 3.69425 8.35541 5.11517 7.84013 6.76463C7.37496 8.2537 7.38688 9.84653 7.86716 11.3221L2.46967 16.7196C2.32902 16.8603 2.25 17.051 2.25 17.2499V20.9999C2.25 21.4142 2.58579 21.7499 3 21.7499H6.75C7.16421 21.7499 7.5 21.4142 7.5 20.9999V19.4999H9C9.41421 19.4999 9.75 19.1642 9.75 18.7499V17.2499H11.25C11.4489 17.2499 11.6397 17.1709 11.7803 17.0303L12.6778 16.1328C14.1534 16.6131 15.7462 16.625 17.2353 16.1598C18.8848 15.6445 20.3057 14.5755 21.2578 13.1334C22.21 11.6913 22.6349 9.96459 22.4608 8.24531C22.2867 6.52603 21.5242 4.91962 20.3023 3.69769C19.0803 2.47576 17.4739 1.71327 15.7546 1.53916ZM11.6931 3.99389C12.8467 3.23218 14.2281 2.89223 15.6035 3.03152C16.9789 3.17082 18.264 3.7808 19.2416 4.75835C20.2191 5.73589 20.8291 7.02102 20.9684 8.39645C21.1077 9.77187 20.7678 11.1532 20.0061 12.3069C19.2443 13.4606 18.1076 14.3158 16.788 14.728C15.4685 15.1403 14.047 15.0842 12.7641 14.5692C12.4853 14.4574 12.1667 14.5225 11.9544 14.7349L10.9393 15.7499H9C8.58579 15.7499 8.25 16.0857 8.25 16.4999V17.9999H6.75C6.33579 17.9999 6 18.3357 6 18.7499V20.2499H3.75V17.5606L9.26502 12.0456C9.47739 11.8332 9.54259 11.5146 9.43072 11.2359C8.91577 9.95291 8.85967 8.53148 9.27189 7.21191C9.68412 5.89234 10.5394 4.7556 11.6931 3.99389Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </div>
-              Login with Mission Control
-            </button>
-            <button
-              class="c12 c13"
-              color="#2672ec"
-              kind="primary"
-            >
-              <div
-                class="c7"
-              >
-                <span
-                  class="c8 icon icon-windows"
-                  color="white"
-                  data-testid="icon"
-                >
-                  <svg
-                    fill="currentColor"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    width="24"
-                  >
-                    <path
-                      clip-rule="evenodd"
-                      d="M20.7305 3.17418C20.9013 3.31668 21 3.52761 21 3.75001V10.5C21 10.9142 20.6642 11.25 20.25 11.25H12.75C12.3358 11.25 12 10.9142 12 10.5V5.11407C12 4.75162 12.2592 4.44103 12.6158 4.37617L20.1158 3.01211C20.3346 2.97231 20.5598 3.03168 20.7305 3.17418ZM13.5 5.73997V9.75001H19.5V4.64872L13.5 5.73997Z"
-                      fill-rule="evenodd"
-                    />
-                    <path
-                      clip-rule="evenodd"
-                      d="M3.75 12.75C3.33579 12.75 3 13.0858 3 13.5V17.25C3 17.6124 3.2592 17.923 3.6158 17.9879L9.6158 19.0791C9.83461 19.1189 10.0598 19.0596 10.2305 18.9171C10.4013 18.7746 10.5 18.5637 10.5 18.3412V13.5C10.5 13.0858 10.1642 12.75 9.75 12.75H3.75ZM4.5 16.6241V14.25H9V17.4425L4.5 16.6241Z"
-                      fill-rule="evenodd"
-                    />
-                    <path
-                      clip-rule="evenodd"
-                      d="M12.75 12.75C12.3358 12.75 12 13.0858 12 13.5V18.8869C12 19.2494 12.2592 19.56 12.6159 19.6248L20.1159 20.9879C20.3347 21.0277 20.5598 20.9683 20.7306 20.8258C20.9013 20.6833 21 20.4724 21 20.25V13.5C21 13.0858 20.6642 12.75 20.25 12.75H12.75ZM13.5 18.2609V14.25H19.5V19.3514L13.5 18.2609Z"
-                      fill-rule="evenodd"
-                    />
-                    <path
-                      clip-rule="evenodd"
-                      d="M10.5 5.65919C10.5 5.43679 10.4013 5.22586 10.2305 5.08336C10.0598 4.94086 9.83461 4.88149 9.6158 4.92129L3.6158 6.01254C3.2592 6.0774 3 6.38799 3 6.75044V10.5004C3 10.9146 3.33579 11.2504 3.75 11.2504H9.75C10.1642 11.2504 10.5 10.9146 10.5 10.5004V5.65919ZM4.5 9.75044V7.37633L9 6.5579V9.75044H4.5Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </div>
-              Microsoft
-            </button>
-          </div>
-          <div
-            class="c14"
+              <span
+                class="c8 c9 icon icon-github "
+                color="light"
+                data-testid="icon"
+              />
+            </div>
+            Login with github
+          </button>
+          <button
+            class="c5 c10"
+            color="#dd4b39"
+            kind="primary"
           >
-            <button
-              class="c15"
-              kind="text"
+            <div
+              class="c7"
             >
-              Other sign-in options
-            </button>
-          </div>
+              <span
+                class="c8 c9 icon icon-google-plus "
+                color="light"
+                data-testid="icon"
+              />
+            </div>
+            Login with google
+          </button>
+          <button
+            class="c5 c11"
+            color="#205081"
+            kind="primary"
+          >
+            <div
+              class="c7"
+            >
+              <span
+                class="c8 c9 icon icon-bitbucket "
+                color="light"
+                data-testid="icon"
+              />
+            </div>
+            Login with bitbucket
+          </button>
+          <button
+            class="c5 c12"
+            color="#f7931e"
+            kind="primary"
+          >
+            <div
+              class="c7"
+            >
+              <span
+                class="c8 c9 icon icon-openid "
+                color="light"
+                data-testid="icon"
+              />
+            </div>
+            Login with Mission Control
+          </button>
+          <button
+            class="c13 c14"
+            color="#2672ec"
+            kind="primary"
+          >
+            <div
+              class="c7"
+            >
+              <span
+                class="c8 c9 icon icon-windows "
+                color="light"
+                data-testid="icon"
+              />
+            </div>
+            Microsoft
+          </button>
+        </div>
+        <div
+          class="c15"
+        >
+          <button
+            class="c16"
+            kind="text"
+          >
+            Other sign-in options
+          </button>
         </div>
       </div>
     </div>

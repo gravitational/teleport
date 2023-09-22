@@ -21,10 +21,8 @@ lint:
   ignore:
     - teleport/legacy/client/proto/authservice.proto
     - teleport/legacy/client/proto/certs.proto
-    - teleport/legacy/client/proto/event.proto
     - teleport/legacy/client/proto/proxyservice.proto
     - teleport/legacy/types/events/events.proto
-    - teleport/legacy/types/events/athena.proto
     - teleport/legacy/types/types.proto
     - teleport/legacy/types/wrappers/wrappers.proto
   ignore_only:
@@ -54,8 +52,7 @@ lint:
     UNARY_RPC:
       - teleport/devicetrust/v1/devicetrust_service.proto
       - teleport/legacy/client/proto/joinservice.proto
-      - teleport/transport/v1/transport_service.proto
-      - teleport/auditlog/v1/auditlog.proto
+      - teleport/proxy/v1/proxy_service.proto
 breaking:
   use:
     - WIRE_JSON

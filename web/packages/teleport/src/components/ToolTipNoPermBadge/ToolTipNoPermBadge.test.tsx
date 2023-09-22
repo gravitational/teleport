@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { render, screen, userEvent } from 'design/utils/testing';
 
-import { BadgeTitle, ToolTipNoPermBadge } from './ToolTipNoPermBadge';
+import { ToolTipNoPermBadge } from './ToolTipNoPermBadge';
 
 test('hovering renders tooltip msg and unhovering makes it disappear', async () => {
   render(
@@ -36,67 +36,6 @@ test('hovering renders tooltip msg and unhovering makes it disappear', async () 
 
   await userEvent.unhover(badge);
   expect(screen.queryByTestId('tooltip-msg')).not.toBeInTheDocument();
-});
-
-test('sticky prop prevents tooltip from disappearing until child element is unhovered', async () => {
-  render(
-    <SomeBox>
-      <ToolTipNoPermBadge children="test message" sticky={true} />
-    </SomeBox>
-  );
-
-  expect(screen.queryByTestId('tooltip-msg')).not.toBeInTheDocument();
-
-  const badge = screen.getByTestId('tooltip');
-
-  await userEvent.hover(badge);
-  expect(screen.getByTestId('tooltip-msg')).toBeInTheDocument();
-
-  const badgeChild = screen.getByTestId('tooltip-msg');
-
-  // tooltip should be open on unhover
-  await userEvent.unhover(badge);
-  expect(screen.getByTestId('tooltip-msg')).toBeInTheDocument();
-
-  // tooltip dissapears on child unhover
-  await userEvent.unhover(badgeChild);
-  expect(screen.queryByTestId('tooltip-msg')).not.toBeInTheDocument();
-});
-
-test('badgeTitle prop shows different text', async () => {
-  // test default to be BadgeTitle.LackingPermissions
-  const { rerender } = render(
-    <SomeBox>
-      <ToolTipNoPermBadge children="test message" />
-    </SomeBox>
-  );
-
-  let badge = screen.getByTestId('tooltip');
-  expect(badge).toHaveTextContent(BadgeTitle.LackingPermissions);
-
-  // test BadgeTitle.LackingEnterpriseLicense
-  rerender(
-    <SomeBox>
-      <ToolTipNoPermBadge
-        children="test message"
-        badgeTitle={BadgeTitle.LackingEnterpriseLicense}
-      />
-    </SomeBox>
-  );
-
-  expect(badge).toHaveTextContent(BadgeTitle.LackingEnterpriseLicense);
-
-  // test BadgeTitle.LackingPermissions
-  rerender(
-    <SomeBox>
-      <ToolTipNoPermBadge
-        children="test message"
-        badgeTitle={BadgeTitle.LackingPermissions}
-      />
-    </SomeBox>
-  );
-
-  expect(badge).toHaveTextContent(BadgeTitle.LackingPermissions);
 });
 
 const SomeBox = styled.div`

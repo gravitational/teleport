@@ -1,0 +1,27 @@
+# This workflow combines all open Dependabot PRs into a single batched
+# PR, links all the Dependabot PRs to the new one, and closes all the
+# Dependabot PRs. The schedule is set to exactly 12 hours after the
+# Dependabot schedule.
+#
+# All workflows that run on PR should be skipped for Dependabot PRs
+# to prevent wasting CI cycles.
+name: 'Dependabot Batcher'
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 21 * * 0' # At 9:00 PM every Sunday UTC
+
+permissions:
+    pull-requests: write
+    contents: write
+
+jobs:
+  dependabot-batcher:
+    name: 'Combine Dependabot PRs'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Dependabot Batcher'
+        uses: Legal-and-General/dependabot-batcher@v1.0.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }} #required
+          baseBranchName: 'master'

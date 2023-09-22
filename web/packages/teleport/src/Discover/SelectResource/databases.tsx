@@ -16,8 +16,6 @@
 
 import { DbProtocol } from 'shared/services/databases';
 
-import { Platform } from 'design/theme/utils';
-
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import { ResourceKind } from '../Shared/ResourceKind';
@@ -157,7 +155,6 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     icon: 'Azure',
     unguidedLink: getDbAccessDocLink('azure-sql-server-ad'),
     event: DiscoverEventResource.DatabaseSqlServerAzure,
-    platform: Platform.PLATFORM_WINDOWS,
   },
   {
     dbMeta: {
@@ -172,7 +169,6 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     icon: 'Windows',
     unguidedLink: getDbAccessDocLink('sql-server-ad'),
     event: DiscoverEventResource.DatabaseSqlServerMicrosoft,
-    platform: Platform.PLATFORM_WINDOWS,
   },
   {
     dbMeta: { location: DatabaseLocation.Gcp, engine: DatabaseEngine.MySql },

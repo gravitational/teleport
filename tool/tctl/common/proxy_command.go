@@ -23,19 +23,19 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 )
 
 // ProxyCommand returns information about connected proxies
 type ProxyCommand struct {
-	config *servicecfg.Config
+	config *service.Config
 	lsCmd  *kingpin.CmdClause
 
 	format string
 }
 
 // Initialize creates the proxy command and subcommands
-func (p *ProxyCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (p *ProxyCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	p.config = config
 
 	proxyCommand := app.Command("proxy", "Operations with information for cluster proxies.").Hidden()

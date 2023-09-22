@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { Text, Link, ButtonText, ButtonSecondary, Box } from 'design';
+import { Card, Text, Link, ButtonText, ButtonSecondary, Box } from 'design';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -23,8 +23,6 @@ import Dialog, {
   DialogFooter,
 } from 'design/Dialog';
 import { Danger } from 'design/Alert';
-
-import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 import { generateTshLoginCommand } from 'teleport/lib/util';
 
@@ -51,23 +49,23 @@ export const PrivateKeyLoginDisabledCard = ({
   // lost password or two-factor device.
   onRecover?: (isRecoverPassword: boolean) => void;
 }) => (
-  <OnboardCard>
-    <Text typography="h4" pt={4} textAlign="center" color="text.main">
+  <Card bg="levels.surface" my="5" mx="auto" width="464px" px={5} pb={4}>
+    <Text typography="h3" pt={4} textAlign="center" color="light">
       {title}
     </Text>
     <Danger my={5}>Web UI Login Disabled</Danger>
     <Text mb={2} typography="paragraph2">
       This Teleport Cluster requires that user{' '}
-      <Link color="text.main" href={LINK_HARDWARE_KEY_SUPPORT} target="_blank">
+      <Link color="light" href={LINK_HARDWARE_KEY_SUPPORT} target="_blank">
         private keys
       </Link>{' '}
       be stored on hardware authentication devices. Since these keys are not
       accessible by web browsers, Web UI login has been disabled. Please use{' '}
-      <Link color="text.main" href={LINK_CONNECT} target="_blank">
+      <Link color="light" href={LINK_CONNECT} target="_blank">
         Teleport Connect
       </Link>{' '}
       or{' '}
-      <Link color="text.main" href={LINK_TSH} target="_blank">
+      <Link color="light" href={LINK_TSH} target="_blank">
         tsh
       </Link>{' '}
       to log in.
@@ -91,7 +89,7 @@ export const PrivateKeyLoginDisabledCard = ({
         </ButtonText>
       </Text>
     )}
-  </OnboardCard>
+  </Card>
 );
 
 export type PrivateKeyAccessRequest = TshLoginCommand & {
@@ -118,19 +116,15 @@ export function PrivateKeyAccessRequestDialogue({
       <DialogContent>
         <Text mb={4}>
           This access requires use of hardware backed{' '}
-          <Link
-            color="text.main"
-            href={LINK_HARDWARE_KEY_SUPPORT}
-            target="_blank"
-          >
+          <Link color="light" href={LINK_HARDWARE_KEY_SUPPORT} target="_blank">
             private keys
           </Link>{' '}
           which are not supported in the web. Please use{' '}
-          <Link color="text.main" href={LINK_TSH} target="_blank">
+          <Link color="light" href={LINK_TSH} target="_blank">
             tsh
           </Link>{' '}
           to login with the approved request ID or use{' '}
-          <Link color="text.main" href={LINK_CONNECT} target="_blank">
+          <Link color="light" href={LINK_CONNECT} target="_blank">
             Teleport Connect
           </Link>
           .

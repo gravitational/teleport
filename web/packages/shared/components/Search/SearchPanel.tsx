@@ -19,7 +19,7 @@ import styled from 'styled-components';
 import { Text, Flex } from 'design';
 import { StyledPanel } from 'design/DataTable';
 import InputSearch from 'design/DataTable/InputSearch';
-import { ResourceFilter } from 'teleport/services/agents';
+import { AgentFilter } from 'teleport/services/agents';
 import Toggle from 'teleport/components/Toggle';
 import Tooltip from 'teleport/components/ServersideSearchPanel/Tooltip';
 
@@ -37,7 +37,7 @@ export function SearchPanel({
   updateQuery(s: string): void;
   updateSearch(s: string): void;
   pageIndicators: { from: number; to: number; total: number };
-  filter: ResourceFilter;
+  filter: AgentFilter;
   showSearchBar: boolean;
   disableSearch: boolean;
   extraChildren?: JSX.Element;
@@ -139,7 +139,7 @@ export function PageIndicatorText({
   return (
     <Text
       typography="body2"
-      color="text.main"
+      color="text.contrast"
       style={{ textTransform: 'uppercase' }}
       mr={1}
     >

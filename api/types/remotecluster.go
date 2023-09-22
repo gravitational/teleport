@@ -46,10 +46,6 @@ type RemoteCluster interface {
 	// Clone performs a deep copy.
 	Clone() RemoteCluster
 
-	// GetLabel retrieves the label with the provided key. If not found value
-	// will be empty and ok will be false.
-	GetLabel(key string) (value string, ok bool)
-
 	// GetAllLabels returns all labels for the remote cluster
 	GetAllLabels() map[string]string
 }
@@ -95,16 +91,6 @@ func (c *RemoteClusterV3) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (c *RemoteClusterV3) SetResourceID(id int64) {
 	c.Metadata.ID = id
-}
-
-// GetRevision returns the revision
-func (c *RemoteClusterV3) GetRevision() string {
-	return c.Metadata.GetRevision()
-}
-
-// SetRevision sets the revision
-func (c *RemoteClusterV3) SetRevision(rev string) {
-	c.Metadata.SetRevision(rev)
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -180,13 +166,6 @@ func (c *RemoteClusterV3) SetName(e string) {
 // String represents a human readable version of remote cluster settings.
 func (c *RemoteClusterV3) String() string {
 	return fmt.Sprintf("RemoteCluster(%v, %v)", c.Metadata.Name, c.Status.Connection)
-}
-
-// GetLabel retrieves the label with the provided key. If not found value
-// will be empty and ok will be false.
-func (c *RemoteClusterV3) GetLabel(key string) (value string, ok bool) {
-	value, ok = c.Metadata.Labels[key]
-	return value, ok
 }
 
 // GetAllLabels returns all labels for the remote cluster. Remote clusters only

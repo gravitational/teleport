@@ -18,7 +18,6 @@ package generic
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -95,22 +94,6 @@ func NewService[T types.Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
 		marshalFunc:   cfg.MarshalFunc,
 		unmarshalFunc: cfg.UnmarshalFunc,
 	}, nil
-}
-
-// WithPrefix will return a service with the given parts appended to the backend prefix.
-func (s *Service[T]) WithPrefix(parts ...string) *Service[T] {
-	if len(parts) == 0 {
-		return s
-	}
-
-	return &Service[T]{
-		backend:       s.backend,
-		resourceKind:  s.resourceKind,
-		pageLimit:     s.pageLimit,
-		backendPrefix: strings.Join(append([]string{s.backendPrefix}, parts...), string(backend.Separator)),
-		marshalFunc:   s.marshalFunc,
-		unmarshalFunc: s.unmarshalFunc,
-	}
 }
 
 // GetResources returns a list of all resources.

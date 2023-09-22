@@ -49,11 +49,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/installers"
-	"github.com/gravitational/teleport/api/types/trait"
-	"github.com/gravitational/teleport/api/types/userloginstate"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -79,7 +75,7 @@ type testPack struct {
 	bk          backend.Backend
 	clusterName types.ClusterName
 	a           *Server
-	mockEmitter *eventstest.MockRecorderEmitter
+	mockEmitter *eventstest.MockEmitter
 }
 
 func newTestPack(
@@ -100,7 +96,7 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
-	p.mockEmitter = &eventstest.MockRecorderEmitter{}
+	p.mockEmitter = &eventstest.MockEmitter{}
 	authConfig := &InitConfig{
 		Backend:                p.bk,
 		ClusterName:            p.clusterName,
@@ -168,13 +164,10 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
-	if err := p.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
+	if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
 		return p, trace.Wrap(err)
 	}
-	if err := p.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
-		return p, trace.Wrap(err)
-	}
-	if err := p.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.OpenSSHCA, p.clusterName.GetClusterName())); err != nil {
+	if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
 		return p, trace.Wrap(err)
 	}
 
@@ -218,7 +211,7 @@ func TestSessions(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	_, _, err = CreateUserAndRole(s.a, user, []string{user}, nil)
+	_, _, err = CreateUserAndRole(s.a, user, []string{user})
 	require.NoError(t, err)
 
 	err = s.a.UpsertPassword(user, pass)
@@ -274,7 +267,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Create the user.
-	_, role, err := CreateUserAndRole(s.a, user, []string{user}, nil)
+	_, role, err := CreateUserAndRole(s.a, user, []string{user})
 	require.NoError(t, err)
 	err = s.a.UpsertPassword(user, pass)
 	require.NoError(t, err)
@@ -441,6 +434,18 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, *gotID, wantID)
 
+	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
+	// generation.
+	err = s.a.UpsertKubeService(ctx, &types.ServerV2{
+		Metadata: types.Metadata{Name: "kube-service"},
+		Kind:     types.KindKubeService,
+		Version:  types.V2,
+		Spec: types.ServerSpecV2{
+			KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
+		},
+	})
+	require.NoError(t, err)
+
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
@@ -534,7 +539,7 @@ func TestUserLock(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	_, _, err = CreateUserAndRole(s.a, username, []string{username}, nil)
+	_, _, err = CreateUserAndRole(s.a, username, []string{username})
 	require.NoError(t, err)
 
 	err = s.a.UpsertPassword(username, pass)
@@ -573,12 +578,73 @@ func TestUserLock(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestAuth_SetStaticTokens(t *testing.T) {
+func TestTokensCRUD(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
+
 	ctx := context.Background()
 
-	roles := types.SystemRoles{types.RoleProxy}
+	// before we do anything, we should have 0 tokens
+	btokens, err := s.a.GetTokens(ctx)
+	require.NoError(t, err)
+	require.Empty(t, btokens, 0)
+
+	// generate persistent token
+	tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+		Roles: types.SystemRoles{types.RoleNode},
+	})
+	require.NoError(t, err)
+	require.Len(t, tokenName, 2*TokenLenBytes)
+	tokens, err := s.a.GetTokens(ctx)
+	require.NoError(t, err)
+	require.Len(t, tokens, 1)
+	require.Equal(t, tokens[0].GetName(), tokenName)
+
+	tokenResource, err := s.a.ValidateToken(ctx, tokenName)
+	require.NoError(t, err)
+	roles := tokenResource.GetRoles()
+	require.True(t, roles.Include(types.RoleNode))
+	require.False(t, roles.Include(types.RoleProxy))
+
+	// generate persistent token with defined TTL
+	desiredTTL := 6 * time.Hour
+	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+		Roles: types.SystemRoles{types.RoleNode},
+		TTL:   proto.Duration(desiredTTL),
+	})
+	require.NoError(t, err)
+	token, err := s.a.GetToken(ctx, tokenName)
+	require.NoError(t, err)
+	actualTTL := time.Until(token.Expiry())
+	diff := actualTTL - desiredTTL
+	require.True(
+		t,
+		diff <= time.Minute && diff >= (-1*time.Minute),
+		"Token TTL should be within one minute of the desired TTL",
+	)
+
+	require.NoError(t, s.a.DeleteToken(ctx, tokenName))
+
+	// generate predefined token
+	customToken := "custom-token"
+	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+		Roles: types.SystemRoles{types.RoleNode},
+		Token: customToken,
+	})
+	require.NoError(t, err)
+	require.Equal(t, tokenName, customToken)
+
+	tokenResource, err = s.a.ValidateToken(ctx, tokenName)
+	require.NoError(t, err)
+	roles = tokenResource.GetRoles()
+	require.True(t, roles.Include(types.RoleNode))
+	require.False(t, roles.Include(types.RoleProxy))
+
+	err = s.a.DeleteToken(ctx, customToken)
+	require.NoError(t, err)
+
+	// lets use static tokens now
+	roles = types.SystemRoles{types.RoleProxy}
 	st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
 			Token:   "static-token-value",
@@ -587,35 +653,19 @@ func TestAuth_SetStaticTokens(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
+
 	err = s.a.SetStaticTokens(st)
 	require.NoError(t, err)
-	token, err := s.a.ValidateToken(ctx, "static-token-value")
+
+	tokenResource, err = s.a.ValidateToken(ctx, "static-token-value")
 	require.NoError(t, err)
-	fetchesRoles := token.GetRoles()
+	fetchesRoles := tokenResource.GetRoles()
 	require.Equal(t, fetchesRoles, roles)
-}
 
-type tokenCreatorAndDeleter interface {
-	CreateToken(ctx context.Context, token types.ProvisionToken) error
-	DeleteToken(ctx context.Context, token string) error
-}
-
-func generateTestToken(
-	ctx context.Context,
-	t *testing.T,
-	roles types.SystemRoles,
-	expires time.Time,
-	auth tokenCreatorAndDeleter,
-) string {
-	t.Helper()
-	token, err := utils.CryptoRandomHex(TokenLenBytes)
+	// List tokens (should see 2: one static, one regular)
+	tokens, err = s.a.GetTokens(ctx)
 	require.NoError(t, err)
-
-	pt, err := types.NewProvisionToken(token, roles, expires)
-	require.NoError(t, err)
-	require.NoError(t, auth.CreateToken(ctx, pt))
-
-	return token
+	require.Len(t, tokens, 2)
 }
 
 func TestBadTokens(t *testing.T) {
@@ -632,12 +682,9 @@ func TestBadTokens(t *testing.T) {
 	require.Error(t, err)
 
 	// tampered
-	tok := generateTestToken(
-		ctx, t,
-		types.SystemRoles{types.RoleNode},
-		time.Time{},
-		s.a,
-	)
+	tok, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleAuth}})
+	require.NoError(t, err)
+
 	tampered := string(tok[0]+1) + tok[1:]
 	_, err = s.a.ValidateToken(ctx, tampered)
 	require.Error(t, err)
@@ -692,6 +739,27 @@ func TestLocalControlStream(t *testing.T) {
 	case <-time.After(time.Second * 10):
 		t.Fatal("timeout waiting for downstream hello")
 	}
+}
+
+func TestGenerateTokenEventsEmitted(t *testing.T) {
+	t.Parallel()
+	s := newAuthSuite(t)
+
+	ctx := context.Background()
+	// test trusted cluster token emit
+	_, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleTrustedCluster}})
+	require.NoError(t, err)
+	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterTokenCreateEvent)
+	s.mockEmitter.Reset()
+
+	// test emit with multiple roles
+	_, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{
+		types.RoleNode,
+		types.RoleTrustedCluster,
+		types.RoleAuth,
+	}})
+	require.NoError(t, err)
+	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterTokenCreateEvent)
 }
 
 func TestUpdateConfig(t *testing.T) {
@@ -828,8 +896,8 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	_, err = s.a.Services.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 
-	require.NoError(t, s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.UserCA, "test")))
-	require.NoError(t, s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.HostCA, "test")))
+	require.NoError(t, s.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, "test")))
+	require.NoError(t, s.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, "test")))
 
 	err = s.a.createReverseTunnel(tc)
 	require.NoError(t, err)
@@ -994,7 +1062,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 }
 
 func TestEmitSSOLoginFailureEvent(t *testing.T) {
-	mockE := &eventstest.MockRecorderEmitter{}
+	mockE := &eventstest.MockEmitter{}
 
 	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"), false)
 
@@ -1043,7 +1111,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	principals := []string{"login0", username, "-teleport-internal-join"}
 
 	// Prepare the user to test with.
-	_, _, err := CreateUserAndRole(authServer, username, principals, nil)
+	_, _, err := CreateUserAndRole(authServer, username, principals)
 	require.NoError(t, err, "CreateUserAndRole failed")
 	require.NoError(t,
 		authServer.UpsertPassword(username, []byte(pass)),
@@ -1182,19 +1250,19 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	const pass3 = "secret!!3!"
 
 	// Prepare a few distinct users.
-	user1, _, err := CreateUserAndRole(authServer, "llama", []string{"llama"}, nil)
+	user1, _, err := CreateUserAndRole(authServer, "llama", []string{"llama"})
 	require.NoError(t, err, "CreateUserAndRole failed")
 	require.NoError(t,
 		authServer.UpsertPassword(user1.GetName(), []byte(pass1)),
 		"UpsertPassword failed")
 
-	user2, _, err := CreateUserAndRole(authServer, "alpaca", []string{"alpaca"}, nil)
+	user2, _, err := CreateUserAndRole(authServer, "alpaca", []string{"alpaca"})
 	require.NoError(t, err, "CreateUserAndRole failed")
 	require.NoError(t,
 		authServer.UpsertPassword(user2.GetName(), []byte(pass2)),
 		"UpsertPassword failed")
 
-	user3, _, err := CreateUserAndRole(authServer, "camel", []string{"camel"}, nil)
+	user3, _, err := CreateUserAndRole(authServer, "camel", []string{"camel"})
 	require.NoError(t, err, "CreateUserAndRole failed")
 	require.NoError(t,
 		authServer.UpsertPassword(user3.GetName(), []byte(pass3)),
@@ -1629,13 +1697,13 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 	pass := []byte("abc123")
 
 	// Create the user without IP pinning
-	_, _, err := CreateUserAndRole(s.a, unpinnedUser, []string{unpinnedUser}, nil)
+	_, _, err := CreateUserAndRole(s.a, unpinnedUser, []string{unpinnedUser})
 	require.NoError(t, err)
 	err = s.a.UpsertPassword(unpinnedUser, pass)
 	require.NoError(t, err)
 
 	// Create the user with IP pinning enabled
-	_, pinnedRole, err := CreateUserAndRole(s.a, pinnedUser, []string{pinnedUser}, nil)
+	_, pinnedRole, err := CreateUserAndRole(s.a, pinnedUser, []string{pinnedUser})
 	require.NoError(t, err)
 	err = s.a.UpsertPassword(pinnedUser, pass)
 	require.NoError(t, err)
@@ -1763,7 +1831,7 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
-	user, role, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
+	user, role, err := CreateUserAndRole(p.a, "test-user", []string{})
 	require.NoError(t, err)
 
 	extension := types.CertExtension{
@@ -1778,7 +1846,7 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	err = p.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	accessInfo := services.AccessInfoFromUserState(user)
+	accessInfo := services.AccessInfoFromUser(user)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 
@@ -1801,70 +1869,15 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	require.Equal(t, extension.Value, val)
 }
 
-func TestGenerateOpenSSHCert(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
-
-	// create keypair and sign with OpenSSH CA
-	logins := []string{"login1", "login2"}
-	u, r, err := CreateUserAndRole(p.a, "test-user", logins, nil)
-	require.NoError(t, err)
-
-	user, ok := u.(*types.UserV2)
-	require.True(t, ok)
-	role, ok := r.(*types.RoleV6)
-	require.True(t, ok)
-
-	priv, err := native.GeneratePrivateKey()
-	require.NoError(t, err)
-
-	reply, err := p.a.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
-		User:      user,
-		Roles:     []*types.RoleV6{role},
-		PublicKey: priv.MarshalSSHPublicKey(),
-		TTL:       proto.Duration(time.Hour),
-		Cluster:   p.clusterName.GetClusterName(),
-	})
-	require.NoError(t, err)
-
-	// verify that returned cert is signed with OpenSSH CA
-	signedCert, err := sshutils.ParseCertificate(reply.Cert)
-	require.NoError(t, err)
-
-	ca, err := p.a.GetCertAuthority(
-		ctx,
-		types.CertAuthID{
-			Type:       types.OpenSSHCA,
-			DomainName: p.clusterName.GetClusterName(),
-		},
-		false,
-	)
-	require.NoError(t, err)
-
-	keys := ca.GetActiveKeys().SSH
-	require.NotEmpty(t, keys)
-	caPubkey, _, _, _, err := ssh.ParseAuthorizedKey(keys[0].PublicKey)
-	require.NoError(t, err)
-
-	require.Equal(t, caPubkey.Marshal(), signedCert.SignatureKey.Marshal())
-
-	// verify that user's logins are present in cert
-	logins = append(logins, teleport.SSHSessionJoinPrincipal)
-	require.Equal(t, logins, signedCert.ValidPrincipals)
-}
-
 func TestGenerateUserCertWithLocks(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
-	user, _, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
+	user, _, err := CreateUserAndRole(p.a, "test-user", []string{})
 	require.NoError(t, err)
-	accessInfo := services.AccessInfoFromUserState(user)
+	accessInfo := services.AccessInfoFromUser(user)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 	const mfaID = "test-mfa-id"
@@ -1962,105 +1975,6 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestGenerateUserCertWithUserLoginState(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
-
-	user, role, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
-	require.NoError(t, err)
-	userState, err := p.a.GetUserOrLoginState(ctx, user.GetName())
-	require.NoError(t, err)
-	accessInfo := services.AccessInfoFromUserState(userState)
-	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
-	require.NoError(t, err)
-	keygen := testauthority.New()
-	_, pub, err := keygen.GetNewKeyPairFromPool()
-	require.NoError(t, err)
-
-	// Generate cert with no user login state.
-	certReq := certRequest{
-		user:      user,
-		checker:   accessChecker,
-		publicKey: pub,
-		traits:    accessChecker.Traits(),
-	}
-	resp, err := p.a.generateUserCert(certReq)
-	require.NoError(t, err)
-
-	sshCert, err := sshutils.ParseCertificate(resp.SSH)
-	require.NoError(t, err)
-
-	roles, err := services.UnmarshalCertRoles(sshCert.Extensions[teleport.CertExtensionTeleportRoles])
-	require.NoError(t, err)
-	require.Equal(t, []string{role.GetName()}, roles)
-
-	traits := wrappers.Traits{}
-	err = wrappers.UnmarshalTraits([]byte(sshCert.Extensions[teleport.CertExtensionTeleportTraits]), &traits)
-	require.NoError(t, err)
-	require.Empty(t, traits)
-
-	uls, err := userloginstate.New(
-		header.Metadata{
-			Name: user.GetName(),
-		},
-		userloginstate.Spec{
-			Roles: []string{
-				role.GetName(), // We'll try to grant a duplicate role, which should be deduplicated.
-				"uls-role1",
-				"uls-role2",
-			},
-			Traits: trait.Traits{
-				"uls-trait1": []string{"value1", "value2"},
-				"uls-trait2": []string{"value3", "value4"},
-			},
-		},
-	)
-	require.NoError(t, err)
-	_, err = p.a.UpsertUserLoginState(ctx, uls)
-	require.NoError(t, err)
-
-	ulsRole1, err := types.NewRole("uls-role1", types.RoleSpecV6{})
-	require.NoError(t, err)
-	ulsRole2, err := types.NewRole("uls-role2", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	require.NoError(t, p.a.UpsertRole(ctx, ulsRole1))
-	require.NoError(t, p.a.UpsertRole(ctx, ulsRole2))
-
-	userState, err = p.a.GetUserOrLoginState(ctx, user.GetName())
-	require.NoError(t, err)
-	accessInfo = services.AccessInfoFromUserState(userState)
-	accessChecker, err = services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
-	require.NoError(t, err)
-
-	certReq = certRequest{
-		user:      user,
-		checker:   accessChecker,
-		publicKey: pub,
-		traits:    accessChecker.Traits(),
-	}
-
-	resp, err = p.a.generateUserCert(certReq)
-	require.NoError(t, err)
-
-	sshCert, err = sshutils.ParseCertificate(resp.SSH)
-	require.NoError(t, err)
-
-	roles, err = services.UnmarshalCertRoles(sshCert.Extensions[teleport.CertExtensionTeleportRoles])
-	require.NoError(t, err)
-	require.Equal(t, []string{role.GetName(), "uls-role1", "uls-role2"}, roles)
-
-	traits = wrappers.Traits{}
-	err = wrappers.UnmarshalTraits([]byte(sshCert.Extensions[teleport.CertExtensionTeleportTraits]), &traits)
-	require.NoError(t, err)
-	require.Equal(t, map[string][]string{
-		"uls-trait1": {"value1", "value2"},
-		"uls-trait2": {"value3", "value4"},
-	}, map[string][]string(traits))
-}
-
 func TestNewWebSession(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -2075,7 +1989,7 @@ func TestNewWebSession(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a user.
-	user, _, err := CreateUserAndRole(p.a, "test-user", []string{"test-role"}, nil)
+	user, _, err := CreateUserAndRole(p.a, "test-user", []string{"test-role"})
 	require.NoError(t, err)
 
 	// Create a new web session.
@@ -2106,13 +2020,13 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
-	mockEmitter := &eventstest.MockRecorderEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	authServer.emitter = mockEmitter
 
 	ctx := context.Background()
 
 	username := "llama@goteleport.com"
-	_, _, err := CreateUserAndRole(authServer, username, []string{username}, nil /* allowRules */)
+	_, _, err := CreateUserAndRole(authServer, username, []string{username})
 	require.NoError(t, err)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2205,7 +2119,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 	ctx := context.Background()
 
 	username := "llama@goteleport.com"
-	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
 	require.NoError(t, err)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2376,7 +2290,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a user with no MFA device.
 			username := fmt.Sprintf("llama%v@goteleport.com", mathrand.Int())
-			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
 			require.NoError(t, err)
 
 			// Set auth preference.
@@ -2421,7 +2335,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &eventstest.MockRecorderEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2580,7 +2494,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 	require.NoError(t, err)
 
 	username := "llama@goteleport.com"
-	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username})
 	require.NoError(t, err)
 
 	clt, err := srv.NewClient(TestUser(username))
@@ -2664,7 +2578,7 @@ func TestGetMFADevices_WithAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	username := "llama@goteleport.com"
-	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username})
 	require.NoError(t, err)
 
 	clt, err := srv.NewClient(TestUser(username))
@@ -2687,15 +2601,15 @@ func newTestServices(t *testing.T) Services {
 	require.NoError(t, err)
 
 	return Services{
-		Trust:                   local.NewCAService(bk),
-		PresenceInternal:        local.NewPresenceService(bk),
-		Provisioner:             local.NewProvisioningService(bk),
-		Identity:                local.NewIdentityService(bk),
-		Access:                  local.NewAccessService(bk),
-		DynamicAccessExt:        local.NewDynamicAccessService(bk),
-		ClusterConfiguration:    configService,
-		Events:                  local.NewEventsService(bk),
-		AuditLogSessionStreamer: events.NewDiscardAuditLog(),
+		Trust:                local.NewCAService(bk),
+		PresenceInternal:     local.NewPresenceService(bk),
+		Provisioner:          local.NewProvisioningService(bk),
+		Identity:             local.NewIdentityService(bk),
+		Access:               local.NewAccessService(bk),
+		DynamicAccessExt:     local.NewDynamicAccessService(bk),
+		ClusterConfiguration: configService,
+		Events:               local.NewEventsService(bk),
+		IAuditLog:            events.NewDiscardAuditLog(),
 	}
 }
 

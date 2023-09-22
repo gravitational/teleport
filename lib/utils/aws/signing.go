@@ -23,6 +23,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/client"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -53,8 +57,9 @@ type SigningServiceConfig struct {
 	Session *awssession.Session
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
-	// CredentialsGetter is used to obtain STS credentials.
-	CredentialsGetter CredentialsGetter
+	// GetSigningCredentials allows to set the function responsible for obtaining STS credentials.
+	// Used in tests to set static AWS credentials and skip API call.
+	GetSigningCredentials GetSigningCredentialsFunc
 }
 
 // CheckAndSetDefaults validates the SigningServiceConfig config.
@@ -71,17 +76,8 @@ func (s *SigningServiceConfig) CheckAndSetDefaults() error {
 		}
 		s.Session = ses
 	}
-	if s.CredentialsGetter == nil {
-		// Use cachedCredentialsGetter by default. cachedCredentialsGetter
-		// caches the credentials for one minute.
-		cachedGetter, err := NewCachedCredentialsGetter(CachedCredentialsGetterConfig{
-			Clock: s.Clock,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		s.CredentialsGetter = cachedGetter
+	if s.GetSigningCredentials == nil {
+		s.GetSigningCredentials = GetAWSCredentialsFromSTSAPI
 	}
 	return nil
 }
@@ -161,16 +157,7 @@ func (s *SigningService) SignRequest(ctx context.Context, req *http.Request, sig
 	// 100-continue" headers without being signed, otherwise the Athena service
 	// would reject the requests.
 	unsignedHeaders := removeUnsignedHeaders(reqCopy)
-	credentials, err := s.CredentialsGetter.Get(ctx, GetCredentialsRequest{
-		Provider:    s.Session,
-		Expiry:      signCtx.Expiry,
-		SessionName: signCtx.SessionName,
-		RoleARN:     signCtx.AWSRoleArn,
-		ExternalID:  signCtx.AWSExternalID,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	credentials := s.GetSigningCredentials(s.Session, signCtx.Expiry, signCtx.SessionName, signCtx.AWSRoleArn, signCtx.AWSExternalID)
 	signer := NewSigner(credentials, signCtx.SigningName)
 	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), signCtx.SigningName, signCtx.SigningRegion, s.Clock.Now())
 	if err != nil {
@@ -180,6 +167,24 @@ func (s *SigningService) SignRequest(ctx context.Context, req *http.Request, sig
 	// copy removed headers back to the request after signing it, but don't copy the old Authorization header.
 	copyHeaders(reqCopy, req, utils.RemoveFromSlice(unsignedHeaders, "Authorization"))
 	return reqCopy, nil
+}
+
+// GetSigningCredentialsFunc allows to set the function responsible for obtaining STS credentials.
+// Used in tests to set static AWS credentials and skip API call.
+type GetSigningCredentialsFunc func(provider client.ConfigProvider, expiry time.Time, sessName, roleARN, externalID string) *credentials.Credentials
+
+// GetAWSCredentialsFromSTSAPI obtains STS credentials.
+func GetAWSCredentialsFromSTSAPI(provider client.ConfigProvider, expiry time.Time, sessName, roleARN, externalID string) *credentials.Credentials {
+	return stscreds.NewCredentials(provider, roleARN,
+		func(cred *stscreds.AssumeRoleProvider) {
+			cred.RoleSessionName = sessName
+			cred.Expiry.SetExpiration(expiry, 0)
+
+			if externalID != "" {
+				cred.ExternalID = aws.String(externalID)
+			}
+		},
+	)
 }
 
 // removeUnsignedHeaders removes and returns header keys that are not included in SigV4 SignedHeaders.

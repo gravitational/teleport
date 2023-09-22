@@ -25,7 +25,6 @@ import {
   height,
   maxWidth,
   maxHeight,
-  alignSelf,
 } from 'design/system';
 
 const Image = props => {
@@ -50,5 +49,5 @@ export default Image;
 const StyledImg = styled.img`
   display: block;
   outline: none;
-  ${color} ${space} ${width} ${height} ${maxWidth} ${maxHeight} ${alignSelf}
+  ${color} ${space} ${width} ${height} ${maxWidth} ${maxHeight}
 `;

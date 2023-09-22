@@ -20,8 +20,3 @@ declare module '*.jpg';
 declare module '*.gif';
 declare module '*.ico';
 declare module '*.yaml?raw';
-
-// Subset is like Partial<T> but it works on nested objects.
-type Subset<K> = {
-  [attr in keyof K]?: K[attr] extends object ? Subset<K[attr]> : K[attr];
-};

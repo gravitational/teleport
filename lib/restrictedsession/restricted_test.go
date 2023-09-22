@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -63,68 +62,70 @@ const (
 	testPort = 8888
 )
 
-var testRanges = []blockedRange{
-	{
-		ver:   4,
-		allow: "39.156.69.70/28",
-		deny:  "39.156.69.71",
-		probe: map[string]blockAction{
-			"39.156.69.64": allowed,
-			"39.156.69.79": allowed,
-			"39.156.69.71": denied,
-			"39.156.69.63": denied,
-			"39.156.69.80": denied,
-			"72.156.69.80": denied,
+var (
+	testRanges = []blockedRange{
+		{
+			ver:   4,
+			allow: "39.156.69.70/28",
+			deny:  "39.156.69.71",
+			probe: map[string]blockAction{
+				"39.156.69.64": allowed,
+				"39.156.69.79": allowed,
+				"39.156.69.71": denied,
+				"39.156.69.63": denied,
+				"39.156.69.80": denied,
+				"72.156.69.80": denied,
+			},
 		},
-	},
-	{
-		ver:   4,
-		allow: "77.88.55.88",
-		probe: map[string]blockAction{
-			"77.88.55.88": allowed,
-			"77.88.55.87": denied,
-			"77.88.55.86": denied,
-			"67.88.55.86": denied,
+		{
+			ver:   4,
+			allow: "77.88.55.88",
+			probe: map[string]blockAction{
+				"77.88.55.88": allowed,
+				"77.88.55.87": denied,
+				"77.88.55.86": denied,
+				"67.88.55.86": denied,
+			},
 		},
-	},
-	{
-		ver:   6,
-		allow: "39.156.68.48/28",
-		deny:  "39.156.68.48/31",
-		probe: map[string]blockAction{
-			"::ffff:39.156.68.48": denied,
-			"::ffff:39.156.68.49": denied,
-			"::ffff:39.156.68.50": allowed,
-			"::ffff:39.156.68.63": allowed,
-			"::ffff:39.156.68.47": denied,
-			"::ffff:39.156.68.64": denied,
-			"::ffff:72.156.68.80": denied,
+		{
+			ver:   6,
+			allow: "39.156.68.48/28",
+			deny:  "39.156.68.48/31",
+			probe: map[string]blockAction{
+				"::ffff:39.156.68.48": denied,
+				"::ffff:39.156.68.49": denied,
+				"::ffff:39.156.68.50": allowed,
+				"::ffff:39.156.68.63": allowed,
+				"::ffff:39.156.68.47": denied,
+				"::ffff:39.156.68.64": denied,
+				"::ffff:72.156.68.80": denied,
+			},
 		},
-	},
-	{
-		ver:   6,
-		allow: "fc80::/64",
-		deny:  "fc80::10/124",
-		probe: map[string]blockAction{
-			"fc80::":                    allowed,
-			"fc80::ffff:ffff:ffff:ffff": allowed,
-			"fc80::10":                  denied,
-			"fc80::1f":                  denied,
-			"fc7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff": denied,
-			"fc60:0:0:1::": denied,
+		{
+			ver:   6,
+			allow: "fc80::/64",
+			deny:  "fc80::10/124",
+			probe: map[string]blockAction{
+				"fc80::":                    allowed,
+				"fc80::ffff:ffff:ffff:ffff": allowed,
+				"fc80::10":                  denied,
+				"fc80::1f":                  denied,
+				"fc7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff": denied,
+				"fc60:0:0:1::": denied,
+			},
 		},
-	},
-	{
-		ver:   6,
-		allow: "2607:f8b0:4005:80a::200e",
-		probe: map[string]blockAction{
-			"2607:f8b0:4005:80a::200e": allowed,
-			"2607:f8b0:4005:80a::200d": denied,
-			"2607:f8b0:4005:80a::200f": denied,
-			"2607:f8b0:4005:80a::300f": denied,
+		{
+			ver:   6,
+			allow: "2607:f8b0:4005:80a::200e",
+			probe: map[string]blockAction{
+				"2607:f8b0:4005:80a::200e": allowed,
+				"2607:f8b0:4005:80a::200d": denied,
+				"2607:f8b0:4005:80a::200f": denied,
+				"2607:f8b0:4005:80a::300f": denied,
+			},
 		},
-	},
-}
+	}
+)
 
 type bpfContext struct {
 	cgroupDir        string
@@ -135,7 +136,7 @@ type bpfContext struct {
 	srcAddrs         map[int]string
 
 	// Audit events emitted by us
-	emitter             eventstest.MockRecorderEmitter
+	emitter             eventstest.MockEmitter
 	expectedAuditEvents []apievents.AuditEvent
 }
 
@@ -164,13 +165,13 @@ func setupBPFContext(t *testing.T) *bpfContext {
 		6: "::",
 	}
 
-	config := &servicecfg.RestrictedSessionConfig{
+	config := &bpf.RestrictedSessionConfig{
 		Enabled: true,
 	}
 
 	var err error
 	// Create BPF service since we piggyback on it
-	bpfCtx.enhancedRecorder, err = bpf.New(&servicecfg.BPFConfig{
+	bpfCtx.enhancedRecorder, err = bpf.New(&bpf.Config{
 		Enabled:    true,
 		CgroupPath: bpfCtx.cgroupDir,
 	}, config)
@@ -218,7 +219,7 @@ func setupBPFContext(t *testing.T) *bpfContext {
 	bpfCtx.restrictedMgr, err = New(config, client)
 	require.NoError(t, err)
 
-	client.Fanout.SetInit([]api.WatchKind{{Kind: api.KindNetworkRestrictions}})
+	client.Fanout.SetInit()
 
 	time.Sleep(100 * time.Millisecond)
 

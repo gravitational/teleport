@@ -36,7 +36,7 @@ clusters:
 kind: role
 metadata:
   name: kube-access
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_labels:
@@ -66,7 +66,7 @@ using a role's  `kubernetes_labels` field.
 kind: role
 metadata:
   name: kube-access
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_labels:
@@ -212,7 +212,7 @@ server:
 kind: role
 metadata:
   name: kube-access
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_groups:
@@ -281,7 +281,7 @@ An example of a role that impersonates a Service Account can be found below.
 kind: role
 metadata:
   name: kube-access-impersonate-sa
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_users:
@@ -401,7 +401,7 @@ The Teleport Auth Service will substitute any template variable in the format
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: group-member
 spec:
@@ -418,7 +418,7 @@ evaluate to the following:
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: group-member
 spec:
@@ -439,7 +439,7 @@ internal traits:
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: group-member
 spec:
@@ -478,7 +478,7 @@ specific resources in a Kubernetes cluster:
 kind: role
 metadata:
   name: kube-access
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_labels:
@@ -487,63 +487,19 @@ spec:
       - kind: pod
         namespace: "production"
         name: "webapp"
-        verbs: ['*']
     # ...
 ```
 
-The value of this field is a list of mappings, where each mapping has four
+The value of this field is a list of mappings, where each mapping has three
 fields:
 
-- `kind`: The kind of resource to enable access to. Currently, Teleport supports
-the following kinds:
-
-  | Kind | Grants access to |
-  | ---- | ----------- |
-  | `*` | All resources |
-  | `pod` | Pods |
-  | `secret` | Secrets |
-  | `configmap` | ConfigMaps |
-  | `namespace` | Namespaces and all resources within |
-  | `service` | Services |
-  | `serviceaccount` | ServiceAccounts |
-  | `kube_node` | Nodes |
-  | `persistentvolume` | PersistentVolumes |
-  | `persistentvolumeclaim` | PersistentVolumeClaims |
-  | `deployment` | Deployments |
-  | `replicaset` | ReplicaSets |
-  | `statefulset` | StatefulSets |
-  | `daemonset` | DaemonSets |
-  | `clusterrole` | ClusterRoles |
-  | `kube_role` | Roles |
-  | `clusterrolebinding` | ClusterRoleBindings |
-  | `rolebinding` | RoleBindings |
-  | `cronjob` | CronJobs |
-  | `job` | Jobs |
-  | `certificatesigningrequest` | CertificateSigningRequests |
-  | `ingress` | Ingresses |
-
+- `kind`: The kind of resource to enable access to. Currently, Teleport only
+  supports the value `pod`.
 - `namespace`: The Kubernetes namespace in which to allow access to a resource.
   In the `kube-access` role, we are allowing access to a pod in the
   `production` namespace.
-
 - `name`: The name of the pod to allow access to. In `kube-access`, this is
   the `webapp` pod.
-
-- `verbs`: The operations to allow on the resource. Currently, Teleport supports:
-
-  | Verb | Grants access to |
-  | ---- | ----------- |
-  | `*` | All operations |
-  | `read` | Read a resource |
-  | `list` | List resources |
-  | `create` | Create a resource |
-  | `update` | Update a resource |
-  | `patch` | Patch a resource |
-  | `delete` | Delete a resource |
-  | `deletecollection` | Delete a collection of resources |
-  | `watch` | Watch resources |
-  | `portforward` | Create portforward requests for Pods |
-  | `exec` | Execute commands in Pods |
 
 For both the `namespace` and `name` fields, you can add a wildcard character
 (`*`) to replace any sequence of characters. For example, `name: "pod-*-*"`
@@ -651,7 +607,7 @@ Let's say you have assigned the following three roles to a user:
 kind: role
 metadata:
   name: allow-dev-us-east-2
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_labels:
@@ -669,7 +625,7 @@ spec:
 kind: role
 metadata:
   name: allow-exec
-  version: v7
+  version: v6
 spec:
   allow:
     kubernetes_labels:
@@ -684,7 +640,7 @@ spec:
 kind: role
 metadata:
   name: deny-redis-exec
-  version: v7
+  version: v6
 spec:
   deny:
     kubernetes_resources:
@@ -736,7 +692,7 @@ registered Kubernetes clusters, but only run `kubectl exec` or `kubectl logs` on
 kind: role
 metadata:
   name: kube-viewer
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_labels:
@@ -751,7 +707,7 @@ spec:
 kind: role
 metadata:
   name: nginx-exec
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_labels:
@@ -773,7 +729,7 @@ In this setup, you could also combine the `kube-viewer` role with other roles
 that grant elevated access to subsets of pods, depending on the requirements of
 your Teleport users.
 
-### Security consideration: Resource namespace restrictions
+### Security consideration: pod namespace restrictions
 
 When a Teleport user sends a request to list pods, e.g., with `kubectl get
 pods`, the Teleport Kubernetes Service does the following:
@@ -785,7 +741,7 @@ pods`, the Teleport Kubernetes Service does the following:
   authorized to access via `kubernetes_resources`.
 - Returns the list of pods to the user.
 
-To avoid leaking resources unintentionally, you should ensure that namespace
+To avoid leaking pods unintentionally, you should ensure that namespace
 restrictions in your Kubernetes RBAC line up with those you have set up in
 Teleport.
 
@@ -797,7 +753,7 @@ group. This group can only view pods in the `default` namespace:
 kind: role
 metadata:
   name: kube-access-1
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_groups:
@@ -816,7 +772,7 @@ only to the `webapp` pod in the `default` namespace:
 ```yaml
 metadata:
   name: kube-access-2
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_groups:
@@ -852,7 +808,7 @@ permissions, restricting the user to pods in the `default` namespace:
 kind: role
 metadata:
   name: kube-access-1
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_groups:

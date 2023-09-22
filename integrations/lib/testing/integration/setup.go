@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -121,9 +120,10 @@ func (s *SSHSetup) SetupService() {
 	require.True(t, ready, "ssh is not ready")
 
 	// Wait for node to show up on the server.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	require.Eventually(t, func() bool {
 		resources, err := s.Integration.tctl(s.Auth).GetAll(s.Context(), "nodes")
-		assert.NoError(t, err)
-		assert.NotEmpty(t, resources)
+		require.NoError(t, err)
+
+		return len(resources) != 0
 	}, 5*time.Second, time.Second)
 }

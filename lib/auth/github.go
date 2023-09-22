@@ -106,7 +106,7 @@ func (g *GithubConverter) UpsertGithubConnector(ctx context.Context, connector t
 	return g.ClientI.UpsertGithubConnector(ctx, convertedConnector)
 }
 
-// CreateGithubAuthRequest creates a new request for Github OAuth2 flow
+// CreateGithubAuthRequest creates a new request for GitHub OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
 	_, client, err := a.getGithubConnectorAndClient(ctx, req)
 	if err != nil {
@@ -127,7 +127,7 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 	return &req, nil
 }
 
-// upsertGithubConnector creates or updates a Github connector.
+// upsertGithubConnector creates or updates a GitHub connector.
 func (a *Server) upsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
 	if err := checkGithubOrgSSOSupport(ctx, connector, nil, a.githubOrgSSOCache, nil); err != nil {
 		return trace.Wrap(err)
@@ -512,7 +512,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 		// optional parameter: error_description
 		errDesc := q.Get("error_description")
 		oauthErr := trace.OAuth2(oauth2.ErrorInvalidRequest, errParam, q)
-		return nil, trace.WithUserMessage(oauthErr, "GitHub returned error: %v [%v]", errDesc, errParam)
+		return nil, trace.WithUserMessage(oauthErr, "Github returned error: %v [%v]", errDesc, errParam)
 	}
 
 	code := q.Get("code")
@@ -622,11 +622,6 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 		return nil, trace.Wrap(err)
 	}
 
-	userState, err := a.GetUserOrLoginState(ctx, user.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Auth was successful, return session, certificate, etc. to caller.
 	auth := GithubAuthResponse{
 		Req: GithubAuthRequestFromProto(req),
@@ -646,12 +641,11 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
 		session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
-			User:       userState.GetName(),
-			Roles:      userState.GetRoles(),
-			Traits:     userState.GetTraits(),
+			User:       user.GetName(),
+			Roles:      user.GetRoles(),
+			Traits:     user.GetTraits(),
 			SessionTTL: params.SessionTTL,
 			LoginTime:  a.clock.Now().UTC(),
-			LoginIP:    req.ClientLoginIP,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")
@@ -662,7 +656,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 
 	// If a public key was provided, sign it and return a certificate.
 	if len(req.PublicKey) != 0 {
-		sshCert, tlsCert, err := a.CreateSessionCert(userState, params.SessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
+		sshCert, tlsCert, err := a.CreateSessionCert(user, params.SessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
 			req.KubernetesCluster, req.ClientLoginIP, keys.AttestationStatementFromProto(req.AttestationStatement))
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")

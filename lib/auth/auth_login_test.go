@@ -502,7 +502,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	// Create user and initial WebAuthn device (MFA).
 	const user = "llama"
 	const password = "p@ssw0rd"
-	_, _, err = CreateUserAndRole(authServer, user, []string{"llama", "root"}, nil)
+	_, _, err = CreateUserAndRole(authServer, user, []string{"llama", "root"})
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertPassword(user, []byte(password)))
 	userClient, err := svr.NewClient(TestUser(user))
@@ -831,7 +831,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			go func() {
 				defer close(errC)
 
-				err := srv.Auth().UpsertHeadlessAuthenticationStub(ctx, username)
+				err := srv.Auth().CreateHeadlessAuthenticationStub(ctx, username)
 				if err != nil {
 					errC <- err
 					return
@@ -913,7 +913,7 @@ func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
 	// Create user with a default password.
 	const username = "llama@goteleport.com"
 	const password = "supersecurepass"
-	_, _, err = CreateUserAndRole(authServer, username, []string{"llama", "root"}, nil)
+	_, _, err = CreateUserAndRole(authServer, username, []string{"llama", "root"})
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertPassword(username, []byte(password)))
 

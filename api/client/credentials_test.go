@@ -17,15 +17,9 @@ limitations under the License.
 package client
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
-	"math/big"
 	"os"
-	"path"
 	"path/filepath"
 	"testing"
 
@@ -34,7 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -389,81 +382,3 @@ AIBV1ZA8WqvC+xZrPwmtmN87BHwGjqpE52kbUfcD94k8IqqhPR9oN9uOlcoBzZiS
 k53lH1qmEOm9+vrhNwNzpHk4AqDkP+0YDG++B4n0BtJJpw==
 Private-MAC: 8951bbe929e0714a61df01bc8fbc5223e3688f174aee29339931984fb9224c7d`)
 )
-
-func TestDynamicIdentityFileCreds(t *testing.T) {
-	dir := t.TempDir()
-	identityPath := path.Join(dir, "identity")
-
-	idFile := &identityfile.IdentityFile{
-		PrivateKey: keyPEM,
-		Certs: identityfile.Certs{
-			TLS: tlsCert,
-			SSH: sshCert,
-		},
-		CACerts: identityfile.CACerts{
-			TLS: [][]byte{tlsCACert},
-			SSH: [][]byte{sshCACert},
-		},
-	}
-	require.NoError(t, identityfile.Write(idFile, identityPath))
-
-	cred, err := NewDynamicIdentityFileCreds(identityPath)
-	require.NoError(t, err)
-
-	// Check the initial TLS certificate/key has been loaded.
-	tlsConfig, err := cred.TLSConfig()
-	require.NoError(t, err)
-	gotTLSCert, err := tlsConfig.GetClientCertificate(&tls.CertificateRequestInfo{
-		// We always return the same cert so this can be empty
-	})
-	require.NoError(t, err)
-	wantTLSCert, err := tls.X509KeyPair(tlsCert, keyPEM)
-	require.NoError(t, err)
-	require.Equal(t, wantTLSCert, *gotTLSCert)
-
-	// Generate a new TLS certificate that contains the same private key as
-	// the original.
-	template := &x509.Certificate{
-		SerialNumber: big.NewInt(0),
-		Subject: pkix.Name{
-			CommonName: "example",
-		},
-		KeyUsage:              x509.KeyUsageDigitalSignature,
-		BasicConstraintsValid: true,
-		DNSNames:              []string{constants.APIDomain},
-	}
-	secondTLSCert, err := x509.CreateCertificate(
-		rand.Reader, template, template, &wantTLSCert.PrivateKey.(*rsa.PrivateKey).PublicKey, wantTLSCert.PrivateKey,
-	)
-	require.NoError(t, err)
-	secondTLSCertPem := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: secondTLSCert,
-	})
-
-	// Write the new TLS certificate as part of the identity file and reload.
-	secondIDFile := &identityfile.IdentityFile{
-		PrivateKey: keyPEM,
-		Certs: identityfile.Certs{
-			TLS: secondTLSCertPem,
-			SSH: sshCert,
-		},
-		CACerts: identityfile.CACerts{
-			TLS: [][]byte{tlsCACert},
-			SSH: [][]byte{sshCACert},
-		},
-	}
-	require.NoError(t, identityfile.Write(secondIDFile, identityPath))
-	require.NoError(t, cred.Reload())
-
-	// Test that calling GetClientCertificate on the original tls.Config now
-	// returns the new certificate we wrote and reloaded.
-	gotTLSCert, err = tlsConfig.GetClientCertificate(&tls.CertificateRequestInfo{
-		// We always return the same cert so this can be empty
-	})
-	require.NoError(t, err)
-	wantTLSCert, err = tls.X509KeyPair(secondTLSCertPem, keyPEM)
-	require.NoError(t, err)
-	require.Equal(t, wantTLSCert, *gotTLSCert)
-
-}

@@ -33,41 +33,34 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	TerminalService_UpdateTshdEventsServerAddress_FullMethodName     = "/teleport.lib.teleterm.v1.TerminalService/UpdateTshdEventsServerAddress"
-	TerminalService_ListRootClusters_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ListRootClusters"
-	TerminalService_ListLeafClusters_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ListLeafClusters"
-	TerminalService_GetDatabases_FullMethodName                      = "/teleport.lib.teleterm.v1.TerminalService/GetDatabases"
-	TerminalService_ListDatabaseUsers_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseUsers"
-	TerminalService_GetServers_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/GetServers"
-	TerminalService_GetAccessRequests_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequests"
-	TerminalService_GetAccessRequest_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequest"
-	TerminalService_DeleteAccessRequest_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/DeleteAccessRequest"
-	TerminalService_CreateAccessRequest_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/CreateAccessRequest"
-	TerminalService_ReviewAccessRequest_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/ReviewAccessRequest"
-	TerminalService_GetRequestableRoles_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/GetRequestableRoles"
-	TerminalService_AssumeRole_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AssumeRole"
-	TerminalService_GetKubes_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/GetKubes"
-	TerminalService_AddCluster_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AddCluster"
-	TerminalService_RemoveCluster_FullMethodName                     = "/teleport.lib.teleterm.v1.TerminalService/RemoveCluster"
-	TerminalService_ListGateways_FullMethodName                      = "/teleport.lib.teleterm.v1.TerminalService/ListGateways"
-	TerminalService_CreateGateway_FullMethodName                     = "/teleport.lib.teleterm.v1.TerminalService/CreateGateway"
-	TerminalService_RemoveGateway_FullMethodName                     = "/teleport.lib.teleterm.v1.TerminalService/RemoveGateway"
-	TerminalService_SetGatewayTargetSubresourceName_FullMethodName   = "/teleport.lib.teleterm.v1.TerminalService/SetGatewayTargetSubresourceName"
-	TerminalService_SetGatewayLocalPort_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/SetGatewayLocalPort"
-	TerminalService_GetAuthSettings_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/GetAuthSettings"
-	TerminalService_GetCluster_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/GetCluster"
-	TerminalService_Login_FullMethodName                             = "/teleport.lib.teleterm.v1.TerminalService/Login"
-	TerminalService_LoginPasswordless_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/LoginPasswordless"
-	TerminalService_Logout_FullMethodName                            = "/teleport.lib.teleterm.v1.TerminalService/Logout"
-	TerminalService_TransferFile_FullMethodName                      = "/teleport.lib.teleterm.v1.TerminalService/TransferFile"
-	TerminalService_ReportUsageEvent_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ReportUsageEvent"
-	TerminalService_UpdateHeadlessAuthenticationState_FullMethodName = "/teleport.lib.teleterm.v1.TerminalService/UpdateHeadlessAuthenticationState"
-	TerminalService_CreateConnectMyComputerRole_FullMethodName       = "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerRole"
-	TerminalService_CreateConnectMyComputerNodeToken_FullMethodName  = "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerNodeToken"
-	TerminalService_DeleteConnectMyComputerToken_FullMethodName      = "/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerToken"
-	TerminalService_WaitForConnectMyComputerNodeJoin_FullMethodName  = "/teleport.lib.teleterm.v1.TerminalService/WaitForConnectMyComputerNodeJoin"
-	TerminalService_DeleteConnectMyComputerNode_FullMethodName       = "/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerNode"
-	TerminalService_GetConnectMyComputerNodeName_FullMethodName      = "/teleport.lib.teleterm.v1.TerminalService/GetConnectMyComputerNodeName"
+	TerminalService_UpdateTshdEventsServerAddress_FullMethodName   = "/teleport.lib.teleterm.v1.TerminalService/UpdateTshdEventsServerAddress"
+	TerminalService_ListRootClusters_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/ListRootClusters"
+	TerminalService_ListLeafClusters_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/ListLeafClusters"
+	TerminalService_GetDatabases_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/GetDatabases"
+	TerminalService_ListDatabaseUsers_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseUsers"
+	TerminalService_GetServers_FullMethodName                      = "/teleport.lib.teleterm.v1.TerminalService/GetServers"
+	TerminalService_GetAccessRequests_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequests"
+	TerminalService_GetAccessRequest_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequest"
+	TerminalService_DeleteAccessRequest_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/DeleteAccessRequest"
+	TerminalService_CreateAccessRequest_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/CreateAccessRequest"
+	TerminalService_ReviewAccessRequest_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/ReviewAccessRequest"
+	TerminalService_GetRequestableRoles_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/GetRequestableRoles"
+	TerminalService_AssumeRole_FullMethodName                      = "/teleport.lib.teleterm.v1.TerminalService/AssumeRole"
+	TerminalService_GetKubes_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/GetKubes"
+	TerminalService_AddCluster_FullMethodName                      = "/teleport.lib.teleterm.v1.TerminalService/AddCluster"
+	TerminalService_RemoveCluster_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/RemoveCluster"
+	TerminalService_ListGateways_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/ListGateways"
+	TerminalService_CreateGateway_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/CreateGateway"
+	TerminalService_RemoveGateway_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/RemoveGateway"
+	TerminalService_SetGatewayTargetSubresourceName_FullMethodName = "/teleport.lib.teleterm.v1.TerminalService/SetGatewayTargetSubresourceName"
+	TerminalService_SetGatewayLocalPort_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/SetGatewayLocalPort"
+	TerminalService_GetAuthSettings_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/GetAuthSettings"
+	TerminalService_GetCluster_FullMethodName                      = "/teleport.lib.teleterm.v1.TerminalService/GetCluster"
+	TerminalService_Login_FullMethodName                           = "/teleport.lib.teleterm.v1.TerminalService/Login"
+	TerminalService_LoginPasswordless_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/LoginPasswordless"
+	TerminalService_Logout_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/Logout"
+	TerminalService_TransferFile_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/TransferFile"
+	TerminalService_ReportUsageEvent_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/ReportUsageEvent"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -156,28 +149,6 @@ type TerminalServiceClient interface {
 	TransferFile(ctx context.Context, in *FileTransferRequest, opts ...grpc.CallOption) (TerminalService_TransferFileClient, error)
 	// ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
 	ReportUsageEvent(ctx context.Context, in *ReportUsageEventRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
-	// UpdateHeadlessAuthenticationState updates a headless authentication resource's state.
-	// An MFA challenge will be prompted when approving a headless authentication.
-	UpdateHeadlessAuthenticationState(ctx context.Context, in *UpdateHeadlessAuthenticationStateRequest, opts ...grpc.CallOption) (*UpdateHeadlessAuthenticationStateResponse, error)
-	// CreateConnectMyComputerRole creates a role which allows access to nodes with the label
-	// teleport.dev/connect-my-computer/owner: <cluster user> and allows logging in to those nodes as
-	// the current system user.
-	CreateConnectMyComputerRole(ctx context.Context, in *CreateConnectMyComputerRoleRequest, opts ...grpc.CallOption) (*CreateConnectMyComputerRoleResponse, error)
-	// CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes
-	CreateConnectMyComputerNodeToken(ctx context.Context, in *CreateConnectMyComputerNodeTokenRequest, opts ...grpc.CallOption) (*CreateConnectMyComputerNodeTokenResponse, error)
-	// DeleteConnectMyComputerToken deletes a join token
-	DeleteConnectMyComputerToken(ctx context.Context, in *DeleteConnectMyComputerTokenRequest, opts ...grpc.CallOption) (*DeleteConnectMyComputerTokenResponse, error)
-	// WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
-	// that the Connect My Computer node for the particular cluster has joined the cluster (the
-	// OpPut event).
-	//
-	// This RPC times out by itself after a minute to prevent the request from hanging forever, in
-	// case the client didn't set a deadline or doesn't abort the request.
-	WaitForConnectMyComputerNodeJoin(ctx context.Context, in *WaitForConnectMyComputerNodeJoinRequest, opts ...grpc.CallOption) (*WaitForConnectMyComputerNodeJoinResponse, error)
-	// DeleteConnectMyComputerNode deletes the Connect My Computer node.
-	DeleteConnectMyComputerNode(ctx context.Context, in *DeleteConnectMyComputerNodeRequest, opts ...grpc.CallOption) (*DeleteConnectMyComputerNodeResponse, error)
-	// GetConnectMyComputerNodeName reads the Connect My Computer node name (UUID) from a disk.
-	GetConnectMyComputerNodeName(ctx context.Context, in *GetConnectMyComputerNodeNameRequest, opts ...grpc.CallOption) (*GetConnectMyComputerNodeNameResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -485,69 +456,6 @@ func (c *terminalServiceClient) ReportUsageEvent(ctx context.Context, in *Report
 	return out, nil
 }
 
-func (c *terminalServiceClient) UpdateHeadlessAuthenticationState(ctx context.Context, in *UpdateHeadlessAuthenticationStateRequest, opts ...grpc.CallOption) (*UpdateHeadlessAuthenticationStateResponse, error) {
-	out := new(UpdateHeadlessAuthenticationStateResponse)
-	err := c.cc.Invoke(ctx, TerminalService_UpdateHeadlessAuthenticationState_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *terminalServiceClient) CreateConnectMyComputerRole(ctx context.Context, in *CreateConnectMyComputerRoleRequest, opts ...grpc.CallOption) (*CreateConnectMyComputerRoleResponse, error) {
-	out := new(CreateConnectMyComputerRoleResponse)
-	err := c.cc.Invoke(ctx, TerminalService_CreateConnectMyComputerRole_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *terminalServiceClient) CreateConnectMyComputerNodeToken(ctx context.Context, in *CreateConnectMyComputerNodeTokenRequest, opts ...grpc.CallOption) (*CreateConnectMyComputerNodeTokenResponse, error) {
-	out := new(CreateConnectMyComputerNodeTokenResponse)
-	err := c.cc.Invoke(ctx, TerminalService_CreateConnectMyComputerNodeToken_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *terminalServiceClient) DeleteConnectMyComputerToken(ctx context.Context, in *DeleteConnectMyComputerTokenRequest, opts ...grpc.CallOption) (*DeleteConnectMyComputerTokenResponse, error) {
-	out := new(DeleteConnectMyComputerTokenResponse)
-	err := c.cc.Invoke(ctx, TerminalService_DeleteConnectMyComputerToken_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *terminalServiceClient) WaitForConnectMyComputerNodeJoin(ctx context.Context, in *WaitForConnectMyComputerNodeJoinRequest, opts ...grpc.CallOption) (*WaitForConnectMyComputerNodeJoinResponse, error) {
-	out := new(WaitForConnectMyComputerNodeJoinResponse)
-	err := c.cc.Invoke(ctx, TerminalService_WaitForConnectMyComputerNodeJoin_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *terminalServiceClient) DeleteConnectMyComputerNode(ctx context.Context, in *DeleteConnectMyComputerNodeRequest, opts ...grpc.CallOption) (*DeleteConnectMyComputerNodeResponse, error) {
-	out := new(DeleteConnectMyComputerNodeResponse)
-	err := c.cc.Invoke(ctx, TerminalService_DeleteConnectMyComputerNode_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *terminalServiceClient) GetConnectMyComputerNodeName(ctx context.Context, in *GetConnectMyComputerNodeNameRequest, opts ...grpc.CallOption) (*GetConnectMyComputerNodeNameResponse, error) {
-	out := new(GetConnectMyComputerNodeNameResponse)
-	err := c.cc.Invoke(ctx, TerminalService_GetConnectMyComputerNodeName_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility
@@ -634,28 +542,6 @@ type TerminalServiceServer interface {
 	TransferFile(*FileTransferRequest, TerminalService_TransferFileServer) error
 	// ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
 	ReportUsageEvent(context.Context, *ReportUsageEventRequest) (*EmptyResponse, error)
-	// UpdateHeadlessAuthenticationState updates a headless authentication resource's state.
-	// An MFA challenge will be prompted when approving a headless authentication.
-	UpdateHeadlessAuthenticationState(context.Context, *UpdateHeadlessAuthenticationStateRequest) (*UpdateHeadlessAuthenticationStateResponse, error)
-	// CreateConnectMyComputerRole creates a role which allows access to nodes with the label
-	// teleport.dev/connect-my-computer/owner: <cluster user> and allows logging in to those nodes as
-	// the current system user.
-	CreateConnectMyComputerRole(context.Context, *CreateConnectMyComputerRoleRequest) (*CreateConnectMyComputerRoleResponse, error)
-	// CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes
-	CreateConnectMyComputerNodeToken(context.Context, *CreateConnectMyComputerNodeTokenRequest) (*CreateConnectMyComputerNodeTokenResponse, error)
-	// DeleteConnectMyComputerToken deletes a join token
-	DeleteConnectMyComputerToken(context.Context, *DeleteConnectMyComputerTokenRequest) (*DeleteConnectMyComputerTokenResponse, error)
-	// WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
-	// that the Connect My Computer node for the particular cluster has joined the cluster (the
-	// OpPut event).
-	//
-	// This RPC times out by itself after a minute to prevent the request from hanging forever, in
-	// case the client didn't set a deadline or doesn't abort the request.
-	WaitForConnectMyComputerNodeJoin(context.Context, *WaitForConnectMyComputerNodeJoinRequest) (*WaitForConnectMyComputerNodeJoinResponse, error)
-	// DeleteConnectMyComputerNode deletes the Connect My Computer node.
-	DeleteConnectMyComputerNode(context.Context, *DeleteConnectMyComputerNodeRequest) (*DeleteConnectMyComputerNodeResponse, error)
-	// GetConnectMyComputerNodeName reads the Connect My Computer node name (UUID) from a disk.
-	GetConnectMyComputerNodeName(context.Context, *GetConnectMyComputerNodeNameRequest) (*GetConnectMyComputerNodeNameResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -746,27 +632,6 @@ func (UnimplementedTerminalServiceServer) TransferFile(*FileTransferRequest, Ter
 }
 func (UnimplementedTerminalServiceServer) ReportUsageEvent(context.Context, *ReportUsageEventRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReportUsageEvent not implemented")
-}
-func (UnimplementedTerminalServiceServer) UpdateHeadlessAuthenticationState(context.Context, *UpdateHeadlessAuthenticationStateRequest) (*UpdateHeadlessAuthenticationStateResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateHeadlessAuthenticationState not implemented")
-}
-func (UnimplementedTerminalServiceServer) CreateConnectMyComputerRole(context.Context, *CreateConnectMyComputerRoleRequest) (*CreateConnectMyComputerRoleResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateConnectMyComputerRole not implemented")
-}
-func (UnimplementedTerminalServiceServer) CreateConnectMyComputerNodeToken(context.Context, *CreateConnectMyComputerNodeTokenRequest) (*CreateConnectMyComputerNodeTokenResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateConnectMyComputerNodeToken not implemented")
-}
-func (UnimplementedTerminalServiceServer) DeleteConnectMyComputerToken(context.Context, *DeleteConnectMyComputerTokenRequest) (*DeleteConnectMyComputerTokenResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteConnectMyComputerToken not implemented")
-}
-func (UnimplementedTerminalServiceServer) WaitForConnectMyComputerNodeJoin(context.Context, *WaitForConnectMyComputerNodeJoinRequest) (*WaitForConnectMyComputerNodeJoinResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method WaitForConnectMyComputerNodeJoin not implemented")
-}
-func (UnimplementedTerminalServiceServer) DeleteConnectMyComputerNode(context.Context, *DeleteConnectMyComputerNodeRequest) (*DeleteConnectMyComputerNodeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteConnectMyComputerNode not implemented")
-}
-func (UnimplementedTerminalServiceServer) GetConnectMyComputerNodeName(context.Context, *GetConnectMyComputerNodeNameRequest) (*GetConnectMyComputerNodeNameResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetConnectMyComputerNodeName not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 
@@ -1296,132 +1161,6 @@ func _TerminalService_ReportUsageEvent_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TerminalService_UpdateHeadlessAuthenticationState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateHeadlessAuthenticationStateRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).UpdateHeadlessAuthenticationState(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TerminalService_UpdateHeadlessAuthenticationState_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).UpdateHeadlessAuthenticationState(ctx, req.(*UpdateHeadlessAuthenticationStateRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TerminalService_CreateConnectMyComputerRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateConnectMyComputerRoleRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).CreateConnectMyComputerRole(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TerminalService_CreateConnectMyComputerRole_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).CreateConnectMyComputerRole(ctx, req.(*CreateConnectMyComputerRoleRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TerminalService_CreateConnectMyComputerNodeToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateConnectMyComputerNodeTokenRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).CreateConnectMyComputerNodeToken(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TerminalService_CreateConnectMyComputerNodeToken_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).CreateConnectMyComputerNodeToken(ctx, req.(*CreateConnectMyComputerNodeTokenRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TerminalService_DeleteConnectMyComputerToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteConnectMyComputerTokenRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).DeleteConnectMyComputerToken(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TerminalService_DeleteConnectMyComputerToken_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).DeleteConnectMyComputerToken(ctx, req.(*DeleteConnectMyComputerTokenRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TerminalService_WaitForConnectMyComputerNodeJoin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(WaitForConnectMyComputerNodeJoinRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).WaitForConnectMyComputerNodeJoin(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TerminalService_WaitForConnectMyComputerNodeJoin_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).WaitForConnectMyComputerNodeJoin(ctx, req.(*WaitForConnectMyComputerNodeJoinRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TerminalService_DeleteConnectMyComputerNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteConnectMyComputerNodeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).DeleteConnectMyComputerNode(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TerminalService_DeleteConnectMyComputerNode_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).DeleteConnectMyComputerNode(ctx, req.(*DeleteConnectMyComputerNodeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TerminalService_GetConnectMyComputerNodeName_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetConnectMyComputerNodeNameRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).GetConnectMyComputerNodeName(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TerminalService_GetConnectMyComputerNodeName_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).GetConnectMyComputerNodeName(ctx, req.(*GetConnectMyComputerNodeNameRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1532,34 +1271,6 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReportUsageEvent",
 			Handler:    _TerminalService_ReportUsageEvent_Handler,
-		},
-		{
-			MethodName: "UpdateHeadlessAuthenticationState",
-			Handler:    _TerminalService_UpdateHeadlessAuthenticationState_Handler,
-		},
-		{
-			MethodName: "CreateConnectMyComputerRole",
-			Handler:    _TerminalService_CreateConnectMyComputerRole_Handler,
-		},
-		{
-			MethodName: "CreateConnectMyComputerNodeToken",
-			Handler:    _TerminalService_CreateConnectMyComputerNodeToken_Handler,
-		},
-		{
-			MethodName: "DeleteConnectMyComputerToken",
-			Handler:    _TerminalService_DeleteConnectMyComputerToken_Handler,
-		},
-		{
-			MethodName: "WaitForConnectMyComputerNodeJoin",
-			Handler:    _TerminalService_WaitForConnectMyComputerNodeJoin_Handler,
-		},
-		{
-			MethodName: "DeleteConnectMyComputerNode",
-			Handler:    _TerminalService_DeleteConnectMyComputerNode_Handler,
-		},
-		{
-			MethodName: "GetConnectMyComputerNodeName",
-			Handler:    _TerminalService_GetConnectMyComputerNodeName_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

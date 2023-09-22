@@ -21,7 +21,6 @@ export default function makeKube(json): Kube {
   const labels = json.labels || [];
 
   return {
-    kind: 'kube_cluster',
     name,
     labels,
     users: json.kubernetes_users || [],

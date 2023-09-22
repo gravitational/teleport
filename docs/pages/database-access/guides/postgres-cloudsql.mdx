@@ -4,7 +4,11 @@ description: How to configure Teleport database access with GCP Cloud SQL Postgr
 videoBanner: br9LZ3ZXqCk
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="PostgreSQL on Google Cloud SQL" dbConfigure="PostgreSQL on Google Cloud SQL with a service account" dbName="PostgreSQL on Google Cloud SQL" !)
+This guide will help you to:
+
+- Install Teleport `(=teleport.version=)`.
+- Set up Teleport to access your PostgreSQL on Google Cloud SQL.
+- Connect to your databases through Teleport.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -192,7 +196,7 @@ Install Teleport on the host where you will run the Teleport Database Service:
 ## Step 6/7. Set up the Teleport Database service
 
 Below is an example of a Database Service configuration file that proxies
-a single Cloud SQL PostgreSQL database. Save this to `/etc/teleport.yaml`:
+a single Cloud SQL PostgreSQL database. Save this file as `/etc/teleport.yaml`:
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">

@@ -16,50 +16,7 @@ limitations under the License.
 
 import { formatDistanceStrict } from 'date-fns';
 
-import { Event, RawEvent, Formatters, eventCodes, RawEvents } from './types';
-
-const formatElasticsearchEvent: (
-  json:
-    | RawEvents[typeof eventCodes.ELASTICSEARCH_REQUEST]
-    | RawEvents[typeof eventCodes.ELASTICSEARCH_REQUEST_FAILURE]
-    | RawEvents[typeof eventCodes.OPENSEARCH_REQUEST]
-    | RawEvents[typeof eventCodes.OPENSEARCH_REQUEST_FAILURE]
-) => string = ({ category, code, db_service, path, query, target, user }) => {
-  // local redefinition of enum from events.proto.
-  // currently this matches both OpenSearchCategory and ElasticsearchCategory.
-  enum Category {
-    GENERAL = 0,
-    SECURITY = 1,
-    SEARCH = 2,
-    SQL = 3,
-  }
-
-  const categoryString = Category[category] ?? 'UNKNOWN';
-
-  let message = '';
-
-  switch (code) {
-    case eventCodes.ELASTICSEARCH_REQUEST:
-    case eventCodes.OPENSEARCH_REQUEST:
-      message += `User [${user}] has ran a [${categoryString}] query in [${db_service}], request path: [${path}]`;
-      break;
-
-    case eventCodes.ELASTICSEARCH_REQUEST_FAILURE:
-    case eventCodes.OPENSEARCH_REQUEST_FAILURE:
-      message += `User [${user}] has attempted to run a [${categoryString}] query in [${db_service}], request path: [${path}]`;
-      break;
-  }
-
-  if (query) {
-    message += `, query string: [${truncateStr(query, 80)}]`;
-  }
-
-  if (target) {
-    message += `, target: [${target}]`;
-  }
-
-  return message;
-};
+import { Event, RawEvent, Formatters, eventCodes } from './types';
 
 export const formatters: Formatters = {
   [eventCodes.ACCESS_REQUEST_CREATED]: {
@@ -87,7 +44,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: {
     type: 'access_request.search',
-    desc: 'Resource Access Search',
+    desc: 'Resource Access Request Search',
     format: ({ user, resource_type, search_as_roles }) =>
       `User [${user}] searched for resource type [${resource_type}] with role(s) [${search_as_roles}]`,
   },
@@ -719,12 +676,6 @@ export const formatters: Formatters = {
     format: ({ user, name }) =>
       `User [${user}] has created a trusted relationship with cluster [${name}]`,
   },
-  [eventCodes.PROVISION_TOKEN_CREATED]: {
-    type: 'join_token.create',
-    desc: 'Join Token Created',
-    format: ({ user, roles, join_method }) =>
-      `User [${user}] created a join token with role(s) [${roles}] and a join method [${join_method}]`,
-  },
   [eventCodes.TRUSTED_CLUSTER_DELETED]: {
     type: 'trusted_cluster.delete',
     desc: 'Trusted Cluster Deleted',
@@ -758,12 +709,10 @@ export const formatters: Formatters = {
   [eventCodes.DATABASE_SESSION_STARTED]: {
     type: 'db.session.start',
     desc: 'Database Session Started',
-    format: ({ user, db_service, db_name, db_user, db_roles }) =>
+    format: ({ user, db_service, db_name, db_user }) =>
       `User [${user}] has connected ${
         db_name ? `to database [${db_name}] ` : ''
-      }as [${db_user}] ${
-        db_roles ? `with roles [${db_roles}] ` : ''
-      }on [${db_service}]`,
+      }as [${db_user}] on [${db_service}]`,
   },
   [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: {
     type: 'db.session.start',
@@ -1000,22 +949,43 @@ export const formatters: Formatters = {
   [eventCodes.ELASTICSEARCH_REQUEST]: {
     type: 'db.session.elasticsearch.request',
     desc: 'Elasticsearch Request',
-    format: formatElasticsearchEvent,
-  },
-  [eventCodes.ELASTICSEARCH_REQUEST_FAILURE]: {
-    type: 'db.session.elasticsearch.request',
-    desc: 'Elasticsearch Request Failed',
-    format: formatElasticsearchEvent,
-  },
-  [eventCodes.OPENSEARCH_REQUEST]: {
-    type: 'db.session.opensearch.request',
-    desc: 'OpenSearch Request',
-    format: formatElasticsearchEvent,
-  },
-  [eventCodes.OPENSEARCH_REQUEST_FAILURE]: {
-    type: 'db.session.opensearch.request',
-    desc: 'OpenSearch Request Failed',
-    format: formatElasticsearchEvent,
+    format: ({ user, db_service, category, target, query, path }) => {
+      // local redefinition of enum ElasticsearchCategory from events.proto
+      enum ElasticsearchCategory {
+        GENERAL = 0,
+        SECURITY = 1,
+        SEARCH = 2,
+        SQL = 3,
+      }
+
+      let categoryString = 'UNKNOWN';
+      switch (category) {
+        case ElasticsearchCategory.GENERAL:
+          categoryString = 'GENERAL';
+          break;
+        case ElasticsearchCategory.SEARCH:
+          categoryString = 'SEARCH';
+          break;
+        case ElasticsearchCategory.SECURITY:
+          categoryString = 'SECURITY';
+          break;
+        case ElasticsearchCategory.SQL:
+          categoryString = 'SQL';
+          break;
+      }
+
+      let message = `User [${user}] has ran a [${categoryString}] query in [${db_service}], request path: [${path}]`;
+
+      if (query) {
+        message += `, query string: [${truncateStr(query, 80)}]`;
+      }
+
+      if (target) {
+        message += `, target: [${target}]`;
+      }
+
+      return message;
+    },
   },
   [eventCodes.DYNAMODB_REQUEST]: {
     type: 'db.session.dynamodb.request',
@@ -1238,14 +1208,6 @@ export const formatters: Formatters = {
         ? `User [${user}] has spent a device enroll token`
         : `User [${user}] has failed to spend a device enroll token`,
   },
-  [eventCodes.DEVICE_UPDATE]: {
-    type: 'device.update',
-    desc: 'Device Update',
-    format: ({ user, status, success }) =>
-      success || (status && status.success)
-        ? `User [${user}] has updated a device`
-        : `User [${user}] has failed to update a device`,
-  },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
     desc: 'X11 Forwarding Requested',
@@ -1432,102 +1394,6 @@ export const formatters: Formatters = {
     desc: 'Okta assignment failed to clean up',
     format: ({ name, source, user }) =>
       `Okta assignment [${name}], source [${source}], user [${user}] cleanup has failed`,
-  },
-  [eventCodes.ACCESS_LIST_CREATE]: {
-    type: 'access_list.create',
-    desc: 'Access list created',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] created access list [${name}]`,
-  },
-  [eventCodes.ACCESS_LIST_CREATE_FAILURE]: {
-    type: 'access_list.create',
-    desc: 'Access list create failed',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] failed to create access list [${name}]`,
-  },
-  [eventCodes.ACCESS_LIST_UPDATE]: {
-    type: 'access_list.update',
-    desc: 'Access list updated',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] updated access list [${name}]`,
-  },
-  [eventCodes.ACCESS_LIST_UPDATE_FAILURE]: {
-    type: 'access_list.update',
-    desc: 'Access list update failed',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] failed to update access list [${name}]`,
-  },
-  [eventCodes.ACCESS_LIST_DELETE]: {
-    type: 'access_list.delete',
-    desc: 'Access list deleted',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] deleted access list [${name}]`,
-  },
-  [eventCodes.ACCESS_LIST_DELETE_FAILURE]: {
-    type: 'access_list.delete',
-    desc: 'Access list delete failed',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] failed to delete access list [${name}]`,
-  },
-  [eventCodes.ACCESS_LIST_REVIEW]: {
-    type: 'access_list.review',
-    desc: 'Access list reviewed',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] reviewed access list [${name}]`,
-  },
-  [eventCodes.ACCESS_LIST_REVIEW_FAILURE]: {
-    type: 'access_list.review',
-    desc: 'Access list review failed',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] failed to to review access list [${name}]]`,
-  },
-  [eventCodes.ACCESS_LIST_MEMBER_CREATE]: {
-    type: 'access_list.member.create',
-    desc: 'Access list member added',
-    format: ({ access_list_name, member_name, updated_by }) =>
-      `User [${updated_by}] added member [${member_name}] to access list [${access_list_name}]`,
-  },
-  [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: {
-    type: 'access_list.member.create',
-    desc: 'Access list member addition failure',
-    format: ({ access_list_name, member_name, updated_by }) =>
-      `User [${updated_by}] failed to add member [${member_name}] to access list [${access_list_name}]`,
-  },
-  [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: {
-    type: 'access_list.member.update',
-    desc: 'Access list member updated',
-    format: ({ access_list_name, member_name, updated_by }) =>
-      `User [${updated_by}] updated member [${member_name}] in access list [${access_list_name}]`,
-  },
-  [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: {
-    type: 'access_list.member.update',
-    desc: 'Access list member update failure',
-    format: ({ access_list_name, member_name, updated_by }) =>
-      `User [${updated_by}] failed to update member [${member_name}] in access list [${access_list_name}]`,
-  },
-  [eventCodes.ACCESS_LIST_MEMBER_DELETE]: {
-    type: 'access_list.member.delete',
-    desc: 'Access list member removed',
-    format: ({ access_list_name, member_name, updated_by }) =>
-      `User [${updated_by}] removed member [${member_name}] from access list [${access_list_name}]`,
-  },
-  [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: {
-    type: 'access_list.member.delete',
-    desc: 'Access list member removal failure',
-    format: ({ access_list_name, member_name, updated_by }) =>
-      `User [${updated_by}] failed to remove member [${member_name}] from access list [${access_list_name}]`,
-  },
-  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: {
-    type: 'access_list.member.delete_all_members',
-    desc: 'All members removed from access list',
-    format: ({ access_list_name, updated_by }) =>
-      `User [${updated_by}] removed all members from access list [${access_list_name}]`,
-  },
-  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]: {
-    type: 'access_list.member.delete_all_members',
-    desc: 'Access list member delete all members failure',
-    format: ({ access_list_name, updated_by }) =>
-      `User [${updated_by}] failed to remove all members from access list [${access_list_name}]`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',

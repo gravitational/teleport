@@ -29,7 +29,7 @@ import (
 
 // UpsertHeadlessAuthentication upserts a headless authentication in the backend.
 func (s *IdentityService) UpsertHeadlessAuthentication(ctx context.Context, ha *types.HeadlessAuthentication) error {
-	item, err := marshalHeadlessAuthenticationToItem(ha)
+	item, err := MarshalHeadlessAuthenticationToItem(ha)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -45,12 +45,12 @@ func (s *IdentityService) CompareAndSwapHeadlessAuthentication(ctx context.Conte
 		return nil, trace.Wrap(err)
 	}
 
-	oldItem, err := marshalHeadlessAuthenticationToItem(old)
+	oldItem, err := MarshalHeadlessAuthenticationToItem(old)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	newItem, err := marshalHeadlessAuthenticationToItem(new)
+	newItem, err := MarshalHeadlessAuthenticationToItem(new)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -80,7 +80,7 @@ func (s *IdentityService) GetHeadlessAuthentication(ctx context.Context, usernam
 
 // GetHeadlessAuthentications returns all headless authentications from the backend.
 func (s *IdentityService) GetHeadlessAuthentications(ctx context.Context) ([]*types.HeadlessAuthentication, error) {
-	rangeStart := backend.ExactKey(headlessAuthenticationPrefix)
+	rangeStart := backend.Key(headlessAuthenticationPrefix)
 	rangeEnd := backend.RangeEnd(rangeStart)
 
 	items, err := s.GetRange(ctx, rangeStart, rangeEnd, 0)
@@ -105,15 +105,13 @@ func (s *IdentityService) DeleteHeadlessAuthentication(ctx context.Context, user
 	return trace.Wrap(s.Delete(ctx, headlessAuthenticationKey(username, name)))
 }
 
-// DeleteAllHeadlessAuthentications deletes all headless authentications from the backend.
-func (s *IdentityService) DeleteAllHeadlessAuthentications(ctx context.Context) error {
-	startKey := backend.ExactKey(headlessAuthenticationPrefix)
-	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-}
+// MarshalHeadlessAuthenticationToItem marshals a headless authentication to a backend.Item.
+func MarshalHeadlessAuthenticationToItem(headlessAuthn *types.HeadlessAuthentication) (*backend.Item, error) {
+	if err := headlessAuthn.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-// marshalHeadlessAuthenticationToItem marshals a headless authentication to a backend.Item.
-func marshalHeadlessAuthenticationToItem(headlessAuthn *types.HeadlessAuthentication) (*backend.Item, error) {
-	value, err := marshalHeadlessAuthentication(headlessAuthn)
+	value, err := utils.FastMarshal(headlessAuthn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -125,24 +123,10 @@ func marshalHeadlessAuthenticationToItem(headlessAuthn *types.HeadlessAuthentica
 	}, nil
 }
 
-// marshalHeadlessAuthentication marshals a headless authentication to JSON.
-func marshalHeadlessAuthentication(ha *types.HeadlessAuthentication) ([]byte, error) {
-	if err := ha.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return utils.FastMarshal(ha)
-}
-
 // unmarshalHeadlessAuthenticationFromItem unmarshals a headless authentication from a backend.Item.
 func unmarshalHeadlessAuthenticationFromItem(item *backend.Item) (*types.HeadlessAuthentication, error) {
-	return unmarshalHeadlessAuthentication(item.Value)
-}
-
-// unmarshalHeadlessAuthentication unmarshals a headless authentication from JSON.
-func unmarshalHeadlessAuthentication(data []byte) (*types.HeadlessAuthentication, error) {
 	var headlessAuthn types.HeadlessAuthentication
-	if err := utils.FastUnmarshal(data, &headlessAuthn); err != nil {
+	if err := utils.FastUnmarshal(item.Value, &headlessAuthn); err != nil {
 		return nil, trace.Wrap(err, "error unmarshalling headless authentication from storage")
 	}
 

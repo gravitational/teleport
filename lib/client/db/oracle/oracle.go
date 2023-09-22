@@ -21,15 +21,12 @@ import (
 	"crypto/x509"
 	"os"
 	"path/filepath"
-	"runtime"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/pavlo-v-chernykh/keystore-go/v4"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -57,10 +54,6 @@ func GenerateClientConfiguration(key *client.Key, db tlsca.RouteToDatabase, prof
 	jksWalletPath, err := createClientWallet(key, localProxyCAPem, password, walletPath)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	if runtime.GOOS == constants.WindowsOS {
-		jksWalletPath = strings.ReplaceAll(jksWalletPath, `\`, `\\`)
 	}
 
 	err = writeClientConfig(walletPath, jksWalletPath, password)

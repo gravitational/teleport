@@ -46,9 +46,11 @@ import (
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
@@ -92,18 +94,12 @@ type FileConfig struct {
 
 	// Okta is the "okta_service" section in the Teleport configuration file
 	Okta Okta `yaml:"okta_service,omitempty"`
-
-	// Jamf is the "jamf_service" section in the config file.
-	Jamf JamfService `yaml:"jamf_service,omitempty"`
-
-	// Plugins is the section of the config for configuring the plugin service.
-	Plugins PluginService `yaml:"plugin_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
 // format is supported
 func ReadFromFile(filePath string) (*FileConfig, error) {
-	f, err := utils.OpenFileAllowingUnsafeLinks(filePath)
+	f, err := os.Open(filePath)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			return nil, trace.Wrap(err, "failed to open file for Teleport configuration: %v. Ensure that you are running as a user with appropriate permissions.", filePath)
@@ -184,8 +180,6 @@ type SampleFlags struct {
 	JoinMethod string
 	// NodeName is the name of the teleport node
 	NodeName string
-	// Silent suppresses user hint printed after config has been generated.
-	Silent bool
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -204,7 +198,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		}
 	}
 
-	conf := servicecfg.MakeDefaultConfig()
+	conf := service.MakeDefaultConfig()
 
 	var g Global
 
@@ -302,14 +296,14 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	return fc, nil
 }
 
-func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (SSH, error) {
+func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) (SSH, error) {
 	var s SSH
 	if enabled {
 		s.EnabledFlag = "yes"
 		s.ListenAddress = conf.SSH.Addr.Addr
 		s.Commands = []CommandLabel{
 			{
-				Name:    defaults.HostnameLabel,
+				Name:    "hostname",
 				Command: []string{"hostname"},
 				Period:  time.Minute,
 			},
@@ -326,7 +320,7 @@ func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled boo
 	return s, nil
 }
 
-func makeSampleAuthConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) Auth {
+func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool) Auth {
 	var a Auth
 	if enabled {
 		a.ListenAddress = conf.Auth.ListenAddr.Addr
@@ -348,7 +342,7 @@ func makeSampleAuthConfig(conf *servicecfg.Config, flags SampleFlags, enabled bo
 	return a
 }
 
-func makeSampleProxyConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (Proxy, error) {
+func makeSampleProxyConfig(conf *service.Config, flags SampleFlags, enabled bool) (Proxy, error) {
 	var p Proxy
 	if enabled {
 		p.EnabledFlag = "yes"
@@ -390,7 +384,7 @@ func makeSampleProxyConfig(conf *servicecfg.Config, flags SampleFlags, enabled b
 	return p, nil
 }
 
-func makeSampleAppsConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (Apps, error) {
+func makeSampleAppsConfig(conf *service.Config, flags SampleFlags, enabled bool) (Apps, error) {
 	var apps Apps
 	// assume users want app role if they added app name and/or uri but didn't add app role
 	if enabled || flags.AppURI != "" || flags.AppName != "" {
@@ -479,16 +473,6 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	if err := checkAndSetDefaultsForGCPMatchers(conf.Discovery.GCPMatchers); err != nil {
 		return trace.Wrap(err)
 	}
-	if len(conf.Discovery.KubernetesMatchers) > 0 {
-		if conf.Discovery.DiscoveryGroup == "" {
-			// TODO(anton): add link to documentation when it's available
-			return trace.BadParameter(`parameter 'discovery_group' should be defined for discovery service if
-kubernetes matchers are present`)
-		}
-		if err := checkAndSetDefaultsForKubeMatchers(conf.Discovery.KubernetesMatchers); err != nil {
-			return trace.Wrap(err)
-		}
-	}
 
 	return nil
 }
@@ -517,25 +501,11 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 			}
 		}
 
-		if matcher.AssumeRoleARN != "" {
-			_, err := awsutils.ParseRoleARN(matcher.AssumeRoleARN)
-			if err != nil {
-				return trace.Wrap(err, "discovery service AWS matcher assume_role_arn is invalid")
-			}
-		} else if matcher.ExternalID != "" {
-			for _, t := range matcher.Types {
-				if !slices.Contains(services.RequireAWSIAMRolesAsUsersMatchers, t) {
-					return trace.BadParameter("discovery service AWS matcher assume_role_arn is empty, but has external_id %q",
-						matcher.ExternalID)
-				}
-			}
-		}
-
 		if matcher.Tags == nil || len(matcher.Tags) == 0 {
 			matcher.Tags = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
 		}
 
-		var installParams types.InstallerParams
+		var installParams services.InstallerParams
 		var err error
 
 		if matcher.InstallParams == nil {
@@ -685,12 +655,6 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 			}
 		}
 
-		if slices.Contains(matcher.Types, services.GCPMatcherCompute) {
-			if err := checkAndSetDefaultsForGCPInstaller(matcher); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
 		if slices.Contains(matcher.Locations, types.Wildcard) || len(matcher.Locations) == 0 {
 			matcher.Locations = []string{types.Wildcard}
 		}
@@ -702,79 +666,13 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 			return trace.BadParameter("GCP discovery service project_ids does cannot be empty; please specify at least one value in project_ids.")
 		}
 
-		if len(matcher.Labels) > 0 && len(matcher.Tags) > 0 {
-			return trace.BadParameter("labels and tags should not both be set.")
-		}
-
-		if len(matcher.Tags) > 0 {
-			matcher.Labels = matcher.Tags
-		}
-
-		if len(matcher.Labels) == 0 {
-			matcher.Labels = map[string]apiutils.Strings{
+		if len(matcher.Tags) == 0 {
+			matcher.Tags = map[string]apiutils.Strings{
 				types.Wildcard: {types.Wildcard},
 			}
 		}
 
 	}
-	return nil
-}
-
-func checkAndSetDefaultsForGCPInstaller(matcher *GCPMatcher) error {
-	if matcher.InstallParams == nil {
-		matcher.InstallParams = &InstallParams{
-			JoinParams: JoinParams{
-				TokenName: defaults.GCPInviteTokenName,
-				Method:    types.JoinMethodGCP,
-			},
-			ScriptName: installers.InstallerScriptName,
-		}
-		return nil
-	}
-
-	switch matcher.InstallParams.JoinParams.Method {
-	case types.JoinMethodGCP, "":
-		matcher.InstallParams.JoinParams.Method = types.JoinMethodGCP
-	default:
-		return trace.BadParameter("only GCP joining is supported for GCP auto-discovery")
-	}
-
-	if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
-		matcher.InstallParams.JoinParams.TokenName = defaults.GCPInviteTokenName
-	}
-
-	if installer := matcher.InstallParams.ScriptName; installer == "" {
-		matcher.InstallParams.ScriptName = installers.InstallerScriptName
-	}
-	return nil
-}
-
-// checkAndSetDefaultsForKubeMatchers sets the default values for Kubernetes matchers
-// and validates the provided types.
-func checkAndSetDefaultsForKubeMatchers(matchers []KubernetesMatcher) error {
-	for i := range matchers {
-		matcher := &matchers[i]
-
-		for _, t := range matcher.Types {
-			if !slices.Contains(services.SupportedKubernetesMatchers, t) {
-				return trace.BadParameter("Kubernetes discovery does not support %q resource type; supported resource types are: %v",
-					t, services.SupportedKubernetesMatchers)
-			}
-		}
-
-		if len(matcher.Types) == 0 {
-			matcher.Types = []string{services.KubernetesMatchersApp}
-		}
-
-		if len(matcher.Namespaces) == 0 {
-			matcher.Namespaces = []string{types.Wildcard}
-		}
-
-		if len(matcher.Labels) == 0 {
-			matcher.Labels = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
-		}
-	}
-
 	return nil
 }
 
@@ -937,8 +835,8 @@ func (c *CachePolicy) Enabled() bool {
 }
 
 // Parse parses cache policy from Teleport config
-func (c *CachePolicy) Parse() (*servicecfg.CachePolicy, error) {
-	out := servicecfg.CachePolicy{
+func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
+	out := service.CachePolicy{
 		Enabled:        c.Enabled(),
 		MaxRetryPeriod: c.MaxBackoff,
 	}
@@ -984,14 +882,9 @@ func (s *Service) Disabled() bool {
 type Auth struct {
 	Service `yaml:",inline"`
 
-	// ProxyProtocol controls support for HAProxy PROXY protocol.
-	// Possible values:
-	// - 'on': one PROXY header is accepted and required per incoming connection.
-	// - 'off': no PROXY headers are allows, otherwise connection is rejected.
-	// If unspecified - one PROXY header is allowed, but not required. Connection is marked with source port set to 0
-	// and IP pinning will not be allowed. It is supposed to be used only as default mode for test setups.
-	// In production you should always explicitly set the mode based on your network setup - if you have L4 load balancer
-	// with enabled PROXY protocol in front of Teleport you should set it to 'on', if you don't have it, set it to 'off'
+	// ProxyProtocol enables support for HAProxy proxy protocol version 1 when it is turned 'on'.
+	// Verify whether the service is in front of a trusted load balancer.
+	// The default value is 'on'.
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
 
 	// ClusterName is the name of the CA who manages this cluster
@@ -1082,9 +975,6 @@ type Auth struct {
 	// connections, regular TLS routing connections are not affected.
 	ProxyPingInterval types.Duration `yaml:"proxy_ping_interval,omitempty"`
 
-	// CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
-	CaseInsensitiveRouting bool `yaml:"case_insensitive_routing,omitempty"`
-
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
@@ -1092,22 +982,6 @@ type Auth struct {
 	// HostedPlugins configures the hosted plugins runtime.
 	// This is currently Cloud-specific.
 	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
-
-	// Assist is a set of options related to the Teleport Assist feature.
-	Assist *AuthAssistOptions `yaml:"assist,omitempty"`
-}
-
-// PluginService represents the configuration for the plugin service.
-type PluginService struct {
-	Enabled bool `yaml:"enabled"`
-	// Plugins is a map of matchers for enabled plugin resources.
-	Plugins map[string]string `yaml:"plugins,omitempty"`
-}
-
-// Opsgenie represents the configuration for the Opsgenie plugin.
-type Opsgenie struct {
-	// APIKeyFile is the path to a file containing an Opsgenie API key.
-	APIKeyFile string `yaml:"api_key_file"`
 }
 
 // hasCustomNetworkingConfig returns true if any of the networking
@@ -1123,8 +997,7 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 		a.ProxyListenerMode != empty.ProxyListenerMode ||
 		a.RoutingStrategy != empty.RoutingStrategy ||
 		a.TunnelStrategy != empty.TunnelStrategy ||
-		a.ProxyPingInterval != empty.ProxyPingInterval ||
-		(a.Assist != nil && a.Assist.CommandExecutionWorkers != 0)
+		a.ProxyPingInterval != empty.ProxyPingInterval
 }
 
 // hasCustomSessionRecording returns true if any of the session recording
@@ -1342,7 +1215,7 @@ type UniversalSecondFactor struct {
 }
 
 func (u *UniversalSecondFactor) Parse() (*types.U2F, error) {
-	attestationCAs, err := getCertificatePEMs(u.DeviceAttestationCAs)
+	attestationCAs, err := getAttestationPEMs(u.DeviceAttestationCAs)
 	if err != nil {
 		return nil, trace.BadParameter("u2f.device_attestation_cas: %v", err)
 	}
@@ -1362,11 +1235,11 @@ type Webauthn struct {
 }
 
 func (w *Webauthn) Parse() (*types.Webauthn, error) {
-	allowedCAs, err := getCertificatePEMs(w.AttestationAllowedCAs)
+	allowedCAs, err := getAttestationPEMs(w.AttestationAllowedCAs)
 	if err != nil {
 		return nil, trace.BadParameter("webauthn.attestation_allowed_cas: %v", err)
 	}
-	deniedCAs, err := getCertificatePEMs(w.AttestationDeniedCAs)
+	deniedCAs, err := getAttestationPEMs(w.AttestationDeniedCAs)
 	if err != nil {
 		return nil, trace.BadParameter("webauthn.attestation_denied_cas: %v", err)
 	}
@@ -1385,10 +1258,10 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 	}, nil
 }
 
-func getCertificatePEMs(certOrPaths []string) ([]string, error) {
+func getAttestationPEMs(certOrPaths []string) ([]string, error) {
 	res := make([]string, len(certOrPaths))
 	for i, certOrPath := range certOrPaths {
-		pem, err := getCertificatePEM(certOrPath)
+		pem, err := getAttestationPEM(certOrPath)
 		if err != nil {
 			return nil, err
 		}
@@ -1397,7 +1270,7 @@ func getCertificatePEMs(certOrPaths []string) ([]string, error) {
 	return res, nil
 }
 
-func getCertificatePEM(certOrPath string) (string, error) {
+func getAttestationPEM(certOrPath string) (string, error) {
 	_, parseErr := tlsutils.ParseCertificatePEM([]byte(certOrPath))
 	if parseErr == nil {
 		return certOrPath, nil // OK, valid inline PEM
@@ -1423,59 +1296,18 @@ type DeviceTrust struct {
 	// Mode is the trusted device verification mode.
 	// Mirrors types.DeviceTrust.Mode.
 	Mode string `yaml:"mode,omitempty"`
-	// AutoEnroll is the toggle for the device auto-enroll feature.
-	AutoEnroll string `yaml:"auto_enroll,omitempty"`
-	// EKCertAllowedCAs is an allow list of EKCert CAs. These may be specified
-	// as a PEM encoded certificate or as a path to a PEM encoded certificate.
-	//
-	// If present, only TPM devices that present an EKCert that is signed by a
-	// CA specified here may be enrolled (existing enrollments are
-	// unchanged).
-	//
-	// If not present, then the CA of TPM EKCerts will not be checked during
-	// enrollment, this allows any device to enroll.
-	EKCertAllowedCAs []string `yaml:"ekcert_allowed_cas,omitempty"`
 }
 
 func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
-	autoEnroll := false
-	if dt.AutoEnroll != "" {
-		var err error
-		autoEnroll, err = apiutils.ParseBool(dt.AutoEnroll)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	allowedCAs, err := getCertificatePEMs(dt.EKCertAllowedCAs)
-	if err != nil {
-		return nil, trace.BadParameter("device_trust.ekcert_allowed_cas: %v", err)
-	}
-
 	return &types.DeviceTrust{
-		Mode:             dt.Mode,
-		AutoEnroll:       autoEnroll,
-		EKCertAllowedCAs: allowedCAs,
+		Mode: dt.Mode,
 	}, nil
 }
 
-// AssistOptions is a set of options common to both Auth and Proxy related to the Teleport Assist feature.
+// AssistOptions is a set of options related to the Teleport Assist feature.
 type AssistOptions struct {
 	// OpenAI is a set of options related to the OpenAI assist backend.
 	OpenAI *OpenAIOptions `yaml:"openai,omitempty"`
-}
-
-// ProxyAssistOptions is a set of proxy service options related to the Assist feature
-type ProxyAssistOptions struct {
-	AssistOptions `yaml:",inline"`
-}
-
-// AuthAssistOptions is a set of auth service options related to the Assist feature
-type AuthAssistOptions struct {
-	AssistOptions `yaml:",inline"`
-	// CommandExecutionWorkers determines the number of workers that will
-	// execute arbitrary remote commands on servers (e.g. through Assist) in parallel
-	CommandExecutionWorkers int32 `yaml:"command_execution_workers,omitempty"`
 }
 
 // OpenAIOptions stores options related to the OpenAI assist backend.
@@ -1496,8 +1328,8 @@ type PluginOAuthProviders struct {
 	Slack *OAuthClientCredentials `yaml:"slack,omitempty"`
 }
 
-func (p *PluginOAuthProviders) Parse() (servicecfg.PluginOAuthProviders, error) {
-	out := servicecfg.PluginOAuthProviders{}
+func (p *PluginOAuthProviders) Parse() (service.PluginOAuthProviders, error) {
+	out := service.PluginOAuthProviders{}
 	if p.Slack == nil {
 		return out, trace.BadParameter("when plugin runtime is enabled, at least one plugin provider must be specified")
 	}
@@ -1660,9 +1492,6 @@ type Discovery struct {
 	// GCPMatchers are used to match GCP resources.
 	GCPMatchers []GCPMatcher `yaml:"gcp,omitempty"`
 
-	// KubernetesMatchers are used to match services inside Kubernetes cluster for auto discovery
-	KubernetesMatchers []KubernetesMatcher `yaml:"kubernetes,omitempty"`
-
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another
@@ -1671,28 +1500,18 @@ type Discovery struct {
 	// for all discovery services. If different agents are used to discover different
 	// sets of cloud resources, this field must be different for each set of agents.
 	DiscoveryGroup string `yaml:"discovery_group,omitempty"`
-	// PollInterval is the cadence at which the discovery server will run each of its
-	// discovery cycles.
-	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
 // GCPMatcher matches GCP resources.
 type GCPMatcher struct {
-	// Types are GKE resource types to match: "gke", "gce".
+	// Types are GKE resource types to match: "gke".
 	Types []string `yaml:"types,omitempty"`
 	// Locations are GKE locations to search resources for.
 	Locations []string `yaml:"locations,omitempty"`
-	// Labels are GCP labels to match.
-	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
-	// Tags are an alias for Labels, for backwards compatibility.
+	// Tags are GCP labels to match.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 	// ProjectIDs are the GCP project ID where the resources are deployed.
 	ProjectIDs []string `yaml:"project_ids,omitempty"`
-	// ServiceAccounts are the emails of service accounts attached to VMs.
-	ServiceAccounts []string `yaml:"service_accounts,omitempty"`
-	// InstallParams sets the join method when installing on
-	// discovered GCP VMs.
-	InstallParams *InstallParams `yaml:"install,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -1719,14 +1538,14 @@ type PAM struct {
 	Environment map[string]string `yaml:"environment,omitempty"`
 }
 
-// Parse returns a parsed PAM config.
-func (p *PAM) Parse() *servicecfg.PAMConfig {
+// Parse returns a parsed pam.Config.
+func (p *PAM) Parse() *pam.Config {
 	serviceName := p.ServiceName
 	if serviceName == "" {
 		serviceName = defaults.PAMServiceName
 	}
 	enabled, _ := apiutils.ParseBool(p.Enabled)
-	return &servicecfg.PAMConfig{
+	return &pam.Config{
 		Enabled:     enabled,
 		ServiceName: serviceName,
 		UsePAMAuth:  p.UsePAMAuth,
@@ -1753,9 +1572,9 @@ type BPF struct {
 }
 
 // Parse will parse the enhanced session recording configuration.
-func (b *BPF) Parse() *servicecfg.BPFConfig {
+func (b *BPF) Parse() *bpf.Config {
 	enabled, _ := apiutils.ParseBool(b.Enabled)
-	return &servicecfg.BPFConfig{
+	return &bpf.Config{
 		Enabled:           enabled,
 		CommandBufferSize: b.CommandBufferSize,
 		DiskBufferSize:    b.DiskBufferSize,
@@ -1775,13 +1594,13 @@ type RestrictedSession struct {
 }
 
 // Parse will parse the enhanced session recording configuration.
-func (r *RestrictedSession) Parse() (*servicecfg.RestrictedSessionConfig, error) {
+func (r *RestrictedSession) Parse() (*bpf.RestrictedSessionConfig, error) {
 	enabled, err := apiutils.ParseBool(r.Enabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &servicecfg.RestrictedSessionConfig{
+	return &bpf.RestrictedSessionConfig{
 		Enabled:          enabled,
 		EventsBufferSize: r.EventsBufferSize,
 	}, nil
@@ -1819,18 +1638,6 @@ type Databases struct {
 type ResourceMatcher struct {
 	// Labels match resource labels.
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
-	// AWS contains AWS specific settings.
-	AWS ResourceMatcherAWS `yaml:"aws,omitempty"`
-}
-
-// ResourceMatcherAWS contains AWS specific settings for resource matcher.
-type ResourceMatcherAWS struct {
-	// AssumeRoleARN is the AWS role to assume to before accessing the
-	// database.
-	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
-	// ExternalID is an optional AWS external ID used to enable assuming an AWS
-	// role across accounts.
-	ExternalID string `yaml:"external_id,omitempty"`
 }
 
 // AWSMatcher matches AWS EC2 instances and AWS Databases
@@ -1840,11 +1647,6 @@ type AWSMatcher struct {
 	Types []string `yaml:"types,omitempty"`
 	// Regions are AWS regions to query for databases.
 	Regions []string `yaml:"regions,omitempty"`
-	// AssumeRoleARN is the AWS role to assume for database discovery.
-	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
-	// ExternalID is the AWS external ID to use when assuming a role for
-	// database discovery in an external AWS account.
-	ExternalID string `yaml:"external_id,omitempty"`
 	// Tags are AWS tags to match.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 	// InstallParams sets the join method when installing on
@@ -1872,8 +1674,8 @@ type InstallParams struct {
 	PublicProxyAddr string `yaml:"public_proxy_addr,omitempty"`
 }
 
-func (ip *InstallParams) Parse() (types.InstallerParams, error) {
-	install := types.InstallerParams{
+func (ip *InstallParams) Parse() (services.InstallerParams, error) {
+	install := services.InstallerParams{
 		JoinMethod:      ip.JoinParams.Method,
 		JoinToken:       ip.JoinParams.TokenName,
 		ScriptName:      ip.ScriptName,
@@ -1888,7 +1690,7 @@ func (ip *InstallParams) Parse() (types.InstallerParams, error) {
 	var err error
 	install.InstallTeleport, err = apiutils.ParseBool(ip.InstallTeleport)
 	if err != nil {
-		return types.InstallerParams{}, trace.Wrap(err)
+		return services.InstallerParams{}, trace.Wrap(err)
 	}
 
 	return install, nil
@@ -1916,16 +1718,6 @@ type AzureMatcher struct {
 	// InstallParams sets the join method when installing on
 	// discovered Azure nodes.
 	InstallParams *InstallParams `yaml:"install,omitempty"`
-}
-
-// KubernetesMatcher matches Kubernetes resources.
-type KubernetesMatcher struct {
-	// Types are Kubernetes services types to match. Currently only 'app' is supported.
-	Types []string `yaml:"types,omitempty"`
-	// Namespaces are Kubernetes namespaces in which to discover services
-	Namespaces []string `yaml:"namespaces,omitempty"`
-	// Labels are Kubernetes services labels to match.
-	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
 }
 
 // Database represents a single database proxied by the service.
@@ -1957,16 +1749,6 @@ type Database struct {
 	AD DatabaseAD `yaml:"ad"`
 	// Azure contains Azure database configuration.
 	Azure DatabaseAzure `yaml:"azure"`
-	// AdminUser describes database privileged user for auto-provisioning.
-	AdminUser DatabaseAdminUser `yaml:"admin_user"`
-	// Oracle is Database Oracle settings
-	Oracle DatabaseOracle `yaml:"oracle,omitempty"`
-}
-
-// DatabaseAdminUser describes database privileged user for auto-provisioning.
-type DatabaseAdminUser struct {
-	// Name is the database admin username (e.g. "postgres").
-	Name string `yaml:"name"`
 }
 
 // DatabaseAD contains database Active Directory configuration.
@@ -1979,10 +1761,6 @@ type DatabaseAD struct {
 	Domain string `yaml:"domain"`
 	// SPN is the service principal name for the database.
 	SPN string `yaml:"spn"`
-	// LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.
-	LDAPCert string `yaml:"ldap_cert,omitempty"`
-	// KDCHostName is the host name for a KDC for x509 Authentication.
-	KDCHostName string `yaml:"kdc_host_name,omitempty"`
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.
@@ -2001,12 +1779,6 @@ type DatabaseTLS struct {
 type DatabaseMySQL struct {
 	// ServerVersion is the MySQL version reported by DB proxy instead of default Teleport string.
 	ServerVersion string `yaml:"server_version,omitempty"`
-}
-
-// DatabaseOracle are an additional Oracle database options.
-type DatabaseOracle struct {
-	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
-	AuditUser string `yaml:"audit_user,omitempty"`
 }
 
 // SecretStore contains settings for managing secrets.
@@ -2033,8 +1805,6 @@ type DatabaseAWS struct {
 	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
 	// AccountID is the AWS account ID.
 	AccountID string `yaml:"account_id,omitempty"`
-	// AssumeRoleARN is the AWS role to assume to before accessing the database.
-	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
 	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
 	ExternalID string `yaml:"external_id,omitempty"`
 	// RedshiftServerless contains RedshiftServerless specific settings.
@@ -2178,7 +1948,7 @@ type Proxy struct {
 	KeyFile string `yaml:"https_key_file,omitempty"`
 	// CertFile is a TLS Certificate file
 	CertFile string `yaml:"https_cert_file,omitempty"`
-	// ProxyProtocol turns on support for HAProxy PROXY protocol
+	// ProxyProtocol turns on support for HAProxy proxy protocol
 	// this is the option that has be turned on only by administrator,
 	// as only admin knows whether service is in front of trusted load balancer
 	// or not.
@@ -2222,9 +1992,6 @@ type Proxy struct {
 	// client connections.
 	MySQLPublicAddr apiutils.Strings `yaml:"mysql_public_addr,omitempty"`
 
-	// MySQLServerVersion allow to overwrite proxy default mysql engine version reported by Teleport proxy.
-	MySQLServerVersion string `yaml:"mysql_server_version,omitempty"`
-
 	// PostgresAddr is Postgres proxy listen address.
 	PostgresAddr string `yaml:"postgres_listen_addr,omitempty"`
 	// PostgresPublicAddr is the hostport the proxy advertises for Postgres
@@ -2246,7 +2013,7 @@ type Proxy struct {
 	UI *UIConfig `yaml:"ui,omitempty"`
 
 	// Assist is a set of options related to the Teleport Assist feature.
-	Assist *ProxyAssistOptions `yaml:"assist,omitempty"`
+	Assist *AssistOptions `yaml:"assist,omitempty"`
 
 	// TrustXForwardedFor enables the service to take client source IPs from
 	// the "X-Forwarded-For" headers for web APIs received from layer 7 load
@@ -2271,9 +2038,9 @@ type ACME struct {
 }
 
 // Parse parses ACME section values
-func (a ACME) Parse() (*servicecfg.ACME, error) {
+func (a ACME) Parse() (*service.ACME, error) {
 	// ACME is disabled by default
-	out := servicecfg.ACME{}
+	out := service.ACME{}
 	if a.EnabledFlag == "" {
 		return &out, nil
 	}
@@ -2421,10 +2188,10 @@ type Metrics struct {
 	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
 	CACerts []string `yaml:"ca_certs,omitempty"`
 
-	// GRPCServerLatency enables histogram metrics for each gRPC endpoint on the auth server
+	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
 	GRPCServerLatency bool `yaml:"grpc_server_latency,omitempty"`
 
-	// GRPCServerLatency enables histogram metrics for each gRPC endpoint on the auth server
+	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
 	GRPCClientLatency bool `yaml:"grpc_client_latency,omitempty"`
 }
 
@@ -2561,99 +2328,4 @@ type Okta struct {
 
 	// APITokenPath is the path to the Okta API token.
 	APITokenPath string `yaml:"api_token_path,omitempty"`
-
-	// SyncPeriod is the duration between synchronization calls.
-	SyncPeriod time.Duration `yaml:"sync_period,omitempty"`
-}
-
-// JamfService is the yaml representation of jamf_service.
-// Corresponds to [types.JamfSpecV1].
-type JamfService struct {
-	Service `yaml:",inline"`
-	// Name is the name of the sync device source.
-	Name string `yaml:"name,omitempty"`
-	// SyncDelay is the initial sync delay.
-	// Zero means "server default", negative means "immediate".
-	SyncDelay time.Duration `yaml:"sync_delay,omitempty"`
-	// ExitOnSync tells the service to exit immediately after the first sync.
-	ExitOnSync bool `yaml:"exit_on_sync,omitempty"`
-	// APIEndpoint is the Jamf Pro API endpoint.
-	// Example: "https://yourtenant.jamfcloud.com/api".
-	APIEndpoint string `yaml:"api_endpoint,omitempty"`
-	// Username is the Jamf Pro API username.
-	Username string `yaml:"username,omitempty"`
-	// PasswordFile is a file containing the  Jamf Pro API password.
-	// A single trailing newline is trimmed, anything else is taken literally.
-	PasswordFile string `yaml:"password_file,omitempty"`
-	// Inventory are the entries for inventory sync.
-	Inventory []*JamfInventoryEntry `yaml:"inventory,omitempty"`
-}
-
-// JamfInventoryEntry is the yaml representation of a jamf_service.inventory
-// entry.
-// Corresponds to [types.JamfInventoryEntry].
-type JamfInventoryEntry struct {
-	// FilterRSQL is a Jamf Pro API RSQL filter string.
-	FilterRSQL string `yaml:"filter_rsql,omitempty"`
-	// SyncPeriodPartial is the period for PARTIAL syncs.
-	// Zero means "server default", negative means "disabled".
-	SyncPeriodPartial time.Duration `yaml:"sync_period_partial,omitempty"`
-	// SyncPeriodFull is the period for FULL syncs.
-	// Zero means "server default", negative means "disabled".
-	SyncPeriodFull time.Duration `yaml:"sync_period_full,omitempty"`
-	// OnMissing is the trigger for devices missing from the MDM inventory view.
-	// See [types.JamfInventoryEntry.OnMissing].
-	OnMissing string `yaml:"on_missing,omitempty"`
-}
-
-func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
-	switch {
-	case j == nil:
-		return nil, trace.BadParameter("jamf_service is nil")
-	case j.ListenAddress != "":
-		return nil, trace.BadParameter("jamf listen_addr not supported")
-	case j.PasswordFile == "":
-		return nil, trace.BadParameter("jamf password_file required")
-	}
-
-	// Read password from file.
-	pwdBytes, err := os.ReadFile(j.PasswordFile)
-	if err != nil {
-		return nil, trace.BadParameter("jamf password_file: %v", err)
-	}
-	pwd := string(pwdBytes)
-	if pwd == "" {
-		return nil, trace.BadParameter("jamf password_file is empty")
-	}
-	// Trim trailing \n?
-	if l := len(pwd); pwd[l-1] == '\n' {
-		pwd = pwd[:l-1]
-	}
-
-	// Assemble spec.
-	inventory := make([]*types.JamfInventoryEntry, len(j.Inventory))
-	for i, e := range j.Inventory {
-		inventory[i] = &types.JamfInventoryEntry{
-			FilterRsql:        e.FilterRSQL,
-			SyncPeriodPartial: types.Duration(e.SyncPeriodPartial),
-			SyncPeriodFull:    types.Duration(e.SyncPeriodFull),
-			OnMissing:         e.OnMissing,
-		}
-	}
-	spec := &types.JamfSpecV1{
-		Enabled:     j.Enabled(),
-		Name:        j.Name,
-		SyncDelay:   types.Duration(j.SyncDelay),
-		ApiEndpoint: j.APIEndpoint,
-		Username:    j.Username,
-		Password:    pwd,
-		Inventory:   inventory,
-	}
-
-	// Validate.
-	if err := types.ValidateJamfSpecV1(spec); err != nil {
-		return nil, trace.BadParameter("jamf_service %v", err)
-	}
-
-	return spec, nil
 }

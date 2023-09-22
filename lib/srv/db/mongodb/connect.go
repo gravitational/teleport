@@ -19,12 +19,12 @@ package mongodb
 import (
 	"context"
 	"crypto/tls"
-	"strings"
+	"net/url"
+	"time"
 
 	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/mongo/address"
 	"go.mongodb.org/mongo-driver/mongo/description"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/auth"
@@ -32,19 +32,7 @@ import (
 	"go.mongodb.org/mongo-driver/x/mongo/driver/ocsp"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/topology"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-)
-
-const (
-	// awsSecretTokenKey is the authenticator property name used to pass AWS
-	// session token. This name is defined by the mongo driver.
-	awsSecretTokenKey = "AWS_SESSION_TOKEN"
-	// awsIAMSource is the authenticator source value used when authenticating
-	// using AWS IAM.
-	// https://www.mongodb.com/docs/manual/reference/connection-string/#mongodb-urioption-urioption.authSource
-	awsIAMSource = "$external"
 )
 
 // connect returns connection to a MongoDB server.
@@ -61,7 +49,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 	// over server connections (reading/writing wire messages) but at the
 	// same time get access to logic such as picking a server to connect to
 	// in a replica set.
-	top, err := topology.New(options)
+	top, err := topology.New(options...)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -91,41 +79,35 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 }
 
 // getTopologyOptions constructs topology options for connecting to a MongoDB server.
-func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Session) (*topology.Config, description.ServerSelector, error) {
-	clientCfg := options.Client()
-	clientCfg.SetServerSelectionTimeout(common.DefaultMongoDBServerSelectionTimeout)
-	if strings.HasPrefix(sessionCtx.Database.GetURI(), connstring.SchemeMongoDB) ||
-		strings.HasPrefix(sessionCtx.Database.GetURI(), connstring.SchemeMongoDBSRV) {
-		clientCfg.ApplyURI(sessionCtx.Database.GetURI())
-	} else {
-		clientCfg.Hosts = []string{sessionCtx.Database.GetURI()}
-	}
-	err := clientCfg.Validate()
+func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Session) ([]topology.Option, description.ServerSelector, error) {
+	connString, err := getConnectionString(sessionCtx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	topoConfig, err := topology.NewConfig(clientCfg, nil)
+	selector, err := getServerSelector(connString)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-
-	serverOptions, err := e.getServerOptions(ctx, sessionCtx, clientCfg)
+	serverOptions, err := e.getServerOptions(ctx, sessionCtx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	topoConfig.ServerOpts = serverOptions
-
-	selector, err := getServerSelector(clientCfg)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return topoConfig, selector, nil
+	return []topology.Option{
+		topology.WithConnString(func(cs connstring.ConnString) connstring.ConnString {
+			return connString
+		}),
+		topology.WithServerSelectionTimeout(func(time.Duration) time.Duration {
+			return common.DefaultMongoDBServerSelectionTimeout
+		}),
+		topology.WithServerOptions(func(so ...topology.ServerOption) []topology.ServerOption {
+			return serverOptions
+		}),
+	}, selector, nil
 }
 
 // getServerOptions constructs server options for connecting to a MongoDB server.
-func (e *Engine) getServerOptions(ctx context.Context, sessionCtx *common.Session, clientCfg *options.ClientOptions) ([]topology.ServerOption, error) {
-	connectionOptions, err := e.getConnectionOptions(ctx, sessionCtx, clientCfg)
+func (e *Engine) getServerOptions(ctx context.Context, sessionCtx *common.Session) ([]topology.ServerOption, error) {
+	connectionOptions, err := e.getConnectionOptions(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -137,12 +119,15 @@ func (e *Engine) getServerOptions(ctx context.Context, sessionCtx *common.Sessio
 }
 
 // getConnectionOptions constructs connection options for connecting to a MongoDB server.
-func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Session, clientCfg *options.ClientOptions) ([]topology.ConnectionOption, error) {
+func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Session) ([]topology.ConnectionOption, error) {
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authenticator, err := e.getAuthenticator(ctx, sessionCtx)
+	authenticator, err := auth.CreateAuthenticator(auth.MongoDBX509, &auth.Cred{
+		// MongoDB uses full certificate Subject field as a username.
+		Username: "CN=" + sessionCtx.DatabaseUser,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -163,71 +148,37 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 				// client connecting to Teleport will get an error when they try
 				// to send its own metadata since client metadata is immutable.
 				&handshaker{},
-				&auth.HandshakeOptions{Authenticator: authenticator, HTTPClient: clientCfg.HTTPClient})
+				&auth.HandshakeOptions{Authenticator: authenticator})
 		}),
 	}, nil
 }
 
-func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Session) (auth.Authenticator, error) {
-	isAtlasDB := sessionCtx.Database.GetType() == types.DatabaseTypeMongoAtlas
-
-	// Currently, the MongoDB Atlas IAM Authentication doesn't work with IAM
-	// users. Here we provide a better error message to the users.
-	if isAtlasDB && awsutils.IsUserARN(sessionCtx.DatabaseUser) {
-		return nil, trace.BadParameter("MongoDB Atlas AWS IAM Authentication with IAM users is not supported.")
-	}
-
-	switch {
-	case isAtlasDB && awsutils.IsRoleARN(sessionCtx.DatabaseUser):
-		return e.getAWSAuthenticator(ctx, sessionCtx)
-	default:
-		e.Log.Debug("Authenticating to database using certificates.")
-		authenticator, err := auth.CreateAuthenticator(auth.MongoDBX509, &auth.Cred{
-			// MongoDB uses full certificate Subject field as a username.
-			Username: "CN=" + sessionCtx.DatabaseUser,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return authenticator, nil
-	}
-}
-
-// getAWSAuthenticator fetches the AWS credentials and initializes the MongoDB
-// authenticator.
-func (e *Engine) getAWSAuthenticator(ctx context.Context, sessionCtx *common.Session) (auth.Authenticator, error) {
-	e.Log.Debug("Authenticating to database using AWS IAM authentication.")
-
-	username, password, sessToken, err := e.Auth.GetAWSIAMCreds(ctx, sessionCtx)
+// getConnectionString returns connection string for the server.
+func getConnectionString(sessionCtx *common.Session) (connstring.ConnString, error) {
+	uri, err := url.Parse(sessionCtx.Database.GetURI())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return connstring.ConnString{}, trace.Wrap(err)
 	}
-
-	authenticator, err := auth.CreateAuthenticator(auth.MongoDBAWS, &auth.Cred{
-		Source:   awsIAMSource,
-		Username: username,
-		Password: password,
-		Props: map[string]string{
-			awsSecretTokenKey: sessToken,
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	switch uri.Scheme {
+	case connstring.SchemeMongoDB, connstring.SchemeMongoDBSRV:
+		return connstring.ParseAndValidate(sessionCtx.Database.GetURI())
 	}
-
-	return authenticator, nil
+	return connstring.ConnString{Hosts: []string{sessionCtx.Database.GetURI()}}, nil
 }
 
 // getServerSelector returns selector for picking the server to connect to,
 // which is mostly useful when connecting to a MongoDB replica set.
 //
 // It uses readPreference connection flag. Defaults to "primary".
-func getServerSelector(clientOptions *options.ClientOptions) (description.ServerSelector, error) {
-	if clientOptions.ReadPreference == nil {
+func getServerSelector(connString connstring.ConnString) (description.ServerSelector, error) {
+	if connString.ReadPreference == "" {
 		return description.ReadPrefSelector(readpref.Primary()), nil
 	}
-	readPref, err := readpref.New(clientOptions.ReadPreference.Mode())
+	readPrefMode, err := readpref.ModeFromString(connString.ReadPreference)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	readPref, err := readpref.New(readPrefMode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

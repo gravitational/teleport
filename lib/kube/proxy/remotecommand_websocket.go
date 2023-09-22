@@ -21,8 +21,8 @@ package proxy
 import (
 	"github.com/go-logr/logr"
 	"github.com/gravitational/trace"
-	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	"k8s.io/apiserver/pkg/endpoints/responsewriter"
+	"k8s.io/apiserver/pkg/util/wsstream"
 	"k8s.io/klog/v2"
 )
 

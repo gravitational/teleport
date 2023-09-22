@@ -34,7 +34,7 @@ import {
 import { AmazonAws } from 'design/Icon';
 
 import { App } from 'teleport/services/apps';
-import { ResourceLabel, ResourceFilter } from 'teleport/services/agents';
+import { AgentLabel, AgentFilter } from 'teleport/services/agents';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
 
 import AwsLaunchButton from './AwsLaunchButton';
@@ -131,9 +131,9 @@ function renderAppIcon({ name, awsConsole }: App) {
         alignItems="center"
       >
         {awsConsole ? (
-          <AmazonAws size="large" />
+          <AmazonAws fontSize={6} />
         ) : (
-          <Text fontSize={3} color="light" bold caps>
+          <Text fontSize={3} bold caps>
             {name[0]}
           </Text>
         )}
@@ -150,8 +150,6 @@ function renderLaunchButtonCell({
   clusterId,
   publicAddr,
   isCloudOrTcpEndpoint,
-  samlApp,
-  samlAppSsoUrl,
 }: App) {
   let $btn;
   if (awsConsole) {
@@ -172,19 +170,6 @@ function renderLaunchButtonCell({
         title="Cloud or TCP applications cannot be launched by the browser"
       >
         LAUNCH
-      </ButtonBorder>
-    );
-  } else if (samlApp) {
-    $btn = (
-      <ButtonBorder
-        as="a"
-        width="88px"
-        size="small"
-        target="_blank"
-        href={samlAppSsoUrl}
-        rel="noreferrer"
-      >
-        LOGIN
       </ButtonBorder>
     );
   } else {
@@ -233,12 +218,12 @@ type Props = {
   fetchNext: () => void;
   fetchPrev: () => void;
   fetchStatus: FetchStatus;
-  params: ResourceFilter;
-  setParams: (params: ResourceFilter) => void;
+  params: AgentFilter;
+  setParams: (params: AgentFilter) => void;
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
-  onLabelClick: (label: ResourceLabel) => void;
+  onLabelClick: (label: AgentLabel) => void;
   pageIndicators: PageIndicators;
 };
 

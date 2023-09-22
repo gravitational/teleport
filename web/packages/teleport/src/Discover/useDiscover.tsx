@@ -23,9 +23,6 @@ import {
   DiscoverEvent,
   DiscoverEventResource,
   userEventService,
-  DiscoverServiceDeployMethod,
-  DiscoverServiceDeploy,
-  DiscoverServiceDeployType,
 } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 
@@ -37,17 +34,12 @@ import {
 } from './flow';
 import { viewConfigs } from './resourceViewConfigs';
 import { EViewConfigs } from './types';
-import { ServiceDeployMethod } from './Database/common';
 
 import type { Node } from 'teleport/services/nodes';
 import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
-import type { ResourceLabel } from 'teleport/services/agents';
+import type { AgentLabel } from 'teleport/services/agents';
 import type { ResourceSpec } from './SelectResource';
-import type {
-  AwsRdsDatabase,
-  Integration,
-} from 'teleport/services/integrations';
 
 export interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;
@@ -78,7 +70,6 @@ type CustomEventInput = {
   eventResourceName?: DiscoverEventResource;
   autoDiscoverResourcesCount?: number;
   selectedResourcesCount?: number;
-  serviceDeploy?: DiscoverServiceDeploy;
 };
 
 type DiscoverProviderProps = {
@@ -100,8 +91,9 @@ export type DiscoverUrlLocationState = {
     resourceSpec: ResourceSpec;
     currentStep: number;
   };
-  // integration is the created aws-oidc integration
-  integration: Integration;
+  // integrationName is the name of the created integration
+  // resource name (eg: integration subkind "aws-oidc")
+  integrationName: string;
 };
 
 const discoverContext = React.createContext<DiscoverContextState>(null);
@@ -128,28 +120,13 @@ export function DiscoverProvider({
     (status: DiscoverEventStepStatus, custom?: CustomEventInput) => {
       const { id, currEventName } = eventState;
 
-      const event = custom?.eventName || currEventName;
-
-      let serviceDeploy: DiscoverServiceDeploy;
-      if (event === DiscoverEvent.DeployService) {
-        if (custom?.serviceDeploy) {
-          serviceDeploy = custom.serviceDeploy;
-        } else {
-          serviceDeploy = {
-            method: DiscoverServiceDeployMethod.Unspecified,
-            type: DiscoverServiceDeployType.Unspecified,
-          };
-        }
-      }
-
       userEventService.captureDiscoverEvent({
-        event,
+        event: custom?.eventName || currEventName,
         eventData: {
           id: id || custom.id,
           resource: custom?.eventResourceName || resourceSpec?.event,
           autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
           selectedResourcesCount: custom?.selectedResourcesCount,
-          serviceDeploy,
           ...status,
         },
       });
@@ -228,9 +205,9 @@ export function DiscoverProvider({
   // The location.state.discover should contain all the state that allows
   // the user to resume from where they left of.
   function resumeDiscoverFlow() {
-    const { discover, integration } = location.state;
+    const { discover, integrationName } = location.state;
 
-    updateAgentMeta({ integration } as DbMeta);
+    updateAgentMeta({ integrationName } as DbMeta);
 
     startDiscoverFlow(
       discover.resourceSpec,
@@ -410,14 +387,7 @@ export function DiscoverProvider({
         stepStatus: DiscoverEventStatus.Error,
         stepStatusError: errorStr,
       },
-      {
-        autoDiscoverResourcesCount: 0,
-        selectedResourcesCount: 0,
-        serviceDeploy: {
-          method: DiscoverServiceDeployMethod.Unspecified,
-          type: DiscoverServiceDeployType.Unspecified,
-        },
-      }
+      { autoDiscoverResourcesCount: 0, selectedResourcesCount: 0 }
     );
   }
 
@@ -458,7 +428,7 @@ type BaseMeta = {
   // agentMatcherLabels are labels that will be used by the agent
   // to pick up the newly created database (looks for matching labels).
   // At least one must match.
-  agentMatcherLabels: ResourceLabel[];
+  agentMatcherLabels: AgentLabel[];
 };
 
 // NodeMeta describes the fields for node resource
@@ -472,12 +442,8 @@ export type NodeMeta = BaseMeta & {
 export type DbMeta = BaseMeta & {
   // TODO(lisa): when we can enroll multiple RDS's, turn this into an array?
   // The enroll event expects num count of enrolled RDS's, update accordingly.
-  db?: Database;
-  integration?: Integration;
-  selectedAwsRdsDb?: AwsRdsDatabase;
-  // serviceDeployedMethod flag will be undefined if user skipped
-  // deploying service (service already existed).
-  serviceDeployedMethod?: ServiceDeployMethod;
+  db: Database;
+  integrationName?: string;
 };
 
 // KubeMeta describes the fields for a kube resource

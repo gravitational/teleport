@@ -519,31 +519,6 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr:      false,
 		},
 		{
-			name:         "opensearchsql not found",
-			dbProtocol:   defaults.ProtocolOpenSearch,
-			opts:         []ConnectCommandFunc{},
-			execer:       &fakeExec{},
-			databaseName: "warehouse1",
-			wantErr:      true,
-		},
-		{
-			name:         "opensearchsql TLS, fail",
-			dbProtocol:   defaults.ProtocolOpenSearch,
-			opts:         []ConnectCommandFunc{},
-			execer:       &fakeExec{execOutput: map[string][]byte{"opensearchsql": []byte("")}},
-			databaseName: "warehouse1",
-			wantErr:      true,
-		},
-		{
-			name:         "opensearchsql no TLS, success",
-			dbProtocol:   defaults.ProtocolOpenSearch,
-			opts:         []ConnectCommandFunc{WithNoTLS()},
-			execer:       &fakeExec{execOutput: map[string][]byte{"opensearchsql": []byte("")}},
-			databaseName: "warehouse1",
-			cmd:          []string{"opensearchsql", "http://localhost:12345"},
-			wantErr:      false,
-		},
-		{
 			name:         "cassandra",
 			dbProtocol:   defaults.ProtocolCassandra,
 			opts:         []ConnectCommandFunc{WithLocalProxy("localhost", 12345, "")},
@@ -647,7 +622,9 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			c.uid = utils.NewFakeUID()
 			got, err := c.GetConnectCommand()
 			if tt.wantErr {
-				require.Error(t, err)
+				if err == nil {
+					t.Errorf("getConnectCommand() should return an error, but it didn't")
+				}
 				return
 			}
 
@@ -730,60 +707,6 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 			cmd: map[string][]string{
 				"interactive SQL connection":   {"elasticsearch-sql-cli", "http://localhost:12345/"},
 				"run single request with curl": {"curl", "http://localhost:12345/"},
-			},
-			wantErr: false,
-		},
-		{
-			name:         "opensearch, TLS, no binaries",
-			dbProtocol:   defaults.ProtocolOpenSearch,
-			opts:         []ConnectCommandFunc{},
-			execer:       &fakeExec{},
-			databaseName: "warehouse1",
-			cmd: map[string][]string{
-				"run request with curl": {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"}},
-			wantErr: false,
-		},
-		{
-			name:         "opensearch, no TLS, no binaries",
-			dbProtocol:   defaults.ProtocolOpenSearch,
-			opts:         []ConnectCommandFunc{WithNoTLS()},
-			execer:       &fakeExec{},
-			databaseName: "warehouse1",
-			cmd:          map[string][]string{"run request with curl": {"curl", "http://localhost:12345/"}},
-			wantErr:      false,
-		},
-		{
-			name:       "opensearch, TLS, all binaries",
-			dbProtocol: defaults.ProtocolOpenSearch,
-			opts:       []ConnectCommandFunc{},
-			execer: &fakeExec{
-				execOutput: map[string][]byte{
-					"opensearch-cli": {},
-					"opensearchsql":  {},
-				},
-			},
-			databaseName: "warehouse1",
-			cmd: map[string][]string{
-				"run request with curl":           {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"},
-				"run request with opensearch-cli": {"opensearch-cli", "--profile", "teleport", "--config", "/tmp/mysql/opensearch-cli/fb135a4d.yml", "curl", "get", "--path", "/"}},
-
-			wantErr: false,
-		},
-		{
-			name:       "opensearch, no TLS, all binaries",
-			dbProtocol: defaults.ProtocolOpenSearch,
-			opts:       []ConnectCommandFunc{WithNoTLS()},
-			execer: &fakeExec{
-				execOutput: map[string][]byte{
-					"opensearch-cli": {},
-					"opensearchsql":  {},
-				},
-			},
-			databaseName: "warehouse1",
-			cmd: map[string][]string{
-				"run request with curl":                        {"curl", "http://localhost:12345/"},
-				"run request with opensearch-cli":              {"opensearch-cli", "--profile", "teleport", "--config", "/tmp/mysql/opensearch-cli/e397f38c.yml", "curl", "get", "--path", "/"},
-				"start interactive session with opensearchsql": {"opensearchsql", "http://localhost:12345"},
 			},
 			wantErr: false,
 		},

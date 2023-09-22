@@ -24,6 +24,7 @@ import {
   gap,
   propTypes,
 } from 'design/system';
+import theme from 'design/theme';
 
 import Box from '../Box';
 
@@ -35,6 +36,10 @@ const Flex = styled(Box)`
   ${flexDirection}
   ${gap};
 `;
+
+Flex.defaultProps = {
+  theme,
+};
 
 Flex.propTypes = {
   ...propTypes.Box,

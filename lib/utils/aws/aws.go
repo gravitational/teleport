@@ -157,16 +157,6 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 		return trace.AccessDenied("AccessKeyID does not match")
 	}
 
-	// Skip signature verification if the incoming request includes the
-	// "User-Agent" header when making the signature. AWS Go SDK explicitly
-	// skips the "User-Agent" header so it will always produce a different
-	// signature. Only AccessKeyID is verified above in this case.
-	for _, signedHeader := range sigV4.SignedHeaders {
-		if strings.EqualFold(signedHeader, "User-Agent") {
-			return nil
-		}
-	}
-
 	// Read the request body and replace the body ready with a new reader that will allow reading the body again
 	// by HTTP Transport.
 	payload, err := utils.GetAndReplaceRequestBody(req)
@@ -367,7 +357,7 @@ func BuildRoleARN(username, region, accountID string) (string, error) {
 		return username, nil
 	}
 	resource := username
-	if !IsPartialRoleARN(resource) {
+	if !strings.HasPrefix(resource, "role/") {
 		resource = fmt.Sprintf("role/%s", username)
 	}
 	roleARN := &arn.ARN{
@@ -434,48 +424,4 @@ func CheckARNPartitionAndAccount(ARN *arn.ARN, wantPartition, wantAccountID stri
 		return trace.BadParameter("expected AWS account ID %q but got %q", wantAccountID, ARN.AccountID)
 	}
 	return nil
-}
-
-// IsRoleARN returns true if the provided string is a AWS role ARN.
-func IsRoleARN(roleARN string) bool {
-	if _, err := ParseRoleARN(roleARN); err == nil {
-		return true
-	}
-
-	return IsPartialRoleARN(roleARN)
-}
-
-// IsPartialRoleARN returns true if the provided role ARN only contains the
-// resource name.
-func IsPartialRoleARN(roleARN string) bool {
-	return strings.HasPrefix(roleARN, "role/")
-}
-
-// IsUserARN returns true if the provided string is a AWS user ARN.
-func IsUserARN(userARN string) bool {
-	resourceName := userARN
-	if parsed, err := arn.Parse(userARN); err == nil {
-		resourceName = parsed.Resource
-	}
-
-	return strings.HasPrefix(resourceName, "user/")
-}
-
-// PolicyARN returns the ARN representation of an AWS IAM Policy.
-func PolicyARN(partition, accountID, policy string) string {
-	return iamResourceARN(partition, accountID, "policy", policy)
-}
-
-// RoleARN returns the ARN representation of an AWS IAM Role.
-func RoleARN(partition, accountID, role string) string {
-	return iamResourceARN(partition, accountID, "role", role)
-}
-
-func iamResourceARN(partition, accountID, resourceType, resourceName string) string {
-	return arn.ARN{
-		Partition: partition,
-		Service:   "iam",
-		AccountID: accountID,
-		Resource:  fmt.Sprintf("%s/%s", resourceType, resourceName),
-	}.String()
 }

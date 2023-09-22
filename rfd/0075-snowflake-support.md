@@ -66,7 +66,7 @@ sequenceDiagram
     participant Teleport
     participant Snowflake
     client->>Teleport: HTTP /session/v1/login-request
-    Teleport->>Teleport: RBAC check, generate and replace JWT
+    Teleport->>Teleport: RBAC check, genererate and replace JWT
     Teleport->>Snowflake: HTTP /session/v1/login-request
     Snowflake->>Teleport: Authentication Token
     Teleport->>Teleport: Generate Teleport Auth token

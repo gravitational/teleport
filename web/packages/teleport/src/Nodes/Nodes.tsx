@@ -15,25 +15,21 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Box, Indicator } from 'design';
+import { Indicator, Box, Flex } from 'design';
 
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import QuickLaunch from 'teleport/components/QuickLaunch';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import NodeList from 'teleport/components/NodeList';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import useTeleport from 'teleport/useTeleport';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
-import cfg from 'teleport/config';
-import history from 'teleport/services/history/history';
-import localStorage from 'teleport/services/localStorage';
 
-import { SearchResource } from 'teleport/Discover/SelectResource';
-
-import { State, useNodes } from './useNodes';
+import { useNodes, State } from './useNodes';
 
 export default function Container() {
   const teleCtx = useTeleport();
@@ -69,27 +65,29 @@ export function Nodes(props: State) {
     startSshSession(login, serverId);
   }
 
+  function onSshEnter(login: string, serverId: string) {
+    startSshSession(login, serverId);
+  }
+
   const hasNoNodes =
     attempt.status === 'success' &&
     fetchedData.agents.length === 0 &&
     isSearchEmpty;
-
-  const enabled = localStorage.areUnifiedResourcesEnabled();
-  if (enabled) {
-    history.replace(cfg.getUnifiedResourcesRoute(clusterId));
-  }
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Servers</FeatureHeaderTitle>
         {attempt.status === 'success' && !hasNoNodes && (
-          <AgentButtonAdd
-            agent={SearchResource.SERVER}
-            beginsWithVowel={false}
-            isLeafCluster={isLeafCluster}
-            canCreate={canCreate}
-          />
+          <Flex alignItems="center">
+            <QuickLaunch width="280px" onPress={onSshEnter} mr={3} />
+            <AgentButtonAdd
+              agent="server"
+              beginsWithVowel={false}
+              isLeafCluster={isLeafCluster}
+              canCreate={canCreate}
+            />
+          </Flex>
         )}
       </FeatureHeader>
       {attempt.status === 'failed' && (
@@ -134,7 +132,7 @@ const emptyStateInfo: EmptyStateInfo = {
   byline:
     'Teleport Server Access consolidates SSH access across all environments.',
   docsURL: 'https://goteleport.com/docs/server-access/getting-started/',
-  resourceType: SearchResource.SERVER,
+  resourceType: 'server',
   readOnly: {
     title: 'No Servers Found',
     resource: 'servers',

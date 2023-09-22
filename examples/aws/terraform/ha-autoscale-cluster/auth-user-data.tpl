@@ -13,5 +13,4 @@ TELEPORT_LICENSE_PATH=${license_path}
 TELEPORT_LOCKS_TABLE_NAME=${locks_table_name}
 TELEPORT_S3_BUCKET=${s3_bucket}
 USE_ACM=${use_acm}
-USE_TLS_ROUTING=${use_tls_routing}
 EOF

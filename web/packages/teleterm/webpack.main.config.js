@@ -33,7 +33,6 @@ const cfg = {
     main: './src/main.ts',
     preload: './src/preload.ts',
     sharedProcess: './src/sharedProcess/sharedProcess.ts',
-    agentCleanupDaemon: './src/agentCleanupDaemon/agentCleanupDaemon.js',
   },
 
   output: {

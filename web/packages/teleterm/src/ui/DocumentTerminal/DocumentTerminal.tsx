@@ -111,8 +111,6 @@ export function DocumentTerminal(props: {
       visible={visible}
       flexDirection="column"
       pl={2}
-      // adds some space from the top so the shell content is not covered by a shadow
-      pt={1}
       onContextMenu={attempt.data?.openContextMenu}
       autoFocusDisabled={true}
     >

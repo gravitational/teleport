@@ -30,16 +30,10 @@ import createMfaOptions from 'shared/utils/createMfaOptions';
 import { useRefAutoFocus } from 'shared/hooks';
 import { Auth2faType } from 'shared/services';
 
-import { OnboardCard } from 'design/Onboard/OnboardCard';
-
-import {
-  SliderProps,
-  UseTokenState,
-} from 'teleport/Welcome/NewCredentials/types';
-
+import { Props as CredentialsProps, SliderProps } from './NewCredentials';
 import secKeyGraphic from './sec-key-with-bg.png';
 
-export function NewMfaDevice(props: NewMfaDeviceProps) {
+export function NewMfaDevice(props: Props) {
   const {
     resetToken,
     submitAttempt,
@@ -54,7 +48,7 @@ export function NewMfaDevice(props: NewMfaDeviceProps) {
   } = props;
   const [otp, setOtp] = useState('');
   const mfaOptions = createMfaOptions({
-    auth2faType: auth2faType as Auth2faType,
+    auth2faType: auth2faType,
   });
   const [mfaType, setMfaType] = useState(mfaOptions[0]);
   const [deviceName, setDeviceName] = useState(() =>
@@ -105,10 +99,10 @@ export function NewMfaDevice(props: NewMfaDeviceProps) {
   return (
     <Validation>
       {({ validator }) => (
-        <OnboardCard ref={refCallback}>
+        <Box p={5} ref={refCallback}>
           <Flex mb={3} alignItems="center">
             <ArrowBack
-              size="large"
+              fontSize={30}
               mr={3}
               onClick={() => {
                 clearSubmitAttempt();
@@ -117,16 +111,16 @@ export function NewMfaDevice(props: NewMfaDeviceProps) {
               style={{ cursor: 'pointer' }}
             />
             <Box>
-              <Text typography="h4" color="text.main" bold>
+              <Text color="text.slightlyMuted">Step 2 of 2</Text>
+              <Text typography="h4" color="light" bold>
                 Set Two-Factor Device
               </Text>
-              <Text color="text.slightlyMuted">Step 2 of 2</Text>
             </Box>
           </Flex>
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}
-          <Text typography="subtitle1" color="text.main" caps mb={1}>
+          <Text typography="subtitle1" color="light" caps mb={1}>
             Two-Factor Method
           </Text>
           <Box mb={1}>
@@ -197,7 +191,7 @@ export function NewMfaDevice(props: NewMfaDeviceProps) {
             <Flex alignItems="center" height={100}>
               <FieldInput
                 rule={requiredField('Device name is required')}
-                label="Device Name"
+                label="Device name"
                 placeholder="Name"
                 ref={deviceNameInputRef}
                 width={mfaType?.value === 'otp' ? '50%' : '100%'}
@@ -210,7 +204,7 @@ export function NewMfaDevice(props: NewMfaDeviceProps) {
               {mfaType?.value === 'otp' && (
                 <FieldInput
                   width="50%"
-                  label="Authenticator Code"
+                  label="Authenticator code"
                   rule={requiredToken}
                   inputMode="numeric"
                   autoComplete="one-time-code"
@@ -231,7 +225,7 @@ export function NewMfaDevice(props: NewMfaDeviceProps) {
           >
             Submit
           </ButtonPrimary>
-        </OnboardCard>
+        </Box>
       )}
     </Validation>
   );
@@ -247,7 +241,7 @@ function getDefaultDeviceName(mfaType: Auth2faType) {
   return '';
 }
 
-export type NewMfaDeviceProps = UseTokenState &
+type Props = CredentialsProps &
   SliderProps & {
     password: string;
     updatePassword(pwd: string): void;

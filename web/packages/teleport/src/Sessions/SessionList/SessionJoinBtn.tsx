@@ -15,9 +15,10 @@ limitations under the License.
 */
 
 import React, { useState } from 'react';
+import styled from 'styled-components';
 
-import { Box, ButtonBorder, Flex, Menu, MenuItem, Text } from 'design';
-import { ChevronDown, Warning } from 'design/Icon';
+import { ButtonBorder, Text, Box, Menu, MenuItem, Flex } from 'design';
+import { CarrotDown } from 'design/Icon';
 
 import cfg from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';
@@ -29,87 +30,46 @@ export const SessionJoinBtn = ({
   clusterId,
   participantModes,
   showCTA,
-  showModeratedCTA,
 }: {
   sid: string;
   clusterId: string;
   participantModes: ParticipantMode[];
   showCTA: boolean;
-  showModeratedCTA: boolean;
 }) => {
-  const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
+  // Sorts the list of participantModes so that they are consistently shown in the order of "observer" -> "moderator" -> "peer"
+  const modes = {
+    observer: 1,
+    moderator: 2,
+    peer: 3,
+  };
+  const sortedParticipantModes = participantModes.sort(
+    (a, b) => modes[a] - modes[b]
+  );
 
-  function closeMenu() {
-    setAnchorEl(null);
+  if (showCTA) {
+    return <LockedFeatureJoinMenu modes={sortedParticipantModes} />;
   }
 
   return (
-    <JoinMenu anchorEl={anchorEl} setAnchorEl={setAnchorEl}>
-      {showCTA && (
-        <Box mx="12px" my={3}>
-          <ButtonLockedFeature
-            noIcon
-            height="40px"
-            event={CtaEvent.CTA_ACTIVE_SESSIONS}
-          >
-            Join Active Sessions with Teleport Enterprise
-          </ButtonLockedFeature>
-        </Box>
-      )}
-      <JoinMenuItem
-        title="As an Observer"
-        description={modeDescription.observer}
-        url={cfg.getSshSessionRoute({ sid, clusterId }, 'observer')}
-        hasAccess={participantModes.includes('observer')}
-        participantMode="observer"
-        key="observer"
-        showCTA={showCTA}
-        closeMenu={closeMenu}
-      />
-      <JoinMenuItem
-        title="As a Moderator"
-        description={modeDescription.moderator}
-        url={cfg.getSshSessionRoute({ sid, clusterId }, 'moderator')}
-        hasAccess={participantModes.includes('moderator')}
-        participantMode="moderator"
-        key="moderator"
-        showCTA={showCTA || showModeratedCTA}
-        closeMenu={closeMenu}
-      />
-      <JoinMenuItem
-        title="As a Peer"
-        description={modeDescription.peer}
-        url={cfg.getSshSessionRoute({ sid, clusterId }, 'peer')}
-        hasAccess={participantModes.includes('peer')}
-        participantMode="peer"
-        key="peer"
-        showCTA={showCTA}
-        closeMenu={closeMenu}
-      />
-      {showModeratedCTA && (
-        <ButtonLockedFeature
-          noIcon
-          height="40px"
-          event={CtaEvent.CTA_ACTIVE_SESSIONS}
-          m={3}
-          width="90%"
+    <JoinMenu>
+      {sortedParticipantModes.map(participantMode => (
+        <MenuItem
+          key={participantMode}
+          as="a"
+          href={cfg.getSshSessionRoute({ sid, clusterId }, participantMode)}
+          target="_blank"
+          style={{ textTransform: 'capitalize' }}
         >
-          Join as a moderator with Teleport Enterprise
-        </ButtonLockedFeature>
-      )}
+          {participantMode}
+        </MenuItem>
+      ))}
     </JoinMenu>
   );
 };
 
-function JoinMenu({
-  children,
-  anchorEl,
-  setAnchorEl,
-}: {
-  children: React.ReactNode;
-  anchorEl: HTMLElement;
-  setAnchorEl: React.Dispatch<React.SetStateAction<HTMLElement>>;
-}) {
+function JoinMenu({ children }: { children: React.ReactNode }) {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
+
   const handleClickListItem = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
@@ -122,110 +82,137 @@ function JoinMenu({
     <Box textAlign="center" width="80px">
       <ButtonBorder size="small" onClick={handleClickListItem}>
         Join
-        <ChevronDown ml={1} size="small" color="text.slightlyMuted" />
+        <CarrotDown ml={1} fontSize={2} color="text.slightlyMuted" />
       </ButtonBorder>
-      <Menu
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleClose}
-      >
+      <InternalJoinMenu anchorEl={anchorEl} handleClose={handleClose}>
         {children}
-      </Menu>
+      </InternalJoinMenu>
     </Box>
   );
 }
 
-function JoinMenuItem({
-  title,
-  description,
-  hasAccess,
-  participantMode,
-  url,
-  showCTA,
-  closeMenu,
-}: {
-  title: string;
-  description: string;
-  hasAccess: boolean;
-  participantMode: ParticipantMode;
-  url: string;
-  showCTA: boolean;
-  closeMenu: () => void;
-}) {
-  if (hasAccess && !showCTA) {
-    return (
-      <MenuItem
-        as="a"
-        href={url}
-        target="_blank"
-        onClick={closeMenu}
-        css={`
-          text-decoration: none;
-          padding: 8px 12px;
-          color: ${({ theme }) => theme.colors.text.main};
-          user-select: none;
-          border-bottom: 1px solid
-            ${({ theme }) => theme.colors.spotBackground[0]};
-        `}
-      >
-        <Box height="fit-content" width="264px">
-          <Text typography="h6">{title}</Text>
-          <Text color="text.slightlyMuted">{description}</Text>
-        </Box>
-      </MenuItem>
-    );
-  }
-  return (
-    <MenuItem
-      css={`
-        text-decoration: none;
-        padding: 8px 12px;
-        color: ${({ theme }) => theme.colors.text.disabled};
-        user-select: none;
-        cursor: auto;
-        border-bottom: 1px solid
-          ${({ theme }) => theme.colors.spotBackground[0]};
+type LockedFeatureJoinMenu = {
+  modes: ParticipantMode[];
+};
+function LockedFeatureJoinMenu({ modes }: LockedFeatureJoinMenu) {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
 
-        &:hover {
-          background-color: ${({ theme }) => theme.colors.levels.elevated};
-          color: ${({ theme }) => theme.colors.text.disabled};
-        }
-      `}
-    >
-      <Box height="fit-content" width="264px">
-        <Text typography="h6">{title}</Text>
-        <Text>{description}</Text>
-        {!showCTA && (
-          <Box color="text.main" px={1} mt={1}>
-            <Flex>
-              <Warning color="error.main" mr={2} size="small" />
-              <Text fontSize="10px" color="text.slightlyMuted">
-                {modeWarningText[participantMode]}
-              </Text>
-            </Flex>
-          </Box>
-        )}
-      </Box>
-    </MenuItem>
+  const handleClickListItem = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  return (
+    <Box textAlign="center" width="80px">
+      <ButtonBorder size="small" onClick={handleClickListItem}>
+        Join
+        <CarrotDown ml={1} fontSize={2} color="text.slightlyMuted" />
+      </ButtonBorder>
+      <LockedFeatureInternalJoinMenu
+        anchorEl={anchorEl}
+        handleClose={handleClose}
+        modes={modes}
+      />
+    </Box>
   );
 }
 
-const modeDescription = {
-  observer: 'Can view output but cannot send input.',
-  moderator: 'Can view output & terminate the session.',
-  peer: 'Can view output & send input.',
+type InternalJoinMenuProps = {
+  anchorEl: HTMLElement;
+  handleClose: () => void;
+  children: React.ReactNode;
 };
+function InternalJoinMenu({
+  anchorEl,
+  handleClose,
+  children,
+}: InternalJoinMenuProps) {
+  return (
+    <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
+      <Text px="2" fontSize="11px" color="grey.400" bg="subtle">
+        Join as...
+      </Text>
+      {children}
+    </Menu>
+  );
+}
 
-const modeWarningText = {
-  observer: 'You do not have permission to join as an observer.',
-  moderator: 'You do not have permission to join as a moderator.',
-  peer: 'You do not have permission to join as a peer.',
+type LockedFeatureInternalJoinMenuProps = {
+  anchorEl: HTMLElement;
+  handleClose: () => void;
+  modes: ParticipantMode[];
 };
+function LockedFeatureInternalJoinMenu({
+  anchorEl,
+  handleClose,
+  modes,
+}: LockedFeatureInternalJoinMenuProps) {
+  return (
+    <Menu
+      anchorEl={anchorEl}
+      open={Boolean(anchorEl)}
+      onClose={handleClose}
+      menuListCss={() => {
+        return { backgroundColor: '#222c59' };
+      }}
+    >
+      <div></div>
+      <LockedJoinMenuContainer>
+        <ButtonLockedFeature
+          noIcon
+          height="40px"
+          event={CtaEvent.CTA_ACTIVE_SESSIONS}
+        >
+          Join Active Sessions with Teleport Enterprise
+        </ButtonLockedFeature>
+        <Box ml="3">
+          {modes.includes('observer') ? (
+            <LockedJoinItem
+              name={'As an Observer'}
+              info={'Watch: cannot control any part of the session'}
+            />
+          ) : null}
+
+          {modes.includes('moderator') ? (
+            <LockedJoinItem
+              name={'As a Moderator'}
+              info={'Review: can view output & terminate the session'}
+            />
+          ) : null}
+
+          {modes.includes('peer') ? (
+            <LockedJoinItem
+              name={'As a Peer'}
+              info={'Collaborate: can view output and send input'}
+            />
+          ) : null}
+        </Box>
+      </LockedJoinMenuContainer>
+    </Menu>
+  );
+}
+
+const LockedJoinMenuContainer = styled(Flex)`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 16px 12px;
+  gap: 12px;
+  background-color: #222c59;
+`;
+
+type LockedJoinItemProps = {
+  name: string;
+  info: string;
+};
+function LockedJoinItem({ name, info }: LockedJoinItemProps) {
+  return (
+    <Box mb="3">
+      <Text fontSize="16px">{name}</Text>
+      <Text fontSize="14px">{info}</Text>
+    </Box>
+  );
+}

@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -282,7 +281,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 
 // NewServer creates and returns a reverse tunnel server which is fully
 // initialized but hasn't been started yet
-func NewServer(cfg Config) (reversetunnelclient.Server, error) {
+func NewServer(cfg Config) (Server, error) {
 	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -966,10 +965,10 @@ func (s *server) upsertRemoteCluster(conn net.Conn, sshConn *ssh.ServerConn) (*r
 	return site, remoteConn, nil
 }
 
-func (s *server) GetSites() ([]reversetunnelclient.RemoteSite, error) {
+func (s *server) GetSites() ([]RemoteSite, error) {
 	s.RLock()
 	defer s.RUnlock()
-	out := make([]reversetunnelclient.RemoteSite, 0, len(s.remoteSites)+len(s.clusterPeers)+1)
+	out := make([]RemoteSite, 0, len(s.remoteSites)+len(s.clusterPeers)+1)
 	out = append(out, s.localSite)
 
 	haveLocalConnection := make(map[string]bool)
@@ -1003,7 +1002,7 @@ func (s *server) getRemoteClusters() []*remoteSite {
 // with a cluster peer your best bet is to wait until the agent has discovered
 // all proxies behind a load balancer. Note, the cluster peer is a
 // services.TunnelConnection that was created by another proxy.
-func (s *server) GetSite(name string) (reversetunnelclient.RemoteSite, error) {
+func (s *server) GetSite(name string) (RemoteSite, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.localSite.GetName() == name {
@@ -1030,7 +1029,7 @@ func (s *server) GetProxyPeerClient() *peer.Client {
 // alwaysClose forces onSiteTunnelClose to remove and close
 // the site by always returning false from HasValidConnections.
 type alwaysClose struct {
-	reversetunnelclient.RemoteSite
+	RemoteSite
 }
 
 func (a *alwaysClose) HasValidConnections() bool {
@@ -1123,7 +1122,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 
 	// configure access to the full Auth Server API and the cached subset for
-	// the local cluster within which reversetunnelclient.Server is running.
+	// the local cluster within which reversetunnel.Server is running.
 	remoteSite.localClient = srv.localAuthClient
 	remoteSite.localAccessPoint = srv.localAccessPoint
 
@@ -1211,15 +1210,15 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 }
 
 // createRemoteAccessPoint creates a new access point for the remote cluster.
-// Checks if the cluster that is connecting is a pre-v13 cluster. If it is,
-// we disable the watcher for resources not supported in a v12 leaf cluster:
-// - (to fill when we add new resources)
+// Checks if the cluster that is connecting is a pre-v12 cluster. If it is,
+// we disable the watcher for resources not supported in a v11 leaf cluster:
+// - types.KindDatabaseService
 //
 // **WARNING**: Ensure that the version below matches the version in which backward incompatible
 // changes were introduced so that the cache is created successfully. Otherwise, the remote cache may
 // never become healthy due to unknown resources.
 func createRemoteAccessPoint(srv *server, clt auth.ClientI, version, domainName string) (auth.RemoteProxyAccessPoint, error) {
-	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("13.0.0"))
+	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("12.0.0"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
