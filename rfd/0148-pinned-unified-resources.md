@@ -88,7 +88,10 @@ After this, any existing filters in the request will be applied the same (includ
 > The maximum item size in DynamoDB is **400 KB**, which includes both attribute name binary length (UTF-8 length) and attribute value lengths (again binary length). The attribute name counts towards the size limit.
 
 If we assume an average resource ID is something like `db-name-1aaa8584-0e54-4c89-bec9-34f957512078`, then we can
-store well above 10,000 pinned resources per user. This is a very unlikely scenario as any amount of pinned resources over 20, lets just say for conversation sake, defeats the purpose of pinning a resource in the first place. We don't expect anyone to pin more than a "page" worth. We can still limit the resources in the backend to a total (for all clusters) of something like 500. This would give someone 100 pins over 5 clusters, or 25 pins over 20 clusters. These are knobs we can easily turn if necessary but it seems unlikely to "deliberately" go over this cap.
+store well above 10,000 pinned resources per user. This is a very unlikely scenario as any amount of pinned resources over 20, 
+lets just say for conversation sake, defeats the purpose of pinning a resource in the first place. We don't expect anyone to pin 
+more than a "page" worth. We can still limit the resources in the backend to a total (per cluster) of something like 500. 
+These are knobs we can easily turn if necessary but it seems unlikely to "deliberately" go over this cap.
 
 ### "What happens if a resource I have pinned becomes unavailable?"
 Similarly to the normal resource view, if a resource becomes unavailable (due to RBAC or being removed) it just won't be visible in the pinned view either. 
