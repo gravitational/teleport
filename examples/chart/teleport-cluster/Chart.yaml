@@ -1,4 +1,4 @@
-.version: &version "14.0.0"
+.version: &version "14.0.1-dev.hugoalproto.2"
 
 name: teleport-cluster
 apiVersion: v2
