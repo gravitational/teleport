@@ -4037,16 +4037,6 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 					Roles:      types.SystemRoles{types.RoleTrustedCluster},
 					JoinMethod: types.JoinMethodToken,
 				},
-				//nolint:staticcheck // Emit a deprecated event.
-				&eventtypes.TrustedClusterTokenCreate{
-					Metadata: eventtypes.Metadata{
-						Type: events.TrustedClusterTokenCreateEvent,
-						Code: events.TrustedClusterTokenCreateCode,
-					},
-					UserMetadata: eventtypes.UserMetadata{
-						User: "token-creator",
-					},
-				},
 			},
 		},
 		{
@@ -4195,16 +4185,6 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 					},
 					Roles:      types.SystemRoles{types.RoleTrustedCluster},
 					JoinMethod: types.JoinMethodToken,
-				},
-				//nolint:staticcheck // Emit a deprecated event.
-				&eventtypes.TrustedClusterTokenCreate{
-					Metadata: eventtypes.Metadata{
-						Type: events.TrustedClusterTokenCreateEvent,
-						Code: events.TrustedClusterTokenCreateCode,
-					},
-					UserMetadata: eventtypes.UserMetadata{
-						User: "token-upserter",
-					},
 				},
 			},
 		},
