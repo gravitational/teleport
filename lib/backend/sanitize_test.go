@@ -116,11 +116,19 @@ func (n *nopBackend) Update(_ context.Context, _ Item) (*Lease, error) {
 	return &Lease{}, nil
 }
 
+func (n *nopBackend) ConditionalUpdate(_ context.Context, _ Item) (*Lease, error) {
+	return &Lease{}, nil
+}
+
 func (n *nopBackend) CompareAndSwap(_ context.Context, _ Item, _ Item) (*Lease, error) {
 	return &Lease{}, nil
 }
 
 func (n *nopBackend) Delete(_ context.Context, _ []byte) error {
+	return nil
+}
+
+func (n *nopBackend) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
 	return nil
 }
 
