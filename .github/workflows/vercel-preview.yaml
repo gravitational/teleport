@@ -7,9 +7,9 @@ env:
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
 on:
-  pull_request: 
-    paths: [ 'docs/**' ]
-    types: [ opened, reopened, edited, synchronize ]
+  pull_request:
+    paths: ['docs/**']
+    types: [opened, reopened, edited, synchronize]
   workflow_dispatch:
 
 jobs:
@@ -26,9 +26,12 @@ jobs:
         with:
           repository: 'gravitational/docs'
       - name: Configure Submodules
+        # Edit config.json and .gitmodules so there is a single submodule
+        # pointing to the version of the docs to deploy to the preview site.
         run: |
-
-          sed -i "s|branch = master|branch = ${{ steps.extract_branch.outputs.branch }}|" '.gitmodules'
+          git rm content/*
+          git submodule add --force -b ${{ steps.extract_branch.outputs.branch }} https://github.com/gravitational/teleport content/preview
+          echo "{\"versions\": [{\"name\": \"preview\", \"branch\": \"preview\", \"deprecated\": false, \"latest\": true}]}" > config.json
           git submodule update --init --remote --progress
       - name: Install Vercel CLI
         run: yarn global add vercel@latest
@@ -49,5 +52,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '🤖 Vercel preview here: ${{ steps.deploy.outputs.PREVIEW_URL }}/docs/ver/14.x'
+              body: '🤖 Vercel preview here: ${{ steps.deploy.outputs.PREVIEW_URL }}/docs/ver/preview'
             })
