@@ -156,7 +156,7 @@ order to make it easier to clean up, but you can append the output of
 Teleport implements an SSH server that includes several **subsystems**, or
 predefined commands that are run when the server handles a connection. The Proxy
 Service implements a `proxy` subsystem that forwards SSH traffic to remote hosts
-and Trusted Clusters.
+and trusted clusters.
 
 Here is a brief explanation of the configuration that `tsh config` generates:
 
@@ -228,7 +228,7 @@ are using an OpenSSH client and have hosts with uppercase letters in their hostn
   If you switch between multiple Teleport Proxy Servers, you'll need to re-run
   `tsh config` for each to generate the cluster-specific configuration.
 
-  Similarly, if Trusted Clusters are added or removed, be sure to re-run
+  Similarly, if trusted clusters are added or removed, be sure to re-run
   `tsh config` and replace the previous configuration.
 
 </Admonition>
@@ -300,7 +300,7 @@ host's SSH port.
 
 <Details title="Using Trusted Clusters?">
 
-You can log in to a host in a Trusted Cluster by placing the name of the cluster
+You can log in to a host in a trusted cluster by placing the name of the cluster
 between the name of the node and the name of your root Teleport cluster:
 
 ```code
