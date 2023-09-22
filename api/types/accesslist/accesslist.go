@@ -157,12 +157,6 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("owners are missing")
 	}
 
-	for _, owner := range a.Spec.Owners {
-		if owner.Name == "" {
-			return trace.BadParameter("owner name is missing")
-		}
-	}
-
 	if a.Spec.Audit.Frequency == 0 {
 		return trace.BadParameter("audit frequency must be greater than 0")
 	}
@@ -172,6 +166,25 @@ func (a *AccessList) CheckAndSetDefaults() error {
 	if len(a.Spec.Grants.Roles) == 0 && len(a.Spec.Grants.Traits) == 0 {
 		return trace.BadParameter("grants must specify at least one role or trait")
 	}
+
+	// Deduplicate owners. The backend will currently prevent this, but it's possible that access lists
+	// were created with duplicated owners before the backend checked for duplicate owners. In order to
+	// ensure that these access lists are backwards compatible, we'll deduplicate them here.
+	ownerMap := map[string]bool{}
+	deduplicatedOwners := []Owner{}
+	for _, owner := range a.Spec.Owners {
+		if owner.Name == "" {
+			return trace.BadParameter("owner name is missing")
+		}
+
+		if ownerMap[owner.Name] {
+			continue
+		}
+
+		ownerMap[owner.Name] = true
+		deduplicatedOwners = append(deduplicatedOwners, owner)
+	}
+	a.Spec.Owners = deduplicatedOwners
 
 	return nil
 }
