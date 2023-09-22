@@ -112,6 +112,13 @@ func (a *AccessListService) GetAccessList(ctx context.Context, name string) (*ac
 // UpsertAccessList creates or updates an access list resource.
 func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
 	err := a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		ownerMap := map[string]bool{}
+		for _, owner := range accessList.Spec.Owners {
+			if ownerMap[owner.Name] {
+				return trace.AlreadyExists("owner %s already exists in the owner list", owner.Name)
+			}
+			ownerMap[owner.Name] = true
+		}
 		return trace.Wrap(a.service.UpsertResource(ctx, accessList))
 	})
 	if err != nil {
