@@ -222,9 +222,6 @@ type Item struct {
 	// ID is a record ID, newer records have newer ids
 	// Deprecated: use Revision instead
 	ID int64
-	// LeaseID is a lease ID, could be set on objects
-	// with TTL
-	LeaseID int64
 	// Revision is the last known version of the object.
 	Revision string
 }
