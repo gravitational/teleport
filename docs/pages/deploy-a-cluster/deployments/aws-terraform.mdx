@@ -826,9 +826,9 @@ example.
 proxy_server: teleport.example.com:443
 ```
 
-### Trusted Clusters
+### Trusted clusters
 
-To add a Trusted Cluster, you'll need the hostname of the proxy load balancer. You can get it using this command:
+To add a trusted cluster, you'll need the hostname of the proxy load balancer. You can get it using this command:
 
 ```code
 $ aws elbv2 describe-load-balancers --names "${TF_VAR_cluster_name}-proxy" --query "LoadBalancers[*].DNSName" --output text

@@ -214,17 +214,16 @@ authenticate to Teleport via a Single Sign-On (SSO) solution.
 
 See our guide to [Authentication Options](./reference/authentication.mdx).
 
-### Trusted Cluster
+### Trusted clusters
 
-A **Trusted Cluster** is a remote **Teleport cluster** joined to your own
-cluster via a trust relationship. Users in your Teleport cluster can access
-resources in a Trusted Cluster.
+A **trusted cluster** consists of a **root cluster** and one or more **leaf clusters** 
+that trust the root cluster certificate authority. The trust relationship between the
+root and leaf clusters enables users authenticated in the root cluster to access resources 
+in leaf cluster. The root and leaf cluster operate independently with their own
+users, roles, and resources, but the trust relationship allows users with certain roles
+in the root cluster to be mapped to roles and permissions defined in the leaf cluster.
 
-In a Trusted Cluster relationship, the remote cluster is called a **leaf
-cluster**. Your cluster, if you are adding a leaf cluster to it, is called a
-**root cluster**. 
-
-Read our [Trusted Clusters architecture
-guide](./architecture/trustedclusters.mdx) for how Trusted Clusters work and our
-[how-to guide](./management/admin/trustedclusters.mdx) for how to configure
-Trusted Clusters.
+For more information about how to configure a trust relationship between clusters,
+see [Configure Trusted Clusters](./management/admin/trustedclusters.mdx). 
+For an overview of the trusted clusters architecture, see [Trusted Cluster 
+Architecture]](./architecture/trustedclusters.mdx).
