@@ -31,6 +31,7 @@ type TimeDuration = {
 // session TTL that is rounded to the nearest hour. The rest of the values are
 // rounded to the nearest day. Example:
 //
+// created: 2021-09-01T00:00:00.000Z
 // start: 2021-09-01T01:00:00.000Z
 // end: 2021-09-03T00:00:00.000Z
 // now: 2021-09-01T00:00:00.000Z
@@ -58,7 +59,8 @@ export function middleValues(
 
   points.push(addDays(created, 1));
 
-  while (true) {
+  // I also prefer while(true), but our linter doesn't
+  for (;;) {
     const next = addHours(points[points.length - 1], 24);
     // Allow next == end
     if (next > end) {
