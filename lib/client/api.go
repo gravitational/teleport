@@ -1484,17 +1484,13 @@ func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt
 // the current clusters auth server. The auth server will then forward along to the configured
 // telemetry backend.
 func (tc *TeleportClient) NewTracingClient(ctx context.Context) (*apitracing.Client, error) {
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := proxyClient.NewTracingClient(ctx, tc.SiteName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clt, nil
+	tracingClient, err := client.NewTracingClient(ctx, clusterClient.ProxyClient.ClientConfig(ctx, clusterClient.ClusterName()))
+	return tracingClient, trace.Wrap(err)
 }
 
 // SSHOptions allow overriding configuration
