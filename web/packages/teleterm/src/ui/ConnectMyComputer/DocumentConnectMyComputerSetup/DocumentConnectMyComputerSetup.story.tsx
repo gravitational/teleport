@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useLayoutEffect } from 'react';
 
 import { wait } from 'shared/utils/wait';
 
@@ -22,7 +22,10 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import {
+  makeRootCluster,
+  makeServer,
+} from 'teleterm/services/tshd/testHelpers';
 
 import { IAppContext } from 'teleterm/ui/types';
 
@@ -39,14 +42,22 @@ export default {
 export function Default() {
   const cluster = makeRootCluster();
   const appContext = new MockAppContext({ appVersion: cluster.proxyVersion });
-  appContext.connectMyComputerService.waitForNodeToJoin = async () => ({
-    uri: '/clusters/teleport-local/servers/178ef081-259b-4aa5-a018-449b5ea7e694',
-    tunnel: false,
-    name: '178ef081-259b-4aa5-a018-449b5ea7e694',
-    hostname: 'foo',
-    addr: '127.0.0.1:3022',
-    labelsList: [],
-  });
+  appContext.connectMyComputerService.waitForNodeToJoin = async () =>
+    makeServer();
+  return (
+    <ShowState
+      cluster={cluster}
+      appContext={appContext}
+      clickStartSetup={false}
+    />
+  );
+}
+
+export function Success() {
+  const cluster = makeRootCluster();
+  const appContext = new MockAppContext({ appVersion: cluster.proxyVersion });
+  appContext.connectMyComputerService.waitForNodeToJoin = async () =>
+    makeServer();
   return <ShowState cluster={cluster} appContext={appContext} />;
 }
 
@@ -78,21 +89,35 @@ export function AgentVersionTooNew() {
   const cluster = makeRootCluster({ proxyVersion: '16.3.0' });
   const appContext = new MockAppContext({ appVersion: '17.0.0' });
 
-  return <ShowState cluster={cluster} appContext={appContext} />;
+  return (
+    <ShowState
+      cluster={cluster}
+      appContext={appContext}
+      clickStartSetup={false}
+    />
+  );
 }
 
 export function AgentVersionTooOld() {
   const cluster = makeRootCluster({ proxyVersion: '16.3.0' });
   const appContext = new MockAppContext({ appVersion: '14.1.0' });
-  return <ShowState cluster={cluster} appContext={appContext} />;
+  return (
+    <ShowState
+      cluster={cluster}
+      appContext={appContext}
+      clickStartSetup={false}
+    />
+  );
 }
 
 function ShowState({
   cluster,
   appContext,
+  clickStartSetup = true,
 }: {
   cluster: Cluster;
   appContext: IAppContext;
+  clickStartSetup?: boolean;
 }) {
   appContext.clustersService.state.clusters.set(cluster.uri, cluster);
   appContext.workspacesService.setState(draftState => {
@@ -104,6 +129,14 @@ function ShowState({
       accessRequests: undefined,
     };
   });
+
+  useLayoutEffect(() => {
+    if (clickStartSetup) {
+      (
+        document.querySelector('[data-testid=start-setup]') as HTMLButtonElement
+      )?.click();
+    }
+  }, []);
 
   return (
     <MockAppContextProvider appContext={appContext}>

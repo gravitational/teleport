@@ -96,6 +96,7 @@ function Information(props: { onSetUpAgentClick(): void }) {
         `}
         disabled={!isAgentCompatible}
         onClick={props.onSetUpAgentClick}
+        data-testid="start-setup"
       >
         Connect
       </ButtonPrimary>
