@@ -32,7 +32,7 @@ version: v2
 metadata:
   # the token name is not a secret because instances must prove that they are
   # running in your GCP project to use this token
-  name: gcp-token
+  name: gcp-discovery-token
 spec:
   # use the minimal set of roles required (e.g. Node, Proxy, App, Kube, DB, WindowsDesktop)
   roles: [Node]
@@ -238,8 +238,9 @@ discovery_service:
       # (Optional) The email addresses of service accounts that VMs can join
       # with.
       service_accounts: []
-      tags:
-        "env": "prod" # Match virtual machines where tag:env=prod
+      # (Optional) Labels that joining VMs must have.
+      labels:
+        "env": "prod" # Match virtual machines where label:env=prod
 ```
 
 - Edit the `teleport.auth_server` or `teleport.proxy_server` key to match your Auth Service or Proxy Service's domain name
@@ -270,4 +271,4 @@ for details on alternate methods.
 - Full documentation on GCP discovery configuration can be found through the [
   config file reference documentation](../../reference/config.mdx).
 - The complete default installer can be found [with the Teleport source
-](https://github.com/gravitational/teleport/blob/master/api/types/installers/installer.sh.tmpl).
+](https://github.com/gravitational/teleport/blob/branch/v(=teleport.major_version=)/api/types/installers/installer.sh.tmpl).

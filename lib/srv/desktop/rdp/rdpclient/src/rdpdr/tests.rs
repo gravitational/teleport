@@ -306,16 +306,9 @@ fn test_handle_client_id_confirm() {
         },
         vec![(
             PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
-            Box::new(ClientDeviceListAnnounceRequest {
-                device_count: 1,
-                device_list: vec![DeviceAnnounceHeader {
-                    device_type: DeviceType::RDPDR_DTYP_SMARTCARD,
-                    device_id: 1,
-                    preferred_dos_name: "SCARD".to_string(),
-                    device_data_length: 0,
-                    device_data: vec![],
-                }],
-            }),
+            Box::new(ClientDeviceListAnnounceRequest::new_smartcard(
+                SCARD_DEVICE_ID,
+            )),
         )],
     );
 
@@ -428,4 +421,19 @@ fn check_dir_sharing_methods_error_when_disabled() {
             Ok(_) => panic!("unexpected success"),
         }
     }
+}
+
+/// Checks that we can encode a DeviceAnnounceHeader with a non-ascii name,
+/// which was causing a panic in the past.
+#[test]
+fn test_device_announce_header_encode_with_non_ascii() {
+    assert_eq!(
+        DeviceAnnounceHeader::new_drive(2, "中文测试".to_string())
+            .encode()
+            .unwrap(),
+        vec![
+            8, 0, 0, 0, 2, 0, 0, 0, 70, 73, 76, 69, 0, 0, 0, 0, 13, 0, 0, 0, 228, 184, 173, 230,
+            150, 135, 230, 181, 139, 232, 175, 149, 0
+        ]
+    )
 }

@@ -842,8 +842,8 @@ The `<alias>` can only be a top-level subcommand. In other words, you can define
 
 `tsh` loads two kinds of configuration files:
 
-- global: by default `/etc/tsh.yaml`, unless overridden by  the `$TELEPORT_GLOBAL_TSH_CONFIG` env var.
-- user-specific: `$TELEPORT_HOME/config/config.yaml`, which by defaults resolves to `~/.tsh/config/config.yaml`.
+- global: set via the `$TELEPORT_GLOBAL_TSH_CONFIG` env var if not provided it will default to `/etc/tsh.yaml` on non-Windows operating systems.
+- user-specific: `$TELEPORT_HOME/config/config.yaml`, which by default resolves to `~/.tsh/config/config.yaml`.
 
 `tsh` merges the user-specific config with the global config. In case of conflicts (i.e. same alias defined in both files), the user-specific config has higher priority.
 
@@ -936,6 +936,204 @@ exit
 
 end of session playback
 ```
+
+## tsh configuration files
+
+You can use a configuration file to control the behavior of `tsh`. The scope of
+the configuration file depends on its location:
+
+- `/etc/tsh.yaml` is the default location for global, shared configuration
+  settings. You can override the location with the `TELEPORT_GLOBAL_TSH_CONFIG`
+  environment variable.
+- `$TELEPORT_HOME/config/config.yaml` is the default location for user-specific
+  configuration settings. The default location for `TELEPORT_HOME` is `~/.tsh`.
+
+`tsh` merges the settings from both configuration file locations, with the user
+configuration settings taking precedence.
+
+### Extra proxy headers
+
+The `tsh` configuration file enables you to specify HTTP headers to be
+included in requests to Teleport Proxy Servers with addresses matching
+the `proxy` field.
+
+```yaml
+add_headers:
+  - proxy: "*.example.com" # matching proxies will have headers included
+    headers: # headers are pairs to include in the http headers
+      foo: bar # Key/Value to be included in the http request
+```
+
+For example, adding HTTP headers can be useful if an intermediate HTTP proxy is
+in place that requires setting an authentication token:
+
+```yaml
+add_headers:
+  - proxy: "*.infra.corp.xyz"
+    headers:
+      "Authorization": "Bearer tokentokentoken"
+```
+
+### Aliases
+
+Aliases allow you to define custom commands or change the default flag values for existing commands using the following syntax:
+
+```yaml
+aliases:
+    "<alias>": "<command>"
+```
+
+The `<alias>` can only be a top-level subcommand. In other words, you can define a `tsh mycommand` alias but not `tsh my command`.
+
+New command `tsh l`:
+
+```yaml
+aliases:
+    "l": "tsh login --auth=okta"
+```
+
+Make `tsh status` use JSON as a default format:
+
+```yaml
+aliases:
+    "status": "tsh status --format=json"
+```
+
+The alias can use an arbitrary number of arguments. If an argument variable `$N` is referenced, `tsh` will check that at least `N+1` arguments were given to the alias invocation. All arguments that were given but not referenced in the alias definition will be appended at the end.
+
+Define a custom command using `bash`. The `$0` and `$1` variables will be substituted with command arguments.
+
+```yaml
+aliases:
+    "connect": "bash -c 'tsh login $0 && tsh ssh $1'"
+```
+
+Define a custom login command where first argument specifies `--auth` option.
+
+```yaml
+aliases:
+    "ap": "tsh login --auth=$0 --proxy=teleport.example.com"
+```
+
+Given the configuration:
+
+```yaml
+aliases:
+    "example": "bash -c 'echo first=$0 $0-$1 $3'"
+```
+
+`tsh example 0 1 unused-2 3 unused-4` will expand to `bash -c 'echo first=0 0-1 3 unused-2 unused-4'`.
+
+An alias definition can also reference the `$TSH` variable. If you use the
+`$TSH` variable in an alias, `tsh` expands the variable to the absolute path of
+the current `tsh` executable. This behavior can be useful if there are multiple
+`tsh` versions installed, or the version you're currently using is not in the
+`PATH`:
+
+```yaml
+aliases:
+    "status": "$TSH status --format=json"
+```
+
+To troubleshoot aliases, set the `TELEPORT_DEBUG=1` environment variable. This will cause detailed logs to be printed to standard error:
+
+```bash
+$ TELEPORT_DEBUG=1 tsh status
+DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.go:203
+...
+```
+
+### Proxy templates
+
+With proxy templates, `tsh` dynamically determines the address of the Teleport
+Proxy Service to connect to based on the address of the destination host in your
+`tsh ssh` or `tsh proxy ssh` command:
+
+```yaml
+proxy_templates:
+
+# Regular expression that the host server address `%h:%p` is matched against.
+# The "replace rules" below can reference capturing groups from this regular
+# expression (`$1`, `$2`, etc.).
+- template: '^(\w+)\.(\w+):([0-9]+)$' # <nodename>.<clustername>:<port>
+
+  # Optional web proxy address to use for proxy jump (`--jumphost`, `-J`).
+  #
+  # Proxy Jump can be used to reduce latency in regionally distributed trusted
+  # clusters by connecting to a leaf node through the leaf proxy instead of the
+  # root proxy.
+  proxy: "$2.eu.example.com:443"
+
+  # Optional cluster name to connect to (`--cluster`).
+  #
+  # Cluster can be used to connect to leaf nodes from the root proxy without
+  # first logging in to the leaf cluster. This may be useful in cases where
+  # proxy jump is not applicable, such as when the leaf clusters do not have
+  # their own public proxies.
+  cluster: "$2"
+
+  # Optional host server address to connect to (`%h:%p`).
+  #
+  # Port defaults to 3022 if not explicitly provided with `--port`.
+  host: "$1:$3"
+
+# Multiple templates can be provided. They are evaluated in order and the first
+# match takes effect.
+- template: ...
+```
+
+`tsh -J {{proxy}} ssh` and `tsh -J {{proxy}} proxy ssh` will attempt to match the
+host server address `%h:%p` with the configured templates. For each replace rule set,
+the corresponding cli value will be set.
+
+If leaf certificates are required to connect to the node, `tsh` automatically
+retrieves leaf certificates from the root cluster:
+
+```bash
+$ tsh ssh -J {{proxy}} node1.leaf1
+# becomes
+$ tsh ssh -J leaf1.eu.example.com:443 --cluster leaf1 node1
+```
+
+If there is no template matched, an error is returned.
+
+```bash
+$ tsh ssh -J {{proxy}} node1.none.example.com
+ERROR: proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config
+```
+
+If you don't explicitly provide the proxy variable `-J {{proxy}}`, `tsh` still
+attempts to match a template, but won't fail if there isn't a match.
+Additionally, `tsh` won't replace the `proxy` value if it's explicitly set by
+the client:
+
+```bash
+$ tsh ssh -J leaf2.us.example.com:443 node1.leaf2
+# becomes
+$ tsh ssh -J leaf2.us.example.com:443 --cluster leaf2 node1
+```
+
+Proxy Templates can also be used with OpenSSH by setting the `ProxyCommand`
+in `~/.ssh/config` to use `tsh proxy ssh`.
+
+```txt
+Host *.example.com
+    Port 3022
+    ProxyCommand tsh proxy ssh -J {{proxy}} %r@%h:%p
+```
+
+As a result, you can use `tsh ssh` and `ssh` interchangeably.
+
+```bash
+$ tsh ssh node1.leaf1
+# is equivalent to
+$ ssh node1.leaf1
+```
+
+## Uninstalling tsh
+
+To remove `tsh` and associated user data see
+[Uninstalling Teleport](../management/admin/uninstall-teleport.mdx).
 
 ## Further reading
 - [CLI Reference](../reference/cli.mdx).

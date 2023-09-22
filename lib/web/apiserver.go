@@ -753,11 +753,15 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.DELETE("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsDelete))
 
 	// AWS OIDC Integration Actions
+	h.GET("/webapi/scripts/integrations/configure/awsoidc-idp.sh", h.WithLimiter(h.awsOIDCConfigureIdP))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
+	h.GET("/webapi/scripts/integrations/configure/listdatabases-iam.sh", h.WithLimiter(h.awsOIDCConfigureListDatabasesIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
 	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2", h.WithClusterAuth(h.awsOIDCListEC2))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
 	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))
 
 	// AWS OIDC Integration specific endpoints:
@@ -921,6 +925,8 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		RequestableRoles:   res.RequestableRoles,
 		SuggestedReviewers: res.SuggestedReviewers,
 	}
+
+	userContext.AllowedSearchAsRoles = accessChecker.GetAllowedSearchAsRoles()
 
 	userContext.Cluster, err = ui.GetClusterDetails(r.Context(), site)
 	if err != nil {
@@ -1177,7 +1183,12 @@ func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	}
 
 	go func() {
-		if err := h.cfg.TraceClient.UploadTraces(r.Context(), data.ResourceSpans); err != nil {
+		// Because the uploading happens in a goroutine we cannot use the request scoped context
+		// since it will more than likely get canceled prior to the traces being uploaded. Use
+		// a background context with a lenient timeout to allow for a large number of spans to complete.
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := h.cfg.TraceClient.UploadTraces(ctx, data.ResourceSpans); err != nil {
 			h.log.WithError(err).Error("Failed to upload traces")
 		}
 	}()
@@ -1446,16 +1457,18 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	webCfg := webclient.WebConfig{
-		Auth:                 authSettings,
-		CanJoinSessions:      canJoinSessions,
-		IsCloud:              clusterFeatures.GetCloud(),
-		TunnelPublicAddress:  tunnelPublicAddr,
-		RecoveryCodesEnabled: clusterFeatures.GetRecoveryCodes(),
-		UI:                   h.getUIConfig(r.Context()),
-		IsDashboard:          isDashboard(clusterFeatures),
-		IsUsageBasedBilling:  clusterFeatures.GetIsUsageBased(),
-		AutomaticUpgrades:    clusterFeatures.GetAutomaticUpgrades(),
-		AssistEnabled:        assistEnabled,
+		Auth:                     authSettings,
+		CanJoinSessions:          canJoinSessions,
+		IsCloud:                  clusterFeatures.GetCloud(),
+		TunnelPublicAddress:      tunnelPublicAddr,
+		RecoveryCodesEnabled:     clusterFeatures.GetRecoveryCodes(),
+		UI:                       h.getUIConfig(r.Context()),
+		IsDashboard:              isDashboard(clusterFeatures),
+		IsUsageBasedBilling:      clusterFeatures.GetIsUsageBased(),
+		AutomaticUpgrades:        clusterFeatures.GetAutomaticUpgrades(),
+		AssistEnabled:            assistEnabled,
+		HideInaccessibleFeatures: clusterFeatures.GetFeatureHiding(),
+		CustomTheme:              clusterFeatures.GetCustomTheme(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -3640,7 +3653,7 @@ func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Ha
 			return nil, trace.AccessDenied("need auth")
 		}
 
-		token, err := h.consumeTokenForAPICall(ctx, creds.Password)
+		token, err := consumeTokenForAPICall(ctx, h.GetProxyClient(), creds.Password)
 		if err != nil {
 			h.log.WithError(err).Warn("Failed to authenticate.")
 			return nil, trace.AccessDenied("need auth")
@@ -3663,17 +3676,39 @@ func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Ha
 // This is possible because the latest call - DeleteToken - returns an error if the resource doesn't exist
 // This is currently true for all the backends as explained here
 // https://github.com/gravitational/teleport/commit/24fcadc375d8359e80790b3ebeaa36bd8dd2822f
-func (h *Handler) consumeTokenForAPICall(ctx context.Context, tokenName string) (types.ProvisionToken, error) {
-	token, err := h.GetProxyClient().GetToken(ctx, tokenName)
+func consumeTokenForAPICall(ctx context.Context, proxyClient auth.ClientI, tokenName string) (types.ProvisionToken, error) {
+	token, err := proxyClient.GetToken(ctx, tokenName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := h.GetProxyClient().DeleteToken(ctx, token.GetName()); err != nil {
+	if token.GetJoinMethod() != types.JoinMethodToken {
+		return nil, trace.BadParameter("unexpected join method %q for token %q", token.GetJoinMethod(), token.GetSafeName())
+	}
+
+	if !checkTokenTTL(token) {
+		return nil, trace.BadParameter("expired token %q", token.GetSafeName())
+	}
+
+	if err := proxyClient.DeleteToken(ctx, token.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return token, nil
+
+}
+
+// checkTokenTTL returns true if the token is still valid.
+// This is similar to checkTokenTTL in auth.Server, but does not delete expired tokens.
+func checkTokenTTL(tok types.ProvisionToken) bool {
+	// Always accept tokens without an expiry configured.
+	if tok.Expiry().IsZero() {
+		return true
+	}
+
+	now := time.Now().UTC()
+
+	return tok.Expiry().After(now)
 }
 
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)

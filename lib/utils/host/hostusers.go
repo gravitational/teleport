@@ -56,13 +56,18 @@ func GroupAdd(groupname string, gid string) (exitCode int, err error) {
 }
 
 // UserAdd creates a user on a host using `useradd`
-func UserAdd(username string, groups []string, uid, gid string) (exitCode int, err error) {
+func UserAdd(username string, groups []string, home, uid, gid string) (exitCode int, err error) {
 	useraddBin, err := exec.LookPath("useradd")
 	if err != nil {
 		return -1, trace.Wrap(err, "cant find useradd binary")
 	}
-	// useradd --create-home (username) (groups)...
-	args := []string{"--create-home", username}
+
+	if home == "" {
+		return -1, trace.BadParameter("home is a required parameter")
+	}
+
+	// useradd ---no-create-home (username) (groups)...
+	args := []string{"--no-create-home", "--home-dir", home, username}
 	if len(groups) != 0 {
 		args = append(args, "--groups", strings.Join(groups, ","))
 	}

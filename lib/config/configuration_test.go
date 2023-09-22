@@ -386,7 +386,7 @@ func TestConfigReading(t *testing.T) {
 				{
 					Types:     []string{"gke"},
 					Locations: []string{"uswest1"},
-					Tags: map[string]apiutils.Strings{
+					Labels: map[string]apiutils.Strings{
 						"a": {"b"},
 					},
 					ProjectIDs: []string{"p1", "p2"},
@@ -821,6 +821,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 					Enabled: types.NewBoolOption(true),
 				},
 			},
+			Okta: &types.OktaOptions{},
 		},
 	}, protocmp.Transform()))
 
@@ -910,6 +911,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.True(t, cfg.Okta.Enabled)
 	require.Equal(t, cfg.Okta.APIEndpoint, "https://some-endpoint")
 	require.Equal(t, cfg.Okta.APITokenPath, oktaAPITokenPath)
+	require.Equal(t, cfg.Okta.SyncPeriod, time.Second*300)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -1511,7 +1513,7 @@ func makeConfigFixture() string {
 		{
 			Types:     []string{"gke"},
 			Locations: []string{"uswest1"},
-			Tags: map[string]apiutils.Strings{
+			Labels: map[string]apiutils.Strings{
 				"a": {"b"},
 			},
 			ProjectIDs: []string{"p1", "p2"},

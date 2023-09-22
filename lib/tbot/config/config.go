@@ -48,6 +48,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodGitHub),
 	string(types.JoinMethodGitLab),
 	string(types.JoinMethodIAM),
+	string(types.JoinMethodKubernetes),
 	string(types.JoinMethodToken),
 }
 
@@ -55,7 +56,7 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentTBot,
 })
 
-// RemainingArgs is a custom kingpin parser that consumes all remaining
+// RemainingArgsList is a custom kingpin parser that consumes all remaining
 // arguments.
 type RemainingArgsList []string
 

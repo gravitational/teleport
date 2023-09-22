@@ -2040,7 +2040,7 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 
 	user, role, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
 	require.NoError(t, err)
-	userState, err := p.a.getUserOrLoginState(ctx, user.GetName())
+	userState, err := p.a.GetUserOrLoginState(ctx, user.GetName())
 	require.NoError(t, err)
 	accessInfo := services.AccessInfoFromUserState(userState)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
@@ -2099,7 +2099,7 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 	require.NoError(t, p.a.UpsertRole(ctx, ulsRole1))
 	require.NoError(t, p.a.UpsertRole(ctx, ulsRole2))
 
-	userState, err = p.a.getUserOrLoginState(ctx, user.GetName())
+	userState, err = p.a.GetUserOrLoginState(ctx, user.GetName())
 	require.NoError(t, err)
 	accessInfo = services.AccessInfoFromUserState(userState)
 	accessChecker, err = services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)

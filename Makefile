@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=13.3.6
+VERSION=13.4.0
 
 DOCKER_IMAGE ?= teleport
 
@@ -399,7 +399,10 @@ endif
 # make clean - Removes all build artifacts.
 #
 .PHONY: clean
-clean: clean-ui
+clean: clean-ui clean-build
+
+.PHONY: clean-build
+clean-build:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
 # Check if the variable is set to prevent calling remove on the root directory.
@@ -481,8 +484,14 @@ build-archive: | $(RELEASE_DIR)
 # make release-unix - Produces binary release tarballs for both OSS and
 # Enterprise editions, containing teleport, tctl, tbot and tsh.
 #
-.PHONY:
+.PHONY: release-unix
 release-unix: clean full build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+
+# release-unix-preserving-webassets cleans just the build and not the UI
+# allowing webassets to be built in a prior step before building the release.
+.PHONY: release-unix-preserving-webassets
+release-unix-preserving-webassets: clean-build full build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 include darwin-signing.mk

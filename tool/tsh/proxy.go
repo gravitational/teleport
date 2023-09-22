@@ -365,7 +365,11 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	dbInfo, err := getDatabaseInfo(cf, tc)
+	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dbInfo, err := getDatabaseInfo(cf, tc, routes)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -492,7 +496,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 func maybeAddDBUserPassword(cf *CLIConf, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
 	if dbInfo.Protocol == defaults.ProtocolCassandra {
-		db, err := dbInfo.GetDatabase(cf, tc)
+		db, err := dbInfo.GetDatabase(cf.Context, tc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -901,7 +905,7 @@ var dbProxyTpl = template.Must(template.New("").Parse(`Started DB proxy on {{.ad
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
 ` + dbProxyConnectAd + `
-Use following credentials to connect to the {{.database}} proxy:
+Use the following credentials to connect to the {{.database}} proxy:
   ca_file={{.ca}}
   cert_file={{.cert}}
   key_file={{.key}}

@@ -44,6 +44,8 @@ const cfg = {
   recoveryCodesEnabled: false,
   // IsUsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
   isUsageBasedBilling: false,
+  hideInaccessibleFeatures: false,
+  customTheme: '',
 
   configDir: '$HOME/.config',
 

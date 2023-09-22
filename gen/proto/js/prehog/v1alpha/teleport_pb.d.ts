@@ -1606,6 +1606,224 @@ export namespace AssistActionEvent {
     }
 }
 
+export class AccessListMetadata extends jspb.Message { 
+    getId(): string;
+    setId(value: string): AccessListMetadata;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListMetadata.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListMetadata): AccessListMetadata.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListMetadata, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListMetadata;
+    static deserializeBinaryFromReader(message: AccessListMetadata, reader: jspb.BinaryReader): AccessListMetadata;
+}
+
+export namespace AccessListMetadata {
+    export type AsObject = {
+        id: string,
+    }
+}
+
+export class AccessListCreateEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AccessListCreateEvent;
+
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): AccessListMetadata | undefined;
+    setMetadata(value?: AccessListMetadata): AccessListCreateEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListCreateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListCreateEvent): AccessListCreateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListCreateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListCreateEvent;
+    static deserializeBinaryFromReader(message: AccessListCreateEvent, reader: jspb.BinaryReader): AccessListCreateEvent;
+}
+
+export namespace AccessListCreateEvent {
+    export type AsObject = {
+        userName: string,
+        metadata?: AccessListMetadata.AsObject,
+    }
+}
+
+export class AccessListUpdateEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AccessListUpdateEvent;
+
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): AccessListMetadata | undefined;
+    setMetadata(value?: AccessListMetadata): AccessListUpdateEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListUpdateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListUpdateEvent): AccessListUpdateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListUpdateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListUpdateEvent;
+    static deserializeBinaryFromReader(message: AccessListUpdateEvent, reader: jspb.BinaryReader): AccessListUpdateEvent;
+}
+
+export namespace AccessListUpdateEvent {
+    export type AsObject = {
+        userName: string,
+        metadata?: AccessListMetadata.AsObject,
+    }
+}
+
+export class AccessListDeleteEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AccessListDeleteEvent;
+
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): AccessListMetadata | undefined;
+    setMetadata(value?: AccessListMetadata): AccessListDeleteEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListDeleteEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListDeleteEvent): AccessListDeleteEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListDeleteEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListDeleteEvent;
+    static deserializeBinaryFromReader(message: AccessListDeleteEvent, reader: jspb.BinaryReader): AccessListDeleteEvent;
+}
+
+export namespace AccessListDeleteEvent {
+    export type AsObject = {
+        userName: string,
+        metadata?: AccessListMetadata.AsObject,
+    }
+}
+
+export class AccessListMemberCreateEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AccessListMemberCreateEvent;
+
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): AccessListMetadata | undefined;
+    setMetadata(value?: AccessListMetadata): AccessListMemberCreateEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListMemberCreateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListMemberCreateEvent): AccessListMemberCreateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListMemberCreateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListMemberCreateEvent;
+    static deserializeBinaryFromReader(message: AccessListMemberCreateEvent, reader: jspb.BinaryReader): AccessListMemberCreateEvent;
+}
+
+export namespace AccessListMemberCreateEvent {
+    export type AsObject = {
+        userName: string,
+        metadata?: AccessListMetadata.AsObject,
+    }
+}
+
+export class AccessListMemberUpdateEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AccessListMemberUpdateEvent;
+
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): AccessListMetadata | undefined;
+    setMetadata(value?: AccessListMetadata): AccessListMemberUpdateEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListMemberUpdateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListMemberUpdateEvent): AccessListMemberUpdateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListMemberUpdateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListMemberUpdateEvent;
+    static deserializeBinaryFromReader(message: AccessListMemberUpdateEvent, reader: jspb.BinaryReader): AccessListMemberUpdateEvent;
+}
+
+export namespace AccessListMemberUpdateEvent {
+    export type AsObject = {
+        userName: string,
+        metadata?: AccessListMetadata.AsObject,
+    }
+}
+
+export class AccessListMemberDeleteEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AccessListMemberDeleteEvent;
+
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): AccessListMetadata | undefined;
+    setMetadata(value?: AccessListMetadata): AccessListMemberDeleteEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListMemberDeleteEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListMemberDeleteEvent): AccessListMemberDeleteEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListMemberDeleteEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListMemberDeleteEvent;
+    static deserializeBinaryFromReader(message: AccessListMemberDeleteEvent, reader: jspb.BinaryReader): AccessListMemberDeleteEvent;
+}
+
+export namespace AccessListMemberDeleteEvent {
+    export type AsObject = {
+        userName: string,
+        metadata?: AccessListMetadata.AsObject,
+    }
+}
+
+export class AccessListGrantsToUserEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AccessListGrantsToUserEvent;
+
+    getCountRolesGranted(): number;
+    setCountRolesGranted(value: number): AccessListGrantsToUserEvent;
+
+    getCountTraitsGranted(): number;
+    setCountTraitsGranted(value: number): AccessListGrantsToUserEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListGrantsToUserEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListGrantsToUserEvent): AccessListGrantsToUserEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListGrantsToUserEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListGrantsToUserEvent;
+    static deserializeBinaryFromReader(message: AccessListGrantsToUserEvent, reader: jspb.BinaryReader): AccessListGrantsToUserEvent;
+}
+
+export namespace AccessListGrantsToUserEvent {
+    export type AsObject = {
+        userName: string,
+        countRolesGranted: number,
+        countTraitsGranted: number,
+    }
+}
+
 export class IntegrationEnrollMetadata extends jspb.Message { 
     getId(): string;
     setId(value: string): IntegrationEnrollMetadata;
@@ -1737,6 +1955,39 @@ export namespace DeviceAuthenticateEvent {
     }
 }
 
+export class DeviceEnrollEvent extends jspb.Message { 
+    getDeviceId(): string;
+    setDeviceId(value: string): DeviceEnrollEvent;
+
+    getUserName(): string;
+    setUserName(value: string): DeviceEnrollEvent;
+
+    getDeviceOsType(): string;
+    setDeviceOsType(value: string): DeviceEnrollEvent;
+
+    getDeviceOrigin(): string;
+    setDeviceOrigin(value: string): DeviceEnrollEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DeviceEnrollEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: DeviceEnrollEvent): DeviceEnrollEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DeviceEnrollEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DeviceEnrollEvent;
+    static deserializeBinaryFromReader(message: DeviceEnrollEvent, reader: jspb.BinaryReader): DeviceEnrollEvent;
+}
+
+export namespace DeviceEnrollEvent {
+    export type AsObject = {
+        deviceId: string,
+        userName: string,
+        deviceOsType: string,
+        deviceOrigin: string,
+    }
+}
+
 export class FeatureRecommendationEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): FeatureRecommendationEvent;
@@ -1763,6 +2014,27 @@ export namespace FeatureRecommendationEvent {
         userName: string,
         feature: Feature,
         featureRecommendationStatus: FeatureRecommendationStatus,
+    }
+}
+
+export class LicenseLimitEvent extends jspb.Message { 
+    getLicenseLimit(): LicenseLimit;
+    setLicenseLimit(value: LicenseLimit): LicenseLimitEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): LicenseLimitEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: LicenseLimitEvent): LicenseLimitEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: LicenseLimitEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): LicenseLimitEvent;
+    static deserializeBinaryFromReader(message: LicenseLimitEvent, reader: jspb.BinaryReader): LicenseLimitEvent;
+}
+
+export namespace LicenseLimitEvent {
+    export type AsObject = {
+        licenseLimit: LicenseLimit,
     }
 }
 
@@ -2089,6 +2361,60 @@ export class SubmitEventRequest extends jspb.Message {
     setAssistAction(value?: AssistActionEvent): SubmitEventRequest;
 
 
+    hasDeviceEnrollEvent(): boolean;
+    clearDeviceEnrollEvent(): void;
+    getDeviceEnrollEvent(): DeviceEnrollEvent | undefined;
+    setDeviceEnrollEvent(value?: DeviceEnrollEvent): SubmitEventRequest;
+
+
+    hasLicenseLimitEvent(): boolean;
+    clearLicenseLimitEvent(): void;
+    getLicenseLimitEvent(): LicenseLimitEvent | undefined;
+    setLicenseLimitEvent(value?: LicenseLimitEvent): SubmitEventRequest;
+
+
+    hasAccessListCreate(): boolean;
+    clearAccessListCreate(): void;
+    getAccessListCreate(): AccessListCreateEvent | undefined;
+    setAccessListCreate(value?: AccessListCreateEvent): SubmitEventRequest;
+
+
+    hasAccessListUpdate(): boolean;
+    clearAccessListUpdate(): void;
+    getAccessListUpdate(): AccessListUpdateEvent | undefined;
+    setAccessListUpdate(value?: AccessListUpdateEvent): SubmitEventRequest;
+
+
+    hasAccessListDelete(): boolean;
+    clearAccessListDelete(): void;
+    getAccessListDelete(): AccessListDeleteEvent | undefined;
+    setAccessListDelete(value?: AccessListDeleteEvent): SubmitEventRequest;
+
+
+    hasAccessListMemberCreate(): boolean;
+    clearAccessListMemberCreate(): void;
+    getAccessListMemberCreate(): AccessListMemberCreateEvent | undefined;
+    setAccessListMemberCreate(value?: AccessListMemberCreateEvent): SubmitEventRequest;
+
+
+    hasAccessListMemberUpdate(): boolean;
+    clearAccessListMemberUpdate(): void;
+    getAccessListMemberUpdate(): AccessListMemberUpdateEvent | undefined;
+    setAccessListMemberUpdate(value?: AccessListMemberUpdateEvent): SubmitEventRequest;
+
+
+    hasAccessListMemberDelete(): boolean;
+    clearAccessListMemberDelete(): void;
+    getAccessListMemberDelete(): AccessListMemberDeleteEvent | undefined;
+    setAccessListMemberDelete(value?: AccessListMemberDeleteEvent): SubmitEventRequest;
+
+
+    hasAccessListGrantsToUser(): boolean;
+    clearAccessListGrantsToUser(): void;
+    getAccessListGrantsToUser(): AccessListGrantsToUserEvent | undefined;
+    setAccessListGrantsToUser(value?: AccessListGrantsToUserEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -2157,6 +2483,15 @@ export namespace SubmitEventRequest {
         featureRecommendationEvent?: FeatureRecommendationEvent.AsObject,
         assistAccessRequest?: AssistAccessRequestEvent.AsObject,
         assistAction?: AssistActionEvent.AsObject,
+        deviceEnrollEvent?: DeviceEnrollEvent.AsObject,
+        licenseLimitEvent?: LicenseLimitEvent.AsObject,
+        accessListCreate?: AccessListCreateEvent.AsObject,
+        accessListUpdate?: AccessListUpdateEvent.AsObject,
+        accessListDelete?: AccessListDeleteEvent.AsObject,
+        accessListMemberCreate?: AccessListMemberCreateEvent.AsObject,
+        accessListMemberUpdate?: AccessListMemberUpdateEvent.AsObject,
+        accessListMemberDelete?: AccessListMemberDeleteEvent.AsObject,
+        accessListGrantsToUser?: AccessListGrantsToUserEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2266,6 +2601,24 @@ export namespace SubmitEventRequest {
 
     ASSIST_ACTION = 55,
 
+    DEVICE_ENROLL_EVENT = 56,
+
+    LICENSE_LIMIT_EVENT = 57,
+
+    ACCESS_LIST_CREATE = 58,
+
+    ACCESS_LIST_UPDATE = 59,
+
+    ACCESS_LIST_DELETE = 60,
+
+    ACCESS_LIST_MEMBER_CREATE = 61,
+
+    ACCESS_LIST_MEMBER_UPDATE = 62,
+
+    ACCESS_LIST_MEMBER_DELETE = 63,
+
+    ACCESS_LIST_GRANTS_TO_USER = 64,
+
     }
 
 }
@@ -2369,6 +2722,7 @@ export enum ResourceKind {
     RESOURCE_KIND_DB_SERVER = 4,
     RESOURCE_KIND_WINDOWS_DESKTOP = 5,
     RESOURCE_KIND_NODE_OPENSSH = 6,
+    RESOURCE_KIND_NODE_OPENSSH_EICE = 7,
 }
 
 export enum DiscoverResource {
@@ -2467,4 +2821,10 @@ export enum FeatureRecommendationStatus {
     FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED = 0,
     FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1,
     FEATURE_RECOMMENDATION_STATUS_DONE = 2,
+}
+
+export enum LicenseLimit {
+    LICENSE_LIMIT_UNSPECIFIED = 0,
+    LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF = 1,
+    LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE = 2,
 }

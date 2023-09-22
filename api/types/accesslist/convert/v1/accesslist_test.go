@@ -23,9 +23,57 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 )
+
+func TestWithOwnersIneligibleStatusField(t *testing.T) {
+	proto := []*accesslistv1.AccessListOwner{
+		{
+			Name:             "expired",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_EXPIRED,
+		},
+		{
+			Name:             "missing",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_MISSING_REQUIREMENTS,
+		},
+		{
+			Name:             "dne",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST,
+		},
+	}
+
+	owners := []accesslist.Owner{
+		{Name: "expired"},
+		{Name: "missing"},
+		{Name: "dne"},
+	}
+	al := &accesslist.AccessList{
+		Spec: accesslist.Spec{
+			Owners: owners,
+		},
+	}
+	require.Empty(t, cmp.Diff(al.Spec.Owners, owners))
+
+	fn := WithOwnersIneligibleStatusField(proto)
+	fn(al)
+
+	require.Empty(t, cmp.Diff(al.Spec.Owners, []accesslist.Owner{
+		{
+			Name:             "expired",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_EXPIRED.String(),
+		},
+		{
+			Name:             "missing",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_MISSING_REQUIREMENTS.String(),
+		},
+		{
+			Name:             "dne",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST.String(),
+		},
+	}))
+}
 
 func TestRoundtrip(t *testing.T) {
 	accessList := newAccessList(t, "access-list")
@@ -79,13 +127,6 @@ func TestFromProtoNils(t *testing.T) {
 
 	_, err = FromProto(accessList)
 	require.Error(t, err)
-
-	// Members is nil
-	accessList = ToProto(newAccessList(t, "access-list"))
-	accessList.Spec.Members = nil
-
-	_, err = FromProto(accessList)
-	require.NoError(t, err)
 }
 
 func newAccessList(t *testing.T, name string) *accesslist.AccessList {
@@ -131,22 +172,6 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
-				},
-			},
-			Members: []accesslist.Member{
-				{
-					Name:    "member1",
-					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because",
-					AddedBy: "test-user1",
-				},
-				{
-					Name:    "member2",
-					Joined:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because again",
-					AddedBy: "test-user2",
 				},
 			},
 		},

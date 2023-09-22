@@ -1884,10 +1884,6 @@ waitLoop:
 				log.Debugf("Skipping event %+v", event)
 				continue
 			}
-			if resource.GetResourceID() > event.Resource.GetResourceID() {
-				log.Debugf("Skipping stale event %v %v %v %v, latest object version is %v", event.Type, event.Resource.GetKind(), event.Resource.GetName(), event.Resource.GetResourceID(), resource.GetResourceID())
-				continue waitLoop
-			}
 			if resource.GetName() != event.Resource.GetName() || resource.GetKind() != event.Resource.GetKind() || resource.GetSubKind() != event.Resource.GetSubKind() {
 				log.Debugf("Skipping event %v resource %v, expecting %v", event.Type, event.Resource.GetMetadata(), event.Resource.GetMetadata())
 				continue waitLoop

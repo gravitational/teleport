@@ -17,6 +17,7 @@ package accesslist
 import (
 	"context"
 
+	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -87,8 +88,8 @@ func (c *Client) GetAccessList(ctx context.Context, name string) (*accesslist.Ac
 		return nil, trail.FromGRPC(err)
 	}
 
-	accessList, err := conv.FromProto(resp)
-	return accessList, trail.FromGRPC(err)
+	accessList, err := conv.FromProto(resp, conv.WithOwnersIneligibleStatusField(resp.GetSpec().GetOwners()))
+	return accessList, trace.Wrap(err)
 }
 
 // UpsertAccessList creates or updates an access list resource.
@@ -113,8 +114,7 @@ func (c *Client) DeleteAccessList(ctx context.Context, name string) error {
 
 // DeleteAllAccessLists removes all access lists.
 func (c *Client) DeleteAllAccessLists(ctx context.Context) error {
-	_, err := c.grpcClient.DeleteAllAccessLists(ctx, &accesslistv1.DeleteAllAccessListsRequest{})
-	return trail.FromGRPC(err)
+	return trace.NotImplemented("DeleteAllAccessLists not supported in the gRPC client")
 }
 
 // ListAccessListMembers returns a paginated list of all access list members for an access list.
@@ -129,9 +129,9 @@ func (c *Client) ListAccessListMembers(ctx context.Context, accessList string, p
 	}
 
 	members = make([]*accesslist.AccessListMember, len(resp.Members))
-	for i, accessList := range resp.Members {
+	for i, member := range resp.Members {
 		var err error
-		members[i], err = conv.FromMemberProto(accessList)
+		members[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
 		if err != nil {
 			return nil, "", trail.FromGRPC(err)
 		}
@@ -150,8 +150,8 @@ func (c *Client) GetAccessListMember(ctx context.Context, accessList string, mem
 		return nil, trail.FromGRPC(err)
 	}
 
-	member, err := conv.FromMemberProto(resp)
-	return member, trail.FromGRPC(err)
+	member, err := conv.FromMemberProto(resp, conv.WithMemberIneligibleStatusField(resp))
+	return member, trace.Wrap(err)
 }
 
 // UpsertAccessListMember creates or updates an access list member resource.
@@ -175,7 +175,7 @@ func (c *Client) DeleteAccessListMember(ctx context.Context, accessList string, 
 	return trail.FromGRPC(err)
 }
 
-// DeleteAllAccessListMembers hard deletes all access list members for an access list.
+// DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list.
 func (c *Client) DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error {
 	_, err := c.grpcClient.DeleteAllAccessListMembersForAccessList(ctx, &accesslistv1.DeleteAllAccessListMembersForAccessListRequest{
 		AccessList: accessList,
@@ -185,6 +185,28 @@ func (c *Client) DeleteAllAccessListMembersForAccessList(ctx context.Context, ac
 
 // DeleteAllAccessListMembers hard deletes all access list members.
 func (c *Client) DeleteAllAccessListMembers(ctx context.Context) error {
-	_, err := c.grpcClient.DeleteAllAccessListMembers(ctx, &accesslistv1.DeleteAllAccessListMembersRequest{})
-	return trail.FromGRPC(err)
+	return trace.NotImplemented("DeleteAllAccessListMembers is not supported in the gRPC client")
+}
+
+// UpsertAccessListWithMembers creates or updates an access list resource and its members.
+func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accesslist.AccessList, members []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
+		AccessList: conv.ToProto(list),
+		Members:    conv.ToMembersProto(members),
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	accessList, err := conv.FromProto(resp.AccessList)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	updatedMembers, err := conv.FromMembersProto(resp.Members)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return accessList, updatedMembers, nil
 }

@@ -187,11 +187,58 @@ func (c *clientCache[T]) GetClient(ctx context.Context) (T, error) {
 	return c.client, trace.Wrap(c.err)
 }
 
+func newAzureClients() (*azureClients, error) {
+	azClients := &azureClients{
+		azureMySQLClients:     make(map[string]azure.DBServersClient),
+		azurePostgresClients:  make(map[string]azure.DBServersClient),
+		azureKubernetesClient: make(map[string]azure.AKSClient),
+	}
+	var err error
+	azClients.azureRedisClients, err = azure.NewClientMap(azure.NewRedisClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	azClients.azureRedisEnterpriseClients, err = azure.NewClientMap(azure.NewRedisEnterpriseClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	azClients.azureVirtualMachinesClients, err = azure.NewClientMap(azure.NewVirtualMachinesClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	azClients.azureSQLServerClients, err = azure.NewClientMap(azure.NewSQLClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	azClients.azureManagedSQLServerClients, err = azure.NewClientMap(azure.NewManagedSQLClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	azClients.azureMySQLFlexServersClients, err = azure.NewClientMap(azure.NewMySQLFlexServersClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	azClients.azurePostgresFlexServersClients, err = azure.NewClientMap(azure.NewPostgresFlexServersClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	azClients.azureRunCommandClients, err = azure.NewClientMap(azure.NewRunCommandClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return azClients, nil
+}
+
 // NewClients returns a new instance of cloud clients retriever.
 func NewClients() (Clients, error) {
 	awsSessionsCache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL: 15 * time.Minute,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	azClients, err := newAzureClients()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -202,19 +249,7 @@ func NewClients() (Clients, error) {
 			gcpGKE:       newClientCache[gcp.GKEClient](gcp.NewGKEClient),
 			gcpInstances: newClientCache[gcp.InstancesClient](gcp.NewInstancesClient),
 		},
-		azureClients: azureClients{
-			azureMySQLClients:               make(map[string]azure.DBServersClient),
-			azurePostgresClients:            make(map[string]azure.DBServersClient),
-			azureRedisClients:               azure.NewClientMap(azure.NewRedisClient),
-			azureRedisEnterpriseClients:     azure.NewClientMap(azure.NewRedisEnterpriseClient),
-			azureKubernetesClient:           make(map[string]azure.AKSClient),
-			azureVirtualMachinesClients:     azure.NewClientMap(azure.NewVirtualMachinesClient),
-			azureSQLServerClients:           azure.NewClientMap(azure.NewSQLClient),
-			azureManagedSQLServerClients:    azure.NewClientMap(azure.NewManagedSQLClient),
-			azureMySQLFlexServersClients:    azure.NewClientMap(azure.NewMySQLFlexServersClient),
-			azurePostgresFlexServersClients: azure.NewClientMap(azure.NewPostgresFlexServersClient),
-			azureRunCommandClients:          azure.NewClientMap(azure.NewRunCommandClient),
-		},
+		azureClients: azClients,
 	}, nil
 }
 
@@ -230,7 +265,7 @@ type cloudClients struct {
 	// gcpClients contains GCP-specific clients.
 	gcpClients
 	// azureClients contains Azure-specific clients.
-	azureClients
+	*azureClients
 	// mtx is used for locking.
 	mtx sync.RWMutex
 }
@@ -610,10 +645,10 @@ func (c *cloudClients) getAWSSessionForRegion(region string) (*awssession.Sessio
 
 // getAWSSessionForRole returns AWS session for the specified region and role.
 func (c *cloudClients) getAWSSessionForRole(ctx context.Context, region string, options awsAssumeRoleOpts) (*awssession.Session, error) {
-	assumeRoler := sts.New(options.baseSession)
 	cacheKey := fmt.Sprintf("Region[%s]:RoleARN[%s]:ExternalID[%s]", region, options.assumeRoleARN, options.assumeRoleExternalID)
 	return utils.FnCacheGet(ctx, c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
-		return newSessionWithRole(ctx, assumeRoler, region, options.assumeRoleARN, options.assumeRoleExternalID)
+		stsClient := sts.New(options.baseSession)
+		return newSessionWithRole(ctx, stsClient, region, options.assumeRoleARN, options.assumeRoleExternalID)
 	})
 }
 

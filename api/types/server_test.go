@@ -529,3 +529,78 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 		})
 	}
 }
+
+func TestIsOpenSSHNodeSubKind(t *testing.T) {
+	tests := []struct {
+		name    string
+		subkind string
+		want    bool
+	}{
+		{
+			name:    "openssh using EC2 Instance Connect Endpoint",
+			subkind: SubKindOpenSSHEICENode,
+			want:    true,
+		},
+		{
+			name:    "openssh using raw sshd server",
+			subkind: SubKindOpenSSHNode,
+			want:    true,
+		},
+		{
+			name:    "regular node",
+			subkind: SubKindTeleportNode,
+			want:    false,
+		},
+		{
+			name:    "another value",
+			subkind: "xyz",
+			want:    false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsOpenSSHNodeSubKind(tt.subkind); got != tt.want {
+				t.Errorf("IsOpenSSHNodeSubKind() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetCloudMetadataAWS(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		in       Server
+		expected *AWSInfo
+	}{
+		{
+			name: "no cloud metadata",
+			in: &ServerV2{
+				Spec: ServerSpecV2{},
+			},
+			expected: nil,
+		},
+		{
+			name: "cloud metadata but no AWS Information",
+			in: &ServerV2{
+				Spec: ServerSpecV2{CloudMetadata: &CloudMetadata{}},
+			},
+			expected: nil,
+		},
+		{
+			name: "cloud metadata with aws info",
+			in: &ServerV2{
+				Spec: ServerSpecV2{CloudMetadata: &CloudMetadata{
+					AWS: &AWSInfo{
+						AccountID: "abcd",
+					},
+				}},
+			},
+			expected: &AWSInfo{AccountID: "abcd"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			out := tt.in.GetAWSInfo()
+			require.Equal(t, tt.expected, out)
+		})
+	}
+}

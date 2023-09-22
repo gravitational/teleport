@@ -119,6 +119,9 @@ type SessionTracker interface {
 
 	// GetLastActive returns the time at which the session was last active (i.e used by any participant).
 	GetLastActive() time.Time
+
+	// GetTargetSubKind returns the sub kind of the target server.
+	GetTargetSubKind() string
 }
 
 func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
@@ -326,6 +329,11 @@ func (s *SessionTrackerV1) GetLastActive() time.Time {
 	}
 
 	return last
+}
+
+// GetTargetSubKind returns the sub kind of the target server.
+func (s *SessionTrackerV1) GetTargetSubKind() string {
+	return s.Spec.TargetSubKind
 }
 
 // Match checks if a given session tracker matches this filter.
