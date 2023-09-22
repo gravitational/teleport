@@ -1110,11 +1110,16 @@ message TOTPRegisterChallenge {
   // QRCode is an optional field for the QR code in PNG format. Used to display a QR code
   // image in the UI.
   bytes QRCode = 7;
+  // ID of the TOTP challenge.
+  // Send this back in the TOTPRegisterResponse.
+  string ID = 8;
 }
 
 // TOTPRegisterResponse is a response to TOTPRegisterChallenge.
 message TOTPRegisterResponse {
   string Code = 1;
+  // ID of the TOTP challenge, as informed by the TOTPRegisterChallenge.
+  string ID = 2;
 }
 
 // AddMFADeviceRequest is a message sent by the client during AddMFADevice RPC.

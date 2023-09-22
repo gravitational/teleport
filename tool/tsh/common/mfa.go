@@ -526,9 +526,14 @@ func promptTOTPRegisterChallenge(ctx context.Context, c *proto.TOTPRegisterChall
 		}
 		fmt.Printf("TOTP code must be exactly %d digits long, try again\n", c.Digits)
 	}
-	return &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
-		TOTP: &proto.TOTPRegisterResponse{Code: totpCode},
-	}}, nil
+	return &proto.MFARegisterResponse{
+		Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{
+				Code: totpCode,
+				ID:   c.ID,
+			},
+		},
+	}, nil
 }
 
 func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, error) {

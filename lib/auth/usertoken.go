@@ -63,6 +63,12 @@ const (
 	// second factor re-authentication which in other cases would be required eg:
 	// allowing user to add a mfa device if they don't have any registered.
 	UserTokenTypePrivilegeException = "privilege_exception"
+
+	// userTokenTypePrivilegeOTP is used to hold OTP data during (otherwise)
+	// token-less registrations.
+	// This kind of token is an internal artifact of Teleport and should only be
+	// allowed for OTP device registrations.
+	userTokenTypePrivilegeOTP = "privilege_otp"
 )
 
 // CreateUserTokenRequest is a request to create a new user token.
@@ -118,7 +124,7 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 	case UserTokenTypeRecoveryApproved:
 		r.TTL = defaults.RecoveryApprovedTokenTTL
 
-	case UserTokenTypePrivilege, UserTokenTypePrivilegeException:
+	case UserTokenTypePrivilege, UserTokenTypePrivilegeException, userTokenTypePrivilegeOTP:
 		r.TTL = defaults.PrivilegeTokenTTL
 
 	default:
