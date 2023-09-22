@@ -42,15 +42,30 @@ const (
 	// hardware key to generate and store their private keys securely, and
 	// this key must require touch and pin to be accessed and used.
 	PrivateKeyPolicyHardwareKeyTouchAndPIN PrivateKeyPolicy = "hardware_key_touch_and_pin"
+	// PrivateKeyPolicyWebSession is a special case used for Web Sessions. This policy
+	// implies that the client private key and certificate are stored in the Proxy
+	// Process Memory and Auth Storage. These certs do not leave the Proxy/Auth
+	// services, but the Web Client receives a Web Cookie which can be used to
+	// make requests with the server-side client key+cert.
+	//
+	// This policy does not provide the same hardware key guarantee as the above policies.
+	// Instead, this policy must be accompanied by WebAuthn prompts for important operations
+	// in order to pass hardware key policy requirements.
+	PrivateKeyPolicyWebSession PrivateKeyPolicy = "web_session"
 )
 
 // IsSatisfiedBy returns whether this key policy is satisfied by the given key policy.
 func (requiredPolicy PrivateKeyPolicy) IsSatisfiedBy(keyPolicy PrivateKeyPolicy) bool {
+	// Web sessions are treated as a special case that meets all private key policy requirements.
+	if keyPolicy == PrivateKeyPolicyWebSession {
+		return true
+	}
+
 	switch requiredPolicy {
 	case PrivateKeyPolicyNone:
 		return true
 	case PrivateKeyPolicyHardwareKey:
-		return keyPolicy.IsHardwareKeyPolicy()
+		return keyPolicy.isHardwareKeyVerified()
 	case PrivateKeyPolicyHardwareKeyTouch:
 		return keyPolicy.isHardwareKeyTouchVerified()
 	case PrivateKeyPolicyHardwareKeyPIN:
@@ -59,6 +74,33 @@ func (requiredPolicy PrivateKeyPolicy) IsSatisfiedBy(keyPolicy PrivateKeyPolicy)
 		return keyPolicy.isHardwareKeyTouchVerified() && keyPolicy.isHardwareKeyPINVerified()
 	}
 
+	return false
+}
+
+func (p PrivateKeyPolicy) isHardwareKeyVerified() bool {
+	switch p {
+	case PrivateKeyPolicyHardwareKey,
+		PrivateKeyPolicyHardwareKeyTouch,
+		PrivateKeyPolicyHardwareKeyPIN,
+		PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		return true
+	}
+	return false
+}
+
+func (p PrivateKeyPolicy) isHardwareKeyTouchVerified() bool {
+	switch p {
+	case PrivateKeyPolicyHardwareKeyTouch, PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		return true
+	}
+	return false
+}
+
+func (p PrivateKeyPolicy) isHardwareKeyPINVerified() bool {
+	switch p {
+	case PrivateKeyPolicyHardwareKeyPIN, PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		return true
+	}
 	return false
 }
 
@@ -89,29 +131,14 @@ func (p PrivateKeyPolicy) MFAVerified() bool {
 	return p.isHardwareKeyTouchVerified() || p.isHardwareKeyPINVerified()
 }
 
-func (p PrivateKeyPolicy) isHardwareKeyTouchVerified() bool {
-	switch p {
-	case PrivateKeyPolicyHardwareKeyTouch, PrivateKeyPolicyHardwareKeyTouchAndPIN:
-		return true
-	}
-	return false
-}
-
-func (p PrivateKeyPolicy) isHardwareKeyPINVerified() bool {
-	switch p {
-	case PrivateKeyPolicyHardwareKeyPIN, PrivateKeyPolicyHardwareKeyTouchAndPIN:
-		return true
-	}
-	return false
-}
-
 func (p PrivateKeyPolicy) validate() error {
 	switch p {
 	case PrivateKeyPolicyNone,
 		PrivateKeyPolicyHardwareKey,
 		PrivateKeyPolicyHardwareKeyTouch,
 		PrivateKeyPolicyHardwareKeyPIN,
-		PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		PrivateKeyPolicyHardwareKeyTouchAndPIN,
+		PrivateKeyPolicyWebSession:
 		return nil
 	}
 	return trace.BadParameter("%q is not a valid key policy", p)
