@@ -7,12 +7,6 @@ h1: Teleport HSM Support
 This guide will show you how to set up the Teleport Auth Service to use a
 hardware security module (HSM) to store and handle private keys.
 
-<ScopedBlock scope={["oss", "cloud"]}>
-
-This guide is intended for Teleport Enterprise users.
-
-</ScopedBlock>
-
 ## Prerequisites
 
 - Teleport v(=teleport.version=) Enterprise (self-hosted).
@@ -229,7 +223,7 @@ to use.
    `yubihsm-connector` is listening on and enable debug logging:
 
    ```text
-   # /etc/yubishm_pkcs11.conf
+   # /etc/yubihsm_pkcs11.conf
    connector = https://127.0.0.1:12345
    debug
    ```
@@ -324,7 +318,7 @@ route any traffic to the auth server where the HSM is currently being added.
 
 When adding a new HSM to an existing Teleport cluster, or adding a new
 HSM-connected Auth server to an HA Teleport cluster, you will need to rotate all
-Certificate Authorities in order for new certificates to by issued and
+Certificate Authorities in order for new certificates to be issued and
 trusted.
 
 `tctl status` will print a warning if CA rotation is required:
@@ -332,14 +326,14 @@ trusted.
 $ tctl status
 WARNING: One or more auth servers has a newly added or removed HSM or KMS configured. You should not route traffic to that server until a CA rotation has been completed.
 Cluster      cluster-one
-Version      13.0.0-alpha.1
+Version      (=teleport.version=)
 host CA      never updated
 user CA      never updated
 db CA        never updated
 openssh CA   never updated
 jwt CA       never updated
 saml_idp CA  never updated
-CA pin       sha256:29afff5a1c1231375525b8a9b98ea7a44a760b7e65de3ca2e04d72db39b1672b
+CA pin       (=presets.ca_pin=)
 CA pin       sha256:e758c8f0f6cd95116d5da8171e0ff4adfa99dab3b1f171bfe854070884955524
 ```
 
@@ -357,4 +351,5 @@ All CAs listed in the output of `tctl status` must be rotated.
 You are all set! Check the teleport logs for `Creating new HSM key pair` to
 confirm that the feature is working. You can also check that keys were created
 in your HSM using your HSM's admin tool.
+
 

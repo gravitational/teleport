@@ -367,7 +367,9 @@ func (a *agent) connect() error {
 
 	if !a.lease.Claim(a.client.Principals()...) {
 		a.client.Close()
-		return trace.Errorf("Failed to claim proxy: %v claimed by another agent", a.client.Principals())
+		// the error message must end with [proxyAlreadyClaimedError] to be
+		// recognized by [isProxyAlreadyClaimed]
+		return trace.Errorf("failed to claim proxy %v: "+proxyAlreadyClaimedError, a.client.Principals())
 	}
 
 	startupCtx, cancel := context.WithCancel(a.ctx)
@@ -656,4 +658,22 @@ const (
 	chanDiscovery    = "teleport-discovery"
 	chanDiscoveryReq = "discovery"
 	reconnectRequest = "reconnect@goteleport.com"
+)
+
+const (
+	// LocalNode is a special non-resolvable address that indicates the request
+	// wants to connect to a dialed back node.
+	LocalNode = "@local-node"
+	// RemoteAuthServer is a special non-resolvable address that indicates client
+	// requests a connection to the remote auth server.
+	RemoteAuthServer = "@remote-auth-server"
+	// LocalKubernetes is a special non-resolvable address that indicates that clients
+	// requests a connection to the kubernetes endpoint of the local proxy.
+	// This has to be a valid domain name, so it lacks @
+	LocalKubernetes = "remote.kube.proxy." + constants.APIDomain
+	// LocalWindowsDesktop is a special non-resolvable address that indicates
+	// that clients requests a connection to the windows service endpoint of
+	// the local proxy.
+	// This has to be a valid domain name, so it lacks @
+	LocalWindowsDesktop = "remote.windows_desktop.proxy." + constants.APIDomain
 )

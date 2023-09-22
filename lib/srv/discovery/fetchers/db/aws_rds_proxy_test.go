@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 func TestRDSDBProxyFetcher(t *testing.T) {
@@ -70,7 +69,6 @@ func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rds.DBProxy, types
 	rdsProxy := mocks.RDSProxy(name, region, vpcID)
 	rdsProxyDatabase, err := services.NewDatabaseFromRDSProxy(rdsProxy, 9999, nil)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(rdsProxyDatabase, services.AWSMatcherRDSProxy)
 	return rdsProxy, rdsProxyDatabase
 }
 
@@ -78,6 +76,5 @@ func makeRDSProxyCustomEndpoint(t *testing.T, rdsProxy *rds.DBProxy, name, regio
 	rdsProxyEndpoint := mocks.RDSProxyCustomEndpoint(rdsProxy, name, region)
 	rdsProxyEndpointDatabase, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint, 9999, nil)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(rdsProxyEndpointDatabase, services.AWSMatcherRDSProxy)
 	return rdsProxyEndpoint, rdsProxyEndpointDatabase
 }

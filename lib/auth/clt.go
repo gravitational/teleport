@@ -32,9 +32,9 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -150,7 +150,17 @@ func (c *Client) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority
 	}
 
 	_, err := c.APIClient.UpsertCertAuthority(ctx, ca)
-	return trace.Wrap(err)
+	switch {
+	case err == nil:
+		return nil
+	// Fallback to HTTP API
+	// DELETE IN 14.0.0
+	case trace.IsNotImplemented(err):
+		err := c.HTTPClient.UpsertCertAuthority(ctx, ca)
+		return trace.Wrap(err)
+	default:
+		return trace.Wrap(err)
+	}
 }
 
 // CompareAndSwapCertAuthority updates existing cert authority if the existing cert authority
@@ -166,7 +176,17 @@ func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthTy
 	}
 
 	cas, err := c.APIClient.GetCertAuthorities(ctx, caType, loadKeys)
-	return cas, trace.Wrap(err)
+	switch {
+	case err == nil:
+		return cas, nil
+	// Fallback to HTTP API
+	// DELETE IN 14.0.0
+	case trace.IsNotImplemented(err):
+		cas, err := c.HTTPClient.GetCertAuthorities(ctx, caType, loadKeys)
+		return cas, trace.Wrap(err)
+	default:
+		return nil, trace.Wrap(err)
+	}
 }
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
@@ -177,7 +197,17 @@ func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, load
 	}
 
 	ca, err := c.APIClient.GetCertAuthority(ctx, id, loadSigningKeys)
-	return ca, trace.Wrap(err)
+	switch {
+	case err == nil:
+		return ca, nil
+	// Fallback to HTTP API
+	// DELETE IN 14.0.0
+	case trace.IsNotImplemented(err):
+		ca, err := c.HTTPClient.GetCertAuthority(ctx, id, loadSigningKeys)
+		return ca, trace.Wrap(err)
+	default:
+		return nil, trace.Wrap(err)
+	}
 }
 
 // DeleteCertAuthority deletes cert authority by ID
@@ -187,7 +217,17 @@ func (c *Client) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) e
 	}
 
 	err := c.APIClient.DeleteCertAuthority(ctx, id)
-	return trace.Wrap(err)
+	switch {
+	case err == nil:
+		return nil
+	// Fallback to HTTP API
+	// DELETE IN 14.0.0
+	case trace.IsNotImplemented(err):
+		err = c.HTTPClient.DeleteCertAuthority(ctx, id)
+		return trace.Wrap(err)
+	default:
+		return trace.Wrap(err)
+	}
 }
 
 // ActivateCertAuthority not implemented: can only be called locally.
@@ -248,11 +288,6 @@ func (c *Client) UpdateAndSwapUser(ctx context.Context, user string, withSecrets
 // CompareAndSwapUser not implemented: can only be called locally
 func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.User) error {
 	return trace.NotImplemented(notImplementedMessage)
-}
-
-// GetNodeStream not implemented: can only be called locally
-func (c *Client) GetNodeStream(_ context.Context, _ string) stream.Stream[types.Server] {
-	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
@@ -427,10 +462,6 @@ func (c *Client) DeleteAllLocks(context.Context) error {
 
 func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	return trace.NotImplemented(notImplementedMessage)
-}
-
-func (c *Client) StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server] {
-	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
 }
 
 func (c *Client) GetLicense(ctx context.Context) (string, error) {
@@ -852,6 +883,12 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	UserLoginStateClient() services.UserLoginStates
+
+	// ResourceUsageClient returns a resource usage service client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)

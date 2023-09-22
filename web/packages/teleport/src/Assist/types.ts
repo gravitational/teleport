@@ -26,8 +26,6 @@ export enum ServerMessageType {
   AssistPartialMessage = 'CHAT_PARTIAL_MESSAGE_ASSISTANT',
   AssistPartialMessageEnd = 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE',
   AssistThought = 'CHAT_MESSAGE_PROGRESS_UPDATE',
-  AccessRequests = 'ACCESS_REQUESTS',
-  AccessRequest = 'ACCESS_REQUEST',
 }
 
 // ExecutionEnvelopeType is the type of message that is returned when
@@ -121,43 +119,6 @@ export interface ResolvedCommandResultStreamServerMessage {
   created: Date;
 }
 
-export interface ResolvedAccessRequestServerMessage {
-  type: ServerMessageType.AccessRequest;
-  resources: Resource[];
-  reason: string;
-  created: Date;
-}
-
-export interface Resource {
-  type: string;
-  id: string;
-  name: string;
-  cluster: string;
-}
-
-export enum AccessRequestStatus {
-  Pending,
-  Approved,
-  Declined,
-}
-
-export interface AccessRequestEvent {
-  created: Date;
-  resources: Resource[];
-  message: string;
-  username: string;
-  roles: string[];
-}
-
-export interface ResolvedAccessRequestsServerMessage {
-  type: ServerMessageType.AccessRequests;
-  status: AccessRequestStatus;
-  summary: string;
-  username: string;
-  events: AccessRequestEvent[];
-  created: Date;
-}
-
 export type ResolvedServerMessage =
   | ResolvedCommandServerMessage
   | ResolvedAssistServerMessage
@@ -166,9 +127,7 @@ export type ResolvedServerMessage =
   | ResolvedCommandResultServerMessage
   | ResolvedCommandResultSummaryServerMessage
   | ResolvedAssistThoughtServerMessage
-  | ResolvedCommandResultStreamServerMessage
-  | ResolvedAccessRequestsServerMessage
-  | ResolvedAccessRequestServerMessage;
+  | ResolvedCommandResultStreamServerMessage;
 
 export interface GetConversationMessagesResponse {
   messages: ServerMessage[];

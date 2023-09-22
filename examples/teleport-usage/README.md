@@ -28,15 +28,20 @@ The following information is required:
 You may optionally specify the `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` environment variables
 to run the script from another location.
 
+Optionally, the environment variable `SHOW_USERS` can be set to `true` to display a list of users for each protocol.
+
 ## Running Docker Container
 
-This script is dependent of environment variables being set. Below is an example on how to run the script in Docker using environment variables:
-
-> **_NOTE:_** The latest container image version can be found at the top of this page. This version is independent of your Teleport cluster.
+With prompt:
 
 ```console
-$ docker run -it --rm -e "TABLE_NAME=cluster-events" \
-    -e "AWS_REGION=us-east-1" \
-    -e "START_DATE=2022-12-01" \ 
-    public.ecr.aws/gravitational/teleport-usage:<container-version>
+$ docker run -it --rm public.ecr.aws/gravitational/teleport-usage:<VERSION>
+```
+
+With environment variables:
+
+```console
+$ docker run -it --rm public.ecr.aws/gravitational/teleport-usage:<VERSION> \
+-e "TABLE_NAME=cluster-events" -e "AWS_REGION=us-east-1" \
+-e "START_DATE=2022-12-01"
 ```

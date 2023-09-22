@@ -111,9 +111,7 @@ func (a *gkeFetcher) getGKEClusters(ctx context.Context) (types.KubeClusters, er
 
 // rewriteKubeClusters rewrites the discovered kube clusters.
 func (a *gkeFetcher) rewriteKubeClusters(clusters types.KubeClusters) {
-	for _, c := range clusters {
-		common.ApplyGKENameSuffix(c)
-	}
+	// no-op
 }
 
 func (a *gkeFetcher) ResourceType() string {

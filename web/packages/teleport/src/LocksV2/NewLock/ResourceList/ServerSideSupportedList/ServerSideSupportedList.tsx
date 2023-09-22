@@ -153,7 +153,7 @@ export function ServerSideSupportedList(props: CommonListProps) {
               disabled={!fetchPrev || fetchStatus === 'loading'}
               mx={0}
             >
-              <CircleArrowLeft />
+              <CircleArrowLeft fontSize="3" />
             </StyledArrowBtn>
             <StyledArrowBtn
               ml={0}
@@ -161,7 +161,7 @@ export function ServerSideSupportedList(props: CommonListProps) {
               title="Next page"
               disabled={!fetchNext || fetchStatus === 'loading'}
             >
-              <CircleArrowRight />
+              <CircleArrowRight fontSize="3" />
             </StyledArrowBtn>
           </Flex>
         </Flex>

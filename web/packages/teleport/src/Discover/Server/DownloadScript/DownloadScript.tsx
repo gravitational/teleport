@@ -60,7 +60,7 @@ export default function Container(props: AgentStepProps) {
       fallbackFn={fbProps => (
         <Template prevStep={props.prevStep} nextStep={() => null}>
           <TextIcon mt={2} mb={3}>
-            <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
+            <Icons.Warning ml={1} color="error.main" />
             Encountered Error: {fbProps.error.message}
           </TextIcon>
         </Template>
@@ -146,7 +146,7 @@ export function DownloadScript(props: AgentStepProps) {
             white-space: pre;
           `}
         >
-          <Icons.Restore size="medium" mr={2} />
+          <Icons.Restore fontSize={4} />
         </TextIcon>
         After running the command above, we'll automatically detect your new
         Teleport instance.

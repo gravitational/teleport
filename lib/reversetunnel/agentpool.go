@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -119,9 +118,9 @@ type AgentPoolConfig struct {
 	// either be proxy (trusted clusters) or node (dial back).
 	Component string
 	// ReverseTunnelServer holds all reverse tunnel connections.
-	ReverseTunnelServer reversetunnelclient.Server
+	ReverseTunnelServer Server
 	// Resolver retrieves the reverse tunnel address
-	Resolver reversetunnelclient.Resolver
+	Resolver Resolver
 	// Cluster is a cluster name of the proxy.
 	Cluster string
 	// FIPS indicates if Teleport was started in FIPS mode.
@@ -268,7 +267,13 @@ func (p *AgentPool) run() error {
 
 		agent, err := p.connectAgent(p.ctx, p.events)
 		if err != nil {
-			p.log.WithError(err).Debugf("Failed to connect agent.")
+			// "proxy already claimed" is a fairly benign error, we should not
+			// spam the log with stack traces for it
+			if isProxyAlreadyClaimed(err) {
+				p.log.Debugf("Failed to connect agent: %v.", err)
+			} else {
+				p.log.WithError(err).Debugf("Failed to connect agent.")
+			}
 		} else {
 			p.wg.Add(1)
 			p.active.add(agent)
@@ -694,7 +699,7 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 	return nil
 }
 
-func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.ClusterNetworkingConfig, resolver reversetunnelclient.Resolver) {
+func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.ClusterNetworkingConfig, resolver Resolver) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

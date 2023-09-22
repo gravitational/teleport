@@ -54,10 +54,10 @@ export default function TrustedListItem(props: Props) {
         justifyContent="center"
         flexDirection="column"
       >
-        <Icons.Lan
+        <Icons.LanAlt
           my="4"
           style={{ textAlign: 'center' }}
-          size={48}
+          fontSize="48px"
           color="text.main"
         />
         <Text

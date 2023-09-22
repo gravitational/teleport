@@ -58,6 +58,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -450,12 +451,12 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithChainUnaryInterceptor(
-			otelgrpc.UnaryClientInterceptor(),
+			otelUnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
-			otelgrpc.StreamClientInterceptor(),
+			otelStreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 			breaker.StreamClientInterceptor(cb),
 		),
@@ -485,6 +486,36 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 
 	return nil
 }
+
+// TODO(noah): Once we upgrade to go 1.21, change invocations of this to
+// sync.OnceValue
+func onceValue[T any](f func() T) func() T {
+	var (
+		value T
+		once  sync.Once
+	)
+	return func() T {
+		once.Do(func() {
+			value = f()
+		})
+		return value
+	}
+}
+
+// We wrap the creation of the otelgrpc interceptors in a sync.Once - this is
+// because each time this is called, they create a new underlying metric. If
+// something (e.g tbot) is repeatedly creating new clients and closing them,
+// then this leads to a memory leak since the underlying metric is not cleaned
+// up.
+// See https://github.com/gravitational/teleport/issues/30759
+// See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4226
+var otelStreamClientInterceptor = onceValue(func() grpc.StreamClientInterceptor {
+	return otelgrpc.StreamClientInterceptor()
+})
+
+var otelUnaryClientInterceptor = onceValue(func() grpc.UnaryClientInterceptor {
+	return otelgrpc.UnaryClientInterceptor()
+})
 
 // ConfigureALPN configures ALPN SNI cluster routing information in TLS settings allowing for
 // allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
@@ -908,6 +939,16 @@ func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	return cert, nil
 }
 
+// UnstableAssertSystemRole is not a stable part of the public API.  Used by older
+// instances to prove that they hold a given system role.
+//
+// DELETE IN: 11.0 (server side method should continue to exist until 12.0 for back-compat reasons,
+// but v11 clients should no longer need this method)
+func (c *Client) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
+	_, err := c.grpc.UnstableAssertSystemRole(ctx, &req)
+	return trail.FromGRPC(err)
+}
+
 // EmitAuditEvent sends an auditable event to the auth server.
 func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	grpcEvent, err := events.ToOneOf(event)
@@ -1210,6 +1251,34 @@ func (c *Client) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 	}
 
 	return resp.GetSession(), nil
+}
+
+// GetAppSessions gets all application web sessions.
+func (c *Client) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
+	var (
+		nextToken string
+		sessions  []types.WebSession
+	)
+
+	// Leverages ListAppSessions instead of GetAppSessions to prevent
+	// the server from having to send all sessions in a single message.
+	// If there are enough sessions it can cause the max message size to be
+	// exceeded.
+	for {
+		webSessions, token, err := c.ListAppSessions(ctx, defaults.DefaultChunkSize, nextToken, "")
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+
+		sessions = append(sessions, webSessions...)
+		if token == "" {
+			break
+		}
+
+		nextToken = token
+	}
+
+	return sessions, nil
 }
 
 // ListAppSessions gets a paginated list of application web sessions.
@@ -1816,7 +1885,7 @@ func (c *Client) GetServerInfos(ctx context.Context) stream.Stream[types.ServerI
 	return stream.Func(func() (types.ServerInfo, error) {
 		si, err := serverInfos.Recv()
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			if trace.IsEOF(err) {
 				// io.EOF signals that stream has completed successfully
 				return nil, io.EOF
 			}
@@ -1951,7 +2020,15 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 			V2: tokenV2,
 		},
 	})
-	return trail.FromGRPC(err)
+	if err != nil {
+		err := trail.FromGRPC(err)
+		if trace.IsNotImplemented(err) {
+			_, err := c.grpc.UpsertToken(ctx, tokenV2)
+			return trail.FromGRPC(err)
+		}
+		return err
+	}
+	return nil
 }
 
 // CreateToken creates a provision token.
@@ -1966,7 +2043,15 @@ func (c *Client) CreateToken(ctx context.Context, token types.ProvisionToken) er
 			V2: tokenV2,
 		},
 	})
-	return trail.FromGRPC(err)
+	if err != nil {
+		err := trail.FromGRPC(err)
+		if trace.IsNotImplemented(err) {
+			_, err := c.grpc.CreateToken(ctx, tokenV2)
+			return trail.FromGRPC(err)
+		}
+		return err
+	}
+	return nil
 }
 
 // DeleteToken deletes a provision token by name.
@@ -3695,6 +3780,12 @@ func (c *Client) UpdateClusterMaintenanceConfig(ctx context.Context, cmc types.C
 	return trail.FromGRPC(err)
 }
 
+// DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
+func (c *Client) DeleteClusterMaintenanceConfig(ctx context.Context) error {
+	_, err := c.grpc.DeleteClusterMaintenanceConfig(ctx, &emptypb.Empty{})
+	return trail.FromGRPC(err)
+}
+
 // integrationsClient returns an unadorned Integration client, using the underlying
 // Auth gRPC connection.
 func (c *Client) integrationsClient() integrationpb.IntegrationServiceClient {
@@ -4038,4 +4129,13 @@ func (c *Client) UpsertUserPreferences(ctx context.Context, in *userpreferencesp
 		return trail.FromGRPC(err)
 	}
 	return nil
+}
+
+// ResourceUsageClient returns an unadorned Resource Usage service client,
+// using the underlying Auth gRPC connection.
+// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+// still get a plugins client when calling this method, but all RPCs will return
+// "not implemented" errors (as per the default gRPC behavior).
+func (c *Client) ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient {
+	return resourceusagepb.NewResourceUsageServiceClient(c.conn)
 }

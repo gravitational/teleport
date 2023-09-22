@@ -29,6 +29,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -66,6 +67,7 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -324,14 +326,8 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 				g.WithError(err).Debugf("Failed to decode event.")
 				return trace.Wrap(err)
 			}
-			// Currently only api/client.auditStreamer calls with an event
-			// and it always sends an events.PreparedSessionEvent, so
-			// this event can safely be assumed to be prepared. Use a
-			// events.NoOpPreparer to simply convert the event.
-			setter := &events.NoOpPreparer{}
 			start := time.Now()
-			preparedEvent, _ := setter.PrepareSessionEvent(event)
-			err = eventStream.RecordEvent(stream.Context(), preparedEvent)
+			err = eventStream.EmitAuditEvent(stream.Context(), event)
 			if err != nil {
 				switch {
 				case events.IsPermanentEmitError(err):
@@ -354,7 +350,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			}
 			diff := time.Since(start)
 			if diff > 100*time.Millisecond {
-				log.Warningf("RecordEvent(%v) took longer than 100ms: %v", event.GetType(), time.Since(event.GetTime()))
+				log.Warningf("EmitAuditEvent(%v) took longer than 100ms: %v", event.GetType(), time.Since(event.GetTime()))
 			}
 		} else {
 			g.Errorf("Rejecting unsupported stream request: %v.", request)
@@ -376,6 +372,11 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 		Name:                auth.User.GetName(),
 		Kinds:               watch.Kinds,
 		AllowPartialSuccess: watch.AllowPartialSuccess,
+	}
+
+	if clusterName, err := auth.GetClusterName(); err == nil {
+		// we might want to enforce a filter for older clients in certain conditions
+		maybeFilterCertAuthorityWatches(stream.Context(), clusterName.GetClusterName(), auth.Checker.RoleNames(), &servicesWatch)
 	}
 
 	watcher, err := auth.NewWatcher(stream.Context(), servicesWatch)
@@ -413,6 +414,56 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 		}
 	}
 }
+
+// maybeFilterCertAuthorityWatches will add filters to the CertAuthority
+// WatchKinds in the watch if the client is authenticated as just a `Node` with
+// no other roles and if the client is older than the cutoff version, and if the
+// WatchKind for KindCertAuthority is trivial, i.e. it's a WatchKind{Kind:
+// KindCertAuthority} with no other fields set. In any other case we will assume
+// that the client knows what it's doing and the cache watcher will still send
+// everything.
+//
+// DELETE IN 10.0, no supported clients should require this at that point
+func maybeFilterCertAuthorityWatches(ctx context.Context, clusterName string, roleNames []string, watch *types.Watch) {
+	if len(roleNames) != 1 || roleNames[0] != string(types.RoleNode) {
+		return
+	}
+
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+	if !ok {
+		log.Debug("no client version found in grpc context")
+		return
+	}
+
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	if err != nil {
+		log.WithError(err).Debugf("couldn't parse client version %q", clientVersionString)
+		return
+	}
+
+	// we treat the entire previous major version as "old" for this version
+	// check, even if there might have been backports; compliant clients will
+	// supply their own filter anyway
+	if !clientVersion.LessThan(certAuthorityFilterVersionCutoff) {
+		return
+	}
+
+	for i, k := range watch.Kinds {
+		if k.Kind != types.KindCertAuthority || !k.IsTrivial() {
+			continue
+		}
+
+		log.Debugf("Injecting filter for CertAuthority watch for Node-only watcher with version %v", clientVersion)
+		watch.Kinds[i].Filter = types.CertAuthorityFilter{
+			types.HostCA: clusterName,
+			types.UserCA: types.Wildcard,
+		}.IntoMap()
+	}
+}
+
+// certAuthorityFilterVersionCutoff is the version starting from which we stop
+// injecting filters for CertAuthority watches in maybeFilterCertAuthorityWatches.
+var certAuthorityFilterVersionCutoff = *semver.New("9.0.0")
 
 // resourceLabel returns the label for the provided types.Event
 func resourceLabel(event types.Event) string {
@@ -475,6 +526,20 @@ func (g *GRPCServer) GenerateOpenSSHCert(ctx context.Context, req *authpb.OpenSS
 	return cert, nil
 }
 
+// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+func (g *GRPCServer) UnstableAssertSystemRole(ctx context.Context, req *authpb.UnstableSystemRoleAssertion) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.UnstableAssertSystemRole(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 // icsServicesToMetricName is a helper for translating service names to keepalive names for control-stream
 // purposes. When new services switch to using control-stream based heartbeats, they should be added here.
 var icsServiceToMetricName = map[types.SystemRole]string{
@@ -525,7 +590,7 @@ func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryC
 	// hold open the stream until it completes
 	<-ics.Done()
 
-	if errors.Is(ics.Error(), io.EOF) {
+	if trace.IsEOF(ics.Error()) {
 		return nil
 	}
 
@@ -591,7 +656,7 @@ func (g *GRPCServer) GetInstances(filter *types.InstanceFilter, stream authpb.Au
 		}
 		if err := stream.Send(instance); err != nil {
 			instances.Done()
-			if errors.Is(err, io.EOF) {
+			if trace.IsEOF(err) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -1302,7 +1367,7 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 	// Okta are redirected differently which could create unpredictable or insecure behavior if applied
 	// to non-Okta apps.
 	hasOktaOrigin := server.Origin() == types.OriginOkta || app.Origin() == types.OriginOkta
-	if builtinRole, ok := auth.context.Identity.(authz.BuiltinRole); !ok || builtinRole.Role != types.RoleOkta {
+	if !authz.HasBuiltinRole(auth.context, string(types.RoleOkta)) {
 		if hasOktaOrigin {
 			return nil, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin")
 		}
@@ -1361,6 +1426,34 @@ func (g *GRPCServer) GetAppSession(ctx context.Context, req *authpb.GetAppSessio
 
 	return &authpb.GetAppSessionResponse{
 		Session: sess,
+	}, nil
+}
+
+// GetAppSessions gets all application web sessions.
+// DEPRECATED: ListAppSessions should be used instead to avoid retrieving all sessions at once.
+// TODO(tross): DELETE IN 13.0
+func (g *GRPCServer) GetAppSessions(ctx context.Context, _ *emptypb.Empty) (*authpb.GetAppSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessions, err := auth.GetAppSessions(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := make([]*types.WebSessionV2, 0, len(sessions))
+	for _, sess := range sessions {
+		s, ok := sess.(*types.WebSessionV2)
+		if !ok {
+			return nil, trace.BadParameter("unexpected type %T", sess)
+		}
+		out = append(out, s)
+	}
+
+	return &authpb.GetAppSessionsResponse{
+		Sessions: out,
 	}, nil
 }
 
@@ -1920,11 +2013,6 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 		return nil, trace.BadParameter("unrecognized client version: %s is not a valid semver", clientVersionString)
 	}
 
-	role, err = maybeDowngradeRoleToV6(ctx, role, clientVersion)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	role, err = maybeDowngradeRoleLabelExpressions(ctx, role, clientVersion)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1970,135 +2058,26 @@ func maybeDowngradeRoleLabelExpressions(ctx context.Context, role *types.RoleV6,
 	return role, nil
 }
 
-var minSupportedRoleV7Version = semver.New(utils.VersionBeforeAlpha("14.0.0"))
-
-// maybeDowngradeRoleToV6 tests the client version passed through the GRPC metadata, and
-// if the client version is less than the minimum supported version
-// for V7 roles returns a shallow copy of the given role downgraded to V6, If
-// the passed in role is already V6, it is returned unmodified.
-func maybeDowngradeRoleToV6(ctx context.Context, role *types.RoleV6, clientVersion *semver.Version) (*types.RoleV6, error) {
-	if !clientVersion.LessThan(*minSupportedRoleV7Version) || role.Version != types.V7 {
-		return role, nil
-	}
-
-	log.Debugf(`Client version "%s" is less than 14.0.0, converting role to v6`, clientVersion.String())
-
-	switch downgraded, isRestricted, err := downgradeRoleToV6(role); {
-	case err != nil:
-		return nil, trace.Wrap(err)
-	case isRestricted:
-		reason := fmt.Sprintf(`Client version %q does not support Role v7. `+
-			`Role %q will be downgraded by adding more stringent restriction rules for Kubernetes clusters which will affect its behavior before returning to the client. `+
-			`In order to guarantee the correct behavior, all clients must be updated to version %q or higher.`,
-			clientVersion, downgraded.GetName(), minSupportedRoleV7Version)
-		if downgraded.Metadata.Labels == nil {
-			downgraded.Metadata.Labels = make(map[string]string, 1)
-		}
-		downgraded.Metadata.Labels[types.TeleportDowngradedLabel] = reason
-		log.Debugf(`Downgrading role %q before returning it to the client: %s`,
-			role.GetName(), reason)
-		return downgraded, nil
-	default:
-		return downgraded, nil
-	}
-}
-
-// downgradeRoleToV6 converts a V7 role to V6 so that it will be compatible with
-// older instances. Makes a shallow copy if the conversion is necessary. The
-// passed in role will not be mutated.
-// DELETE IN 15.0.0
-func downgradeRoleToV6(r *types.RoleV6) (*types.RoleV6, bool, error) {
-	switch r.Version {
-	case types.V3, types.V4, types.V5, types.V6:
-		return r, false, nil
-	case types.V7:
-		var (
-			downgraded types.RoleV6
-			restricted bool
-		)
-		downgraded = *r
-		downgraded.Version = types.V6
-
-		if len(downgraded.GetKubeResources(types.Deny)) > 0 {
-			// V6 roles don't know about kubernetes resources besides "pod",
-			// so if the role denies any other resources, we need to deny all
-			// access to kubernetes.
-			// This is more restrictive than the original V7 role and it's the best
-			// we can do without leaking access to kubernetes resources that V6
-			// doesn't know about.
-			hasOtherResources := false
-			for _, resource := range downgraded.GetKubeResources(types.Deny) {
-				if resource.Kind != types.KindKubePod {
-					hasOtherResources = true
-					break
-				}
-			}
-			if hasOtherResources {
-				// If the role has deny rules for resources other than "pod", we
-				// need to deny all access to kubernetes because the Kubernetes
-				// service requesting this role isn't able to exclude those resources
-				// from the responses and the client will receive them.
-				downgraded.SetLabelMatchers(
-					types.Deny,
-					types.KindKubernetesCluster,
-					types.LabelMatchers{
-						Labels: types.Labels{
-							types.Wildcard: []string{types.Wildcard},
-						},
-					},
-				)
-				// Clear out the deny list so that the V6 role doesn't include unknown
-				// resources in the deny list.
-				downgraded.SetKubeResources(types.Deny, nil)
-				restricted = true
-			}
-		}
-
-		if len(downgraded.GetKubeResources(types.Allow)) > 0 {
-			// V6 roles don't know about kubernetes resources besides "pod",
-			// so if the role allows any resources, we need remove the role
-			// from being used for kubernetes access.
-			// If the role specifies any kubernetes resources, the V6 role will
-			// be unable to be used for kubernetes access because the labels
-			// will be empty and won't match anything.
-			downgraded.SetLabelMatchers(
-				types.Allow,
-				types.KindKubernetesCluster,
-				types.LabelMatchers{
-					Labels: types.Labels{},
-				},
-			)
-			// Clear out the allow list so that the V6 role doesn't include unknown
-			// resources in the allow list.
-			downgraded.SetKubeResources(types.Allow, nil)
-			restricted = true
-		}
-
-		return &downgraded, restricted, nil
-	default:
-		return nil, false, trace.BadParameter("unrecognized role version %T", r.Version)
-	}
-}
-
 // GetRole retrieves a role by name.
 func (g *GRPCServer) GetRole(ctx context.Context, req *authpb.GetRoleRequest) (*types.RoleV6, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleI, err := auth.ServerWithRoles.GetRole(ctx, req.Name)
+	role, err := auth.ServerWithRoles.GetRole(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, ok := roleI.(*types.RoleV6)
+	roleV6, ok := role.(*types.RoleV6)
 	if !ok {
 		return nil, trace.Errorf("encountered unexpected role type: %T", role)
 	}
 
-	downgraded, err := maybeDowngradeRole(ctx, role)
+	downgraded, err := maybeDowngradeRole(ctx, roleV6)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return downgraded, nil
 }
 
@@ -2108,12 +2087,12 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *emptypb.Empty) (*authpb.Ge
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	rolesI, err := auth.ServerWithRoles.GetRoles(ctx)
+	roles, err := auth.ServerWithRoles.GetRoles(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var roles []*types.RoleV6
-	for _, r := range rolesI {
+	var rolesV6 []*types.RoleV6
+	for _, r := range roles {
 		role, ok := r.(*types.RoleV6)
 		if !ok {
 			return nil, trace.BadParameter("unexpected type %T", r)
@@ -2122,10 +2101,10 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *emptypb.Empty) (*authpb.Ge
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		roles = append(roles, downgraded)
+		rolesV6 = append(rolesV6, downgraded)
 	}
 	return &authpb.GetRolesResponse{
-		Roles: roles,
+		Roles: rolesV6,
 	}, nil
 }
 
@@ -2763,8 +2742,6 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req auth
 		return nil, trace.BadParameter("can't parse client IP from peer info: %v", err)
 	}
 
-	// MFA certificates are supposed to be always pinned to IP, but it was decided to turn this off until
-	// IP pinning comes out of preview. Here we would add option to pin the cert, see commit of this comment for restoring.
 	opts := []certRequestOption{
 		certRequestMFAVerified(mfaDev.Id),
 		certRequestPreviousIdentityExpires(actx.Identity.GetIdentity().Expires),
@@ -3274,6 +3251,45 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.Pr
 	}, nil
 }
 
+// setDefaultTokenTTL replicates the old server-side behavior of universally
+// applying a 30 minute TTL default to newly created tokens.
+// This can be removed when CreateToken and UpsertToken are removed.
+func setDefaultTokenTTL(clock clockwork.Clock, token *types.ProvisionTokenV2) {
+	if token.Expiry().IsZero() || token.Expiry().Sub(clock.Now().UTC()) < time.Second {
+		token.SetExpiry(clock.Now().Add(defaults.ProvisioningTokenTTL))
+	}
+}
+
+// UpsertToken upserts a token.
+// Deprecated: use CreateTokenV2 instead. Delete in 14.0.0.
+func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionTokenV2) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	g.Warn("Deprecated RPC UpsertToken invoked. Upgrade your client or if manually invoking our gRPC RPCs switch to calling UpsertTokenV2. This will stop functioning in Teleport 14.0.0.")
+	setDefaultTokenTTL(g.AuthServer.GetClock(), token)
+	if err = auth.ServerWithRoles.UpsertToken(ctx, token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// CreateToken creates a token.
+// Deprecated: use CreateTokenV2 instead. Delete in 14.0.0.
+func (g *GRPCServer) CreateToken(ctx context.Context, token *types.ProvisionTokenV2) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	g.Warn("Deprecated RPC CreateToken invoked. Upgrade your client or if manually invoking our gRPC RPCs switch to calling CreateTokenV2. This will stop functioning in Teleport 14.0.0.")
+	setDefaultTokenTTL(g.AuthServer.GetClock(), token)
+	if err = auth.ServerWithRoles.CreateToken(ctx, token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // UpsertTokenV2 upserts a token.
 func (g *GRPCServer) UpsertTokenV2(ctx context.Context, req *authpb.UpsertTokenV2Request) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -3314,6 +3330,24 @@ func (g *GRPCServer) CreateTokenV2(ctx context.Context, req *authpb.CreateTokenV
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
+}
+
+// GenerateToken generates a new auth token.
+// Deprecated: Use CreateToken or UpdateToken.
+// DELETE IN 14.0.0, replaced by methods above (strideynet).
+func (g *GRPCServer) GenerateToken(ctx context.Context, req *authpb.GenerateTokenRequest) (*authpb.GenerateTokenResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	g.Warn("Deprecated GenerateToken RPC called. This will stop functioning in Teleport 14.0.0. Upgrade your client.")
+
+	token, err := auth.ServerWithRoles.GenerateToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &authpb.GenerateTokenResponse{Token: token}, nil
 }
 
 // DeleteToken deletes a token by name.
@@ -3779,9 +3813,7 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if app.Origin() == "" {
-		app.SetOrigin(types.OriginDynamic)
-	}
+	app.SetOrigin(types.OriginDynamic)
 	if err := auth.CreateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3794,9 +3826,7 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if app.Origin() == "" {
-		app.SetOrigin(types.OriginDynamic)
-	}
+	app.SetOrigin(types.OriginDynamic)
 	if err := auth.UpdateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4424,8 +4454,7 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 								AppServer: appOrSP,
 							},
 						},
-					},
-				}
+					}}
 			case *types.SAMLIdPServiceProviderV1:
 				protoResource = &authpb.PaginatedResource{
 					Resource: &authpb.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
@@ -4434,8 +4463,7 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 								SAMLIdPServiceProvider: appOrSP,
 							},
 						},
-					},
-				}
+					}}
 			default:
 				return nil, trace.BadParameter("expected types.SAMLIdPServiceProviderV1 or types.AppServerV3, got %T", resource)
 			}
@@ -5253,6 +5281,20 @@ func (g *GRPCServer) UpdateClusterMaintenanceConfig(ctx context.Context, cmc *ty
 	return &emptypb.Empty{}, nil
 }
 
+// DeleteClusterMaintenanceConfig deletes the current maintenance config singleton.
+func (g *GRPCServer) DeleteClusterMaintenanceConfig(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteClusterMaintenanceConfig(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 // GetBackend returns the backend from the underlying auth server.
 func (g *GRPCServer) GetBackend() backend.Backend {
 	return g.AuthServer.bk
@@ -5266,12 +5308,10 @@ type GRPCServerConfig struct {
 	TLS *tls.Config
 	// Middleware is the request TLS client authenticator
 	Middleware *Middleware
-	// UnaryInterceptor intercepts individual GRPC requests
-	// for authentication and rate limiting
-	UnaryInterceptor grpc.UnaryServerInterceptor
-	// UnaryInterceptor intercepts GRPC streams
-	// for authentication and rate limiting
-	StreamInterceptor grpc.StreamServerInterceptor
+	// UnaryInterceptors is the gRPC unary interceptor chain.
+	UnaryInterceptors []grpc.UnaryServerInterceptor
+	// StreamInterceptors is the gRPC stream interceptor chain.
+	StreamInterceptors []grpc.StreamServerInterceptor
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -5279,11 +5319,11 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 	if cfg.TLS == nil {
 		return trace.BadParameter("missing parameter TLS")
 	}
-	if cfg.UnaryInterceptor == nil {
-		return trace.BadParameter("missing parameter UnaryInterceptor")
+	if cfg.UnaryInterceptors == nil {
+		return trace.BadParameter("missing parameter UnaryInterceptors")
 	}
-	if cfg.StreamInterceptor == nil {
-		return trace.BadParameter("missing parameter StreamInterceptor")
+	if cfg.StreamInterceptors == nil {
+		return trace.BadParameter("missing parameter StreamInterceptors")
 	}
 	if cfg.Middleware == nil {
 		return trace.BadParameter("missing parameter Middleware")
@@ -5316,8 +5356,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	server := grpc.NewServer(
 		grpc.Creds(creds),
-		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptor),
-		grpc.ChainStreamInterceptor(cfg.StreamInterceptor),
+		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptors...),
+		grpc.ChainStreamInterceptor(cfg.StreamInterceptors...),
 		grpc.KeepaliveParams(
 			keepalive.ServerParameters{
 				Time:    cfg.KeepAlivePeriod,

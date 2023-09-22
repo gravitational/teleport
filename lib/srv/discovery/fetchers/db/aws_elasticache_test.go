@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 func TestElastiCacheFetcher(t *testing.T) {
@@ -109,14 +108,10 @@ func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func
 	if aws.BoolValue(cluster.ClusterEnabled) {
 		database, err := services.NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
 		require.NoError(t, err)
-		common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherElastiCache)
 		return cluster, types.Databases{database}, tags
 	}
 
 	databases, err := services.NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels)
 	require.NoError(t, err)
-	for _, database := range databases {
-		common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherElastiCache)
-	}
 	return cluster, databases, tags
 }

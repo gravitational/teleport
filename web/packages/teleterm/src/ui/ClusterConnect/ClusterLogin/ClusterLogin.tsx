@@ -60,7 +60,7 @@ export function ClusterLoginPresentation({
           Login to <b>{title}</b>
         </Text>
         <ButtonIcon ml="auto" p={3} onClick={onCloseDialog} aria-label="Close">
-          <Icons.Cross size="medium" />
+          <Icons.Close fontSize="20px" />
         </ButtonIcon>
       </DialogHeader>
       <DialogContent mb={0}>
@@ -118,13 +118,8 @@ function Reason({ reason }: { reason: ClusterConnectReason }) {
       if (gateway) {
         $targetDesc = (
           <>
-            <strong>{gateway.targetName}</strong>
-            {gateway.targetUser && (
-              <>
-                {' '}
-                as <strong>{gateway.targetUser}</strong>
-              </>
-            )}
+            <strong>{gateway.targetName}</strong> as{' '}
+            <strong>{gateway.targetUser}</strong>
           </>
         );
       } else {

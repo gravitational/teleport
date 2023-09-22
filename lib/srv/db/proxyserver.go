@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
@@ -85,7 +85,7 @@ type ProxyServerConfig struct {
 	// Authorizer is responsible for authorizing user identities.
 	Authorizer authz.Authorizer
 	// Tunnel is the reverse tunnel server.
-	Tunnel reversetunnelclient.Server
+	Tunnel reversetunnel.Server
 	// TLSConfig is the proxy server TLS configuration.
 	TLSConfig *tls.Config
 	// Limiter is the connection/rate limiter.
@@ -442,9 +442,9 @@ func (s *ProxyServer) SQLServerProxy() *sqlserver.Proxy {
 func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
 	var labels prometheus.Labels
 	if len(proxyCtx.Servers) > 0 {
-		labels = getLabelsFromDb(proxyCtx.Servers[0].GetDatabase())
+		labels = getLabelsFromDB(proxyCtx.Servers[0].GetDatabase())
 	} else {
-		labels = getLabelsFromDb(nil)
+		labels = getLabelsFromDB(nil)
 	}
 
 	labels["available_db_servers"] = strconv.Itoa(len(proxyCtx.Servers))
@@ -468,9 +468,10 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 		}
 
 		dialAttempts.With(labels).Inc()
-		serviceConn, err := proxyCtx.Cluster.Dial(reversetunnelclient.DialParams{
+
+		serviceConn, err := proxyCtx.Cluster.Dial(reversetunnel.DialParams{
 			From:                  clientSrcAddr,
-			To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
+			To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
 			OriginalClientDstAddr: clientDstAddr,
 			ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
 			ConnType:              types.DatabaseTunnel,
@@ -498,7 +499,7 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 // the reverse tunnel connection is down e.g. because the agent is down.
 func isReverseTunnelDownError(err error) bool {
 	return trace.IsConnectionProblem(err) ||
-		strings.Contains(err.Error(), reversetunnelclient.NoDatabaseTunnel)
+		strings.Contains(err.Error(), reversetunnel.NoDatabaseTunnel)
 }
 
 // Proxy starts proxying all traffic received from database client between
@@ -506,6 +507,9 @@ func isReverseTunnelDownError(err error) bool {
 //
 // Implements common.Service.
 func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, clientConn, serviceConn net.Conn) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	// Wrap a client connection with a monitor that auto-terminates
 	// idle connection and connection with expired cert.
 	var err error
@@ -515,6 +519,16 @@ func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, 
 		serviceConn.Close()
 		return trace.Wrap(err)
 	}
+
+	var labels prometheus.Labels
+	if len(proxyCtx.Servers) > 0 {
+		labels = getLabelsFromDB(proxyCtx.Servers[0].GetDatabase())
+	} else {
+		labels = getLabelsFromDB(nil)
+	}
+
+	activeConnections.With(labels).Inc()
+	defer activeConnections.With(labels).Dec()
 
 	return trace.Wrap(utils.ProxyConn(ctx, clientConn, serviceConn))
 }
@@ -554,7 +568,7 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 
 // getDatabaseServers finds database servers that proxy the database instance
 // encoded in the provided identity.
-func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Identity) (reversetunnelclient.RemoteSite, []types.DatabaseServer, error) {
+func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Identity) (reversetunnel.RemoteSite, []types.DatabaseServer, error) {
 	cluster, err := s.cfg.Tunnel.GetSite(identity.RouteToCluster)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -587,7 +601,7 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 // getConfigForServer returns TLS config used for establishing connection
 // to a remote database server over reverse tunnel.
 func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Identity, server types.DatabaseServer) (*tls.Config, error) {
-	defer observeLatency(tlsConfigTime.With(getLabelsFromDb(server.GetDatabase())))()
+	defer observeLatency(tlsConfigTime.With(getLabelsFromDB(server.GetDatabase())))()
 
 	privateKey, err := native.GeneratePrivateKey()
 	if err != nil {
@@ -663,7 +677,7 @@ func observeLatency(o prometheus.Observer) func() {
 
 var commonLabels = []string{teleport.ComponentLabel, "db_protocol", "db_type"}
 
-func getLabelsFromDb(db types.Database) prometheus.Labels {
+func getLabelsFromDB(db types.Database) prometheus.Labels {
 	if db != nil {
 		return map[string]string{
 			teleport.ComponentLabel: proxyServerComponent,
@@ -735,7 +749,17 @@ var (
 		commonLabels,
 	)
 
+	activeConnections = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "proxy_db",
+			Name:      "active_connections_total",
+			Help:      "Number of currently active connections to DB service from Proxy service.",
+		},
+		commonLabels,
+	)
+
 	prometheusCollectors = []prometheus.Collector{
-		connectionSetupTime, tlsConfigTime, dialAttempts, dialFailures, dialAttemptedServers,
+		connectionSetupTime, tlsConfigTime, dialAttempts, dialFailures, dialAttemptedServers, activeConnections,
 	}
 )

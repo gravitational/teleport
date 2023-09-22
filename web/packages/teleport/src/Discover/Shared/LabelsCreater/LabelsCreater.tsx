@@ -159,7 +159,7 @@ export function LabelsCreater({
                     `}
                     disabled={disableBtns}
                   >
-                    <Icons.Trash size="medium" />
+                    <Icons.Trash />
                   </ButtonIcon>
                 )}
               </Flex>
@@ -188,10 +188,13 @@ export function LabelsCreater({
         <Icons.Add
           className="icon-add"
           disabled={disableBtns}
-          size="small"
           css={`
+            font-weight: bold;
+            letter-spacing: 4px;
             margin-top: -2px;
-            margin-right: 3px;
+            &:after {
+              content: ' ';
+            }
           `}
         />
         Add New Label

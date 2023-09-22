@@ -56,7 +56,8 @@ func setupDynamoContext(t *testing.T) *dynamoContext {
 	if ok, _ := strconv.ParseBool(testEnabled); !ok {
 		t.Skip("Skipping AWS-dependent test suite.")
 	}
-	fakeClock := clockwork.NewFakeClockAt(time.Now().UTC())
+
+	fakeClock := clockwork.NewFakeClock()
 
 	log, err := New(context.Background(), Config{
 		Region:       "eu-north-1",
@@ -199,8 +200,7 @@ func TestLargeTableRetrieve(t *testing.T) {
 			UserMetadata: apievents.UserMetadata{User: "bob"},
 			Metadata: apievents.Metadata{
 				Type: events.UserLoginEvent,
-				Time: tt.suite.Clock.Now().UTC(),
-			},
+				Time: tt.suite.Clock.Now().UTC()},
 		})
 		require.NoError(t, err)
 	}
@@ -258,10 +258,10 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 	tt := setupDynamoContext(t)
 
 	ctx := context.Background()
-	now := tt.suite.Clock.Now().UTC()
+	now := tt.suite.Clock.Now()
 	dbQueryEvent := &apievents.DatabaseSessionQuery{
 		Metadata: apievents.Metadata{
-			Time: tt.suite.Clock.Now().UTC(),
+			Time: tt.suite.Clock.Now(),
 			Type: events.DatabaseSessionQueryEvent,
 		},
 		DatabaseQuery: strings.Repeat("A", maxItemSize),
@@ -280,13 +280,13 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 
 	appReqEvent := &apievents.AppSessionRequest{
 		Metadata: apievents.Metadata{
-			Time: tt.suite.Clock.Now().UTC(),
+			Time: tt.suite.Clock.Now(),
 			Type: events.AppSessionRequestEvent,
 		},
 		Path: strings.Repeat("A", maxItemSize),
 	}
 	err = tt.suite.Log.EmitAuditEvent(ctx, appReqEvent)
-	require.ErrorContains(t, err, "ValidationException: Item size has exceeded the maximum allowed size")
+	require.NoError(t, err)
 }
 
 func TestConfig_SetFromURL(t *testing.T) {
@@ -341,6 +341,7 @@ func TestConfig_SetFromURL(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
+
 			uri, err := url.Parse(tt.url)
 			require.NoError(t, err)
 			require.NoError(t, tt.cfg.SetFromURL(uri))

@@ -147,7 +147,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	switch filter.ResourceKind {
 	case types.KindNode,
 		types.KindDatabaseService,
-		types.KindKubernetesCluster,
+		types.KindKubernetesCluster, types.KindKubePod,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
 		types.KindUserGroup:
 		specResource = resource
@@ -191,14 +191,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 			return false, trace.BadParameter("expected types.SAMLIdPServiceProvider or types.AppServer, got %T", resource)
 		}
 	default:
-		// We check if the resource kind is a Kubernetes resource kind to reduce the amount of
-		// of cases we need to handle. If the resource type didn't match any arm before
-		// and it is not a Kubernetes resource kind, we return an error.
-		if !slices.Contains(types.KubernetesResourcesKinds, filter.ResourceKind) {
-			return false, trace.NotImplemented("filtering for resource kind %q not supported", filter.ResourceKind)
-		}
-		specResource = resource
-		resourceKey.name = specResource.GetName()
+		return false, trace.NotImplemented("filtering for resource kind %q not supported", filter.ResourceKind)
 	}
 
 	var match bool
@@ -375,15 +368,4 @@ const (
 var SupportedGCPMatchers = []string{
 	GCPMatcherKubernetes,
 	GCPMatcherCompute,
-}
-
-const (
-	// KubernetesMatchersApp is app matcher type for Kubernetes services
-	KubernetesMatchersApp = "app"
-)
-
-// SupportedKubernetesMatchers is a list of Kubernetes matchers supported by
-// Teleport discovery service
-var SupportedKubernetesMatchers = []string{
-	KubernetesMatchersApp,
 }

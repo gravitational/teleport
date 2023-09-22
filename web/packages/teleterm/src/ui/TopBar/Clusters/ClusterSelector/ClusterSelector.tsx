@@ -15,7 +15,7 @@
  */
 
 import React, { forwardRef } from 'react';
-import { ChevronUp, ChevronDown } from 'design/Icon';
+import { SortAsc, SortDesc } from 'design/Icon';
 import styled from 'styled-components';
 import { Text } from 'design';
 
@@ -31,7 +31,7 @@ interface ClusterSelectorProps {
 export const ClusterSelector = forwardRef<HTMLDivElement, ClusterSelectorProps>(
   (props, ref) => {
     const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
-    const SortIcon = props.isOpened ? ChevronUp : ChevronDown;
+    const SortIcon = props.isOpened ? SortAsc : SortDesc;
     const text = props.clusterName || 'Select Cluster';
 
     return (
@@ -52,7 +52,7 @@ export const ClusterSelector = forwardRef<HTMLDivElement, ClusterSelectorProps>(
         >
           {text}
         </Text>
-        <SortIcon size="small" ml={3} />
+        <SortIcon fontSize={12} ml={3} />
       </Container>
     );
   }

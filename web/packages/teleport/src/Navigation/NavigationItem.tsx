@@ -38,8 +38,8 @@ import { useTeleport } from 'teleport';
 import { NavTitle, RecommendationStatus } from 'teleport/types';
 
 import type {
-  TeleportFeature,
   TeleportFeatureNavigationItem,
+  TeleportFeature,
 } from 'teleport/types';
 
 interface NavigationItemProps {

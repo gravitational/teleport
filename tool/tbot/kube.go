@@ -18,7 +18,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"time"
 
@@ -63,15 +62,23 @@ func getCredentialData(idFile *identityfile.IdentityFile, currentTime time.Time)
 	return data, nil
 }
 
-func onKubeCredentialsCommand(cfg *config.BotConfig) error {
-	ctx := context.Background()
-
-	destination, err := tshwrap.GetDestinationDirectory(cfg)
+func onKubeCredentialsCommand(cfg *config.BotConfig, cf *config.CLIConf) error {
+	destination, err := tshwrap.GetDestination(cfg, cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	idData, err := destination.Read(ctx, config.IdentityFilePath)
+	identityTemplate, err := tshwrap.GetIdentityTemplate(destination)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	destImpl, err := destination.GetDestination()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	idData, err := destImpl.Read(identityTemplate.FileName)
 	if err != nil {
 		return trace.Wrap(err)
 	}

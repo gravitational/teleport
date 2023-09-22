@@ -35,7 +35,6 @@ export function getResourceUri(
       return document.clusterUri;
     case 'doc.gateway':
     case 'doc.gateway_cli_client':
-    case 'doc.gateway_kube':
       return document.targetUri;
     case 'doc.terminal_tsh_node':
       return isDocumentTshNodeWithServerId(document)
@@ -50,8 +49,6 @@ export function getResourceUri(
         rootClusterId: document.rootClusterId,
         leafClusterId: document.leafClusterId,
       });
-    case 'doc.connect_my_computer_setup':
-      return document.rootClusterUri;
     case 'doc.blank':
       return undefined;
     default:

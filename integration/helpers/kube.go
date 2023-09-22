@@ -16,22 +16,26 @@ package helpers
 
 import (
 	"context"
+	"crypto/x509/pkix"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -45,40 +49,24 @@ func EnableKube(t *testing.T, config *servicecfg.Config, clusterName string) err
 	if kubeConfigPath == "" {
 		return trace.BadParameter("missing kubeconfig path")
 	}
+	key, err := genUserKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
+		// By default this needs to be an arbitrary address guaranteed not to
+		// be in use, so we're using port 0 for now.
+		ClusterAddr: "https://localhost:0",
 
-	genKubeConfig(t, kubeConfigPath, clusterName)
+		TeleportClusterName: clusterName,
+		Credentials:         key,
+	}, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	config.Kube.Enabled = true
 	config.Kube.ListenAddr = utils.MustParseAddr(NewListener(t, service.ListenerKube, &config.FileDescriptors))
 	return nil
-}
-
-// genKubeConfig generates a kubeconfig file for a given cluster based on the
-// kubeMock server.
-func genKubeConfig(t *testing.T, kubeconfigPath, clusterName string) {
-	kubeMock, err := testingkubemock.NewKubeAPIMock()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		assert.NoError(t, kubeMock.Close())
-	})
-	cfg := clientcmdapi.Config{
-		Clusters: map[string]*clientcmdapi.Cluster{
-			clusterName: {
-				Server:                kubeMock.URL,
-				InsecureSkipTLSVerify: true,
-			},
-		},
-		AuthInfos: map[string]*clientcmdapi.AuthInfo{
-			clusterName: {},
-		},
-		Contexts: map[string]*clientcmdapi.Context{
-			clusterName: {
-				Cluster:  clusterName,
-				AuthInfo: clusterName,
-			},
-		},
-	}
-	err = kubeconfig.Save(kubeconfigPath, cfg)
-	require.NoError(t, err)
 }
 
 // GetKubeClusters gets all kubernetes clusters accessible from a given auth server.
@@ -96,4 +84,45 @@ func GetKubeClusters(t *testing.T, as *auth.Server) []types.KubeCluster {
 		clusters = append(clusters, ks.GetCluster())
 	}
 	return clusters
+}
+
+func genUserKey() (*client.Key, error) {
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName:   "localhost",
+		Organization: []string{"localhost"},
+	}, nil, defaults.CATTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := tlsca.FromKeys(caCert, caKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keygen := testauthority.New()
+	priv, err := keygen.GeneratePrivateKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clock := clockwork.NewRealClock()
+	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+		Clock:     clock,
+		PublicKey: priv.Public(),
+		Subject: pkix.Name{
+			CommonName: "teleport-user",
+		},
+		NotAfter: clock.Now().UTC().Add(time.Minute),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &client.Key{
+		PrivateKey: priv,
+		TLSCert:    tlsCert,
+		TrustedCerts: []auth.TrustedCerts{{
+			ClusterName:     "localhost",
+			TLSCertificates: [][]byte{caCert},
+		}},
+	}, nil
 }

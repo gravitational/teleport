@@ -175,7 +175,7 @@ export function NewLockView(props: Props) {
           <Flex alignItems="center">
             <ArrowBack
               as={Link}
-              size="large"
+              fontSize={25}
               mr={2}
               title="Go Back"
               to={cfg.getLocksRoute()}

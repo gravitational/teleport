@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // TestAzureMySQLFlexFetchers tests Azure MySQL Flexible server fetchers.
@@ -87,6 +86,5 @@ func makeAzureMySQLFlexServer(t *testing.T, name, subscription, group, region st
 	}
 	database, err := services.NewDatabaseFromAzureMySQLFlexServer(server)
 	require.NoError(t, err)
-	common.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherMySQL)
 	return server, database
 }

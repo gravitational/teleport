@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // TestAzurePostgresFlexFetchers tests Azure PostgreSQL Flexible server fetchers.
@@ -87,6 +86,5 @@ func makeAzurePostgresFlexServer(t *testing.T, name, subscription, group, region
 	}
 	database, err := services.NewDatabaseFromAzurePostgresFlexServer(server)
 	require.NoError(t, err)
-	common.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherPostgres)
 	return server, database
 }

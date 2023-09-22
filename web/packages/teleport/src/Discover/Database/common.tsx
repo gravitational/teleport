@@ -103,7 +103,7 @@ export const Labels = ({
       <Box mt={1} mb={3}>
         {showLabelMatchErr && (
           <TextIcon>
-            <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
+            <Icons.Warning ml={1} color="error.main" />
             The matcher labels must be able to match with the labels defined for
             the registered database. Use wildcards to match with any labels.
           </TextIcon>

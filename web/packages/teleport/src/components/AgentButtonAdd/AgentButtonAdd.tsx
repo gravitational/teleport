@@ -20,10 +20,14 @@ import { Link } from 'react-router-dom';
 import { ButtonPrimary } from 'design';
 
 import cfg from 'teleport/config';
+import { SearchResource } from 'teleport/Discover/SelectResource';
 
 export default function AgentButtonAdd(props: Props) {
   const { canCreate, isLeafCluster, onClick, agent, beginsWithVowel } = props;
   const disabled = isLeafCluster || !canCreate;
+
+  // Don't render button if it's disabled and feature hiding is enabled.
+  const hidden = disabled && cfg.hideInaccessibleFeatures;
 
   let title = '';
   if (!canCreate) {
@@ -36,6 +40,10 @@ export default function AgentButtonAdd(props: Props) {
     title = `Adding ${
       beginsWithVowel ? 'an' : 'a'
     } ${agent} to a leaf cluster is not supported`;
+  }
+
+  if (hidden) {
+    return null;
   }
 
   return (
@@ -58,17 +66,10 @@ export default function AgentButtonAdd(props: Props) {
   );
 }
 
-export type AddButtonResourceKind =
-  | 'server'
-  | 'application'
-  | 'desktop'
-  | 'kubernetes'
-  | 'database';
-
 export type Props = {
   isLeafCluster: boolean;
   canCreate: boolean;
   onClick?: () => void;
-  agent: AddButtonResourceKind;
+  agent: SearchResource;
   beginsWithVowel: boolean;
 };

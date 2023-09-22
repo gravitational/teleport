@@ -41,15 +41,6 @@ export type PtyServiceClient = {
 export type ShellCommand = PtyCommandBase & {
   kind: 'pty.shell';
   cwd?: string;
-  // env is a record of additional env variables that need to be set for the shell terminal and it
-  // will be merged with process env.
-  env?: Record<string, string>;
-  // initMessage is a help message presented to the user at the beginning of
-  // the shell to provide extra context.
-  //
-  // The initMessage is rendered on the terminal UI without being written or
-  // read by the underlying PTY.
-  initMessage?: string;
 };
 
 export type TshLoginCommand = PtyCommandBase & {

@@ -348,7 +348,7 @@ const EmptyIndicator = ({
             justifyContent: 'center',
           }}
         >
-          <Icons.Database mr={2} />
+          <Icons.Database mr="2" />
           {emptyText}
         </Text>
       </td>

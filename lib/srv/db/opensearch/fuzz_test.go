@@ -21,9 +21,6 @@ import (
 )
 
 func FuzzPathToMatcher(f *testing.F) {
-	f.Add("")
-	f.Add("a/b/c")
-
 	f.Add("/_security/foo")
 	f.Add("/_ssl/asd")
 	f.Add("/_search/")

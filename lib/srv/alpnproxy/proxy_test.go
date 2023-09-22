@@ -76,7 +76,7 @@ func TestProxyKubeHandler(t *testing.T) {
 	t.Parallel()
 	const (
 		kubernetesHandlerResponse = "kubernetes handler response"
-		kubeSNI                   = constants.KubeTeleportProxyALPNPrefix + "localhost"
+		kubeSNI                   = "kube.localhost"
 	)
 	suite := NewSuite(t)
 
@@ -458,8 +458,7 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 				"unknown-protocol1",
 				"unknown-protocol2",
 				"unknown-protocol3",
-				string(common.ProtocolProxySSH),
-			},
+				string(common.ProtocolProxySSH)},
 			ServerName:          "localhost",
 			wantProtocolHandler: string(common.ProtocolProxySSH),
 		},
@@ -472,6 +471,24 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 			ClientNextProtos:    nil,
 			ServerName:          "localhost",
 			wantProtocolHandler: string(common.ProtocolHTTP),
+		},
+		// DELETE IN 14.0 After deprecation of KubeSNIPrefix routing prefix.
+		{
+			name:             "kube ServerName prefix should route to kube handler",
+			ClientNextProtos: nil,
+			ServerName:       fmt.Sprintf("%s%s", constants.KubeSNIPrefix, "localhost"),
+			handlers: []HandlerDecs{
+				makeHandler(common.ProtocolHTTP),
+			},
+			kubeHandler: HandlerDecs{
+				Handler: func(ctx context.Context, conn net.Conn) error {
+					defer conn.Close()
+					_, err := fmt.Fprint(conn, "kube")
+					require.NoError(t, err)
+					return nil
+				},
+			},
+			wantProtocolHandler: "kube",
 		},
 		{
 			name:             "kube KubeTeleportProxyALPNPrefix prefix should route to kube handler",

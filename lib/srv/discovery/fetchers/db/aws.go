@@ -124,7 +124,6 @@ func (f *awsFetcher) getDatabases(ctx context.Context) (types.Databases, error) 
 func (f *awsFetcher) rewriteDatabases(databases types.Databases) {
 	for _, db := range databases {
 		f.applyAssumeRole(db)
-		common.ApplyAWSDatabaseNameSuffix(db, f.cfg.Type)
 	}
 }
 

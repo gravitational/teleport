@@ -44,9 +44,6 @@ import Menu, { MenuItem, MenuItemIcon } from './Menu';
 import { Pill } from './Pill';
 import Popover from './Popover';
 import { TextArea } from './TextArea';
-import { ResourceIcon } from './ResourceIcon';
-
-import type { TextAreaProps } from './TextArea';
 
 export { AnimatedProgressBar } from './AnimatedProgressBar';
 export {
@@ -74,7 +71,6 @@ export {
   Pill,
   Popover,
   Image,
-  ResourceIcon,
   SideNav,
   SideNavItem,
   StepSlider,
@@ -84,5 +80,5 @@ export {
   MenuItem,
   MenuItemIcon,
   TextArea,
-  TextAreaProps,
 };
+export type { TextAreaProps } from './TextArea';

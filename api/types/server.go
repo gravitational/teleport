@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -67,6 +68,12 @@ type Server interface {
 	SetPublicAddrs([]string)
 	// SetNamespace sets server namespace
 	SetNamespace(namespace string)
+	// GetApps gets the list of applications this server is proxying.
+	// DELETE IN 9.0.
+	GetApps() []*App
+	// GetApps gets the list of applications this server is proxying.
+	// DELETE IN 9.0.
+	SetApps([]*App)
 	// GetPeerAddr returns the peer address of the server.
 	GetPeerAddr() string
 	// SetPeerAddr sets the peer address of the server.
@@ -79,6 +86,8 @@ type Server interface {
 
 	// GetCloudMetadata gets the cloud metadata for the server.
 	GetCloudMetadata() *CloudMetadata
+	// GetAWSInfo returns the AWSInfo for the server.
+	GetAWSInfo() *AWSInfo
 	// SetCloudMetadata sets the server's cloud metadata.
 	SetCloudMetadata(meta *CloudMetadata)
 
@@ -313,6 +322,16 @@ func (s *ServerV2) SetCmdLabels(cmdLabels map[string]CommandLabel) {
 	s.Spec.CmdLabels = LabelsToV2(cmdLabels)
 }
 
+// GetApps gets the list of applications this server is proxying.
+func (s *ServerV2) GetApps() []*App {
+	return s.Spec.Apps
+}
+
+// SetApps sets the list of applications this server is proxying.
+func (s *ServerV2) SetApps(apps []*App) {
+	s.Spec.Apps = apps
+}
+
 func (s *ServerV2) String() string {
 	return fmt.Sprintf("Server(name=%v, namespace=%v, addr=%v, labels=%v)", s.Metadata.Name, s.Metadata.Namespace, s.Spec.Addr, s.Metadata.Labels)
 }
@@ -370,7 +389,13 @@ func (s *ServerV2) setStaticFields() {
 // IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
 // This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 func (s *ServerV2) IsOpenSSHNode() bool {
-	return s.SubKind == SubKindOpenSSHNode || s.SubKind == SubKindOpenSSHEICENode
+	return IsOpenSSHNodeSubKind(s.SubKind)
+}
+
+// IsOpenSSHNodeSubKind returns whether the Node SubKind is from a server which accepts connections over the
+// OpenSSH daemon (instead of a Teleport Node).
+func IsOpenSSHNodeSubKind(subkind string) bool {
+	return subkind == SubKindOpenSSHNode || subkind == SubKindOpenSSHEICENode
 }
 
 // openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.
@@ -418,6 +443,9 @@ func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() er
 
 	case s.Spec.CloudMetadata.AWS.VPCID == "":
 		return trace.BadParameter("missing AWS VPC ID (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.SubnetID == "":
+		return trace.BadParameter("missing AWS Subnet ID (required for %q SubKind)", s.SubKind)
 	}
 
 	return nil
@@ -502,9 +530,28 @@ func (s *ServerV2) GetCloudMetadata() *CloudMetadata {
 	return s.Spec.CloudMetadata
 }
 
+// GetAWSInfo gets the AWS Cloud metadata for the server.
+func (s *ServerV2) GetAWSInfo() *AWSInfo {
+	if s.Spec.CloudMetadata == nil {
+		return nil
+	}
+
+	return s.Spec.CloudMetadata.AWS
+}
+
 // SetCloudMetadata sets the server's cloud metadata.
 func (s *ServerV2) SetCloudMetadata(meta *CloudMetadata) {
 	s.Spec.CloudMetadata = meta
+}
+
+// IsAWSConsole returns true if this app is AWS management console.
+func (a *App) IsAWSConsole() bool {
+	return strings.HasPrefix(a.URI, constants.AWSConsoleURL)
+}
+
+// GetAWSAccountID returns value of label containing AWS account ID on this app.
+func (a *App) GetAWSAccountID() string {
+	return a.StaticLabels[constants.AWSAccountIDLabel]
 }
 
 // CommandLabel is a label that has a value as a result of the

@@ -51,6 +51,7 @@ export type SideNavItem = {
 const StyledNav = styled(Flex)`
   min-width: 180px;
   overflow: auto;
+  height: 100%;
 `;
 
 function createItems(): SideNavItem[] {

@@ -27,7 +27,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/utils"
@@ -149,11 +148,7 @@ func (rd *Redirector) Start() error {
 		}
 		rd.server = &httptest.Server{
 			Listener: listener,
-			Config: &http.Server{
-				Handler:           rd.mux,
-				ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
-				IdleTimeout:       apidefaults.DefaultIdleTimeout,
-			},
+			Config:   &http.Server{Handler: rd.mux},
 		}
 		rd.server.Start()
 	} else {
@@ -201,13 +196,13 @@ func (rd *Redirector) issueSSOLoginConsoleRequest(req SSOLoginConsoleReq) (*SSOL
 		return nil, trace.Wrap(err)
 	}
 
-	var re *SSOLoginConsoleResponse
+	var re SSOLoginConsoleResponse
 	err = json.Unmarshal(out.Bytes(), &re)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return re, nil
+	return &re, nil
 }
 
 // Done is called when redirector is closed
@@ -252,13 +247,13 @@ func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*auth.SS
 		return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
 	}
 
-	var re *auth.SSHLoginResponse
+	var re auth.SSHLoginResponse
 	err = json.Unmarshal(plaintext, &re)
 	if err != nil {
 		return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
 	}
 
-	return re, nil
+	return &re, nil
 }
 
 // Close closes redirector and releases all resources

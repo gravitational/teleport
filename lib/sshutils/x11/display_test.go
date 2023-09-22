@@ -22,79 +22,79 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var parseDisplayTestCases = []struct {
-	desc             string
-	displayString    string
-	expectDisplay    Display
-	expectParseError bool
-	expectUnixAddr   string
-	expectTCPAddr    string
-}{
-	{
-		desc:           "unix socket",
-		displayString:  ":10",
-		expectDisplay:  Display{DisplayNumber: 10},
-		expectUnixAddr: filepath.Join(x11SockDir(), "X10"),
-	}, {
-		desc:           "unix socket",
-		displayString:  "::10",
-		expectDisplay:  Display{DisplayNumber: 10},
-		expectUnixAddr: filepath.Join(x11SockDir(), "X10"),
-	}, {
-		desc:           "unix socket",
-		displayString:  "unix:10",
-		expectDisplay:  Display{HostName: "unix", DisplayNumber: 10},
-		expectUnixAddr: filepath.Join(x11SockDir(), "X10"),
-	}, {
-		desc:           "unix socket with screen number",
-		displayString:  "unix:10.1",
-		expectDisplay:  Display{HostName: "unix", DisplayNumber: 10, ScreenNumber: 1},
-		expectUnixAddr: filepath.Join(x11SockDir(), "X10"),
-	}, {
-		desc:          "localhost",
-		displayString: "localhost:10",
-		expectDisplay: Display{HostName: "localhost", DisplayNumber: 10},
-		expectTCPAddr: "127.0.0.1:6010",
-	}, {
-		desc:          "some ip address",
-		displayString: "1.2.3.4:10",
-		expectDisplay: Display{HostName: "1.2.3.4", DisplayNumber: 10},
-		expectTCPAddr: "1.2.3.4:6010",
-	}, {
-		desc:          "invalid ip address",
-		displayString: "1.2.3.4.5:10",
-		expectDisplay: Display{HostName: "1.2.3.4.5", DisplayNumber: 10},
-	}, {
-		desc:             "empty",
-		displayString:    "",
-		expectParseError: true,
-	}, {
-		desc:             "no display number",
-		displayString:    ":",
-		expectParseError: true,
-	}, {
-		desc:             "negative display number",
-		displayString:    ":-10",
-		expectParseError: true,
-	}, {
-		desc:             "negative screen number",
-		displayString:    ":10.-1",
-		expectParseError: true,
-	}, {
-		desc:             "invalid characters",
-		displayString:    "$(exec ls)",
-		expectParseError: true,
-	}, {
-		desc:             "invalid unix socket",
-		displayString:    "/some/socket/without/display",
-		expectParseError: true,
-	},
-}
-
 func TestDisplay(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range parseDisplayTestCases {
+	testCases := []struct {
+		desc             string
+		displayString    string
+		expectDisplay    Display
+		expectParseError bool
+		expectUnixAddr   string
+		expectTCPAddr    string
+	}{
+		{
+			desc:           "unix socket",
+			displayString:  ":10",
+			expectDisplay:  Display{DisplayNumber: 10},
+			expectUnixAddr: filepath.Join(x11SockDir(), "X10"),
+		}, {
+			desc:           "unix socket",
+			displayString:  "::10",
+			expectDisplay:  Display{DisplayNumber: 10},
+			expectUnixAddr: filepath.Join(x11SockDir(), "X10"),
+		}, {
+			desc:           "unix socket",
+			displayString:  "unix:10",
+			expectDisplay:  Display{HostName: "unix", DisplayNumber: 10},
+			expectUnixAddr: filepath.Join(x11SockDir(), "X10"),
+		}, {
+			desc:           "unix socket with screen number",
+			displayString:  "unix:10.1",
+			expectDisplay:  Display{HostName: "unix", DisplayNumber: 10, ScreenNumber: 1},
+			expectUnixAddr: filepath.Join(x11SockDir(), "X10"),
+		}, {
+			desc:          "localhost",
+			displayString: "localhost:10",
+			expectDisplay: Display{HostName: "localhost", DisplayNumber: 10},
+			expectTCPAddr: "127.0.0.1:6010",
+		}, {
+			desc:          "some ip address",
+			displayString: "1.2.3.4:10",
+			expectDisplay: Display{HostName: "1.2.3.4", DisplayNumber: 10},
+			expectTCPAddr: "1.2.3.4:6010",
+		}, {
+			desc:          "invalid ip address",
+			displayString: "1.2.3.4.5:10",
+			expectDisplay: Display{HostName: "1.2.3.4.5", DisplayNumber: 10},
+		}, {
+			desc:             "empty",
+			displayString:    "",
+			expectParseError: true,
+		}, {
+			desc:             "no display number",
+			displayString:    ":",
+			expectParseError: true,
+		}, {
+			desc:             "negative display number",
+			displayString:    ":-10",
+			expectParseError: true,
+		}, {
+			desc:             "negative screen number",
+			displayString:    ":10.-1",
+			expectParseError: true,
+		}, {
+			desc:             "invalid characters",
+			displayString:    "$(exec ls)",
+			expectParseError: true,
+		}, {
+			desc:             "invalid unix socket",
+			displayString:    "/some/socket/without/display",
+			expectParseError: true,
+		},
+	}
+
+	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			display, err := ParseDisplay(tc.displayString)
 			if tc.expectParseError == true {

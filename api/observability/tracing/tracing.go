@@ -47,9 +47,3 @@ func WithPropagationContext(ctx context.Context, pc PropagationContext, opts ...
 func DefaultProvider() oteltrace.TracerProvider {
 	return otel.GetTracerProvider()
 }
-
-// NewTracer creates a new [oteltrace.Tracer] from the global default
-// [oteltrace.TracerProvider] with the provided name.
-func NewTracer(name string) oteltrace.Tracer {
-	return DefaultProvider().Tracer(name)
-}

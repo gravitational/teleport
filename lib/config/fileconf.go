@@ -30,13 +30,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
@@ -45,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
@@ -480,35 +479,13 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	if err := checkAndSetDefaultsForGCPMatchers(conf.Discovery.GCPMatchers); err != nil {
 		return trace.Wrap(err)
 	}
-	if len(conf.Discovery.KubernetesMatchers) > 0 {
-		if conf.Discovery.DiscoveryGroup == "" {
-			// TODO(anton): add link to documentation when it's available
-			return trace.BadParameter(`parameter 'discovery_group' should be defined for discovery service if
-kubernetes matchers are present`)
-		}
-		if err := checkAndSetDefaultsForKubeMatchers(conf.Discovery.KubernetesMatchers); err != nil {
-			return trace.Wrap(err)
-		}
-	}
 
 	return nil
-}
-
-// awsRegions returns the list of all regions available on every aws partition.
-// It is used to validate the AWSMatcher.Regions values.
-func awsRegions() []string {
-	var regions []string
-	partitions := endpoints.DefaultPartitions()
-	for _, partition := range partitions {
-		regions = append(regions, maps.Keys(partition.Regions())...)
-	}
-	return regions
 }
 
 // checkAndSetDefaultsForAWSMatchers sets the default values for discovery AWS matchers
 // and validates the provided types.
 func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
-	regions := awsRegions()
 	for i := range matcherInput {
 		matcher := &matcherInput[i]
 		for _, matcherType := range matcher.Types {
@@ -520,13 +497,13 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 
 		if len(matcher.Regions) == 0 {
 			return trace.BadParameter("discovery service requires at least one region; supported regions are: %v",
-				regions)
+				awsutils.GetKnownRegions())
 		}
 
 		for _, region := range matcher.Regions {
-			if !slices.Contains(regions, region) {
+			if err := awsapiutils.IsValidRegion(region); err != nil {
 				return trace.BadParameter("discovery service does not support region %q; supported regions are: %v",
-					region, regions)
+					region, awsutils.GetKnownRegions())
 			}
 		}
 
@@ -715,8 +692,16 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 			return trace.BadParameter("GCP discovery service project_ids does cannot be empty; please specify at least one value in project_ids.")
 		}
 
-		if len(matcher.Tags) == 0 {
-			matcher.Tags = map[string]apiutils.Strings{
+		if len(matcher.Labels) > 0 && len(matcher.Tags) > 0 {
+			return trace.BadParameter("labels and tags should not both be set.")
+		}
+
+		if len(matcher.Tags) > 0 {
+			matcher.Labels = matcher.Tags
+		}
+
+		if len(matcher.Labels) == 0 {
+			matcher.Labels = map[string]apiutils.Strings{
 				types.Wildcard: {types.Wildcard},
 			}
 		}
@@ -751,35 +736,6 @@ func checkAndSetDefaultsForGCPInstaller(matcher *GCPMatcher) error {
 	if installer := matcher.InstallParams.ScriptName; installer == "" {
 		matcher.InstallParams.ScriptName = installers.InstallerScriptName
 	}
-	return nil
-}
-
-// checkAndSetDefaultsForKubeMatchers sets the default values for Kubernetes matchers
-// and validates the provided types.
-func checkAndSetDefaultsForKubeMatchers(matchers []KubernetesMatcher) error {
-	for i := range matchers {
-		matcher := &matchers[i]
-
-		for _, t := range matcher.Types {
-			if !slices.Contains(services.SupportedKubernetesMatchers, t) {
-				return trace.BadParameter("Kubernetes discovery does not support %q resource type; supported resource types are: %v",
-					t, services.SupportedKubernetesMatchers)
-			}
-		}
-
-		if len(matcher.Types) == 0 {
-			matcher.Types = []string{services.KubernetesMatchersApp}
-		}
-
-		if len(matcher.Namespaces) == 0 {
-			matcher.Namespaces = []string{types.Wildcard}
-		}
-
-		if len(matcher.Labels) == 0 {
-			matcher.Labels = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
-		}
-	}
-
 	return nil
 }
 
@@ -1657,9 +1613,6 @@ type Discovery struct {
 	// GCPMatchers are used to match GCP resources.
 	GCPMatchers []GCPMatcher `yaml:"gcp,omitempty"`
 
-	// KubernetesMatchers are used to match services inside Kubernetes cluster for auto discovery
-	KubernetesMatchers []KubernetesMatcher `yaml:"kubernetes,omitempty"`
-
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another
@@ -1668,9 +1621,6 @@ type Discovery struct {
 	// for all discovery services. If different agents are used to discover different
 	// sets of cloud resources, this field must be different for each set of agents.
 	DiscoveryGroup string `yaml:"discovery_group,omitempty"`
-	// PollInterval is the cadence at which the discovery server will run each of its
-	// discovery cycles.
-	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
 // GCPMatcher matches GCP resources.
@@ -1679,7 +1629,9 @@ type GCPMatcher struct {
 	Types []string `yaml:"types,omitempty"`
 	// Locations are GKE locations to search resources for.
 	Locations []string `yaml:"locations,omitempty"`
-	// Tags are GCP labels to match.
+	// Labels are GCP labels to match.
+	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
+	// Tags are an alias for Labels, for backwards compatibility.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 	// ProjectIDs are the GCP project ID where the resources are deployed.
 	ProjectIDs []string `yaml:"project_ids,omitempty"`
@@ -1911,16 +1863,6 @@ type AzureMatcher struct {
 	// InstallParams sets the join method when installing on
 	// discovered Azure nodes.
 	InstallParams *InstallParams `yaml:"install,omitempty"`
-}
-
-// KubernetesMatcher matches Kubernetes resources.
-type KubernetesMatcher struct {
-	// Types are Kubernetes services types to match. Currently only 'app' is supported.
-	Types []string `yaml:"types,omitempty"`
-	// Namespaces are Kubernetes namespaces in which to discover services
-	Namespaces []string `yaml:"namespaces,omitempty"`
-	// Labels are Kubernetes services labels to match.
-	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
 }
 
 // Database represents a single database proxied by the service.
@@ -2548,6 +2490,9 @@ type Okta struct {
 
 	// APITokenPath is the path to the Okta API token.
 	APITokenPath string `yaml:"api_token_path,omitempty"`
+
+	// SyncPeriod is the duration between synchronization calls.
+	SyncPeriod time.Duration `yaml:"sync_period,omitempty"`
 }
 
 // JamfService is the yaml representation of jamf_service.

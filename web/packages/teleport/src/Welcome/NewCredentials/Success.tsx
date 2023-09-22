@@ -15,7 +15,9 @@
  */
 
 import React from 'react';
-import { ButtonPrimary, Card, Flex, Image, Text } from 'design';
+import { ButtonPrimary, Flex, Image, Text } from 'design';
+
+import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
@@ -42,16 +44,9 @@ export function RegisterSuccess({
   };
 
   return (
-    <Card
-      width="540px"
-      p={6}
-      bg="levels.surface"
-      mt={6}
-      mx="auto"
-      textAlign="center"
-    >
+    <OnboardCard center>
       <Text
-        typography="h3"
+        typography="h4"
         color="text"
         mb={3}
         style={{ textTransform: 'capitalize' }}
@@ -69,6 +64,6 @@ export function RegisterSuccess({
       <ButtonPrimary width="100%" size="large" onClick={handleRedirect}>
         Go to {isDashboard ? 'Dashboard' : 'Cluster'}
       </ButtonPrimary>
-    </Card>
+    </OnboardCard>
   );
 }

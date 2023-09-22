@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
-	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -96,7 +95,7 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 	// Extract session cookie and bearer token.
 	require.Len(t, resp.Cookies(), 1)
 	cookie := resp.Cookies()[0]
-	require.Equal(t, cookie.Name, websession.CookieName)
+	require.Equal(t, cookie.Name, web.CookieName)
 
 	webClient := &WebClientPack{
 		clt:         client,
@@ -133,7 +132,7 @@ func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload
 	require.NoError(t, err)
 
 	req.AddCookie(&http.Cookie{
-		Name:  websession.CookieName,
+		Name:  web.CookieName,
 		Value: w.webCookie,
 	})
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", w.bearerToken))
@@ -180,7 +179,7 @@ func (w *WebClientPack) OpenWebsocket(t *testing.T, endpoint string, params any)
 	}
 
 	cookie := &http.Cookie{
-		Name:  websession.CookieName,
+		Name:  web.CookieName,
 		Value: w.webCookie,
 	}
 

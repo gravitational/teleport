@@ -18,11 +18,10 @@ package client
 
 import (
 	"context"
-	"io"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -101,5 +100,5 @@ func TestInventoryControlStreamPipe(t *testing.T) {
 		t.Fatal("timeout waiting for close")
 	}
 
-	assert.ErrorIs(t, downstream.Error(), io.EOF)
+	require.True(t, trace.IsEOF(downstream.Error()))
 }

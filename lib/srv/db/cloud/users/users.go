@@ -206,6 +206,10 @@ func (u *Users) setupAllDatabasesAndRotatePassowrds(ctx context.Context, allData
 // rotate user passwords.
 func (u *Users) setupDatabasesAndRotatePasswords(ctx context.Context, databases types.Databases, updateMeta bool) {
 	for _, database := range databases {
+		// Reset cache in case the same database name is now used for a
+		// different database server.
+		u.lookup.removeIfURIChanged(database)
+
 		fetcher, found := u.fetchersByType[database.GetType()]
 		if !found {
 			continue

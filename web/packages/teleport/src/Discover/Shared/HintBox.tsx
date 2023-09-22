@@ -66,7 +66,7 @@ export function HintBox(props: React.PropsWithChildren<HintBoxProps>) {
               white-space: pre;
             `}
           >
-            <Icons.Warning size="small" color="warning.main" mr={1} />
+            <Icons.Warning fontSize={4} color="warning.main" />
           </TextIcon>
           {props.header}
         </Flex>
@@ -85,7 +85,7 @@ export function SuccessBox(props: { children: React.ReactNode }) {
           white-space: pre;
         `}
       >
-        <Icons.CircleCheck size="medium" color="success" />
+        <Icons.CircleCheck fontSize={4} color="success" />
       </TextIcon>
       {props.children}
     </SuccessInfo>

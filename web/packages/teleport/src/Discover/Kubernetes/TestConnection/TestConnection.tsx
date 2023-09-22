@@ -125,7 +125,7 @@ export function TestConnection({
             </Text>
             <Box width="500px">
               <FieldSelect
-                label="Kubernetes groups"
+                label="Kubernetes Groups"
                 placeholder={
                   groupOpts.length === 0
                     ? 'No groups defined'
@@ -144,7 +144,7 @@ export function TestConnection({
             </Box>
             <Box width="500px">
               <FieldSelect
-                label={'Kubernetes user'}
+                label={'Kubernetes User'}
                 labelTip={
                   userOpts.length === 0
                     ? 'Defaulted to your teleport username'

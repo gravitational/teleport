@@ -4,7 +4,7 @@ templates:
 tests:
   - it: Create a Role when upgrading
     release:
-      upgrade: true
+      isupgrade: true
     set:
       unitTestUpgrade: true
     asserts:

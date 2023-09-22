@@ -50,7 +50,7 @@ import (
 
 type githubContext struct {
 	a           *Server
-	mockEmitter *eventstest.MockRecorderEmitter
+	mockEmitter *eventstest.MockEmitter
 	b           backend.Backend
 	c           clockwork.FakeClock
 }
@@ -87,7 +87,7 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 	tt.a, err = NewServer(authConfig)
 	require.NoError(t, err)
 
-	tt.mockEmitter = &eventstest.MockRecorderEmitter{}
+	tt.mockEmitter = &eventstest.MockEmitter{}
 	tt.a.emitter = tt.mockEmitter
 
 	return &tt

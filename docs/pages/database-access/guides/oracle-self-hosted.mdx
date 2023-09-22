@@ -10,12 +10,15 @@ description: How to configure Teleport database access with Oracle.
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="Oracle" dbConfigure="Oracle with mutual TLS authentication" dbName="Oracle" !)
 
-<ScopedBlock scope={["enterprise"]}>
+<Tabs>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
 ![Teleport Database Access Self-hosted Oracle](../../../img/database-access/guides/oracle_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access Oracle Cloud](../../../img/database-access/guides/oracle_selfhosted_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -121,8 +124,49 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux-enterprise.mdx!)
 
-(!docs/pages/includes/database-access/db-configure-start.mdx dbName="oracle" dbProtocol="oracle" databaseAddress="oracle.example.com:2484" dbName="oracle" !)
+On the host where you will run the Teleport Database Service, start Teleport
+with the appropriate configuration.
 
+Note that a single Teleport process can run multiple different services, for
+example multiple Database Service agents as well as the SSH Service or Application
+Service. The step below will overwrite an existing configuration file, so if
+you're running multiple services add `--output=stdout` to print the config in
+your terminal, and manually adjust `/etc/teleport.yaml`.
+
+Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
+
+<Tabs>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise/Enterprise Cloud">
+
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=teleport.example.com:443 \
+   --name=oracle \
+   --protocol=oracle \
+   --uri=oracle.example.com:2484 \
+   --labels=env=dev 
+```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Team/Community Edition">
+
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=mytenant.teleport.sh:443 \
+   --name=oracle \
+   --protocol=oracle \
+   --uri=oracle.example.com:2484 \
+   --labels=env=dev
+```
+
+</TabItem>
+</Tabs>
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 </TabItem>
 <TabItem label="Kubernetes Cluster">
   Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
@@ -176,6 +220,15 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
 (!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
 
+Make sure that the Teleport agent pod is running. You should see one Teleport
+agent pod pod with a single ready container:
+
+```code
+$ kubectl -n teleport get pods
+NAME                    READY   STATUS    RESTARTS   AGE
+teleport-kube-agent-0   1/1     Running   0          32s
+```
+
 ## Step 5/5. Connect
 
 Once the Database Service has joined the cluster, log in to see the available
@@ -220,3 +273,4 @@ $ tsh db logout
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
 
 - Learn more about  `sqlnet.ora` and `listener.ora` configuration from the [Parameters for the sqlnet.ora File](https://docs.oracle.com/en/database/oracle/oracle-database/18/netrf/parameters-for-the-sqlnet-ora-file.html#GUID-28040885-6832-4FFC-9258-0EF19FE9A3AC) and [Oracle Net Listener Parameters in the listener.ora File](https://docs.oracle.com/en/database/oracle/oracle-database/18/netrf/Oracle-Net-Listener-parameters-in-listener-ora-file.html#GUID-F9FA0DF5-2FAF-45CA-B6A1-F0166C7BFE54) Oracle documentation.
+

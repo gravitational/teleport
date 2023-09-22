@@ -63,11 +63,6 @@ const (
 	policyTeleportTagValue = ""
 	// defaultAttachUser default user that the policy will be attached to.
 	defaultAttachUser = "username"
-	// targetIdentityARNSectionPlaceholder is the placeholder to use in a target
-	// AWS IAM identity ARN when the full ARN is not given by the user and the
-	// configurator is running in --manual mode.
-	// e.g. arn:*:iam::*:user/username (placeholder for partition and account).
-	targetIdentityARNSectionPlaceholder = "*"
 )
 
 type databaseActions struct {
@@ -296,8 +291,8 @@ type ConfiguratorConfig struct {
 	AWSSTSClient stsiface.STSAPI
 	// AWSIAMClient AWS IAM client.
 	AWSIAMClient iamiface.IAMAPI
-	// AWSSSMClient AWS SSM Client
-	AWSSSMClient ssmiface.SSMAPI
+	// AWSSSMClient is a mapping of region -> ssm client
+	AWSSSMClients map[string]ssmiface.SSMAPI
 	// Policies instance of the `Policies` that the actions use.
 	Policies awslib.Policies
 	// Identity is the current AWS credentials chain identity.
@@ -338,8 +333,29 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 				return trace.Wrap(err)
 			}
 		}
-		if c.AWSSSMClient == nil {
-			c.AWSSSMClient = ssm.New(c.AWSSession)
+		if c.AWSSSMClients == nil {
+			c.AWSSSMClients = make(map[string]ssmiface.SSMAPI)
+			for _, matcher := range c.ServiceConfig.Discovery.AWSMatchers {
+				if !slices.Contains(matcher.Types, services.AWSMatcherEC2) {
+					continue
+				}
+				for _, region := range matcher.Regions {
+					if _, ok := c.AWSSSMClients[region]; ok {
+						continue
+					}
+					session, err := awssession.NewSessionWithOptions(awssession.Options{
+						Config: aws.Config{
+							Region: &region,
+						},
+						SharedConfigState: awssession.SharedConfigEnable,
+					})
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					c.AWSSSMClients[region] = ssm.New(session)
+				}
+			}
+
 		}
 
 		if c.Policies == nil {
@@ -487,7 +503,7 @@ func buildDiscoveryActions(config ConfiguratorConfig, targetCfg targetConfig) ([
 		return nil, err
 	}
 
-	actions = append(actions, buildSSMDocumentCreators(config.AWSSSMClient, targetCfg, proxyAddr)...)
+	actions = append(actions, buildSSMDocumentCreators(config.AWSSSMClients, targetCfg, proxyAddr)...)
 	return actions, nil
 }
 
@@ -544,8 +560,8 @@ func buildCommonActions(config ConfiguratorConfig, targetCfg targetConfig) ([]co
 func buildActions(config ConfiguratorConfig) ([]configurators.ConfiguratorAction, error) {
 	// Identity is going to be empty (`nil`) when running the command on
 	// `Manual` mode, place a wildcard to keep the generated policies valid.
-	accountID := targetIdentityARNSectionPlaceholder
-	partitionID := targetIdentityARNSectionPlaceholder
+	accountID := "*"
+	partitionID := "*"
 	if config.Identity != nil {
 		accountID = config.Identity.GetAccountID()
 		partitionID = config.Identity.GetPartition()
@@ -749,18 +765,20 @@ func getProxyAddrFromConfig(cfg *servicecfg.Config, flags configurators.Bootstra
 	return "", trace.NotFound("proxy address not found, please provide --proxy, or set either teleport.proxy_server or proxy_service.public_addr in the teleport config")
 }
 
-func buildSSMDocumentCreators(ssm ssmiface.SSMAPI, targetCfg targetConfig, proxyAddr string) []configurators.ConfiguratorAction {
+func buildSSMDocumentCreators(ssm map[string]ssmiface.SSMAPI, targetCfg targetConfig, proxyAddr string) []configurators.ConfiguratorAction {
 	var creators []configurators.ConfiguratorAction
 	for _, matcher := range targetCfg.awsMatchers {
 		if !slices.Contains(matcher.Types, services.AWSMatcherEC2) {
 			continue
 		}
-		ssmCreator := awsSSMDocumentCreator{
-			ssm:      ssm,
-			Name:     matcher.SSM.DocumentName,
-			Contents: EC2DiscoverySSMDocument(proxyAddr),
+		for _, region := range matcher.Regions {
+			ssmCreator := awsSSMDocumentCreator{
+				ssm:      ssm[region],
+				Name:     matcher.SSM.DocumentName,
+				Contents: EC2DiscoverySSMDocument(proxyAddr),
+			}
+			creators = append(creators, &ssmCreator)
 		}
-		creators = append(creators, &ssmCreator)
 	}
 	return creators
 }
@@ -1133,54 +1151,12 @@ func getTargetConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Config,
 	databases := databasesFromConfig(flags, cfg)
 	resourceMatchers := resourceMatchersFromConfig(flags, cfg)
 	targetIsAssumeRole := isTargetAWSAssumeRole(flags, awsMatchers, databases, resourceMatchers, target)
-	targetAssumesRoles := rolesForTarget(forcedRoles, awsMatchers, databases, resourceMatchers, targetIsAssumeRole)
-	err = checkStubRoleAssumingRolesFromConfig(forcedRoles, targetAssumesRoles, target)
-	if err != nil {
-		return targetConfig{}, trace.Wrap(err)
-	}
 	return targetConfig{
 		identity:        target,
 		awsMatchers:     matchersForTarget(awsMatchers, target, targetIsAssumeRole),
 		databases:       databasesForTarget(databases, target, targetIsAssumeRole),
-		assumesAWSRoles: targetAssumesRoles,
+		assumesAWSRoles: rolesForTarget(forcedRoles, awsMatchers, databases, resourceMatchers, targetIsAssumeRole),
 	}, nil
-}
-
-// checkStubRoleAssumingRolesFromConfig returns an error if a policy attachment
-// target is a stub AWS IAM role target (contains placeholders in its ARN)
-// that assumes at least one role from config not given in --assumes-roles.
-//
-// The configurator can be given a role name as the policy attachment target
-// instead of a full ARN, but in --manual mode, the configurator constructs a
-// stub ARN using "*" as a placeholder for the AWS account and partition.
-// The stub role ARN will not match any `assume_role_arn` in config, so the
-// configurator will not have enough information to correctly determine the
-// required permissions policies for the target.
-// We check for this scenario to avoid printing the wrong permissions in
-// --manual mode, and advise users to specify a full role ARN instead of just
-// the role's name.
-func checkStubRoleAssumingRolesFromConfig(forcedRoles []string, targetAssumesRoles []string, target awslib.Identity) error {
-	isRole := target.GetType() == "role"
-	isStub := target.GetAccountID() == targetIdentityARNSectionPlaceholder ||
-		target.GetPartition() == targetIdentityARNSectionPlaceholder
-	// forcedRoles come from the cli flag `--assumes-roles`.
-	// targetAssumesRoles is a superset of forcedRoles - it is the union
-	// of forcedRoles and the `assume_role_arn` settings from config.
-	// When targetAssumesRoles is bigger than the forced roles, it indicates
-	// that there is at least one role in config that does not match any
-	// forced role.
-	// This also handles the case where forcedRoles are given as short names
-	// instead of full ARNs in manual mode - if there are any roles in the
-	// config, then this error will trigger when the policy attachment target is
-	// a short role name.
-	isTargetAssumingRolesInConfig := len(targetAssumesRoles) > len(forcedRoles)
-	if isRole && isStub && isTargetAssumingRolesInConfig {
-		return trace.BadParameter(
-			"unable to determine required permissions for policy attachment "+
-				"target %q in manual mode, please specify the full role ARN",
-			target.GetName())
-	}
-	return nil
 }
 
 // awsMatchersFromConfig is a helper function that extracts database AWS matchers

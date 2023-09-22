@@ -224,8 +224,12 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	}
 
 	joinMethod := response.JoinMethod
-	if joinMethod == types.JoinMethodUnspecified {
-		joinMethod = types.JoinMethodToken
+	// omit join method output for the token method
+	switch joinMethod {
+	case types.JoinMethodUnspecified, types.JoinMethodToken:
+		// the template will omit an empty string
+		joinMethod = ""
+	default:
 	}
 
 	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{

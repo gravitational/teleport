@@ -38,7 +38,6 @@ import { TshdNotificationsService } from 'teleterm/ui/services/tshdNotifications
 import { HeadlessAuthenticationService } from 'teleterm/ui/services/headlessAuthn/headlessAuthnService';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { ResourcesService } from 'teleterm/ui/services/resources';
-import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { ConfigService } from 'teleterm/services/config';
 import { IAppContext } from 'teleterm/ui/types';
 
@@ -76,7 +75,6 @@ export default class AppContext implements IAppContext {
   headlessAuthenticationService: HeadlessAuthenticationService;
   usageService: UsageService;
   configService: ConfigService;
-  connectMyComputerService: ConnectMyComputerService;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
@@ -136,14 +134,11 @@ export default class AppContext implements IAppContext {
       this.notificationsService,
       this.clustersService
     );
-    this.connectMyComputerService = new ConnectMyComputerService(
-      this.mainProcessClient,
-      tshClient
-    );
     this.headlessAuthenticationService = new HeadlessAuthenticationService(
       mainProcessClient,
       this.modalsService,
-      tshClient
+      tshClient,
+      this.configService
     );
   }
 

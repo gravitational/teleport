@@ -57,8 +57,7 @@
       "gen-proto-js/*": [
         "gen/proto/js/*"
       ]
-    },
-    "outDir": "dist"
+    }
   },
   "include": [
     "e/web/**/*.ts",

@@ -87,7 +87,6 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 // HandleConnection processes the connection from Cassandra proxy coming
 // over reverse tunnel.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
-	observe := common.GetConnectionSetupTimeObserver(sessionCtx.Database)
 	err := e.authorizeConnection(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -101,8 +100,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
-
-	observe()
 
 	if err := e.handshake(sessionCtx, e.clientConn, serverConn); err != nil {
 		return trace.Wrap(err)
@@ -139,16 +136,11 @@ func (e *Engine) handleClientServerConn(ctx context.Context, clientConn *protoco
 
 func (e *Engine) handleClientConnectionWithAudit(clientConn *protocol.Conn, serverConn net.Conn) error {
 	defer serverConn.Close()
-	msgFromClient := common.GetMessagesFromClientMetric(e.sessionCtx.Database)
-
 	for {
 		packet, err := clientConn.ReadPacket()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		msgFromClient.Inc()
-
 		if err := e.processPacket(packet); err != nil {
 			return trace.Wrap(err)
 		}
@@ -159,7 +151,6 @@ func (e *Engine) handleClientConnectionWithAudit(clientConn *protocol.Conn, serv
 }
 
 func (e *Engine) handleServerConnection(serverConn net.Conn) error {
-	// We cannot increase the db_messages_from_server metric because we pass the data from the server as-is, so we don't know the number of messages transferred.
 	defer e.clientConn.Close()
 	if _, err := io.Copy(e.clientConn, serverConn); err != nil {
 		return trace.Wrap(err)

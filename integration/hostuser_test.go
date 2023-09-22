@@ -89,6 +89,10 @@ func TestRootHostUsersBackend(t *testing.T) {
 		err = backend.CreateUser(testuser, []string{}, "", "")
 		require.True(t, trace.IsAlreadyExists(err))
 
+		require.NoFileExists(t, filepath.Join("/home", testuser))
+		err = backend.CreateHomeDirectory(testuser, tuser.Uid, tuser.Gid)
+		require.NoError(t, err)
+		require.FileExists(t, filepath.Join("/home", testuser, ".bashrc"))
 	})
 
 	t.Run("Test DeleteUser", func(t *testing.T) {
@@ -125,7 +129,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.NoError(t, err)
 		invalidSudoersEntry := []byte("yipee i broke sudo!!!!")
 		err = backend.CheckSudoers(invalidSudoersEntry)
-		require.Contains(t, err.Error(), "visudo: invalid sudoers file")
+		require.EqualError(t, err, "parse error in stdin near line 1\n\n\tvisudo: invalid sudoers file")
 		// test sudoers entry containing . or ~
 		require.NoError(t, backend.WriteSudoersFile("user.name", validSudoersEntry))
 		_, err = os.Stat(filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))
@@ -133,6 +137,31 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.NoError(t, backend.RemoveSudoersFile("user.name"))
 		_, err = os.Stat(filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))
 		require.True(t, os.IsNotExist(err))
+	})
+
+	t.Run("Test CreateHomeDirectory does not follow symlinks", func(t *testing.T) {
+		err := backend.CreateUser(testuser, []string{testgroup}, "", "")
+		require.NoError(t, err)
+
+		tuser, err := backend.Lookup(testuser)
+		require.NoError(t, err)
+
+		require.NoError(t, os.WriteFile("/etc/skel/testfile", []byte("test\n"), 0o700))
+
+		bashrcPath := filepath.Join("/home", testuser, ".bashrc")
+		require.NoFileExists(t, bashrcPath)
+
+		require.NoError(t, os.MkdirAll(filepath.Join("/home", testuser), 0o700))
+
+		require.NoError(t, os.Symlink("/tmp/ignoreme", bashrcPath))
+		require.NoFileExists(t, "/tmp/ignoreme")
+
+		err = backend.CreateHomeDirectory(testuser, tuser.Uid, tuser.Gid)
+		t.Cleanup(func() {
+			os.RemoveAll(filepath.Join("/home", testuser))
+		})
+		require.NoError(t, err)
+		require.NoFileExists(t, "/tmp/ignoreme")
 	})
 }
 
@@ -217,6 +246,8 @@ func TestRootHostUsers(t *testing.T) {
 
 		require.Equal(t, u.Uid, testUID)
 		require.Equal(t, u.Gid, testGID)
+
+		require.FileExists(t, filepath.Join("/home", testuser, ".bashrc"))
 
 		require.NoError(t, closer.Close())
 		_, err = user.Lookup(testuser)

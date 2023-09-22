@@ -38,7 +38,7 @@ export const FormPasswordless = ({
     >
       <Flex alignItems="center" justifyContent="space-between">
         <Flex alignItems="center">
-          <Key mr={3} size="medium" />
+          <Key mr={3} fontSize={16} />
           <Box>
             <Text typography="h6">Passwordless</Text>
             <Text fontSize={1} color="text.slightlyMuted">
@@ -46,7 +46,7 @@ export const FormPasswordless = ({
             </Text>
           </Box>
         </Flex>
-        <ArrowForward size="medium" />
+        <ArrowForward fontSize={16} />
       </Flex>
     </StyledPaswordlessBtn>
   </Box>

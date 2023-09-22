@@ -21,7 +21,7 @@ import DialogConfirmation, {
   DialogHeader,
 } from 'design/DialogConfirmation';
 import { ButtonIcon, ButtonSecondary, Text } from 'design';
-import { Cross } from 'design/Icon';
+import { Close } from 'design/Icon';
 
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 
@@ -54,7 +54,7 @@ export function ResourceSearchErrors(props: {
           onClick={props.onCancel}
           color="text.slightlyMuted"
         >
-          <Cross size="medium" />
+          <Close fontSize={5} />
         </ButtonIcon>
       </DialogHeader>
       <DialogContent mb={4}>

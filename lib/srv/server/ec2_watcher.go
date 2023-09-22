@@ -91,6 +91,7 @@ func ToEC2Instances(insts []*ec2.Instance) []EC2Instance {
 		ec2Insts = append(ec2Insts, toEC2Instance(inst))
 	}
 	return ec2Insts
+
 }
 
 // ServerInfos creates a ServerInfo resource for each discovered instance.
@@ -117,17 +118,6 @@ func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 	return serverInfos, nil
 }
 
-// Option is a functional option for the Watcher.
-type Option func(*Watcher)
-
-// WithPollInterval sets the interval at which the watcher will fetch
-// instances from AWS.
-func WithPollInterval(interval time.Duration) Option {
-	return func(w *Watcher) {
-		w.pollInterval = interval
-	}
-}
-
 // MakeEvents generates ResourceCreateEvents for these instances.
 func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
@@ -146,19 +136,17 @@ func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCr
 }
 
 // NewEC2Watcher creates a new EC2 watcher instance.
-func NewEC2Watcher(ctx context.Context, matchers []types.AWSMatcher, clients cloud.Clients, missedRotation <-chan []types.Server, opts ...Option) (*Watcher, error) {
+func NewEC2Watcher(ctx context.Context, matchers []types.AWSMatcher, clients cloud.Clients, missedRotation <-chan []types.Server) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
 		fetchers:       []Fetcher{},
 		ctx:            cancelCtx,
 		cancel:         cancelFn,
-		pollInterval:   time.Minute,
+		fetchInterval:  time.Minute,
 		InstancesC:     make(chan Instances),
 		missedRotation: missedRotation,
 	}
-	for _, opt := range opts {
-		opt(&watcher)
-	}
+
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
 			// TODO(gavin): support assume_role_arn for ec2.
@@ -386,6 +374,7 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 			}
 			return true
 		})
+
 	if err != nil {
 		return nil, common.ConvertError(err)
 	}

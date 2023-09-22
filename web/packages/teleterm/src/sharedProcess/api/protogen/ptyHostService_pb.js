@@ -439,8 +439,7 @@ proto.PtyCreate.toObject = function(includeInstance, msg) {
     path: jspb.Message.getFieldWithDefault(msg, 3, ""),
     argsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
     cwd: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    env: (f = msg.getEnv()) && google_protobuf_struct_pb.Struct.toObject(includeInstance, f),
-    initMessage: jspb.Message.getFieldWithDefault(msg, 8, "")
+    env: (f = msg.getEnv()) && google_protobuf_struct_pb.Struct.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -493,10 +492,6 @@ proto.PtyCreate.deserializeBinaryFromReader = function(msg, reader) {
       var value = new google_protobuf_struct_pb.Struct;
       reader.readMessage(value,google_protobuf_struct_pb.Struct.deserializeBinaryFromReader);
       msg.setEnv(value);
-      break;
-    case 8:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setInitMessage(value);
       break;
     default:
       reader.skipField();
@@ -554,13 +549,6 @@ proto.PtyCreate.serializeBinaryToWriter = function(message, writer) {
       7,
       f,
       google_protobuf_struct_pb.Struct.serializeBinaryToWriter
-    );
-  }
-  f = message.getInitMessage();
-  if (f.length > 0) {
-    writer.writeString(
-      8,
-      f
     );
   }
 };
@@ -673,24 +661,6 @@ proto.PtyCreate.prototype.clearEnv = function() {
  */
 proto.PtyCreate.prototype.hasEnv = function() {
   return jspb.Message.getField(this, 7) != null;
-};
-
-
-/**
- * optional string init_message = 8;
- * @return {string}
- */
-proto.PtyCreate.prototype.getInitMessage = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
-};
-
-
-/**
- * @param {string} value
- * @return {!proto.PtyCreate} returns this
- */
-proto.PtyCreate.prototype.setInitMessage = function(value) {
-  return jspb.Message.setProto3StringField(this, 8, value);
 };
 
 

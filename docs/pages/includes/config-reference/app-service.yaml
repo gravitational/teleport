@@ -49,4 +49,12 @@ app_service:
         # headers:
         #   For example:
         #   - "Host: jenkins.example.com"
+        ## Optional rewrite to remove parts of the JWT token.
+        ## Can be one of three options:
+        ## - roles-and-traits: include both roles and traits in the JWT token
+        ## - roles: include only roles in the JWT token
+        ## - traits: include only traits in the JWT token
+        ## - none: include neither roles nor traits in the JWT token
+        ## Default: roles-and-traits
+        # jwt_claims: roles-and-traits
 

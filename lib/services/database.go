@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/url"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -147,6 +146,13 @@ func ValidateDatabase(db types.Database) error {
 		return trace.Wrap(err)
 	}
 
+	// This was added in v14 and backported, except that it's intentionally
+	// called here instead of in CheckAndSetDefaults for backwards
+	// compatibility.
+	if err := types.ValidateDatabaseName(db.GetName()); err != nil {
+		return trace.Wrap(err, "invalid database name")
+	}
+
 	if !slices.Contains(defaults.DatabaseProtocols, db.GetProtocol()) {
 		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v", db.GetName(), db.GetProtocol(), defaults.DatabaseProtocols)
 	}
@@ -167,10 +173,6 @@ func ValidateDatabase(db types.Database) error {
 	} else if db.GetProtocol() == defaults.ProtocolSnowflake {
 		if !strings.Contains(db.GetURI(), defaults.SnowflakeURL) {
 			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
-		}
-	} else if db.GetProtocol() == defaults.ProtocolClickHouse || db.GetProtocol() == defaults.ProtocolClickHouseHTTP {
-		if err := validateClickhouseURI(db); err != nil {
-			return trace.Wrap(err)
 		}
 	} else if needsURIValidation(db) {
 		if _, _, err := net.SplitHostPort(db.GetURI()); err != nil {
@@ -245,24 +247,6 @@ func needsADValidation(db types.Database) bool {
 	}
 
 	return true
-}
-
-func validateClickhouseURI(db types.Database) error {
-	u, err := url.Parse(db.GetURI())
-	if err != nil {
-		return trace.BadParameter("failed to parse uri: %v", err)
-	}
-	var requiredSchema string
-	if db.GetProtocol() == defaults.ProtocolClickHouse {
-		requiredSchema = "clickhouse"
-	}
-	if db.GetProtocol() == defaults.ProtocolClickHouseHTTP {
-		requiredSchema = "https"
-	}
-	if u.Scheme != requiredSchema {
-		return trace.BadParameter("invalid uri schema: %s for %v database protocol", u.Scheme, db.GetProtocol())
-	}
-	return nil
 }
 
 // needsURIValidation returns whether a database URI needs to be validated.
@@ -620,16 +604,7 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 		return nil, trace.Wrap(err)
 	}
 
-	var subnets []string
-	if rdsInstance.DBSubnetGroup != nil {
-		subnets = make([]string, 0, len(rdsInstance.DBSubnetGroup.Subnets))
-		for _, s := range rdsInstance.DBSubnetGroup.Subnets {
-			if s.SubnetIdentifier == nil || *s.SubnetIdentifier == "" {
-				continue
-			}
-			subnets = append(subnets, *s.SubnetIdentifier)
-		}
-	}
+	vpcID, subnets := rdsSubnetGroupToNetworkInfo(rdsInstance.DBSubnetGroup)
 
 	return &types.AWS{
 		Region:    parsedARN.Region,
@@ -640,6 +615,7 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
 			IAMAuth:    rdsInstance.IAMDatabaseAuthenticationEnabled,
 			Subnets:    subnets,
+			VPCID:      vpcID,
 		},
 	}, nil
 }
@@ -657,8 +633,8 @@ func labelsFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance, meta *types.AWS
 
 // NewDatabaseFromRDSV2Cluster creates a database resource from an RDS cluster (Aurora).
 // It uses aws sdk v2.
-func NewDatabaseFromRDSV2Cluster(cluster *rdsTypesV2.DBCluster) (types.Database, error) {
-	metadata, err := MetadataFromRDSV2Cluster(cluster)
+func NewDatabaseFromRDSV2Cluster(cluster *rdsTypesV2.DBCluster, firstInstance *rdsTypesV2.DBInstance) (types.Database, error) {
+	metadata, err := MetadataFromRDSV2Cluster(cluster, firstInstance)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -683,13 +659,39 @@ func NewDatabaseFromRDSV2Cluster(cluster *rdsTypesV2.DBCluster) (types.Database,
 		})
 }
 
+func rdsSubnetGroupToNetworkInfo(subnetGroup *rdsTypesV2.DBSubnetGroup) (vpcID string, subnets []string) {
+	if subnetGroup == nil {
+		return
+	}
+
+	vpcID = aws.StringValue(subnetGroup.VpcId)
+	subnets = make([]string, 0, len(subnetGroup.Subnets))
+	for _, s := range subnetGroup.Subnets {
+		subnetID := aws.StringValue(s.SubnetIdentifier)
+		if subnetID != "" {
+			subnets = append(subnets, subnetID)
+		}
+	}
+
+	return
+}
+
 // MetadataFromRDSV2Cluster creates AWS metadata from the provided RDS cluster.
 // It uses aws sdk v2.
-func MetadataFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster) (*types.AWS, error) {
+// An optional [rdsTypesV2.DBInstance] can be passed to fill the network configuration of the Cluster.
+func MetadataFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster, rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(rdsCluster.DBClusterArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var vpcID string
+	var subnets []string
+
+	if rdsInstance != nil {
+		vpcID, subnets = rdsSubnetGroupToNetworkInfo(rdsInstance.DBSubnetGroup)
+	}
+
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
@@ -697,6 +699,8 @@ func MetadataFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster) (*types.AWS, err
 			ClusterID:  aws.StringValue(rdsCluster.DBClusterIdentifier),
 			ResourceID: aws.StringValue(rdsCluster.DbClusterResourceId),
 			IAMAuth:    aws.BoolValue(rdsCluster.IAMDatabaseAuthenticationEnabled),
+			Subnets:    subnets,
+			VPCID:      vpcID,
 		},
 	}, nil
 }
@@ -1023,7 +1027,7 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 	})
 }
 
-// NewDatabasesFromOpenSearchDomain creates database resources from an OpenSearch domain.
+// NewDatabasesFromOpenSearchDomain creates a database resource from an OpenSearch domain.
 func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
 	var databases types.Databases
 

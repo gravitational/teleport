@@ -23,14 +23,12 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/kubernetes"
@@ -52,31 +50,25 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type TestContext struct {
-	HostID               string
-	ClusterName          string
-	TLSServer            *auth.TestTLSServer
-	AuthServer           *auth.Server
-	AuthClient           *auth.Client
-	Authz                authz.Authorizer
-	KubeServer           *TLSServer
-	KubeProxy            *TLSServer
-	Emitter              *eventstest.ChannelEmitter
-	Context              context.Context
-	kubeServerListener   net.Listener
-	kubeProxyListener    net.Listener
-	cancel               context.CancelFunc
-	heartbeatCtx         context.Context
-	heartbeatCancel      context.CancelFunc
-	lockWatcher          *services.LockWatcher
-	closeSessionTrackers chan struct{}
+	HostID          string
+	ClusterName     string
+	TLSServer       *auth.TestTLSServer
+	AuthServer      *auth.Server
+	AuthClient      *auth.Client
+	Authz           authz.Authorizer
+	KubeServer      *TLSServer
+	Emitter         *eventstest.ChannelEmitter
+	Context         context.Context
+	listener        net.Listener
+	cancel          context.CancelFunc
+	heartbeatCtx    context.Context
+	heartbeatCancel context.CancelFunc
 }
 
 // KubeClusterConfig defines the cluster to be created
@@ -101,13 +93,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	ctx, cancel := context.WithCancel(ctx)
 	heartbeatCtx, heartbeatCancel := context.WithCancel(ctx)
 	testCtx := &TestContext{
-		ClusterName:          "root.example.com",
-		HostID:               uuid.New().String(),
-		Context:              ctx,
-		cancel:               cancel,
-		heartbeatCtx:         heartbeatCtx,
-		heartbeatCancel:      heartbeatCancel,
-		closeSessionTrackers: make(chan struct{}),
+		ClusterName:     "root.example.com",
+		HostID:          uuid.New().String(),
+		Context:         ctx,
+		cancel:          cancel,
+		heartbeatCtx:    heartbeatCtx,
+		heartbeatCancel: heartbeatCancel,
 	}
 	t.Cleanup(func() { testCtx.Close() })
 
@@ -147,7 +138,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyAuthClient.Close()) })
 
-	testCtx.lockWatcher, err = services.NewLockWatcher(ctx, services.LockWatcherConfig{
+	proxyLockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
 			Client:    proxyAuthClient,
@@ -155,19 +146,19 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		testCtx.lockWatcher.Close()
+		proxyLockWatcher.Close()
 	})
 	testCtx.Authz, err = authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: testCtx.ClusterName,
 		AccessPoint: proxyAuthClient,
-		LockWatcher: testCtx.lockWatcher,
+		LockWatcher: proxyLockWatcher,
 	})
 	require.NoError(t, err)
 
 	// TLS config for kube proxy and Kube service.
 	serverIdentity, err := auth.NewServerIdentity(authServer.AuthServer, testCtx.HostID, types.RoleKube)
 	require.NoError(t, err)
-	kubeServiceTLSConfig, err := serverIdentity.TLSConfig(nil)
+	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
 
 	// Create test audit events emitter.
@@ -194,14 +185,6 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	if cfg.ClusterFeatures != nil {
 		features = cfg.ClusterFeatures
 	}
-
-	testCtx.kubeServerListener, err = net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	testCtx.kubeProxyListener, err = net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	log := logrus.New()
-	log.SetLevel(logrus.DebugLevel)
-
 	// Create kubernetes service server.
 	testCtx.KubeServer, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
@@ -215,10 +198,10 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			// directly to AuthClient solves the issue.
 			// We wrap the AuthClient with an events.TeeStreamer to send non-disk
 			// events like session.end to testCtx.emitter as well.
-			AuthClient: &fakeClient{ClientI: client, closeC: testCtx.closeSessionTrackers},
+			AuthClient: client,
 			// StreamEmitter is required although not used because we are using
 			// "node-sync" as session recording mode.
-			Emitter:           testCtx.Emitter,
+			StreamEmitter:     testCtx.Emitter,
 			DataDir:           t.TempDir(),
 			CachingAuthClient: client,
 			HostID:            testCtx.HostID,
@@ -226,7 +209,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			KubeconfigPath:    kubeConfigLocation,
 			KubeServiceType:   KubeService,
 			Component:         teleport.ComponentKube,
-			LockWatcher:       testCtx.lockWatcher,
+			LockWatcher:       proxyLockWatcher,
 			// skip Impersonation validation
 			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
 				return nil
@@ -235,7 +218,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			ClusterFeatures: features,
 		},
 		DynamicLabels: nil,
-		TLS:           kubeServiceTLSConfig.Clone(),
+		TLS:           tlsConfig,
 		AccessPoint:   client,
 		LimiterConfig: limiter.Config{
 			MaxConnections:   1000,
@@ -265,111 +248,28 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		GetRotation:      func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		ResourceMatchers: cfg.ResourceMatchers,
 		OnReconcile:      cfg.OnReconcile,
-		Log:              log,
-	})
-	require.NoError(t, err)
-
-	// Create kubernetes proxy server.
-	kubeServersWatcher, err := services.NewKubeServerWatcher(
-		testCtx.Context,
-		services.KubeServerWatcherConfig{
-			ResourceWatcherConfig: services.ResourceWatcherConfig{
-				Component: teleport.ComponentKube,
-				Client:    client,
-			},
-		},
-	)
-	require.NoError(t, err)
-	t.Cleanup(kubeServersWatcher.Close)
-
-	// TLS config for kube proxy and Kube service.
-	proxyServerIdentity, err := auth.NewServerIdentity(authServer.AuthServer, testCtx.HostID, types.RoleProxy)
-	require.NoError(t, err)
-	proxyTLSConfig, err := proxyServerIdentity.TLSConfig(nil)
-	require.NoError(t, err)
-	// Create kubernetes service server.
-	testCtx.KubeProxy, err = NewTLSServer(TLSServerConfig{
-		ForwarderConfig: ForwarderConfig{
-			ReverseTunnelSrv: &reversetunnelclient.FakeServer{
-				Sites: []reversetunnelclient.RemoteSite{
-					&fakeRemoteSite{
-						FakeRemoteSite: reversetunnelclient.NewFakeRemoteSite(testCtx.ClusterName, client),
-						idToAddr: map[string]string{
-							testCtx.HostID: testCtx.kubeServerListener.Addr().String(),
-						},
-					},
-				},
-			},
-			Namespace:   apidefaults.Namespace,
-			Keygen:      keyGen,
-			ClusterName: testCtx.ClusterName,
-			Authz:       testCtx.Authz,
-			// fileStreamer continues to write events after the server is shutdown and
-			// races against os.RemoveAll leading the test to fail.
-			// Using "node-sync" mode to write the events and session recordings
-			// directly to AuthClient solves the issue.
-			// We wrap the AuthClient with an events.TeeStreamer to send non-disk
-			// events like session.end to testCtx.emitter as well.
-			AuthClient: &fakeClient{ClientI: client, closeC: testCtx.closeSessionTrackers},
-			// StreamEmitter is required although not used because we are using
-			// "node-sync" as session recording mode.
-			Emitter:           testCtx.Emitter,
-			DataDir:           t.TempDir(),
-			CachingAuthClient: client,
-			HostID:            testCtx.HostID,
-			Context:           testCtx.Context,
-			KubeServiceType:   ProxyService,
-			Component:         teleport.ComponentKube,
-			LockWatcher:       testCtx.lockWatcher,
-			Clock:             clockwork.NewRealClock(),
-			ClusterFeatures:   features,
-			ConnTLSConfig:     proxyTLSConfig.Clone(),
-			PROXYSigner:       &multiplexer.PROXYSigner{},
-		},
-		TLS:                      proxyTLSConfig.Clone(),
-		AccessPoint:              client,
-		KubernetesServersWatcher: kubeServersWatcher,
-		LimiterConfig: limiter.Config{
-			MaxConnections:   1000,
-			MaxNumberOfUsers: 1000,
-		},
-		Log: log,
 	})
 	require.NoError(t, err)
 
 	// Waits for len(clusters) heartbeats to start
 	waitForHeartbeats := len(cfg.Clusters)
 
-	testCtx.startKubeServices(t)
-	// Wait for all clusters to be registered.
+	testCtx.startKubeService(t)
+
 	for i := 0; i < waitForHeartbeats; i++ {
 		<-heartbeatsWaitChannel
 	}
 
-	// Wait for kube servers to be initialized.
-	kubeServersWatcher.WaitInitialization()
-	// Ensure watcher has the correct list of clusters.
-	require.Eventually(t, func() bool {
-		kubeServers, err := kubeServersWatcher.GetKubernetesServers(context.Background())
-		return err == nil && len(kubeServers) == len(cfg.Clusters)
-	}, 3*time.Second, time.Millisecond*100)
-
 	return testCtx
 }
 
-// startKubeServices starts kube service and kube proxy to handle connections.
-func (c *TestContext) startKubeServices(t *testing.T) {
+// startKubeService starts kube service to handle connections.
+func (c *TestContext) startKubeService(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	c.listener = listener
 	go func() {
-		err := c.KubeServer.Serve(c.kubeServerListener)
-		// ignore server closed error returned when .Close is called.
-		if errors.Is(err, http.ErrServerClosed) {
-			return
-		}
-		assert.NoError(t, err)
-	}()
-
-	go func() {
-		err := c.KubeProxy.Serve(c.kubeProxyListener)
+		err := c.KubeServer.Serve(listener)
 		// ignore server closed error returned when .Close is called.
 		if errors.Is(err, http.ErrServerClosed) {
 			return
@@ -384,17 +284,16 @@ func (c *TestContext) Close() error {
 	// errors when deprovisioning.
 	c.heartbeatCancel()
 	// kubeServer closes the listener
-	errKubeServer := c.KubeServer.Close()
-	errKubeProxy := c.KubeProxy.Close()
+	err := c.KubeServer.Close()
 	authCErr := c.AuthClient.Close()
 	authSErr := c.AuthServer.Close()
 	c.cancel()
-	return trace.NewAggregate(errKubeServer, errKubeProxy, authCErr, authSErr)
+	return trace.NewAggregate(err, authCErr, authSErr)
 }
 
-// KubeProxyAddress returns the address of the kube proxy.
-func (c *TestContext) KubeProxyAddress() string {
-	return c.kubeProxyListener.Addr().String()
+// KubeServiceAddress returns the address of the kube service
+func (c *TestContext) KubeServiceAddress() string {
+	return c.listener.Addr().String()
 }
 
 // RoleSpec defiens the role name and kube details to be created.
@@ -416,7 +315,7 @@ func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, usern
 	role.SetSessionRequirePolicies(roleSpec.SessionRequire)
 	role.SetSessionJoinPolicies(roleSpec.SessionJoin)
 	if roleSpec.SetupRoleFunc == nil {
-		role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}}})
+		role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard}})
 	} else {
 		roleSpec.SetupRoleFunc(role)
 	}
@@ -520,7 +419,7 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 		ServerName: "teleport.cluster.local",
 	}
 	restConfig := &rest.Config{
-		Host:            "https://" + c.KubeProxyAddress(),
+		Host:            "https://" + c.KubeServiceAddress(),
 		TLSClientConfig: tlsClientConfig,
 	}
 
@@ -534,7 +433,7 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 func (c *TestContext) NewJoiningSession(cfg *rest.Config, sessionID string, mode types.SessionParticipantMode) (*streamproto.SessionStream, error) {
 	ws, err := newWebSocketClient(cfg, http.MethodPost, &url.URL{
 		Scheme: "wss",
-		Host:   c.KubeProxyAddress(),
+		Host:   c.KubeServiceAddress(),
 		Path:   "/api/v1/teleport/join/" + sessionID,
 	})
 	if err != nil {
@@ -554,12 +453,12 @@ func (c *TestContext) NewJoiningSession(cfg *rest.Config, sessionID string, mode
 // even when recording mode is *-sync.
 type authClientWithStreamer struct {
 	*auth.Client
-	streamer events.Streamer
+	streamer *events.TeeStreamer
 }
 
 // newAuthClientWithStreamer creates a new authClient wrapper.
 func newAuthClientWithStreamer(testCtx *TestContext) *authClientWithStreamer {
-	return &authClientWithStreamer{Client: testCtx.AuthClient, streamer: testCtx.AuthClient}
+	return &authClientWithStreamer{Client: testCtx.AuthClient, streamer: events.NewTeeStreamer(testCtx.AuthClient, testCtx.Emitter)}
 }
 
 func (a *authClientWithStreamer) CreateAuditStream(ctx context.Context, sID sessPkg.ID) (apievents.Stream, error) {
@@ -568,38 +467,4 @@ func (a *authClientWithStreamer) CreateAuditStream(ctx context.Context, sID sess
 
 func (a *authClientWithStreamer) ResumeAuditStream(ctx context.Context, sID sessPkg.ID, uploadID string) (apievents.Stream, error) {
 	return a.streamer.ResumeAuditStream(ctx, sID, uploadID)
-}
-
-type fakeClient struct {
-	auth.ClientI
-	closeC chan struct{}
-}
-
-func (f *fakeClient) CreateSessionTracker(ctx context.Context, st types.SessionTracker) (types.SessionTracker, error) {
-	select {
-	case <-f.closeC:
-		return nil, trace.ConnectionProblem(nil, "closed")
-	default:
-		return f.ClientI.CreateSessionTracker(ctx, st)
-	}
-}
-
-// fakeRemoteSite is a fake remote site that uses a map to map server IDs to
-// addresses to simulate reverse tunneling.
-type fakeRemoteSite struct {
-	*reversetunnelclient.FakeRemoteSite
-	idToAddr map[string]string
-}
-
-func (f *fakeRemoteSite) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, err error) {
-	// The server ID is the first part of the address.
-	addr, ok := f.idToAddr[strings.Split(p.ServerID, ".")[0]]
-	if !ok {
-		return nil, trace.NotFound("server %q not found", p.ServerID)
-	}
-	conn, err = net.Dial("tcp", addr)
-	if err != nil {
-		panic(err)
-	}
-	return conn, nil
 }

@@ -17,7 +17,6 @@ package proxy
 import (
 	"context"
 	"encoding/base64"
-	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -27,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -47,30 +45,12 @@ type kubeDetails struct {
 	dynamicLabels *labels.Dynamic
 	// kubeCluster is the dynamic kube_cluster or a static generated from kubeconfig and that only has the name populated.
 	kubeCluster types.KubeCluster
-
-	// rwMu is the mutex to protect the kubeCodecs and rbacSupportedTypes.
-	rwMu sync.RWMutex
-	// kubeCodecs is the codec factory for the cluster resources.
-	// The codec factory includes the default resources and the namespaced resources
-	// that are supported by the cluster.
-	// The codec factory is updated periodically to include the latest custom resources
-	// that are added to the cluster.
-	kubeCodecs serializer.CodecFactory
-	// rbacSupportedTypes is the list of supported types for RBAC for the cluster.
-	// The list is updated periodically to include the latest custom resources
-	// that are added to the cluster.
-	rbacSupportedTypes rbacSupportedResources
-
-	cancelFunc context.CancelFunc
-	wg         sync.WaitGroup
 }
 
 // clusterDetailsConfig contains the configuration for creating a proxied cluster.
 type clusterDetailsConfig struct {
 	// cloudClients is the cloud clients to use for dynamic clusters.
 	cloudClients cloud.Clients
-	// kubeCreds is the credentials to use for the cluster.
-	kubeCreds kubeCreds
 	// cluster is the cluster to create a proxied cluster for.
 	cluster types.KubeCluster
 	// log is the logger to use.
@@ -87,16 +67,14 @@ type clusterDetailsConfig struct {
 }
 
 // newClusterDetails creates a proxied kubeDetails structure given a dynamic cluster.
-func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDetails, err error) {
-	creds := cfg.kubeCreds
-	if creds == nil {
-		creds, err = getKubeClusterCredentials(ctx, cfg)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (*kubeDetails, error) {
+	var dynLabels *labels.Dynamic
+
+	creds, err := getKubeClusterCredentials(ctx, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	var dynLabels *labels.Dynamic
 	if len(cfg.cluster.GetDynamicLabels()) > 0 {
 		dynLabels, err = labels.NewDynamic(
 			ctx,
@@ -111,65 +89,19 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		go dynLabels.Start()
 	}
 
-	// Create the codec factory and the list of supported types for RBAC.
-	codecFactory, rbacSupportedTypes, err := newClusterSchemaBuilder(creds.getKubeClient())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ctx, cancel := context.WithCancel(ctx)
-	k := &kubeDetails{
-		kubeCreds:          creds,
-		dynamicLabels:      dynLabels,
-		kubeCluster:        cfg.cluster,
-		kubeCodecs:         codecFactory,
-		rbacSupportedTypes: rbacSupportedTypes,
-		cancelFunc:         cancel,
-	}
-
-	k.wg.Add(1)
-	// Start the periodic update of the codec factory and the list of supported types for RBAC.
-	go func() {
-		defer k.wg.Done()
-		ticker := cfg.clock.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.Chan():
-				codecFactory, rbacSupportedTypes, err := newClusterSchemaBuilder(creds.getKubeClient())
-				if err != nil {
-					cfg.log.WithError(err).Error("Failed to update cluster schema")
-					continue
-				}
-
-				k.rwMu.Lock()
-				k.kubeCodecs = codecFactory
-				k.rbacSupportedTypes = rbacSupportedTypes
-				k.rwMu.Unlock()
-			}
-		}
-	}()
-	return k, nil
+	return &kubeDetails{
+		kubeCreds:     creds,
+		dynamicLabels: dynLabels,
+		kubeCluster:   cfg.cluster,
+	}, nil
 }
 
 func (k *kubeDetails) Close() {
-	// send a close signal and wait for the close to finish.
-	k.cancelFunc()
-	k.wg.Wait()
 	if k.dynamicLabels != nil {
 		k.dynamicLabels.Close()
 	}
 	// it is safe to call close even for static creds.
 	k.kubeCreds.close()
-}
-
-// getClusterSupportedResources returns the codec factory and the list of supported types for RBAC.
-func (k *kubeDetails) getClusterSupportedResources() (*serializer.CodecFactory, rbacSupportedResources) {
-	k.rwMu.RLock()
-	defer k.rwMu.RUnlock()
-	return &(k.kubeCodecs), k.rbacSupportedTypes
 }
 
 // getKubeClusterCredentials generates kube credentials for dynamic clusters.

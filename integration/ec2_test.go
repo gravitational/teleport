@@ -481,9 +481,6 @@ func TestEC2Hostname(t *testing.T) {
 	proc, err := service.NewTeleport(tconf)
 	require.NoError(t, err)
 	require.NoError(t, proc.Start())
-	t.Cleanup(func() {
-		require.NoError(t, proc.Close())
-		require.NoError(t, proc.Wait())
-	})
+	t.Cleanup(func() { require.NoError(t, proc.Close()) })
 	require.Equal(t, teleportHostname, proc.Config.Hostname)
 }

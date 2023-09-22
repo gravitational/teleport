@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 func TestMemoryDBFetcher(t *testing.T) {
@@ -107,6 +106,5 @@ func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*m
 
 	database, err := services.NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherMemoryDB)
 	return cluster, database, tags
 }

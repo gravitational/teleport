@@ -8,110 +8,74 @@ The Teleport team delivers a new major release roughly every 3 months.
 
 ## Teleport
 
-### Teleport 12.3.0
+| Version | Date                 |
+|---------|----------------------|
+| 13.4.0  | September 20th, 2023 |
+| 14.0.0  | September 20th, 2023 |
+| 14.1.0  | October 16th, 2023   |
 
-#### (Preview) Automatic user creation for Desktop Access
+### 13.4.0
 
-Teleport's passwordless access for local users will provide the ability to
-create Windows users on demand, similar to how host-user creation works for SSH
-servers.
+#### Access Lists
 
-#### SFTP UX enhancements
+Teleport administrators will be able to configure long-term user access lists,
+with periodic mandatory access reviews and detailed audit trail.
 
-Will include fixes for wildcard patterns, excessive audit logging and PyCharm
-compatibility. [#22748](https://github.com/gravitational/teleport/issues/22748)
-[#21518](https://github.com/gravitational/teleport/issues/21518)
-[#22982](https://github.com/gravitational/teleport/issues/22982)
-[#22263](https://github.com/gravitational/teleport/issues/22263)
-[#20863](https://github.com/gravitational/teleport/issues/20863)
-[#23593](https://github.com/gravitational/teleport/issues/23593)
+### 14.0.0
 
-| Version | Date          |
-|---------|---------------|
-| 12.3.0  | May 1st, 2023 |
+#### Advanced Audit Log
 
-### Teleport 13.0.0
+Teleport will include a new audit log backend that supports efficient
+searching, sorting, and filtering operations.
 
-| Version        | Date             |
-|----------------|------------------|
-| 13.0.0-alpha.1 | April 17th, 2023 |
-| 13.0.0         | May 8th, 2023    |
+#### Automatic discovery of web applications
 
-#### (Preview) Automatic upgrades
+Teleport will be able to automatically find and enroll web applications running
+in a Kubernetes cluster.
 
-Users will be able to configure Teleport agents to upgrade automatically.
+#### ClickHouse support for database access
 
-#### (Preview) TLS routing through ALB for server access and Kubernetes access
+Teleport will add support for ClickHouse to database access.
 
-Teleport will support server access and Kubernetes access through load
-balancers in TLS routing mode.
+#### Limited Passwordless access for local Windows users in OSS Teleport
 
-#### (Preview) Ability to import applications and groups from Okta to Application Access
+Teleport Community edition will gain the ability to create 5 Windows desktops
+with local users.
 
-Teleport will be able to imports Okta apps and groups and users will be able to
-use Access Requests with Okta apps and groups.
+#### Access Lists
 
-#### (Preview) AWS OpenSearch support for Database Access
+Teleport administrators will be able to configure long-term user access lists,
+with periodic mandatory access reviews and detailed audit trail.
 
-Database access will add support for connecting to AWS OpenSearch.
+#### Discord and ServiceNow hosted plugins
 
-#### Cross-Cluster Search for Teleport Connect
+Teleport Cloud users will be able to configure Discord and ServiceNow integrations
+for access request reviews from the web UI.
 
-Teleport Connect will include a new search experience, allowing you to search
-for and connect to resources across all logged-in clusters.
+### 14.1.0
 
-#### Kubernetes access performance improvements
+#### Access Reviews
 
-Users will experience better performance when interacting with Kubernetes clusters.
+Access list owners will be able to perform regular periodic reviews of the list
+members.
 
-#### Universal binaries (including Apple Silicon) for macOS
+#### Connect my Computer for Teleport Connect
 
-Teleport will run natively on ARM Macs, without the need for Rosetta emulation.
+Users on macOS and Linux will be able to seamlessly add their computer to a Teleport
+cluster with Teleport Connect.
 
-#### Simplified RDS onboarding flow in Access Management UI
+#### EC2 agentless support for SSH
 
-Teleport Access Management UI will provide ability to connect to AWS account
-and select RDS databases for onboarding.
-
-#### Light theme for Web UI
-
-Teleport's web UI will ship with an optional light theme.
-
-#### Other
-
-In addition, the following improvements
-
-- Improved SQL Server PKINIT Auth support
-- Session recording video export support for Desktop Access
-- Add support for locking to Web UI
-- Device listing in Web UI
-
-### 13.1.0
-
-#### (Preview) GCP Auto-Discovery for Server Access
-
-Teleport will be able to automatically enroll GCP VM for server access.
-
-#### (Preview) OpsGenie Access Request Plugin
-
-Teleport will include OpsGenie access plugin.
-
-*Delayed from Teleport 13.0.0.*
-
-| Version | Date           |
-|---------|----------------|
-| 12.3.0  | June 1st, 2023 |
+Users will be able to connect to EC2 instances via AWS EC2 Instance Connect
+endpoints, without needing to install Teleport agents.
 
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of          | Description                                          |
-|------------------|------------------------------------------------------|
-| April 10th, 2023 | Teleport 12.2 begins to roll out for Cloud customers |
-| May 8th, 2023    | Add support for hosted Access Request plugins        |
-| June 5th, 2023   | Teleport 13.1 begins to roll out for Cloud customers |
-| June 5th, 2023   | Advanced Audit Log rollout begins                    |
+| Week of          | Description                                           |
+|------------------|-------------------------------------------------------|
+| August 7th, 2023 | Teleport 13.3 will begin rollout                      |
 
 ## Production readiness
 

@@ -19,7 +19,7 @@ package common
 import (
 	"net/http"
 
-	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/oxy/forward"
 )
 
 const (
@@ -27,14 +27,14 @@ const (
 	sslOff = "off"
 )
 
-// HeaderRewriter delegates to rewriters and then appends its own headers.
+// HeaderRewriter delegates to oxy's rewriter and then appends its own headers.
 type HeaderRewriter struct {
-	delegates []reverseproxy.Rewriter
+	delegates []forward.ReqRewriter
 }
 
 // NewHeaderRewriter will create a new header rewriter with a number of delegates.
 // The delegates will be executed in the order supplied
-func NewHeaderRewriter(delegates ...reverseproxy.Rewriter) *HeaderRewriter {
+func NewHeaderRewriter(delegates ...forward.ReqRewriter) *HeaderRewriter {
 	return &HeaderRewriter{
 		delegates: delegates,
 	}

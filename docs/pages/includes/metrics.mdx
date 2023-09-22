@@ -61,6 +61,7 @@
 | `teleport_audit_parquetlog_errors_from_collect_count`    | counter   | Teleport Audit Log  | Number of collect failures in Parquet-format audit log.                                            |
 | `teleport_connected_resources`                           | gauge     | Teleport Auth       | Number and type of resources connected via keepalives.                                             |
 | `teleport_registered_servers`                            | gauge     | Teleport Auth       | The number of Teleport services that are connected to an Auth Service instance grouped by version. |
+| `teleport_registered_servers_by_install_methods`         | gauge     | Teleport Auth       | The number of Teleport services that are connected to an Auth Service instance grouped by install methods. |
 | `user_login_total`                                       | counter   | Teleport Auth       | Number of user logins.                                                                             |
 | `teleport_migrations`                                    | gauge     | Teleport Auth       | Tracks for each migration if it is active (1) or not (0).                                          |
 | `watcher_event_sizes`                                    | histogram | cache               | Overall size of events emitted.                                                                    |
@@ -109,20 +110,7 @@
 | `teleport_proxy_db_connection_dial_failures_total`     | counter   | Teleport Proxy | Number of failed dial attempts from Proxy to DB service made.                                                                            |
 | `teleport_proxy_db_attempted_servers_total`            | histogram | Teleport Proxy | Number of servers processed during connection attempt to the DB service from Proxy service.                                              |
 | `teleport_proxy_db_connection_tls_config_time_seconds` | histogram | Teleport Proxy | Time to fetch TLS configuration for the connection to DB service from Proxy service.                                                     |
-
-## Database Service
-
-| Name                                        | Type      | Component                 | Description                                                            |
-| ------------------------------------------- | --------- | ------------------------- | ---------------------------------------------------------------------- |
-| `teleport_db_messages_from_client_total`    | counter   | Teleport Database Service | Number of messages (packets) received from the DB client.              |
-| `teleport_db_messages_from_server_total`    | counter   | Teleport Database Service | Number of messages (packets) received from the DB server.              |
-| `teleport_db_method_call_count_total`       | counter   | Teleport Database Service | Number of times a DB method was called.                                |
-| `teleport_db_method_call_latency_seconds`   | histogram | Teleport Database Service | Call latency for a DB method calls.                                    |
-| `teleport_db_initialized_connections_total` | counter   | Teleport Database Service | Number of initialized DB connections.                                  |
-| `teleport_db_active_connections_total`      | gauge     | Teleport Database Service | Number of active DB connections.                                       |
-| `teleport_db_connection_durations_seconds`  | histogram | Teleport Database Service | Duration of DB connection.                                             |
-| `teleport_db_connection_setup_time_seconds` | histogram | Teleport Database Service | Initial time to setup DB connection, before any requests are handled.  |
-| `teleport_db_errors_total`                  | counter   | Teleport Database Service | Number of synthetic DB errors sent to the client.                      |
+| `teleport_proxy_db_active_connections_total`           | gauge     | Teleport Proxy | Number of currently active connections to DB service from Proxy service.                                                                 |
 
 ### Kubernetes Access
 

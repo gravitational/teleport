@@ -161,14 +161,6 @@ func NewLocalProxy(cfg LocalProxyConfig, opts ...LocalProxyConfigOpt) (*LocalPro
 
 // Start starts the LocalProxy.
 func (l *LocalProxy) Start(ctx context.Context) error {
-	if l.cfg.HTTPMiddleware != nil {
-		return trace.Wrap(l.StartHTTPAccessProxy(ctx))
-	}
-	return trace.Wrap(l.start(ctx))
-}
-
-// start starts the LocalProxy for raw TCP or raw TLS (non-HTTP) connections.
-func (l *LocalProxy) start(ctx context.Context) error {
 	if l.cfg.Middleware != nil {
 		err := l.cfg.Middleware.OnStart(ctx, l)
 		if err != nil {
@@ -246,7 +238,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 func (l *LocalProxy) Close() error {
 	l.cancel()
 	if l.cfg.Listener != nil {
-		if err := l.cfg.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+		if err := l.cfg.Listener.Close(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -273,9 +265,6 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs []tls.Certificate) *httputil.Rev
 			outReq.URL.Host = l.cfg.RemoteProxyAddr
 		},
 		ModifyResponse: func(response *http.Response) error {
-			// Ask the client to close the connection to avoid re-use.
-			response.Header.Add("Connection", "close")
-
 			errHeader := response.Header.Get(commonApp.TeleportAPIErrorHeader)
 			if errHeader != "" {
 				// TODO: find a cleaner way of formatting the error.
@@ -325,6 +314,8 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 		// localhost. Set appropriate header to keep this information.
 		if addr, err := utils.ParseAddr(req.Host); err == nil && !addr.IsLocal() {
 			req.Header.Set("X-Forwarded-Host", req.Host)
+		} else { // ensure that there is no client provided X-Forwarded-Host
+			req.Header.Del("X-Forwarded-Host")
 		}
 
 		proxy, err := l.getHTTPReverseProxyForReq(req, defaultProxy)

@@ -344,10 +344,7 @@ func TestMultipleExecCommands(t *testing.T) {
 
 	// Set up a mock emitter so we can capture audit events.
 	emitter := eventstest.NewChannelEmitter(32)
-	f.ssh.srv.StreamEmitter = events.StreamerAndEmitter{
-		Streamer: events.NewDiscardStreamer(),
-		Emitter:  emitter,
-	}
+	f.ssh.srv.StreamEmitter = emitter
 
 	// Manually open an ssh channel
 	channel, _, err := f.ssh.clt.OpenChannel(ctx, "session", nil)
@@ -1027,7 +1024,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 
 	// Create a fake client XServer listener which echos
 	// back whatever it receives.
-	fakeClientDisplay, err := net.Listen("tcp", "localhost:0")
+	fakeClientDisplay, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	go func() {
 		for {

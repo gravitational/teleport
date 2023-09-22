@@ -34,7 +34,6 @@ import {
   AmbiguousHostnameError,
 } from 'teleterm/ui/services/resources';
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
-import { makeLoggedInUser } from 'teleterm/services/tshd/testHelpers';
 
 import { WorkspaceContextProvider } from '../Documents';
 
@@ -583,7 +582,16 @@ const testSetup = (
     leaf: false,
     proxyHost: 'localhost:3080',
     authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-    loggedInUser: makeLoggedInUser(),
+    loggedInUser: {
+      activeRequestsList: [],
+      assumedRequests: {},
+      name: 'admin',
+      acl: {},
+      sshLoginsList: [],
+      rolesList: [],
+      requestableRolesList: [],
+      suggestedReviewersList: [],
+    },
   };
   const leafCluster: tsh.Cluster = {
     uri: leafClusterUri,
@@ -592,7 +600,16 @@ const testSetup = (
     leaf: true,
     proxyHost: '',
     authClusterId: '5408fc2f-a452-4bde-bda2-b3b918c635ad',
-    loggedInUser: makeLoggedInUser(),
+    loggedInUser: {
+      activeRequestsList: [],
+      assumedRequests: {},
+      name: 'admin',
+      acl: {},
+      sshLoginsList: [],
+      rolesList: [],
+      requestableRolesList: [],
+      suggestedReviewersList: [],
+    },
   };
   const appContext = new MockAppContext();
   appContext.clustersService.setState(draftState => {

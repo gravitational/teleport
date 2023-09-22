@@ -640,14 +640,23 @@ const (
 	// access to all user groups.
 	PresetGroupAccessRoleName = "group-access"
 
+	// PresetDeviceAdminRoleName is the name of the "device-admin" role.
+	// The role is used to administer trusted devices.
+	PresetDeviceAdminRoleName = "device-admin"
+
+	// PresetDeviceEnrollRoleName is the name of the "device-enroll" role.
+	// The role is used to grant device enrollment powers to users.
+	PresetDeviceEnrollRoleName = "device-enroll"
+
+	// PresetRequireTrustedDeviceRoleName is the name of the
+	// "require-trusted-device" role.
+	// The role is used as a basis for requiring trusted device access to
+	// resources.
+	PresetRequireTrustedDeviceRoleName = "require-trusted-device"
+
 	// SystemAutomaticAccessApprovalRoleName names a preset role that may
 	// automatically approve any Role Access Request
 	SystemAutomaticAccessApprovalRoleName = "@teleport-access-approver"
-
-	// ConnectMyComputerRoleNamePrefix is the prefix used for roles prepared for individual users
-	// during the setup of Connect My Computer. The prefix is followed by the name of the cluster
-	// user. See [teleterm.connectmycomputer.RoleSetup].
-	ConnectMyComputerRoleNamePrefix = "connect-my-computer-"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}

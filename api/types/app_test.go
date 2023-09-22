@@ -27,7 +27,7 @@ import (
 )
 
 // TestAppPublicAddrValidation tests PublicAddr field validation to make sure that
-// an app with internal "kube-teleport-proxy-alpn." ServerName prefix won't be created.
+// an app with internal "kube." ServerName prefix won't be created.
 func TestAppPublicAddrValidation(t *testing.T) {
 	type check func(t *testing.T, err error)
 
@@ -69,12 +69,12 @@ func TestAppPublicAddrValidation(t *testing.T) {
 		},
 		{
 			name:       "public address with internal kube ServerName prefix",
-			publicAddr: constants.KubeTeleportProxyALPNPrefix + "example.com:3080",
+			publicAddr: "kube.example.com:3080",
 			check:      hasErrTypeBadParameter(),
 		},
 		{
 			name:       "https public address with internal kube ServerName prefix",
-			publicAddr: "https://" + constants.KubeTeleportProxyALPNPrefix + "example.com:3080",
+			publicAddr: "https://kube.example.com:3080",
 			check:      hasErrTypeBadParameter(),
 		},
 	}
@@ -309,8 +309,7 @@ func TestNewAppV3(t *testing.T) {
 			want: &AppV3{
 				Kind:    "app",
 				Version: "v3",
-				Metadata: Metadata{
-					Name:        "myapp",
+				Metadata: Metadata{Name: "myapp",
 					Namespace:   "default",
 					Description: "my fancy app",
 					ID:          123,

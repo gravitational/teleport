@@ -51,7 +51,34 @@ func NewClientFromConfig(config openai.ClientConfig) *Client {
 // toolsConfig contains all required clients and configuration for agent tools
 // to interact with Teleport.
 func (client *Client) NewChat(username string, toolsConfig model.ToolsConfig) (*Chat, error) {
-	agent, err := model.NewAgent(username, toolsConfig)
+	tools := []model.Tool{
+		model.NewExecutionTool(),
+	}
+	if !toolsConfig.DisableEmbeddingsTool {
+		tools = append(tools, model.NewRetrievalTool(toolsConfig.EmbeddingsClient, toolsConfig.NodeClient,
+			toolsConfig.AccessChecker, username))
+	}
+	agent, err := model.NewAgent(tools...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &Chat{
+		client: client,
+		messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: model.PromptCharacter(username),
+			},
+		},
+		// Initialize a tokenizer for prompt token accounting.
+		// Cl100k is used by GPT-3 and GPT-4.
+		tokenizer: codec.NewCl100kBase(),
+		agent:     agent,
+	}, nil
+}
+
+func (client *Client) NewCommand(username string) (*Chat, error) {
+	agent, err := model.NewAgent(model.NewGenerateTool())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,7 +148,7 @@ func (client *Client) CommandSummary(ctx context.Context, messages []openai.Chat
 	return completion, tc, trace.Wrap(err)
 }
 
-// ClassifyMessage takes a user message, a list of categories, and uses the AI mode as a zero shot classifier.
+// ClassifyMessage takes a user message, a list of categories, and uses the AI mode as a zero-shot classifier.
 func (client *Client) ClassifyMessage(ctx context.Context, message string, classes map[string]string) (string, error) {
 	resp, err := client.svc.CreateChatCompletion(
 		ctx,

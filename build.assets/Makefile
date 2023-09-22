@@ -9,6 +9,8 @@ SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
 # TODO(hugoShaka) remove HELM_PLUGINS with teleport13 buildbox
 DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new
+# Teleport version - some targets require this to be set
+VERSION ?= $(shell egrep ^VERSION ../Makefile | cut -d= -f2)
 
 ADDFLAGS ?=
 BATSFLAGS :=
@@ -30,14 +32,15 @@ RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
 # BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables are included
-include images.mk
-include grpcbox.mk
 include versions.mk
+include images.mk
+include grpcbox.mk # Requires images.mk
 
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
 # make it harder to run `make -C build.assets release` locally as the buildbox would not automatically be built.
 BUILDBOX_NAME=$(BUILDBOX)
+BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
 
 DOCSBOX=ghcr.io/gravitational/docs
 
@@ -80,15 +83,15 @@ endif
 # Build 'teleport' release inside a docker container
 #
 .PHONY:build
-build: buildbox-centos7
+build: buildbox-centos7 webassets
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
-		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) release
+		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) release-unix-preserving-webassets
 
 #
 # Build 'teleport' release inside a docker container
 #
 .PHONY:build-binaries
-build-binaries: buildbox-centos7
+build-binaries: buildbox-centos7 webassets
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) full
 
@@ -96,7 +99,7 @@ build-binaries: buildbox-centos7
 # Build 'teleport' Enterprise release inside a docker container
 #
 .PHONY:build-enterprise-binaries
-build-enterprise-binaries: buildbox-centos7
+build-enterprise-binaries: buildbox-centos7 webassets
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
 		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) PIV=$(PIV) clean full
 
@@ -105,7 +108,7 @@ build-enterprise-binaries: buildbox-centos7
 # This builds Enterprise binaries only.
 #
 .PHONY:build-binaries-fips
-build-binaries-fips: buildbox-centos7-fips
+build-binaries-fips: buildbox-centos7-fips webassets
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) FIPS=yes clean full
 
@@ -140,7 +143,20 @@ buildbox:
 # Builds a Docker buildbox for FIPS
 #
 .PHONY:buildbox-fips
-buildbox-fips: buildbox-centos7-fips
+buildbox-fips:
+	if [[ "$(BUILDBOX_FIPS_NAME)" == "$(BUILDBOX_FIPS)" ]]; then \
+		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_FIPS) || true; fi; \
+		docker build \
+			--build-arg UID=$(UID) \
+			--build-arg GID=$(GID) \
+			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+			--build-arg NODE_VERSION=$(NODE_VERSION) \
+			--build-arg RUST_VERSION=$(RUST_VERSION) \
+			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+			--cache-from $(BUILDBOX_FIPS) \
+			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \
+	fi
 
 #
 # Builds a Docker buildbox for CentOS 7 builds
@@ -153,7 +169,6 @@ buildbox-centos7:
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
@@ -172,7 +187,6 @@ buildbox-centos7-fips:
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
@@ -191,6 +205,20 @@ buildbox-arm: buildbox
 		--cache-from $(BUILDBOX) \
 		--cache-from $(BUILDBOX_ARM) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
+
+#
+# Builds a Docker buildbox for ARMv7/ARM64 FIPS builds
+# ARM buildboxes use a regular Teleport buildbox as a base which already has a user
+# with the correct UID and GID created, so those arguments are not needed here.
+#
+.PHONY:buildbox-arm-fips
+buildbox-arm-fips: buildbox-fips
+	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM_FIPS) || true; fi;
+	docker build \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--cache-from $(BUILDBOX_FIPS) \
+		--cache-from $(BUILDBOX_ARM_FIPS) \
+		--tag $(BUILDBOX_ARM_FIPS) -f Dockerfile-arm-fips .
 
 CONNECT_VERSION ?= $(VERSION)
 ifeq ($(CONNECT_VERSION),)
@@ -222,6 +250,17 @@ teleterm: buildbox-connect
 ui: buildbox
 	docker run -u $(UID):$(GID) -v "$$(pwd)/../":/teleport $(BUILDBOX) \
 		bash -c "cd ../teleport && yarn install --frozen-lockfile && yarn build-ui"
+
+# Builds webassets inside the buildbox-connect container via the
+# Makefile (instead of calling yarn directly as the ui target above does)
+# as that computes a SHA to prevent unnecessary rebuilds. This is used by
+# the CentOS 7 build that does not have a new enough version of node.js
+# to build webassets. Enterprise webassets will only be built if the e
+# submodule is present.
+.PHONY: webassets
+webassets: buildbox-connect
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CONNECT) \
+		/usr/bin/make ensure-webassets $(if $(wildcard ../e/Makefile),ensure-webassets-e)
 
 # grpc generates GRPC stubs from inside the buildbox
 .PHONY: grpc
@@ -255,26 +294,18 @@ clean:
 .PHONY:test
 test: buildbox
 	docker run \
-		--env TELEPORT_ETCD_TEST="yes" \
 		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c \
-		"examples/etcd/start-etcd.sh & sleep 1; \
-		type gcloud 2>&1 >/dev/null || exit 1; \
-		gcloud -q beta emulators firestore start --host-port=localhost:8618 & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
 .PHONY:test-root
 test-root: buildbox
 	docker run \
-		--env TELEPORT_ETCD_TEST="yes" \
 		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c \
-		"examples/etcd/start-etcd.sh & sleep 1; \
-		type gcloud 2>&1 >/dev/null || exit 1; \
-		gcloud -q beta emulators firestore start --host-port=localhost:8618 & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test-go-root"
 
@@ -296,10 +327,7 @@ test-helm-update-snapshots:
 .PHONY:integration
 integration: buildbox
 	docker run \
-		--env TELEPORT_ETCD_TEST="yes" \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		/bin/bash -c \
-		"examples/etcd/start-etcd.sh & sleep 1; \
 		make -C $(SRCDIR) FLAGS='-cover' integration"
 
 .PHONY:integration-root
@@ -311,11 +339,6 @@ integration-root: buildbox
 integration-kube: buildbox
 	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-kube"
-
-.PHONY:e2e-aws
-e2e-aws: buildbox
-	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
-		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' e2e-aws"
 
 #
 # Runs linters on new changes inside a build container.
@@ -385,7 +408,8 @@ release-amd64:
 	$(MAKE) release ARCH=amd64 FIDO2=yes
 
 .PHONY: release-amd64-fips
-release-amd64-fips: release-amd64-centos7-fips
+release-amd64-fips:
+	$(MAKE) release-fips ARCH=amd64 FIPS=yes BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
 
 .PHONY: release-386
 release-386:
@@ -412,6 +436,57 @@ release-arm64: buildbox-arm
 	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
 
 # #############################################################################
+# GHA release build targets
+# #############################################################################
+
+#
+# The `release-oss` and `release-enterprise` make targets are for building OSS
+# and Enterprise releases from GitHub actions. These make targets execute in a
+# container based on a caller-supplied `BUILDBOX` image.
+#
+# Unlike the other release targets, these release targets do not attempt to
+# automatically construct the buildbox image at build time - the build box
+# image *must* be pre-built and the tag supplied via `BUILDBOX=...` on the
+# make command line
+#
+# Separating the construction of build environment from the actual build itself
+# allows us to use the appropriate GHA actions to pre-build the buildbox
+# image, so that the image construction works nicely with GHA.
+#
+
+define RELEASE_RECIPE
+		docker run \
+			--rm \
+			--platform linux/$(ARCH) \
+			--memory-swap -1 \
+			-h buildbox \
+			-e GOMODCACHE=$(GOMODCACHE) \
+			-e GOCACHE=$(GOCACHE) \
+			-v "/tmp:/tmp" \
+			-v "$(WORKSPACE):/go/teleport" \
+			-w /go/teleport \
+			$(BUILDBOX) \
+		make $(1) ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+endef
+
+# It's ok to ignore `go: command not found`. Makefile's $(shell go env)-line commands are producing it.
+.PHONY: release-oss-ensure-webassets
+release-oss-ensure-webassets:
+	$(call RELEASE_RECIPE,ensure-webassets)
+
+.PHONY: release-enterprise-ensure-webassets
+release-enterprise-ensure-webassets:
+	$(call RELEASE_RECIPE,ensure-webassets-e)
+
+.PHONY: release-oss
+release-oss:
+	$(call RELEASE_RECIPE,full build-archive)
+
+.PHONY: release-enterprise
+release-enterprise:
+	$(call RELEASE_RECIPE,release-unix-only)
+
+# #############################################################################
 
 #
 # Create a Teleport FIPS package using the build container.
@@ -419,25 +494,31 @@ release-arm64: buildbox-arm
 # CI should not use this target, it should use named Makefile targets like release-amd64-fips.
 #
 .PHONY:release-fips
-release-fips: buildbox-centos7-fips
+release-fips: buildbox-fips webassets
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_FIPS_NAME) \
 		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=yes
 
 #
 # Create a Teleport package for CentOS 7 using the build container.
+# We depend on webassets to pre-build them in the buildbox-connect container
+# as the version of node.js on CentOS 7 is too old.
 #
 .PHONY:release-centos7
-release-centos7: buildbox-centos7
+release-centos7: buildbox-centos7 webassets
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
-		/usr/bin/scl enable $(DEVTOOLSET) 'make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
+		/usr/bin/scl enable $(DEVTOOLSET) 'make release-unix-preserving-webassets -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
 
 #
 # Create a Teleport FIPS package for CentOS 7 using the build container.
 # This only builds and packages enterprise FIPS binaries, no OSS.
+# We depend on webassets to pre-build them in the buildbox-connect container
+# as the version of node.js on CentOS 7 is too old. The enterprise Makefile
+# does not clean the web assets on the `release` target so there is no need
+# to call release-unix-preserving-webassets like we do for the non-fips release.
 #
 .PHONY:release-centos7-fips
-release-centos7-fips:
+release-centos7-fips: webassets
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		/usr/bin/scl enable $(DEVTOOLSET) '/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no'
 

@@ -26,7 +26,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -126,13 +125,13 @@ func (e *Engine) SendError(err error) {
 // HandleConnection authorizes the incoming client connection, connects to the
 // target OpenSearch server and starts proxying requests between client/server.
 func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error {
-	observe := common.GetConnectionSetupTimeObserver(e.sessionCtx.Database)
-
 	err := e.checkAccess(ctx)
+
+	e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
 	if err != nil {
-		e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
 		return trace.Wrap(err)
 	}
+	defer e.Audit.OnSessionEnd(e.Context, e.sessionCtx)
 
 	meta := e.sessionCtx.Database.GetAWS()
 	awsSession, err := e.CloudClients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
@@ -157,23 +156,14 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 		return trace.Wrap(err)
 	}
 
-	e.Audit.OnSessionStart(e.Context, e.sessionCtx, nil)
-	defer e.Audit.OnSessionEnd(e.Context, e.sessionCtx)
-
 	clientConnReader := bufio.NewReader(e.clientConn)
-
-	observe()
-
-	msgFromClient := common.GetMessagesFromClientMetric(e.sessionCtx.Database)
-	msgFromServer := common.GetMessagesFromServerMetric(e.sessionCtx.Database)
-
 	for {
 		req, err := http.ReadRequest(clientConnReader)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := e.process(ctx, tr, signer, req, msgFromClient, msgFromServer); err != nil {
+		if err := e.process(ctx, tr, signer, req); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -181,9 +171,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 
 // process reads request from connected OpenSearch client, processes the requests/responses and send data back
 // to the client.
-func (e *Engine) process(ctx context.Context, tr *http.Transport, signer *libaws.SigningService, req *http.Request, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) error {
-	msgFromClient.Inc()
-
+func (e *Engine) process(ctx context.Context, tr *http.Transport, signer *libaws.SigningService, req *http.Request) error {
 	reqCopy, payload, err := e.rewriteRequest(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -206,8 +194,6 @@ func (e *Engine) process(ctx context.Context, tr *http.Transport, signer *libaws
 		return trace.Wrap(err)
 	}
 	responseStatusCode = uint32(resp.StatusCode)
-
-	msgFromServer.Inc()
 
 	return trace.Wrap(e.sendResponse(resp))
 }
@@ -350,10 +336,6 @@ func (e *Engine) sendResponse(serverResponse *http.Response) error {
 // checkAccess does authorization check for OpenSearch connection about
 // to be established.
 func (e *Engine) checkAccess(ctx context.Context) error {
-	if e.sessionCtx.Identity.RouteToDatabase.Username == "" {
-		return trace.BadParameter("database username required for OpenSearch")
-	}
-
 	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -370,5 +352,10 @@ func (e *Engine) checkAccess(ctx context.Context) error {
 		state,
 		dbRoleMatchers...,
 	)
+
+	if e.sessionCtx.Identity.RouteToDatabase.Username == "" {
+		return trace.BadParameter("database username required for OpenSearch")
+	}
+
 	return trace.Wrap(err)
 }

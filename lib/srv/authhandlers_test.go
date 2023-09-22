@@ -187,7 +187,7 @@ func TestRBAC(t *testing.T) {
 			config := &AuthHandlerConfig{
 				Server:       server,
 				Component:    tt.component,
-				Emitter:      &eventstest.MockRecorderEmitter{},
+				Emitter:      &eventstest.MockEmitter{},
 				AccessPoint:  accessPoint,
 				TargetServer: target,
 			}

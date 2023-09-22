@@ -5,12 +5,15 @@ description: How to configure Teleport database access with AWS ElastiCache and 
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS ElastiCache and MemoryDB for Redis cluster" dbConfigure="AWS ElastiCache and MemoryDB for Redis cluster database with IAM authentication" dbName="AWS ElastiCache and MemoryDB for Redis" !)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access RDS Self-Hosted](../../../img/database-access/guides/redis_elasticache_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud","team"]}>
+</TabItem>
+<TabItem scope={["cloud","team"]} label="Teleport Cloud">
 ![Teleport Database Access RDS Cloud](../../../img/database-access/guides/redis_elasticache_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -40,12 +43,13 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 Create the Database Service configuration:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 <Tabs>
   <TabItem label="ElastiCache">
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
      -o file \
      --proxy=teleport.example.com:3080 \
      --token=/tmp/token \
@@ -54,7 +58,7 @@ Create the Database Service configuration:
   </TabItem>
   <TabItem label="MemoryDB">
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
      -o file \
      --proxy=teleport.example.com:3080 \
      --token=/tmp/token \
@@ -63,13 +67,13 @@ Create the Database Service configuration:
   </TabItem>
 </Tabs>
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 <Tabs>
   <TabItem label="ElastiCache">
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
      -o file \
      --proxy=mytenant.teleport.sh:443 \
      --token=/tmp/token \
@@ -78,7 +82,7 @@ Create the Database Service configuration:
   </TabItem>
   <TabItem label="MemoryDB">
   ```
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
      -o file \
      --proxy=mytenant.teleport.sh:443 \
      --token=/tmp/token \
@@ -87,7 +91,9 @@ Create the Database Service configuration:
   </TabItem>
 </Tabs>
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 The command will generate a Database Service configuration with ElastiCache or
 MemoryDB database auto-discovery enabled on the `us-west-1` region and place it
@@ -202,7 +208,8 @@ some time (up to 20 minutes) to discover this user once the tag is added.
 Once the Database Service has started and joined the cluster, log in to see the
 registered databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
@@ -214,8 +221,8 @@ $ tsh db ls
 # my-memorydb                 MemoryDB cluster in us-west-1                             ...
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -228,7 +235,9 @@ $ tsh db ls
 # my-memorydb                 MemoryDB cluster in us-west-1                             ...
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 <Admonition type="note" title="Note">
   You can override the database name by applying the `TeleportDatabaseName` AWS tag to the resource. The value of the tag will be used as the database name.
@@ -291,3 +300,4 @@ $ tsh db logout
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

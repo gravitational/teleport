@@ -162,6 +162,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newOktaAssignmentParser()
 		case types.KindIntegration:
 			parser = newIntegrationParser()
+		case types.KindAccessList:
+			parser = newAccessListParser()
 		case types.KindHeadlessAuthentication:
 			p, err := newHeadlessAuthenticationParser(kind.Filter)
 			if err != nil {
@@ -171,10 +173,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 				return nil, trace.Wrap(err)
 			}
 			parser = p
-		case types.KindAccessList:
-			parser = newAccessListParser()
 		case types.KindUserLoginState:
 			parser = newUserLoginStateParser()
+		case types.KindAccessListMember:
+			parser = newAccessListMemberParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -686,7 +688,7 @@ type roleParser struct {
 func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindRole, types.V7, 1)
+		return resourceHeader(event, types.KindRole, types.V6, 1)
 	case types.OpPut:
 		resource, err := services.UnmarshalRole(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
@@ -1564,6 +1566,30 @@ func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
+func newAccessListParser() *accessListParser {
+	return &accessListParser{
+		baseParser: newBaseParser(backend.Key(accessListPrefix)),
+	}
+}
+
+type accessListParser struct {
+	baseParser
+}
+
+func (p *accessListParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindAccessList, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalAccessList(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func newHeadlessAuthenticationParser(m map[string]string) (*headlessAuthenticationParser, error) {
 	var filter types.HeadlessAuthenticationFilter
 	if err := filter.FromMap(m); err != nil {
@@ -1599,30 +1625,6 @@ func (p *headlessAuthenticationParser) parse(event backend.Event) (types.Resourc
 	}
 }
 
-func newAccessListParser() *accessListParser {
-	return &accessListParser{
-		baseParser: newBaseParser(backend.Key(accessListPrefix)),
-	}
-}
-
-type accessListParser struct {
-	baseParser
-}
-
-func (p *accessListParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		return resourceHeader(event, types.KindAccessList, types.V1, 0)
-	case types.OpPut:
-		return services.UnmarshalAccessList(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
-			services.WithExpires(event.Item.Expires),
-		)
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
 func newUserLoginStateParser() *userLoginStateParser {
 	return &userLoginStateParser{
 		baseParser: newBaseParser(backend.Key(userLoginStatePrefix)),
@@ -1639,6 +1641,30 @@ func (p *userLoginStateParser) parse(event backend.Event) (types.Resource, error
 		return resourceHeader(event, types.KindUserLoginState, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalUserLoginState(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAccessListMemberParser() *accessListMemberParser {
+	return &accessListMemberParser{
+		baseParser: newBaseParser(backend.Key(accessListMemberPrefix)),
+	}
+}
+
+type accessListMemberParser struct {
+	baseParser
+}
+
+func (p *accessListMemberParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindAccessListMember, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalAccessListMember(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)

@@ -110,9 +110,7 @@ func (a *aksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 
 // rewriteKubeClusters rewrites the discovered kube clusters.
 func (a *aksFetcher) rewriteKubeClusters(clusters types.KubeClusters) {
-	for _, c := range clusters {
-		common.ApplyAKSNameSuffix(c)
-	}
+	// no-op
 }
 
 func (a *aksFetcher) getAKSClusters(ctx context.Context) ([]*azure.AKSCluster, error) {

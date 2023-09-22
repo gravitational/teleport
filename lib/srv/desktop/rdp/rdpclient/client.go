@@ -240,20 +240,6 @@ func (c *Client) connect(ctx context.Context) error {
 	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
 
-	cert_der, err := utils.UnsafeSliceData(userCertDER)
-	if err != nil {
-		return trace.Wrap(err)
-	} else if cert_der == nil {
-		return trace.BadParameter("user cert was nil")
-	}
-
-	key_der, err := utils.UnsafeSliceData(userKeyDER)
-	if err != nil {
-		return trace.Wrap(err)
-	} else if key_der == nil {
-		return trace.BadParameter("user key was nil")
-	}
-
 	res := C.connect_rdp(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
@@ -261,10 +247,10 @@ func (c *Client) connect(ctx context.Context) error {
 			go_username: username,
 			// cert length and bytes.
 			cert_der_len: C.uint32_t(len(userCertDER)),
-			cert_der:     (*C.uint8_t)(cert_der),
+			cert_der:     (*C.uint8_t)(unsafe.Pointer(&userCertDER[0])),
 			// key length and bytes.
 			key_der_len:             C.uint32_t(len(userKeyDER)),
-			key_der:                 (*C.uint8_t)(key_der),
+			key_der:                 (*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
 			screen_width:            C.uint16_t(c.clientWidth),
 			screen_height:           C.uint16_t(c.clientHeight),
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
@@ -445,15 +431,9 @@ func (c *Client) start() {
 				}
 			case tdp.ClipboardData:
 				if len(m) > 0 {
-					data, err := utils.UnsafeSliceData(m)
-					if err != nil {
-						c.cfg.Log.Errorf("ClipboardData: %v", err)
-						return
-					}
-					// data will not be nil because len(m) > 0
 					if errCode := C.update_clipboard(
 						c.rustClient,
-						(*C.uint8_t)(data),
+						(*C.uint8_t)(unsafe.Pointer(&m[0])),
 						C.uint32_t(len(m)),
 					); errCode != C.ErrCodeSuccess {
 						c.cfg.Log.Warningf("ClipboardData: update_clipboard (len=%v): %v", len(m), errCode)
@@ -540,9 +520,12 @@ func (c *Client) start() {
 					}
 
 					fsoListLen := len(fsoList)
-					cgoFsoList, err := utils.UnsafeSliceData(fsoList)
-					if err != nil {
-						c.cfg.Log.Errorf("SharedDirectoryListResponse: %v", err)
+					var cgoFsoList *C.CGOFileSystemObject
+
+					if fsoListLen > 0 {
+						cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList[0]))
+					} else {
+						cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList))
 					}
 
 					if errCode := C.handle_tdp_sd_list_response(c.rustClient, C.CGOSharedDirectoryListResponse{
@@ -557,16 +540,18 @@ func (c *Client) start() {
 				}
 			case tdp.SharedDirectoryReadResponse:
 				if c.cfg.AllowDirectorySharing {
-					readData, err := utils.UnsafeSliceData(m.ReadData)
-					if err != nil {
-						c.cfg.Log.Errorf("SharedDirectoryReadResponse: %v", err)
+					var readData *C.uint8_t
+					if m.ReadDataLength > 0 {
+						readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData[0]))
+					} else {
+						readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData))
 					}
 
 					if errCode := C.handle_tdp_sd_read_response(c.rustClient, C.CGOSharedDirectoryReadResponse{
 						completion_id:    C.uint32_t(m.CompletionID),
 						err_code:         m.ErrCode,
 						read_data_length: C.uint32_t(m.ReadDataLength),
-						read_data:        (*C.uint8_t)(readData),
+						read_data:        readData,
 					}); errCode != C.ErrCodeSuccess {
 						c.cfg.Log.Errorf("SharedDirectoryReadResponse failed: %v", errCode)
 						return

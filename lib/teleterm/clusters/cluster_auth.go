@@ -184,17 +184,12 @@ func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) e
 	c.clusterClient.LocalAgent().UpdateUsername(key.Username)
 	c.clusterClient.Username = key.Username
 
-	proxyClient, rootAuthClient, err := c.clusterClient.ConnectToRootCluster(ctx, key)
-	if err != nil {
+	if err := c.clusterClient.ActivateKey(ctx, key); err != nil {
 		return trace.Wrap(err)
 	}
-	defer func() {
-		rootAuthClient.Close()
-		proxyClient.Close()
-	}()
 
 	// Attempt device login. This activates a fresh key if successful.
-	if err := c.clusterClient.AttemptDeviceLogin(ctx, key, rootAuthClient); err != nil {
+	if err := c.clusterClient.AttemptDeviceLogin(ctx, key); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -224,8 +219,9 @@ func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
 				RouteToCluster:    c.clusterClient.SiteName,
 				KubernetesCluster: c.clusterClient.KubernetesCluster,
 			},
-			User:     user,
-			Password: password,
+			User:      user,
+			Password:  password,
+			PromptMFA: c.clusterClient.PromptMFA,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -293,6 +289,7 @@ func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordless
 			},
 			AuthenticatorAttachment: c.clusterClient.AuthenticatorAttachment,
 			CustomPrompt:            newPwdlessLoginPrompt(ctx, c.Log, stream),
+			WebauthnLogin:           c.clusterClient.WebauthnLogin,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

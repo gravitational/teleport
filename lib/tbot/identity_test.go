@@ -20,7 +20,6 @@ limitations under the License.
 package tbot
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -33,14 +32,13 @@ import (
 func TestLoadEmptyIdentity(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
 	dir := t.TempDir()
 	dest := config.DestinationDirectory{
 		Path: dir,
 	}
 	require.NoError(t, dest.CheckAndSetDefaults())
 
-	_, err := identity.LoadIdentity(ctx, &dest, identity.BotKinds()...)
+	_, err := identity.LoadIdentity(&dest, identity.BotKinds()...)
 	require.Error(t, err)
 
 	require.True(t, trace.IsNotFound(err))

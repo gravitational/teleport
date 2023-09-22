@@ -57,7 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -103,7 +102,7 @@ type Server struct {
 	cloudLabels labels.Importer
 
 	proxyMode        bool
-	proxyTun         reversetunnelclient.Tunnel
+	proxyTun         reversetunnel.Tunnel
 	proxyAccessPoint auth.ReadProxyAccessPoint
 	peerAddr         string
 
@@ -183,6 +182,9 @@ type Server struct {
 
 	// wtmpPath is the path to the user accounting s.Logger.
 	wtmpPath string
+
+	// btmpPath is the path to the user accounting failed login log.
+	btmpPath string
 
 	// allowTCPForwarding indicates whether the ssh server is allowed to offer
 	// TCP port forwarding.
@@ -265,9 +267,9 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
 }
 
-// GetUtmpPath returns the optional override of the utmp and wtmp path.
-func (s *Server) GetUtmpPath() (string, string) {
-	return s.utmpPath, s.wtmpPath
+// GetUserAccountingPaths returns the optional override of the utmp, wtmp, and btmp paths.
+func (s *Server) GetUserAccountingPaths() (string, string, string) {
+	return s.utmpPath, s.wtmpPath, s.btmpPath
 }
 
 // GetPAM returns the PAM configuration for this server.
@@ -404,11 +406,12 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	s.srv.HandleConnection(conn)
 }
 
-// SetUtmpPath is a functional server option to override the user accounting database and log path.
-func SetUtmpPath(utmpPath, wtmpPath string) ServerOption {
+// SetUserAccountingPaths is a functional server option to override the user accounting database and log path.
+func SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath string) ServerOption {
 	return func(s *Server) error {
 		s.utmpPath = utmpPath
 		s.wtmpPath = wtmpPath
+		s.btmpPath = btmpPath
 		return nil
 	}
 }
@@ -440,7 +443,7 @@ func SetShell(shell string) ServerOption {
 }
 
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(peerAddr string, tsrv reversetunnelclient.Tunnel, ap auth.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
+func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
@@ -908,13 +911,8 @@ func (s *Server) getNamespace() string {
 	return types.ProcessNamespace(s.namespace)
 }
 
-func (s *Server) tunnelWithAccessChecker(ctx *srv.ServerContext) (reversetunnelclient.Tunnel, error) {
-	clusterName, err := s.GetAccessPoint().GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return reversetunnelclient.NewTunnelWithRoles(s.proxyTun, clusterName.GetClusterName(), ctx.Identity.AccessChecker, s.proxyAccessPoint), nil
+func (s *Server) tunnelWithAccessChecker(ctx *srv.ServerContext) reversetunnel.Tunnel {
+	return reversetunnel.NewTunnelWithRoles(s.proxyTun, ctx.Identity.AccessChecker, s.proxyAccessPoint)
 }
 
 // Context returns server shutdown context
@@ -932,6 +930,12 @@ func (s *Server) Component() string {
 // Addr returns server address
 func (s *Server) Addr() string {
 	return s.srv.Addr()
+}
+
+// ActiveConnections returns the number of connections that are
+// being served.
+func (s *Server) ActiveConnections() int32 {
+	return s.srv.ActiveConnections()
 }
 
 // ID returns server ID

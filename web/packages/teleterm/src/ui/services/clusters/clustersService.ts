@@ -149,8 +149,10 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
    * syncRootCluster is useful in situations where we want to sync the cluster _and_ propagate any
    * errors up.
    */
-  async syncRootCluster(clusterUri: uri.RootClusterUri) {
+  private async syncRootCluster(clusterUri: uri.RootClusterUri) {
     await Promise.all([
+      // syncClusterInfo never fails with a retryable error since it reads data from disk.
+      // syncLeafClusters reaches out to the proxy so it might return a retryable error.
       this.syncClusterInfo(clusterUri),
       this.syncLeafClustersList(clusterUri),
     ]);
@@ -379,13 +381,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     }
   }
 
-  async removeKubeGateway(kubeUri: uri.KubeUri) {
-    const gateway = this.findGatewayByConnectionParams(kubeUri, '');
-    if (gateway) {
-      await this.removeGateway(gateway.uri);
-    }
-  }
-
   async setGatewayTargetSubresourceName(
     gatewayUri: uri.GatewayUri,
     targetSubresourceName: string
@@ -432,7 +427,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   findGatewayByConnectionParams(
-    targetUri: uri.DatabaseUri | uri.KubeUri,
+    targetUri: uri.DatabaseUri,
     targetUser: string
   ) {
     let found: Gateway;

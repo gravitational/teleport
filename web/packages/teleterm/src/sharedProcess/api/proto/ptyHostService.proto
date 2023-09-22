@@ -36,7 +36,6 @@ message PtyCreate {
   reserved 6;
   reserved "init_command";
   google.protobuf.Struct env = 7;
-  string init_message = 8;
 }
 
 message PtyClientEvent {

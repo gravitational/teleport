@@ -93,9 +93,7 @@ func (a *eksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 
 // rewriteKubeClusters rewrites the discovered kube clusters.
 func (a *eksFetcher) rewriteKubeClusters(clusters types.KubeClusters) {
-	for _, c := range clusters {
-		common.ApplyEKSNameSuffix(c)
-	}
+	// no-op
 }
 
 func (a *eksFetcher) getEKSClusters(ctx context.Context) (types.KubeClusters, error) {

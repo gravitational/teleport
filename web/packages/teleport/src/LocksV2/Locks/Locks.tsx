@@ -144,10 +144,7 @@ export function Locks() {
               altKey: 'options-btn',
               render: lock => (
                 <Cell align="right">
-                  <TrashButton
-                    size="medium"
-                    onClick={() => setLockToDelete(lock)}
-                  />
+                  <TrashButton onClick={() => setLockToDelete(lock)} />
                 </Cell>
               ),
             },
@@ -180,17 +177,17 @@ function getFormattedDate(d: string): string {
   }
 }
 
-function lockTargetsMatcher(
+export function lockTargetsMatcher(
   targetValue: any,
   searchValue: string,
   propName: keyof Lock & string
 ) {
   if (propName === 'targets') {
-    return targetValue.some(
-      ({ name, value }) =>
+    return (targetValue as LockTarget[]).some(
+      ({ name, kind }) =>
         name.toLocaleUpperCase().includes(searchValue) ||
-        value.toLocaleUpperCase().includes(searchValue) ||
-        `${name}: ${value}`.toLocaleUpperCase().includes(searchValue)
+        kind.toLocaleUpperCase().includes(searchValue) ||
+        `${kind}: ${name}`.toLocaleUpperCase().includes(searchValue)
     );
   }
 }

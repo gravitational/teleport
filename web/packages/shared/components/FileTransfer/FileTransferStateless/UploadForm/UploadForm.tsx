@@ -76,7 +76,7 @@ export function UploadForm(props: UploadFormProps) {
   return (
     <Form>
       <PathInput
-        label="Upload destination"
+        label="Upload Destination"
         value={destinationPath}
         autoFocus
         onChange={e => setDestinationPath(e.target.value)}
@@ -108,7 +108,7 @@ export function UploadForm(props: UploadFormProps) {
           openFilePicker();
         }}
       >
-        <NoteAdded size="extraLarge" mb={2} />
+        <NoteAdded fontSize={10} mb={2} />
         <Text typography="h6">Drag your files here</Text>
         <Text typography="body2">
           or Browse your computer to start uploading

@@ -20,13 +20,13 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
-	"net/http"
 	"net/url"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	// Load kubeconfig auth plugins for gcp and azure.
@@ -66,13 +66,8 @@ import (
 //   - if loading from kubeconfig, all contexts are returned
 //   - if no credentials are loaded, returns an error
 //   - permission self-test failures cause an error to be returned
-func (f *Forwarder) getKubeDetails(ctx context.Context) error {
-	serviceType := f.cfg.KubeServiceType
-	kubeconfigPath := f.cfg.KubeconfigPath
-	kubeClusterName := f.cfg.KubeClusterName
-	tpClusterName := f.cfg.ClusterName
-
-	f.log.
+func getKubeDetails(ctx context.Context, log logrus.FieldLogger, tpClusterName, kubeClusterName, kubeconfigPath string, serviceType KubeServiceType, checkImpersonation servicecfg.ImpersonationPermissionsChecker) (map[string]*kubeDetails, error) {
+	log.
 		WithField("kubeconfigPath", kubeconfigPath).
 		WithField("kubeClusterName", kubeClusterName).
 		WithField("serviceType", serviceType).
@@ -80,24 +75,24 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 
 	// Proxy service should never have creds, forwards to kube service
 	if serviceType == ProxyService {
-		return nil
+		return map[string]*kubeDetails{}, nil
 	}
 
 	// Load kubeconfig or local pod credentials.
 	loadAll := serviceType == KubeService
 	cfg, err := kubeutils.GetKubeConfig(kubeconfigPath, loadAll, kubeClusterName)
 	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
+		return map[string]*kubeDetails{}, trace.Wrap(err)
 	}
 
 	if trace.IsNotFound(err) || len(cfg.Contexts) == 0 {
 		switch serviceType {
 		case KubeService:
-			return trace.BadParameter("no Kubernetes credentials found; Kubernetes_service requires either a valid kubeconfig_file or to run inside of a Kubernetes pod")
+			return nil, trace.BadParameter("no Kubernetes credentials found; Kubernetes_service requires either a valid kubeconfig_file or to run inside of a Kubernetes pod")
 		case LegacyProxyService:
-			f.log.Debugf("Could not load Kubernetes credentials. This proxy will still handle Kubernetes requests for trusted teleport clusters or Kubernetes nodes in this teleport cluster")
+			log.Debugf("Could not load Kubernetes credentials. This proxy will still handle Kubernetes requests for trusted teleport clusters or Kubernetes nodes in this teleport cluster")
 		}
-		return nil
+		return map[string]*kubeDetails{}, nil
 	}
 
 	if serviceType == LegacyProxyService {
@@ -111,40 +106,33 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 				tpClusterName: currentContext,
 			}
 		} else {
-			return trace.BadParameter("no Kubernetes current-context found; Kubernetes proxy service requires either a valid kubeconfig_file with a current-context or to run inside of a Kubernetes pod")
+			return nil, trace.BadParameter("no Kubernetes current-context found; Kubernetes proxy service requires either a valid kubeconfig_file with a current-context or to run inside of a Kubernetes pod")
 		}
 	}
 
+	res := make(map[string]*kubeDetails, len(cfg.Contexts))
 	// Convert kubeconfig contexts into kubeCreds.
 	for cluster, clientCfg := range cfg.Contexts {
-		clusterCreds, err := extractKubeCreds(ctx, serviceType, cluster, clientCfg, f.log, f.cfg.CheckImpersonationPermissions)
+		clusterCreds, err := extractKubeCreds(ctx, serviceType, cluster, clientCfg, log, checkImpersonation)
 		if err != nil {
-			f.log.WithError(err).Warnf("failed to load credentials for cluster %q.", cluster)
+			log.WithError(err).Warnf("failed to load credentials for cluster %q.", cluster)
 			continue
 		}
 		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
 			Name: cluster,
 		}, types.KubernetesClusterSpecV3{})
 		if err != nil {
-			f.log.WithError(err).Warnf("failed to create KubernetesClusterV3 from credentials for cluster %q.", cluster)
+			log.WithError(err).Warnf("failed to create KubernetesClusterV3 from credentials for cluster %q.", cluster)
 			continue
 		}
-		details, err := newClusterDetails(ctx,
-			clusterDetailsConfig{
-				cluster:   kubeCluster,
-				kubeCreds: clusterCreds,
-				log:       f.log.WithField("cluster", cluster),
-				checker:   f.cfg.CheckImpersonationPermissions,
-				component: serviceType,
-				clock:     f.cfg.Clock,
-			})
-		if err != nil {
-			f.log.WithError(err).Warnf("Failed to create cluster details for cluster %q.", cluster)
-			return trace.Wrap(err, "setting up details for cluster %q", cluster)
+		res[cluster] = &kubeDetails{
+			kubeCreds: clusterCreds,
+			// kubeconfig does not allow labels so we don't define static and dynamic labels for the cluster.
+			// those will be inherited from the service later.
+			kubeCluster: kubeCluster,
 		}
-		f.clusterDetails[cluster] = details
 	}
-	return nil
+	return res, nil
 }
 
 func extractKubeCreds(ctx context.Context, component string, cluster string, clientCfg *rest.Config, log logrus.FieldLogger, checkPermissions servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
@@ -198,18 +186,32 @@ func extractKubeCreds(ctx context.Context, component string, cluster string, cli
 }
 
 // newDirectTransports creates a new http.Transport that will be used to connect to the Kubernetes API server.
-// It is a direct connection, not going through a proxy.
-func newDirectTransports(component string, tlsConfig *tls.Config, transportConfig *transport.Config) (http.RoundTripper, error) {
-	h2HTTPTransport, err := newH2Transport(tlsConfig, nil)
+// It is a direct connection, not going through a Teleport proxy.
+// The transport used respects HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables.
+func newDirectTransports(component string, tlsConfig *tls.Config, transportConfig *transport.Config) (httpTransport, error) {
+	h1Transport, err := wrapTransport(
+		utilnet.SetTransportDefaults(newH1Transport(tlsConfig, nil)),
+		transportConfig)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	h2Transport, err := wrapTransport(h2HTTPTransport, transportConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		return httpTransport{}, trace.Wrap(err)
 	}
 
-	return instrumentedRoundtripper(component, h2Transport), nil
+	h2HTTPTransport, err := newH2Transport(tlsConfig, nil)
+	if err != nil {
+		return httpTransport{}, trace.Wrap(err)
+	}
+	// SetTransportDefaults sets the default values for the transport including
+	// support for HTTP_PROXY, HTTPS_PROXY, NO_PROXY, and the default user agent.
+	h2HTTPTransport = utilnet.SetTransportDefaults(h2HTTPTransport)
+	h2Transport, err := wrapTransport(h2HTTPTransport, transportConfig)
+	if err != nil {
+		return httpTransport{}, trace.Wrap(err)
+	}
+
+	return httpTransport{
+		h1Transport: instrumentedRoundtripper(component, h1Transport),
+		h2Transport: instrumentedRoundtripper(component, h2Transport),
+	}, nil
 }
 
 // parseKubeHost parses and formats kubernetes hostname

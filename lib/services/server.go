@@ -123,6 +123,9 @@ func compareServers(a, b types.Server) int {
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
+	if !cmp.Equal(a.GetApps(), b.GetApps()) {
+		return Different
+	}
 
 	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
@@ -412,8 +415,8 @@ func UnmarshalServers(bytes []byte) ([]types.Server, error) {
 	}
 
 	out := make([]types.Server, len(servers))
-	for i := range servers {
-		out[i] = types.Server(&servers[i])
+	for i, v := range servers {
+		out[i] = types.Server(&v)
 	}
 	return out, nil
 }
@@ -443,8 +446,12 @@ func NewAWSNodeFromEC2Instance(instance ec2Types.Instance, awsCloudMetadata *typ
 	}
 	libaws.AddMetadataLabels(labels, awsCloudMetadata.AccountID, awsCloudMetadata.Region)
 
-	awsCloudMetadata.InstanceID = aws.ToString(instance.InstanceId)
+	instanceID := aws.ToString(instance.InstanceId)
+	labels[types.AWSInstanceIDLabel] = instanceID
+
+	awsCloudMetadata.InstanceID = instanceID
 	awsCloudMetadata.VPCID = aws.ToString(instance.VpcId)
+	awsCloudMetadata.SubnetID = aws.ToString(instance.SubnetId)
 
 	if aws.ToString(instance.PrivateIpAddress) == "" {
 		return nil, trace.BadParameter("private ip address is required from ec2 instance")

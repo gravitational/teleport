@@ -17,19 +17,12 @@
 import { ipcRenderer } from 'electron';
 
 import { createFileStorageClient } from 'teleterm/services/fileStorage';
-import { AgentConfigFileClusterProperties } from 'teleterm/mainProcess/createAgentConfigFile';
-import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { createConfigServiceClient } from '../services/config';
 
 import { openTerminalContextMenu } from './contextMenus/terminalContextMenu';
+import { MainProcessClient, ChildProcessAddresses } from './types';
 import { openTabContextMenu } from './contextMenus/tabContextMenu';
-
-import {
-  MainProcessClient,
-  ChildProcessAddresses,
-  AgentProcessState,
-} from './types';
 
 export default function createMainProcessClient(): MainProcessClient {
   return {
@@ -73,45 +66,6 @@ export default function createMainProcessClient(): MainProcessClient {
       ipcRenderer.addListener(channel, onThemeChange);
       return {
         cleanup: () => ipcRenderer.removeListener(channel, onThemeChange),
-      };
-    },
-    downloadAgent() {
-      return ipcRenderer.invoke(
-        'main-process-connect-my-computer-download-agent'
-      );
-    },
-    createAgentConfigFile(clusterProperties: AgentConfigFileClusterProperties) {
-      return ipcRenderer.invoke(
-        'main-process-connect-my-computer-create-agent-config-file',
-        clusterProperties
-      );
-    },
-    runAgent(clusterProperties: { rootClusterUri: RootClusterUri }) {
-      return ipcRenderer.invoke(
-        'main-process-connect-my-computer-run-agent',
-        clusterProperties
-      );
-    },
-    getAgentState(clusterProperties: { rootClusterUri: RootClusterUri }) {
-      return ipcRenderer.sendSync(
-        'main-process-connect-my-computer-get-agent-state',
-        clusterProperties
-      );
-    },
-    subscribeToAgentUpdate: (rootClusterUri, listener) => {
-      const onChange = (
-        _,
-        eventRootClusterUri: RootClusterUri,
-        eventState: AgentProcessState
-      ) => {
-        if (eventRootClusterUri === rootClusterUri) {
-          listener(eventState);
-        }
-      };
-      const channel = 'main-process-connect-my-computer-agent-update';
-      ipcRenderer.addListener(channel, onChange);
-      return {
-        cleanup: () => ipcRenderer.removeListener(channel, onChange),
       };
     },
   };

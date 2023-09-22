@@ -51,7 +51,7 @@ export const ToolTipInfo: React.FC<{ muteIconColor?: boolean }> = ({
           height: 18px;
         `}
       >
-        <InfoIcon $muteIconColor={muteIconColor} size="medium" />
+        <InfoIcon $muteIconColor={muteIconColor} />
       </span>
       <Popover
         modalCss={modalCss}
@@ -86,7 +86,6 @@ const StyledOnHover = styled(Text)`
 `;
 
 const InfoIcon = styled(Icons.Info)`
-  height: 18px;
-  width: 18px;
+  font-size: 18px;
   color: ${p => (p.$muteIconColor ? p.theme.colors.text.disabled : 'inherit')};
 `;

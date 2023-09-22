@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/trace"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/web/mfajson"
@@ -256,7 +256,7 @@ func (f PNG2Frame) Encode() ([]byte, error) {
 	// Encode gets called on the reusable buffer at
 	// lib/srv/desktop/rdp/rdclient.Client.png2FrameBuffer,
 	// which was causing us recording problems due to the async
-	// nature of SessionWriter. Copying into a new buffer here is
+	// nature of AuditWriter. Copying into a new buffer here is
 	// a temporary hack that fixes that.
 	//
 	// TODO(isaiah, zmb3): remove this once a buffer pool
@@ -556,7 +556,7 @@ func (m MFA) Encode() ([]byte, error) {
 	} else if m.MFAAuthenticateResponse != nil {
 		switch t := m.MFAAuthenticateResponse.Response.(type) {
 		case *authproto.MFAAuthenticateResponse_Webauthn:
-			buff, err = json.Marshal(wanlib.CredentialAssertionResponseFromProto(m.MFAAuthenticateResponse.GetWebauthn()))
+			buff, err = json.Marshal(wantypes.CredentialAssertionResponseFromProto(m.MFAAuthenticateResponse.GetWebauthn()))
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -596,6 +596,8 @@ func DecodeMFA(in byteReader) (*MFA, error) {
 	if length > maxMFADataLength {
 		_, _ = io.CopyN(io.Discard, in, int64(length))
 		return nil, mfaDataMaxLenErr
+	} else if length == 0 {
+		return nil, trace.BadParameter("mfa data missing")
 	}
 
 	b := make([]byte, int(length))
@@ -636,6 +638,8 @@ func DecodeMFAChallenge(in byteReader) (*MFA, error) {
 
 	if length > maxMFADataLength {
 		return nil, trace.BadParameter("mfa challenge data exceeds maximum length")
+	} else if length == 0 {
+		return nil, trace.BadParameter("mfa challenge data missing")
 	}
 
 	b := make([]byte, int(length))
@@ -643,17 +647,14 @@ func DecodeMFAChallenge(in byteReader) (*MFA, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var req *client.MFAAuthenticateChallenge
+	var req client.MFAAuthenticateChallenge
 	if err := json.Unmarshal(b, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &MFA{
 		Type:                     mt,
-		MFAAuthenticateChallenge: req,
+		MFAAuthenticateChallenge: &req,
 	}, nil
 }
 
@@ -909,6 +910,7 @@ func decodeSharedDirectoryCreateRequest(in io.Reader) (SharedDirectoryCreateRequ
 		FileType:     fileType,
 		Path:         path,
 	}, nil
+
 }
 
 // SharedDirectoryCreateResponseis sent by the TDP client to the server with information from an executed SharedDirectoryCreateRequest.
@@ -1309,6 +1311,7 @@ func decodeSharedDirectoryWriteRequest(in byteReader, maxLen uint32) (SharedDire
 		WriteDataLength: writeDataLength,
 		WriteData:       writeData,
 	}, nil
+
 }
 
 // SharedDirectoryWriteResponse is a message sent by the TDP client to the server
@@ -1458,19 +1461,17 @@ func writeUint64(b *bytes.Buffer, v uint64) {
 	b.WriteByte(byte(v))
 }
 
-const (
-	// tdpMaxNotificationMessageLength is somewhat arbitrary, as it is only sent *to*
-	// the browser (Teleport never receives this message, so won't be decoding it)
-	tdpMaxNotificationMessageLength = 10240
+// tdpMaxNotificationMessageLength is somewhat arbitrary, as it is only sent *to*
+// the browser (Teleport never receives this message, so won't be decoding it)
+const tdpMaxNotificationMessageLength = 10240
 
-	// tdpMaxPathLength is somewhat arbitrary because we weren't able to determine
-	// a precise value to set it to: https://github.com/gravitational/teleport/issues/14950#issuecomment-1341632465
-	// The limit is kept as an additional defense-in-depth measure.
-	tdpMaxPathLength = 10240
+// tdpMaxPathLength is somewhat arbitrary because we weren't able to determine
+// a precise value to set it to: https://github.com/gravitational/teleport/issues/14950#issuecomment-1341632465
+// The limit is kept as an additional defense-in-depth measure.
+const tdpMaxPathLength = 10240
 
-	maxClipboardDataLength    = 1024 * 1024 // 1MB
-	tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
-)
+const maxClipboardDataLength = 1024 * 1024    // 1MB
+const tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
 
 // maxPNGFrameDataLength is maximum data length for PNG2Frame
 const maxPNGFrameDataLength = 10 * 1024 * 1024 // 10MB

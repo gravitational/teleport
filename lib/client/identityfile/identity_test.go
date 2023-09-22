@@ -32,7 +32,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -174,7 +173,7 @@ func TestWrite(t *testing.T) {
 	cfg.OutputPath = filepath.Join(outputDir, "kubeconfig")
 	cfg.Format = FormatKubernetes
 	cfg.KubeProxyAddr = "far.away.cluster"
-	cfg.KubeTLSServerName = constants.KubeTeleportProxyALPNPrefix + "far.away.cluster"
+	cfg.KubeTLSServerName = "kube.far.away.cluster"
 	_, err = Write(context.Background(), cfg)
 	require.NoError(t, err)
 	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "far.away.cluster", cfg.KubeTLSServerName)
@@ -198,7 +197,7 @@ func TestWriteAllFormats(t *testing.T) {
 			// extra fields for kubernetes
 			if format == FormatKubernetes {
 				cfg.KubeProxyAddr = "far.away.cluster"
-				cfg.KubeTLSServerName = constants.KubeTeleportProxyALPNPrefix + "far.away.cluster"
+				cfg.KubeTLSServerName = "kube.far.away.cluster"
 			}
 
 			// for cockroach, output path should be a directory
@@ -239,7 +238,7 @@ func TestKubeconfigOverwrite(t *testing.T) {
 	// Write a kubeconfig for a different cluster to the same file path. It
 	// should be overwritten.
 	cfg.KubeProxyAddr = "other.cluster"
-	cfg.KubeTLSServerName = constants.KubeTeleportProxyALPNPrefix + "other.cluster"
+	cfg.KubeTLSServerName = "kube.other.cluster"
 	_, err = Write(context.Background(), cfg)
 	require.NoError(t, err)
 	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "other.cluster", cfg.KubeTLSServerName)

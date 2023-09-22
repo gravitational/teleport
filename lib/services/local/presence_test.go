@@ -287,20 +287,6 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.Empty(t, out)
 }
 
-func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
-	database, err := types.NewDatabaseV3(
-		types.Metadata{
-			Name: name,
-		},
-		types.DatabaseSpecV3{
-			Protocol: protocol,
-			URI:      uri,
-		},
-	)
-	require.NoError(t, err)
-	return database
-}
-
 func TestDatabaseServersCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -318,7 +304,8 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	server, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: "foo",
 	}, types.DatabaseServerSpecV3{
-		Database: mustCreateDatabase(t, "foo", defaults.ProtocolPostgres, "localhost:5432"),
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
 		Hostname: "localhost",
 		HostID:   uuid.New().String(),
 	})
@@ -484,13 +471,12 @@ func TestListResources(t *testing.T) {
 		"DatabaseServers": {
 			resourceType: types.KindDatabaseServer,
 			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
-				db := mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432")
-				db.SetStaticLabels(labels)
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name:   name,
 					Labels: labels,
 				}, types.DatabaseServerSpecV3{
-					Database: db,
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "localhost:5432",
 					Hostname: "localhost",
 					HostID:   uuid.New().String(),
 				})
@@ -509,13 +495,12 @@ func TestListResources(t *testing.T) {
 		"DatabaseServersSameHost": {
 			resourceType: types.KindDatabaseServer,
 			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
-				db := mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432")
-				db.SetStaticLabels(labels)
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name:   name,
 					Labels: labels,
 				}, types.DatabaseServerSpecV3{
-					Database: db,
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "localhost:5432",
 					Hostname: "localhost",
 					HostID:   "some-host",
 				})

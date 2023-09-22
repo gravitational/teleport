@@ -194,12 +194,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
               {hasError && (
                 <Box>
                   <TextIcon mt={3}>
-                    <Icons.Warning
-                      size="medium"
-                      ml={1}
-                      mr={2}
-                      color="error.main"
-                    />
+                    <Icons.Warning ml={1} color="error.main" />
                     Encountered Error: {attempt.statusText}
                   </TextIcon>
                   <Text mt={2}>
@@ -408,7 +403,7 @@ const DeployHints = ({
           padding-right: 4px;
         `}
       >
-        <Icons.Restore size="medium" mr={1} />
+        <Icons.Restore fontSize={4} />
       </TextIcon>
       <Text>
         Teleport is currently deploying a Database Service. It will take at

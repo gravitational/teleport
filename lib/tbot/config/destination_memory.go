@@ -17,15 +17,11 @@ limitations under the License.
 package config
 
 import (
-	"context"
-
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 )
 
-const DestinationMemoryType = "memory"
-
-// DestinationMemory is a memory certificate Destination
+// DestinationMemory is a memory certificate destination
 type DestinationMemory struct {
 	store map[string][]byte `yaml:"-"`
 }
@@ -54,7 +50,7 @@ func (dm *DestinationMemory) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (dm *DestinationMemory) Init(_ context.Context, subdirs []string) error {
+func (dm *DestinationMemory) Init(subdirs []string) error {
 	// Nothing to do.
 	return nil
 }
@@ -64,13 +60,13 @@ func (dm *DestinationMemory) Verify(keys []string) error {
 	return nil
 }
 
-func (dm *DestinationMemory) Write(_ context.Context, name string, data []byte) error {
+func (dm *DestinationMemory) Write(name string, data []byte) error {
 	dm.store[name] = data
 
 	return nil
 }
 
-func (dm *DestinationMemory) Read(_ context.Context, name string) ([]byte, error) {
+func (dm *DestinationMemory) Read(name string) ([]byte, error) {
 	b, ok := dm.store[name]
 	if !ok {
 		return nil, trace.NotFound("not found: %s", name)
@@ -80,18 +76,13 @@ func (dm *DestinationMemory) Read(_ context.Context, name string) ([]byte, error
 }
 
 func (dm *DestinationMemory) String() string {
-	return DestinationMemoryType
+	return "[memory]"
 }
 
 func (dm *DestinationMemory) TryLock() (func() error, error) {
 	// As this is purely in-memory, no locking behavior is required for the
-	// Destination.
+	// destination.
 	return func() error {
 		return nil
 	}, nil
-}
-
-func (dm DestinationMemory) MarshalYAML() (interface{}, error) {
-	type raw DestinationMemory
-	return withTypeHeader(raw(dm), DestinationMemoryType)
 }

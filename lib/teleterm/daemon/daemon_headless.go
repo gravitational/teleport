@@ -31,7 +31,7 @@ import (
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
 func (s *Service) UpdateHeadlessAuthenticationState(ctx context.Context, clusterURI, headlessID string, state api.HeadlessAuthenticationState) error {
-	cluster, _, err := s.ResolveCluster(clusterURI)
+	cluster, err := s.ResolveCluster(clusterURI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -52,7 +52,7 @@ func (s *Service) StartHeadlessWatcher(uri string, waitInit bool) error {
 	s.headlessWatcherClosersMu.Lock()
 	defer s.headlessWatcherClosersMu.Unlock()
 
-	cluster, _, err := s.ResolveCluster(uri)
+	cluster, err := s.ResolveCluster(uri)
 	if err != nil {
 		return trace.Wrap(err)
 	}

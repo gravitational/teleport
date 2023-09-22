@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { Card, Text, Link, ButtonText, ButtonSecondary, Box } from 'design';
+import { Text, Link, ButtonText, ButtonSecondary, Box } from 'design';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -23,6 +23,8 @@ import Dialog, {
   DialogFooter,
 } from 'design/Dialog';
 import { Danger } from 'design/Alert';
+
+import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 import { generateTshLoginCommand } from 'teleport/lib/util';
 
@@ -49,8 +51,8 @@ export const PrivateKeyLoginDisabledCard = ({
   // lost password or two-factor device.
   onRecover?: (isRecoverPassword: boolean) => void;
 }) => (
-  <Card my="5" mx="auto" width="464px" px={5} pb={4}>
-    <Text typography="h3" pt={4} textAlign="center" color="text.main">
+  <OnboardCard>
+    <Text typography="h4" pt={4} textAlign="center" color="text.main">
       {title}
     </Text>
     <Danger my={5}>Web UI Login Disabled</Danger>
@@ -89,7 +91,7 @@ export const PrivateKeyLoginDisabledCard = ({
         </ButtonText>
       </Text>
     )}
-  </Card>
+  </OnboardCard>
 );
 
 export type PrivateKeyAccessRequest = TshLoginCommand & {

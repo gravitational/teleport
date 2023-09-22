@@ -117,7 +117,6 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 	watcher, err := discovery.NewWatcher(ctx, discovery.WatcherConfig{
 		Fetchers: append(awsFetchers, azureFetchers...),
 		Log:      logrus.WithField(trace.Component, "watcher:cloud"),
-		Origin:   types.OriginCloud,
 	})
 	if err != nil {
 		if trace.IsNotFound(err) {

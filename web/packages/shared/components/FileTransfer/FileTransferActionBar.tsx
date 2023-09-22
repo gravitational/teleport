@@ -39,7 +39,7 @@ export function FileTransferActionBar({
         title="Download files"
         onClick={fileTransferContext.openDownloadDialog}
       >
-        <Icons.Download size={16} />
+        <Icons.Download fontSize="16px" />
       </ButtonIcon>
       <ButtonIcon
         disabled={areFileTransferButtonsDisabled}
@@ -47,7 +47,7 @@ export function FileTransferActionBar({
         title="Upload files"
         onClick={fileTransferContext.openUploadDialog}
       >
-        <Icons.Upload size={16} />
+        <Icons.Upload fontSize="16px" />
       </ButtonIcon>
     </Flex>
   );

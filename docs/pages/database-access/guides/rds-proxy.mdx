@@ -5,12 +5,15 @@ description: How to configure Teleport database access with AWS RDS Proxy.
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS RDS proxy" dbConfigure="AWS RDS proxy with IAM authentication" dbName="AWS RDS proxy" !)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access RDS Proxy Self-Hosted](../../../img/database-access/guides/rds-proxy_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access RDS Proxy Cloud](../../../img/database-access/guides/rds-proxy_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 <Admonition type="note" title="Supported Engine Family">
 Teleport currently supports RDS Proxy instances with engine family
@@ -44,7 +47,7 @@ your Teleport Proxy address or Teleport Cloud tenant (e.g. `mytenant.teleport.sh
 and replace <Var name="us-west-1" /> with your preferred region:
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --proxy=<Var name="teleport.example.com"/>:443 \
    --token=/tmp/token \
@@ -204,3 +207,4 @@ $ tsh db logout rds-proxy
   and [Setting up AWS Identity and Access Management (IAM)
   policies](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-setup.html)
   for RDS Proxy
+

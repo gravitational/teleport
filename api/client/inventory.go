@@ -18,7 +18,6 @@ package client
 
 import (
 	"context"
-	"errors"
 	"io"
 	"sync"
 
@@ -237,7 +236,7 @@ func (c *Client) GetInstances(ctx context.Context, filter types.InstanceFilter) 
 	return stream.Func[types.Instance](func() (types.Instance, error) {
 		instance, err := instances.Recv()
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			if trace.IsEOF(err) {
 				// io.EOF signals that stream has completed successfully
 				return nil, io.EOF
 			}
@@ -285,7 +284,7 @@ func (i *downstreamICS) runRecvLoop(stream proto.AuthService_InventoryControlStr
 		oneOf, err := stream.Recv()
 		if err != nil {
 			// preserve EOF to help distinguish "ok" closure.
-			if !errors.Is(err, io.EOF) {
+			if !trace.IsEOF(err) {
 				err = trace.Errorf("inventory control stream closed: %v", trail.FromGRPC(err))
 			}
 			i.CloseWithError(err)
@@ -348,7 +347,7 @@ func (i *downstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStr
 			sendMsg.errC <- err
 			if err != nil {
 				// preserve EOF errors
-				if !errors.Is(err, io.EOF) {
+				if !trace.IsEOF(err) {
 					err = trace.Errorf("upstream send failed: %v", err)
 				}
 				i.CloseWithError(err)
@@ -457,7 +456,7 @@ func (i *upstreamICS) runRecvLoop(stream proto.AuthService_InventoryControlStrea
 		oneOf, err := stream.Recv()
 		if err != nil {
 			// preserve eof errors
-			if !errors.Is(err, io.EOF) {
+			if !trace.IsEOF(err) {
 				err = trace.Errorf("inventory control stream recv failed: %v", trail.FromGRPC(err))
 			}
 			i.CloseWithError(err)
@@ -518,7 +517,7 @@ func (i *upstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStrea
 			sendMsg.errC <- err
 			if err != nil {
 				// preserve eof errors
-				if !errors.Is(err, io.EOF) {
+				if !trace.IsEOF(err) {
 					err = trace.Errorf("downstream send failed: %v", err)
 				}
 				i.CloseWithError(err)

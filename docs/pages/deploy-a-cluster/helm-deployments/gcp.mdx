@@ -301,7 +301,8 @@ Next, configure the `teleport-cluster` Helm chart to use the `gcp` mode. Create 
 file called `gcp-values.yaml` file and write the values you've chosen above to
 it:
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 ```yaml
 chartMode: gcp
@@ -323,8 +324,8 @@ podSecurityPolicy:
   enabled: false
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["enterprise"]}>
+</TabItem>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
 
 ```yaml
 chartMode: gcp
@@ -343,7 +344,9 @@ highAvailability:
 enterprise: true                                  # Indicate that this is a Teleport Enterprise deployment
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Install the chart with the values from your `gcp-values.yaml` file using this command:
 
@@ -415,7 +418,8 @@ $ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
 Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 ```code
 $ kubectl --namespace teleport exec deploy/teleport-auth -- tctl users add test --roles=access,editor
 
@@ -424,8 +428,8 @@ https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
 NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
 ```
-</ScopedBlock>
-<ScopedBlock scope={["enterprise", "cloud"]}>
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
 ```code
 $ kubectl --namespace teleport exec deploy/teleport-auth -- tctl users add test --roles=access,editor,reviewer
 
@@ -434,7 +438,9 @@ https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
 NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
 
@@ -506,3 +512,4 @@ Access](../../access-controls/introduction.mdx) section to get started enrolling
 users and setting up RBAC.
 
 See the [high availability section of our Helm chart reference](../../reference/helm-reference/teleport-cluster.mdx#highavailability) for more details on high availability.
+

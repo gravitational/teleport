@@ -3,9 +3,7 @@ title: Machine ID with Application Access
 description: Accessing web applications with Machine ID
 ---
 
-(!docs/pages/includes/machine-id/v2-config-warning.mdx!)
-
-This guide demonstrates how to configure an automated service to use
+In this guide, we will demonstrate how to configure an automated service to use
 Machine ID to access a web application protected by Teleport.
 
 With Machine ID, Teleport issues short-lived certificates, tied to a machine
@@ -69,8 +67,9 @@ configured above. Be sure to note the bot join token and CA PIN.
 Next, on the bot node, create a Machine ID configuration file at
 `/etc/tbot.yaml`:
 
+<Tabs>
+<TabItem label="Teleport Cloud" scope={["cloud","team"]}>
 ```yaml
-version: v2
 auth_server: "example.teleport.sh:443"
 onboarding:
   join_method: "token"
@@ -78,15 +77,28 @@ onboarding:
   ca_pins:
   - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
 storage:
-  type: directory
-  path: /var/lib/teleport/bot
-outputs:
-  - type: application
-    destination:
-      type: directory
-      path: /opt/machine-id
-    app_name: grafana-example
+  directory: /var/lib/teleport/bot
+destinations:
+  - directory: /opt/machine-id
+    app: grafana-example
 ```
+</TabItem>
+<TabItem label="Self-Hosted" scope={["oss","enterprise"]}>
+```yaml
+auth_server: "teleport.example.com:443"
+onboarding:
+  join_method: "token"
+  token: "(=presets.tokens.first=)"
+  ca_pins:
+  - "(=presets.ca_pin=)"
+storage:
+  directory: /var/lib/teleport/bot
+destinations:
+  - directory: /opt/machine-id
+    app: grafana-example
+```
+</TabItem>
+</Tabs>
 
 Be sure to configure the `token` and `ca_pins` fields to match the output from
 `tctl bots add ...`, and set `app` to match the desired name as shown in
@@ -98,7 +110,7 @@ short-lived certificates Machine ID uses.
 
 We'll work with the assumption you will be running Machine ID as the Linux user
 `teleport` and your automated service as the Linux user `app`. Create and
-initialize the output destination by running this `tbot init` command either
+initialize the destination directory by running this `tbot init` command either
 as `root` or as the `teleport` user:
 
 ```code
@@ -155,14 +167,15 @@ $ journalctl -u machine-id | grep -i app
 Jul 29 12:34:56 example tbot[29177]: INFO [TBOT]      Generated identity for app {"grafana-example"} tbot/renew.go:429
 ```
 
-Given the output destination directory `/opt/machine-id`, the following
+Given the destination directory `/opt/machine-id`, the following
 certificate files can be used:
  - `/opt/machine-id/tlscert`: the client TLS certificate
  - `/opt/machine-id/key`: the TLS certificate's private key
 
 You may use these credentials with any client application that supports them.
 
-<ScopedBlock scope={["cloud"]}>
+<Tabs>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 The Teleport Proxy makes apps available via subdomains of its public web
 address. Given an app named `grafana-example` and a Teleport Proxy at
 `https://example.teleport.sh:443`, the app may be accessed at
@@ -175,8 +188,8 @@ $ curl --user admin:admin \
   --key /opt/machine-id/key \
   https://grafana-example.example.teleport.sh/api/users
 ```
-</ScopedBlock>
-<ScopedBlock scope={["oss","enterprise"]}>
+</TabItem>
+<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
 The Teleport Proxy makes apps available via subdomains of its public web
 address. Given an app named `grafana-example` and a Teleport Proxy at
 `https://teleport.example.com:443`, the app may be accessed at
@@ -189,7 +202,9 @@ $ curl --user admin:admin \
   --key /opt/machine-id/key \
   https://grafana-example.teleport.example.com/api/users
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Note that in the example above, we include `--user` to provide a local username
 and password to our Grafana instance. This is not necessary if your application
@@ -210,16 +225,19 @@ Service, it's also possible to open a local proxy to the app using
 `tbot proxy app ...` in situations where the Teleport Proxy Service's app endpoints are
 unavailable:
 
-<ScopedBlock scope={["cloud"]}>
+<Tabs>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ```code
 $ tbot proxy --destination-dir=/opt/machine-id --proxy=example.teleport.sh:443 app --port=1234 grafana-example
 ```
-</ScopedBlock>
-<ScopedBlock scope={["oss","enterprise"]}>
+</TabItem>
+<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
 ```code
 $ tbot proxy --destination-dir=/opt/machine-id --proxy=teleport.example.com:443 app --port=1234 grafana-example
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 You may now connect to the app via a local proxy at `http://localhost:1234`:
 
@@ -237,16 +255,15 @@ environments.
 ### Client application requires certificates with standard extensions
 
 If your automated service requires TLS certificates with a specific file
-extension, you may also enable the `specific_tls_naming` option for the output:
+extension, you may also enable the `tls` config template in `tbot.yaml`:
 
 ```yaml
-outputs:
-  - type: application
-    destination:
-      type: directory
-      path: /opt/machine-id
-    app_name: grafana-example
-    specific_tls_naming: true
+destinations:
+  - directory: /opt/machine-id
+    app: grafana-example
+
+    configs:
+      - tls
 ```
 
 This will generate `tls.crt` and `tls.key` inside `/opt/machine-id`
@@ -279,3 +296,4 @@ has been configured to use both the client certificate and key.
   Application to remove the need for additional login credentials.
 
 [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)
+

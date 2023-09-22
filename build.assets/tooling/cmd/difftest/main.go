@@ -59,7 +59,7 @@ var (
 
 		// TestProxySSH and TestList takes around 10-15s to run, largely due to the 7-10 seconds it takes to create a
 		// tsh test suite. This prevents it from ever completing the 100 runs successfully.
-		"TestProxySSH", "TestList", "TestForwardingTraces", "TestExportingTraces",
+		"TestProxySSH", "TestList",
 
 		// TestDiagnoseSSHConnection takes around 15s to run.
 		// When running 100x it exceeds the 600s defined to run the tests.
@@ -158,7 +158,7 @@ func diff(repoPath string, ref string, changedFiles []string, elapsed time.Durat
 
 // test builds and prints go test flags
 func test(repoPath string, ref string, changedFiles []string) {
-	var dirs = make(StringSet)
+	dirs := make(StringSet)
 	methods := make([]string, 0)
 
 	dollarSign := "$"

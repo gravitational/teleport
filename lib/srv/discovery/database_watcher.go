@@ -63,8 +63,6 @@ func (s *Server) startDatabaseWatchers() error {
 		Fetchers:       s.databaseFetchers,
 		Log:            s.Log.WithField("kind", types.KindDatabase),
 		DiscoveryGroup: s.DiscoveryGroup,
-		Interval:       s.PollInterval,
-		Origin:         types.OriginCloud,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -116,7 +114,7 @@ func (s *Server) onDatabaseCreate(ctx context.Context, resource types.ResourceWi
 	// In this case, we need to update the resource with the
 	// discovery group label to ensure the user doesn't have to manually delete
 	// the resource.
-	// TODO(tigrato): DELETE on 15.0.0
+	// TODO(tigrato): DELETE on 14.0.0
 	if trace.IsAlreadyExists(err) {
 		return trace.Wrap(s.onDatabaseUpdate(ctx, resource))
 	}
@@ -161,7 +159,7 @@ func (s *Server) onDatabaseDelete(ctx context.Context, resource types.ResourceWi
 func filterResources[T types.ResourceWithLabels, S ~[]T](all S, wantOrigin, wantResourceGroup string) (filtered S) {
 	for _, resource := range all {
 		resourceDiscoveryGroup, _ := resource.GetLabel(types.TeleportInternalDiscoveryGroupName)
-		if (wantOrigin != "" && resource.Origin() != wantOrigin) || resourceDiscoveryGroup != wantResourceGroup {
+		if resource.Origin() != wantOrigin || resourceDiscoveryGroup != wantResourceGroup {
 			continue
 		}
 		filtered = append(filtered, resource)

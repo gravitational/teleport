@@ -23,6 +23,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -46,7 +47,89 @@ import (
 	"github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+const (
+	// reexecInCGroupCmd is a cmd used to re-exec the test binary and call arbitrary program.
+	reexecInCGroupCmd = "reexecCgroup"
+	// networkInCgroupCmd is a cmd used to re-exec the test binary and make HTTP call.
+	networkInCgroupCmd = "networkCgroup"
+)
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+
+	// Check if the re-exec was requested.
+	if len(os.Args) == 3 {
+		var err error
+
+		switch os.Args[1] {
+		case reexecInCGroupCmd:
+			// Get the command to run passed as the 3rd argument.
+			cmd := os.Args[2]
+
+			err = waitAndRun(cmd)
+		case networkInCgroupCmd:
+			// Get the endpoint to call.
+			endpoint := os.Args[2]
+
+			err = callEndpoint(endpoint)
+		default:
+			os.Exit(2)
+		}
+
+		if err != nil {
+			// Something went wrong, exit with error.
+			os.Exit(1)
+		}
+
+		// The rexec was handled and nothing bad happened.
+		os.Exit(0)
+	}
+
+	os.Exit(m.Run())
+}
+
+// waitAndRun wait for continue signal to be generated an executes the
+// passed command and waits until returns.
+func waitAndRun(cmd string) error {
+	if err := waitForContinue(); err != nil {
+		return err
+	}
+
+	return osexec.Command(cmd).Run()
+}
+
+// callEndpoint wait for continue signal to be generated an executes HTTP GET
+// on provided endpoint.
+func callEndpoint(endpoint string) error {
+	if err := waitForContinue(); err != nil {
+		return err
+	}
+
+	resp, err := http.Get(endpoint)
+	if resp != nil {
+		// Close the body to make our linter happy.
+		_ = resp.Body.Close()
+	}
+
+	return err
+}
+
+// waitForContinue opens FD 3 and waits the signal from parent process that
+// the cgroup is being observed and the even can be generated.
+func waitForContinue() error {
+	waitFD := os.NewFile(3, "/proc/self/fd/3")
+	defer waitFD.Close()
+
+	buff := make([]byte, 1)
+	if _, err := waitFD.Read(buff); err != nil && err != io.EOF {
+		return err
+	}
+
+	return nil
+}
 
 func TestRootWatch(t *testing.T) {
 	// TODO(jakule): Find a way to run this test in CI. Disable for now to not block all BPF tests.
@@ -77,7 +160,7 @@ func TestRootWatch(t *testing.T) {
 	})
 
 	// Create a fake audit log that can be used to capture the events emitted.
-	emitter := &eventstest.MockRecorderEmitter{}
+	emitter := &eventstest.MockEmitter{}
 
 	// Create and start a program that does nothing. Since sleep will run longer
 	// than we wait below, nothing should be emitted to the Audit Log.
@@ -303,7 +386,7 @@ func TestRootPrograms(t *testing.T) {
 
 	// Loop over all three programs and make sure events are received off the
 	// perf buffer.
-	tests := []struct {
+	var tests = []struct {
 		inName    string
 		inEventCh <-chan []byte
 		genEvents func(t *testing.T, ctx context.Context)

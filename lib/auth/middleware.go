@@ -199,11 +199,11 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	server.cfg.TLS.GetConfigForClient = server.GetConfigForClient
 
 	server.grpcServer, err = NewGRPCServer(GRPCServerConfig{
-		TLS:               server.cfg.TLS,
-		Middleware:        authMiddleware,
-		APIConfig:         cfg.APIConfig,
-		UnaryInterceptor:  authMiddleware.UnaryInterceptor(),
-		StreamInterceptor: authMiddleware.StreamInterceptor(),
+		TLS:                server.cfg.TLS,
+		Middleware:         authMiddleware,
+		APIConfig:          cfg.APIConfig,
+		UnaryInterceptors:  authMiddleware.UnaryInterceptors(),
+		StreamInterceptors: authMiddleware.StreamInterceptors(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -383,9 +383,9 @@ func getCustomRate(endpoint string) *ratelimit.RateSet {
 		return rates
 	// Passwordless RPCs (potential unauthenticated challenge generation).
 	case "/proto.AuthService/CreateAuthenticateChallenge":
-		const period = defaults.LimiterPeriod
-		const average = defaults.LimiterAverage
-		const burst = defaults.LimiterBurst
+		const period = defaults.LimiterPasswordlessPeriod
+		const average = defaults.LimiterPasswordlessAverage
+		const burst = defaults.LimiterPasswordlessBurst
 		rates := ratelimit.NewRateSet()
 		if err := rates.Add(period, average, burst); err != nil {
 			log.WithError(err).Debugf("Failed to define a custom rate for rpc method %q, using default rate", endpoint)
@@ -465,42 +465,34 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 	return handler(srv, &authenticatedStream{ctx: ctx, ServerStream: serverStream})
 }
 
-// UnaryInterceptor returns a gPRC unary interceptor which performs rate
-// limiting, authenticates requests, and passes the user information as context
-// metadata.
-func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
-	if a.GRPCMetrics != nil {
-		return utils.ChainUnaryServerInterceptors(
-			otelgrpc.UnaryServerInterceptor(),
-			om.UnaryServerInterceptor(a.GRPCMetrics),
-			utils.GRPCServerUnaryErrorInterceptor,
-			a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
-			a.withAuthenticatedUserUnaryInterceptor,
-		)
-	}
-	return utils.ChainUnaryServerInterceptors(
+// UnaryInterceptors returns the gRPC unary interceptor chain.
+func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
+	is := []grpc.UnaryServerInterceptor{
 		otelgrpc.UnaryServerInterceptor(),
+	}
+
+	if a.GRPCMetrics != nil {
+		is = append(is, om.UnaryServerInterceptor(a.GRPCMetrics))
+	}
+
+	return append(is,
 		utils.GRPCServerUnaryErrorInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor,
 	)
 }
 
-// StreamInterceptor returns a gPRC stream interceptor which performs rate
-// limiting, authenticates requests, and passes the user information as context
-// metadata.
-func (a *Middleware) StreamInterceptor() grpc.StreamServerInterceptor {
-	if a.GRPCMetrics != nil {
-		return utils.ChainStreamServerInterceptors(
-			otelgrpc.StreamServerInterceptor(),
-			om.StreamServerInterceptor(a.GRPCMetrics),
-			utils.GRPCServerStreamErrorInterceptor,
-			a.Limiter.StreamServerInterceptor,
-			a.withAuthenticatedUserStreamInterceptor,
-		)
-	}
-	return utils.ChainStreamServerInterceptors(
+// StreamInterceptors returns the gRPC stream interceptor chain.
+func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
+	is := []grpc.StreamServerInterceptor{
 		otelgrpc.StreamServerInterceptor(),
+	}
+
+	if a.GRPCMetrics != nil {
+		is = append(is, om.StreamServerInterceptor(a.GRPCMetrics))
+	}
+
+	return append(is,
 		utils.GRPCServerStreamErrorInterceptor,
 		a.Limiter.StreamServerInterceptor,
 		a.withAuthenticatedUserStreamInterceptor,
@@ -889,31 +881,4 @@ func (r *ImpersonatorRoundTripper) CloseIdleConnections() {
 	if c, ok := r.RoundTripper.(closeIdler); ok {
 		c.CloseIdleConnections()
 	}
-}
-
-// IdentityForwardingHeaders returns a copy of the provided headers with
-// the TeleportImpersonateUserHeader and TeleportImpersonateIPHeader headers
-// set to the identity provided.
-// The returned headers shouln't be used across requests as they contain
-// the client's IP address and the user's identity.
-func IdentityForwardingHeaders(ctx context.Context, originalHeaders http.Header) (http.Header, error) {
-	identity, err := authz.UserFromContext(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	b, err := json.Marshal(identity.GetIdentity())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	headers := originalHeaders.Clone()
-	headers.Set(TeleportImpersonateUserHeader, string(b))
-
-	clientSrcAddr, err := authz.ClientAddrFromContext(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	headers.Set(TeleportImpersonateIPHeader, clientSrcAddr.String())
-	return headers, nil
 }

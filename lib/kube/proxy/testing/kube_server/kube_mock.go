@@ -24,9 +24,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync"
 	"time"
 
@@ -89,31 +89,16 @@ const (
 	PortForwardPayload = "Portforward handler message"
 )
 
-// Option is a functional option for KubeMockServer
-type Option func(*KubeMockServer)
-
-// WithGetPodError sets the error to be returned by the GetPod call
-func WithGetPodError(status metav1.Status) Option {
-	return func(s *KubeMockServer) {
-		s.getPodError = &status
-	}
-}
-
-type deletedResource struct {
-	requestID string
-	kind      string
-}
 type KubeMockServer struct {
-	router           *httprouter.Router
-	log              *log.Entry
-	server           *httptest.Server
-	TLS              *tls.Config
-	URL              string
-	Address          string
-	CA               []byte
-	deletedResources map[deletedResource][]string
-	getPodError      *metav1.Status
-	mu               sync.Mutex
+	router      *httprouter.Router
+	log         *log.Entry
+	server      *httptest.Server
+	TLS         *tls.Config
+	Addr        net.Addr
+	URL         string
+	CA          []byte
+	deletedPods map[string][]string
+	mu          sync.Mutex
 }
 
 // NewKubeAPIMock creates Kubernetes API server for handling exec calls.
@@ -123,60 +108,34 @@ type KubeMockServer struct {
 // The output returns the container followed by a dump of the data received from stdin.
 // More endpoints can be configured
 // TODO(tigrato): add support for other endpoints
-func NewKubeAPIMock(opts ...Option) (*KubeMockServer, error) {
+func NewKubeAPIMock() (*KubeMockServer, error) {
 	s := &KubeMockServer{
-		router:           httprouter.New(),
-		log:              log.NewEntry(log.New()),
-		deletedResources: make(map[deletedResource][]string),
+		router:      httprouter.New(),
+		log:         log.NewEntry(log.New()),
+		deletedPods: make(map[string][]string),
 	}
-
-	for _, o := range opts {
-		o(s)
-	}
-
 	s.setup()
 	if err := http2.ConfigureServer(s.server.Config, &http2.Server{}); err != nil {
 		return nil, err
 	}
 	s.server.StartTLS()
 	s.TLS = s.server.TLS
-	s.Address = strings.TrimPrefix(s.server.URL, "https://")
+	s.Addr = s.server.Listener.Addr()
 	s.URL = s.server.URL
 	return s, nil
 }
 
 func (s *KubeMockServer) setup() {
 	s.router.UseRawPath = true
-	s.router.POST("/api/:ver/namespaces/:namespace/pods/:name/exec", s.withWriter(s.exec))
-	s.router.GET("/api/:ver/namespaces/:namespace/pods/:name/exec", s.withWriter(s.exec))
-	s.router.GET("/api/:ver/namespaces/:namespace/pods/:name/portforward", s.withWriter(s.portforward))
-	s.router.POST("/api/:ver/namespaces/:namespace/pods/:name/portforward", s.withWriter(s.portforward))
-
-	s.router.GET("/apis/rbac.authorization.k8s.io/:ver/clusterroles", s.withWriter(s.listClusterRoles))
-	s.router.GET("/apis/rbac.authorization.k8s.io/:ver/clusterroles/:name", s.withWriter(s.getClusterRole))
-	s.router.DELETE("/apis/rbac.authorization.k8s.io/:ver/clusterroles/:name", s.withWriter(s.deleteClusterRole))
-
-	s.router.GET("/api/:ver/namespaces/:namespace/pods", s.withWriter(s.listPods))
+	s.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", s.withWriter(s.exec))
+	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", s.withWriter(s.exec))
+	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", s.withWriter(s.portforward))
+	s.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", s.withWriter(s.portforward))
+	s.router.GET("/api/:ver/namespaces/:podNamespace/pods", s.withWriter(s.listPods))
 	s.router.GET("/api/:ver/pods", s.withWriter(s.listPods))
-	s.router.GET("/api/:ver/namespaces/:namespace/pods/:name", s.withWriter(s.getPod))
-	s.router.DELETE("/api/:ver/namespaces/:namespace/pods/:name", s.withWriter(s.deletePod))
-
-	s.router.GET("/api/:ver/namespaces/:namespace/secrets", s.withWriter(s.listSecrets))
-	s.router.GET("/api/:ver/secrets", s.withWriter(s.listSecrets))
-	s.router.GET("/api/:ver/namespaces/:namespace/secrets/:name", s.withWriter(s.getSecret))
-	s.router.DELETE("/api/:ver/namespaces/:namespace/secrets/:name", s.withWriter(s.deleteSecret))
-
+	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName", s.withWriter(s.getPod))
+	s.router.DELETE("/api/:ver/namespaces/:podNamespace/pods/:podName", s.withWriter(s.deletePod))
 	s.router.POST("/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", s.withWriter(s.selfSubjectAccessReviews))
-
-	s.router.GET("/apis/resources.teleport.dev/v6/namespaces/:namespace/teleportroles", s.withWriter(s.listTeleportRoles))
-	s.router.GET("/apis/resources.teleport.dev/v6/teleportroles", s.withWriter(s.listTeleportRoles))
-	s.router.GET("/apis/resources.teleport.dev/v6/namespaces/:namespace/teleportroles/:name", s.withWriter(s.getTeleportRole))
-	s.router.DELETE("/apis/resources.teleport.dev/v6/namespaces/:namespace/teleportroles/:name", s.withWriter(s.deleteTeleportRole))
-
-	for _, endpoint := range []string{"/api", "/api/:ver", "/apis", "/apis/resources.teleport.dev/v6"} {
-		s.router.GET(endpoint, s.withWriter(s.discoveryEndpoint))
-	}
-
 	s.server = httptest.NewUnstartedServer(s.router)
 	s.server.EnableHTTP2 = true
 }
@@ -199,10 +158,6 @@ func (s *KubeMockServer) formatResponseError(rw http.ResponseWriter, respErr err
 		Message: respErr.Error(),
 		Code:    int32(trace.ErrorToCode(respErr)),
 	}
-	s.writeResponseError(rw, respErr, status)
-}
-
-func (s *KubeMockServer) writeResponseError(rw http.ResponseWriter, respErr error, status *metav1.Status) {
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(), status)
 	if err != nil {
 		s.log.Warningf("Failed encoding error into kube Status object: %v", err)
@@ -213,7 +168,7 @@ func (s *KubeMockServer) writeResponseError(rw http.ResponseWriter, respErr erro
 	// Always write InternalServerError, that's the only code that kubectl will
 	// parse the Status object for. The Status object has the real status code
 	// embedded.
-	rw.WriteHeader(int(status.Code))
+	rw.WriteHeader(http.StatusInternalServerError)
 	if _, err := rw.Write(data); err != nil {
 		s.log.Warningf("Failed writing kube error response body: %v", err)
 	}
@@ -223,8 +178,8 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 	q := req.URL.Query()
 
 	request := remoteCommandRequest{
-		namespace:          p.ByName("namespace"),
-		name:               p.ByName("name"),
+		podNamespace:       p.ByName("podNamespace"),
+		podName:            p.ByName("podName"),
 		containerName:      q.Get("container"),
 		cmd:                q["command"],
 		stdin:              utils.AsBool(q.Get("stdin")),
@@ -301,8 +256,8 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 
 // remoteCommandRequest is a request to execute a remote command
 type remoteCommandRequest struct {
-	namespace          string
-	name               string
+	podNamespace       string
+	podName            string
 	containerName      string
 	cmd                []string
 	stdin              bool
@@ -632,7 +587,7 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 		errStream.Write([]byte(err.Error()))
 		return nil, nil
 	}
-	fmt.Fprint(data, PortForwardPayload, p.ByName("name"), string(buf[:n]))
+	fmt.Fprint(data, PortForwardPayload, p.ByName("podName"), string(buf[:n]))
 	return nil, nil
 }
 

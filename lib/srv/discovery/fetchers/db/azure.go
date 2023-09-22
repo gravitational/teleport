@@ -154,9 +154,7 @@ func (f *azureFetcher[DBType, ListClient]) Get(ctx context.Context) (types.Resou
 
 // rewriteDatabases rewrites the discovered databases.
 func (f *azureFetcher[DBType, ListClient]) rewriteDatabases(databases types.Databases) {
-	for _, db := range databases {
-		common.ApplyAzureDatabaseNameSuffix(db, f.cfg.Type)
-	}
+	// no-op
 }
 
 // getSubscriptions returns the subscriptions that this fetcher is configured to query.

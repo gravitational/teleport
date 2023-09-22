@@ -171,7 +171,7 @@ export function SuccessfullyAddedIntegrationDialog({
       open={true}
     >
       <DialogHeader css={{ margin: '0 auto' }}>
-        <CircleCheck mb={4} size={60} color="success" />
+        <CircleCheck mb={4} fontSize={60} color="success" />
       </DialogHeader>
       <DialogContent>
         <Text textAlign="center">

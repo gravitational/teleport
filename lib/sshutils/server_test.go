@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"net"
@@ -34,6 +35,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
@@ -259,7 +263,7 @@ func TestHostSignerFIPS(t *testing.T) {
 	}
 }
 
-// TestConnectionWrapper_Read makes sure connectionWrapper can correctly process PROXY protocol
+// TestConnectionWrapper_Read makes sure connectionWrapper can correctly process ProxyHelloSignature and PROXY protocol
 // on the wire.
 func TestConnectionWrapper_Read(t *testing.T) {
 	testCases := []struct {
@@ -269,6 +273,10 @@ func TestConnectionWrapper_Read(t *testing.T) {
 		{
 			desc:     "Plain connection without any special headers",
 			sendData: nil,
+		},
+		{
+			desc:     "Sending ProxyHelloSignature",
+			sendData: getProxyHelloSignaturePayload(t),
 		},
 		{
 			desc:     "Sending PROXY header",
@@ -317,6 +325,19 @@ func getPROXYProtocolPayload() []byte {
 	sampleProxyV2Line := bytes.Join([][]byte{proxyV2Prefix, {0x21, 0x11, 0x00, 0x0C}, sampleIPv4Addresses}, nil)
 
 	return sampleProxyV2Line
+}
+
+func getProxyHelloSignaturePayload(t *testing.T) []byte {
+	t.Helper()
+
+	hp := &apisshutils.HandshakePayload{
+		ClientAddr:     "127.0.0.1:12345",
+		TracingContext: tracing.PropagationContextFromContext(context.Background()),
+	}
+	payloadJSON, err := json.Marshal(hp)
+	require.NoError(t, err)
+
+	return []byte(fmt.Sprintf("%s%s\x00", constants.ProxyHelloSignature, payloadJSON))
 }
 
 func startSSHServer(t *testing.T, listener net.Listener) {

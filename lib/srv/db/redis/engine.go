@@ -25,8 +25,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/trace"
-	"github.com/redis/go-redis/v9"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
@@ -167,8 +167,6 @@ func (e *Engine) sendToClient(vals interface{}) error {
 
 // HandleConnection is responsible for connecting to a Redis instance/cluster.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
-	observe := common.GetConnectionSetupTimeObserver(sessionCtx.Database)
-
 	// Check that the user has access to the database.
 	err := e.authorizeConnection(ctx)
 	if err != nil {
@@ -198,8 +196,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
-
-	observe()
 
 	if err := e.process(ctx, sessionCtx); err != nil {
 		return trace.Wrap(err)
@@ -371,16 +367,12 @@ func (e *Engine) reconnect(username, password string) (redis.UniversalClient, er
 // process is the main processing function for Redis. It reads commands from connected client and passes them to
 // a Redis instance. This function returns when a server closes a connection or in case of connection error.
 func (e *Engine) process(ctx context.Context, sessionCtx *common.Session) error {
-	msgFromClient := common.GetMessagesFromClientMetric(e.sessionCtx.Database)
-	msgFromServer := common.GetMessagesFromServerMetric(e.sessionCtx.Database)
-
 	for {
 		// Read commands from connected client.
 		cmd, err := e.readClientCmd(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		msgFromClient.Inc()
 
 		// send valid commands to Redis instance/cluster.
 		err = e.processCmd(ctx, cmd)
@@ -392,8 +384,6 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session) error 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		msgFromServer.Inc()
 
 		// Send response back to the client.
 		if err := e.sendToClient(value); err != nil {

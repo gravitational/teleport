@@ -78,6 +78,8 @@ type HostUsersBackend interface {
 	WriteSudoersFile(user string, entries []byte) error
 	// RemoveSudoersFile deletes a user's sudoers file.
 	RemoveSudoersFile(user string) error
+	// CreateHomeDirectory creates the users home directory and copies in /etc/skel
+	CreateHomeDirectory(user string, uid, gid string) error
 }
 
 type userCloser struct {
@@ -238,13 +240,19 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		if err != nil && !trace.IsAlreadyExists(err) {
 			return trace.WrapWithMessage(err, "error while creating user")
 		}
+
+		user, err := u.backend.Lookup(name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		err = u.backend.CreateHomeDirectory(name, user.Uid, user.Gid)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		return nil
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	_, err = u.backend.Lookup(name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -355,8 +363,8 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 	return trace.NewAggregate(errs...)
 }
 
-// DeleteUser deletes the specified user only if they are
-// present in the specified group.
+// DeleteUser deletes the user only if they are
+// present in the specified group
 func (u *HostUserManagement) DeleteUser(username string, gid string) error {
 	tempUser, err := u.backend.Lookup(username)
 	if err != nil {

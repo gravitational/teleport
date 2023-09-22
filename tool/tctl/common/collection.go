@@ -33,7 +33,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/devicetrust"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
@@ -88,8 +88,8 @@ type namespaceCollection struct {
 }
 
 func (n *namespaceCollection) resources() (r []types.Resource) {
-	for i := range n.namespaces {
-		r = append(r, &n.namespaces[i])
+	for _, resource := range n.namespaces {
+		r = append(r, &resource)
 	}
 	return r
 }
@@ -791,7 +791,7 @@ func (c *windowsDesktopServiceCollection) writeText(w io.Writer, verbose bool) e
 	t := asciitable.MakeTable([]string{"Name", "Address", "Version"})
 	for _, service := range c.services {
 		addr := service.GetAddr()
-		if addr == reversetunnelclient.LocalWindowsDesktop {
+		if addr == reversetunnel.LocalWindowsDesktop {
 			addr = "<proxy tunnel>"
 		}
 		t.AddRow([]string{service.GetName(), addr, service.GetTeleportVersion()})

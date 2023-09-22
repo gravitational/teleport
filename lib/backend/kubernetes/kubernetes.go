@@ -242,6 +242,19 @@ func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 	return b.updateSecretContent(ctx, i)
 }
 
+// PutRange receives multiple items and upserts them into the Kubernetes Secret.
+// This function is only used when the Agent's Secret does not exist, but local SQLite database
+// has identity credentials.
+// TODO(tigrato): remove this once the compatibility layer between local storage and
+// Kube secret storage is no longer required!
+func (b *Backend) PutRange(ctx context.Context, items []backend.Item) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	_, err := b.updateSecretContent(ctx, items...)
+	return trace.Wrap(err)
+}
+
 // getSecret reads the secret from K8S API.
 func (b *Backend) getSecret(ctx context.Context) (*corev1.Secret, error) {
 	secret, err := b.KubeClient.

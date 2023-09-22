@@ -666,6 +666,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 			role, err := rootAuthServer.GetRole(context.Background(), rootRole.GetName())
 			assert.NoError(t, err)
 			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
+
 		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
 
 		client := mkMySQLLeafDBClient(t)
@@ -687,6 +688,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 			role, err := leafAuthServer.GetRole(context.Background(), leafRole.GetName())
 			assert.NoError(t, err)
 			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
+
 		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
 
 		client := mkMySQLLeafDBClient(t)
@@ -793,23 +795,14 @@ func init() {
 // database agent when multiple agents are serving the same database and one
 // of them is down in a root cluster.
 func (p *DatabasePack) testHARootCluster(t *testing.T) {
-	database, err := types.NewDatabaseV3(
-		types.Metadata{
-			Name: p.Root.PostgresService.Name,
-		},
-		types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      p.Root.postgresAddr,
-		},
-	)
-	require.NoError(t, err)
 	// Insert a database server entry not backed by an actual running agent
 	// to simulate a scenario when an agent is down but the resource hasn't
 	// expired from the backend yet.
 	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: p.Root.PostgresService.Name,
 	}, types.DatabaseServerSpecV3{
-		Database: database,
+		Protocol: defaults.ProtocolPostgres,
+		URI:      p.Root.postgresAddr,
 		// To make sure unhealthy server is always picked in tests first, make
 		// sure its host ID always compares as "smaller" as the tests sort
 		// agents.
@@ -856,23 +849,14 @@ func (p *DatabasePack) testHARootCluster(t *testing.T) {
 // database agent when multiple agents are serving the same database and one
 // of them is down in a leaf cluster.
 func (p *DatabasePack) testHALeafCluster(t *testing.T) {
-	database, err := types.NewDatabaseV3(
-		types.Metadata{
-			Name: p.Leaf.PostgresService.Name,
-		},
-		types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      p.Leaf.postgresAddr,
-		},
-	)
-	require.NoError(t, err)
 	// Insert a database server entry not backed by an actual running agent
 	// to simulate a scenario when an agent is down but the resource hasn't
 	// expired from the backend yet.
 	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: p.Leaf.PostgresService.Name,
 	}, types.DatabaseServerSpecV3{
-		Database: database,
+		Protocol: defaults.ProtocolPostgres,
+		URI:      p.Leaf.postgresAddr,
 		// To make sure unhealthy server is always picked in tests first, make
 		// sure its host ID always compares as "smaller" as the tests sort
 		// agents.

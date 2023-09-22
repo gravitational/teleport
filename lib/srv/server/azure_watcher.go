@@ -71,31 +71,28 @@ func (instances *AzureInstances) MakeEvents() map[string]*usageeventsv1.Resource
 	return events
 }
 
+type azureClientGetter interface {
+	GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error)
+}
+
 // NewAzureWatcher creates a new Azure watcher instance.
-func NewAzureWatcher(ctx context.Context, matchers []types.AzureMatcher, clients cloud.Clients, opts ...Option) (*Watcher, error) {
+func NewAzureWatcher(ctx context.Context, matchers []types.AzureMatcher, clients cloud.Clients) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
-		fetchers:     []Fetcher{},
-		ctx:          cancelCtx,
-		cancel:       cancelFn,
-		pollInterval: time.Minute,
-		InstancesC:   make(chan Instances),
-	}
-	for _, opt := range opts {
-		opt(&watcher)
+		fetchers:      []Fetcher{},
+		ctx:           cancelCtx,
+		cancel:        cancelFn,
+		fetchInterval: time.Minute,
+		InstancesC:    make(chan Instances),
 	}
 	for _, matcher := range matchers {
 		for _, subscription := range matcher.Subscriptions {
 			for _, resourceGroup := range matcher.ResourceGroups {
-				cl, err := clients.GetAzureVirtualMachinesClient(subscription)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
 				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
-					Matcher:       matcher,
-					Subscription:  subscription,
-					ResourceGroup: resourceGroup,
-					AzureClient:   cl,
+					Matcher:           matcher,
+					Subscription:      subscription,
+					ResourceGroup:     resourceGroup,
+					AzureClientGetter: clients,
 				})
 				watcher.fetchers = append(watcher.fetchers, fetcher)
 			}
@@ -105,28 +102,28 @@ func NewAzureWatcher(ctx context.Context, matchers []types.AzureMatcher, clients
 }
 
 type azureFetcherConfig struct {
-	Matcher       types.AzureMatcher
-	Subscription  string
-	ResourceGroup string
-	AzureClient   azure.VirtualMachinesClient
+	Matcher           types.AzureMatcher
+	Subscription      string
+	ResourceGroup     string
+	AzureClientGetter azureClientGetter
 }
 
 type azureInstanceFetcher struct {
-	Azure         azure.VirtualMachinesClient
-	Regions       []string
-	Subscription  string
-	ResourceGroup string
-	Labels        types.Labels
-	Parameters    map[string]string
+	AzureClientGetter azureClientGetter
+	Regions           []string
+	Subscription      string
+	ResourceGroup     string
+	Labels            types.Labels
+	Parameters        map[string]string
 }
 
 func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 	ret := &azureInstanceFetcher{
-		Azure:         cfg.AzureClient,
-		Regions:       cfg.Matcher.Regions,
-		Subscription:  cfg.Subscription,
-		ResourceGroup: cfg.ResourceGroup,
-		Labels:        cfg.Matcher.ResourceTags,
+		AzureClientGetter: cfg.AzureClientGetter,
+		Regions:           cfg.Matcher.Regions,
+		Subscription:      cfg.Subscription,
+		ResourceGroup:     cfg.ResourceGroup,
+		Labels:            cfg.Matcher.ResourceTags,
 	}
 
 	if cfg.Matcher.Params != nil {
@@ -146,12 +143,16 @@ func (*azureInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]I
 
 // GetInstances fetches all Azure virtual machines matching configured filters.
 func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instances, error) {
+	client, err := f.AzureClientGetter.GetAzureVirtualMachinesClient(f.Subscription)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	instancesByRegion := make(map[string][]*armcompute.VirtualMachine)
 	for _, region := range f.Regions {
 		instancesByRegion[region] = []*armcompute.VirtualMachine{}
 	}
 
-	vms, err := f.Azure.ListVirtualMachines(ctx, f.ResourceGroup)
+	vms, err := client.ListVirtualMachines(ctx, f.ResourceGroup)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -230,8 +230,6 @@ const (
 	RecoveryTokenCreateEvent = "recovery_token.create"
 	// ResetPasswordTokenCreateEvent is emitted when a new reset password token is created.
 	ResetPasswordTokenCreateEvent = "reset_password_token.create"
-	// BotTokenCreateEvent is emitted when a new bot join user token is created
-	BotTokenCreateEvent = "bot_token.create"
 	// ResetPasswordTokenTTL is TTL of reset password token.
 	ResetPasswordTokenTTL = "ttl"
 	// PrivilegeTokenCreateEvent is emitted when a new user privilege token is created.
@@ -660,6 +658,30 @@ const (
 	// OktaAssignmentCleanupEvent is emitted when an assignment is cleaned up.
 	OktaAssignmentCleanupEvent = "okta.assignment.cleanup"
 
+	// AccessListCreateEvent is emitted when an access list is created.
+	AccessListCreateEvent = "access_list.create"
+
+	// AccessListUpdateEvent is emitted when an access list is updated.
+	AccessListUpdateEvent = "access_list.update"
+
+	// AccessListDeleteEvent is emitted when an access list is deleted.
+	AccessListDeleteEvent = "access_list.delete"
+
+	// AccessListReviewEvent is emitted when an access list is reviewed.
+	AccessListReviewEvent = "access_list.review"
+
+	// AccessListMemberCreateEvent is emitted when a member is added to an access list.
+	AccessListMemberCreateEvent = "access_list.member.create"
+
+	// AccessListMemberUpdateEvent is emitted when a member is updated in an access list.
+	AccessListMemberUpdateEvent = "access_list.member.update"
+
+	// AccessListMemberDeleteEvent is emitted when a member is deleted from an access list.
+	AccessListMemberDeleteEvent = "access_list.member.delete"
+
+	// AccessListMemberDeleteAllForAccessListEvent is emitted when all members are deleted from an access list.
+	AccessListMemberDeleteAllForAccessListEvent = "access_list.member.delete_all_for_access_list"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 )
@@ -804,29 +826,15 @@ type UploadMetadataGetter interface {
 	GetUploadMetadata(sid session.ID) UploadMetadata
 }
 
-// SessionEventPreparer will set necessary event fields for session-related
-// events and must be called before the event is used, regardless
-// of whether the event will be recorded, emitted, or both.
-type SessionEventPreparer interface {
-	PrepareSessionEvent(event apievents.AuditEvent) (apievents.PreparedSessionEvent, error)
-}
-
-// SessionRecorder records session events. It can be used both as a
-// [io.Writer] when recording raw session data and as a [apievents.Recorder]
-// when recording session events.
-type SessionRecorder interface {
+// StreamWriter implements io.Writer to be plugged into the multi-writer
+// associated with every session. It forwards session stream to the audit log
+type StreamWriter interface {
 	io.Writer
 	apievents.Stream
 }
 
-// SessionPreparerRecorder sets necessary session event fields and records them.
-type SessionPreparerRecorder interface {
-	SessionEventPreparer
-	SessionRecorder
-}
-
-// StreamEmitter supports emitting single events to the audit log
-// and streaming events to a session recording.
+// StreamEmitter supports submitting single events and streaming
+// session events
 type StreamEmitter interface {
 	apievents.Emitter
 	Streamer
@@ -901,8 +909,8 @@ type AuditLogger interface {
 	// Closer releases connection and resources associated with log if any
 	io.Closer
 
-	// Emitter emits an audit event
-	apievents.Emitter
+	// EmitAuditEvent emits audit event
+	EmitAuditEvent(context.Context, apievents.AuditEvent) error
 
 	// SearchEvents is a flexible way to find events.
 	//

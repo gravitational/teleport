@@ -22,7 +22,7 @@ At a high level, configuring access for applications involves the following step
 
 The following diagram illustrates protecting access to Grafana using Teleport:
 
-![Teleport Application Access for Grafana](../../img/application-access/grafana-tutorial.png)
+![Teleport Application Access Grafana Self-Hosted](../../img/application-access/grafana-tutorial.png)
 
 ## Prerequisites
 
@@ -70,7 +70,7 @@ passed to the Teleport Application Service.
 
 ## Step 2/5. Start Grafana
 
-You can start Grafana in a Docker container or Kubernetes cluster by following the 
+You can start Grafana in a Docker container or Kubernetes cluster by running the 
 appropriate steps.
 
 <Tabs>
@@ -110,7 +110,7 @@ address for your Teleport cluster.
 <TabItem label="Kubernetes cluster">
 
 If you install Grafana with the following `helm` instructions, it is available 
-at `http://example-grafana.example-grafana.svc.cluster.local` in the 
+at `http://example-grafana.example-grafana.svc.cluster.local` within the 
 Kubernetes cluster.
 
 ```code
@@ -136,22 +136,22 @@ To install on Linux:
 
 1. Create the configuration file for Grafana at `/etc/app_config.yaml`
 with a command similar to the following:
-   
-   ```code
-   $ sudo teleport configure \
-     --output=file \
-     --proxy=<Var name="teleport.example.com" />:443 \
-     --token=/tmp/token \
-     --roles=app \
-     --app-name=grafana \
-     --app-uri=http://localhost:3000
-   ```
-     
-   - Set the `--proxy` command-line option to the address for your Teleport cluster
+
+```code
+$ sudo teleport configure \
+  --output= file \
+  --proxy=<Var name="teleport.example.com" />:443 \
+  --token=/tmp/token \
+  --roles=app \
+  --app-name=grafana \
+  --app-uri=http://localhost:3000
+```
+  
+- Set the `--proxy` command-line option to the address for your Teleport cluster
 (for example, `teleport.example.com` or `mytenant.teleport.sh`).
-   - Set the `--token` command-line option to the file location on the Application 
+- Set the `--token` command-line option to the file location on the Application 
 Service host where you saved the invitation token that you generated earlier.
-   - Change the `--app-name` and `--app-uri` command-line options if you're configuring 
+- Change the `--app-name` and `--app-uri` command-line options if you're configuring 
 access to a different web application.
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Application Service"!)
@@ -183,6 +183,15 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
 - Change `apps[0].name` and `apps[0].uri` if you're configuring access to a different 
 web application.
 
+Make sure that the Teleport agent pod is running. You should see one
+`teleport-kube-agent` pod with a single ready container:
+
+```code
+$ kubectl -n teleport get pods
+NAME                    READY   STATUS    RESTARTS   AGE
+teleport-kube-agent-0   1/1     Running   0          32s
+```
+
 </TabItem>
 </Tabs>
 
@@ -198,20 +207,21 @@ To assign to the `access` role to a new local user named `alice`, run the follow
 $ tctl users add --roles=access alice
 ```
 
-The command generates an invitation URL for the new user. You can use the URL to choose 
-a password, set up a second factor for authentication, and sign in to the Teleport Web UI.
+The command prompts you to provide a password and set up a second factor for authentication. 
+After that, it will take you to the Teleport Web UI.
 
 ## Step 5/5. Access the application
 
 There are a couple of ways to access the proxied application.
 
-Sign in to the Teleport Web UI using your Teleport cluster address. 
+Log in to the Teleport Web UI at your Proxy Service address. 
 All available applications are displayed on the Applications tab. 
-Click **Launch** on the Grafana application tile to access it.
+Click Launch on the Grafana application tile to access it.
 
-Alternatively, you can call the application directly with its name as the subdomain, for example, 
-`https://grafana.teleport.example.com` or `https://grafana.mytenant.teleport.sh`. 
-You are prompted to sign in if you haven't already been authenticated.
+Alternatively call the application directly with its name as the subdomain, for example, 
+`https://grafana.teleport.example.com` or `https://grafana.mytenant.teleport.sh`
+for a Teleport Cloud tenant. 
+You are prompted to log in if you haven't already been authenticated.
 
 ## Next steps
 

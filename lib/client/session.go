@@ -226,22 +226,20 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 		return nil, trace.Wrap(err)
 	}
 
-	envs := map[string]string{}
-
 	// pass language info into the remote session.
 	langVars := []string{"LANG", "LANGUAGE"}
 	for _, env := range langVars {
 		if value := os.Getenv(env); value != "" {
-			envs[env] = value
+			if err := sess.Setenv(ctx, env, value); err != nil {
+				log.Warn(err)
+			}
 		}
 	}
 	// pass environment variables set by client
 	for key, val := range ns.env {
-		envs[key] = val
-	}
-
-	if err := sess.SetEnvs(ctx, envs); err != nil {
-		log.Warn(err)
+		if err := sess.Setenv(ctx, key, val); err != nil {
+			log.Warn(err)
+		}
 	}
 
 	// if agent forwarding was requested (and we have a agent to forward),
@@ -383,7 +381,7 @@ func (ns *NodeSession) allocateTerminal(ctx context.Context, termType string, s 
 		go ns.updateTerminalSize(ctx, s)
 	}
 	go func() {
-		if _, err := io.Copy(os.Stderr, stderr); err != nil {
+		if _, err := io.Copy(ns.nodeClient.TC.Stderr, stderr); err != nil {
 			log.Debugf("Error reading remote STDERR: %v", err)
 		}
 	}()
@@ -553,7 +551,7 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 	// fallback to non-interactive mode
 	if interactive && !ns.terminal.IsAttached() {
 		interactive = false
-		fmt.Fprintf(os.Stderr, "TTY will not be allocated on the server because stdin is not a terminal\n")
+		fmt.Fprintf(ns.nodeClient.TC.Stderr, "TTY will not be allocated on the server because stdin is not a terminal\n")
 	}
 
 	// Start a interactive session ("exec" request with a TTY).

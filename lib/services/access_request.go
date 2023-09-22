@@ -224,10 +224,6 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 		caps.SuggestedReviewers = v.SuggestedReviewers
 	}
 
-	caps.RequireReason = v.requireReason
-	caps.RequestPrompt = v.prompt
-	caps.AutoRequest = v.autoRequest
-
 	return &caps, nil
 }
 
@@ -396,16 +392,18 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author t
 		rev.Created = time.Now()
 	}
 
-	// set threshold indexes and store the review
+	// set threshold indexes
 	rev.ThresholdIndexes = tids
-	req.SetReviews(append(req.GetReviews(), rev))
 
-	// if request has already exited the pending state, then no further work
-	// needs to be done (subsequent reviews have no effect after initial
-	// state-transition).
-	if !req.GetState().IsPending() {
-		return nil
+	// Resolved requests should not be updated.
+	switch {
+	case req.GetState().IsApproved():
+		return trace.AccessDenied("the access request has been already approved")
+	case req.GetState().IsDenied():
+		return trace.AccessDenied("the access request has been already denied")
 	}
+
+	req.SetReviews(append(req.GetReviews(), rev))
 
 	// request is still pending, so check to see if this
 	// review introduces a state-transition.
@@ -938,8 +936,6 @@ type RequestValidator struct {
 	getter        RequestValidatorGetter
 	user          types.User
 	requireReason bool
-	autoRequest   bool
-	prompt        string
 	opts          struct {
 		expandVars bool
 	}
@@ -1124,6 +1120,8 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 
 		accessTTL := now.Add(ttl)
 		req.SetAccessExpiry(accessTTL)
+		// Adjusted max access duration is equal to the access expiry time.
+		req.SetMaxDuration(accessTTL)
 	}
 
 	return nil
@@ -1149,7 +1147,13 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 	}
 
 	maxDuration := maxDurationTime.Sub(req.GetCreationTime())
-	if maxDuration < 0 {
+
+	// For dry run requests, the max_duration is set to 7 days.
+	// This prevents the time drift that can occur as the value is set on the client side.
+	// TODO(jakule): Replace with MaxAccessDuration that is a duration (5h, 4d etc), and not a point in time.
+	if req.GetDryRun() {
+		maxDuration = maxAccessDuration
+	} else if maxDuration < 0 {
 		return 0, trace.BadParameter("invalid maxDuration: must be greater than creation time")
 	}
 
@@ -1289,10 +1293,6 @@ func (m *RequestValidator) push(role types.Role) error {
 	var err error
 
 	m.requireReason = m.requireReason || role.GetOptions().RequestAccess.RequireReason()
-	m.autoRequest = m.autoRequest || role.GetOptions().RequestAccess.ShouldAutoRequest()
-	if m.prompt == "" {
-		m.prompt = role.GetOptions().RequestPrompt
-	}
 
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
 
@@ -1929,23 +1929,15 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 
 	for _, resourceID := range resourceIDs {
 		if slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) && resourceID.Name == clusterName {
-			switch {
-			case slices.Contains(types.KubernetesClusterWideResourceKinds, resourceID.Kind):
-				kubernetesResources = append(kubernetesResources, types.KubernetesResource{
-					Kind: resourceID.Kind,
-					Name: resourceID.SubResourceName,
-				})
-			default:
-				splits := strings.Split(resourceID.SubResourceName, "/")
-				if len(splits) != 2 {
-					return nil, trace.BadParameter("subresource name %q does not follow <namespace>/<name> format", resourceID.SubResourceName)
-				}
-				kubernetesResources = append(kubernetesResources, types.KubernetesResource{
-					Kind:      resourceID.Kind,
-					Namespace: splits[0],
-					Name:      splits[1],
-				})
+			splits := strings.Split(resourceID.SubResourceName, "/")
+			if len(splits) != 2 {
+				return nil, trace.BadParameter("subresource name %q does not follow <namespace>/<name> format", resourceID.SubResourceName)
 			}
+			kubernetesResources = append(kubernetesResources, types.KubernetesResource{
+				Kind:      resourceID.Kind,
+				Namespace: splits[0],
+				Name:      splits[1],
+			})
 		}
 	}
 	return kubernetesResources, nil

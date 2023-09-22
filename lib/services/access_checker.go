@@ -219,24 +219,8 @@ type AccessChecker interface {
 	// for a user.
 	GetKubeResources(cluster types.KubeCluster) (allowed, denied []types.KubernetesResource)
 
-	// EnumerateEntities works on a given role set to return a minimal description
-	// of allowed set of entities (db_users, db_names, etc). It is biased towards
-	// *allowed* entities; It is meant to describe what the user can do, rather than
-	// cannot do. For that reason if the user isn't allowed to pick *any* entities,
-	// the output will be empty.
-	//
-	// In cases where * is listed in set of allowed entities, it may be hard for
-	// users to figure out the expected entity to use. For this reason the parameter
-	// extraEntities provides an extra set of entities to be checked against
-	// RoleSet. This extra set of entities may be sourced e.g. from user connection
-	// history.
-	EnumerateEntities(resource AccessCheckable, listFn roleEntitiesListFn, newMatcher roleMatcherFactoryFn, extraEntities ...string) EnumerationResult
-
 	// EnumerateDatabaseUsers specializes EnumerateEntities to enumerate db_users.
 	EnumerateDatabaseUsers(database types.Database, extraUsers ...string) EnumerationResult
-
-	// EnumerateDatabaseNames specializes EnumerateEntities to enumerate db_names.
-	EnumerateDatabaseNames(database types.Database, extraNames ...string) EnumerationResult
 
 	// GetAllowedLoginsForResource returns all of the allowed logins for the passed resource.
 	//
@@ -381,12 +365,11 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 
 	for _, resourceID := range a.info.AllowedResourceIDs {
 		if resourceID.ClusterName == a.localCluster &&
-			// If the allowed resource has `Kind=types.KindKubePod` or any other
-			// Kubernetes supported kinds - types.KubernetesResourcesKinds-, we allow the user to
+			// If the allowed resource has `Kind=types.KindKubePod`, we allow the user to
 			// access the Kubernetes cluster that it belongs to.
 			// At this point, we do not verify that the accessed resource matches the
 			// allowed resources, but that verification happens in the caller function.
-			(resourceID.Kind == r.GetKind() || (slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) && r.GetKind() == types.KindKubernetesCluster)) &&
+			(resourceID.Kind == r.GetKind() || (resourceID.Kind == types.KindKubePod && r.GetKind() == types.KindKubernetesCluster)) &&
 			resourceID.Name == r.GetName() {
 			// Allowed to access this resource by resource ID, move on to role checks.
 			if isDebugEnabled {
@@ -424,7 +407,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 	if len(a.info.AllowedResourceIDs) == 0 {
 		return a.RoleSet.GetKubeResources(cluster, a.info.Traits)
 	}
-	var err error
+
 	rolesAllowed, rolesDenied := a.RoleSet.GetKubeResources(cluster, a.info.Traits)
 	// Allways append the denied resources from the roles. This is because
 	// the denied resources from the roles take precedence over the allowed
@@ -436,33 +419,20 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 		}
 		switch {
 		case slices.Contains(types.KubernetesResourcesKinds, r.Kind):
-			namespace := ""
-			name := ""
-			if slices.Contains(types.KubernetesClusterWideResourceKinds, r.Kind) {
-				// Cluster wide resources do not have a namespace.
-				name = r.SubResourceName
-			} else {
-				splitted := strings.SplitN(r.SubResourceName, "/", 3)
-				// This condition should never happen since SubResourceName is validated
-				// but it's better to validate it.
-				if len(splitted) != 2 {
-					continue
-				}
-				namespace = splitted[0]
-				name = splitted[1]
+			splitted := strings.SplitN(r.SubResourceName, "/", 3)
+			// This condition should never happen since SubResourceName is validated
+			// but it's better to validate it.
+			if len(splitted) != 2 {
+				continue
 			}
 
 			r := types.KubernetesResource{
 				Kind:      r.Kind,
-				Namespace: namespace,
-				Name:      name,
+				Namespace: splitted[0],
+				Name:      splitted[1],
 			}
-			// matchKubernetesResource checks if the Kubernetes Resource matches the tuple
-			// (kind, namespace, kame) from the allowed/denied list and does not match the resource
-			// verbs. Verbs are not checked here because they are not included in the
-			// ResourceID but we collect them and set them in the returned KubernetesResource
-			// so that they can be matched when the resource is accessed.
-			if r.Verbs, err = matchKubernetesResource(r, rolesAllowed, rolesDenied); err == nil {
+
+			if matchKubernetesResource(r, rolesAllowed, rolesDenied) == nil {
 				allowed = append(allowed, r)
 			}
 		case r.Kind == types.KindKubernetesCluster:
@@ -477,24 +447,24 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 
 // matchKubernetesResource checks if the Kubernetes Resource does not match any
 // entry from the deny list and matches at least one entry from the allowed list.
-func matchKubernetesResource(resource types.KubernetesResource, allowed, denied []types.KubernetesResource) ([]string, error) {
+func matchKubernetesResource(resource types.KubernetesResource, allowed, denied []types.KubernetesResource) error {
 	// utils.KubeResourceMatchesRegex checks if the resource.Kind is strictly equal
 	// to each entry and validates if the Name and Namespace fields matches the
 	// regex allowed by each entry.
-	result, _, err := utils.KubeResourceMatchesRegexWithVerbsCollector(resource, denied)
+	result, err := utils.KubeResourceMatchesRegex(resource, denied)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	} else if result {
-		return nil, trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
+		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
 	}
 
-	result, verbs, err := utils.KubeResourceMatchesRegexWithVerbsCollector(resource, allowed)
+	result, err = utils.KubeResourceMatchesRegex(resource, allowed)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	} else if !result {
-		return nil, trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
+		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
 	}
-	return verbs, nil
+	return nil
 }
 
 // GetAllowedResourceIDs returns the list of allowed resources the identity for
@@ -1106,11 +1076,41 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap
 	}, nil
 }
 
+// UserState is a representation of a user's current state.
+type UserState interface {
+	// GetName returns the username associated with the user state.
+	GetName() string
+
+	// GetRoles returns the roles associated with the user's current state.
+	GetRoles() []string
+
+	// GetTraits returns the traits associated with the user's current sate.
+	GetTraits() map[string][]string
+
+	// GetUserType returns the user type for the user login state.
+	GetUserType() types.UserType
+
+	// IsBot returns true if the user belongs to a bot.
+	IsBot() bool
+
+	// BotGenerationLabel returns the bot generation label for the user.
+	BotGenerationLabel() string
+}
+
 // AccessInfoFromUser return a new AccessInfo populated from the roles and
 // traits held be the given user. This should only be used in cases where the
 // user does not have any active access requests (initial web login, initial
 // tbot certs, tests).
+// TODO(mdwn): Remove this once enterprise has been moved away from this function.
 func AccessInfoFromUser(user types.User) *AccessInfo {
+	return AccessInfoFromUserState(user)
+}
+
+// AccessInfoFromUserState return a new AccessInfo populated from the roles and
+// traits held be the given user state. This should only be used in cases where the
+// user does not have any active access requests (initial web login, initial
+// tbot certs, tests).
+func AccessInfoFromUserState(user UserState) *AccessInfo {
 	roles := user.GetRoles()
 	traits := user.GetTraits()
 	return &AccessInfo{

@@ -380,7 +380,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     const proto = new Protobuf();
 
     const encodedMessage = encoder.encode(JSON.stringify(data));
-    const message = proto.encodeChallengeResponse(encodedMessage);
+    const message = proto.encodeRawMessage(encodedMessage);
     const bytearray = new Uint8Array(message);
 
     executeCommandWebSocket.current.send(bytearray.buffer);

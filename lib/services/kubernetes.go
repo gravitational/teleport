@@ -41,12 +41,6 @@ type KubernetesClusterGetter interface {
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 
-// KubernetesServerGetter defines interface for fetching kubernetes server resources.
-type KubernetesServerGetter interface {
-	// GetKubernetesServers returns all kubernetes server resources.
-	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
-}
-
 // Kubernetes defines an interface for managing kubernetes clusters resources.
 type Kubernetes interface {
 	// KubernetesGetter provides methods for fetching kubernetes resources.
@@ -256,7 +250,9 @@ func getOrSetDefaultGCPDescription(cluster gcp.GKECluster) string {
 
 // labelsFromGCPKubeCluster creates kube cluster labels.
 func labelsFromGCPKubeCluster(cluster gcp.GKECluster) map[string]string {
-	labels := maps.Clone(cluster.Labels)
+	labels := make(map[string]string)
+	maps.Copy(labels, cluster.Labels)
+
 	labels[types.CloudLabel] = types.CloudGCP
 	labels[types.DiscoveryLabelGCPLocation] = cluster.Location
 

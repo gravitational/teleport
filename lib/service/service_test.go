@@ -56,7 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/athena"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -477,7 +477,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				string(teleport.PrincipalLocalhost),
 				string(teleport.PrincipalLoopbackV4),
 				string(teleport.PrincipalLoopbackV6),
-				reversetunnelclient.LocalKubernetes,
+				reversetunnel.LocalKubernetes,
 				"proxy-ssh-public-1",
 				"proxy-ssh-public-2",
 				"proxy-tunnel-public-1",
@@ -540,7 +540,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				string(teleport.PrincipalLocalhost),
 				string(teleport.PrincipalLoopbackV4),
 				string(teleport.PrincipalLoopbackV6),
-				reversetunnelclient.LocalKubernetes,
+				reversetunnel.LocalKubernetes,
 				"kube-public-1",
 				"kube-public-2",
 			},
@@ -616,7 +616,7 @@ type mockAccessPoint struct {
 }
 
 type mockReverseTunnelServer struct {
-	reversetunnelclient.Server
+	reversetunnel.Server
 }
 
 func TestSetupProxyTLSConfig(t *testing.T) {
@@ -645,7 +645,6 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-elasticsearch-ping",
 				"teleport-opensearch-ping",
 				"teleport-dynamodb-ping",
-				"teleport-clickhouse-ping",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
@@ -664,7 +663,6 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-elasticsearch",
 				"teleport-opensearch",
 				"teleport-dynamodb",
-				"teleport-clickhouse",
 			},
 		},
 		{
@@ -683,7 +681,6 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-elasticsearch-ping",
 				"teleport-opensearch-ping",
 				"teleport-dynamodb-ping",
-				"teleport-clickhouse-ping",
 				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
 				"h2",
@@ -705,7 +702,6 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-elasticsearch",
 				"teleport-opensearch",
 				"teleport-dynamodb",
-				"teleport-clickhouse",
 			},
 		},
 	}
@@ -799,26 +795,8 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	authAddr, err := getFreePort()
-	require.NoError(t, err)
-	listenAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: authAddr}
+	listenAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	token := "join-token"
-
-	// Create Node process.
-	nodeCfg := servicecfg.MakeDefaultConfig()
-	nodeCfg.SetAuthServerAddress(listenAddr)
-	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.SetToken(token)
-	nodeCfg.Auth.Enabled = false
-	nodeCfg.Proxy.Enabled = false
-	nodeCfg.SSH.Enabled = true
-
-	// Set the Node's major version to be greater than the Auth Service's,
-	// which should make the version check fail.
-	currentVersion, err := semver.NewVersion(teleport.Version)
-	require.NoError(t, err)
-	currentVersion.Major++
-	nodeCfg.TeleportVersion = currentVersion.String()
 
 	// Create Auth Service process.
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -853,6 +831,23 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 		authProc.Close()
 	})
 
+	// Create Node process, pointing at the auth server's local port
+	authListenAddr := authProc.Config.AuthServerAddresses()[0]
+	nodeCfg := servicecfg.MakeDefaultConfig()
+	nodeCfg.SetAuthServerAddress(authListenAddr)
+	nodeCfg.DataDir = t.TempDir()
+	nodeCfg.SetToken(token)
+	nodeCfg.Auth.Enabled = false
+	nodeCfg.Proxy.Enabled = false
+	nodeCfg.SSH.Enabled = true
+
+	// Set the Node's major version to be greater than the Auth Service's,
+	// which should make the version check fail.
+	currentVersion, err := semver.NewVersion(teleport.Version)
+	require.NoError(t, err)
+	currentVersion.Major++
+	nodeCfg.TeleportVersion = currentVersion.String()
+
 	t.Run("with version check", func(t *testing.T) {
 		testVersionCheck(t, nodeCfg, false)
 	})
@@ -880,20 +875,6 @@ func testVersionCheck(t *testing.T, nodeCfg *servicecfg.Config, skipVersionCheck
 	supervisor, ok := nodeProc.Supervisor.(*LocalSupervisor)
 	require.True(t, ok)
 	supervisor.signalExit()
-}
-
-func getFreePort() (string, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
-	if err != nil {
-		return "", err
-	}
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return "", err
-	}
-	defer l.Close()
-
-	return l.Addr().(*net.TCPAddr).String(), nil
 }
 
 func Test_readOrGenerateHostID(t *testing.T) {
