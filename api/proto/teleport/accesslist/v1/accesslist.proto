@@ -193,6 +193,6 @@ message ReviewChanges {
   // membership_requirements_changed is populated if the requirements were changed as part of this review.
   AccessListRequires membership_requirements_changed = 2;
 
-  // removed_users contains the users that were removed as part of this review.
-  repeated string removed_users = 3;
+  // removed_members contains the members that were removed as part of this review.
+  repeated string removed_members = 3;
 }

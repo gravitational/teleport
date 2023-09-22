@@ -1102,7 +1102,7 @@ type CreateAccessListReviewResponse struct {
 
 	// review_name is the name of the review that was just created.
 	ReviewName string `protobuf:"bytes,1,opt,name=review_name,json=reviewName,proto3" json:"review_name,omitempty"`
-	// next_audit_date is when the next audit date should be done by.
+	// next_audit_date is when the next audit should be done by.
 	NextAuditDate *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=next_audit_date,json=nextAuditDate,proto3" json:"next_audit_date,omitempty"`
 }
 
