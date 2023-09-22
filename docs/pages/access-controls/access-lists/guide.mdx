@@ -14,9 +14,23 @@ This guide will help you:
 
 - (!docs/pages/includes/tctl.mdx!)
 - A running Teleport cluster.
-- A user with the preset `editor` role, which will have permissions to create Access Lists.
+- A user with a role that has permission to create Access Lists.
 
-### Step 1/4. Setting up an application service on the cluster for testing
+### Step 1/5. Grant your user permission to create Access Lists
+
+The v7 default "editor" role has Access List creation permissions preconfigured. Add the following permissions to any other role to grant Access List permissions:
+
+```
+    - resources:
+      - access_list
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+```
+### Step 2/5. Setting up an application service on the cluster for testing
 
 One of the easiest ways to get resources on the cluster for testing is to set up a Teleport Application Service
 instance with the debugging application enabled. To do this, add the following config to your `teleport.yaml`
@@ -32,7 +46,7 @@ And restart Teleport. The "dumper" app should show up in the resource list.
 
 ![Debug app](../../../img/access-controls/access-lists/debug-app.png)
 
-## Step 2/4. Create a test user
+## Step 3/5. Create a test user
 
 We need to create a simple test user that has only the `requester` role, which has no default access
 to anything within a cluster. This user will only be used for the purposes of this guide, so you may use
@@ -46,7 +60,7 @@ the name and select `requester` as the role.
 Click "Save," and then navigate to the provided URL in order to set up the credentials for your test user.
 Try logging into the cluster with the test user to verify that no resources show up in the resources page.
 
-## Step 3/4. Create an Access List
+## Step 4/5. Create an Access List
 
 Next, we'll create a simple access list that will grant the `access` role to its members.
 Login as the administrative user mentioned in the prerequisites. Navigate to the management pane and
@@ -75,7 +89,7 @@ roles or traits described in the access list.
 
 Finally, click "Create Access List" at the bottom of the page.
 
-## Step 4/4. Login as the test user
+## Step 5/5. Login as the test user
 
 Again, login as the test user. When logging in now, you should now see the dumper application contained within
 the cluster, and should be able to interact with it as expected.
