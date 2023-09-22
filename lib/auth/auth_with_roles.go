@@ -2366,20 +2366,6 @@ func emitTokenEvent(
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit join token create event.")
 	}
-	for _, role := range roles {
-		if role == types.RoleTrustedCluster {
-			//nolint:staticcheck // Emit a deprecated event.
-			if err := e.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
-				Metadata: apievents.Metadata{
-					Type: events.TrustedClusterTokenCreateEvent,
-					Code: events.TrustedClusterTokenCreateCode,
-				},
-				UserMetadata: userMetadata,
-			}); err != nil {
-				log.WithError(err).Warn("Failed to emit trusted cluster token create event.")
-			}
-		}
-	}
 }
 
 func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
