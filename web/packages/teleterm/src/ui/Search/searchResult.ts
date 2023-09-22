@@ -18,9 +18,6 @@ import type { ClusterUri } from 'teleterm/ui/uri';
 import type { Cluster } from 'teleterm/services/tshd/types';
 
 import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
-import type { SearchResultResource } from 'teleterm/ui/services/resources';
-
-export { SearchResultResource };
 
 type ResourceSearchResultBase<
   Result extends resourcesServiceTypes.SearchResult
@@ -82,7 +79,7 @@ export function mainResourceName(searchResult: ResourceSearchResult): string {
 }
 
 export const mainResourceField: {
-  [Kind in ResourceSearchResult['kind']]: keyof SearchResultResource<Kind>;
+  [Kind in ResourceSearchResult['kind']]: keyof resourcesServiceTypes.SearchResultResource<Kind>;
 } = {
   server: 'hostname',
   database: 'name',
@@ -93,7 +90,10 @@ export const mainResourceField: {
 // fields of string type.
 export const searchableFields: {
   [Kind in ResourceSearchResult['kind']]: ReadonlyArray<
-    Exclude<keyof SearchResultResource<Kind>, 'labelsList'>
+    Exclude<
+      keyof resourcesServiceTypes.SearchResultResource<Kind>,
+      'labelsList'
+    >
   >;
 } = {
   server: ['name', 'hostname', 'addr'],
