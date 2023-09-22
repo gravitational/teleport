@@ -186,7 +186,7 @@ func IsAccessListOwner(identity tlsca.Identity, accessList *accesslist.AccessLis
 		return accessDenied
 	}
 
-	if !userMeetsRequirements(identity, accessList.Spec.OwnershipRequires) {
+	if !UserMeetsRequirements(identity, accessList.Spec.OwnershipRequires) {
 		return accessDenied
 	}
 
@@ -216,13 +216,14 @@ func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock cloc
 		return trace.AccessDenied("user %s's membership has expired in the access list", username)
 	}
 
-	if !userMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
+	if !UserMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
 		return trace.AccessDenied("user %s is a member, but does not have the roles or traits required to be a member of this list", username)
 	}
 	return nil
 }
 
-func userMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires) bool {
+// UserMeetsRequirements will return true if the user meets the requirements for the access list.
+func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires) bool {
 	// Assemble the user's roles for easy look up.
 	userRolesMap := map[string]struct{}{}
 	for _, role := range identity.Groups {
