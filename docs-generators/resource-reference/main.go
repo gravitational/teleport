@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"gen-resource-ref/resource"
@@ -33,7 +34,7 @@ func main() {
 	flag.Parse()
 
 	allDecls := make(map[resource.PackageInfo]resource.DeclarationInfo)
-	// result := make(map[resource.PackageInfo]resource.ReferenceEntry)
+	result := make(map[resource.PackageInfo]resource.ReferenceEntry)
 
 	// Load each file in the source directory individually. Not using
 	// packages.Load here since the resulting []*Package does not expose
@@ -80,10 +81,82 @@ func main() {
 		os.Exit(1)
 	}
 
-	// TODO: If a struct type has a types.Metadata field, construct a
-	// Resource from the struct type and insert it into the final data map
-	// (unless a Resource already exists there).
+	for k, decl := range allDecls {
+		// TODO: The code that checks whether a decl is a struct comes
+		// from resource.getRawTypes. Refactor so we don't repeat the
+		// struct-processing logic.
+		if len(decl.Decl.Specs) == 0 {
+			continue
+		}
 
-	// TODO: Process the fields of the struct type using the rules described
-	// below, looking up declaration data from the declaration map.
+		var err error
+		// Name the section after the first type declaration found. We expect
+		// there to be one type spec.
+		var t *ast.TypeSpec
+		for _, s := range decl.Decl.Specs {
+			ts, ok := s.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+			if t != nil {
+				err = errors.New("declaration contains more than one type spec")
+				continue
+			}
+			t = ts
+		}
+		// TODO: consider skipping instead of exiting with an error.
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "type %v.%v in %v has more than one type spec", k.PackageName, k.TypeName, decl.FilePath)
+			os.Exit(1)
+		}
+
+		// TODO: consider skipping instead of exiting with an error.
+		if t == nil {
+			fmt.Fprintf(os.Stderr, "type %v.%v in %v has no type spec", k.PackageName, k.TypeName, decl.FilePath)
+			os.Exit(1)
+		}
+
+		str, ok := t.Type.(*ast.StructType)
+		if !ok {
+			continue
+		}
+
+		var m bool
+		for _, fld := range str.Fields.List {
+			if len(fld.Names) != 1 {
+				continue
+			}
+			i, ok := fld.Type.(*ast.SelectorExpr)
+			if !ok {
+				continue
+			}
+
+			g, ok := i.X.(*ast.Ident)
+			if !ok {
+				continue
+			}
+			// TODO: Define constants for the desired
+			// package/type name for the required field.
+			if g.Name == "types" && i.Sel.Name == "Metadata" {
+				m = true
+				break
+			}
+		}
+
+		if !m {
+			continue
+		}
+
+		entries, err := resource.NewFromDecl(decl, allDecls)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "issue creating a reference entry for declaration %v.%v in file %v", k.PackageName, k.TypeName, decl.FilePath)
+			os.Exit(1)
+		}
+
+		for pi, e := range entries {
+			result[pi] = e
+		}
+	}
+
+	// TODO: Populate the template with the reference entries
 }
