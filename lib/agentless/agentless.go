@@ -45,11 +45,12 @@ type AuthProvider interface {
 // will be generated to authenticate to.
 type CertGenerator interface {
 	GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error)
+	GenerateTAGValidatedCerts(ctx context.Context, req *proto.TAGValidatedCertRequest) (*proto.Certs, error)
 }
 
 // SignerCreator returns an [ssh.Signer] that can be used to authenticate
 // with an agentless node.
-type SignerCreator func(ctx context.Context, certGen CertGenerator) (ssh.Signer, error)
+type SignerCreator func(ctx context.Context, certGen CertGenerator, isAgentLess bool) (ssh.Signer, error)
 
 // SignerFromSSHCertificate returns a function that attempts to
 // create a [ssh.Signer] for the Identity in the provided [ssh.Certificate]
@@ -58,7 +59,7 @@ type SignerCreator func(ctx context.Context, certGen CertGenerator) (ssh.Signer,
 // passed into the returned function must be connected to the same cluster
 // as the target node.
 func SignerFromSSHCertificate(cert *ssh.Certificate, authClient AuthProvider, clusterName, teleportUser string) SignerCreator {
-	return func(ctx context.Context, certGen CertGenerator) (ssh.Signer, error) {
+	return func(ctx context.Context, certGen CertGenerator, isAgentLess bool) (ssh.Signer, error) {
 		u, err := authClient.GetUser(teleportUser, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -94,6 +95,7 @@ func SignerFromSSHCertificate(cert *ssh.Certificate, authClient AuthProvider, cl
 			teleportUser: user,
 			roles:        roles,
 			ttl:          ttl,
+			tag:          true,
 		}
 		signer, err := createAuthSigner(ctx, params, certGen)
 		if err != nil {
@@ -111,7 +113,7 @@ func SignerFromSSHCertificate(cert *ssh.Certificate, authClient AuthProvider, cl
 // passed into the returned function must be connected to the same cluster
 // as the target node.
 func SignerFromAuthzContext(authzCtx *authz.Context, authClient AuthProvider, clusterName string) SignerCreator {
-	return func(ctx context.Context, certGen CertGenerator) (ssh.Signer, error) {
+	return func(ctx context.Context, certGen CertGenerator, openSSHCA bool) (ssh.Signer, error) {
 		u, ok := authzCtx.User.(*types.UserV2)
 		if !ok {
 			return nil, trace.BadParameter("unsupported user type %T", u)
@@ -136,6 +138,8 @@ func SignerFromAuthzContext(authzCtx *authz.Context, authClient AuthProvider, cl
 			teleportUser: user,
 			roles:        roles,
 			ttl:          time.Until(identity.Expires),
+			tag:          true,
+			openssh:      openSSHCA,
 		}
 		signer, err := createAuthSigner(ctx, params, certGen)
 		if err != nil {
@@ -168,6 +172,8 @@ type certParams struct {
 	teleportUser *types.UserV2
 	roles        []*types.RoleV6
 	ttl          time.Duration
+	tag          bool
+	openssh      bool
 }
 
 // createAuthSigner creates a [ssh.Signer] that is signed with
@@ -178,21 +184,38 @@ func createAuthSigner(ctx context.Context, params certParams, certGen CertGenera
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// sign new public key with OpenSSH CA
-	reply, err := certGen.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
-		User:      params.teleportUser,
-		Roles:     params.roles,
-		PublicKey: priv.MarshalSSHPublicKey(),
-		TTL:       proto.Duration(params.ttl),
-		Cluster:   params.clusterName,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var sshCert []byte
+	switch {
+	case params.openssh:
+		// sign new public key with OpenSSH CA
+		reply, err := certGen.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
+			User:      params.teleportUser,
+			Roles:     params.roles,
+			PublicKey: priv.MarshalSSHPublicKey(),
+			TTL:       proto.Duration(params.ttl),
+			Cluster:   params.clusterName,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sshCert = reply.Cert
+	default:
+		// sign new public key with OpenSSH CA
+		reply, err := certGen.GenerateTAGValidatedCerts(ctx, &proto.TAGValidatedCertRequest{
+			User:      params.teleportUser,
+			Roles:     params.roles,
+			PublicKey: priv.MarshalSSHPublicKey(),
+			TTL:       proto.Duration(params.ttl),
+			Cluster:   params.clusterName,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sshCert = reply.SSH
 	}
 
 	// parse returned certificate bytes and create a signer with it
-	cert, err := sshutils.ParseCertificate(reply.Cert)
+	cert, err := sshutils.ParseCertificate(sshCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

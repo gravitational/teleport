@@ -88,6 +88,27 @@ message HostCertsRequest {
   ];
 }
 
+// TAGValidatedCertRequest specifies certificate-generation parameters
+// for a certificates when authentication is done via Access Graph.
+message TAGValidatedCertRequest {
+  reserved 1; // Username, jsontag "username"
+  reserved "Username";
+  // PublicKey is the public key to sign.
+  bytes PublicKey = 2 [(gogoproto.jsontag) = "public_key"];
+  // TTL is the duration the certificate will be valid for.
+  int64 TTL = 3 [
+    (gogoproto.jsontag) = "ttl",
+    (gogoproto.casttype) = "Duration"
+  ];
+  // Cluster is the Teleport cluster name the target node is connected to.
+  string Cluster = 4 [(gogoproto.jsontag) = "cluster"];
+  // User is the Teleport user the certificate will be generated for.
+  types.UserV2 User = 5 [(gogoproto.jsontag) = "user"];
+  // Roles are the roles of the Teleport user the certificate will be
+  // generated for.
+  repeated types.RoleV6 Roles = 6 [(gogoproto.jsontag) = "roles"];
+}
+
 // OpenSSHCertRequest specifies certificate-generation parameters
 // for a certificates used to connect to Agentless nodes.
 message OpenSSHCertRequest {
@@ -2376,6 +2397,10 @@ service AuthService {
   // GenerateOpenSSHCert signs a SSH certificate that can be used
   // to connect to Agentless nodes.
   rpc GenerateOpenSSHCert(OpenSSHCertRequest) returns (OpenSSHCert);
+  // GenerateTAGValidatedCerts signs a SSH and TLS certificate that can be used
+  // to connect to nodes without access to TAG. Certificates include a property
+  // that agents will trust and skip the RBAC check.
+  rpc GenerateTAGValidatedCerts(TAGValidatedCertRequest) returns (Certs);
   // IsMFARequired checks whether MFA is required to access the specified
   // target.
   rpc IsMFARequired(IsMFARequiredRequest) returns (IsMFARequiredResponse);

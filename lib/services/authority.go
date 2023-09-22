@@ -374,6 +374,7 @@ type UserCertParams struct {
 	// DeviceCredentialID is the identifier for the credential used by the device
 	// to authenticate itself.
 	DeviceCredentialID string
+	TAG                bool
 }
 
 // CheckAndSetDefaults checks the user certificate parameters

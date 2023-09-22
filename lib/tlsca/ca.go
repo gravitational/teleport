@@ -193,6 +193,7 @@ type Identity struct {
 
 	// UserType indicates if the User was created by an SSO Provider or locally.
 	UserType types.UserType
+	TAG      string
 }
 
 // RouteToApp holds routing information for applications.
@@ -505,6 +506,7 @@ var (
 	// DeviceCredentialIDExtensionOID is a string extension that identifies the
 	// credential used to authenticate the device.
 	DeviceCredentialIDExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 3, 3}
+	TAGExtensionOID                = asn1.ObjectIdentifier{1, 3, 9999, 4, 1}
 )
 
 // Subject converts identity to X.509 subject name
@@ -807,6 +809,13 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		})
 	}
 
+	if tag := id.TAG; tag != "" {
+		subject.ExtraNames = append(subject.ExtraNames, pkix.AttributeTypeAndValue{
+			Type:  TAGExtensionOID,
+			Value: tag,
+		})
+	}
+
 	return subject, nil
 }
 
@@ -1016,6 +1025,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(DeviceCredentialIDExtensionOID):
 			if val, ok := attr.Value.(string); ok {
 				id.DeviceExtensions.CredentialID = val
+			}
+		case attr.Type.Equal(TAGExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.TAG = val
 			}
 		case attr.Type.Equal(PinnedIPASN1ExtensionOID):
 			if val, ok := attr.Value.(string); ok {

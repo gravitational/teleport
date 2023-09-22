@@ -224,6 +224,10 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 		cert.Permissions.Extensions[teleport.CertExtensionDeviceCredentialID] = credID
 	}
 
+	if tag := c.TAG; tag {
+		cert.Permissions.Extensions[teleport.CertExtensionTAG] = "true"
+	}
+
 	if c.PinnedIP != "" {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return nil, trace.AccessDenied("source IP pinning is only supported in Teleport Enterprise")
@@ -231,10 +235,10 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 		if cert.CriticalOptions == nil {
 			cert.CriticalOptions = make(map[string]string)
 		}
-		//IPv4, all bits matter
+		// IPv4, all bits matter
 		ip := c.PinnedIP + "/32"
 		if strings.Contains(c.PinnedIP, ":") {
-			//IPv6
+			// IPv6
 			ip = c.PinnedIP + "/128"
 		}
 		cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress] = ip
