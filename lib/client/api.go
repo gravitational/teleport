@@ -2863,6 +2863,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 		AuthClient:  authClient,
 		Tracer:      tc.Tracer,
 		cluster:     cluster,
+		root:        root,
 	}, nil
 }
 
@@ -4079,7 +4080,7 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 
 // ConnectToRootCluster activates the provided key and connects to the
 // root cluster with its credentials.
-func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *Key) (*ProxyClient, auth.ClientI, error) {
+func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *Key) (*ClusterClient, auth.ClientI, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ConnectToRootCluster",
@@ -4091,21 +4092,21 @@ func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *Key) (*
 		return nil, nil, trace.Wrap(err)
 	}
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
+	rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
 	if err != nil {
-		return nil, nil, trace.NewAggregate(err, proxyClient.Close())
+		return nil, nil, trace.NewAggregate(err, clusterClient.Close())
 	}
 
 	if err := tc.UpdateTrustedCA(ctx, rootAuthClient); err != nil {
-		return nil, nil, trace.NewAggregate(err, rootAuthClient.Close(), proxyClient.Close())
+		return nil, nil, trace.NewAggregate(err, rootAuthClient.Close(), clusterClient.Close())
 	}
 
-	return proxyClient, rootAuthClient, nil
+	return clusterClient, rootAuthClient, nil
 }
 
 // activateKey saves the target session cert into the local
