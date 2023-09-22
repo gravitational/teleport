@@ -237,8 +237,8 @@ A participant joining a session will always have one of three modes:
 - `peer`: Allows you to collaborate in the session. You can view output and send input.
 
 If you join a session with `tsh join` or `tsh kube join`, you can specify a
-participant mode with the `--mode <mode>` flag , where the mode is one of `peer`,
-`moderator` or `observer`. By default, the mode is `observer`.
+participant mode with the `--mode <mode>` command-line option, where `<mode>` is `peer`,
+`moderator`, or `observer`. The default participant mode is `observer`.
 
 You can leave a session with the shortcut `^c` (Control + c) while in observer or
 moderator mode. In moderator mode, you can also forcefully terminate the session 
