@@ -3,16 +3,6 @@ title: Database Access with Elasticsearch
 description: How to configure Teleport database access with Elasticsearch.
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="10.3"
->
-  Database access for Elasticsearch is available starting from Teleport `10.3`.
-</Details>
-
 This guide will help you to configure secured access to an Elasticsearch database using the Teleport Database Service.
 
 ## Prerequisites
@@ -21,9 +11,7 @@ This guide will help you to configure secured access to an Elasticsearch databas
 
 - A self-hosted Elasticsearch database. Elastic Cloud [does not support client certificates](https://www.elastic.co/guide/en/cloud/current/ec-restrictions.html#ec-restrictions-security), which are required for setting up the Database Service.
 
-- A host where you will run the Teleport Database Service. If you are already
-  running the Teleport Database Service, you must ensure that it uses Teleport
-  version 10.3 or newer in order to connect to Elasticsearch.
+- A host where you will run the Teleport Database Service.
 
   See [Installation](../../installation.mdx) for details.
 
