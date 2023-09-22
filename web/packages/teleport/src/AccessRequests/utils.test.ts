@@ -181,6 +181,8 @@ describe('generate middle times', () => {
 
   for (let tc of cases) {
     const { name, sessionTTL, maxDuration, created, expected } = tc;
+
+    // eslint-disable-next-line jest/valid-title
     test(name, () => {
       const result = middleValues(
         new Date(created),
