@@ -334,12 +334,6 @@ func getTeleportBotUser(ctx context.Context, opts Options, authClient auth.Clien
 
 }
 
-// botExists checks if the bot described in the Options exists
-func botExists(ctx context.Context, opts Options, authClient auth.ClientI) (bool, error) {
-	botUser, err := getTeleportBotUser(ctx, opts, authClient)
-	return botUser != nil, trace.Wrap(err)
-}
-
 // getCAPins uses the local auth client to get the cluster CAs and compute their pins
 func getCAPins(ctx context.Context, authClient auth.ClientI) ([]string, error) {
 	// Getting the cluster CA Pins to be able to join regardless of the cert SANs.
