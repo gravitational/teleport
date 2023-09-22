@@ -415,6 +415,125 @@ func TestIsAccessListMember(t *testing.T) {
 	}
 }
 
+func TestSelectNextAccessListReviewDate(t *testing.T) {
+	// Test over 20 years, which includes several leap years
+	for year := 2023; year < 2053; year++ {
+		maxHoursInMonth := 744 * time.Hour // 31 days * 24 hours = 744 hours
+		// January dates, 1 month ahead
+		februaryMaxDay := time.Date(year, time.March, 0, 0, 0, 0, 0, time.UTC).Day()
+		for i := 1; i <= 31; i++ {
+			startDate := time.Date(year, time.January, i, 0, 0, 0, 0, time.UTC)
+			nextDate := SelectNextAccessListReviewDate(maxHoursInMonth, startDate)
+			februaryDay := i
+			if i >= 28 {
+				februaryDay = februaryMaxDay
+			}
+			expectedDate := time.Date(year, time.February, februaryDay, 0, 0, 0, 0, time.UTC)
+			require.Equal(t, expectedDate, nextDate, "expected next review date of %s for starting date %s, got %s instead", expectedDate, startDate, nextDate)
+		}
+
+		// Assuming 3 months == 2190 hours (from Google)
+		const threeMonths = 2190 * time.Hour
+		// 3 months from first days
+		require.Equal(t, time.Date(year, time.April, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(threeMonths, time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.May, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(threeMonths, time.Date(year, time.February, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.June, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(threeMonths, time.Date(year, time.March, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.July, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(threeMonths, time.Date(year, time.April, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.August, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(threeMonths, time.Date(year, time.May, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.September, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(threeMonths, time.Date(year, time.June, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.October, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(threeMonths, time.Date(year, time.July, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.November, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(threeMonths, time.Date(year, time.August, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.December, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(threeMonths, time.Date(year, time.September, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year+1, time.January, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(threeMonths, time.Date(year, time.October, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year+1, time.February, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(threeMonths, time.Date(year, time.November, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year+1, time.March, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(threeMonths, time.Date(year, time.December, 1, 0, 0, 0, 0, time.UTC)))
+
+		// Assuming 6 months == 4380 hours (from Google)
+		const sixMonths = 4380 * time.Hour
+
+		// 6 months from first days
+		require.Equal(t, time.Date(year, time.July, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.August, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.February, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.September, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.March, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.October, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.April, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.November, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.May, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.December, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.June, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year+1, time.January, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.July, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year+1, time.February, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.August, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year+1, time.March, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.September, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year+1, time.April, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.October, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year+1, time.May, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.November, 1, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year+1, time.June, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.December, 1, 0, 0, 0, 0, time.UTC)))
+
+		// 6 months from last days
+		require.Equal(t, time.Date(year, time.July, 31, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.January, 31, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.August, 31, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.February, 28, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.September, 30, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.March, 31, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.October, 31, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.April, 30, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.November, 30, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.May, 31, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year, time.December, 31, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.June, 30, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year+1, time.January, 31, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.July, 31, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year+1, time.March, 0, 0, 0, 0, 0, time.UTC), // March 0 == last day of February, which changes over time
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.August, 31, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year+1, time.March, 31, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.September, 30, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year+1, time.April, 30, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.October, 31, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year+1, time.May, 31, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.November, 30, 0, 0, 0, 0, time.UTC)))
+		require.Equal(t, time.Date(year+1, time.June, 30, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(sixMonths, time.Date(year, time.December, 31, 0, 0, 0, 0, time.UTC)))
+
+		// Assuming 1 years == 8766 hours (from Google)
+		const oneYear = 8766 * time.Hour
+
+		// Make sure there's no drift over 200 years doing 1 year at a time
+		for i := year; i < year+200; i++ {
+			require.Equal(t, time.Date(i+1, time.July, 15, 0, 0, 0, 0, time.UTC),
+				SelectNextAccessListReviewDate(oneYear, time.Date(i, time.July, 15, 0, 0, 0, 0, time.UTC)))
+		}
+
+		// 200 years in the future
+		require.Equal(t, time.Date(year+200, time.July, 15, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(oneYear*200, time.Date(year, time.July, 15, 0, 0, 0, 0, time.UTC)))
+
+		// Duration smaller than one month
+		require.Equal(t, time.Date(year, time.July, 1, 0, 0, 0, 0, time.UTC),
+			SelectNextAccessListReviewDate(1, time.Date(year, time.June, 1, 0, 0, 0, 0, time.UTC)))
+	}
+}
+
 func newAccessList(t *testing.T) *accesslist.AccessList {
 	t.Helper()
 

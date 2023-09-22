@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -264,4 +265,54 @@ func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires
 
 	// The user meets all requirements.
 	return true
+}
+
+// SelectNextAccessListReviewDate will select the next access list review date given the frequency, and a current review date.
+//
+// This function does the following:
+//   - Determines the proper month of the next review by adding the frequency to the current review date with the day of month stripped off.
+//     If the resulting date is still in the same year and month, one month will be added, so that the minimum next review date is 1 month
+//     past the current review date.
+//   - Attempts to maintain the same day of the month unless the day of the month is >= 28, in which case it assumes the
+//     intended day of month is the last day of the month. e.g. January 10 + 6 months = July 6, February 28 + 6 months = August 31.
+//   - If the frequency added to the current review date with the month stripped off yields a date that is more than halfway through the
+//     month, the next month will be selected. e.g. January 1 + frequency = February 27 will be nudged to March. This is done to account for
+//     drift due to leap years, leap seconds, etc. Tests indiciate this works up to 200 years.
+func SelectNextAccessListReviewDate(frequency time.Duration, reviewDate time.Time) time.Time {
+	reviewDateUTC := reviewDate.UTC()
+
+	dayOfMonth := reviewDateUTC.Day()
+
+	// Take the first day of the month of the review date, which we'll use for calculating the next review date.
+	calcDate := time.Date(reviewDateUTC.Year(), reviewDateUTC.Month(), 1, 0, 0, 0, 0, time.UTC)
+
+	// Add the frequency to the calc date, which should put us near to the next date.
+	targetDate := calcDate.Add(frequency)
+
+	// If we're at the same month as the starting date, go to the next month
+	if targetDate.Year() == calcDate.Year() && targetDate.Month() == calcDate.Month() {
+		targetDate = targetDate.AddDate(0, 1, 0)
+	}
+
+	// Get the first day of the month of the target calc date.
+	targetCalcDate := targetDate.AddDate(0, 0, -(targetDate.Day() - 1))
+
+	// If we're over halfway into the month, skip to the next month.
+	nextMonth := targetCalcDate.AddDate(0, 1, 0)
+	totalDurationInMonth := nextMonth.Sub(targetCalcDate)
+	durationBetweenTargetDateAndFirstOfMonth := targetDate.Sub(targetCalcDate)
+
+	if float64(durationBetweenTargetDateAndFirstOfMonth)/float64(totalDurationInMonth) >= 0.5 {
+		targetCalcDate = targetCalcDate.AddDate(0, 1, 0)
+	}
+
+	// If we're getting towards the end of the month
+	if dayOfMonth >= 28 {
+		// If we're in this range of days (28-31), we'll assume the user is trying to target the last
+		// day of the month. We'll get this by selecting the 0th day of the next month, which will be the last
+		// day of the current month. This should handle leap years as well.
+		dayOfMonth = time.Date(targetCalcDate.Year(), targetCalcDate.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
+	}
+
+	return time.Date(targetCalcDate.Year(), targetCalcDate.Month(), dayOfMonth, 0, 0, 0, 0, time.UTC)
 }
