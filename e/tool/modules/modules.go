@@ -92,6 +92,11 @@ type enterpriseModules struct {
 	loadDynamicValues sync.Once
 }
 
+// GenerateAccessRequestPromotions returns a list of promotions for the given access list.
+func (p *enterpriseModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+	return types.NewAccessRequestAllowedPromotions(nil), nil
+}
+
 // Features returns supported features
 func (p *enterpriseModules) Features() modules.Features {
 	p.mu.RLock()
