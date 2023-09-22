@@ -2419,10 +2419,12 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 
 func TestAddMFADeviceSync(t *testing.T) {
 	t.Parallel()
+
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().emitter = mockEmitter
+	clock := srv.Auth().GetClock()
+	ctx := context.Background()
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -2466,7 +2468,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 
 		testDev, registerSolved, err := NewTestDeviceFromChallenge(
 			registerChal,
-			WithTestDeviceClock(srv.Auth().clock),
+			WithTestDeviceClock(clock),
 		)
 		require.NoError(t, err, "NewTestDeviceFromChallenge")
 		return testDev, registerSolved
@@ -2513,7 +2515,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				_, totpRegRes, err := NewTestDeviceFromChallenge(res, WithTestDeviceClock(srv.Auth().clock))
+				_, totpRegRes, err := NewTestDeviceFromChallenge(res, WithTestDeviceClock(clock))
 				require.NoError(t, err)
 
 				return &proto.AddMFADeviceSyncRequest{
