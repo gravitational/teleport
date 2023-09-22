@@ -687,10 +687,6 @@ active: true
 			allDecls := make(map[PackageInfo]DeclarationInfo)
 			// Assemble map of PackageInfo to *ast.GenDecl for
 			// source fixtures the test case depends on.
-			// TODO: This is getting lengthy, so consider extracting
-			// it into separate function--possibly to use in the
-			// program itself--or changing the function signature of
-			// NewFromDecl to make things less awkward.
 			for n, dep := range tc.declSources {
 				d, err := parser.ParseFile(fset,
 					fmt.Sprintf("myfile%v.go", n),
