@@ -121,7 +121,7 @@ To configure Teleport for using etcd as a storage backend:
   Using an S3-compatible storage solution will allow for a central platform for storing sessions. Otherwise each
   Teleport Auth Service instance will have sessions stored in the `records` directory under the same `log` directory 
   (by default `/var/lib/teleport/log/records`). See the S3 section.
-- Deploy several auth servers connected to etcd backend.
+- Deploy several Auth Service instances connected to an etcd backend.
 - Deploy several Proxy Service instances that have `auth_server` pointed to the auth server to connect to.
 
 ```yaml
@@ -187,7 +187,7 @@ teleport:
   in Teleport Architecture documentation.
 </Admonition>
 
-S3 and S3 compatible buckets can only be used as storage for the recorded sessions. S3 cannot
+S3 and S3-compatible buckets can only be used as storage for the recorded sessions. S3 cannot
 store the audit log or the cluster state.
 
 S3 buckets must have versioning enabled, which ensures that a session log cannot
