@@ -117,7 +117,7 @@ To configure Teleport for using etcd as a storage backend:
     don't already have a TLS setup.
 - Configure all Teleport Auth servers to use etcd in the "storage" section of the config file as shown below.
 - Each Teleport Auth Service instance will have individual audit logs within the `log` directory under the data
-  directory (by default `/var/lib/teleport/log`). Using a SIEM to consolidate audit logs is recommended.
+  directory (by default `/var/lib/teleport/log`). Using a [SIEM to consolidate audit logs](../management/export-audit-events.mdx) is recommended.
   Using an S3-compatible storage solution will allow for a central platform for storing sessions. Otherwise each
   Teleport Auth Service instance will have sessions stored in the `records` directory under the same `log` directory 
   (by default `/var/lib/teleport/log/records`). See the S3 section.
@@ -187,8 +187,8 @@ teleport:
   in Teleport Architecture documentation.
 </Admonition>
 
-S3 and S3-compatible buckets can only be used as storage for the recorded sessions. S3 cannot
-store the audit log or the cluster state.
+S3 and S3-compatible buckets can be used as storage for the recorded sessions. S3 cannot
+store the the cluster state.
 
 S3 buckets must have versioning enabled, which ensures that a session log cannot
 be permanently altered or deleted. Teleport will always look at the oldest
