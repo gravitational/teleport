@@ -68,6 +68,7 @@ func main() {
 			app.FatalIfError(importCert(*cert), "can't import certificate form %s", *cert)
 		}
 		app.FatalIfError(disableNLA(), "can't disable NLA")
+		app.FatalIfError(setConnectionSecurityLayer(), "can't request security layer")
 		app.FatalIfError(copyDLL(), "can't install Teleport Authentication Package")
 		app.FatalIfError(registerDLL(), "can't register Teleport Authentication Package")
 		fmt.Println("Teleport Authentication Package installed")
@@ -116,8 +117,20 @@ func ui() {
 				}
 			}
 
+			if err := disableNLA(); err != nil {
+				zenity.Error(fmt.Sprintf("Can't disable NLA: %s", err), title, width, height)
+				return
+			}
+			if err := setConnectionSecurityLayer(); err != nil {
+				zenity.Error(fmt.Sprintf("Can't request security layer: %s", err), title, width, height)
+				return
+			}
 			if err := copyDLL(); err != nil {
 				zenity.Error(fmt.Sprintf("Can't update Teleport Authentication Package: %s", err), title, width, height)
+				return
+			}
+			if err := registerDLL(); err != nil {
+				zenity.Error(fmt.Sprintf("Can't register Teleport Authentication Package: %s", err), title, width, height)
 				return
 			}
 			if err := zenity.Question("Teleport Authentication Package updated successfully.\n"+
@@ -151,6 +164,10 @@ func ui() {
 	}
 	if err := disableNLA(); err != nil {
 		zenity.Error(fmt.Sprintf("Can't disable NLA: %s", err), title, width, height)
+		return
+	}
+	if err := setConnectionSecurityLayer(); err != nil {
+		zenity.Error(fmt.Sprintf("Can't request security layer: %s", err), title, width, height)
 		return
 	}
 	if err := copyDLL(); err != nil {
@@ -226,6 +243,23 @@ func disableNLA() error {
 	defer key.Close()
 	if err := key.SetDWordValue("UserAuthentication", 0); err != nil {
 		return fmt.Errorf("can't set UserAuthentication value: %w", err)
+	}
+	return nil
+}
+
+// setConnectionSecurityLayer sets  connection security layer to Negotiate (server and client will choose between RDP and TLS).
+// Teleport requires secure connection (TLS) but we don't want to prevent access from older clients.
+//
+// See https://learn.microsoft.com/en-us/windows-hardware/customize/desktop/unattend/microsoft-windows-terminalservices-rdp-winstationextensions-securitylayer
+func setConnectionSecurityLayer() error {
+	key := `SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services`
+	servicesKey, err := registry.OpenKey(registry.LOCAL_MACHINE, key, registry.ALL_ACCESS)
+	if err != nil {
+		return fmt.Errorf("opening key %s: %w", key, err)
+	}
+	defer servicesKey.Close()
+	if err := servicesKey.SetDWordValue("SecurityLayer", 1); err != nil {
+		return fmt.Errorf("setting security layer: %w", err)
 	}
 	return nil
 }
