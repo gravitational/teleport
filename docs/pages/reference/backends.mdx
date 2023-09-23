@@ -119,7 +119,7 @@ To configure Teleport for using etcd as a storage backend:
 - Each Teleport Auth Service instance will have individual audit logs within the `log` directory under the data
   directory (by default `/var/lib/teleport/log`). Using a SIEM to consolidate audit logs is recommended.
   Using an S3-compatible storage solution will allow for a central platform for storing sessions. Otherwise each
-  Teleport Auth server will have sessions stored in the `records` directory under the same `log` directory 
+  Teleport Auth Service instance will have sessions stored in the `records` directory under the same `log` directory 
   (by default `/var/lib/teleport/log/records`). See the S3 section.
 - Deploy several auth servers connected to etcd backend.
 - Deploy several Proxy Service instances that have `auth_server` pointed to the auth server to connect to.
