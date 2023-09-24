@@ -30,6 +30,9 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 )
 
+// waitDuration specifies the amount of time to wait for a service to become healthy after an update.
+const waitDuration = time.Minute * 5
+
 // UpdateDeployServiceAgents updates the deploy service agents with the specified teleportVersionTag.
 func UpdateDeployServiceAgents(ctx context.Context, clt DeployServiceClient, teleportClusterName, teleportVersionTag string, ownershipTags AWSTags) error {
 	teleportFlavor := teleportOSS
@@ -93,9 +96,6 @@ func updateDeployServiceAgent(ctx context.Context, clt DeployServiceClient, tele
 	})
 	return nil
 }
-
-// waitDuration specifies the amount of time to wait for a service to become healthy after an update.
-const waitDuration = time.Minute * 5
 
 func getManagedService(ctx context.Context, clt DeployServiceClient, teleportClusterName string, ownershipTags AWSTags) (*ecsTypes.Service, error) {
 	ecsClusterName := fmt.Sprintf("%s-teleport", normalizeECSResourceName(teleportClusterName))
