@@ -27,12 +27,12 @@ PRs with corrections and updates are welcome!
   ````
 
 * `Rust` and `Cargo` version from
-  [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/Makefile#L21)
+  [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11)
   (search for RUST_VERSION):
 
   * Follow [official instructions](https://www.rust-lang.org/tools/install) to install `rustup`
-  *  Or install with homebrew:
-  
+    * Or install with homebrew:
+
   ```shell
   brew install rustup
   ```
@@ -61,12 +61,12 @@ PRs with corrections and updates are welcome!
   rustup toolchain install <version from build.assets/Makefile>
   cd <teleport.git>
   rustup override set <version from build.assets/Makefile>
-  rustc --version                                                                                                                                                                  ─╯
+  rustc --version
   # rustc <version from build.assets/Makefile> (db9d1b20b 2022-01-20)
   ```
 
 * To install `libfido2` (pulls `openssl 1.1.1` as dependency)
- 
+
   ```shell
   brew install libfido2
   ```
@@ -74,12 +74,13 @@ PRs with corrections and updates are welcome!
 * To install `yarn` for building the UI
   * `brew install node yarn`
   * Currently, [`yarn`](https://classic.yarnpkg.com/en/docs/install) (< 2.0.0) is required
+
 ##### Local Tests Dependencies
- 
+
 To run a full test suite locally, you will need
 
 * `helm` and `helm-unittest` plugin
- 
+
   ```shell
   brew install helm
   helm plugin install https://github.com/quintush/helm-unittest
@@ -105,13 +106,6 @@ To run a full test suite locally, you will need
   brew install protobuf
   ```
 
-* `gnu-sed` since Makefile tasks run inside linux containers typically
-
-  ```shell
-  brew install gnu-sed
-  echo 'export PATH="/opt/homebrew/opt/gnu-sed/libexec/gnubin:$PATH"' >> ~/.zprofile
-  ```
-  
 * increased `ulimit -n`
   
   ```shell
