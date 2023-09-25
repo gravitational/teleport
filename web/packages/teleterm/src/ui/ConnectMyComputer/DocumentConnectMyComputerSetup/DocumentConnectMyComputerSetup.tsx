@@ -34,6 +34,7 @@ import Logger from 'teleterm/logger';
 import { codeOrSignal } from 'teleterm/ui/utils/process';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { isAccessDeniedError } from 'teleterm/services/tshd/errors';
+import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
@@ -114,6 +115,7 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
     setDownloadAgentAttempt,
     agentProcessState,
   } = useConnectMyComputerContext();
+  const { requestResourcesRefresh } = useResourcesContext();
   const cluster = ctx.clustersService.findCluster(rootClusterUri);
   const nodeToken = useRef<string>();
 
@@ -169,6 +171,11 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
         if (error) {
           throw error;
         }
+
+        // Now that the node has joined the server, let's refresh all open DocumentCluster instances
+        // to show the new node.
+        requestResourcesRefresh();
+
         try {
           await ctx.connectMyComputerService.deleteToken(
             cluster.uri,
@@ -182,7 +189,12 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
           }
           throw error;
         }
-      }, [startAgent, ctx.connectMyComputerService, cluster.uri])
+      }, [
+        startAgent,
+        ctx.connectMyComputerService,
+        cluster.uri,
+        requestResourcesRefresh,
+      ])
     );
 
   const steps = [
