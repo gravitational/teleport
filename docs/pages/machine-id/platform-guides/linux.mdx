@@ -43,6 +43,9 @@ Create the bot, specifying the role that you have created:
 $ tctl bots add example --roles example-bot
 ```
 
+A join token will be included in the results of `tctl bots add`, record this
+value as it will be needed when configuring `tbot`.
+
 ### Step 3/4. Configure `tbot`
 
 Create the bot data directory and grant permissions to access it to the Linux
@@ -51,11 +54,11 @@ user (in our example, `teleport`) which `tbot` will run as.
 ```code
 # Make the bot directory and assign ownership to teleport user
 $ sudo mkdir -p /var/lib/teleport/bot
+$ echo "TODO BOT TOKEN" > /var/lib/teleport/bot/token
 $ sudo chown teleport:teleport /var/lib/teleport/bot
 # Allow teleport user to open directory
 $ sudo chmod +x /var/lib/teleport /var/lib/teleport/bot
 ```
-
 
 Create `/etc/tbot.yaml`:
 
@@ -66,22 +69,24 @@ version: v2
 auth_server: example.teleport.sh:443
 onboarding:
   join_method: token
-  token: /path/to/token
+  token: /var/lib/teleport/bot/token
 storage:
   type: directory
   path: /var/lib/teleport/bot
 outputs: []
 ```
 
-#### Create a service
+You must now configure `tbot` as either a daemon or in oneshot mode.
+
+#### Daemon Mode
 
 To run `tbot` as a daemon, a service manager should be configured to supervise
 this process. The service manager will be responsible for starting `tbot` on
 boot and restarting it if it exits with an error. This step assumes you are
 using systemd, however, other service managers can be used.
 
-
 Create `/etc/systemd/system/tbot.service`:
+
 ```code
 [Unit]
 Description=Teleport Machine ID Service
@@ -114,6 +119,20 @@ Check the service has started successfully:
 ```code
 $ sudo systemctl status tbot
 ```
+
+#### Oneshot Mode
+
+To use `tbot` in oneshot mode, modify `/etc/tbot.yaml` to add `oneshot: true`,
+e.g:
+
+```yaml
+version: v2
+oneshot: true
+auth_server: ...
+```
+
+Ensure that `tbot` is run often enough that the bot's own credentials will not
+expire.
 
 ### Step 4/4. Configure Outputs
 
