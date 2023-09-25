@@ -185,7 +185,6 @@ func (u *Uploader) Serve(ctx context.Context) error {
 	defer u.wg.Done()
 
 	u.log.Infof("uploader will scan %v every %v", u.cfg.ScanDir, u.cfg.ScanPeriod.String())
-
 	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step:  u.cfg.ScanPeriod,
 		Max:   u.cfg.ScanPeriod * 100,
