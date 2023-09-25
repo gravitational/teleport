@@ -498,6 +498,7 @@
     "russjones",
     "ryanclark",
     "SATA",
+    "SCIM",
     "secretless",
     "selfsubjectaccessreviews",
     "selfsubjectrulesreviews",
@@ -694,7 +695,6 @@
     "Yubikeys",
     "Zdunek",
     "Zilla"
-    
   ],
   "flagWords": [
     "hte"
