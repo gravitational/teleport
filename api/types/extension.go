@@ -39,16 +39,40 @@ func (t CertExtensionType) MarshalJSON() ([]byte, error) {
 }
 
 func (t *CertExtensionType) UnmarshalJSON(b []byte) error {
-	var stringVal string
-	if err := json.Unmarshal(b, &stringVal); err != nil {
+	var anyVal any
+	if err := json.Unmarshal(b, &anyVal); err != nil {
 		return err
 	}
 
-	val, ok := certExtensionTypeValue[stringVal]
-	if !ok {
-		return trace.Errorf("invalid certificate extension type: %q", string(b))
+	switch val := anyVal.(type) {
+	case string:
+		enumVal, ok := certExtensionTypeValue[val]
+		if !ok {
+			return trace.Errorf("invalid certificate extension type: %q", string(b))
+		}
+		*t = enumVal
+		return nil
+	case int32:
+		return t.setFromEnum(val)
+	case int:
+		return t.setFromEnum(int32(val))
+	case int64:
+		return t.setFromEnum(int32(val))
+	case float64:
+		return trace.Wrap(t.setFromEnum(int32(val)))
+	case float32:
+		return trace.Wrap(t.setFromEnum(int32(val)))
+	default:
+		return trace.BadParameter("unexpected type %T", val)
 	}
-	*t = val
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (t *CertExtensionType) setFromEnum(val int32) error {
+	if _, ok := CertExtensionType_name[val]; !ok {
+		return trace.BadParameter("invalid cert extension mode %v", val)
+	}
+	*t = CertExtensionType(val)
 	return nil
 }
 
@@ -69,14 +93,38 @@ func (t CertExtensionMode) MarshalJSON() ([]byte, error) {
 }
 
 func (t *CertExtensionMode) UnmarshalJSON(b []byte) error {
-	var stringVal string
-	if err := json.Unmarshal(b, &stringVal); err != nil {
+	var anyVal any
+	if err := json.Unmarshal(b, &anyVal); err != nil {
 		return err
 	}
-	val, ok := certExtensionModeValue[stringVal]
-	if !ok {
-		return trace.Errorf("invalid certificate extension mode: %q", string(b))
+	switch val := anyVal.(type) {
+	case string:
+		enumVal, ok := certExtensionModeValue[val]
+		if !ok {
+			return trace.Errorf("invalid certificate extension mode: %q", string(b))
+		}
+		*t = enumVal
+		return nil
+	case int32:
+		return t.setFromEnum(val)
+	case int:
+		return t.setFromEnum(int32(val))
+	case int64:
+		return t.setFromEnum(int32(val))
+	case float64:
+		return trace.Wrap(t.setFromEnum(int32(val)))
+	case float32:
+		return trace.Wrap(t.setFromEnum(int32(val)))
+	default:
+		return trace.BadParameter("unexpected type %T", val)
 	}
-	*t = val
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (t *CertExtensionMode) setFromEnum(val int32) error {
+	if _, ok := CertExtensionMode_name[val]; !ok {
+		return trace.BadParameter("invalid cert extension mode %v", val)
+	}
+	*t = CertExtensionMode(val)
 	return nil
 }
