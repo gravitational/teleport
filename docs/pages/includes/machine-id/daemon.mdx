@@ -1,4 +1,9 @@
-Create `/etc/systemd/system/tbot.service`:
+By default, `tbot` will run in daemon mode. However, a service must be created
+on the host for `tbot` to run within in order for this to run in the background.
+In this guide, configuration for systemd will be demonstrated but `tbot` should
+be compatible with any service manager.
+
+Create a systemd unit file `/etc/systemd/system/tbot.service`:
 
 ```code
 [Unit]
@@ -19,7 +24,8 @@ LimitNOFILE=524288
 WantedBy=multi-user.target
 ```
 
-Enable the service so that it starts on boot and then start the service:
+Next, enable the service so that it will start on boot and then start the
+service:
 
 ```code
 $ sudo systemctl daemon-reload
