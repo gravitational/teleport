@@ -22,10 +22,12 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/go-mysql-org/go-mysql/client"
+	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
@@ -115,21 +117,12 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 		sessionCtx.DatabaseUser,
 		details,
 	)
-	if err != nil {
-		e.Log.Debugf("Call teleport_activate_user failed: %v", err)
-
-		switch {
-		case strings.Contains(err.Error(), "Operation CREATE USER failed"):
-			return trace.AlreadyExists("user %q already exists in this MySQL database and is not managed by Teleport", sessionCtx.DatabaseUser)
-
-		case strings.Contains(err.Error(), "Teleport username does not match user attributes"):
-			return trace.AlreadyExists("user %q already exists in this MySQL database and is used for a different Teleport user.", sessionCtx.DatabaseUser)
-
-		default:
-			return trace.Wrap(err)
-		}
+	if err == nil {
+		return nil
 	}
-	return nil
+
+	e.Log.Debugf("Call teleport_activate_user failed: %v", err)
+	return trace.Wrap(convertActivateError(sessionCtx, err))
 }
 
 // DeactivateUser disables the database user.
@@ -146,10 +139,16 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 
 	e.Log.Infof("Deactivating MySQL user %q for %v.", sessionCtx.DatabaseUser, sessionCtx.Identity.Username)
 
-	return trace.Wrap(conn.executeAndCloseResult(
+	err = conn.executeAndCloseResult(
 		fmt.Sprintf("CALL %s(?)", deactivateUserProcedureName),
 		sessionCtx.DatabaseUser,
-	))
+	)
+
+	if getSQLState(err) == sqlStateActiveUser {
+		e.Log.Debugf("Failed to deactivate user %q: %v.", sessionCtx.DatabaseUser, err)
+		return nil
+	}
+	return trace.Wrap(err)
 }
 
 func (e *Engine) connectAsAdminUser(ctx context.Context, sessionCtx *common.Session) (*clientConn, error) {
@@ -220,6 +219,34 @@ func (e *Engine) setupDatabaseForAutoUsers(conn *clientConn, sessionCtx *common.
 		}
 		return nil
 	}))
+}
+
+func getSQLState(err error) string {
+	var mysqlError *mysql.MyError
+	if !errors.As(err, &mysqlError) {
+		return ""
+	}
+	return mysqlError.State
+}
+
+func convertActivateError(sessionCtx *common.Session, err error) error {
+	// This operation failed message usually appear when the user already
+	// exists. A different error would be raised if the admin user has no
+	// permission to "CREATE USER".
+	if strings.Contains(err.Error(), "Operation CREATE USER failed") {
+		return trace.AlreadyExists("user %q already exists in this MySQL database and is not managed by Teleport", sessionCtx.DatabaseUser)
+	}
+
+	switch getSQLState(err) {
+	case sqlStateUsernameDoesNotMatch:
+		return trace.AlreadyExists("username %q (Teleport user %q) already exists in this MySQL database and is used for another Teleport user.", sessionCtx.Identity.Username, sessionCtx.DatabaseUser)
+
+	case sqlStateRolesChanged:
+		return trace.CompareFailed("roles for user %q has changed. Please quit all active connections and try again.", sessionCtx.Identity.Username)
+
+	default:
+		return trace.Wrap(err)
+	}
 }
 
 // defaultSchema returns the default database to log into as the admin user.
@@ -372,6 +399,22 @@ const (
 	// To find all users that assigned this role:
 	// SELECT TO_USER AS 'Teleport Managed Users' FROM mysql.role_edges WHERE FROM_USER = 'teleport-auto-user'
 	teleportAutoUserRole = "teleport-auto-user"
+
+	// sqlStateActiveUser is the SQLSTATE raised by deactivation procedure when
+	// user has active connections.
+	//
+	// SQLSTATE reference:
+	// https://en.wikipedia.org/wiki/SQLSTATE
+	sqlStateActiveUser = "TP000"
+	// sqlStateUsernameDoesNotMatch is the SQLSTATE raised by activation
+	// procedure when the Teleport username does not match user's attributes.
+	//
+	// Possibly there is a hash collision, or someone manually updated the user
+	// attributes.
+	sqlStateUsernameDoesNotMatch = "TP001"
+	// sqlStateRolesChanged is the SQLSTATE raised by activation procedure when
+	// the user has active connections but roles has changed.
+	sqlStateRolesChanged = "TP002"
 
 	revokeRolesProcedureName    = "teleport_revoke_roles"
 	activateUserProcedureName   = "teleport_activate_user"

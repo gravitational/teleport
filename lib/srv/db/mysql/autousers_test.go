@@ -19,11 +19,14 @@ package mysql
 import (
 	"testing"
 
+	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func Test_maybeHashUsername(t *testing.T) {
@@ -72,4 +75,79 @@ func Test_makeActivateUserDetails(t *testing.T) {
 
 	wantOutput := `{"roles":["role","role2"],"auth_options":"IDENTIFIED WITH AWSAuthenticationPlugin AS \"RDS\"","attributes":{"user":"a-very-very-very-long-name-that-is-over-32"}}`
 	require.Equal(t, wantOutput, string(details))
+}
+
+func Test_convertActivateError(t *testing.T) {
+	sessionCtx := &common.Session{
+		DatabaseUser: "user1",
+		Identity: tlsca.Identity{
+			Username: "user1",
+		},
+	}
+
+	createUserFailedError := &mysql.MyError{
+		Code:    mysql.ER_CANNOT_USER,
+		State:   "HY000",
+		Message: `Operation CREATE USER failed for 'user1'@'%'`,
+	}
+	usernameDoesNotMatchError := &mysql.MyError{
+		Code:    mysql.ER_SIGNAL_EXCEPTION,
+		State:   sqlStateUsernameDoesNotMatch,
+		Message: `Teleport username does not match user attributes`,
+	}
+	rolesChangedError := &mysql.MyError{
+		Code:    mysql.ER_SIGNAL_EXCEPTION,
+		State:   sqlStateRolesChanged,
+		Message: `user has active connections and roles have changed`,
+	}
+	// Current not converted to trace.AccessDeined as it may conflict with
+	// common.ConvertConnectError.
+	permissionError := &mysql.MyError{
+		Code:    mysql.ER_SPECIFIC_ACCESS_DENIED_ERROR,
+		State:   "42000",
+		Message: `Access denied; you need (at least one of) the CREATE USER privilege(s) for this operation`,
+	}
+
+	tests := []struct {
+		name          string
+		input         error
+		errorIs       func(error) bool
+		errorContains string
+	}{
+		{
+			name:          "create user failed",
+			input:         createUserFailedError,
+			errorIs:       trace.IsAlreadyExists,
+			errorContains: "is not managed by Teleport",
+		},
+		{
+			name:          "username does not match",
+			input:         usernameDoesNotMatchError,
+			errorIs:       trace.IsAlreadyExists,
+			errorContains: "used for another Teleport user",
+		},
+		{
+			name:          "roles changed",
+			input:         trace.Wrap(rolesChangedError),
+			errorIs:       trace.IsCompareFailed,
+			errorContains: "quit all active connections",
+		},
+		{
+			name:  "no permission",
+			input: trace.Wrap(permissionError),
+			errorIs: func(err error) bool {
+				// Not converted.
+				return trace.Unwrap(err) == permissionError
+			},
+			errorContains: permissionError.Message,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			converted := convertActivateError(sessionCtx, test.input)
+			require.True(t, test.errorIs(converted))
+			require.Contains(t, converted.Error(), test.errorContains)
+		})
+	}
 }

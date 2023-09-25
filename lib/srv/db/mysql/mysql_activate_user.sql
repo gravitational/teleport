@@ -3,8 +3,10 @@ proc_label:BEGIN
     DECLARE is_auto_user INT DEFAULT 0;
     DECLARE is_active INT DEFAULT 0;
     DECLARE is_same_user INT DEFAULT 0; 
+    DECLARE are_roles_same INT DEFAULT 0; 
     DECLARE role_index INT DEFAULT 0;
     DECLARE role VARCHAR(32) DEFAULT '';
+    DECLARE cur_roles TEXT DEFAULT '';
     SET @roles = details->"$.roles";
     SET @teleport_user = details->>"$.attributes.user";
 
@@ -14,15 +16,21 @@ proc_label:BEGIN
     IF is_auto_user = 1 THEN
         SELECT COUNT(USER) INTO is_same_user FROM INFORMATION_SCHEMA.USER_ATTRIBUTES WHERE USER = username AND ATTRIBUTE->"$.user" = @teleport_user;
         IF is_same_user = 0 THEN
-            SIGNAL SQLSTATE '50001' SET MESSAGE_TEXT = 'Teleport username does not match user attributes';
+            SIGNAL SQLSTATE 'TP001' SET MESSAGE_TEXT = 'Teleport username does not match user attributes';
         END IF;
 
         SELECT COUNT(USER) INTO is_active FROM information_schema.processlist WHERE USER = username;
 
-        -- If the user has active connections, just use it to avoid messing up
-        -- its existing roles.
+        -- If the user has active connections, make sure the provided roles
+        -- match what the user currently has.
         IF is_active = 1 THEN
-            LEAVE proc_label;
+            SELECT json_arrayagg(FROM_USER) INTO cur_roles FROM mysql.role_edges WHERE FROM_USER != 'teleport-auto-user' AND TO_USER = username;
+            SELECT @roles = cur_roles INTO are_roles_same;
+            IF are_roles_same = 1 THEN
+                LEAVE proc_label;
+            ELSE
+                SIGNAL SQLSTATE 'TP002' SET MESSAGE_TEXT = 'user has active connections and roles have changed';
+            END IF;
         END IF;
 
         -- Otherwise reactivate the user, but first strip if of all roles to

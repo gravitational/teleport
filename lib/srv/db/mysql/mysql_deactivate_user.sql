@@ -4,7 +4,7 @@ BEGIN
     SELECT COUNT(USER) INTO is_active FROM information_schema.processlist WHERE USER = username;
     IF is_active = 1 THEN
         -- Throw a custom error code when user is still active from other sessions.
-        SIGNAL SQLSTATE '50000' SET MESSAGE_TEXT = 'User has active connections';
+        SIGNAL SQLSTATE 'TP000' SET MESSAGE_TEXT = 'User has active connections';
     ELSE
         -- Lock the user then revoke all the roles.
         SET @sql := CONCAT_WS(' ', 'ALTER USER', QUOTE(username), 'ACCOUNT LOCK');
