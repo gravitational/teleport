@@ -177,9 +177,9 @@ message ReviewSpec {
   // review_date is the date that this review was created.
   google.protobuf.Timestamp review_date = 3;
 
-  // body is an optional plaintext attached to the review that can be used by the review for arbitrary
-  // reporting.
-  string body = 4;
+  // notes is an optional plaintext attached to the review that can be used by the review for arbitrary
+  // note taking on the review.
+  string notes = 4;
 
   // changes are the changes made as part of the review.
   ReviewChanges changes = 5;
