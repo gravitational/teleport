@@ -640,6 +640,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	app.Flag("login", "Remote host login").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
 	app.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
+
 	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", "Teleport user, defaults to current local user").Envar(userEnvVar).StringVar(&cf.Username)
 	app.Flag("mem-profile", "Write memory profile to file").Hidden().StringVar(&memProfile)
@@ -1114,6 +1115,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			return trace.BadParameter("recursive alias %q; correct alias definition and try again", aliasCommand)
 		}
 	}
+
+	// Remove HTTPS:// in proxy parameter as this is automatically handled
+	var httpsRE = regexp.MustCompile(`(?mi)https://`)
+	cf.Proxy = httpsRE.ReplaceAllString(cf.Proxy, "")
 
 	// Identity files do not currently contain a proxy address. When loading an
 	// Identity file, a proxy must be passed on the command line as well.
