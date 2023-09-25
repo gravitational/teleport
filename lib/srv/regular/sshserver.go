@@ -1220,13 +1220,13 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 				rejectChannel(nch, ssh.UnknownChannelType, "failed to parse direct-tcpip request")
 				return
 			}
-			ch, discard, err := nch.Accept()
+			ch, reqC, err := nch.Accept()
 			if err != nil {
 				s.Logger.Warnf("Unable to accept channel: %v.", err)
 				rejectChannel(nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 				return
 			}
-			go ssh.DiscardRequests(discard)
+			go ssh.DiscardRequests(reqC)
 			go s.handleProxyJump(ctx, ccx, identityContext, ch, *req)
 			return
 		// Channels of type "session" handle requests that are involved in running
@@ -1330,13 +1330,13 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 			rejectChannel(nch, ssh.UnknownChannelType, "failed to parse direct-tcpip request")
 			return
 		}
-		ch, discard, err := nch.Accept()
+		ch, reqC, err := nch.Accept()
 		if err != nil {
 			s.Logger.Warnf("Unable to accept channel: %v.", err)
 			rejectChannel(nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 			return
 		}
-		go ssh.DiscardRequests(discard)
+		go ssh.DiscardRequests(reqC)
 		go s.handleDirectTCPIPRequest(ctx, ccx, identityContext, ch, req)
 	default:
 		rejectChannel(nch, ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType))
