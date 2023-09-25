@@ -21,6 +21,7 @@ import stripAnsi from 'strip-ansi';
 
 import Logger from 'teleterm/logger';
 import { RootClusterUri } from 'teleterm/ui/uri';
+import { createFileLoggerService, LoggerColor } from 'teleterm/services/logger';
 
 import { generateAgentConfigPaths } from '../createAgentConfigFile';
 import { AgentProcessState, RuntimeSettings } from '../types';
@@ -131,6 +132,19 @@ export class AgentRunner {
     });
 
     const spawnHandler = () => {
+      const { logsDirectory } = generateAgentConfigPaths(
+        this.settings,
+        rootClusterUri
+      );
+      createFileLoggerService({
+        dev: this.settings.dev,
+        dir: logsDirectory,
+        name: 'teleport',
+        loggerNameColor: LoggerColor.Green,
+        passThroughMode: true,
+        omitTimestamp: true,
+      }).pipeProcessOutputIntoLogger(process);
+
       this.updateProcessState(rootClusterUri, {
         status: 'running',
       });

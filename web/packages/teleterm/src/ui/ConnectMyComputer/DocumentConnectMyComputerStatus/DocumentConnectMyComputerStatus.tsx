@@ -44,6 +44,7 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 import { codeOrSignal } from 'teleterm/ui/utils/process';
 import { connectToServer } from 'teleterm/ui/services/workspacesService';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
@@ -75,6 +76,7 @@ export function DocumentConnectMyComputerStatus(
     removeAgent,
     isAgentCompatible,
   } = useConnectMyComputerContext();
+  const { rootClusterUri } = useWorkspaceContext();
   const { roleName, systemUsername, hostname } = useAgentProperties();
   const { proxyVersion, appVersion, isLocalBuild } = useVersions();
 
@@ -98,6 +100,17 @@ export function DocumentConnectMyComputerStatus(
       return;
     }
     props.closeDocument();
+  }
+
+  async function openAgentLogs(): Promise<void> {
+    try {
+      await ctx.mainProcessClient.openAgentLogsDirectory({ rootClusterUri });
+    } catch (e) {
+      ctx.notificationsService.notifyError({
+        title: 'Failed to open agent logs directory',
+        description: `${e.message}\n\nNote: the logs directory is created only after the agent process successfully spawns.`,
+      });
+    }
   }
 
   const isRunning =
@@ -184,6 +197,7 @@ export function DocumentConnectMyComputerStatus(
             },
           }}
         >
+          <MenuItem onClick={openAgentLogs}>Open agent logs directory</MenuItem>
           <MenuItem onClick={removeAgentAndClose}>Remove agent</MenuItem>
         </MenuIcon>
       </Flex>
