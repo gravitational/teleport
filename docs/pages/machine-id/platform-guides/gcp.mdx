@@ -52,7 +52,7 @@ Download the appropriate Teleport package for your platform:
 
 (!docs/pages/includes/machine-id/blank-role.mdx!)
 
-Create `bot-token.yaml`:
+On your dev machine, create `bot-token.yaml`:
 
 ```yaml
 kind: token
@@ -88,7 +88,8 @@ Use `tctl` to apply this file:
 $ tctl create -f bot-token.yaml
 ```
 
-Create the bot, specifying the token and role that you have created:
+On your dev machine, create the bot, specifying the token and role that you have
+created:
 
 ```code
 $ tctl bots add example --token example-bot --roles example-bot
@@ -96,7 +97,7 @@ $ tctl bots add example --token example-bot --roles example-bot
 
 ### Step 3/4. Configure `tbot`
 
-Create `/etc/tbot.yaml`:
+On the VM, create `/etc/tbot.yaml`:
 
 ```yaml
 version: v2
@@ -108,6 +109,7 @@ onboarding:
   token: example-bot
 storage:
   type: memory
+# outputs will be filled in during the completion of an access guide.
 outputs: []
 ```
 
