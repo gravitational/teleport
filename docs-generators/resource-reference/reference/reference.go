@@ -118,6 +118,10 @@ func Generate(out io.Writer, srcpath string) error {
 			continue
 		}
 
+		// Only process types with a types.Metadata field, indicating a
+		// dynamic resource.
+		// TODO: This is too brittle, since it's easy to add a Metadata
+		// field with the types.Metadata type by embedding a struct.
 		var m bool
 		for _, fld := range str.Fields.List {
 			if len(fld.Names) != 1 {
