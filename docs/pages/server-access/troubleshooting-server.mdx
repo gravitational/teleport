@@ -11,7 +11,7 @@ with Teleport and how to work around or resolve them.
 When you start a new SSH session, Teleport forks itself and the child process
 runs as the OS user who is attempting to connect. If the file system permissions
 on the `teleport` binary don't include execute permissions for this user, the
-session faila to start.
+session fails to start.
 
 This issue could be caused by systems that prevent newly installed software from
 being executable by any user.
