@@ -83,17 +83,42 @@ func TestRoleCreationFromYAML(t *testing.T) {
 		expectedSpec *types.RoleSpecV6
 	}{
 		{
+			name: "Valid login list with integer create_host_user_mode",
+			roleSpecYAML: `
+allow:
+  logins:
+  - ubuntu
+  - root
+options:
+	create_host_user_mode: 2
+`,
+			shouldFail: false,
+			expectedSpec: &types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Logins: []string{"ubuntu", "root"},
+				},
+				Options: types.RoleOptions{
+					CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
+				},
+			},
+		},
+		{
 			name: "Valid login list",
 			roleSpecYAML: `
 allow:
   logins:
   - ubuntu
   - root
+options:
+	create_host_user_mode: "keep"
 `,
 			shouldFail: false,
 			expectedSpec: &types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Logins: []string{"ubuntu", "root"},
+				},
+				Options: types.RoleOptions{
+					CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 				},
 			},
 		},
