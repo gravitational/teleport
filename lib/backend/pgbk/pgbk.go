@@ -249,8 +249,10 @@ var schemas = []string{
 		CONSTRAINT kv_pkey PRIMARY KEY (key)
 	);
 	CREATE INDEX kv_expires_idx ON kv (expires) WHERE expires IS NOT NULL;`,
-	`ALTER TABLE kv REPLICA IDENTITY FULL;
-	CREATE PUBLICATION kv_pub FOR TABLE kv;`,
+
+	// v14.0.0 also had `CREATE PUBLICATION kv_pub FOR TABLE kv` in schema
+	// version 2
+	"ALTER TABLE kv REPLICA IDENTITY FULL;",
 }
 
 var _ backend.Backend = (*Backend)(nil)
