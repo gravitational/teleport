@@ -237,7 +237,7 @@ func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires
 		}
 	}
 
-	// Assemble traits for easy lookyp.
+	// Assemble traits for easy lookup.
 	userTraitsMap := map[string]map[string]struct{}{}
 	for k, values := range identity.Traits {
 		if _, ok := userTraitsMap[k]; !ok {

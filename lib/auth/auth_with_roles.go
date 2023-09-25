@@ -3348,6 +3348,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	return certs, nil
 }
 
+// GetAccessRequestAllowedPromotions returns a list of roles that the user can
+// promote to, based on the given access requests.
+func (a *ServerWithRoles) GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+	promotions, err := a.authServer.GetAccessRequestAllowedPromotions(ctx, req)
+	return promotions, trace.Wrap(err)
+}
+
 // verifyUserDeviceForCertIssuance verifies if the user device is a trusted
 // device, in accordance to the certificate usage and the cluster's DeviceTrust
 // settings. It's meant to be called before issuing new user certificates.
