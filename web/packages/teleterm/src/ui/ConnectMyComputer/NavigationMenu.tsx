@@ -29,6 +29,8 @@ import {
   useConnectMyComputerContext,
 } from './connectMyComputerContext';
 
+import type { AgentCompatibility } from './CompatibilityPromise';
+
 /**
  * IndicatorStatus combines a couple of different states into a single enum which dictates the
  * decorative look of NavigationMenu.
@@ -39,12 +41,16 @@ export function NavigationMenu() {
   const iconRef = useRef();
   const [isMenuOpened, setIsMenuOpened] = useState(false);
   const { documentsService, rootClusterUri } = useWorkspaceContext();
-  const { isAgentConfiguredAttempt, isAgentCompatible, currentAction, canUse } =
-    useConnectMyComputerContext();
+  const {
+    isAgentConfiguredAttempt,
+    agentCompatibility,
+    currentAction,
+    canUse,
+  } = useConnectMyComputerContext();
   const indicatorStatus = getIndicatorStatus(
     currentAction,
     isAgentConfiguredAttempt,
-    isAgentCompatible
+    agentCompatibility
   );
 
   if (!canUse) {
@@ -114,7 +120,7 @@ export function NavigationMenu() {
 function getIndicatorStatus(
   currentAction: CurrentAction,
   isAgentConfiguredAttempt: Attempt<boolean>,
-  isAgentCompatible: boolean
+  agentCompatibility: AgentCompatibility
 ): IndicatorStatus {
   if (isAgentConfiguredAttempt.status === 'error') {
     return 'error';
@@ -123,15 +129,16 @@ function getIndicatorStatus(
   const isAgentConfigured =
     isAgentConfiguredAttempt.status === 'success' &&
     isAgentConfiguredAttempt.data;
+  const isAgentCompatibilityUnkown = agentCompatibility === 'unknown';
 
-  if (!isAgentConfigured) {
+  if (!isAgentConfigured || isAgentCompatibilityUnkown) {
     return '';
   }
 
   if (currentAction.kind === 'observe-process') {
     switch (currentAction.agentProcessState.status) {
       case 'not-started': {
-        if (!isAgentCompatible) {
+        if (agentCompatibility === 'incompatible') {
           return 'error';
         }
 

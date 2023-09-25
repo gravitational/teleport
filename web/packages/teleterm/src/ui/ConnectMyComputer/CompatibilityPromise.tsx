@@ -26,22 +26,24 @@ import { RuntimeSettings } from 'teleterm/mainProcess/types';
 const CONNECT_MY_COMPUTER_RELEASE_VERSION = '14.1.0';
 const CONNECT_MY_COMPUTER_RELEASE_MAJOR_VERSION = 14;
 
-export function isAgentCompatible(
+export type AgentCompatibility = 'unknown' | 'compatible' | 'incompatible';
+
+export function checkAgentCompatibility(
   proxyVersion: string,
   runtimeSettings: Pick<RuntimeSettings, 'appVersion' | 'isLocalBuild'>
-): boolean {
-  if (proxyVersion === '') {
-    return false;
+): AgentCompatibility {
+  if (!proxyVersion) {
+    return 'unknown';
   }
   if (runtimeSettings.isLocalBuild) {
-    return true;
+    return 'compatible';
   }
   const majorAppVersion = getMajorVersion(runtimeSettings.appVersion);
   const majorClusterVersion = getMajorVersion(proxyVersion);
-  return (
-    majorAppVersion === majorClusterVersion ||
+  return majorAppVersion === majorClusterVersion ||
     majorAppVersion === majorClusterVersion - 1 // app one major version behind the cluster
-  );
+    ? 'compatible'
+    : 'incompatible';
 }
 
 export function CompatibilityError(): JSX.Element {
