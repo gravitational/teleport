@@ -9,6 +9,7 @@ import (
 	"go/parser"
 	"go/token"
 	"html/template"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -31,25 +32,15 @@ const referenceTemplate string = `{{ range . }}
 {{ .YAMLExample }}
 {{ end }}`
 
-func main() {
-	src := flag.String("source", ".", "the project directory in which to parse Go packages")
-	out := flag.String("out", ".", "the path where the generator will write the resource reference")
-	flag.Parse()
-
+func GenerateReference(out io.Writer, srcpath string) error {
 	allDecls := make(map[resource.PackageInfo]resource.DeclarationInfo)
 	result := make(map[resource.PackageInfo]resource.ReferenceEntry)
-
-	outfile, err := os.OpenFile(*out, os.O_WRONLY|os.O_CREATE, 0644)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "could not prepare the output file for writing: %v", err)
-		os.Exit(1)
-	}
 
 	// Load each file in the source directory individually. Not using
 	// packages.Load here since the resulting []*Package does not expose
 	// individual file names, which we need so contributors who want to edit
 	// the resulting docs page know which files to modify.
-	err = filepath.Walk(*src, func(path string, info fs.FileInfo, err error) error {
+	err := filepath.Walk(srcpath, func(path string, info fs.FileInfo, err error) error {
 		// There is an error with the path, so we can't load Go source
 		if err != nil {
 			return err
@@ -115,14 +106,12 @@ func main() {
 		}
 		// TODO: consider skipping instead of exiting with an error.
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "type %v.%v in %v has more than one type spec", k.PackageName, k.TypeName, decl.FilePath)
-			os.Exit(1)
+			return fmt.Errorf("type %v.%v in %v has more than one type spec", k.PackageName, k.TypeName, decl.FilePath)
 		}
 
 		// TODO: consider skipping instead of exiting with an error.
 		if t == nil {
-			fmt.Fprintf(os.Stderr, "type %v.%v in %v has no type spec", k.PackageName, k.TypeName, decl.FilePath)
-			os.Exit(1)
+			return fmt.Errorf("type %v.%v in %v has no type spec", k.PackageName, k.TypeName, decl.FilePath)
 		}
 
 		str, ok := t.Type.(*ast.StructType)
@@ -167,5 +156,24 @@ func main() {
 		}
 	}
 
-	err = template.Must(template.New("Main reference").Parse(referenceTemplate)).Execute(outfile, result)
+	err = template.Must(template.New("Main reference").Parse(referenceTemplate)).Execute(out, result)
+	return nil
+}
+
+func main() {
+	src := flag.String("source", ".", "the project directory in which to parse Go packages")
+	out := flag.String("out", ".", "the path where the generator will write the resource reference")
+	flag.Parse()
+
+	outfile, err := os.OpenFile(*out, os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "could not prepare the output file for writing: %v", err)
+		os.Exit(1)
+	}
+
+	err = GenerateReference(outfile, *src)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "could not generate the resource reference: %v", err)
+		os.Exit(1)
+	}
 }
