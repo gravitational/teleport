@@ -780,35 +780,6 @@ func (g *GRPCServer) GetAccessRequestsV2(f *types.AccessRequestFilter, stream au
 	return nil
 }
 
-// GetAccessRequest is a method created only for internal use by Ent client, and it is not
-// exposed in our GRPC service.
-func (g *GRPCServer) GetAccessRequest(ctx context.Context, filter *types.AccessRequestFilter) (*types.AccessRequestV3, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var f types.AccessRequestFilter
-	if filter != nil {
-		f = *filter
-	}
-	reqs, err := auth.ServerWithRoles.GetAccessRequests(ctx, f)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(reqs) == 0 {
-		return nil, trace.NotFound("access request not found")
-	}
-	if len(reqs) > 1 {
-		return nil, trace.BadParameter("more than one access request found")
-	}
-	r, ok := reqs[0].(*types.AccessRequestV3)
-	if !ok {
-		err = trace.BadParameter("unexpected access request type %T", reqs[0])
-		return nil, trace.Wrap(err)
-	}
-	return r, nil
-}
-
 func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *types.AccessRequestV3) (*emptypb.Empty, error) {
 	return nil, trace.NotImplemented("access request creation API has changed, please update your client to v14 or newer")
 }
@@ -871,18 +842,6 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *authpb.Requ
 }
 
 func (g *GRPCServer) SubmitAccessReview(ctx context.Context, review *types.AccessReviewSubmission) (*types.AccessRequestV3, error) {
-	// Prevent users from submitting access reviews with the "promoted" state.
-	// Promotion is only allowed by SubmitAccessReviewAllowPromotion API in Ent.
-	if review.Review.ProposedState.IsPromoted() {
-		return nil, trace.BadParameter("state promoted can be only set when promoting to access list")
-	}
-
-	return g.SubmitAccessReviewAllowPromotion(ctx, review)
-}
-
-// SubmitAccessReviewAllowPromotion is a method created only for internal use by Ent client, and it is not
-// exposed in our GRPC service.
-func (g *GRPCServer) SubmitAccessReviewAllowPromotion(ctx context.Context, review *types.AccessReviewSubmission) (*types.AccessRequestV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -922,6 +881,7 @@ func (g *GRPCServer) GetAccessRequestAllowedPromotions(ctx context.Context, requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &authpb.AccessRequestAllowedPromotionResponse{
 		AllowedPromotions: allowedPromotions,
 	}, nil
