@@ -22,9 +22,11 @@ The most common use cases for moderated sessions involve the following scenarios
 - You have strict security or compliance requirements and need to have people watching
   over user-initiated sessions on a set of servers.
 - You want to share a terminal with someone else to be able to instruct or collaborate.
+- You need the ability to pause or terminate active sessions.
 
-You must have Teleport Enterprise or Teleport Enterprise Cloud to enable moderated sessions
-in a Teleport cluster.
+Note that you can share terminal sessions using any Teleport edition. However, you must 
+have Teleport Enterprise or Teleport Enterprise Cloud to join a session as a **moderator** 
+with permission to terminate sessions.
 
 ## Require and allow policies
 
@@ -44,7 +46,7 @@ There are two types of policies you can use to control moderated sessions:
 
 You can use `require_session_join` in a role to specify the conditions that must be a met 
 for a session to start or run. For example, the following policy specifies that users 
-assigned the `prod-access` role must have a minimum of two users with the role `auditor` 
+assigned the `prod-access` role must have a minimum of one user with the role `auditor` 
 and the mode `moderator` present in to start SSH or Kubernetes sessions:
 
 ```yaml
@@ -78,10 +80,9 @@ spec:
       verbs: ['*']
 ```
 
-This sample policy requires that at least one user with the `auditor` role is present
-as a moderator for SSH or Kubernetes sessions to start on servers and Kubernetes resources 
-with the `env: prod` label. A user assigned this `prod-access` role won't be able to start 
-any sessions on matching resources until the policy requirements are fulfilled.
+Because this sample policy requires that at least one user with the `auditor` role is present
+as a moderator to start SSH or Kubernetes sessions, a user assigned this `prod-access` role 
+won't be able to start any sessions on matching resources until the policy requirements are fulfilled.
 
 ### Required fields
 
@@ -103,7 +104,7 @@ to be present in a session. The filter has a `user` object as its context that y
 can refine to match the `roles` and `name` fields you specify.
 
 In the following example, the filter expression evaluates to true if the user's name is
-Adam or if the user has the role `cs-observe`:
+`adam` or if the user has the role `cs-observe`:
 
 ```
 equals(user.name, "adam") || contains(user.spec.roles, "cs-observe")
@@ -206,7 +207,7 @@ Teleport > Waiting for required participants...
 ```
 
 Jeff's session is paused, waiting for the required observers.
-When Alice—a user assigned the `auditor` role—joins the waiting session 
+When Alice, who is assigned the `auditor` role, joins the waiting session 
 as a moderator, the session can begin.
 For example:
 
@@ -252,11 +253,11 @@ at any point in time with the shortcut `t`.
 If `per_session_mfa` is set to `true` in role or cluster settings, Teleport requires 
 multifactor authentication checks when starting new sessions. This requirement is
 also enforced for session moderators. Therefore, moderators who want to join a session
-must have configured a Universal 2nd Factor (U2F) or WebAuthn MFA token.
+must have configured a device for multifactor authentation.
 
-Every 30 seconds, Teleport will prompt users in the terminal session to authenticate in 
-the next 15 seconds. This behavior continues throughout the session to ensure that 
-moderators are always present and watching a given session.
+Every 30 seconds, Teleport moderating users who have joined the terminal session to 
+authenticate in the next 15 seconds. This behavior continues throughout the session 
+to ensure that moderators are always present and watching a given session.
 
 If no MFA input is received within 60 seconds, the user is disconnected from the
 session, which might cause the session to terminate or pause because a require policy
