@@ -43,6 +43,8 @@ import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 import Document from 'teleterm/ui/Document';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
+import { ResourcesContextProvider } from '../DocumentCluster/resourcesContext';
+
 import { WorkspaceContextProvider } from './workspaceContext';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 
@@ -83,21 +85,23 @@ export function DocumentsRenderer(props: {
           key={workspace.rootClusterUri}
         >
           <WorkspaceContextProvider value={workspace}>
-            <ConnectMyComputerContextProvider
-              rootClusterUri={workspace.rootClusterUri}
-            >
-              {workspace.documentsService.getDocuments().length ? (
-                renderDocuments(workspace.documentsService)
-              ) : (
-                <KeyboardShortcutsPanel />
-              )}
-              {workspace.rootClusterUri ===
-                workspacesService.getRootClusterUri() &&
-                createPortal(
-                  <ConnectMyComputerNavigationMenu />,
-                  props.topBarContainerRef?.current
+            <ResourcesContextProvider>
+              <ConnectMyComputerContextProvider
+                rootClusterUri={workspace.rootClusterUri}
+              >
+                {workspace.documentsService.getDocuments().length ? (
+                  renderDocuments(workspace.documentsService)
+                ) : (
+                  <KeyboardShortcutsPanel />
                 )}
-            </ConnectMyComputerContextProvider>
+                {workspace.rootClusterUri ===
+                  workspacesService.getRootClusterUri() &&
+                  createPortal(
+                    <ConnectMyComputerNavigationMenu />,
+                    props.topBarContainerRef?.current
+                  )}
+              </ConnectMyComputerContextProvider>
+            </ResourcesContextProvider>
           </WorkspaceContextProvider>
         </DocumentsContainer>
       ))}
