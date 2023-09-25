@@ -99,10 +99,8 @@ version: v6
 metadata:
   name: example-role
 spec:
-  allow:
-    logins: ['root']
-    node_labels:
-      'key': 'value'
+  # This role does nothing as it is an example role.
+  allow: {}
 ```
 
 To configure `tctl` to use the identity file, the `-i` flag is used. As the

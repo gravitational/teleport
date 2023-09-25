@@ -150,12 +150,8 @@ resource "teleport_role" "terraform-test" {
   }
 
   spec = {
-    allow = {
-      logins = ["root"]
-      node_labels = {
-        key    = ["value"]
-      }
-    }
+    # This role does nothing as it is an example role.
+    allow = {}
   }
 }
 ```
