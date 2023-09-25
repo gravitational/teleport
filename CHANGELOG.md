@@ -1,5 +1,11 @@
 # Changelog
 
+## 12.4.19 (09/25/23)
+
+* Added support for AWS EC2 IMDSv2 on installer script and when gathering inventory metadata [#32446](https://github.com/gravitational/teleport/pull/32446)
+* Improved AWS CLI Access performance by caching AWS session credentials [#32415](https://github.com/gravitational/teleport/pull/32415)
+* Added additional logging for when the Teleport process file is not accessible due to a permission issue upon startup [#32350](https://github.com/gravitational/teleport/pull/32350)
+
 ## 12.4.18 (09/20/23)
 
 ### Security fixes
