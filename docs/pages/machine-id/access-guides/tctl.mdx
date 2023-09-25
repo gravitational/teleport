@@ -97,7 +97,7 @@ Create a directory called `roles/` and within it create `example.yaml`:
 kind: role
 version: v6
 metadata:
-  name: example-role
+  name: tctl-test
 spec:
   # This role does nothing as it is an example role.
   allow: {}
@@ -117,6 +117,10 @@ $ tctl --auth-server example.teleport.sh:443 -i /opt/machine-id/identity create 
 ```
 
 Check your Teleport cluster, ensuring the role has been created.
+
+```code
+$ tctl get role/tctl-test
+```
 
 ## Next steps
 

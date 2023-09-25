@@ -166,7 +166,11 @@ Now, execute Terraform to test the configuration:
 $ terraform apply
 ```
 
-Check your Teleport cluster, ensuring the role has been created.
+Check your Teleport cluster, ensuring the role has been created:
+
+```code
+$ tctl get role/terraform-test
+```
 
 ## Next steps
 
