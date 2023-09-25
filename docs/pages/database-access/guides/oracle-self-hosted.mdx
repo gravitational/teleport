@@ -176,48 +176,8 @@ $ teleport db configure create \
 
   (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-  <Tabs>
-  <TabItem label="Teleport Enterprise" scope={["enterprise"]}>
-  Install the Teleport Kube Agent into your Kubernetes Cluster
-  with the Teleport Database Service configuration.
-  
-  ```code
-  $ JOIN_TOKEN=$(cat /tmp/token)
-  $ helm install teleport-kube-agent teleport/teleport-kube-agent \
-    --create-namespace \
-    --namespace teleport-agent \
-    --set roles=db \
-    --set proxyAddr=teleport.example.com:443 \
-    --set authToken=${JOIN_TOKEN?} \
-    --set "databases[0].name=oracle" \
-    --set "databases[0].uri=oracle.example.com:2484" \
-    --set "databases[0].protocol=oracle" \
-    --set "labels.env=dev" \
-    --version (=teleport.version=)
-  ```
-  
-  </TabItem>
-  <TabItem label="Teleport Enterprise Cloud" scope={["cloud"]}>
-  Install the Teleport Kube Agent into your Kubernetes Cluster
-  with the Teleport Database Service configuration.
-  
-  ```code
-  $ JOIN_TOKEN=$(cat /tmp/token)
-  $ helm install teleport-kube-agent teleport/teleport-kube-agent \
-    --create-namespace \
-    --namespace teleport-agent \
-    --set roles=db \
-    --set proxyAddr=mytenant.teleport.sh:443 \
-    --set authToken=${JOIN_TOKEN?} \
-    --set "databases[0].name=oracle" \
-    --set "databases[0].uri=oracle.example.com:2484" \
-    --set "databases[0].protocol=oracle" \
-    --set "labels.env=dev" \
-    --version (=cloud.version=)
-  ```
-  
-  </TabItem>
-  </Tabs>
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="oracle" dbProtocol="oracle" databaseAddress="oracle.example.com:2484" !)
+
 </TabItem>
 </Tabs>
 
