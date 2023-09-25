@@ -730,3 +730,14 @@ func (a AccessRequests) Less(i, j int) bool { return a[i].GetName() < a[j].GetNa
 
 // Swap swaps two access requests.
 func (a AccessRequests) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+// NewAccessRequestAllowedPromotions returns a new AccessRequestAllowedPromotions resource.
+func NewAccessRequestAllowedPromotions(promotions []*AccessRequestAllowedPromotion) *AccessRequestAllowedPromotions {
+	if promotions == nil {
+		promotions = make([]*AccessRequestAllowedPromotion, 0)
+	}
+
+	return &AccessRequestAllowedPromotions{
+		Promotions: promotions,
+	}
+}

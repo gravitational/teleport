@@ -50,11 +50,12 @@ message SSOCreateEvent {
 
 // ResourceCreateEvent is emitted when a resource is created.
 message ResourceCreateEvent {
-  // resource_type is the type of resource ("node", "node.openssh", "db", "k8s").
+  // resource_type is the type of resource ("node", "node.openssh", "db", "k8s", "app").
   string resource_type = 1;
-  // resource_origin is the origin of the resource ("cloud").
+  // resource_origin is the origin of the resource ("cloud", "kubernetes").
   string resource_origin = 2;
-  // cloud_provider is the cloud provider the resource came from ("AWS", "Azure", "GCP").
+  // cloud_provider is the cloud provider the resource came from ("AWS", "Azure", "GCP")
+  // if resource_origin == "cloud".
   string cloud_provider = 3;
   // database contains additional database information if resource_type == "db".
   DiscoveredDatabaseMetadata database = 4;

@@ -486,6 +486,12 @@ func (s *Server) GetHostUsers() srv.HostUsers {
 	return nil
 }
 
+// GetHostSudoers returns the HostSudoers instance being used to manage
+// sudoer file provisioning, unimplemented for the forwarder server.
+func (s *Server) GetHostSudoers() srv.HostSudoers {
+	return &srv.HostSudoersNotImplemented{}
+}
+
 // GetRestrictedSessionManager returns a NOP manager since for a
 // forwarding server it makes no sense (it has to run on the actual
 // node).

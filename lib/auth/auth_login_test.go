@@ -380,7 +380,6 @@ func TestCreateRegisterChallenge(t *testing.T) {
 			deviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 		},
 	}
-
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -399,6 +398,37 @@ func TestCreateRegisterChallenge(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("register using context user", func(t *testing.T) {
+		authClient, err := srv.NewClient(TestUser(u.username))
+		require.NoError(t, err, "NewClient(%q)", u.username)
+
+		// Attempt without a token or a solved authn challenge should fail.
+		_, err = authClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
+		})
+		assert.ErrorContains(t, err, "token or an MFA response")
+
+		// Acquire and solve an authn challenge.
+		authnChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+				ContextUser: &proto.ContextUser{},
+			},
+		})
+		require.NoError(t, err, "CreateAuthenticateChallenge")
+		authnSolved, err := u.webDev.SolveAuthn(authnChal)
+		require.NoError(t, err, "SolveAuthn")
+
+		// Attempt with a solved authn challenge should work.
+		registerChal, err := authClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			ExistingMFAResponse: authnSolved,
+			DeviceType:          proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			DeviceUsage:         proto.DeviceUsage_DEVICE_USAGE_MFA,
+		})
+		require.NoError(t, err, "CreateRegisterChallenge")
+		assert.NotNil(t, registerChal.GetWebauthn(), "CreateRegisterChallenge returned a nil Webauthn challenge")
+	})
 }
 
 // sshPubKey is a randomly-generated public key used for login tests.

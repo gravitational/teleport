@@ -69,61 +69,6 @@ func TestLite(t *testing.T) {
 	test.RunBackendComplianceSuite(t, newBackend)
 }
 
-// newBackend creates a backend instance that automatically deletes itself
-// at the end of the supplied test
-func newBackend(t *testing.T) *Backend {
-	clock := clockwork.NewFakeClock()
-	backend, err := NewWithConfig(context.Background(), Config{
-		Path:             t.TempDir(),
-		PollStreamPeriod: 300 * time.Millisecond,
-		Clock:            clock,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { backend.Close() })
-	return backend
-}
-
-// Import tests importing values
-func TestImport(t *testing.T) {
-	ctx := context.Background()
-	prefix := test.MakePrefix()
-
-	uut := newBackend(t)
-
-	imported, err := uut.Imported(ctx)
-	require.NoError(t, err)
-	require.False(t, imported)
-
-	// add one element that should not show up
-	items := []backend.Item{
-		{Key: prefix("/prefix/a"), Value: []byte("val a")},
-		{Key: prefix("/prefix/b"), Value: []byte("val b")},
-		{Key: prefix("/prefix/a"), Value: []byte("val a")},
-	}
-	err = uut.Import(ctx, items)
-	require.NoError(t, err)
-
-	// prefix range fetch
-	result, err := uut.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), backend.NoLimit)
-	require.NoError(t, err)
-	expected := []backend.Item{
-		{Key: prefix("/prefix/a"), Value: []byte("val a")},
-		{Key: prefix("/prefix/b"), Value: []byte("val b")},
-	}
-	test.RequireItems(t, result.Items, expected)
-
-	imported, err = uut.Imported(ctx)
-	require.NoError(t, err)
-	require.True(t, imported)
-
-	err = uut.Import(ctx, items)
-	require.True(t, trace.IsAlreadyExists(err))
-
-	imported, err = uut.Imported(ctx)
-	require.NoError(t, err)
-	require.True(t, imported)
-}
-
 func TestConnectionURIGeneration(t *testing.T) {
 	fileNameAndParams := "/sqlite.db?_busy_timeout=0&_txlock=immediate"
 	tests := []struct {

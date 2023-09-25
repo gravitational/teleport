@@ -261,9 +261,34 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
   );
 }
 
-export function LoadingCard() {
-  function randomNum(min: number, max: number) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+type LoadingCardProps = {
+  delay?: 'none' | 'short' | 'long';
+};
+
+const DelayValueMap = {
+  none: 0,
+  short: 400, // 0.4s;
+  long: 600, // 0.6s;
+};
+
+function randomNum(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+export function LoadingCard({ delay = 'none' }: LoadingCardProps) {
+  const [canDisplay, setCanDisplay] = useState(false);
+
+  useEffect(() => {
+    const displayTimeout = setTimeout(() => {
+      setCanDisplay(true);
+    }, DelayValueMap[delay]);
+    return () => {
+      clearTimeout(displayTimeout);
+    };
+  }, []);
+
+  if (!canDisplay) {
+    return null;
   }
 
   return (
