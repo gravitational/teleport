@@ -117,7 +117,7 @@ Presets:
 
 Examples:
 
-  > tctl sso configure saml -n myauth -r groups,admin,access,editor,auditor -r group,developer,access -e entity-desc.xml  
+  > tctl sso configure saml -n myauth -r groups,admin,access,editor,auditor -r groups,developer,access -e entity-desc.xml  
 
   Generate SAML auth connector configuration called 'myauth'. Two mappings from SAML attributes to roles are defined: 
     - members of 'admin' group will receive 'access', 'editor' and 'auditor' roles.
@@ -131,7 +131,7 @@ Examples:
   Instead of XML file, a URL was provided to -e flag, which will be fetched by Teleport during runtime.
 
 
-  > tctl sso configure saml -p okta -r group,developer,access -e entity-desc.xml | tctl sso test
+  > tctl sso configure saml -p okta -r groups,developer,access -e entity-desc.xml | tctl sso test
   
   Generate the configuration and immediately test it using "tctl sso test" command.
 
