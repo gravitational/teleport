@@ -298,7 +298,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	return accessList, membersIn, trace.Wrap(err)
 }
 
-func (a *AccessListService) PromoteAccessRequest(_ context.Context, _ *accesslistv1.PromoteAccessRequestRequest) (*accesslistv1.PromoteAccessReqResponse, error) {
+func (a *AccessListService) PromoteAccessRequest(_ context.Context, _ *accesslistv1.PromoteAccessRequestRequest) (*accesslistv1.PromoteAccessRequestResponse, error) {
 	return nil, trace.NotImplemented("PromoteAccessRequest should not be called")
 }
 

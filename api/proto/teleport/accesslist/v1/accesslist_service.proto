@@ -63,7 +63,7 @@ service AccessListService {
   rpc DeleteAccessListReview(DeleteAccessListReviewRequest) returns (google.protobuf.Empty);
 
   // PromoteAccessRequest promotes an access request to an access list.
-  rpc PromoteAccessRequest(PromoteAccessRequestRequest) returns (PromoteAccessReqResponse);
+  rpc PromoteAccessRequest(PromoteAccessRequestRequest) returns (PromoteAccessRequestResponse);
 }
 
 // GetAccessListsRequest is the request for getting all access lists.
@@ -242,8 +242,8 @@ message PromoteAccessRequestRequest {
   string reason = 3;
 }
 
-// PromoteAccessReqResponse is the response for promoting an access request to an access list.
-message PromoteAccessReqResponse {
+// PromoteAccessRequestResponse is the response for promoting an access request to an access list.
+message PromoteAccessRequestResponse {
   // AccessRequest is the updated access request.
   types.AccessRequestV3 access_request = 1;
 }

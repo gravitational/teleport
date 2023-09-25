@@ -677,7 +677,7 @@ ProcessReviews:
 			return nil, nil
 		}
 	case lastReview.ProposedState.IsPromoted():
-		// Let the state change. Promoted won't let any access behave like denied.
+		// Let the state change. Promoted won't grant any access, meaning it is roughly equivalent to denial.
 		// But we want to be able to distinguish between promoted and denied in audit logs/UI.
 	default:
 		return nil, trace.BadParameter("cannot calculate state-transition, unexpected proposal: %s", lastReview.ProposedState)

@@ -91,7 +91,7 @@ type AccessListServiceClient interface {
 	// DeleteAccessListReview will delete an access list review from the backend.
 	DeleteAccessListReview(ctx context.Context, in *DeleteAccessListReviewRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// PromoteAccessRequest promotes an access request to an access list.
-	PromoteAccessRequest(ctx context.Context, in *PromoteAccessRequestRequest, opts ...grpc.CallOption) (*PromoteAccessReqResponse, error)
+	PromoteAccessRequest(ctx context.Context, in *PromoteAccessRequestRequest, opts ...grpc.CallOption) (*PromoteAccessRequestResponse, error)
 }
 
 type accessListServiceClient struct {
@@ -246,8 +246,8 @@ func (c *accessListServiceClient) DeleteAccessListReview(ctx context.Context, in
 	return out, nil
 }
 
-func (c *accessListServiceClient) PromoteAccessRequest(ctx context.Context, in *PromoteAccessRequestRequest, opts ...grpc.CallOption) (*PromoteAccessReqResponse, error) {
-	out := new(PromoteAccessReqResponse)
+func (c *accessListServiceClient) PromoteAccessRequest(ctx context.Context, in *PromoteAccessRequestRequest, opts ...grpc.CallOption) (*PromoteAccessRequestResponse, error) {
+	out := new(PromoteAccessRequestResponse)
 	err := c.cc.Invoke(ctx, AccessListService_PromoteAccessRequest_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -293,7 +293,7 @@ type AccessListServiceServer interface {
 	// DeleteAccessListReview will delete an access list review from the backend.
 	DeleteAccessListReview(context.Context, *DeleteAccessListReviewRequest) (*emptypb.Empty, error)
 	// PromoteAccessRequest promotes an access request to an access list.
-	PromoteAccessRequest(context.Context, *PromoteAccessRequestRequest) (*PromoteAccessReqResponse, error)
+	PromoteAccessRequest(context.Context, *PromoteAccessRequestRequest) (*PromoteAccessRequestResponse, error)
 	mustEmbedUnimplementedAccessListServiceServer()
 }
 
@@ -349,7 +349,7 @@ func (UnimplementedAccessListServiceServer) CreateAccessListReview(context.Conte
 func (UnimplementedAccessListServiceServer) DeleteAccessListReview(context.Context, *DeleteAccessListReviewRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccessListReview not implemented")
 }
-func (UnimplementedAccessListServiceServer) PromoteAccessRequest(context.Context, *PromoteAccessRequestRequest) (*PromoteAccessReqResponse, error) {
+func (UnimplementedAccessListServiceServer) PromoteAccessRequest(context.Context, *PromoteAccessRequestRequest) (*PromoteAccessRequestResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PromoteAccessRequest not implemented")
 }
 func (UnimplementedAccessListServiceServer) mustEmbedUnimplementedAccessListServiceServer() {}

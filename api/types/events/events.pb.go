@@ -2479,7 +2479,7 @@ type AccessRequestCreate struct {
 	MaxDuration time.Time `protobuf:"bytes,13,opt,name=MaxDuration,proto3,stdtime" json:"max_duration,omitempty"`
 	// PromotedAccessListTitle is the title of the access list that this request
 	// was promoted to. Used by WebUI to display the title of the access list.
-	// This field in only populated when the request is in the PROMOTED state.
+	// This field is only populated when the request is in the PROMOTED state.
 	PromotedAccessListTitle string   `protobuf:"bytes,14,opt,name=PromotedAccessListTitle,proto3" json:"promoted_access_list_title,omitempty"`
 	XXX_NoUnkeyedLiteral    struct{} `json:"-"`
 	XXX_unrecognized        []byte   `json:"-"`
