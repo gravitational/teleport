@@ -26,6 +26,10 @@ be used by the `tbot` pod.
 See the [Kubernetes platform guide](kubernetes.mdx) for further guidance
 on deploying Machine ID as a workload on Kubernetes.
 
+### Daemon vs Oneshot
+
+(!docs/pages/includes/machine-id/daemon-v-oneshot.mdx!)
+
 ## Guide
 
 This guide will...
@@ -79,7 +83,9 @@ Create the bot, specifying the token and role that you have created:
 $ tctl bots add example --token example-bot --roles example-bot
 ```
 
-### Step 3/3. Configure `tbot`
+### Step 2/3. Install and configure `tbot`
+
+#### Create a service (optional)
 
 ### Step 4/4. Configure Outputs
 

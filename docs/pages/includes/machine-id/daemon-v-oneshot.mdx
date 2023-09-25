@@ -1,0 +1,14 @@
+Machine ID has two modes of deployment.
+
+Daemon: `tbot` runs continually. Usually, this is combined with a service
+supervisor such as systemd in order to continually provide and renew
+short-lived credentials in the background. This is also necessary when using
+the `token` join method which requires the bot to continually renew itself to
+avoid its credentials expiring.
+
+Oneshot: `tbot` runs once and then exits. This is ideal for situations where
+credentials may only be needed for for a short period. The advantage of this is
+that it is easy to determine whether `tbot` has run successfully before taking
+an action that is dependent on the credentials `tbot` outputs. This mode is
+generally not compatible with the `token` join method unless you can ensure that
+`tbot` will be run often enough to prevent the bot's own identity expiring.

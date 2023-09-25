@@ -14,9 +14,7 @@ TODO: Brief overview of how the join method works for this platform.
 
 ### Daemon vs Oneshot
 
-TODO: Explain when you'd want to  use a service and when you'd want to use
-oneshot. This guide will show service with systemd - explain choice of service
-supervisor
+(!docs/pages/includes/machine-id/daemon-v-oneshot.mdx!)
 
 ## Guide
 
@@ -29,7 +27,13 @@ This guide will...
 - (!docs/pages/includes/tctl.mdx!)
 - A Linux host that you wish to install Machine ID onto.
 
-### Step 1/3. Create a role and bot user
+### Step 1/4. Install `tbot`
+
+Download the appropriate Teleport package for your platform:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Step 2/4. Create a role and bot user
 
 (!docs/pages/includes/machine-id/blank-role.mdx!)
 
@@ -39,11 +43,79 @@ Create the bot, specifying the role that you have created:
 $ tctl bots add example --roles example-bot
 ```
 
-### Step 2/3. Install and configure `tbot`
+### Step 3/4. Configure `tbot`
 
-#### Create a service (optional)
+Create the bot data directory and grant permissions to access it to the Linux
+user (in our example, `teleport`) which `tbot` will run as.
 
-### Step 3/3. Configure Outputs
+```code
+# Make the bot directory and assign ownership to teleport user
+$ sudo mkdir -p /var/lib/teleport/bot
+$ sudo chown teleport:teleport /var/lib/teleport/bot
+# Allow teleport user to open directory
+$ sudo chmod +x /var/lib/teleport /var/lib/teleport/bot
+```
+
+
+Create `/etc/tbot.yaml`:
+
+```yaml
+version: v2
+# ensure this is configured to the address of your Teleport Proxy or
+# Auth Server. Prefer the address of the Teleport Proxy.
+auth_server: example.teleport.sh:443
+onboarding:
+  join_method: token
+  token: /path/to/token
+storage:
+  type: directory
+  path: /var/lib/teleport/bot
+outputs: []
+```
+
+#### Create a service
+
+To run `tbot` as a daemon, a service manager should be configured to supervise
+this process. The service manager will be responsible for starting `tbot` on
+boot and restarting it if it exits with an error. This step assumes you are
+using systemd, however, other service managers can be used.
+
+
+Create `/etc/systemd/system/tbot.service`:
+```code
+[Unit]
+Description=Teleport Machine ID Service
+After=network.target
+
+[Service]
+Type=simple
+User=teleport
+Group=teleport
+Restart=on-failure
+ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/run/tbot.pid
+LimitNOFILE=524288
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable the service so that it starts on boot and then start the service:
+
+```code
+$ sudo systemctl daemon-reload
+$ sudo systemctl enable tbot
+$ sudo systemctl start tbot
+```
+
+Check the service has started successfully:
+
+```code
+$ sudo systemctl status tbot
+```
+
+### Step 4/4. Configure Outputs
 
 Follow one of the [access guides](../access-guides.mdx) to configure an output
 that meets your access needs.
