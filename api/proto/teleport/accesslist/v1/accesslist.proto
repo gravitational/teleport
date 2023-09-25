@@ -171,8 +171,8 @@ message ReviewSpec {
   // access_list is the name of the access list that this review is for.
   string access_list = 1;
 
-  // review is the user who performed the review.
-  string reviewer = 2;
+  // reviewers are the users who performed the review.
+  repeated string reviewers = 2;
 
   // review_date is the date that this review was created.
   google.protobuf.Timestamp review_date = 3;
