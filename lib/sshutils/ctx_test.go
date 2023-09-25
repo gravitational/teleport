@@ -30,18 +30,18 @@ var (
 	errClose      = errors.New("channel closed")
 )
 
-type nopReadWriter struct{}
+type fakeReaderWriter struct{}
 
-func (n nopReadWriter) Read(_ []byte) (int, error) {
+func (n fakeReaderWriter) Read(_ []byte) (int, error) {
 	return 0, io.EOF
 }
 
-func (n nopReadWriter) Write(b []byte) (int, error) {
+func (n fakeReaderWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
 type mockChannel struct {
-	nopReadWriter
+	fakeReaderWriter
 }
 
 func (mc *mockChannel) Close() error {
@@ -57,7 +57,7 @@ func (mc *mockChannel) SendRequest(name string, wantReply bool, payload []byte) 
 }
 
 func (mc *mockChannel) Stderr() io.ReadWriter {
-	return nopReadWriter{}
+	return fakeReaderWriter{}
 }
 
 func TestAgentChannelClose(t *testing.T) {
