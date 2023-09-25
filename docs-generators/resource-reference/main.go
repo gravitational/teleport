@@ -8,11 +8,13 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"html/template"
 	"io/fs"
 	"os"
 	"path/filepath"
 )
 
+// Intended to be executed with a []ReferenceEntry
 const referenceTemplate string = `{{ range . }}
 ## {{ .SectionName }}
 
@@ -31,16 +33,23 @@ const referenceTemplate string = `{{ range . }}
 
 func main() {
 	src := flag.String("source", ".", "the project directory in which to parse Go packages")
+	out := flag.String("out", ".", "the path where the generator will write the resource reference")
 	flag.Parse()
 
 	allDecls := make(map[resource.PackageInfo]resource.DeclarationInfo)
 	result := make(map[resource.PackageInfo]resource.ReferenceEntry)
 
+	outfile, err := os.OpenFile(*out, os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "could not prepare the output file for writing: %v", err)
+		os.Exit(1)
+	}
+
 	// Load each file in the source directory individually. Not using
 	// packages.Load here since the resulting []*Package does not expose
 	// individual file names, which we need so contributors who want to edit
 	// the resulting docs page know which files to modify.
-	err := filepath.Walk(*src, func(path string, info fs.FileInfo, err error) error {
+	err = filepath.Walk(*src, func(path string, info fs.FileInfo, err error) error {
 		// There is an error with the path, so we can't load Go source
 		if err != nil {
 			return err
@@ -158,5 +167,5 @@ func main() {
 		}
 	}
 
-	// TODO: Populate the template with the reference entries
+	err = template.Must(template.New("Main reference").Parse(referenceTemplate)).Execute(outfile, result)
 }
