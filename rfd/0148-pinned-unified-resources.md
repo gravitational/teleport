@@ -31,15 +31,20 @@ every day.
 
 ### User Preferences
 
-Pinned resources will be stored on the `UserPrefernces` object as an array of resource IDs (that match the id used in our unified resources caches, ex: `theservername/node`, `grafana/app`, etc). 
+Pinned resources will be stored on the `UserPrefernces` object `ClusterPreferences`, which has an array of resource IDs `pinnedResources` (that match the id used in our unified resources caches, ex: `theservername/node`, `grafana/app`, etc). 
 
 
 ```diff
+
++type ClusterPreferences struct {
++	PinnedResources []string `json:"pinnedResources"`
++}
+
 type UserPreferencesResponse struct {
 	Assist AssistUserPreferencesResponse `json:"assist"`
 	Theme userpreferencesv1.Theme `json:"theme"`
 	Onboard OnboardUserPreferencesResponse `json:"onboard"`
-+   PinnedResources []string `json:"pinnedResources"`
++	ClusterPreferences ClusterPreferences `json:"clusterPreferences"`
 }
 ```
 
@@ -48,15 +53,33 @@ Defined in protobuf as below:
 // PinnedResourcesUserPreferences is a collection of resource IDs that will be
 // displayed in the user's pinned resources tab in the Web UI
 message PinnedResourcesUserPreferences {
-	// resource_ids is a list of resource ids
-	repeated string resource_ids = 1;
+  // pinned_resources is a map of resource IDs
+  repeated string resource_ids = 1;
+}
+
+// ClusterUserPreferences are user preferences saved per cluster
+message ClusterUserPreferences {
+  PinnedResourcesUserPreferences pinned_resources = 1;
+}
+
+message UserPreferences {
+  // assist is the preferences for the Teleport Assist.
+  v1.AssistUserPreferences assist = 1;
+  // theme is the theme of the frontend.
+  Theme theme = 2;
+  // onboard is the preferences from the onboarding questionnaire.
+  v1.OnboardUserPreferences onboard = 3;
+  // cluster_preferences are user preferences saved per cluster
+  v1.ClusterUserPreferences cluster_preferences = 4;
 }
 ```
+
 Currently, user preferences are only access via the root auth server. This makes sense for things like theme where
 it is expected that the user would want the same theme across all clusters. However, with pinned resources,
 we would want a separate list per cluster. Instead of creating a new mechanism to store pinned resources, we can
-reuse the current user preferences method but update/fetch pinned resources per cluster instead. This would require two 
-new endpoints in the apiserver `pinnedResourcesUpsert` and `pinnedResourcesGet`. 
+reuse the current user preferences method but update/fetch pinned resources per cluster instead. We can update the current
+get/put endpoints for userpreferences to have an optional param `clusterPreferences` to determine which auth client to use 
+between root and leaf. 
 
 #### Filtering Pinned Resources
 
