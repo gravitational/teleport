@@ -1358,7 +1358,7 @@ func TestOTPCRUD(t *testing.T) {
 }
 
 // TestWebSessions tests web sessions flow for web user,
-// that logs in, extends web session and tries to perform administratvie action
+// that logs in, extends web session and tries to perform administrative action
 // but fails
 func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	t.Parallel()
@@ -1791,9 +1791,13 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	web, err := testSrv.NewClientFromWebSession(ws)
 	require.NoError(t, err)
 
-	// Update some traits.
+	// Update some traits and roles.
+	newRoleName := "new-role"
 	newUser.SetLogins([]string{"apple", "banana"})
 	newUser.SetDatabaseUsers([]string{"llama", "alpaca"})
+	_, err = CreateRole(ctx, clt, newRoleName, types.RoleSpecV6{})
+	require.NoError(t, err)
+	newUser.AddRole(newRoleName)
 	require.NoError(t, clt.UpdateUser(ctx, newUser))
 
 	// Renew session with the updated traits.
@@ -1809,8 +1813,11 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	require.NoError(t, err)
 	traits, err := services.ExtractTraitsFromCert(sshcert)
 	require.NoError(t, err)
+	roles, err := services.ExtractRolesFromCert(sshcert)
+	require.NoError(t, err)
 	require.Equal(t, traits[constants.TraitLogins], []string{"apple", "banana"})
 	require.Equal(t, traits[constants.TraitDBUsers], []string{"llama", "alpaca"})
+	require.Contains(t, roles, newRoleName)
 }
 
 func TestExtendWebSessionWithMaxDuration(t *testing.T) {
