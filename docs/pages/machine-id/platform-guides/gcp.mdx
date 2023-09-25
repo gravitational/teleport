@@ -26,10 +26,6 @@ be used by the `tbot` pod.
 See the [Kubernetes platform guide](kubernetes.mdx) for further guidance
 on deploying Machine ID as a workload on Kubernetes.
 
-### Daemon vs Oneshot
-
-(!docs/pages/includes/machine-id/daemon-v-oneshot.mdx!)
-
 ## Guide
 
 In this guide, ...
@@ -44,7 +40,11 @@ In this guide, ...
 - A GCP Compute Engine VM that you wish to install Machine ID onto that has
   been configured with the GCP service account.
 
-### Step 1/4. Assign a GCP Service Account to a VM
+### Step 1/4. Install `tbot`
+
+Download the appropriate Teleport package for your platform:
+
+(!docs/pages/includes/install-linux.mdx!)
 
 ### Step 2/4. Create a join token, role and bot user
 
@@ -92,9 +92,24 @@ Create the bot, specifying the token and role that you have created:
 $ tctl bots add example --token example-bot --roles example-bot
 ```
 
-### Step 2/3. Install and configure `tbot`
+### Step 3/4. Configure `tbot`
 
-#### Create a service (optional)
+Create `/etc/tbot.yaml`:
+
+```yaml
+version: v2
+# ensure this is configured to the address of your Teleport Proxy or
+# Auth Server. Prefer the address of the Teleport Proxy.
+auth_server: example.teleport.sh:443
+onboarding:
+  join_method: gcp
+  token: example-bot
+storage:
+  type: memory
+outputs: []
+```
+
+(!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
 
 ### Step 4/4. Configure Outputs
 

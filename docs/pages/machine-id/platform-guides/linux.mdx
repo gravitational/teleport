@@ -12,10 +12,6 @@ deploying Machine ID on a Linux host.
 
 TODO: Brief overview of how the join method works for this platform.
 
-### Daemon vs Oneshot
-
-(!docs/pages/includes/machine-id/daemon-v-oneshot.mdx!)
-
 ## Guide
 
 This guide will...
@@ -76,63 +72,7 @@ storage:
 outputs: []
 ```
 
-You must now configure `tbot` as either a daemon or in oneshot mode.
-
-#### Daemon Mode
-
-To run `tbot` as a daemon, a service manager should be configured to supervise
-this process. The service manager will be responsible for starting `tbot` on
-boot and restarting it if it exits with an error. This step assumes you are
-using systemd, however, other service managers can be used.
-
-Create `/etc/systemd/system/tbot.service`:
-
-```code
-[Unit]
-Description=Teleport Machine ID Service
-After=network.target
-
-[Service]
-Type=simple
-User=teleport
-Group=teleport
-Restart=on-failure
-ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
-ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/run/tbot.pid
-LimitNOFILE=524288
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable the service so that it starts on boot and then start the service:
-
-```code
-$ sudo systemctl daemon-reload
-$ sudo systemctl enable tbot
-$ sudo systemctl start tbot
-```
-
-Check the service has started successfully:
-
-```code
-$ sudo systemctl status tbot
-```
-
-#### Oneshot Mode
-
-To use `tbot` in oneshot mode, modify `/etc/tbot.yaml` to add `oneshot: true`,
-e.g:
-
-```yaml
-version: v2
-oneshot: true
-auth_server: ...
-```
-
-Ensure that `tbot` is run often enough that the bot's own credentials will not
-expire.
+(!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
 
 ### Step 4/4. Configure Outputs
 
