@@ -25,7 +25,7 @@ In this guide, ...
   `Microsoft.Compute/virtualMachines/read` permission. You will need to know
   the UID of this identity.
 - An Azure VM you wish to install Machine ID onto with the managed identity
-  configured as a user-assigned mnaaged identity.
+  configured as a user-assigned managed identity.
 
 ### Step 1/4. Install `tbot`
 
@@ -52,13 +52,19 @@ spec:
   join_method: azure
   azure:
     allow:
+      # subscription should be the UID of an Azure subscription. Only VMs within
+      # this subscription will be able to join.
     - subscription: 11111111-1111-1111-1111-111111111111
+      # resource_groups allows joining to be restricted to VMs in a specific
+      # resource group. It can be omitted to allow joining from any VM within
+      # a subscription.
       resource_groups: ["group1"]
 ```
 
 Replace:
-- `11111111-1111-1111-1111-111111111111` with the ID of your Azure subscription
-- `group1` with the name of the resource group that the VM resides within
+- `11111111-1111-1111-1111-111111111111` with the UID of your Azure subscription
+- `group1` with the name of the resource group that the VM resides within or
+  omit this entirely to allow joining from any VM within the subscription
 
 Use `tctl` to apply this file:
 
