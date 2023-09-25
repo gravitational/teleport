@@ -177,19 +177,48 @@ describe('generate middle times', () => {
         },
       ],
     },
+    {
+      name: 'only one option generated',
+      created: '2023-09-21T10:00:52.669012121Z',
+      sessionTTL: '2023-09-21T15:00:52.669081473Z',
+      maxDuration: '2023-09-21T15:00:52.669081473Z',
+      expected: [
+        {
+          days: 0,
+          hours: 5,
+          minutes: 0,
+        },
+      ],
+    },
+    {
+      name: 'generate all options if max duration is grater than session ttl but less than 1d',
+      created: '2023-09-21T10:00:52.669012121Z',
+      sessionTTL: '2023-09-21T15:00:52.669081473Z',
+      maxDuration: '2023-09-21T17:00:52.669081473Z',
+      expected: [
+        {
+          days: 0,
+          hours: 5,
+          minutes: 0,
+        },
+        {
+          days: 0,
+          hours: 7,
+          minutes: 0,
+        },
+      ],
+    },
   ];
 
-  for (let tc of cases) {
-    const { name, sessionTTL, maxDuration, created, expected } = tc;
-
-    // eslint-disable-next-line jest/valid-title
-    test(name, () => {
+  test.each(cases)(
+    '$name',
+    ({ sessionTTL, maxDuration, created, expected }) => {
       const result = middleValues(
         new Date(created),
         new Date(sessionTTL),
         new Date(maxDuration)
       );
       expect(result).toEqual(generateResponse(new Date(created), expected));
-    });
-  }
+    }
+  );
 });

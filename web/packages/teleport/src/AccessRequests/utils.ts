@@ -20,6 +20,7 @@ import {
   Duration,
   intervalToDuration,
   isAfter,
+  isBefore,
 } from 'date-fns';
 
 type TimeDuration = {
@@ -51,6 +52,12 @@ export function middleValues(
   const points: Date[] = [start];
 
   if (isAfter(addDays(created, 1), end)) {
+    // Add all possible options to the list. This covers the case when the
+    // max duration is less than 24 hours.
+    if (isBefore(addHours(points[points.length - 1], 1), end)) {
+      points.push(end);
+    }
+
     return points.map(d => ({
       timestamp: d.getTime(),
       duration: getInterval(d),
