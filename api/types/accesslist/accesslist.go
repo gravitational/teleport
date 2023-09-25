@@ -170,18 +170,18 @@ func (a *AccessList) CheckAndSetDefaults() error {
 	// Deduplicate owners. The backend will currently prevent this, but it's possible that access lists
 	// were created with duplicated owners before the backend checked for duplicate owners. In order to
 	// ensure that these access lists are backwards compatible, we'll deduplicate them here.
-	ownerMap := map[string]bool{}
+	ownerMap := make(map[string]struct{}, len(a.Spec.Owners))
 	deduplicatedOwners := []Owner{}
 	for _, owner := range a.Spec.Owners {
 		if owner.Name == "" {
 			return trace.BadParameter("owner name is missing")
 		}
 
-		if ownerMap[owner.Name] {
+		if _, ok := ownerMap[owner.Name]; ok {
 			continue
 		}
 
-		ownerMap[owner.Name] = true
+		ownerMap[owner.Name] = struct{}{}
 		deduplicatedOwners = append(deduplicatedOwners, owner)
 	}
 	a.Spec.Owners = deduplicatedOwners

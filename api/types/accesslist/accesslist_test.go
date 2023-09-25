@@ -21,8 +21,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types/header"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/header"
 )
 
 func TestDeduplicateOwners(t *testing.T) {
