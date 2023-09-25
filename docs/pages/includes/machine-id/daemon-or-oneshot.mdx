@@ -2,10 +2,12 @@ Now, you must configure `tbot` for either daemon or one-shot mode.
 
 In daemon mode, `tbot` runs continually, renewing the short-lived credentials
 for the configured outputs on a fixed interval. This is often combined with a
-service supervisor (such as systemd) in order to run `tbot` in the background.
+service manager (such as systemd) in order to run `tbot` in the background.
 This is the default behaviour of `tbot`.
 
-In one-shot mode, `tbot` generated its outputs and then exits. This is often
+In one-shot mode, `tbot` generates its outputs and then exits. This is useful in
+ephemeral environments such as CI/CD where other tasks may need to wait for
+`tbot` to produce credentials before they can run.
 
 #### Configuring `tbot` as a daemon
 
