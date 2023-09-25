@@ -51,10 +51,10 @@ const (
 
 var (
 	// We use slot 9a for Teleport Clients which require `private_key_policy: hardware_key`.
-	PivSlotNoTouch = piv.SlotAuthentication
+	PIVSlotNoTouch = piv.SlotAuthentication
 	// We use slot 9c for Teleport Clients which require `private_key_policy: hardware_key_touch`.
 	// Private keys generated on this slot will use TouchPolicy=Cached.
-	PivSlotWithTouch = piv.SlotSignature
+	PIVSlotWithTouch = piv.SlotSignature
 )
 
 // getOrGenerateYubiKeyPrivateKey connects to a connected yubiKey and gets a private key
@@ -71,10 +71,10 @@ func getOrGenerateYubiKeyPrivateKey(touchRequired bool) (*PrivateKey, error) {
 	}
 
 	// Get the correct PIV slot and Touch policy for the given touch requirement.
-	pivSlot := PivSlotNoTouch
+	pivSlot := PIVSlotNoTouch
 	touchPolicy := piv.TouchPolicyNever
 	if touchRequired {
-		pivSlot = PivSlotWithTouch
+		pivSlot = PIVSlotWithTouch
 		touchPolicy = piv.TouchPolicyCached
 	}
 
@@ -194,7 +194,7 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 		return nil, trace.Wrap(err)
 	}
 
-	if y.pivSlot == PivSlotWithTouch {
+	if y.pivSlot == PIVSlotWithTouch {
 		touchPromptDelayTimer := time.NewTimer(signTouchPromptDelay)
 		defer touchPromptDelayTimer.Stop()
 
@@ -274,9 +274,9 @@ func (y *YubiKeyPrivateKey) GetAttestationStatement() (*AttestationStatement, er
 // GetPrivateKeyPolicy returns the PrivateKeyPolicy supported by this YubiKeyPrivateKey.
 func (y *YubiKeyPrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
 	switch y.pivSlot {
-	case PivSlotNoTouch:
+	case PIVSlotNoTouch:
 		return PrivateKeyPolicyHardwareKey
-	case PivSlotWithTouch:
+	case PIVSlotWithTouch:
 		return PrivateKeyPolicyHardwareKeyTouch
 	default:
 		return PrivateKeyPolicyNone

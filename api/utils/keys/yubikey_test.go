@@ -75,7 +75,7 @@ func TestOverwriteSlot(t *testing.T) {
 	// Set a non-teleport certificate in the slot.
 	y, err := keys.FindYubiKey(0)
 	require.NoError(t, err)
-	err = y.SetMetadataCertificate(keys.PivSlotNoTouch, pkix.Name{Organization: []string{"not-teleport"}})
+	err = y.SetMetadataCertificate(keys.PIVSlotNoTouch, pkix.Name{Organization: []string{"not-teleport"}})
 	require.NoError(t, err)
 
 	// Fail to overwrite slot when user denies
