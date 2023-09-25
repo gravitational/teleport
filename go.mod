@@ -207,6 +207,8 @@ require (
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 )
 
+require go.mongodb.org/atlas-sdk/v20230201008 v20230201008.0.0
+
 require (
 	cloud.google.com/go v0.110.6 // indirect
 	cloud.google.com/go/longrunning v0.5.1 // indirect
@@ -343,6 +345,7 @@ require (
 	github.com/moby/spdystream v0.2.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/mongodb-forks/digest v1.0.5 // indirect
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
 	github.com/montanaflynn/stats v0.7.0 // indirect
 	github.com/mtibben/percent v0.2.1 // indirect
