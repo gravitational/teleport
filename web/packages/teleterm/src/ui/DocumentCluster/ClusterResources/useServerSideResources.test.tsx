@@ -76,20 +76,31 @@ it('adds a listener for resource refresh', async () => {
   );
 
   expect(result.error).toBeFalsy();
+  act(() => {
+    result.current.updateSearch('foo');
+  });
 
   // Wait for the initial fetch to finish.
   await waitFor(() => result.current.fetchAttempt.status === 'success');
-  expect(fetchFunction).toHaveBeenCalledTimes(1);
+  // Called twice, first for the initial call and then another after search update.
+  expect(fetchFunction).toHaveBeenCalledTimes(2);
+  expect(fetchFunction).toHaveBeenCalledWith(
+    expect.objectContaining({ search: 'foo' })
+  );
 
   // Verify that the listener is added.
   act(() => {
     requestResourcesRefresh();
   });
   await waitFor(() => result.current.fetchAttempt.status === 'success');
-  expect(fetchFunction).toHaveBeenCalledTimes(2);
+  expect(fetchFunction).toHaveBeenCalledTimes(3);
+  // Verify that the hook uses the same args to fetch the list of resources after
+  // requestResourcesRefresh is called.
+  expect(fetchFunction.mock.calls[2]).toEqual(fetchFunction.mock.calls[1]);
 
-  // Verify that the cleanup function gets called.
+  // Verify that the cleanup function gets called by requesting a refresh again and verifying that
+  // the fetch function has not been called.
   unmount();
   requestResourcesRefresh();
-  expect(fetchFunction).toHaveBeenCalledTimes(2);
+  expect(fetchFunction).toHaveBeenCalledTimes(3);
 });
