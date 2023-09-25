@@ -219,6 +219,7 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 		Authorizer:          p.authServer.Authorizer,
 		AccessLists:         accessListStorage,
 		Emitter:             p.authServer.Emitter,
+		UsageEvents:         p.authServer.AuthServer,
 		Clock:               p.authServer.AuthServer.GetClock(),
 		CachedUsersServices: p.authServer.AuthServer.Cache,
 	})

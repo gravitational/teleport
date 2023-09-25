@@ -26,7 +26,9 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
@@ -36,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -63,7 +66,7 @@ var cmpOpts = []cmp.Option{
 func TestService_GetAccessLists(t *testing.T) {
 	t.Parallel()
 
-	ctx, ownerCtx, svc, clock, emitter := initSvc(t)
+	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 
 	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
@@ -85,7 +88,7 @@ func TestService_GetAccessLists(t *testing.T) {
 	// a3 will have different ownership requirements.
 	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
 
-	createAccessListsAndMembers(t, ctx, svc, emitter,
+	createAccessListsAndMembers(t, ctx, svc, emitter, nil,
 		[]*accesslist.AccessList{a1, a2, a3}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a3m1, a3m2})
 
 	getResp, err = svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
@@ -109,7 +112,7 @@ func TestService_GetAccessLists(t *testing.T) {
 func TestService_ListAccessLists(t *testing.T) {
 	t.Parallel()
 
-	ctx, ownerCtx, svc, clock, emitter := initSvc(t)
+	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 
 	accessLists := listAccessLists(ctx, t, svc, 1)
 	require.Empty(t, accessLists)
@@ -133,7 +136,7 @@ func TestService_ListAccessLists(t *testing.T) {
 	// a3 will have different ownership requirements.
 	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
 
-	createAccessListsAndMembers(t, ctx, svc, emitter,
+	createAccessListsAndMembers(t, ctx, svc, emitter, nil,
 		[]*accesslist.AccessList{a1, a2, a3, a4, a5}, []*accesslist.AccessListMember{
 			a1m1, a1m2, a2m1, a3m1, a3m2, a4m1, a4m2, a5m1, a5m2,
 		})
@@ -183,9 +186,14 @@ func listAccessLists(ctx context.Context, t *testing.T, svc *Service, pageSize i
 }
 
 func TestService_UpsertAccessList(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
-	ctx, ownerCtx, svc, clock, emitter := initSvc(t)
+	ctx, ownerCtx, svc, clock, emitter, usageEvents := initSvc(t)
 
 	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
@@ -198,6 +206,9 @@ func TestService_UpsertAccessList(t *testing.T) {
 	require.NoError(t, err)
 	expectEvent(t, events.AccessListCreateSuccessCode, emitter, func(event *apievents.AccessListCreate) {
 		require.True(t, event.Success)
+	})
+	expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListCreate) {
+		require.Equal(t, a1.GetName(), event.AccessListCreate.Metadata.Id)
 	})
 
 	// User tries to create a new access list that they own. Shouldn't work.
@@ -212,6 +223,9 @@ func TestService_UpsertAccessList(t *testing.T) {
 	expectEvent(t, events.AccessListCreateSuccessCode, emitter, func(event *apievents.AccessListCreate) {
 		require.True(t, event.Success)
 	})
+	expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListCreate) {
+		require.Equal(t, a2.GetName(), event.AccessListCreate.Metadata.Id)
+	})
 
 	// Owner should be able to modify the audit.
 	a2.Spec.Audit.Frequency = 2080 * time.Hour
@@ -219,6 +233,9 @@ func TestService_UpsertAccessList(t *testing.T) {
 	require.NoError(t, err)
 	expectEvent(t, events.AccessListUpdateSuccessCode, emitter, func(event *apievents.AccessListUpdate) {
 		require.True(t, event.Success)
+	})
+	expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListUpdate) {
+		require.Equal(t, a2.GetName(), event.AccessListUpdate.Metadata.Id)
 	})
 
 	get, err := svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a2.GetName()})
@@ -231,6 +248,9 @@ func TestService_UpsertAccessList(t *testing.T) {
 	require.NoError(t, err)
 	expectEvent(t, events.AccessListUpdateSuccessCode, emitter, func(event *apievents.AccessListUpdate) {
 		require.True(t, event.Success)
+	})
+	expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListUpdate) {
+		require.Equal(t, a2.GetName(), event.AccessListUpdate.Metadata.Id)
 	})
 
 	get, err = svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a2.GetName()})
@@ -249,7 +269,7 @@ func TestService_UpsertAccessList(t *testing.T) {
 func TestService_GetAccessList(t *testing.T) {
 	t.Parallel()
 
-	ctx, ownerCtx, svc, clock, emitter := initSvc(t)
+	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 
 	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
@@ -299,7 +319,7 @@ func TestService_GetAccessList(t *testing.T) {
 	// a3 will have different ownership requirements.
 	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
 
-	createAccessListsAndMembers(t, ctx, svc, emitter,
+	createAccessListsAndMembers(t, ctx, svc, emitter, nil,
 		[]*accesslist.AccessList{a1, a2, a3}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a3m1, a3m2})
 
 	get, err := svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
@@ -347,7 +367,7 @@ func TestService_GetAccessList(t *testing.T) {
 func TestService_UpsertAndGetAccessList_OwnersIneligibleReason(t *testing.T) {
 	t.Parallel()
 
-	ctx, _, svc, clock, _ := initSvc(t)
+	ctx, _, svc, clock, _, _ := initSvc(t)
 
 	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
@@ -403,7 +423,7 @@ func TestService_UpsertAndGetAccessList_OwnersIneligibleReason(t *testing.T) {
 func TestService_UpsertAndGetAccessList_MembersIneligibleReason(t *testing.T) {
 	t.Parallel()
 
-	ctx, _, svc, clock, _ := initSvc(t)
+	ctx, _, svc, clock, _, _ := initSvc(t)
 
 	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
@@ -461,9 +481,14 @@ func TestService_UpsertAndGetAccessList_MembersIneligibleReason(t *testing.T) {
 }
 
 func TestService_DeleteAccessList(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
-	ctx, _, svc, clock, emitter := initSvc(t)
+	ctx, _, svc, clock, emitter, usageEvents := initSvc(t)
 
 	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
@@ -471,7 +496,7 @@ func TestService_DeleteAccessList(t *testing.T) {
 
 	a1 := newAccessList(t, "1", clock)
 
-	createAccessListsAndMembers(t, ctx, svc, emitter, []*accesslist.AccessList{a1}, nil)
+	createAccessListsAndMembers(t, ctx, svc, emitter, usageEvents, []*accesslist.AccessList{a1}, nil)
 
 	get, err := svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
@@ -482,6 +507,9 @@ func TestService_DeleteAccessList(t *testing.T) {
 	expectEvent(t, events.AccessListDeleteSuccessCode, emitter, func(event *apievents.AccessListDelete) {
 		require.True(t, event.Success)
 	})
+	expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListDelete) {
+		require.Equal(t, a1.GetName(), event.AccessListDelete.Metadata.Id)
+	})
 
 	_, err = svc.DeleteAccessList(ctx, &accesslistv1.DeleteAccessListRequest{Name: a1.GetName()})
 	require.True(t, trace.IsNotFound(err))
@@ -490,7 +518,16 @@ func TestService_DeleteAccessList(t *testing.T) {
 	})
 }
 
-func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Context, svc *Service, clock clockwork.Clock, emitter *eventstest.ChannelEmitter) {
+type usageEventsClient struct {
+	events []*usageeventsv1.UsageEventOneOf
+}
+
+func (u *usageEventsClient) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+	u.events = append(u.events, req.Event)
+	return nil
+}
+
+func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Context, svc *Service, clock clockwork.Clock, emitter *eventstest.ChannelEmitter, usageEvents *usageEventsClient) {
 	ctx := context.Background()
 	clock = clockwork.NewFakeClock()
 	backend, err := memory.New(memory.Config{
@@ -595,10 +632,13 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 
 	storage, err := local.NewAccessListService(backend, clock)
 	require.NoError(t, err)
+
+	usageEvents = &usageEventsClient{}
 	svc, err = NewService(ServiceConfig{
 		Authorizer:          authorizer,
 		AccessLists:         storage,
 		Emitter:             emitter,
+		UsageEvents:         usageEvents,
 		Clock:               clock,
 		CachedUsersServices: userSvc,
 	})
@@ -629,13 +669,13 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 	require.NoError(t, userSvc.CreateUser(member3))
 
 	return genUserContext(ctx, user.GetName(), []string{role.GetName()}, nil),
-		genUserContext(ctx, owner.GetName(), ownerRoles, ownerTraits), svc, clock, emitter
+		genUserContext(ctx, owner.GetName(), ownerRoles, ownerTraits), svc, clock, emitter, usageEvents
 }
 
 func TestService_ListAccessListMembers(t *testing.T) {
 	t.Parallel()
 
-	ctx, ownerCtx, svc, clock, emitter := initSvc(t)
+	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 
 	a1 := newAccessList(t, "1", clock)
 	a2 := newAccessList(t, "2", clock)
@@ -651,7 +691,7 @@ func TestService_ListAccessListMembers(t *testing.T) {
 	a3m1 := newAccessListMember(t, a3.GetName(), member1, clock)
 	a3m2 := newAccessListMember(t, a3.GetName(), member2, clock)
 
-	createAccessListsAndMembers(t, ctx, svc, emitter,
+	createAccessListsAndMembers(t, ctx, svc, emitter, nil,
 		[]*accesslist.AccessList{a1, a2, a3}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2, a3m1, a3m2})
 
 	// Admin should be able to list everything
@@ -674,14 +714,14 @@ func TestService_ListAccessListMembers(t *testing.T) {
 func TestService_GetAccessListMember(t *testing.T) {
 	t.Parallel()
 
-	ctx, ownerCtx, svc, clock, emitter := initSvc(t)
+	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 
 	a1 := newAccessList(t, "1", clock)
 
 	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
 	a1m2 := newAccessListMember(t, a1.GetName(), member2, clock)
 
-	createAccessListsAndMembers(t, ctx, svc, emitter,
+	createAccessListsAndMembers(t, ctx, svc, emitter, nil,
 		[]*accesslist.AccessList{a1}, []*accesslist.AccessListMember{a1m1, a1m2})
 
 	// Admin should be able to get members
@@ -696,9 +736,14 @@ func TestService_GetAccessListMember(t *testing.T) {
 }
 
 func TestService_UpsertAccessListMember(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
-	ctx, ownerCtx, svc, clock, emitter := initSvc(t)
+	ctx, ownerCtx, svc, clock, emitter, usageEvents := initSvc(t)
 
 	a1 := newAccessList(t, "1", clock)
 
@@ -706,6 +751,9 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 	require.NoError(t, err)
 	expectEvent(t, events.AccessListCreateSuccessCode, emitter, func(event *apievents.AccessListCreate) {
 		require.True(t, event.Success)
+	})
+	expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListCreate) {
+		require.Equal(t, a1.GetName(), event.AccessListCreate.Metadata.Id)
 	})
 
 	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
@@ -716,6 +764,9 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 	require.NoError(t, err)
 	expectEvent(t, events.AccessListMemberCreateSuccessCode, emitter, func(event *apievents.AccessListMemberCreate) {
 		require.True(t, event.Success)
+	})
+	expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberCreate) {
+		require.Equal(t, a1.GetName(), event.AccessListMemberCreate.Metadata.Id)
 	})
 
 	// Added by should be overridden from "test-user" to "owner-user"
@@ -737,6 +788,9 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 	expectEvent(t, events.AccessListMemberUpdateSuccessCode, emitter, func(event *apievents.AccessListMemberUpdate) {
 		require.True(t, event.Success)
 	})
+	expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberUpdate) {
+		require.Equal(t, a1.GetName(), event.AccessListMemberUpdate.Metadata.Id)
+	})
 
 	want.Spec.Joined = oldJoined
 	got, err = svc.GetAccessListMember(ctx, &accesslistv1.GetAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m1.GetName()})
@@ -745,16 +799,21 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 }
 
 func TestService_DeleteAccessListMember(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
-	ctx, ownerCtx, svc, clock, emitter := initSvc(t)
+	ctx, ownerCtx, svc, clock, emitter, usageEvents := initSvc(t)
 
 	a1 := newAccessList(t, "1", clock)
 
 	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
 	a1m2 := newAccessListMember(t, a1.GetName(), member2, clock)
 
-	createAccessListsAndMembers(t, ctx, svc, emitter,
+	createAccessListsAndMembers(t, ctx, svc, emitter, usageEvents,
 		[]*accesslist.AccessList{a1}, []*accesslist.AccessListMember{a1m1, a1m2})
 
 	// Admin should be able to delete members
@@ -762,6 +821,9 @@ func TestService_DeleteAccessListMember(t *testing.T) {
 	require.NoError(t, err)
 	expectEvent(t, events.AccessListMemberDeleteSuccessCode, emitter, func(event *apievents.AccessListMemberDelete) {
 		require.True(t, event.Success)
+	})
+	expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberDelete) {
+		require.Equal(t, a1.GetName(), event.AccessListMemberDelete.Metadata.Id)
 	})
 
 	members := listAllAccessListMembers(ctx, t, svc, a1.GetName(), 1)
@@ -773,14 +835,22 @@ func TestService_DeleteAccessListMember(t *testing.T) {
 	expectEvent(t, events.AccessListMemberDeleteSuccessCode, emitter, func(event *apievents.AccessListMemberDelete) {
 		require.True(t, event.Success)
 	})
+	expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberDelete) {
+		require.Equal(t, a1.GetName(), event.AccessListMemberDelete.Metadata.Id)
+	})
 	members = listAllAccessListMembers(ctx, t, svc, a1.GetName(), 1)
 	require.Empty(t, members)
 }
 
 func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
-	ctx, ownerCtx, svc, clock, emitter := initSvc(t)
+	ctx, ownerCtx, svc, clock, emitter, usageEvents := initSvc(t)
 
 	a1 := newAccessList(t, "1", clock)
 	a2 := newAccessList(t, "2", clock)
@@ -790,7 +860,7 @@ func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
 	a2m1 := newAccessListMember(t, a2.GetName(), member1, clock)
 	a2m2 := newAccessListMember(t, a2.GetName(), member2, clock)
 
-	createAccessListsAndMembers(t, ctx, svc, emitter,
+	createAccessListsAndMembers(t, ctx, svc, emitter, usageEvents,
 		[]*accesslist.AccessList{a1, a2}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2})
 
 	// Admin should be able to delete members
@@ -815,9 +885,14 @@ func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
 }
 
 func TestService_UpsertAccessListWithMembers(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
 
-	ctx, _, svc, clock, emitter := initSvc(t)
+	ctx, _, svc, clock, emitter, usageEvents := initSvc(t)
 
 	a1 := newAccessList(t, "1", clock)
 	a2 := newAccessList(t, "2", clock)
@@ -827,7 +902,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 	a2m1 := newAccessListMember(t, a2.GetName(), member3, clock)
 	a2m2 := newAccessListMemberWithIneligibleReason(t, a2.GetName(), "user4", clock, accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST)])
 
-	createAccessListsAndMembers(t, ctx, svc, emitter, []*accesslist.AccessList{a1, a2}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1})
+	createAccessListsAndMembers(t, ctx, svc, emitter, usageEvents, []*accesslist.AccessList{a1, a2}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1})
 
 	// Sanity check
 	membersA1 := listAllAccessListMembers(ctx, t, svc, a1.GetName(), 2)
@@ -845,13 +920,24 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		expectEvent(t, events.AccessListUpdateSuccessCode, emitter, func(event *apievents.AccessListUpdate) {
 			require.True(t, event.Success)
 		})
+		expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListUpdate) {
+			require.Equal(t, a1.GetName(), event.AccessListUpdate.Metadata.Id)
+		})
+
 		expectEvent(t, events.AccessListMemberUpdateSuccessCode, emitter, func(event *apievents.AccessListMemberUpdate) {
 			require.True(t, event.Success)
 			require.Len(t, event.AccessListMemberMetadata.Members, 1)
 		})
+		expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberUpdate) {
+			require.Equal(t, a1.GetName(), event.AccessListMemberUpdate.Metadata.Id)
+		})
+
 		expectEvent(t, events.AccessListMemberDeleteSuccessCode, emitter, func(event *apievents.AccessListMemberDelete) {
 			require.True(t, event.Success)
 			require.Len(t, event.AccessListMemberMetadata.Members, 1)
+		})
+		expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberDelete) {
+			require.Equal(t, a1.GetName(), event.AccessListMemberDelete.Metadata.Id)
 		})
 
 		// One member should have been deleted
@@ -869,13 +955,24 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		expectEvent(t, events.AccessListUpdateSuccessCode, emitter, func(event *apievents.AccessListUpdate) {
 			require.True(t, event.Success)
 		})
+		expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListUpdate) {
+			require.Equal(t, a2.GetName(), event.AccessListUpdate.Metadata.Id)
+		})
+
 		expectEvent(t, events.AccessListMemberCreateSuccessCode, emitter, func(event *apievents.AccessListMemberCreate) {
 			require.True(t, event.Success)
 			require.Len(t, event.AccessListMemberMetadata.Members, 1)
 		})
+		expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberCreate) {
+			require.Equal(t, a2.GetName(), event.AccessListMemberCreate.Metadata.Id)
+		})
+
 		expectEvent(t, events.AccessListMemberUpdateSuccessCode, emitter, func(event *apievents.AccessListMemberUpdate) {
 			require.True(t, event.Success)
 			require.Len(t, event.AccessListMemberMetadata.Members, 1)
+		})
+		expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberUpdate) {
+			require.Equal(t, a2.GetName(), event.AccessListMemberUpdate.Metadata.Id)
 		})
 
 		// One member should have been added
@@ -892,10 +989,19 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		expectEvent(t, events.AccessListUpdateSuccessCode, emitter, func(event *apievents.AccessListUpdate) {
 			require.True(t, event.Success)
 		})
+		expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListUpdate) {
+			require.Equal(t, a2.GetName(), event.AccessListUpdate.Metadata.Id)
+		})
+
 		expectEvent(t, events.AccessListMemberDeleteSuccessCode, emitter, func(event *apievents.AccessListMemberDelete) {
 			require.True(t, event.Success)
 			require.Len(t, event.AccessListMemberMetadata.Members, 2)
 		})
+		for i := 0; i < 2; i++ {
+			expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberDelete) {
+				require.Equal(t, a2.GetName(), event.AccessListMemberDelete.Metadata.Id)
+			})
+		}
 
 		// All members should have been deleted
 		membersA2 = listAllAccessListMembers(ctx, t, svc, a2.GetName(), 2)
@@ -906,7 +1012,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 func TestService_AuthOrIsOwner(t *testing.T) {
 	t.Parallel()
 
-	ctx, ownerCtx, svc, clock, emitter := initSvc(t)
+	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 	memberCtx := genUserContext(context.Background(), member2, []string{"mrole1", "mrole2"}, map[string][]string{
 		"mtrait1": {"mvalue1", "mvalue2"},
 		"mtrait2": {"mvalue3", "mvalue4"},
@@ -919,7 +1025,7 @@ func TestService_AuthOrIsOwner(t *testing.T) {
 	a1 := newAccessList(t, "1", clock)
 	a2 := newAccessList(t, "2", clock)
 
-	createAccessListsAndMembers(t, ctx, svc, emitter, []*accesslist.AccessList{a1, a2}, nil)
+	createAccessListsAndMembers(t, ctx, svc, emitter, nil, []*accesslist.AccessList{a1, a2}, nil)
 
 	tests := []struct {
 		name           string
@@ -1175,7 +1281,7 @@ func mustFromProtoAll(t *testing.T, accessLists ...*accesslistv1.AccessList) []*
 }
 
 func createAccessListsAndMembers(t *testing.T, ctx context.Context, service *Service, emitter *eventstest.ChannelEmitter,
-	accessLists []*accesslist.AccessList, members []*accesslist.AccessListMember) {
+	usageEvents *usageEventsClient, accessLists []*accesslist.AccessList, members []*accesslist.AccessListMember) {
 	t.Helper()
 
 	for _, al := range accessLists {
@@ -1184,6 +1290,11 @@ func createAccessListsAndMembers(t *testing.T, ctx context.Context, service *Ser
 		expectEvent(t, events.AccessListCreateSuccessCode, emitter, func(event *apievents.AccessListCreate) {
 			require.True(t, event.Success)
 		})
+		if usageEvents != nil {
+			expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListCreate) {
+				require.Equal(t, al.GetName(), event.AccessListCreate.Metadata.Id)
+			})
+		}
 	}
 
 	for _, member := range members {
@@ -1191,6 +1302,11 @@ func createAccessListsAndMembers(t *testing.T, ctx context.Context, service *Ser
 		require.NoError(t, err)
 		expectEvent(t, events.AccessListMemberCreateSuccessCode, emitter, func(event *apievents.AccessListMemberCreate) {
 			require.True(t, event.Success)
+			if usageEvents != nil {
+				expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberCreate) {
+					require.Equal(t, member.Spec.AccessList, event.AccessListMemberCreate.Metadata.Id)
+				})
+			}
 		})
 	}
 }
@@ -1207,4 +1323,19 @@ func expectEvent[T apievents.AuditEvent](t *testing.T, code string, emitter *eve
 	case <-time.After(5 * time.Second):
 		require.Fail(t, "timed out waiting for event")
 	}
+}
+
+func expectUsageEvent[T any](t *testing.T, usageEvents *usageEventsClient, fn func(T)) {
+	t.Helper()
+
+	require.Greater(t, len(usageEvents.events), 0)
+
+	event := usageEvents.events[0].Event
+	unwrapped, ok := event.(T)
+	require.True(t, ok, "got unexpected type %T", event)
+
+	// Remove the tp event
+	usageEvents.events = usageEvents.events[1:]
+
+	fn(unwrapped)
 }

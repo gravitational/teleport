@@ -26,7 +26,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
@@ -35,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -74,10 +77,19 @@ type ServiceConfig struct {
 	// Emitter is the event emitter to use.
 	Emitter apievents.Emitter
 
+	// UsageEventsClient is the client for sending usage events metrics.
+	UsageEvents UsageEventsClient
+
 	// Clock is the clock.
 	Clock clockwork.Clock
 
 	CachedUsersServices UsersService
+}
+
+// UsageEventsClient is an interface that allows for submitting usage events to Posthog.
+type UsageEventsClient interface {
+	// SubmitUsageEvent submits an external usage event.
+	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
 }
 
 func (c *ServiceConfig) checkAndSetDefaults() error {
@@ -97,6 +109,14 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 		return trace.BadParameter("CachedUsersServices is missing")
 	}
 
+	if modules.GetModules().Features().Cloud {
+		if c.UsageEvents == nil {
+			return trace.BadParameter("missing usage events")
+		}
+	} else {
+		c.UsageEvents = nil
+	}
+
 	if c.Logger == nil {
 		c.Logger = logrus.New().WithField(trace.Component, "access_list_crud_service")
 	}
@@ -114,6 +134,7 @@ type Service struct {
 	log         logrus.FieldLogger
 	authorizer  authz.Authorizer
 	accessLists services.AccessLists
+	usageEvents UsageEventsClient
 	emitter     apievents.Emitter
 	clock       clockwork.Clock
 	cachedUsers UsersService
@@ -129,6 +150,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		log:         cfg.Logger,
 		authorizer:  cfg.Authorizer,
 		accessLists: cfg.AccessLists,
+		usageEvents: cfg.UsageEvents,
 		emitter:     cfg.Emitter,
 		clock:       cfg.Clock,
 		cachedUsers: cfg.CachedUsersServices,
@@ -322,6 +344,10 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 
 	s.emitUpsertAccessListEvent(ctx, authCtx.Identity.GetIdentity().Username, updated, accessListName, upsertErr)
 
+	if upsertErr == nil {
+		s.emitUpsertAccessListUsageEvent(ctx, updated, accessListName)
+	}
+
 	return resp, trace.Wrap(upsertErr)
 }
 
@@ -418,6 +444,39 @@ func (s *Service) emitUpsertAccessListEvent(ctx context.Context, username string
 	}
 }
 
+// emitUpsertAccessListUsageEvent will emit a posthog event for upserting an access list.
+func (s *Service) emitUpsertAccessListUsageEvent(ctx context.Context, updated bool, accessListName string) {
+	if s.usageEvents == nil {
+		return
+	}
+
+	var event *usageeventsv1.UsageEventOneOf
+	if updated {
+		event = &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_AccessListUpdate{
+				AccessListUpdate: &usageeventsv1.AccessListUpdate{
+					Metadata: &usageeventsv1.AccessListMetadata{
+						Id: accessListName,
+					},
+				},
+			},
+		}
+	} else {
+		event = &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_AccessListCreate{
+				AccessListCreate: &usageeventsv1.AccessListCreate{
+					Metadata: &usageeventsv1.AccessListMetadata{
+						Id: accessListName,
+					},
+				},
+			},
+		}
+	}
+	if err := s.usageEvents.SubmitUsageEvent(ctx, &proto.SubmitUsageEventRequest{Event: event}); err != nil {
+		s.log.WithError(err).Warn("Failed to emit access list create/update usage event")
+	}
+}
+
 // DeleteAccessList removes the specified access list resource.
 func (s *Service) DeleteAccessList(ctx context.Context, req *accesslistv1.DeleteAccessListRequest) (*emptypb.Empty, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -428,6 +487,10 @@ func (s *Service) DeleteAccessList(ctx context.Context, req *accesslistv1.Delete
 	resp, deleteErr := s.deleteAccessList(ctx, authCtx, req)
 
 	s.emitDeleteAccessListEvent(ctx, authCtx, req.Name, deleteErr)
+
+	if deleteErr == nil {
+		s.emitDeleteAccessListUsageEvent(ctx, req.Name)
+	}
 
 	return resp, trace.Wrap(deleteErr)
 }
@@ -477,6 +540,27 @@ func (s *Service) emitDeleteAccessListEvent(ctx context.Context, authCtx *authz.
 
 	if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
 		s.log.WithError(emitErr).Warnf("Failed to emit access list delete event: %v", event)
+	}
+}
+
+// emitDeleteAccessListUsageEvent will emit a posthog event for deleting an access list.
+func (s *Service) emitDeleteAccessListUsageEvent(ctx context.Context, accessListName string) {
+	if s.usageEvents == nil {
+		return
+	}
+
+	if err := s.usageEvents.SubmitUsageEvent(ctx, &proto.SubmitUsageEventRequest{
+		Event: &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_AccessListDelete{
+				AccessListDelete: &usageeventsv1.AccessListDelete{
+					Metadata: &usageeventsv1.AccessListMetadata{
+						Id: accessListName,
+					},
+				},
+			},
+		},
+	}); err != nil {
+		s.log.WithError(err).Warn("Failed to emit access list delete usage event")
 	}
 }
 
@@ -558,6 +642,10 @@ func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.
 
 	s.emitUpsertAccessListMemberEvent(ctx, username, updated, accessListName, upsertErr,
 		accessListMembersForEvent(joinTime, time.Time{}, accessListMemberProtoToMemberEventMetadata(req.Member))...)
+
+	if upsertErr == nil {
+		s.emitUpsertAccessListMemberUsageEvent(ctx, updated, accessListName)
+	}
 
 	return resp, trace.Wrap(upsertErr)
 }
@@ -643,6 +731,38 @@ func (s *Service) emitUpsertAccessListMemberEvent(ctx context.Context, username 
 	}
 }
 
+func (s *Service) emitUpsertAccessListMemberUsageEvent(ctx context.Context, updated bool, accessListName string) {
+	if s.usageEvents == nil {
+		return
+	}
+
+	var event *usageeventsv1.UsageEventOneOf
+	if updated {
+		event = &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_AccessListMemberUpdate{
+				AccessListMemberUpdate: &usageeventsv1.AccessListMemberUpdate{
+					Metadata: &usageeventsv1.AccessListMetadata{
+						Id: accessListName,
+					},
+				},
+			},
+		}
+	} else {
+		event = &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_AccessListMemberCreate{
+				AccessListMemberCreate: &usageeventsv1.AccessListMemberCreate{
+					Metadata: &usageeventsv1.AccessListMetadata{
+						Id: accessListName,
+					},
+				},
+			},
+		}
+	}
+	if err := s.usageEvents.SubmitUsageEvent(ctx, &proto.SubmitUsageEventRequest{Event: event}); err != nil {
+		s.log.WithError(err).Warn("Failed to emit access list member create/update usage event")
+	}
+}
+
 // DeleteAccessListMember hard deletes the specified access list member resource.
 func (s *Service) DeleteAccessListMember(ctx context.Context, req *accesslistv1.DeleteAccessListMemberRequest) (*emptypb.Empty, error) {
 	if err := s.authOrIsOwner(ctx, req.AccessList, types.VerbDelete); err != nil {
@@ -659,6 +779,10 @@ func (s *Service) DeleteAccessListMember(ctx context.Context, req *accesslistv1.
 
 	s.emitDeleteAccessListMemberEvent(ctx, username, req.AccessList, deleteErr,
 		accessListMembersForEvent(time.Time{}, s.clock.Now(), &memberEventMetadata{name: req.MemberName})...)
+
+	if deleteErr == nil {
+		s.emitDeleteAccessListMemberUsageEvent(ctx, req.AccessList)
+	}
 
 	return resp, trace.Wrap(deleteErr)
 }
@@ -701,6 +825,27 @@ func (s *Service) emitDeleteAccessListMemberEvent(ctx context.Context, username 
 		if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
 			s.log.WithError(emitErr).Warnf("Failed to emit access list delete member event: %v", event)
 		}
+	}
+}
+
+// emitDeleteAccessListMemberUsageEvent will emit a posthog event for deleting an access list member.
+func (s *Service) emitDeleteAccessListMemberUsageEvent(ctx context.Context, accessListName string) {
+	if s.usageEvents == nil {
+		return
+	}
+
+	if err := s.usageEvents.SubmitUsageEvent(ctx, &proto.SubmitUsageEventRequest{
+		Event: &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_AccessListMemberDelete{
+				AccessListMemberDelete: &usageeventsv1.AccessListMemberDelete{
+					Metadata: &usageeventsv1.AccessListMetadata{
+						Id: accessListName,
+					},
+				},
+			},
+		},
+	}); err != nil {
+		s.log.WithError(err).Warn("Failed to emit access list delete usage event")
 	}
 }
 
@@ -786,21 +931,44 @@ func (s *Service) UpsertAccessListWithMembers(ctx context.Context, req *accessli
 	resp, updated, modifiedMembers, upsertErr := s.upsertAccessListWithMembers(ctx, req)
 
 	s.emitUpsertAccessListEvent(ctx, username, updated, accessListName, upsertErr)
+
+	if upsertErr == nil {
+		s.emitUpsertAccessListUsageEvent(ctx, updated, accessListName)
+	}
+
 	if modifiedMembers != nil {
 		if len(modifiedMembers.created) > 0 {
 			s.emitUpsertAccessListMemberEvent(ctx, username, false, accessListName, upsertErr,
 				accessListMembersForEvent(s.clock.Now(), time.Time{}, accessListMembersToMemberEventMetadata(modifiedMembers.created)...)...,
 			)
+
+			if upsertErr == nil {
+				for i := 0; i < len(modifiedMembers.created); i++ {
+					s.emitUpsertAccessListMemberUsageEvent(ctx, false, accessListName)
+				}
+			}
 		}
 		if len(modifiedMembers.updated) > 0 {
 			s.emitUpsertAccessListMemberEvent(ctx, username, true, accessListName, upsertErr,
 				accessListMembersForEvent(s.clock.Now(), time.Time{}, accessListMembersToMemberEventMetadata(modifiedMembers.updated)...)...,
 			)
+
+			if upsertErr == nil {
+				for i := 0; i < len(modifiedMembers.updated); i++ {
+					s.emitUpsertAccessListMemberUsageEvent(ctx, true, accessListName)
+				}
+			}
 		}
 		if len(modifiedMembers.deleted) > 0 {
 			s.emitDeleteAccessListMemberEvent(ctx, username, accessListName, upsertErr,
 				accessListMembersForEvent(s.clock.Now(), time.Time{}, accessListMembersToMemberEventMetadata(modifiedMembers.deleted)...)...,
 			)
+
+			if upsertErr == nil {
+				for i := 0; i < len(modifiedMembers.deleted); i++ {
+					s.emitDeleteAccessListMemberUsageEvent(ctx, accessListName)
+				}
+			}
 		}
 	}
 
