@@ -19,7 +19,7 @@ Ubuntu/Debian/RHEL if making use of the default Teleport install script. (For
 other Linux distributions, you can install Teleport manually.)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/5. Create an Azure invite token
+## Step 1/6. Create an Azure invite token
 
 When discovering Azure virtual machines, Teleport makes use of Azure invite tokens for
 authenticating joining SSH Service instances.
@@ -56,7 +56,7 @@ Add the token to the Teleport cluster with:
 $ tctl create -f token.yaml
 ```
 
-## Step 2/5. Configure IAM permissions for Teleport
+## Step 2/6. Configure IAM permissions for Teleport
 
 The Teleport Discovery Service needs Azure IAM permissions to discover and register Azure virtual machines.
 
@@ -137,8 +137,13 @@ resources:
 
 ### Create a custom role
 
-Teleport requires `Microsoft.Compute/virtualMachines/read` permissions for discovery and
-`Microsoft.Compute/virtualMachines/runCommand/action` permissions for installation.
+Teleport requires the following permissions to discover and enroll Azure VMs:
+
+- `Microsoft.Compute/virtualMachines/read`
+- `Microsoft.Compute/virtualMachines/runCommands/action`
+- `Microsoft.Compute/virtualMachines/runCommands/write`
+- `Microsoft.Compute/virtualMachines/runCommands/read`
+- `Microsoft.Compute/virtualMachines/runCommands/delete`
 
 Here is a sample role definition allowing Teleport to read and run commands on Azure
 virtual machines:
@@ -153,8 +158,11 @@ virtual machines:
         "permissions": [
             {
                 "actions": [
-                    "Microsoft.Compute/virtualMachines/read",
-                    "Microsoft.Compute/virtualMachines/runCommand/action"
+                    "Microsoft.Compute/virtualMachines/read`",
+                    "Microsoft.Compute/virtualMachines/runCommands/action",
+                    "Microsoft.Compute/virtualMachines/runCommands/write",
+                    "Microsoft.Compute/virtualMachines/runCommands/read",
+                    "Microsoft.Compute/virtualMachines/runCommands/delete"
                 ],
                 "notActions": [],
                 "dataActions": [],
@@ -188,7 +196,18 @@ and replace the subscription in `assignableScopes` with your own subscription id
 
 (!docs/pages/includes/server-access/azure-assign-service-principal.mdx!)
 
-## Step 3/5. Install the Teleport Discovery Service
+## Step 3/6. Set up managed identities for discovered nodes
+
+Every Azure VM to be discovered must have a managed identity assigned to it
+with at least the `Microsoft.Compute/virtualMachines/read` permission.
+
+(!docs/pages/includes/server-access/azure-join-managed-identity.mdx!)
+
+VMs to be discovered must have only one managed identity assigned to them,
+otherwise the installed Teleport agent will not know which identity to use
+to authenticate with the cluster.
+
+## Step 4/6. Install the Teleport Discovery Service
 
 <Admonition type="tip">
 
@@ -201,7 +220,7 @@ Install Teleport on the virtual machine that will run the Discovery Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 4/5. Configure Teleport to discover Azure instances
+## Step 5/6. Configure Teleport to discover Azure instances
 
 If you are running the Discovery Service on its own host, the service requires a
 valid invite token to connect to the cluster. Generate one by running the
@@ -235,9 +254,9 @@ discovery_service:
   enabled: "yes"
   azure:
     - types: ["vm"]
-      subscriptions: []
-      resource_groups: []
-      regions: []
+      subscriptions: ["<subscription>"]
+      resource_groups: ["<resource-group>"]
+      regions: ["<region>"]
       tags:
         "env": "prod" # Match virtual machines where tag:env=prod
 ```
@@ -248,7 +267,7 @@ discovery_service:
   specifically the regions and tags you want to associate with the Discovery
   Service.
 
-## Step 5/5. [Optional] Customize the default installer script
+## Step 6/6. [Optional] Customize the default installer script
 
 (!docs/pages/includes/server-access/custom-installer.mdx cloud="Azure" matcher="azure" matchTypes="[\"vm\"]"!)
 
@@ -262,6 +281,17 @@ the credentials have been applied in the machine running the Teleport Discovery 
 the Teleport Discovery Service.
 Refer to [Azure SDK Authorization](https://docs.microsoft.com/en-us/azure/developer/go/azure-sdk-authorization)
 for more information.
+
+### Teleport reports no error but VM does not join
+
+Check your Discovery Service config and make sure that the VM you want to
+discover matches. In debug mode, Teleport will log the Subscription IDs and
+names of VMs it discovers.
+
+The Azure run command API does not report the output of commands,
+so Teleport has no way of knowing if a command succeeded or failed. Run command
+logs can be found on the targeted VM at
+`/var/log/azure/run-command-handler/handler.log`.
 
 ## Next steps
 

@@ -74,6 +74,8 @@ version: v3
 teleport:
   # Necessary to write devices back to Teleport.
   proxy_server: (=clusterDefaults.clusterName=):443 # CHANGEME
+  join_params:
+    token_name: "/tmp/token"
 
 jamf_service:
   enabled: true
@@ -126,15 +128,13 @@ From the Jamf service host, use this token to add an MDM service to Teleport.
    --config=/path/to/teleport.yaml
 ```
 
+On the Jamf service host, write the token to a file called `/tmp/token`.
+
 ## Step 4/4. Start Jamf service
 
 Using the token created above, start the service:
 
-```code
-$ sudo teleport start --config=/var/lib/teleport.yaml \
-   --token=(=presets.tokens.second=) \
-   --ca-pin=(=presets.ca_pin=)
-```
+(!docs/pages/includes/start-teleport.mdx!)
 
 The initial sync should happen in a few minutes. You can confirm from the Teleport service logs:
 

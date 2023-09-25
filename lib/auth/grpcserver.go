@@ -861,6 +861,31 @@ func (g *GRPCServer) SubmitAccessReview(ctx context.Context, review *types.Acces
 	return r, nil
 }
 
+func (g *GRPCServer) GetAccessRequestAllowedPromotions(ctx context.Context, request *authpb.AccessRequestAllowedPromotionRequest) (*authpb.AccessRequestAllowedPromotionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessRequest, err := auth.GetAccessRequests(ctx, types.AccessRequestFilter{
+		ID: request.AccessRequestID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(accessRequest) != 1 {
+		return nil, trace.NotFound("access request not found")
+	}
+
+	allowedPromotions, err := auth.ServerWithRoles.GetAccessRequestAllowedPromotions(ctx, accessRequest[0])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &authpb.AccessRequestAllowedPromotionResponse{
+		AllowedPromotions: allowedPromotions,
+	}, nil
+}
+
 func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

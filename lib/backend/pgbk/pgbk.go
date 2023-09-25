@@ -21,7 +21,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype/zeronull"
@@ -250,8 +249,10 @@ var schemas = []string{
 		CONSTRAINT kv_pkey PRIMARY KEY (key)
 	);
 	CREATE INDEX kv_expires_idx ON kv (expires) WHERE expires IS NOT NULL;`,
-	`ALTER TABLE kv REPLICA IDENTITY FULL;
-	CREATE PUBLICATION kv_pub FOR TABLE kv;`,
+
+	// v14.0.0 also had `CREATE PUBLICATION kv_pub FOR TABLE kv` in schema
+	// version 2
+	"ALTER TABLE kv REPLICA IDENTITY FULL;",
 }
 
 var _ backend.Backend = (*Backend)(nil)
@@ -264,13 +265,14 @@ func (*Backend) GetName() string {
 // Create implements [backend.Backend].
 func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	revision := newRevision()
+	i.Expires = i.Expires.UTC()
 	created, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
 		tag, err := b.pool.Exec(ctx,
 			"INSERT INTO kv (key, value, expires, revision) VALUES ($1, $2, $3, $4)"+
 				" ON CONFLICT (key) DO UPDATE SET"+
 				" value = excluded.value, expires = excluded.expires, revision = excluded.revision"+
 				" WHERE kv.expires IS NOT NULL AND kv.expires <= now()",
-			nonNil(i.Key), nonNil(i.Value), zeronull.Timestamptz(i.Expires.UTC()), revision)
+			nonNil(i.Key), nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -283,38 +285,43 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 	if !created {
 		return nil, trace.AlreadyExists("key %q already exists", i.Key)
 	}
-	return newLease(i), nil
+
+	i.Revision = revisionToString(revision)
+	return backend.NewLease(i), nil
 }
 
 // Put implements [backend.Backend].
 func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	revision := newRevision()
+	i.Expires = i.Expires.UTC()
 	if _, err := pgcommon.Retry(ctx, b.log, func() (struct{}, error) {
 		_, err := b.pool.Exec(ctx,
 			"INSERT INTO kv (key, value, expires, revision) VALUES ($1, $2, $3, $4)"+
 				" ON CONFLICT (key) DO UPDATE SET"+
 				" value = excluded.value, expires = excluded.expires, revision = excluded.revision",
-			nonNil(i.Key), nonNil(i.Value), zeronull.Timestamptz(i.Expires.UTC()), revision)
+			nonNil(i.Key), nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision)
 		return struct{}{}, trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return newLease(i), nil
+	i.Revision = revisionToString(revision)
+	return backend.NewLease(i), nil
 }
 
 // CompareAndSwap implements [backend.Backend].
-func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
+func (b *Backend) CompareAndSwap(ctx context.Context, expected, replaceWith backend.Item) (*backend.Lease, error) {
 	if !bytes.Equal(expected.Key, replaceWith.Key) {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 
 	revision := newRevision()
+	replaceWith.Expires = replaceWith.Expires.UTC()
 	swapped, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
 		tag, err := b.pool.Exec(ctx,
 			"UPDATE kv SET value = $1, expires = $2, revision = $3"+
 				" WHERE kv.key = $4 AND kv.value = $5 AND (kv.expires IS NULL OR kv.expires > now())",
-			nonNil(replaceWith.Value), zeronull.Timestamptz(replaceWith.Expires.UTC()), revision,
+			nonNil(replaceWith.Value), zeronull.Timestamptz(replaceWith.Expires), revision,
 			nonNil(replaceWith.Key), nonNil(expected.Value))
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -328,17 +335,20 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	if !swapped {
 		return nil, trace.CompareFailed("key %q does not exist or does not match expected", replaceWith.Key)
 	}
-	return newLease(replaceWith), nil
+
+	replaceWith.Revision = revisionToString(revision)
+	return backend.NewLease(replaceWith), nil
 }
 
 // Update implements [backend.Backend].
 func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	revision := newRevision()
+	i.Expires = i.Expires.UTC()
 	updated, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
 		tag, err := b.pool.Exec(ctx,
 			"UPDATE kv SET value = $1, expires = $2, revision = $3"+
 				" WHERE kv.key = $4 AND (kv.expires IS NULL OR kv.expires > now())",
-			nonNil(i.Value), zeronull.Timestamptz(i.Expires.UTC()), revision, nonNil(i.Key))
+			nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision, nonNil(i.Key))
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -351,7 +361,41 @@ func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 	if !updated {
 		return nil, trace.NotFound("key %q does not exist", i.Key)
 	}
-	return newLease(i), nil
+
+	i.Revision = revisionToString(revision)
+	return backend.NewLease(i), nil
+}
+
+func (b *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backend.Lease, error) {
+	expectedRevision, ok := revisionFromString(i.Revision)
+	if !ok {
+		return nil, trace.Wrap(backend.ErrIncorrectRevision)
+	}
+
+	newRevision := newRevision()
+	i.Expires = i.Expires.UTC()
+	updated, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
+		tag, err := b.pool.Exec(ctx,
+			"UPDATE kv SET value = $1, expires = $2, revision = $3 "+
+				"WHERE kv.key = $4 AND kv.revision = $5 AND "+
+				"(kv.expires IS NULL OR kv.expires > now())",
+			nonNil(i.Value), zeronull.Timestamptz(i.Expires), newRevision,
+			nonNil(i.Key), expectedRevision)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		return tag.RowsAffected() > 0, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !updated {
+		return nil, trace.Wrap(backend.ErrIncorrectRevision)
+	}
+
+	i.Revision = revisionToString(newRevision)
+	return backend.NewLease(i), nil
 }
 
 // Get implements [backend.Backend].
@@ -366,9 +410,9 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 			" WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", nonNil(key),
 		).QueryRow(func(row pgx.Row) error {
 			var value []byte
-			var expires zeronull.Timestamptz
-			var revision uuid.UUID
-			if err := row.Scan(&value, &expires, (*[16]byte)(&revision)); err != nil {
+			var expires time.Time
+			var revision revision
+			if err := row.Scan(&value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {
 				if errors.Is(err, pgx.ErrNoRows) {
 					return nil
 				}
@@ -376,10 +420,11 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 			}
 
 			item = &backend.Item{
-				Key:     key,
-				Value:   value,
-				Expires: time.Time(expires).UTC(),
-				ID:      idFromRevision(revision),
+				Key:      key,
+				Value:    value,
+				Expires:  expires.UTC(),
+				ID:       idFromRevision(revision),
+				Revision: revisionToString(revision),
 			}
 			return nil
 		})
@@ -423,16 +468,17 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 			var err error
 			items, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
 				var key, value []byte
-				var expires zeronull.Timestamptz
-				var revision uuid.UUID
-				if err := row.Scan(&key, &value, &expires, (*[16]byte)(&revision)); err != nil {
+				var expires time.Time
+				var revision revision
+				if err := row.Scan(&key, &value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {
 					return backend.Item{}, err
 				}
 				return backend.Item{
-					Key:     key,
-					Value:   value,
-					Expires: time.Time(expires).UTC(),
-					ID:      idFromRevision(revision),
+					Key:      key,
+					Value:    value,
+					Expires:  expires.UTC(),
+					ID:       idFromRevision(revision),
+					Revision: revisionToString(revision),
 				}, nil
 			})
 			return trace.Wrap(err)
@@ -467,6 +513,32 @@ func (b *Backend) Delete(ctx context.Context, key []byte) error {
 
 	if !deleted {
 		return trace.NotFound("key %q does not exist", key)
+	}
+	return nil
+}
+
+func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string) error {
+	expectedRevision, ok := revisionFromString(rev)
+	if !ok {
+		return trace.Wrap(backend.ErrIncorrectRevision)
+	}
+
+	deleted, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
+		tag, err := b.pool.Exec(ctx,
+			"DELETE FROM kv WHERE kv.key = $1 AND kv.revision = $2 AND "+
+				"(kv.expires IS NULL OR kv.expires > now())",
+			nonNil(key), expectedRevision)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		return tag.RowsAffected() > 0, nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !deleted {
+		return trace.Wrap(backend.ErrIncorrectRevision)
 	}
 	return nil
 }

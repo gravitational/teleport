@@ -38,10 +38,9 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { useUrlFiltering, useInfiniteScroll } from 'teleport/components/hooks';
-
 import { UnifiedResource } from 'teleport/services/agents';
 
-import { ResourceCard, LoadingCard, resourceName } from './ResourceCard';
+import { ResourceCard, LoadingCard } from './ResourceCard';
 import SearchPanel from './SearchPanel';
 import { FilterPanel } from './FilterPanel';
 import './unifiedStyles.css';
@@ -160,7 +159,7 @@ export function Resources() {
         ))}
         {/* Using index as key here is ok because these elements never change order */}
         {attempt.status === 'processing' &&
-          loadingCardArray.map((_, i) => <LoadingCard key={i} />)}
+          loadingCardArray.map((_, i) => <LoadingCard delay="short" key={i} />)}
       </ResourcesContainer>
       <div ref={setScrollDetector} />
       <ListFooter>
@@ -182,8 +181,21 @@ export function Resources() {
   );
 }
 
-function resourceKey(resource: UnifiedResource) {
-  return `${resource.kind}/${resourceName(resource)}`;
+export function resourceKey(resource: UnifiedResource) {
+  if (resource.kind === 'node') {
+    return `${resource.hostname}/node`;
+  }
+  return `${resource.name}/${resource.kind}`;
+}
+
+export function resourceName(resource: UnifiedResource) {
+  if (resource.kind === 'app' && resource.friendlyName) {
+    return resource.friendlyName;
+  }
+  if (resource.kind === 'node') {
+    return resource.hostname;
+  }
+  return resource.name;
 }
 
 function NoResults({ query }: { query: string }) {

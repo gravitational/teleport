@@ -223,6 +223,9 @@ func (k *Key) authorizedHostKeys(hostnames ...string) ([]ssh.PublicKey, error) {
 // TeleportClientTLSConfig returns client TLS configuration used
 // to authenticate against API servers.
 func (k *Key) TeleportClientTLSConfig(cipherSuites []uint16, clusters []string) (*tls.Config, error) {
+	if len(k.TLSCert) == 0 {
+		return nil, trace.NotFound("TLS certificate not found")
+	}
 	return k.clientTLSConfig(cipherSuites, k.TLSCert, clusters)
 }
 
@@ -399,6 +402,9 @@ func canAddToSystemAgent(agentKey agent.AddedKey) bool {
 // TeleportTLSCertificate returns the parsed x509 certificate for
 // authentication against Teleport APIs.
 func (k *Key) TeleportTLSCertificate() (*x509.Certificate, error) {
+	if len(k.TLSCert) == 0 {
+		return nil, trace.NotFound("TLS certificate not found")
+	}
 	return tlsca.ParseCertificatePEM(k.TLSCert)
 }
 
@@ -491,7 +497,7 @@ func (k *Key) SSHSigner() (ssh.Signer, error) {
 // SSHCert returns parsed SSH certificate
 func (k *Key) SSHCert() (*ssh.Certificate, error) {
 	if k.Cert == nil {
-		return nil, trace.NotFound("SSH cert not available")
+		return nil, trace.NotFound("SSH cert not found")
 	}
 	return sshutils.ParseCertificate(k.Cert)
 }

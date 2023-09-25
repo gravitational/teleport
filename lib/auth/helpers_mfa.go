@@ -274,6 +274,7 @@ func (d *TestDevice) solveRegisterTOTP(c *proto.MFARegisterChallenge) (*proto.MF
 		Response: &proto.MFARegisterResponse_TOTP{
 			TOTP: &proto.TOTPRegisterResponse{
 				Code: code,
+				ID:   c.GetTOTP().ID,
 			},
 		},
 	}, nil

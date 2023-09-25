@@ -120,6 +120,10 @@ func (tm *testHostUserBackend) DeleteUser(user string) error {
 	return nil
 }
 
+func (tm *testHostUserBackend) CreateHomeDirectory(user, uid, gid string) error {
+	return nil
+}
+
 // RemoveSudoersFile implements HostUsersBackend
 func (tm *testHostUserBackend) RemoveSudoersFile(user string) error {
 	delete(tm.sudoers, user)
@@ -145,7 +149,12 @@ func (tm *testHostUserBackend) WriteSudoersFile(user string, entries []byte) err
 	return nil
 }
 
+func (*testHostUserBackend) RemoveAllSudoersFiles() error {
+	return nil
+}
+
 var _ HostUsersBackend = &testHostUserBackend{}
+var _ HostSudoersBackend = &testHostUserBackend{}
 
 func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 	t.Parallel()
@@ -202,25 +211,24 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		backend: backend,
 		storage: pres,
 	}
+	sudoers := HostSudoersManagement{
+		backend: backend,
+	}
 
 	closer, err := users.CreateUser("bob", &services.HostUsersInfo{
-		Groups:  []string{"hello", "sudo"},
-		Sudoers: []string{"validsudoers"},
-		Mode:    types.CreateHostUserMode_HOST_USER_MODE_DROP,
+		Groups: []string{"hello", "sudo"},
+		Mode:   types.CreateHostUserMode_HOST_USER_MODE_DROP,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, closer)
 
+	require.Empty(t, backend.sudoers)
+	sudoers.WriteSudoers("bob", []string{"validsudoers"})
 	require.Equal(t, map[string]string{"bob": "bob validsudoers"}, backend.sudoers)
+	sudoers.RemoveSudoers("bob")
 
 	require.NoError(t, closer.Close())
 	require.Empty(t, backend.sudoers)
-	_, err = users.CreateUser("bob", &services.HostUsersInfo{
-		Groups:  []string{"hello", "sudo"},
-		Sudoers: []string{"invalid"},
-		Mode:    types.CreateHostUserMode_HOST_USER_MODE_DROP,
-	})
-	require.Error(t, err)
 
 	t.Run("no teleport-service group", func(t *testing.T) {
 		backend := newTestUserMgmt()
