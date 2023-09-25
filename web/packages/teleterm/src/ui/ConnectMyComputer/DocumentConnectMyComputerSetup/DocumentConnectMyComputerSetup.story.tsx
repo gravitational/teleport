@@ -16,8 +16,6 @@
 
 import React, { useEffect, useRef, useLayoutEffect } from 'react';
 
-import { wait } from 'shared/utils/wait';
-
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
@@ -80,7 +78,9 @@ export function InProgress() {
   }, []);
 
   appContext.connectMyComputerService.downloadAgent = () =>
-    wait(24 * 3600 * 100, ref.current.signal);
+    new Promise(resolve => {
+      ref.current.signal.addEventListener('abort', () => resolve(undefined));
+    });
 
   return <ShowState cluster={cluster} appContext={appContext} />;
 }
