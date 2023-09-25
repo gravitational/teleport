@@ -59,11 +59,16 @@ $ sudo chown teleport:teleport /var/lib/teleport/bot
 
 Next, the token that was generated when the bot was created using `tctl` must
 be written to disk. As this token is sensitive, we want to ensure that this
-can only be read by `tbot`:
+can only be read by `tbot`. Execute the following, replacing `teleport` with the
+Linux user that you will run `tbot` as and `(=presets.tokens.first=)` with the
+token returned by `tctl bots add`:
 
 ```code
+# Write the token you received when running `tctl bots add` to a file
 $ echo "(=presets.tokens.first=)" | sudo tee /var/lib/teleport/bot/token
+# Set the file permissions so it can only be accessed by its owner
 $ sudo chmod 700 /var/lib/teleport/bot/token
+# Set the owner of the file to the Linux user that `tbot` will run as:
 $ sudo chown teleport:teleport /var/lib/teleport/bot/token
 ```
 
