@@ -81,9 +81,11 @@ func TestGRPCErrorWrapping(t *testing.T) {
 	})
 
 	t.Run("stream interceptor", func(t *testing.T) {
+		//nolint:staticcheck // SA1019. The specific stream used here doesn't matter.
 		stream, err := client.AddMFADevice(context.Background())
 		require.NoError(t, err)
 
+		//nolint:staticcheck // SA1019. The specific stream used here doesn't matter.
 		sendErr := stream.Send(&proto.AddMFADeviceRequest{})
 
 		// io.EOF means the server closed the stream, which can
