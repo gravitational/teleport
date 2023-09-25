@@ -371,7 +371,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 const logInterval = 10000
 
 // WatchEvents returns a new stream of cluster events
-func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_WatchEventsServer) error {
+func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_WatchEventsServer) (err error) {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
 		return trace.Wrap(err)
@@ -382,40 +382,43 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
 
-	watcher, err := auth.NewWatcher(stream.Context(), servicesWatch)
+	events, err := auth.NewStream(stream.Context(), servicesWatch)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer watcher.Close()
 
-	for {
-		select {
-		case <-stream.Context().Done():
-			return nil
-		case <-watcher.Done():
-			return watcher.Error()
-		case event := <-watcher.Events():
-			if role, ok := event.Resource.(*types.RoleV6); ok {
-				downgraded, err := maybeDowngradeRole(stream.Context(), role)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				event.Resource = downgraded
-			}
-			out, err := client.EventToGRPC(event)
+	defer func() {
+		serr := events.Done()
+		if err == nil {
+			err = serr
+		}
+	}()
+
+	for events.Next() {
+		event := events.Item()
+		if role, ok := event.Resource.(*types.RoleV6); ok {
+			downgraded, err := maybeDowngradeRole(stream.Context(), role)
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			event.Resource = downgraded
+		}
+		out, err := client.EventToGRPC(event)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-			size := float64(proto.Size(out))
-			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(size)
-			watcherEventSizes.Observe(size)
+		size := float64(proto.Size(out))
+		watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(size)
+		watcherEventSizes.Observe(size)
 
-			if err := stream.Send(out); err != nil {
-				return trace.Wrap(err)
-			}
+		if err := stream.Send(out); err != nil {
+			return trace.Wrap(err)
 		}
 	}
+
+	// defferred cleanup func will inject stream error if needed
+	return nil
 }
 
 // resourceLabel returns the label for the provided types.Event

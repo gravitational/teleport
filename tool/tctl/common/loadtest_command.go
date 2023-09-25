@@ -23,6 +23,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -33,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -43,12 +45,16 @@ type LoadtestCommand struct {
 
 	nodeHeartbeats *kingpin.CmdClause
 
+	watch *kingpin.CmdClause
+
 	count       int
 	churn       int
 	labels      int
 	interval    time.Duration
 	ttl         time.Duration
 	concurrency int
+
+	kind string
 }
 
 // Initialize allows LoadtestCommand to plug itself into the CLI parser
@@ -65,6 +71,10 @@ func (c *LoadtestCommand) Initialize(app *kingpin.Application, config *servicecf
 	c.nodeHeartbeats.Flag("concurrency", "Max concurrent requests").Default(
 		strconv.Itoa(runtime.NumCPU() * 16),
 	).IntVar(&c.concurrency)
+
+	c.watch = loadtest.Command("watch", "Monitor event stream").Hidden()
+	c.watch.Flag("kind", "Resource kind(s) to watch").StringVar(&c.kind)
+
 }
 
 // TryRun takes the CLI command as an argument (like "loadtest node-heartbeats") and executes it.
@@ -72,6 +82,8 @@ func (c *LoadtestCommand) TryRun(ctx context.Context, cmd string, client auth.Cl
 	switch cmd {
 	case c.nodeHeartbeats.FullCommand():
 		err = c.NodeHeartbeats(ctx, client)
+	case c.watch.FullCommand():
+		err = c.Watch(ctx, client)
 	default:
 		return false, nil
 	}
@@ -199,5 +211,82 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client auth.Client
 			fmt.Println("")
 			return nil
 		}
+	}
+}
+
+func (c *LoadtestCommand) Watch(ctx context.Context, client auth.ClientI) error {
+	var kinds []types.WatchKind
+	for _, kind := range strings.Split(c.kind, ",") {
+		kind = strings.TrimSpace(kind)
+		if kind == "" {
+			continue
+		}
+
+		kinds = append(kinds, types.WatchKind{
+			Kind: kind,
+		})
+	}
+
+	var allowPartialSuccess bool
+	if len(kinds) == 0 {
+		// use auth watch kinds by default
+		ccfg := cache.ForAuth(cache.Config{})
+		kinds = ccfg.Watches
+		allowPartialSuccess = true
+	}
+
+	watcher, err := client.NewWatcher(ctx, types.Watch{
+		Name:                "tctl-watch",
+		Kinds:               kinds,
+		AllowPartialSuccess: allowPartialSuccess,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer watcher.Close()
+
+	select {
+	case event := <-watcher.Events():
+		if event.Type != types.OpInit {
+			return trace.BadParameter("expected init event, got %v instead", event.Type)
+		}
+
+		var skinds []string
+		for _, k := range event.Resource.(types.WatchStatus).GetKinds() {
+			skinds = append(skinds, k.Kind)
+		}
+
+		fmt.Printf("INIT: %v\n", skinds)
+	case <-watcher.Done():
+		return trace.Errorf("failed to get init event: %v", watcher.Error())
+	}
+
+	for {
+		select {
+		case event := <-watcher.Events():
+			switch event.Type {
+			case types.OpPut:
+				printEvent("PUT", event.Resource)
+			case types.OpDelete:
+				printEvent("DEL", event.Resource)
+			default:
+				return trace.BadParameter("expected put or del event, got %v instead", event.Type)
+			}
+		case <-watcher.Done():
+			if ctx.Err() != nil {
+				// canceled by caller
+				return nil
+			}
+			return trace.Errorf("watcher exited unexpectedly: %v", watcher.Error())
+		}
+	}
+}
+
+func printEvent(ekind string, rsc types.Resource) {
+	if sk := rsc.GetSubKind(); sk != "" {
+		fmt.Printf("%s: %s/%s/%s\n", ekind, rsc.GetKind(), sk, rsc.GetName())
+	} else {
+		fmt.Printf("%s: %s/%s\n", ekind, rsc.GetKind(), rsc.GetName())
 	}
 }
