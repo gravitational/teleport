@@ -44,16 +44,24 @@ value as it will be needed when configuring `tbot`.
 
 ### Step 3/4. Configure `tbot`
 
-Create the bot data directory and grant permissions to access it to the Linux
-user (in our example, `teleport`) which `tbot` will run as.
+First, prepare the directory that `tbot` will use to persist its state. This
+directory should only be readable and writable by the Linux user (in our
+example, `teleport`) that `tbot` will run as:
 
 ```code
 # Make the bot directory and assign ownership to teleport user
 $ sudo mkdir -p /var/lib/teleport/bot
-$ echo "TODO BOT TOKEN" > /var/lib/teleport/bot/token
 $ sudo chown teleport:teleport /var/lib/teleport/bot
-# Allow teleport user to open directory
-$ sudo chmod +x /var/lib/teleport /var/lib/teleport/bot
+```
+
+Next, the token that was generated when the bot was created using `tctl` must
+be written to disk. As this token is sensitive, we want to ensure that this
+can only be read by `tbot`:
+
+```code
+$ echo "(=presets.tokens.first=)" | sudo tee /var/lib/teleport/bot/token
+$ sudo chmod 700 /var/lib/teleport/bot/token
+$ sudo chown teleport:teleport /var/lib/teleport/bot/token
 ```
 
 Create `/etc/tbot.yaml`:
@@ -72,7 +80,7 @@ storage:
 outputs: []
 ```
 
-(!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
+(!docs/pages/includes/machine-id/daemon.mdx!)
 
 ### Step 4/4. Configure Outputs
 

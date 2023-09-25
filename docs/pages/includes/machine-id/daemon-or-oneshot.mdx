@@ -3,46 +3,14 @@ Now, you must configure `tbot` for either daemon or one-shot mode.
 In daemon mode, `tbot` runs continually, renewing the short-lived credentials
 for the configured outputs on a fixed interval. This is often combined with a
 service supervisor (such as systemd) in order to run `tbot` in the background.
+This is useful ... TODO
 
 In one-shot mode, `tbot` generated its outputs and then exits. This is useful
-in scenarios
+in scenarios ... TODO
 
 #### Configuring `tbot` as a daemon
 
-Create `/etc/systemd/system/tbot.service`:
-
-```code
-[Unit]
-Description=Teleport Machine ID Service
-After=network.target
-
-[Service]
-Type=simple
-User=teleport
-Group=teleport
-Restart=on-failure
-ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
-ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/run/tbot.pid
-LimitNOFILE=524288
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable the service so that it starts on boot and then start the service:
-
-```code
-$ sudo systemctl daemon-reload
-$ sudo systemctl enable tbot
-$ sudo systemctl start tbot
-```
-
-Check the service has started successfully:
-
-```code
-$ sudo systemctl status tbot
-```
+(!docs/pages/includes/machine-id/daemon.mdx!)
 
 #### Configuring `tbot` for one-shot mode
 
@@ -55,8 +23,10 @@ oneshot: true
 auth_server: ...
 ```
 
-Check that `tbot` works correctly:
+Start `tbot` to ensure that it works correctly:
 
 ```code
 $ tbot start -c /etc/tbot.yaml
 ```
+
+It should start, emit some log lines and then exit with status 0.

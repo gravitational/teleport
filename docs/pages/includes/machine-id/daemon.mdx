@@ -1,0 +1,34 @@
+Create `/etc/systemd/system/tbot.service`:
+
+```code
+[Unit]
+Description=Teleport Machine ID Service
+After=network.target
+
+[Service]
+Type=simple
+User=teleport
+Group=teleport
+Restart=on-failure
+ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/run/tbot.pid
+LimitNOFILE=524288
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable the service so that it starts on boot and then start the service:
+
+```code
+$ sudo systemctl daemon-reload
+$ sudo systemctl enable tbot
+$ sudo systemctl start tbot
+```
+
+Check the service has started successfully:
+
+```code
+$ sudo systemctl status tbot
+```
