@@ -55,9 +55,8 @@ type Engine struct {
 	clientConn net.Conn
 	// sessionCtx is current session context.
 	sessionCtx *common.Session
-	// GetSigningCredsFn allows to set the function responsible for obtaining STS credentials.
-	// Used in tests to set static AWS credentials and skip API call.
-	GetSigningCredsFn libaws.GetSigningCredentialsFunc
+	// CredentialsGetter is used to obtain STS credentials.
+	CredentialsGetter libaws.CredentialsGetter
 }
 
 // InitializeConnection initializes the engine with the client connection.
@@ -139,9 +138,9 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 		return trace.Wrap(err)
 	}
 	signer, err := libaws.NewSigningService(libaws.SigningServiceConfig{
-		Clock:                 e.Clock,
-		Session:               awsSession,
-		GetSigningCredentials: e.GetSigningCredsFn,
+		Clock:             e.Clock,
+		Session:           awsSession,
+		CredentialsGetter: e.CredentialsGetter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
