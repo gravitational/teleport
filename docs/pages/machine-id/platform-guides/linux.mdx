@@ -22,6 +22,8 @@ This guide will...
 
 - (!docs/pages/includes/tctl.mdx!)
 - A Linux host that you wish to install Machine ID onto.
+- A Linux user on that host that you wish Machine ID to run as. In the guide,
+  we will use `teleport` for this.
 
 ### Step 1/4. Install `tbot`
 
@@ -45,8 +47,9 @@ value as it will be needed when configuring `tbot`.
 ### Step 3/4. Configure `tbot`
 
 First, prepare the directory that `tbot` will use to persist its state. This
-directory should only be readable and writable by the Linux user (in our
-example, `teleport`) that `tbot` will run as:
+directory should only be readable and writable by the Linux user that `tbot`
+will run as. Execute the following, replacing `teleport` with the Linux user
+that you will run `tbot` as:
 
 ```code
 # Make the bot directory and assign ownership to teleport user
