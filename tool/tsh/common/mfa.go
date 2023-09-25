@@ -325,33 +325,17 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 
 		// TODO(awly): mfa: move this logic somewhere under /lib/auth/, closer
 		// to the server logic. The CLI layer should ideally be thin.
-		stream, err := aci.AddMFADevice(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		// Init.
+
 		usage := proto.DeviceUsage_DEVICE_USAGE_MFA
 		if c.allowPasswordless {
 			usage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
 		}
-		if err := stream.Send(&proto.AddMFADeviceRequest{Request: &proto.AddMFADeviceRequest_Init{
-			Init: &proto.AddMFADeviceRequestInit{
-				DeviceName:  c.devName,
-				DeviceType:  devTypePB,
-				DeviceUsage: usage,
-			},
-		}}); err != nil {
-			return trace.Wrap(err)
-		}
 
-		// Auth challenge using existing device.
-		resp, err := stream.Recv()
+		// Issue the authn challenge.
+		// Required for the registration challenge.
+		authChallenge, err := aci.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
 		if err != nil {
 			return trace.Wrap(err)
-		}
-		authChallenge := resp.GetExistingMFAChallenge()
-		if authChallenge == nil {
-			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_ExistingMFAChallenge", resp.Response)
 		}
 
 		// Tweak Windows platform messages so it's clear we whether we are prompting
@@ -363,52 +347,46 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		defer wanwin.ResetPromptPlatformMessage()
 		wanwin.PromptPlatformMessage = registeredMsg
 
-		authResp, err := tc.NewMFAPrompt(mfa.WithPromptDevicePrefix("*registered*"))(ctx, authChallenge)
+		// Prompt for authentication.
+		// Does nothing if no challenges were issued (aka user has no devices).
+		authnResp, err := tc.NewMFAPrompt(mfa.WithPromptDevicePrefix("*registered*"))(ctx, authChallenge)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := stream.Send(&proto.AddMFADeviceRequest{Request: &proto.AddMFADeviceRequest_ExistingMFAResponse{
-			ExistingMFAResponse: authResp,
-		}}); err != nil {
-			return trace.Wrap(err)
-		}
 
-		// Registration challenge for new device.
-		resp, err = stream.Recv()
+		// Issue the registration challenge.
+		registerChallenge, err := aci.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			ExistingMFAResponse: authnResp,
+			DeviceType:          devTypePB,
+			DeviceUsage:         usage,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		regChallenge := resp.GetNewMFARegisterChallenge()
-		if regChallenge == nil {
-			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_NewMFARegisterChallenge", resp.Response)
-		}
 
+		// Prompt for registration.
 		wanwin.PromptPlatformMessage = newMsg
-		regResp, regCallback, err := promptRegisterChallenge(ctx, tc.WebProxyAddr, c.devType, regChallenge)
+		registerResp, registerCallback, err := promptRegisterChallenge(ctx, tc.WebProxyAddr, c.devType, registerChallenge)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := stream.Send(&proto.AddMFADeviceRequest{Request: &proto.AddMFADeviceRequest_NewMFARegisterResponse{
-			NewMFARegisterResponse: regResp,
-		}}); err != nil {
-			regCallback.Rollback()
-			return trace.Wrap(err)
-		}
 
-		// Receive registered device ack.
-		resp, err = stream.Recv()
+		// Complete registration and confirm new key.
+		addResp, err := aci.AddMFADeviceSync(ctx, &proto.AddMFADeviceSyncRequest{
+			NewDeviceName:  c.devName,
+			NewMFAResponse: registerResp,
+			DeviceUsage:    usage,
+		})
 		if err != nil {
-			// Don't rollback here, the registration may have been successful.
+			registerCallback.Rollback() // Attempt to delete new key.
 			return trace.Wrap(err)
 		}
-		ack := resp.GetAck()
-		if ack == nil {
-			// Don't rollback here, the registration may have been successful.
-			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_Ack", resp.Response)
+		if err := registerCallback.Confirm(); err != nil {
+			return trace.Wrap(err)
 		}
-		dev = ack.Device
 
-		return regCallback.Confirm()
+		dev = addResp.Device
+		return nil
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -526,9 +504,14 @@ func promptTOTPRegisterChallenge(ctx context.Context, c *proto.TOTPRegisterChall
 		}
 		fmt.Printf("TOTP code must be exactly %d digits long, try again\n", c.Digits)
 	}
-	return &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
-		TOTP: &proto.TOTPRegisterResponse{Code: totpCode},
-	}}, nil
+	return &proto.MFARegisterResponse{
+		Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{
+				Code: totpCode,
+				ID:   c.ID,
+			},
+		},
+	}, nil
 }
 
 func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, error) {

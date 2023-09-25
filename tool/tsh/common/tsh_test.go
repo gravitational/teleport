@@ -21,6 +21,9 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -44,6 +47,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	yamlv2 "gopkg.in/yaml.v2"
 
@@ -182,6 +186,10 @@ func handleReexec() {
 }
 
 type cliModules struct{}
+
+func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+	return &types.AccessRequestAllowedPromotions{}, nil
+}
 
 // BuildType returns build type (OSS or Enterprise)
 func (p *cliModules) BuildType() string {
@@ -324,7 +332,7 @@ func TestAlias(t *testing.T) {
 			t.Setenv(tshBinMainTestEnv, "1")
 
 			// write config to use
-			config := &TshConfig{Aliases: tt.aliases}
+			config := &TSHConfig{Aliases: tt.aliases}
 			configBytes, err := yamlv2.Marshal(config)
 			require.NoError(t, err)
 			err = os.WriteFile(filepath.Join(tmpHomePath, "tsh_global.yaml"), configBytes, 0o777)
@@ -878,7 +886,7 @@ func TestMakeClient(t *testing.T) {
 	conf.NodePort = 46528
 	conf.LocalForwardPorts = []string{"80:remote:180"}
 	conf.DynamicForwardedPorts = []string{":8080"}
-	conf.TshConfig.ExtraHeaders = []ExtraProxyHeaders{
+	conf.TSHConfig.ExtraHeaders = []ExtraProxyHeaders{
 		{Proxy: "proxy:3080", Headers: map[string]string{"A": "B"}},
 		{Proxy: "*roxy:3080", Headers: map[string]string{"C": "D"}},
 		{Proxy: "*hello:3080", Headers: map[string]string{"E": "F"}}, // shouldn't get included
@@ -5055,6 +5063,85 @@ func TestBenchmarkMySQL(t *testing.T) {
 			}
 			require.NotEmpty(t, errorLine, "expected benchmark to fail")
 			require.Contains(t, errorLine, tc.expectedErrContains)
+		})
+	}
+}
+
+func TestLogout(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	privPEM, err := keys.MarshalPrivateKey(key)
+	require.NoError(t, err)
+	privateKey, err := keys.NewPrivateKey(key, privPEM)
+	require.NoError(t, err)
+	clientKey := &client.Key{
+		KeyIndex: client.KeyIndex{
+			ProxyHost:   "proxy",
+			Username:    "user",
+			ClusterName: "cluster",
+		},
+		PrivateKey: privateKey,
+	}
+	profile := &profile.Profile{
+		WebProxyAddr: clientKey.ProxyHost,
+		Username:     clientKey.Username,
+		SiteName:     clientKey.ClusterName,
+	}
+
+	for _, tt := range []struct {
+		name         string
+		modifyKeyDir func(t *testing.T, homePath string)
+	}{
+		{
+			name:         "normal home dir",
+			modifyKeyDir: func(t *testing.T, homePath string) {},
+		}, {
+			name: "public key missing",
+			modifyKeyDir: func(t *testing.T, homePath string) {
+				pubKeyPath := keypaths.PublicKeyPath(homePath, clientKey.ProxyHost, clientKey.Username)
+				require.NoError(t, os.Remove(pubKeyPath))
+			},
+		}, {
+			name: "private key missing",
+			modifyKeyDir: func(t *testing.T, homePath string) {
+				privKeyPath := keypaths.UserKeyPath(homePath, clientKey.ProxyHost, clientKey.Username)
+				require.NoError(t, os.Remove(privKeyPath))
+			},
+		}, {
+			name: "public key mismatch",
+			modifyKeyDir: func(t *testing.T, homePath string) {
+				newKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+				require.NoError(t, err)
+				sshPub, err := ssh.NewPublicKey(newKey.Public())
+				require.NoError(t, err)
+
+				pubKeyPath := keypaths.PublicKeyPath(homePath, clientKey.ProxyHost, clientKey.Username)
+				err = os.WriteFile(pubKeyPath, ssh.MarshalAuthorizedKey(sshPub), 0600)
+				require.NoError(t, err)
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpHomePath := t.TempDir()
+
+			store := client.NewFSClientStore(tmpHomePath)
+			err = store.AddKey(clientKey)
+			require.NoError(t, err)
+			store.SaveProfile(profile, true)
+
+			tt.modifyKeyDir(t, tmpHomePath)
+
+			_, err := os.Lstat(tmpHomePath)
+			require.NoError(t, err)
+
+			err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
+
+			// direcory should be empty.
+			f, err := os.Open(tmpHomePath)
+			require.NoError(t, err)
+			_, err = f.Readdir(1)
+			require.ErrorIs(t, err, io.EOF)
 		})
 	}
 }

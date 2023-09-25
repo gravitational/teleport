@@ -48,12 +48,10 @@ func ToResourceHeaderProto(resourceHeader header.ResourceHeader) *headerv1.Resou
 
 // FromMetadataProto converts v1 metadata into an internal metadata object.
 func FromMetadataProto(msg *headerv1.Metadata) header.Metadata {
-	// We map the Zero protobuf time to the zero go time.
-	// We have to do this because protobuf's zero is epoch and std's zero time
-	// is year 1 of the gregorian calendar.
-	expires := msg.Expires.AsTime()
-	if expires.Unix() == 0 {
-		expires = time.Time{}
+	// We map the zero protobuf time (nil) to the zero go time.
+	var expires time.Time
+	if msg.Expires != nil {
+		expires = msg.Expires.AsTime()
 	}
 
 	return header.Metadata{
@@ -61,17 +59,25 @@ func FromMetadataProto(msg *headerv1.Metadata) header.Metadata {
 		Description: msg.Description,
 		Labels:      msg.Labels,
 		Expires:     expires,
-		ID:          msg.Id,
+		ID:          msg.Id, //nolint:staticcheck // Keep propagating ID until it's entirely replaced by revision.
+		Revision:    msg.Revision,
 	}
 }
 
 // ToMetadataProto converts an internal metadata object into a v1 metadata protobuf message.
 func ToMetadataProto(metadata header.Metadata) *headerv1.Metadata {
+	// We map the zero go time to the zero protobuf time (nil).
+	var expires *timestamppb.Timestamp
+	if !metadata.Expires.IsZero() {
+		expires = timestamppb.New(metadata.Expires)
+	}
+
 	return &headerv1.Metadata{
 		Name:        metadata.Name,
 		Description: metadata.Description,
 		Labels:      metadata.Labels,
-		Expires:     timestamppb.New(metadata.Expires),
-		Id:          metadata.ID,
+		Expires:     expires,
+		Id:          metadata.ID, //nolint:staticcheck // Keep propagating ID until it's entirely replaced by revision.
+		Revision:    metadata.Revision,
 	}
 }

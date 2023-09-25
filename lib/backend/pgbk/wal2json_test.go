@@ -113,8 +113,6 @@ func TestMessage(t *testing.T) {
 
 	m := &wal2jsonMessage{
 		Action: "I",
-		Schema: "public",
-		Table:  "kv",
 		Columns: []wal2jsonColumn{
 			{Name: "key", Type: "bytea", Value: s("")},
 			{Name: "expires", Type: "bytea", Value: s("")},
@@ -126,15 +124,8 @@ func TestMessage(t *testing.T) {
 	_, err := m.Events()
 	require.ErrorContains(t, err, "missing column")
 
-	m.Table = "notkv"
-	evs, err := m.Events()
-	require.NoError(t, err)
-	require.Empty(t, evs)
-
 	m = &wal2jsonMessage{
 		Action: "I",
-		Schema: "public",
-		Table:  "kv",
 		Columns: []wal2jsonColumn{
 			{Name: "key", Type: "bytea", Value: s("")},
 			{Name: "value", Type: "bytea", Value: s("")},
@@ -148,8 +139,6 @@ func TestMessage(t *testing.T) {
 
 	m = &wal2jsonMessage{
 		Action: "I",
-		Schema: "public",
-		Table:  "kv",
 		Columns: []wal2jsonColumn{
 			{Name: "key", Type: "bytea", Value: s("666f6f")},
 			{Name: "value", Type: "bytea", Value: s("")},
@@ -158,7 +147,7 @@ func TestMessage(t *testing.T) {
 		},
 		Identity: []wal2jsonColumn{},
 	}
-	evs, err = m.Events()
+	evs, err := m.Events()
 	require.NoError(t, err)
 	require.Len(t, evs, 1)
 	require.Empty(t, cmp.Diff(evs[0], backend.Event{
@@ -171,15 +160,8 @@ func TestMessage(t *testing.T) {
 		},
 	}))
 
-	m.Table = "notkv"
-	evs, err = m.Events()
-	require.NoError(t, err)
-	require.Empty(t, evs)
-
 	m = &wal2jsonMessage{
 		Action: "U",
-		Schema: "public",
-		Table:  "kv",
 		Columns: []wal2jsonColumn{
 			{Name: "value", Type: "bytea", Value: s("666f6f32")},
 			{Name: "expires", Type: "timestamp with time zone", Value: nil},
@@ -205,8 +187,6 @@ func TestMessage(t *testing.T) {
 
 	m = &wal2jsonMessage{
 		Action: "U",
-		Schema: "public",
-		Table:  "kv",
 		Columns: []wal2jsonColumn{
 			{Name: "key", Type: "bytea", Value: s("666f6f32")},
 			{Name: "value", Type: "bytea", Value: s("666f6f32")},
@@ -243,8 +223,6 @@ func TestMessage(t *testing.T) {
 
 	m = &wal2jsonMessage{
 		Action: "U",
-		Schema: "public",
-		Table:  "kv",
 		Columns: []wal2jsonColumn{
 			{Name: "value", Type: "bytea", Value: s("666f6f32")},
 		},
@@ -260,8 +238,6 @@ func TestMessage(t *testing.T) {
 
 	m = &wal2jsonMessage{
 		Action: "D",
-		Schema: "public",
-		Table:  "kv",
 		Identity: []wal2jsonColumn{
 			{Name: "key", Type: "bytea", Value: s("666f6f")},
 			{Name: "value", Type: "bytea", Value: s("")},

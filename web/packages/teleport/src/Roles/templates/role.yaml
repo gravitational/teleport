@@ -16,17 +16,26 @@ spec:
     kubernetes_users:
     - '{{internal.kubernetes_users}}'
     - 'dev'
+
+    # List of Kubernetes resources users can access with this role
+    # This example allows access to all resources in all namespaces
+    kubernetes_resources:
+    - kind: '*'
+      namespace: '*'
+      name: '*'
+      verbs: ['*']
+
     # List of allowed SSH logins
     logins: ['{{internal.logins}}', ubuntu, debian]
 
     # List of node labels that users can SSH into
     node_labels:
       '*': '*'
-      
+
     # List of application labels users can access
-    app_labels:    
+    app_labels:
       '*': '*'
-      
+
     # List of database labels users can access database servers
     db_labels:
       '*': '*'
@@ -38,7 +47,7 @@ spec:
     db_users:
     - '{{internal.db_users}}'
     - developer
-    
+
     # List of windows desktop access labels that users can open desktop sessions to
     windows_desktop_labels:
       '*': '*'
@@ -71,4 +80,4 @@ spec:
       # Limits user credentials to 8 hours. After the time to live (TTL) expires,
       # users must re-login
       max_session_ttl: 8h0m0s
-version: v5
+version: v7
