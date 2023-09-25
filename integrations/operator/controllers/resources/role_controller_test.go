@@ -90,7 +90,7 @@ allow:
   - ubuntu
   - root
 options:
-	create_host_user_mode: 2
+  create_host_user_mode: 2
 `,
 			shouldFail: false,
 			expectedSpec: &types.RoleSpecV6{
@@ -110,7 +110,7 @@ allow:
   - ubuntu
   - root
 options:
-	create_host_user_mode: "keep"
+  create_host_user_mode: keep
 `,
 			shouldFail: false,
 			expectedSpec: &types.RoleSpecV6{
