@@ -31,7 +31,7 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
+        uses: actions/checkout@v4 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
