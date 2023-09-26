@@ -1,0 +1,33 @@
+teleport:
+  nodename: 
+  log:
+    output: stdout
+    severity: DEBUG
+
+  data_dir: /var/lib/teleport
+  storage:
+    type: postgresql
+    conn_string: postgresql://root@crdb:26257/teleport_backend?sslmode=verify-full&sslrootcert=/certs/ca.crt&sslcert=/certs/root.crt&sslkey=/certs/root.key&sslmode=verify-full&pool_max_conns=20
+    change_feed_conn_string: postgresql://root@crdb:26257/teleport_backend??sslmode=verify-full&sslrootcert=/certs/ca.crt&sslcert=/certs/root.crt&sslkey=/certs/root.key&sslmode=verify-full&pool_max_conns=20
+    audit_events_uri:
+      - file:///var/lib/teleport/log'
+
+auth_service:
+  enabled: yes
+  license_file: /etc/teleport/teleport.license
+  cluster_name: teleport
+  tokens: 
+  - "node,auth,proxy:foo"
+  proxy_listener_mode: multiplex
+  authentication:
+    second_factor: off
+
+ssh_service:
+  enabled: yes
+
+proxy_service:
+  enabled: yes
+  web_listen_addr: 0.0.0.0:3080
+  public_addr:
+  - teleport:3080
+  - localhost:3080

@@ -250,7 +250,7 @@ var schemas = []string{
 		creation_time timestamptz NOT NULL DEFAULT now(),
 		CONSTRAINT events_pkey PRIMARY KEY (event_time, event_id)
 	);
-	CREATE INDEX events_creation_time_idx ON events USING brin (creation_time);
+	CREATE INDEX events_creation_time_idx ON events (creation_time);
 	CREATE INDEX events_search_session_events_idx ON events (session_id, event_time, event_id)
 		WHERE session_id != '00000000-0000-0000-0000-000000000000';`,
 }

@@ -214,7 +214,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	b.wg.Add(1)
 	go func() {
 		defer b.wg.Done()
-		b.backgroundChangeFeed(ctx)
+		b.backgroundChangeFeed2(ctx)
 	}()
 
 	return b, nil
@@ -250,8 +250,6 @@ var schemas = []string{
 		CONSTRAINT kv_pkey PRIMARY KEY (key)
 	);
 	CREATE INDEX kv_expires_idx ON kv (expires) WHERE expires IS NOT NULL;`,
-	`ALTER TABLE kv REPLICA IDENTITY FULL;
-	CREATE PUBLICATION kv_pub FOR TABLE kv;`,
 }
 
 var _ backend.Backend = (*Backend)(nil)

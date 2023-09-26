@@ -1,0 +1,23 @@
+version: '3.5'
+
+services:
+  crdb:
+    image: cockroachdb/cockroach:v23.1.10
+    ports:
+      - "26257:26257"
+      - "8080:8080"
+    command: start-single-node --certs-dir=/certs
+    volumes:
+      - "${PWD}/data/crdb:/cockroach/cockroach-data"
+      - "${PWD}/certs:/certs"
+      - "${PWD}/cockroach:/scripts"
+  teleport:
+    image: 599519581022.dkr.ecr.us-west-2.amazonaws.com/teleport-local-build:14.0.0-david-599429b973-20230922-1047
+    ports:
+      - "4080:3080"
+    command:
+      -c /etc/teleport/teleport.yaml
+    volumes:
+      - "${PWD}/data/teleport:/var/lib/teleport"
+      - "${PWD}/certs:/certs"
+      - "${PWD}/teleport:/etc/teleport"
