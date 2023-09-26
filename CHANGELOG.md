@@ -1,5 +1,25 @@
 # Changelog
 
+## 14.0.1 (09/26/23)
+
+* Fixed issue where Teleport Connect Kube terminal throws an internal server error [#32612](https://github.com/gravitational/teleport/pull/32612)
+* Fixed `create_host_user_mode` issue with TeleportRole in the Teleport Operator CRDs [#32557](https://github.com/gravitational/teleport/pull/32557)
+* Fixed issue that allowed for duplicate Access List owners [#32481](https://github.com/gravitational/teleport/pull/32481)
+* Removed unnecessary permission requirement from PostgreSQL backend [#32474](https://github.com/gravitational/teleport/pull/32474)
+* Added feature allowing for managing host sudoers without also creating users [#32400](https://github.com/gravitational/teleport/pull/32400)
+* Fixed dynamic labels not being present on server access audit events [#32382](https://github.com/gravitational/teleport/pull/32382)
+* Added PostHog events for discovered Kubernetes Apps [#32379](https://github.com/gravitational/teleport/pull/32379)
+* Fixed issue where changing the cluster name leads to cluster being unaccessible [#32352](https://github.com/gravitational/teleport/pull/32352)
+* Added additional logging for when the Teleport process file is not accessible due to a permission issue upon startup [#32348](https://github.com/gravitational/teleport/pull/32348)
+* Fixed issue where the `teleport-kube-agent` Helm chart would created the same `ServiceAccount` multiple times [#32338](https://github.com/gravitational/teleport/pull/32338)
+* Fixed GCP VM auto-discovery bugs [#32316](https://github.com/gravitational/teleport/pull/32316)
+* Added Access List usage events [#32297](https://github.com/gravitational/teleport/pull/32297)
+* Allowed for including only traits when doing a JWT rewrite for web application access [#32291](https://github.com/gravitational/teleport/pull/32291)
+* Added `IneligibleStatus` fields for access list members and owners [#32278](https://github.com/gravitational/teleport/pull/32278)
+* Fixed issue where the auth server was listed twice in the inventory of connected resources [#32270](https://github.com/gravitational/teleport/pull/32270)
+* Added three second shutdown delay on on `SIGINT`/`SIGTERM` [#32189](https://github.com/gravitational/teleport/pull/32189)
+* Add initial ServiceNow plugin [#32131](https://github.com/gravitational/teleport/pull/32131)
+
 ## 14.0.0 (09/20/23)
 
 Teleport 14 brings the following new major features and improvements:
