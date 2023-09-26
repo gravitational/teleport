@@ -12,7 +12,7 @@ use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::PduParsing;
 use ironrdp_session::x224::Processor as X224Processor;
-use ironrdp_session::{custom_err, reason_err, SessionError};
+use ironrdp_session::{reason_err, SessionError};
 use ironrdp_tls::TlsStream;
 use ironrdp_tokio::{Framed, TokioStream};
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
@@ -130,16 +130,14 @@ impl Client {
         self
     }
 
-    /// Spawns a task for running the RDP loop which:
-    /// 1. Reads new frames from the RDP server and sends them to Go.
-    /// 2. Listens on the Client's function_receiver for function calls
+    /// Spawns separate tasks for the input and output loops:
+    ///
+    /// 1. Read Loop: reads new messages from the RDP server and processes them.
+    ///
+    /// 2. Write Loop: listens on the Client's function_receiver for function calls
     ///    which it then executes.
     ///
-    /// Returns immediately with a receiver which callers are expected to listen
-    /// on in case of any errors, or until a [`ClientFunction::Stop`] is received.
-    ///
-    /// The caller is responsible for ensuring that the future spawned by this function
-    /// eventually returns. Failure to do so can result in a leak.
+    /// When either loop returns, the other is aborted and the result is returned.
     async fn run_loops(mut self) -> Result<(), ClientError> {
         let read_stream = self
             .read_stream
@@ -166,39 +164,25 @@ impl Client {
             .take()
             .ok_or_else(|| ClientError::InternalError)?;
 
-        let read_loop_handle = Client::run_read_loop(
+        let mut read_loop_handle = Client::run_read_loop(
             self.cgo_handle,
             read_stream,
             x224_processor,
             write_requester,
         );
 
-        let write_loop_handle = Client::run_write_loop(write_stream, write_receiver);
+        let mut write_loop_handle = Client::run_write_loop(write_stream, write_receiver);
 
         // Wait for either loop to finish. When one does, abort the other and return the result.
-        match futures_util::future::try_select(read_loop_handle, write_loop_handle).await {
-            // One of the loops finished successfully. Abort the other and return the result.
-            Ok(either) => match either {
-                futures_util::future::Either::Left((read_loop_res, write_loop_handle)) => {
-                    write_loop_handle.abort();
-                    read_loop_res
-                }
-                futures_util::future::Either::Right((write_loop_res, read_loop_handle)) => {
-                    read_loop_handle.abort();
-                    write_loop_res
-                }
+        tokio::select! {
+            res = &mut read_loop_handle => {
+                write_loop_handle.abort();
+                res?
             },
-            // One of the loops panicked. Abort the other and return the error.
-            Err(either) => match either {
-                futures_util::future::Either::Left((read_loop_panic, write_loop_handle)) => {
-                    write_loop_handle.abort();
-                    Err(read_loop_panic.into())
-                }
-                futures_util::future::Either::Right((write_loop_panic, read_loop_handle)) => {
-                    read_loop_handle.abort();
-                    Err(write_loop_panic.into())
-                }
-            },
+            res = &mut write_loop_handle => {
+                read_loop_handle.abort();
+                res?
+            }
         }
     }
 
@@ -212,6 +196,7 @@ impl Client {
             loop {
                 let (action, mut frame) = read_stream.read_pdu().await?;
                 match action {
+                    // Fast-path PDU, send to the browser for processing / rendering.
                     ironrdp_pdu::Action::FastPath => {
                         global::TOKIO_RT
                             .spawn_blocking(move || unsafe {
@@ -224,7 +209,10 @@ impl Client {
                             .await?
                     }
                     ironrdp_pdu::Action::X224 => {
+                        // X224 PDU, process it and send any immediate response frames to the write loop
+                        // for writing to the RDP server.
                         let x224_processor = x224_processor.clone();
+                        // Process x224 frame.
                         let res = global::TOKIO_RT
                             .spawn_blocking(move || {
                                 x224_processor
@@ -239,6 +227,7 @@ impl Client {
                                     .process(&frame)
                             })
                             .await??;
+                        // Send response frames to write loop for writing to RDP server.
                         write_requester
                             .send(ClientFunction::WriteRawPdu(res))
                             .await?;
@@ -266,6 +255,7 @@ impl Client {
                             Client::write_raw_pdu(&mut write_stream, args).await?;
                         }
                         ClientFunction::Stop => {
+                            // Stop this write loop. The read loop will then be stopped by the caller.
                             return Ok(());
                         }
                     },
@@ -282,7 +272,7 @@ impl Client {
         key: CGOKeyboardEvent,
     ) -> Result<(), ClientError> {
         let mut fastpath_events = Vec::new();
-        // TODO(isaiah): impl From for this
+
         let mut flags: KeyboardFlags = KeyboardFlags::empty();
         if !key.down {
             flags = KeyboardFlags::RELEASE;
@@ -303,7 +293,7 @@ impl Client {
         pointer: CGOMousePointerEvent,
     ) -> Result<(), ClientError> {
         let mut fastpath_events = Vec::new();
-        // TODO(isaiah): impl From for this
+
         let mut flags = match pointer.button {
             CGOPointerButton::PointerButtonLeft => PointerFlags::LEFT_BUTTON,
             CGOPointerButton::PointerButtonRight => PointerFlags::RIGHT_BUTTON,
@@ -371,7 +361,7 @@ pub enum ClientFunction {
     WriteRdpKey(CGOKeyboardEvent),
     /// Corresponds to [`Client::write_raw_pdu`]
     WriteRawPdu(Vec<u8>),
-    /// Causes the looping futures spawned by run_rdp_loop to return
+    /// Aborts the client by stopping both the read and write loops.
     Stop,
 }
 
