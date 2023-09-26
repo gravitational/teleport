@@ -68,6 +68,17 @@ func TestSearchEvents(t *testing.T) {
 	}
 
 	dynamoKeysetTimestamp := time.Date(2023, 4, 27, 8, 22, 58, 0, time.UTC)
+	keysetMiddleOfRange := &keyset{
+		t:   time.Date(2023, 4, 1, 12, 55, 0, 0, time.UTC),
+		uid: uuid.MustParse(uuidUsedInKeyset),
+	}
+
+	keysetFromDate := func(t time.Time) *keyset {
+		return &keyset{
+			t:   t,
+			uid: uuid.MustParse(uuidUsedInKeyset),
+		}
+	}
 
 	timeRangeParams := []string{toDateParam(fromUTC), toDateParam(toUTC), toAthenaTimestampParam(fromUTC), toAthenaTimestampParam(toUTC)}
 
@@ -112,6 +123,7 @@ func TestSearchEvents(t *testing.T) {
 		searchParams        *events.SearchEventsRequest
 		searchSessionParams *events.SearchSessionEventsRequest
 		queryResultsResps   [][]apievents.AuditEvent
+		disableQueryCostOpt bool
 		wantErr             string
 		check               func(t *testing.T, m *mockAthenaExecutor, paginationKey string)
 	}{
@@ -202,6 +214,164 @@ func TestSearchEvents(t *testing.T) {
 			},
 		},
 		{
+			name: "cost optimized query disabled",
+			searchParams: &events.SearchEventsRequest{
+				// range over 4 month, keyset in the middle of range,
+				From:     fromUTC,
+				To:       toUTC,
+				Limit:    100,
+				StartKey: keysetMiddleOfRange.ToKey(),
+			},
+			disableQueryCostOpt: true,
+			queryResultsResps:   singleCallResults(30),
+			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
+				wantSingleCallToAthena(t, mock)
+				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
+					` AND (event_time, uid) > (?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`)
+				wantQueryParams(t, mock,
+					toDateParam(keysetMiddleOfRange.t), toDateParam(toUTC), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(keysetMiddleOfRange.t), toAthenaTimestampParam(toUTC), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keysetMiddleOfRange.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+			},
+		},
+		{
+			name: "cost optimized query, 1h extended range returns enough results, asc",
+			searchParams: &events.SearchEventsRequest{
+				// range over 4 month, keyset in the middle of range,
+				From:     fromUTC,
+				To:       toUTC,
+				Limit:    100,
+				StartKey: keysetMiddleOfRange.ToKey(),
+			},
+			// we ask for 100 using limit and returned is 100. It means we have
+			// enough data and can return without extending range.
+			queryResultsResps: singleCallResults(100),
+			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
+				wantSingleCallToAthena(t, mock)
+				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
+					` AND (event_time, uid) > (?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`)
+				wantQueryParams(t, mock,
+					toDateParam(keysetMiddleOfRange.t), toDateParam(keysetMiddleOfRange.t.Add(1*time.Hour)), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(keysetMiddleOfRange.t), toAthenaTimestampParam(keysetMiddleOfRange.t.Add(1*time.Hour)), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keysetMiddleOfRange.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+			},
+		},
+		{
+			name: "cost optimized query, 1d extended range returns enough results, asc",
+			searchParams: &events.SearchEventsRequest{
+				// range over 4 month, keyset in the middle of range,
+				From:     fromUTC,
+				To:       toUTC,
+				Limit:    100,
+				StartKey: keysetMiddleOfRange.ToKey(),
+			},
+			// we ask for 100 using limit and in 2nd extended call no of returned
+			// is 100. It means we have enough data and can return without extending range.
+			queryResultsResps: [][]apievents.AuditEvent{sliceOfDummyEvents(35), sliceOfDummyEvents(100)},
+			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
+				wantCallsToAthena(t, mock, 2)
+				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
+					` AND (event_time, uid) > (?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`)
+				wantQueryParamsInCallNo(t, mock, 0,
+					toDateParam(keysetMiddleOfRange.t), toDateParam(keysetMiddleOfRange.t.Add(1*time.Hour)), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(keysetMiddleOfRange.t), toAthenaTimestampParam(keysetMiddleOfRange.t.Add(1*time.Hour)), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keysetMiddleOfRange.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+				wantQueryParamsInCallNo(t, mock, 1,
+					toDateParam(keysetMiddleOfRange.t), toDateParam(keysetMiddleOfRange.t.Add(24*time.Hour)), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(keysetMiddleOfRange.t), toAthenaTimestampParam(keysetMiddleOfRange.t.Add(24*time.Hour)), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keysetMiddleOfRange.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+			},
+		},
+		{
+			name: "cost optimized query, fallback to full range after not enough results in 5 calls, asc",
+			searchParams: &events.SearchEventsRequest{
+				// range over 4 month, keyset in the middle of range,
+				From:     fromUTC,
+				To:       toUTC,
+				Limit:    100,
+				StartKey: keysetMiddleOfRange.ToKey(),
+			},
+			// we ask for 100 using limit and 100 is never returned. We do full
+			// 5 calls with last one being on full range.
+			queryResultsResps: [][]apievents.AuditEvent{sliceOfDummyEvents(35), sliceOfDummyEvents(36), sliceOfDummyEvents(37), sliceOfDummyEvents(38), sliceOfDummyEvents(39)},
+			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
+				wantCallsToAthena(t, mock, 5)
+				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
+					` AND (event_time, uid) > (?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`)
+				wantQueryParamsInCallNo(t, mock, 0,
+					toDateParam(keysetMiddleOfRange.t), toDateParam(keysetMiddleOfRange.t.Add(1*time.Hour)), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(keysetMiddleOfRange.t), toAthenaTimestampParam(keysetMiddleOfRange.t.Add(1*time.Hour)), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keysetMiddleOfRange.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+				wantQueryParamsInCallNo(t, mock, 4,
+					toDateParam(keysetMiddleOfRange.t), toDateParam(toUTC), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(keysetMiddleOfRange.t), toAthenaTimestampParam(toUTC), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keysetMiddleOfRange.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+			},
+		},
+		{
+			name: "cost optimized query should not be triggered if time between ketset and end of range is < 24h, asc",
+			searchParams: &events.SearchEventsRequest{
+				From:     fromUTC,
+				To:       toUTC,
+				Limit:    100,
+				StartKey: keysetNearTo.ToKey(),
+			},
+			// Not full results to make sure fallback is not triggered.
+			queryResultsResps: singleCallResults(50),
+			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
+				wantSingleCallToAthena(t, mock)
+				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
+					` AND (event_time, uid) > (?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`)
+				wantQueryParams(t, mock,
+					// in ASC order and valid value in keyset, instead of from, use value from ketset.
+					toDateParam(keysetNearTo.t), toDateParam(toUTC), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(keysetNearTo.t), toAthenaTimestampParam(toUTC), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keysetNearTo.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+			},
+		},
+		{
+			name: "cost optimized query should not extend over initial end of range, asc",
+			searchParams: &events.SearchEventsRequest{
+				From:  fromUTC,
+				To:    toUTC,
+				Limit: 100,
+				// cost optimized ranges are 1h, 1d, 7d, 30d, max.
+				// if we are -26h from end of range,
+				// it should call +1h, +1d and max (7d and 30d extends max range).
+				StartKey: keysetFromDate(toUTC.Add(-26 * time.Hour)).ToKey(),
+			},
+			// Not full results to make sure fallback is not triggered.
+			queryResultsResps: [][]apievents.AuditEvent{sliceOfDummyEvents(35), sliceOfDummyEvents(36), sliceOfDummyEvents(37)},
+			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
+				keyset := keysetFromDate(toUTC.Add(-26 * time.Hour))
+				wantCallsToAthena(t, mock, 3)
+				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
+					` AND (event_time, uid) > (?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`)
+				wantQueryParamsInCallNo(t, mock, 0,
+					toDateParam(keyset.t), toDateParam(keyset.t.Add(1*time.Hour)), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(keyset.t), toAthenaTimestampParam(keyset.t.Add(1*time.Hour)), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keyset.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+				wantQueryParamsInCallNo(t, mock, 1,
+					toDateParam(keyset.t), toDateParam(keyset.t.Add(24*time.Hour)), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(keyset.t), toAthenaTimestampParam(keyset.t.Add(24*time.Hour)), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keyset.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+				wantQueryParamsInCallNo(t, mock, 2,
+					toDateParam(keyset.t), toDateParam(toUTC), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(keyset.t), toAthenaTimestampParam(toUTC), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keyset.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+			},
+		},
+		{
 			name: "query on time range DESC with keyset",
 			searchParams: &events.SearchEventsRequest{
 				From:  fromUTC,
@@ -222,6 +392,147 @@ func TestSearchEvents(t *testing.T) {
 					toDateParam(fromUTC), toDateParam(keysetNearFrom.t), // event_date BETWEEN date(?) AND date(?)
 					toAthenaTimestampParam(fromUTC), toAthenaTimestampParam(keysetNearFrom.t), // event_time BETWEEN ? and ?`
 					toAthenaTimestampParam(keysetNearFrom.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", // AND (event_time, uid) < (?,?)
+				)
+			},
+		},
+		{
+			name: "cost optimized query, 1h extended range returns enough results, desc",
+			searchParams: &events.SearchEventsRequest{
+				// range over 4 month, keyset in the middle of range,
+				From:     fromUTC,
+				To:       toUTC,
+				Limit:    100,
+				StartKey: keysetMiddleOfRange.ToKey(),
+				Order:    types.EventOrderDescending,
+			},
+			// we ask for 100 using limit and returned is 100. It means we have
+			// enough data and can return without extending range.
+			queryResultsResps: singleCallResults(100),
+			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
+				wantSingleCallToAthena(t, mock)
+				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
+					` AND (event_time, uid) < (?,?) ORDER BY event_time DESC, uid DESC LIMIT 100;`)
+				wantQueryParams(t, mock,
+					toDateParam(keysetMiddleOfRange.t.Add(-1*time.Hour)), toDateParam(keysetMiddleOfRange.t), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(keysetMiddleOfRange.t.Add(-1*time.Hour)), toAthenaTimestampParam(keysetMiddleOfRange.t), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keysetMiddleOfRange.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+			},
+		},
+		{
+			name: "cost optimized query, 1d extended range returns enough results, desc",
+			searchParams: &events.SearchEventsRequest{
+				// range over 4 month, keyset in the middle of range,
+				From:     fromUTC,
+				To:       toUTC,
+				Limit:    100,
+				StartKey: keysetMiddleOfRange.ToKey(),
+				Order:    types.EventOrderDescending,
+			},
+			// we ask for 100 using limit and in 2nd extended call no of returned
+			// is 100. It means we have enough data and can return without extending range.
+			queryResultsResps: [][]apievents.AuditEvent{sliceOfDummyEvents(35), sliceOfDummyEvents(100)},
+			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
+				wantCallsToAthena(t, mock, 2)
+				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
+					` AND (event_time, uid) < (?,?) ORDER BY event_time DESC, uid DESC LIMIT 100;`)
+				wantQueryParamsInCallNo(t, mock, 0,
+					toDateParam(keysetMiddleOfRange.t.Add(-1*time.Hour)), toDateParam(keysetMiddleOfRange.t), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(keysetMiddleOfRange.t.Add(-1*time.Hour)), toAthenaTimestampParam(keysetMiddleOfRange.t), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keysetMiddleOfRange.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+				wantQueryParamsInCallNo(t, mock, 1,
+					toDateParam(keysetMiddleOfRange.t.Add(-24*time.Hour)), toDateParam(keysetMiddleOfRange.t), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(keysetMiddleOfRange.t.Add(-24*time.Hour)), toAthenaTimestampParam(keysetMiddleOfRange.t), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keysetMiddleOfRange.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+			},
+		},
+		{
+			name: "cost optimized query, fallback to full range after not enough results in 5 calls, desc",
+			searchParams: &events.SearchEventsRequest{
+				// range over 4 month, keyset in the middle of range,
+				From:     fromUTC,
+				To:       toUTC,
+				Limit:    100,
+				StartKey: keysetMiddleOfRange.ToKey(),
+				Order:    types.EventOrderDescending,
+			},
+			// we ask for 100 using limit and 100 is never returned. We do full
+			// 5 calls with last one being on full range.
+			queryResultsResps: [][]apievents.AuditEvent{sliceOfDummyEvents(35), sliceOfDummyEvents(36), sliceOfDummyEvents(37), sliceOfDummyEvents(38), sliceOfDummyEvents(39)},
+			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
+				wantCallsToAthena(t, mock, 5)
+				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
+					` AND (event_time, uid) < (?,?) ORDER BY event_time DESC, uid DESC LIMIT 100;`)
+				wantQueryParamsInCallNo(t, mock, 0,
+					toDateParam(keysetMiddleOfRange.t.Add(-1*time.Hour)), toDateParam(keysetMiddleOfRange.t), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(keysetMiddleOfRange.t.Add(-1*time.Hour)), toAthenaTimestampParam(keysetMiddleOfRange.t), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keysetMiddleOfRange.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+				wantQueryParamsInCallNo(t, mock, 4,
+					toDateParam(fromUTC), toDateParam(keysetMiddleOfRange.t), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(fromUTC), toAthenaTimestampParam(keysetMiddleOfRange.t), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keysetMiddleOfRange.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+			},
+		},
+		{
+			name: "cost optimized query should not be triggered if time between ketset and end of range is < 24h, desc",
+			searchParams: &events.SearchEventsRequest{
+				From:     fromUTC,
+				To:       toUTC,
+				Limit:    100,
+				StartKey: keysetNearFrom.ToKey(),
+				Order:    types.EventOrderDescending,
+			},
+			// Not full results to make sure fallback is not triggered.
+			queryResultsResps: singleCallResults(50),
+			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
+				wantSingleCallToAthena(t, mock)
+				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
+					` AND (event_time, uid) < (?,?) ORDER BY event_time DESC, uid DESC LIMIT 100;`)
+				wantQueryParams(t, mock,
+					// in DESC order and valid value in keyset, instead of from, use value from ketset.
+					toDateParam(fromUTC), toDateParam(keysetNearFrom.t), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(fromUTC), toAthenaTimestampParam(keysetNearFrom.t), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keysetNearFrom.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", // AND (event_time, uid) < (?,?)
+				)
+			},
+		},
+		{
+			name: "cost optimized query should not extend over initial start of range, desc",
+			searchParams: &events.SearchEventsRequest{
+				From:  fromUTC,
+				To:    toUTC,
+				Limit: 100,
+				// cost optimized ranges are 1h, 1d, 7d, 30d, max.
+				// if we are 26h from start of range,
+				// it should call -1h, -1d and max (7d and 30d extends max range).
+				StartKey: keysetFromDate(fromUTC.Add(26 * time.Hour)).ToKey(),
+				Order:    types.EventOrderDescending,
+			},
+			// Not full results to make sure fallback is not triggered.
+			queryResultsResps: [][]apievents.AuditEvent{sliceOfDummyEvents(35), sliceOfDummyEvents(36), sliceOfDummyEvents(37)},
+			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
+				keyset := keysetFromDate(fromUTC.Add(26 * time.Hour))
+				wantCallsToAthena(t, mock, 3)
+				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
+					` AND (event_time, uid) < (?,?) ORDER BY event_time DESC, uid DESC LIMIT 100;`)
+				wantQueryParamsInCallNo(t, mock, 0,
+					toDateParam(keyset.t.Add(-1*time.Hour)), toDateParam(keyset.t), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(keyset.t.Add(-1*time.Hour)), toAthenaTimestampParam(keyset.t), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keyset.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+				wantQueryParamsInCallNo(t, mock, 1,
+					toDateParam(keyset.t.Add(-24*time.Hour)), toDateParam(keyset.t), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(keyset.t.Add(-24*time.Hour)), toAthenaTimestampParam(keyset.t), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keyset.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
+				)
+				wantQueryParamsInCallNo(t, mock, 2,
+					toDateParam(fromUTC), toDateParam(keyset.t), // event_date BETWEEN date(?) AND date(?)
+					toAthenaTimestampParam(fromUTC), toAthenaTimestampParam(keyset.t), // event_time BETWEEN ? and ?`
+					toAthenaTimestampParam(keyset.t), "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", //  AND (event_time, uid) > (?,?))
 				)
 			},
 		},
@@ -302,7 +613,8 @@ func TestSearchEvents(t *testing.T) {
 					logger:    utils.NewLoggerForTests(),
 					tracer:    tracing.NoopTracer(teleport.ComponentAthena),
 					// Use something > 0, to avoid default 600ms delay.
-					getQueryResultsInitialDelay: 1 * time.Microsecond,
+					getQueryResultsInitialDelay:  1 * time.Microsecond,
+					disableQueryCostOptimization: tt.disableQueryCostOpt,
 				},
 			}
 			var err error
