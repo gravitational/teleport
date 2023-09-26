@@ -154,6 +154,17 @@ OR operator and the policies from each role are evaluated using an AND operator.
 means that for every role with at least one require policy, one of its policies must be met before 
 a user assigned the role can start a session.
 
+### Requiring moderated sessions in a leaf cluster
+
+If you create a role with the `require_session_join` policy in a root cluster, only sessions started
+on resources in the root cluster are required to be moderated for the users assigned that role.
+If users assigned the role connect to resources in a leaf node, their sessions won't require moderation, 
+unless the mapped leaf role also requires moderation. To require moderated sessions in the leaf cluster,
+you must include the `require_session_join` policy in the mapped role defined on the leaf cluster.
+
+For more information about configuring trust relationships and role mapping between root and leaf 
+clusters, see [Configure Trusted Clusters](../../management/admin/trustedclusters.mdx).
+
 ## Configure an allow policy
 
 You can use `join_sessions` in a role to specify the sessions users can join and under what conditions 
