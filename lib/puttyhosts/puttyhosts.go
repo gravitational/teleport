@@ -238,3 +238,42 @@ func FormatHostCAPublicKeysForRegistry(hostCAPublicKeys map[string][]string, hos
 	}
 	return registryOutput
 }
+
+// SplitValidityKey processes PuTTY's "Validity" string key into individual list elements.
+// PuTTY uses a custom string format to represent what hostnames a given key should be trusted for.
+// See https://the.earth.li/~sgtatham/putty/0.79/htmldoc/Chapter4.html#config-ssh-cert-valid-expr for details.
+func SplitValidityKey(input string) []string {
+	var output []string
+	var stack []rune
+	var currentToken string
+
+	// Iterate over the input string and split out the hostnames inside it on the logical OR token "||"
+	// If any values are encountered inside parentheses (), ignore them and pass them through as-is.
+	// This is done to avoid implementing a full lexer as in https://git.tartarus.org/?p=simon/putty.git;a=blob;f=utils/cert-expr.c
+	// because we only care about the individual host elements inside.
+	for i := 0; i < len(input); i++ {
+		char := rune(input[i])
+
+		if char == '(' {
+			stack = append(stack, char)
+			currentToken += string(char)
+		} else if char == ')' {
+			if len(stack) > 0 {
+				stack = stack[:len(stack)-1]
+				currentToken += string(char)
+			}
+		} else if i <= len(input)-2 && input[i:i+2] == "||" && len(stack) == 0 {
+			output = append(output, strings.TrimSpace(currentToken))
+			currentToken = ""
+			i += 1 // skip past the other character in the token
+		} else {
+			currentToken += string(char)
+		}
+	}
+
+	if len(currentToken) > 0 {
+		output = append(output, strings.TrimSpace(currentToken))
+	}
+
+	return output
+}

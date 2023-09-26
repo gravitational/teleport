@@ -19,6 +19,7 @@ package common
 import (
 	"fmt"
 	"net"
+	"strings"
 	"syscall"
 
 	"github.com/gravitational/trace"
@@ -161,7 +162,8 @@ func addPuTTYSession(proxyHostname string, hostname string, port int, login stri
 	return nil
 }
 
-// addHostCAPublicKey adds a host CA to the registry with a set of space-separated hostnames
+// addHostCAPublicKey adds a host CA to the registry with a set of hostnames delimited by " || "
+// as per PuTTY's "Validity" syntax.
 func addHostCAPublicKey(registryHostCAStruct puttyhosts.HostCAPublicKeyForRegistry) error {
 	registryKeyName := fmt.Sprintf(`%v\%v`, puttyRegistrySSHHostCAsKey, registryHostCAStruct.KeyName)
 
@@ -171,7 +173,10 @@ func addHostCAPublicKey(registryHostCAStruct puttyhosts.HostCAPublicKeyForRegist
 		return trace.Wrap(err)
 	}
 	defer registryKey.Close()
-	hostList, _, err := registryKey.GetStringsValue("MatchHosts")
+
+	// get the "old" multistring-based MatchHosts value if present, so we can migrate it to the newer
+	// "Validity" format and then delete it.
+	matchHosts, _, err := registryKey.GetStringsValue("MatchHosts")
 	if err != nil {
 		// ERROR_FILE_NOT_FOUND is an acceptable error, meaning that the value does not already
 		// exist and it must be created
@@ -180,16 +185,44 @@ func addHostCAPublicKey(registryHostCAStruct puttyhosts.HostCAPublicKeyForRegist
 			return trace.Wrap(err)
 		}
 	}
-	// initialize an empty hostlist if there isn't one stored under the registry key
-	if len(hostList) == 0 {
-		hostList = []string{}
+
+	// get the "new" string-based Validity value if present.
+	validity, _, err := registryKey.GetStringValue("Validity")
+	if err != nil {
+		// ERROR_FILE_NOT_FOUND is an acceptable error, meaning that the value does not already
+		// exist and it must be created
+		if err != syscall.ERROR_FILE_NOT_FOUND {
+			log.Debugf("Can't get registry value %v: %T", registryKeyName, err)
+			return trace.Wrap(err)
+		}
+	}
+
+	// split the Validity key out into a list of individual hostnames (hostList)
+	hostList := puttyhosts.SplitValidityKey(validity)
+
+	// if matchHosts has any entries, we do a one-time migration of all the values from the "old" MatchHosts
+	//  multistring to the new Validity string, then delete the "MatchHosts" key.
+	if len(matchHosts) > 0 {
+		log.Debugf("Found %v legacy MatchHosts value(s) in registry key %v, migrating to new Validity format and deleting", len(matchHosts), registryKeyName)
+		hostList = append(hostList, matchHosts...)
+		err := registry.DeleteValueFromRegistryKey(registryKey, "MatchHosts")
+		// failure to delete this value isn't a fatal error, so we should continue regardless
+		if err != nil {
+			log.Debugf("Failed to delete old MatchHosts value: %v", err)
+		}
 	}
 
 	// add the new hostname to the existing hostList from the registry key (if one exists)
 	hostList = puttyhosts.AddHostToHostList(hostList, registryHostCAStruct.Hostname)
 
+	// Reconstruct the "Validity" string using our hostList, separated by " || ".
+	hostListValidity := strings.Join(hostList, " || ")
+
 	// write strings to subkey
-	if err := registry.WriteMultiString(registryKey, "MatchHosts", hostList); err != nil {
+	// In beta versions of PuTTY 0.78 and the initial release of 'tsh puttyconfig', the list of valid hosts was
+	// represented by a REG_MULTI_SZ called "MatchHosts". Newer versions of PuTTY, WinSCP and 'tsh puttyconfig' use
+	// and prefer the string-formatted "Validity" instead. PuTTY will ignore "MatchHosts" when "Validity" is set.
+	if err := registry.WriteString(registryKey, "Validity", hostListValidity); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := registry.WriteString(registryKey, "PublicKey", registryHostCAStruct.PublicKey); err != nil {
