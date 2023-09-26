@@ -2669,35 +2669,56 @@ func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params type
 	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if params.State.IsPromoted() {
+		return trace.BadParameter("state promoted can be only set when promoting to access list")
+	}
+
 	return a.authServer.SetAccessRequestState(ctx, params)
 }
 
-func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error) {
-	// review author defaults to username of caller.
-	if params.Review.Author == "" {
-		params.Review.Author = a.context.User.GetName()
-	}
-
-	// review author must match calling user, except in the case of the builtin admin role.  we make this
+// AuthorizeAccessReviewRequest checks if the current user is allowed to submit the given access review request.
+func AuthorizeAccessReviewRequest(context authz.Context, params types.AccessReviewSubmission) error {
+	// review author must match calling user, except in the case of the builtin admin role. we make this
 	// exception in order to allow for convenient testing with local tctl connections.
-	if !a.hasBuiltinRole(types.RoleAdmin) {
-		if params.Review.Author != a.context.User.GetName() {
-			return nil, trace.AccessDenied("user %q cannot submit reviews on behalf of %q", a.context.User.GetName(), params.Review.Author)
+	if !authz.HasBuiltinRole(context, string(types.RoleAdmin)) {
+		if params.Review.Author != context.User.GetName() {
+			return trace.AccessDenied("user %q cannot submit reviews on behalf of %q", context.User.GetName(), params.Review.Author)
 		}
 
 		// MaybeCanReviewRequests returns false positives, but it will tell us
 		// if the user definitely can't review requests, which saves a lot of work.
-		if !a.context.Checker.MaybeCanReviewRequests() {
-			return nil, trace.AccessDenied("user %q cannot submit reviews", a.context.User.GetName())
+		if !context.Checker.MaybeCanReviewRequests() {
+			return trace.AccessDenied("user %q cannot submit reviews", context.User.GetName())
 		}
+	}
+
+	return nil
+}
+
+func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission types.AccessReviewSubmission) (types.AccessRequest, error) {
+	// Prevent users from submitting access reviews with the "promoted" state.
+	// Promotion is only allowed by SubmitAccessReviewAllowPromotion API in the Enterprise module.
+	if submission.Review.ProposedState.IsPromoted() {
+		return nil, trace.BadParameter("state promoted can be only set when promoting to access list")
+	}
+
+	// review author defaults to username of caller.
+	if submission.Review.Author == "" {
+		submission.Review.Author = a.context.User.GetName()
+	}
+
+	// Check if the current user is allowed to submit the given access review request.
+	if err := AuthorizeAccessReviewRequest(a.context, submission); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// note that we haven't actually enforced any access-control other than requiring
 	// the author field to match the calling user.  fine-grained permissions are evaluated
 	// under optimistic locking at the level of the backend service.  the correctness of the
-	// author field is all that need be enforced at this level.
+	// author field is all that needs to be enforced at this level.
 
-	return a.authServer.SubmitAccessReview(ctx, params)
+	return a.authServer.SubmitAccessReview(ctx, submission)
 }
 
 func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {

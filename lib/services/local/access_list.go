@@ -26,6 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/backend"
@@ -295,6 +296,10 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	})
 
 	return accessList, membersIn, trace.Wrap(err)
+}
+
+func (a *AccessListService) AccessRequestPromote(_ context.Context, _ *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
+	return nil, trace.NotImplemented("AccessRequestPromote should not be called")
 }
 
 func lockName(accessListName string) string {
