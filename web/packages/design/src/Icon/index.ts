@@ -124,6 +124,7 @@ export { MoreVert } from './Icons/MoreVert';
 export { Mute } from './Icons/Mute';
 export { NewTab } from './Icons/NewTab';
 export { NoteAdded } from './Icons/NoteAdded';
+export { Notification } from './Icons/Notification';
 export { NotificationsActive } from './Icons/NotificationsActive';
 export { PaperPlane } from './Icons/PaperPlane';
 export { Pencil } from './Icons/Pencil';
