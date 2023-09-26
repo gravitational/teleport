@@ -10,9 +10,8 @@ services:
     volumes:
       - "${PWD}/data/crdb:/cockroach/cockroach-data"
       - "${PWD}/certs:/certs"
-      - "${PWD}/cockroach:/scripts"
   teleport:
-    image: 599519581022.dkr.ecr.us-west-2.amazonaws.com/teleport-local-build:14.0.0-david-599429b973-20230922-1047
+    image: 599519581022.dkr.ecr.us-west-2.amazonaws.com/teleport-local-build:14.0.0-cockroach-599429b973-20230926-1655
     ports:
       - "4080:3080"
     command:
@@ -21,3 +20,6 @@ services:
       - "${PWD}/data/teleport:/var/lib/teleport"
       - "${PWD}/certs:/certs"
       - "${PWD}/teleport:/etc/teleport"
+
+networks:
+  cockroach:

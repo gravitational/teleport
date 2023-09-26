@@ -3,10 +3,8 @@ package pgbk
 import (
 	"context"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func (b *Backend) backgroundChangeFeed2(ctx context.Context) {
@@ -65,7 +64,7 @@ func (b *Backend) runChangeFeed2(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	rows, err := conn.Query(ctx, "EXPERIMENTAL CHANGEFEED FOR kv WITH diff, no_initial_scan;")
+	rows, err := conn.Query(ctx, "EXPERIMENTAL CHANGEFEED FOR kv WITH diff;")
 	if err != nil {
 		return err
 	}
@@ -74,67 +73,89 @@ func (b *Backend) runChangeFeed2(ctx context.Context) error {
 	b.buf.SetInit()
 	defer b.buf.Reset()
 
-	cf := &changeFeed{}
+	m := conn.TypeMap()
 	for rows.Next() && ctx.Err() == nil {
-		err := rows.Scan(&cf.Table, &cf.Key, &cf.Value)
+		events, err := scanEvents(m, rows)
 		if err != nil {
-			return trace.Wrap(err)
-		}
-		events, err := cf.events()
-		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "scan events")
 		}
 		for _, event := range events {
-			b.log.Debugf("event for: %s", event.Item.Key)
+			// TODO(david): Remove debug logging here.
+			b.log.Debugf("event: %s", event.Item.Key)
 		}
 		b.buf.Emit(events...)
 	}
 	return nil
 }
 
-type changeFeed struct {
-	Table string `json:"table"`
-	Key   []byte `json:"key"`
-	Value []byte `json:"value"`
-}
-
-func (cf changeFeed) events() ([]backend.Event, error) {
-	var keys []HexData
-	if err := json.Unmarshal(cf.Key, &keys); err != nil {
-		return nil, trace.Wrap(err, "unable to unmarshal key")
-	}
-	e := backend.Event{
-		Item: backend.Item{
-			Key: []byte(keys[0]),
-		},
-	}
-	c := change{}
-	if err := json.Unmarshal(cf.Value, &c); err != nil {
-		return nil, trace.Wrap(err, "unable to unmarshal value")
-	}
-
-	if c.After == nil {
-		e.Type = types.OpDelete
-		return []backend.Event{e}, nil
-	}
-	e.Type = types.OpPut
-	item, err := c.After.toItem()
+func scanEvents(m *pgtype.Map, rows pgx.Rows) ([]backend.Event, error) {
+	var key, value []byte
+	err := rows.Scan(nil, &key, &value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	e.Item = item
-	if c.Before != nil && !reflect.DeepEqual(c.After.Key, c.Before.Key) {
-		item, err := c.Before.toItem()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return []backend.Event{{
-			Type: types.OpDelete,
-			Item: item,
-		}, e}, nil
+
+	var keys []string
+	if err := json.Unmarshal(key, &keys); err != nil {
+		return nil, trace.Wrap(err, "unmarshal keys")
+	}
+	if len(keys) != 1 {
+		return nil, trace.Wrap(err, "missing key")
 	}
 
-	return []backend.Event{e}, nil
+	err = m.Scan(pgtype.ByteaOID, pgtype.TextFormatCode, []byte(keys[0]), &key)
+	if err != nil {
+		return nil, trace.Wrap(err, "parse key")
+	}
+
+	c := change{}
+	if err := json.Unmarshal(value, &c); err != nil {
+		return nil, trace.Wrap(err, "unable to unmarshal value")
+	}
+	event := backend.Event{
+		Item: backend.Item{
+			Key: key,
+		},
+	}
+	if c.After == nil {
+		event.Type = types.OpDelete
+		return []backend.Event{event}, nil
+	}
+
+	event.Type = types.OpPut
+	if err := m.Scan(pgtype.ByteaOID, pgtype.TextFormatCode, []byte(c.After.Key), &event.Item.Key); err != nil {
+		return nil, trace.Wrap(err, "parse after key")
+	}
+	if err := m.Scan(pgtype.ByteaOID, pgtype.TextFormatCode, []byte(c.After.Value), &event.Item.Value); err != nil {
+		return nil, trace.Wrap(err, "parse after value")
+	}
+	if c.After.Expires != nil {
+		// TODO(david): Parse time with more precision.
+		event.Item.Expires, err = time.Parse("2006-01-02T15:04:05Z", *c.After.Expires)
+		if err != nil {
+			return nil, trace.Wrap(err, "parse after expires")
+		}
+	}
+
+	var revision string
+	if err := m.Scan(pgtype.UUIDOID, pgtype.TextFormatCode, []byte(c.After.Revision), &revision); err != nil {
+		return nil, trace.Wrap(err, "scanning revision on put")
+	}
+	event.Item.ID, err = idFromRevisionString(revision)
+	if err != nil {
+		return nil, trace.Wrap(err, "parse id from revision string")
+	}
+
+	// TODO(david): not sure if this is even possible.
+	if !reflect.DeepEqual(event.Item.Key, key) {
+		return []backend.Event{{
+			Type: types.OpDelete,
+			Item: backend.Item{
+				Key: key,
+			},
+		}, event}, nil
+	}
+	return []backend.Event{event}, nil
 }
 
 type change struct {
@@ -143,50 +164,13 @@ type change struct {
 }
 
 type kv struct {
-	Key      HexData `json:"key"`
-	Value    HexData `json:"value"`
+	Key      string  `json:"key"`
+	Value    string  `json:"value"`
 	Expires  *string `json:"expires"`
 	Revision string  `json:"revision"`
 }
 
-type HexData []byte
-
-func (h *HexData) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-	s = strings.TrimPrefix(s, "\\x")
-	decoded, err := hex.DecodeString(s)
-	if err != nil {
-		return err
-	}
-	*h = HexData(decoded)
-	return nil
-}
-
-func (kv *kv) toItem() (backend.Item, error) {
-	item := backend.Item{
-		Key:   kv.Key,
-		Value: kv.Value,
-	}
-
-	if kv.Expires != nil {
-		t, err := time.Parse("2006-01-02T15:04:05Z", *kv.Expires)
-		if err != nil {
-			return item, trace.Wrap(err)
-		}
-		item.Expires = t
-	}
-	var err error
-	item.ID, err = idFromRevision2(kv.Revision)
-	if err != nil {
-		return item, trace.Wrap(err)
-	}
-	return item, nil
-}
-
-func idFromRevision2(rev string) (int64, error) {
+func idFromRevisionString(rev string) (int64, error) {
 	uuid, err := uuid.Parse(rev)
 	if err != nil {
 		return 0, trace.Wrap(err)
