@@ -16,7 +16,9 @@ extern crate wasm_bindgen;
 extern crate web_sys;
 
 use ironrdp_graphics::image_processing::PixelFormat;
-use ironrdp_pdu::geometry::Rectangle;
+use ironrdp_pdu::geometry::{InclusiveRectangle, Rectangle};
+use ironrdp_pdu::write_buf::WriteBuf;
+use ironrdp_session::fast_path::UpdateKind;
 use ironrdp_session::image::DecodedImage;
 use ironrdp_session::{
     fast_path::Processor as IronRdpFastPathProcessor,
@@ -154,7 +156,7 @@ impl BitmapFrame {
 
 fn create_image_data_from_image_and_region(
     image_data: &[u8],
-    image_location: Rectangle,
+    image_location: InclusiveRectangle,
 ) -> Result<ImageData, JsValue> {
     ImageData::new_with_u8_clamped_array_and_sh(
         Clamped(image_data),
@@ -177,6 +179,7 @@ impl FastPathProcessor {
             fast_path_processor: IronRdpFastPathProcessorBuilder {
                 io_channel_id: 1003,   // todo(isaiah)
                 user_channel_id: 1004, // todo(isaiah)
+                no_server_pointer: true,
             }
             .build(),
             image: DecodedImage::new(PixelFormat::RgbA32, width, height),
@@ -193,39 +196,64 @@ impl FastPathProcessor {
         draw_cb: &js_sys::Function,
         respond_cb: &js_sys::Function,
     ) -> Result<(), JsValue> {
-        let mut output = Vec::new();
-        let tdp_fast_path_frame: RustRDPFastPathPDU = tdp_fast_path_frame.into();
+        let (rdp_responses, client_updates) = {
+            let mut output = WriteBuf::new();
+            let tdp_fast_path_frame: RustRDPFastPathPDU = tdp_fast_path_frame.into();
 
-        let graphics_update_region = self
-            .fast_path_processor
-            .process(&mut self.image, &tdp_fast_path_frame.data, &mut output)
-            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+            let processor_updates = self
+                .fast_path_processor
+                .process(&mut self.image, &tdp_fast_path_frame.data, &mut output)
+                .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
-        let mut fast_path_outputs = Vec::new();
+            (output.into_inner(), processor_updates)
+        };
 
-        if !output.is_empty() {
-            fast_path_outputs.push(ActiveStageOutput::ResponseFrame(output));
-        }
+        let outputs = {
+            let mut outputs = Vec::new();
 
-        if let Some(update_region) = graphics_update_region {
-            fast_path_outputs.push(ActiveStageOutput::GraphicsUpdate(update_region));
-        }
+            if !rdp_responses.is_empty() {
+                outputs.push(ActiveStageOutput::ResponseFrame(rdp_responses));
+            }
 
-        for out in fast_path_outputs {
-            match out {
+            for update in client_updates {
+                match update {
+                    UpdateKind::None => {}
+                    UpdateKind::Region(region) => {
+                        outputs.push(ActiveStageOutput::GraphicsUpdate(region));
+                    }
+                    UpdateKind::PointerDefault => {
+                        outputs.push(ActiveStageOutput::PointerDefault);
+                    }
+                    UpdateKind::PointerHidden => {
+                        outputs.push(ActiveStageOutput::PointerHidden);
+                    }
+                    UpdateKind::PointerPosition { x, y } => {
+                        outputs.push(ActiveStageOutput::PointerPosition { x, y });
+                    }
+                }
+            }
+
+            outputs
+        };
+
+        for output in outputs {
+            match output {
                 ActiveStageOutput::GraphicsUpdate(updated_region) => {
-                    // TODO(isaiah): wrap in its own function
+                    // Apply the updated region to the canvas.
                     let (image_location, image_data) =
                         extract_partial_image(&self.image, updated_region);
                     self.apply_image_to_canvas(image_data, image_location, cb_context, draw_cb)?;
                 }
                 ActiveStageOutput::ResponseFrame(frame) => {
-                    // TODO(isaiah): wrap in its own function
+                    // Send the response frame back to the server.
                     let frame = Uint8Array::from(frame.as_slice()); // todo(isaiah): this is a copy
                     let _ = respond_cb.call1(cb_context, &frame.buffer())?;
                 }
                 ActiveStageOutput::Terminate => {
                     return Err(JsValue::from_str("Terminate should never be returned"));
+                }
+                _ => {
+                    debug!("Unhandled ActiveStageOutput: {:?}", output);
                 }
             }
         }
@@ -236,7 +264,7 @@ impl FastPathProcessor {
     fn apply_image_to_canvas(
         &self,
         image_data: Vec<u8>,
-        image_location: Rectangle,
+        image_location: InclusiveRectangle,
         cb_context: &JsValue,
         callback: &js_sys::Function,
     ) -> Result<(), JsValue> {
@@ -258,7 +286,10 @@ impl FastPathProcessor {
     }
 }
 
-pub fn extract_partial_image(image: &DecodedImage, region: Rectangle) -> (Rectangle, Vec<u8>) {
+pub fn extract_partial_image(
+    image: &DecodedImage,
+    region: InclusiveRectangle,
+) -> (InclusiveRectangle, Vec<u8>) {
     // PERF: needs actual benchmark to find a better heuristic
     if region.height() > 64 || region.width() > 512 {
         extract_whole_rows(image, region)
@@ -268,7 +299,10 @@ pub fn extract_partial_image(image: &DecodedImage, region: Rectangle) -> (Rectan
 }
 
 // Faster for low-height and smaller images
-fn extract_smallest_rectangle(image: &DecodedImage, region: Rectangle) -> (Rectangle, Vec<u8>) {
+fn extract_smallest_rectangle(
+    image: &DecodedImage,
+    region: InclusiveRectangle,
+) -> (InclusiveRectangle, Vec<u8>) {
     let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
 
     let image_width = usize::try_from(image.width()).unwrap();
@@ -301,7 +335,10 @@ fn extract_smallest_rectangle(image: &DecodedImage, region: Rectangle) -> (Recta
 }
 
 // Faster for high-height and bigger images
-fn extract_whole_rows(image: &DecodedImage, region: Rectangle) -> (Rectangle, Vec<u8>) {
+fn extract_whole_rows(
+    image: &DecodedImage,
+    region: InclusiveRectangle,
+) -> (InclusiveRectangle, Vec<u8>) {
     let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
 
     let image_width = usize::try_from(image.width()).unwrap();
@@ -317,7 +354,7 @@ fn extract_whole_rows(image: &DecodedImage, region: Rectangle) -> (Rectangle, Ve
 
     let dst = src[src_begin..src_end].to_vec();
 
-    let wider_region = Rectangle {
+    let wider_region = InclusiveRectangle {
         left: 0,
         top: region.top,
         right: image.width() - 1,
