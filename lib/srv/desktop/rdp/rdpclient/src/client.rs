@@ -48,7 +48,7 @@ impl Client {
     ///
     /// This function hangs until the RDP session ends or a [`ClientFunction::Stop`] is dispatched
     /// (see [`global::call_function_on_handle`]).
-    pub fn run(cgo_handle: CgoHandle, params: ConnectParams) -> Result<(), ClientError> {
+    pub fn run(cgo_handle: CgoHandle, params: ConnectParams) -> ClientResult<()> {
         global::TOKIO_RT.block_on(async {
             Self::connect(cgo_handle, params)
                 .await?
@@ -59,7 +59,7 @@ impl Client {
     }
 
     /// Initializes the RDP connection with the given [`ConnectParams`].
-    async fn connect(cgo_handle: CgoHandle, params: ConnectParams) -> Result<Self, ClientError> {
+    async fn connect(cgo_handle: CgoHandle, params: ConnectParams) -> ClientResult<Self> {
         let server_addr = params.addr.clone();
         let server_socket_addr = server_addr.to_socket_addrs().unwrap().next().unwrap();
 
@@ -138,7 +138,7 @@ impl Client {
     ///    which it then executes.
     ///
     /// When either loop returns, the other is aborted and the result is returned.
-    async fn run_loops(mut self) -> Result<(), ClientError> {
+    async fn run_loops(mut self) -> ClientResult<()> {
         let read_stream = self
             .read_stream
             .take()
@@ -191,7 +191,7 @@ impl Client {
         mut read_stream: RdpReadStream,
         x224_processor: Arc<Mutex<X224Processor>>,
         write_requester: ClientHandle,
-    ) -> tokio::task::JoinHandle<Result<(), ClientError>> {
+    ) -> tokio::task::JoinHandle<ClientResult<()>> {
         global::TOKIO_RT.spawn(async move {
             loop {
                 let (action, mut frame) = read_stream.read_pdu().await?;
@@ -200,13 +200,14 @@ impl Client {
                     ironrdp_pdu::Action::FastPath => {
                         global::TOKIO_RT
                             .spawn_blocking(move || unsafe {
-                                handle_remote_fx_frame(
+                                let err_code = handle_remote_fx_frame(
                                     cgo_handle,
                                     frame.as_mut_ptr(),
                                     frame.len() as u32,
                                 );
+                                ClientResult::from(err_code)
                             })
-                            .await?
+                            .await??
                     }
                     ironrdp_pdu::Action::X224 => {
                         // X224 PDU, process it and send any immediate response frames to the write loop
@@ -240,7 +241,7 @@ impl Client {
     fn run_write_loop(
         mut write_stream: RdpWriteStream,
         mut write_receiver: FunctionReceiver,
-    ) -> tokio::task::JoinHandle<Result<(), ClientError>> {
+    ) -> tokio::task::JoinHandle<ClientResult<()>> {
         global::TOKIO_RT.spawn(async move {
             loop {
                 match write_receiver.recv().await {
@@ -270,7 +271,7 @@ impl Client {
     async fn write_rdp_key(
         write_stream: &mut RdpWriteStream,
         key: CGOKeyboardEvent,
-    ) -> Result<(), ClientError> {
+    ) -> ClientResult<()> {
         let mut fastpath_events = Vec::new();
 
         let mut flags: KeyboardFlags = KeyboardFlags::empty();
@@ -291,7 +292,7 @@ impl Client {
     async fn write_rdp_pointer(
         write_stream: &mut RdpWriteStream,
         pointer: CGOMousePointerEvent,
-    ) -> Result<(), ClientError> {
+    ) -> ClientResult<()> {
         let mut fastpath_events = Vec::new();
 
         let mut flags = match pointer.button {
@@ -335,10 +336,7 @@ impl Client {
     }
 
     /// Writes a fully encoded PDU to the RDP server.
-    async fn write_raw_pdu(
-        write_stream: &mut RdpWriteStream,
-        resp: Vec<u8>,
-    ) -> Result<(), ClientError> {
+    async fn write_raw_pdu(write_stream: &mut RdpWriteStream, resp: Vec<u8>) -> ClientResult<()> {
         write_stream.write_all(&resp).await?;
         Ok(())
     }
@@ -461,7 +459,7 @@ impl From<SessionError> for ClientError {
 }
 
 impl<T> From<SendError<T>> for ClientError {
-    fn from(value: SendError<T>) -> Self {
+    fn from(_value: SendError<T>) -> Self {
         ClientError::SendError
     }
 }
@@ -469,5 +467,16 @@ impl<T> From<SendError<T>> for ClientError {
 impl From<JoinError> for ClientError {
     fn from(e: JoinError) -> Self {
         ClientError::JoinError(e)
+    }
+}
+
+type ClientResult<T> = Result<T, ClientError>;
+
+impl From<CGOErrCode> for ClientResult<()> {
+    fn from(value: CGOErrCode) -> Self {
+        match value {
+            CGOErrCode::ErrCodeSuccess => Ok(()),
+            _ => Err(ClientError::from(value)),
+        }
     }
 }

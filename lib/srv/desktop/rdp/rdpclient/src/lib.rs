@@ -677,7 +677,7 @@ pub struct CGOSharedDirectoryListRequest {
 extern "C" {
     fn handle_png(client_ref: usize, b: *mut CGOPNG) -> CGOErrCode;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
-    fn handle_remote_fx_frame(client_ref: usize, data: *mut u8, len: u32);
+    fn handle_remote_fx_frame(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
     fn tdp_sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge)
         -> CGOErrCode;
     fn tdp_sd_info_request(

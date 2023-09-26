@@ -168,6 +168,11 @@ func New(cfg Config) (*Client, error) {
 // Run starts the rdp client and blocks until the client disconnects,
 // then ensures the cleanup is run.
 func (c *Client) Run(ctx context.Context) error {
+	// Create a handle to the client to pass to Rust.
+	// The handle is used to call back into this Client from Rust.
+	// Since the handle is created and deleted here, methods which
+	// rely on a valid c.handle can only be called between here and
+	// when this function returns.
 	c.handle = cgo.NewHandle(c)
 	defer c.handle.Delete()
 
@@ -184,19 +189,19 @@ func (c *Client) Run(ctx context.Context) error {
 
 	// Kick off rust RDP loop goroutine
 	go func() {
-		returnCh <- c.startRustRdpLoop(ctx)
+		returnCh <- c.startRustRdp(ctx)
 	}()
 
 	// Wait for either goroutine to return
 	err1 := <-returnCh
 
-	// If startRustRdpLoop returned first, this will
+	// If startRustRdp returned first, this will
 	// ensure the startInputStreaming goroutine returns.
 	close(stopCh)
 
 	// If startInputStreaming returned first, this will
-	// ensure the startRustRdpLoop goroutine returns.
-	c.stopRustRdpLoop()
+	// ensure the startRustRdp goroutine returns.
+	c.stopRustRdp()
 
 	// Catch the return value of whichever goroutine returned
 	// second.
@@ -240,7 +245,7 @@ func (c *Client) readClientSize() error {
 	}
 }
 
-func (c *Client) startRustRdpLoop(ctx context.Context) error {
+func (c *Client) startRustRdp(ctx context.Context) error {
 	c.cfg.Log.Info("Rust RDP loop starting")
 	defer c.cfg.Log.Info("Rust RDP loop finished")
 
@@ -279,7 +284,7 @@ func (c *Client) startRustRdpLoop(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) stopRustRdpLoop() {
+func (c *Client) stopRustRdp() {
 	C.client_stop(C.uintptr_t(c.handle))
 }
 
@@ -584,9 +589,9 @@ func (c *Client) handlePNG(cb *C.CGOPNG) C.CGOErrCode {
 }
 
 //export handle_remote_fx_frame
-func handle_remote_fx_frame(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) {
+func handle_remote_fx_frame(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
 	goData := asRustBackedSlice(data, int(length))
-	cgo.Handle(handle).Value().(*Client).handleRDPFastPathPDU(goData)
+	return cgo.Handle(handle).Value().(*Client).handleRDPFastPathPDU(goData)
 }
 
 func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
@@ -814,13 +819,14 @@ func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) 
 func (c *Client) close() {
 	c.closeOnce.Do(func() {
 		// Ensure the RDP connection is closed
-		// TODO(isaiah): do we need to close something here?
+		// TODO: do we need to do something to ensure a closed connection on the rust side (the rdp connection)?
 		if errCode := C.client_close_rdp(C.ulong(c.handle)); errCode != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("error closing the RDP connection")
 		} else {
 			c.cfg.Log.Debug("RDP connection closed successfully")
 		}
 
+		// TODO: can we consolidate this with the cleanup/close logic in Client::Run?
 		// Ensure the TDP connection is closed
 		if err := c.cfg.Conn.Close(); err != nil {
 			c.cfg.Log.Warningf("error closing the TDP connection: %v", err)
