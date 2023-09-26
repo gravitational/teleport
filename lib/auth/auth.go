@@ -5423,16 +5423,30 @@ func (a *Server) validateMFAAuthResponseForRegister(
 	ctx context.Context,
 	resp *proto.MFAAuthenticateResponse, username string, passwordless bool,
 ) (hasDevices bool, err error) {
+	// Let users without a useable device go through registration.
 	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil) {
 		devices, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
-		switch {
-		case err != nil:
+		if err != nil {
 			return false, trace.Wrap(err)
-		case len(devices) > 0:
+		}
+		if len(devices) == 0 {
+			// Allowed, no devices registered.
+			return false, nil
+		}
+
+		authPref, err := a.GetAuthPreference(ctx)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		totpEnabled := authPref.IsSecondFactorTOTPAllowed()
+		webauthnEnabled := authPref.IsSecondFactorWebauthnAllowed()
+
+		devsByType := groupByDeviceType(devices, webauthnEnabled)
+		if (totpEnabled && devsByType.TOTP) || (webauthnEnabled && len(devsByType.Webauthn) > 0) {
 			return false, trace.BadParameter("second factor authentication required")
 		}
 
-		// Allowed, but no devices registered.
+		// Allowed, no useable devices registered.
 		return false, nil
 	}
 
