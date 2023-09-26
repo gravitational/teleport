@@ -390,8 +390,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			)
 		}
 	}
-	if as.kubernetesTokenValidator == nil {
-		as.kubernetesTokenValidator = &kubernetestoken.Validator{}
+	if as.k8sTokenReviewValidator == nil {
+		as.k8sTokenReviewValidator = &kubernetestoken.TokenReviewValidator{}
+	}
+	if as.k8sJWKSValidator == nil {
+		as.k8sJWKSValidator = kubernetestoken.ValidateTokenWithJWKS
 	}
 
 	if as.gcpIDTokenValidator == nil {
@@ -407,6 +410,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Log:         log,
 		AccessLists: services,
 		Access:      services,
+		UsageEvents: &as,
 		Clock:       cfg.Clock,
 	})
 	if err != nil {
@@ -697,9 +701,14 @@ type Server struct {
 	// the auth server. It can be overridden for the purpose of tests.
 	circleCITokenValidate func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)
 
-	// kubernetesTokenValidator allows tokens from Kubernetes to be validated
-	// by the auth server. It can be overridden for the purpose of tests.
-	kubernetesTokenValidator kubernetesTokenValidator
+	// k8sTokenReviewValidator allows tokens from Kubernetes to be validated
+	// by the auth server using k8s Token Review API. It can be overridden for
+	// the purpose of tests.
+	k8sTokenReviewValidator k8sTokenReviewValidator
+	// k8sJWKSValidator allows tokens from Kubernetes to be validated
+	// by the auth server using a known JWKS. It can be overridden for the
+	// purpose of tests.
+	k8sJWKSValidator k8sJWKSValidator
 
 	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
 	// server. It can be overridden for the purpose of tests.
@@ -1292,9 +1301,6 @@ func (a *Server) updateVersionMetrics() {
 		versionCount[handle.Hello().Version]++
 	})
 
-	// record version for **THIS** auth server
-	versionCount[teleport.Version]++
-
 	// reset the gauges so that any versions that fall off are removed from exported metrics
 	registeredAgents.Reset()
 	for version, count := range versionCount {
@@ -1692,8 +1698,8 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 	}
 }
 
-// getUserOrLoginState will return the given user or the login state associated with the user.
-func (a *Server) getUserOrLoginState(ctx context.Context, username string) (services.UserState, error) {
+// GetUserOrLoginState will return the given user or the login state associated with the user.
+func (a *Server) GetUserOrLoginState(ctx context.Context, username string) (services.UserState, error) {
 	uls, err := a.GetUserLoginState(ctx, username)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
@@ -1778,7 +1784,7 @@ type GenerateUserTestCertsRequest struct {
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
 func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
-	userState, err := a.getUserOrLoginState(context.Background(), req.Username)
+	userState, err := a.GetUserOrLoginState(context.Background(), req.Username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1838,7 +1844,7 @@ type AppTestCertRequest struct {
 // GenerateUserAppTestCert generates an application specific certificate, used
 // internally for tests.
 func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error) {
-	userState, err := a.getUserOrLoginState(context.Background(), req.Username)
+	userState, err := a.GetUserOrLoginState(context.Background(), req.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1908,7 +1914,7 @@ type DatabaseTestCertRequest struct {
 // GenerateDatabaseTestCert generates a database access certificate for the
 // provided parameters. Used only internally in tests.
 func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, error) {
-	userState, err := a.getUserOrLoginState(context.Background(), req.Username)
+	userState, err := a.GetUserOrLoginState(context.Background(), req.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3420,7 +3426,7 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 // CreateWebSession creates a new web session for user without any
 // checks, is used by admins
 func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
-	u, err := a.getUserOrLoginState(ctx, user)
+	u, err := a.GetUserOrLoginState(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3987,7 +3993,7 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 
 // NewWebSession creates and returns a new web session for the specified request
 func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
-	userState, err := a.getUserOrLoginState(ctx, req.User)
+	userState, err := a.GetUserOrLoginState(ctx, req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4357,8 +4363,11 @@ func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.Ke
 	}
 
 	kind := usagereporter.ResourceKindNode
-	if server.GetSubKind() == types.SubKindOpenSSHNode {
+	switch server.GetSubKind() {
+	case types.SubKindOpenSSHNode:
 		kind = usagereporter.ResourceKindNodeOpenSSH
+	case types.SubKindOpenSSHEICENode:
+		kind = usagereporter.ResourceKindNodeOpenSSHEICE
 	}
 
 	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{

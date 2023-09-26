@@ -183,31 +183,17 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+Generate a configuration file at `/etc/teleport.yaml` for the Database Service.
+Set the `--proxy` command-line option to the address for your Teleport cluster
+and the `--azure-sqlserver-discovery` to the appropriate region:
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=teleport.example.com \
+   --proxy=<Var name="teleport.example.com" />:443 \
    --azure-sqlserver-discovery=eastus
 ```
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-```code
-$ teleport db configure create \
-   -o file \
-   --token=/tmp/token \
-   --proxy=mytenant.teleport.sh:443 \
-   --azure-sqlserver-discovery=eastus
-```
-</TabItem>
-
-</Tabs>
 
 The command will generate a Database Service configuration with Azure SQL
 Server auto-discovery enabled in the `eastus` region and place it at the
@@ -231,33 +217,14 @@ Server auto-discovery enabled in the `eastus` region and place it at the
 Log in to your Teleport cluster. Your database should appear in the list of
 available databases:
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
 ```code
-$ tsh login --proxy=teleport.example.com --user=alice
+$ tsh login --proxy=<Var name="teleport.example.com" />:443 --user=alice
 $ tsh db ls
 Name                Description                       Allowed Users Labels Connect
 ------------------ ---------------------------------- ------------- ------ -------
 sqlserver          Azure SQL Server in westeurope     [*]           ...
 sqlserver-managed  Azure Managed SQL Server in eastus [*]           ...
 ```
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-$ tsh login --proxy=mytenant.teleport.sh --user=alice
-$ tsh db ls
-Name                Description                       Allowed Users Labels Connect
------------------- ---------------------------------- ------------- ------ -------
-sqlserver          Azure SQL Server in westeurope     [*]           ...
-sqlserver-managed  Azure Managed SQL Server in eastus [*]           ...
-```
-
-</TabItem>
-
-</Tabs>
 
 To retrieve credentials for a database and connect to it:
 

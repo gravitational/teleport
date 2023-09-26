@@ -516,12 +516,13 @@ func (u *AgentMetadataEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEvent
 type ResourceKind = prehogv1a.ResourceKind
 
 const (
-	ResourceKindNode           = prehogv1a.ResourceKind_RESOURCE_KIND_NODE
-	ResourceKindAppServer      = prehogv1a.ResourceKind_RESOURCE_KIND_APP_SERVER
-	ResourceKindKubeServer     = prehogv1a.ResourceKind_RESOURCE_KIND_KUBE_SERVER
-	ResourceKindDBServer       = prehogv1a.ResourceKind_RESOURCE_KIND_DB_SERVER
-	ResourceKindWindowsDesktop = prehogv1a.ResourceKind_RESOURCE_KIND_WINDOWS_DESKTOP
-	ResourceKindNodeOpenSSH    = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH
+	ResourceKindNode            = prehogv1a.ResourceKind_RESOURCE_KIND_NODE
+	ResourceKindAppServer       = prehogv1a.ResourceKind_RESOURCE_KIND_APP_SERVER
+	ResourceKindKubeServer      = prehogv1a.ResourceKind_RESOURCE_KIND_KUBE_SERVER
+	ResourceKindDBServer        = prehogv1a.ResourceKind_RESOURCE_KIND_DB_SERVER
+	ResourceKindWindowsDesktop  = prehogv1a.ResourceKind_RESOURCE_KIND_WINDOWS_DESKTOP
+	ResourceKindNodeOpenSSH     = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH
+	ResourceKindNodeOpenSSHEICE = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH_EICE
 )
 
 func ResourceKindFromKeepAliveType(t types.KeepAlive_KeepAliveType) ResourceKind {
@@ -652,6 +653,117 @@ func (e *AssistActionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 	}
 }
 
+type AccessListCreateEvent prehogv1a.AccessListCreateEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessListCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessListCreate{
+			AccessListCreate: &prehogv1a.AccessListCreateEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Metadata: &prehogv1a.AccessListMetadata{
+					Id: a.AnonymizeString(e.Metadata.Id),
+				},
+			},
+		},
+	}
+}
+
+type AccessListUpdateEvent prehogv1a.AccessListUpdateEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessListUpdateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessListUpdate{
+			AccessListUpdate: &prehogv1a.AccessListUpdateEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Metadata: &prehogv1a.AccessListMetadata{
+					Id: a.AnonymizeString(e.Metadata.Id),
+				},
+			},
+		},
+	}
+}
+
+type AccessListDeleteEvent prehogv1a.AccessListDeleteEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessListDeleteEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessListDelete{
+			AccessListDelete: &prehogv1a.AccessListDeleteEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Metadata: &prehogv1a.AccessListMetadata{
+					Id: a.AnonymizeString(e.Metadata.Id),
+				},
+			},
+		},
+	}
+}
+
+type AccessListMemberCreateEvent prehogv1a.AccessListMemberCreateEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessListMemberCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessListMemberCreate{
+			AccessListMemberCreate: &prehogv1a.AccessListMemberCreateEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Metadata: &prehogv1a.AccessListMetadata{
+					Id: a.AnonymizeString(e.Metadata.Id),
+				},
+			},
+		},
+	}
+}
+
+type AccessListMemberUpdateEvent prehogv1a.AccessListMemberUpdateEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessListMemberUpdateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessListMemberUpdate{
+			AccessListMemberUpdate: &prehogv1a.AccessListMemberUpdateEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Metadata: &prehogv1a.AccessListMetadata{
+					Id: a.AnonymizeString(e.Metadata.Id),
+				},
+			},
+		},
+	}
+}
+
+type AccessListMemberDeleteEvent prehogv1a.AccessListMemberDeleteEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessListMemberDeleteEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessListMemberDelete{
+			AccessListMemberDelete: &prehogv1a.AccessListMemberDeleteEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Metadata: &prehogv1a.AccessListMetadata{
+					Id: a.AnonymizeString(e.Metadata.Id),
+				},
+			},
+		},
+	}
+}
+
+type AccessListGrantsToUserEvent prehogv1a.AccessListGrantsToUserEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessListGrantsToUserEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessListGrantsToUser{
+			AccessListGrantsToUser: &prehogv1a.AccessListGrantsToUserEvent{
+				UserName:           a.AnonymizeString(e.UserName),
+				CountRolesGranted:  e.CountRolesGranted,
+				CountTraitsGranted: e.CountTraitsGranted,
+			},
+		},
+	}
+}
+
 // UserMetadata contains user metadata information which is used to contextualize events with user information.
 type UserMetadata struct {
 	// Username contains the user's name.
@@ -675,6 +787,22 @@ func (d *DeviceAuthenticateEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submit
 	}
 }
 
+// DeviceEnrollEvent event is emitted after a successful device enrollment.
+type DeviceEnrollEvent prehogv1a.DeviceEnrollEvent
+
+func (d *DeviceEnrollEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DeviceEnrollEvent{
+			DeviceEnrollEvent: &prehogv1a.DeviceEnrollEvent{
+				DeviceId:     a.AnonymizeString(d.DeviceId),
+				UserName:     a.AnonymizeString(d.UserName),
+				DeviceOsType: d.DeviceOsType,
+				DeviceOrigin: d.DeviceOrigin,
+			},
+		},
+	}
+}
+
 // FeatureRecommendationEvent emitted when a feature is recommended to user or
 // when user completes the desired CTA for the feature.
 type FeatureRecommendationEvent prehogv1a.FeatureRecommendationEvent
@@ -686,6 +814,20 @@ func (e *FeatureRecommendationEvent) Anonymize(a utils.Anonymizer) prehogv1a.Sub
 				UserName:                    a.AnonymizeString(e.UserName),
 				Feature:                     e.Feature,
 				FeatureRecommendationStatus: e.FeatureRecommendationStatus,
+			},
+		},
+	}
+}
+
+// LicenseLimitEvent emitted when a feature is gated behind
+// enterprise license.
+type LicenseLimitEvent prehogv1a.LicenseLimitEvent
+
+func (e *LicenseLimitEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_LicenseLimitEvent{
+			LicenseLimitEvent: &prehogv1a.LicenseLimitEvent{
+				LicenseLimit: e.LicenseLimit,
 			},
 		},
 	}
@@ -1002,6 +1144,61 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 				DbType:     db.DbType,
 				DbProtocol: db.DbProtocol,
 			}
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AccessListCreate:
+		ret := &AccessListCreateEvent{
+			UserName: userMD.Username,
+			Metadata: &prehogv1a.AccessListMetadata{
+				Id: e.AccessListCreate.Metadata.Id,
+			},
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AccessListUpdate:
+		ret := &AccessListUpdateEvent{
+			UserName: userMD.Username,
+			Metadata: &prehogv1a.AccessListMetadata{
+				Id: e.AccessListUpdate.Metadata.Id,
+			},
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AccessListDelete:
+		ret := &AccessListDeleteEvent{
+			UserName: userMD.Username,
+			Metadata: &prehogv1a.AccessListMetadata{
+				Id: e.AccessListDelete.Metadata.Id,
+			},
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AccessListMemberCreate:
+		ret := &AccessListMemberCreateEvent{
+			UserName: userMD.Username,
+			Metadata: &prehogv1a.AccessListMetadata{
+				Id: e.AccessListMemberCreate.Metadata.Id,
+			},
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AccessListMemberUpdate:
+		ret := &AccessListMemberUpdateEvent{
+			UserName: userMD.Username,
+			Metadata: &prehogv1a.AccessListMetadata{
+				Id: e.AccessListMemberUpdate.Metadata.Id,
+			},
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AccessListMemberDelete:
+		ret := &AccessListMemberDeleteEvent{
+			UserName: userMD.Username,
+			Metadata: &prehogv1a.AccessListMetadata{
+				Id: e.AccessListMemberDelete.Metadata.Id,
+			},
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AccessListGrantsToUser:
+		ret := &AccessListGrantsToUserEvent{
+			UserName:           userMD.Username,
+			CountRolesGranted:  e.AccessListGrantsToUser.CountRolesGranted,
+			CountTraitsGranted: e.AccessListGrantsToUser.CountTraitsGranted,
 		}
 		return ret, nil
 	default:

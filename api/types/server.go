@@ -86,6 +86,8 @@ type Server interface {
 
 	// GetCloudMetadata gets the cloud metadata for the server.
 	GetCloudMetadata() *CloudMetadata
+	// GetAWSInfo returns the AWSInfo for the server.
+	GetAWSInfo() *AWSInfo
 	// SetCloudMetadata sets the server's cloud metadata.
 	SetCloudMetadata(meta *CloudMetadata)
 
@@ -387,7 +389,13 @@ func (s *ServerV2) setStaticFields() {
 // IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
 // This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 func (s *ServerV2) IsOpenSSHNode() bool {
-	return s.SubKind == SubKindOpenSSHNode || s.SubKind == SubKindOpenSSHEICENode
+	return IsOpenSSHNodeSubKind(s.SubKind)
+}
+
+// IsOpenSSHNodeSubKind returns whether the Node SubKind is from a server which accepts connections over the
+// OpenSSH daemon (instead of a Teleport Node).
+func IsOpenSSHNodeSubKind(subkind string) bool {
+	return subkind == SubKindOpenSSHNode || subkind == SubKindOpenSSHEICENode
 }
 
 // openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.
@@ -520,6 +528,15 @@ func (s *ServerV2) DeepCopy() Server {
 // GetCloudMetadata gets the cloud metadata for the server.
 func (s *ServerV2) GetCloudMetadata() *CloudMetadata {
 	return s.Spec.CloudMetadata
+}
+
+// GetAWSInfo gets the AWS Cloud metadata for the server.
+func (s *ServerV2) GetAWSInfo() *AWSInfo {
+	if s.Spec.CloudMetadata == nil {
+		return nil
+	}
+
+	return s.Spec.CloudMetadata.AWS
 }
 
 // SetCloudMetadata sets the server's cloud metadata.

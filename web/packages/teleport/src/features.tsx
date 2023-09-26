@@ -17,16 +17,17 @@ limitations under the License.
 import React from 'react';
 
 import {
+  AccessRequestsIcon,
   ActiveSessionsIcon,
   AddIcon,
   ApplicationsIcon,
   AuditLogIcon,
   AuthConnectorsIcon,
-  LockIcon,
   DatabasesIcon,
   DesktopsIcon,
   IntegrationsIcon,
   KubernetesIcon,
+  LockIcon,
   ManageClustersIcon,
   RolesIcon,
   ServersIcon,
@@ -46,7 +47,7 @@ import {
 
 import { NavTitle } from './types';
 
-import type { TeleportFeature, FeatureFlags } from './types';
+import type { FeatureFlags, TeleportFeature } from './types';
 
 const Audit = React.lazy(
   () => import(/* webpackChunkName: "audit" */ './Audit')
@@ -102,6 +103,9 @@ const Desktops = React.lazy(
 const Discover = React.lazy(
   () => import(/* webpackChunkName: "discover" */ './Discover')
 );
+const LockedAccessRequests = React.lazy(
+  () => import(/* webpackChunkName: "access-requests" */ './AccessRequests')
+);
 const Integrations = React.lazy(
   () => import(/* webpackChunkName: "integrations" */ './Integrations')
 );
@@ -115,6 +119,30 @@ const IntegrationEnroll = React.lazy(
 // ****************************
 // Resource Features
 // ****************************
+
+class AccessRequests implements TeleportFeature {
+  category = NavigationCategory.Resources;
+
+  route = {
+    title: 'Access Requests',
+    path: cfg.routes.accessRequest,
+    exact: true,
+    component: LockedAccessRequests,
+  };
+
+  hasAccess() {
+    return true;
+  }
+
+  navigationItem = {
+    title: NavTitle.AccessRequests,
+    icon: <AccessRequestsIcon />,
+    exact: true,
+    getLink() {
+      return cfg.routes.accessRequest;
+    },
+  };
+}
 
 export class FeatureNodes implements TeleportFeature {
   route = {
@@ -627,6 +655,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureKubes(),
     new FeatureDatabases(),
     new FeatureDesktops(),
+    new AccessRequests(),
     new FeatureSessions(),
 
     // Management

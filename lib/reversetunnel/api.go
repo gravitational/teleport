@@ -44,6 +44,10 @@ type DialParams struct {
 	// forwarding proxy.
 	GetUserAgent teleagent.Getter
 
+	// IsAgentlessNode indicates whether the Node is an OpenSSH Node.
+	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEICE.
+	IsAgentlessNode bool
+
 	// AgentlessSigner is used for authenticating to the remote host when it is an
 	// agentless node.
 	AgentlessSigner ssh.Signer
@@ -109,7 +113,7 @@ func shouldDialAndForward(params DialParams, recConfig types.SessionRecordingCon
 		return false
 	}
 	// the node is an agentless node, the connection must be forwarded
-	if params.TargetServer != nil && params.TargetServer.GetSubKind() == types.SubKindOpenSSHNode {
+	if params.TargetServer != nil && params.TargetServer.IsOpenSSHNode() {
 		return true
 	}
 	// proxy session recording mode is being used and an SSH session

@@ -451,13 +451,13 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithChainUnaryInterceptor(
-			otelgrpc.UnaryClientInterceptor(),
+			otelUnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			interceptors.GRPCClientUnaryErrorInterceptor,
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
-			otelgrpc.StreamClientInterceptor(),
+			otelStreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 			interceptors.GRPCClientStreamErrorInterceptor,
 			breaker.StreamClientInterceptor(cb),
@@ -488,6 +488,36 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 
 	return nil
 }
+
+// TODO(noah): Once we upgrade to go 1.21, change invocations of this to
+// sync.OnceValue
+func onceValue[T any](f func() T) func() T {
+	var (
+		value T
+		once  sync.Once
+	)
+	return func() T {
+		once.Do(func() {
+			value = f()
+		})
+		return value
+	}
+}
+
+// We wrap the creation of the otelgrpc interceptors in a sync.Once - this is
+// because each time this is called, they create a new underlying metric. If
+// something (e.g tbot) is repeatedly creating new clients and closing them,
+// then this leads to a memory leak since the underlying metric is not cleaned
+// up.
+// See https://github.com/gravitational/teleport/issues/30759
+// See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4226
+var otelStreamClientInterceptor = onceValue(func() grpc.StreamClientInterceptor {
+	return otelgrpc.StreamClientInterceptor()
+})
+
+var otelUnaryClientInterceptor = onceValue(func() grpc.UnaryClientInterceptor {
+	return otelgrpc.UnaryClientInterceptor()
+})
 
 // ConfigureALPN configures ALPN SNI cluster routing information in TLS settings allowing for
 // allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.

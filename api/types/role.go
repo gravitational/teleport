@@ -1698,6 +1698,16 @@ func (h CreateHostUserMode) encode() (string, error) {
 func (h *CreateHostUserMode) decode(val any) error {
 	var valS string
 	switch val := val.(type) {
+	case int32:
+		return trace.Wrap(h.setFromEnum(val))
+	case int64:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case int:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case float64:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case float32:
+		return trace.Wrap(h.setFromEnum(int32(val)))
 	case string:
 		valS = val
 	case bool:
@@ -1706,7 +1716,7 @@ func (h *CreateHostUserMode) decode(val any) error {
 		}
 		valS = createHostUserModeOffString
 	default:
-		return trace.BadParameter("bad value type %T, expected string", val)
+		return trace.BadParameter("bad value type %T, expected string or int", val)
 	}
 
 	switch valS {
@@ -1721,6 +1731,15 @@ func (h *CreateHostUserMode) decode(val any) error {
 	default:
 		return trace.BadParameter("invalid host user mode %v", val)
 	}
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (h *CreateHostUserMode) setFromEnum(val int32) error {
+	if _, ok := CreateHostUserMode_name[val]; !ok {
+		return trace.BadParameter("invalid host user mode %v", val)
+	}
+	*h = CreateHostUserMode(val)
 	return nil
 }
 

@@ -179,7 +179,7 @@ type CLIConf struct {
 	ProxyJump string
 	// --local flag for ssh
 	LocalExec bool
-	// SiteName specifies remote site go login to
+	// SiteName specifies remote site to login to.
 	SiteName string
 	// KubernetesCluster specifies the kubernetes cluster to login to.
 	KubernetesCluster string
@@ -402,8 +402,8 @@ type CLIConf struct {
 	// displayParticipantRequirements is set if verbose participant requirement information should be printed for moderated sessions.
 	displayParticipantRequirements bool
 
-	// TshConfig is the loaded tsh configuration file ~/.tsh/config/config.yaml.
-	TshConfig TshConfig
+	// TSHConfig is the loaded tsh configuration file ~/.tsh/config/config.yaml.
+	TSHConfig TSHConfig
 
 	// ListAll specifies if an ls command should return results from all clusters and proxies.
 	ListAll bool
@@ -609,7 +609,12 @@ func initLogger(cf *CLIConf) {
 	}
 }
 
-// Run executes TSH client. same as main() but easier to test
+// Run executes TSH client. same as main() but easier to test. Note that this
+// function modifies global state in `tsh` (e.g. the system logger), and WILL
+// ALSO MODIFY EXTERNAL SHARED STATE in its default configuration (e.g. the
+// $HOME/.tsh dir, $KUBECONFIG, etc).
+//
+// DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	cf := CLIConf{
 		Context:         ctx,
@@ -771,7 +776,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	lsRecordings.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&cf.ToUTC)
 	lsRecordings.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&cf.maxRecordingsToShow)
 	lsRecordings.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&cf.recordingsSince)
-	exportRecordings := recordings.Command("export", "Export recorded desktop sesions to video.")
+	exportRecordings := recordings.Command("export", "Export recorded desktop sessions to video.")
 	exportRecordings.Flag("out", "Override output file name").StringVar(&cf.OutFile)
 	exportRecordings.Arg("session-id", "ID of the session to export").Required().StringVar(&cf.SessionID)
 
@@ -1059,10 +1064,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cf.TshConfig = *confOptions
+	cf.TSHConfig = *confOptions
 
 	// aliases
-	ar := newAliasRunner(cf.TshConfig.Aliases)
+	ar := newAliasRunner(cf.TSHConfig.Aliases)
 	aliasCommand, runtimeArgs := findAliasCommand(args)
 	if aliasDefinition, ok := ar.getAliasDefinition(aliasCommand); ok {
 		return ar.runAlias(ctx, aliasCommand, aliasDefinition, cf.executablePath, runtimeArgs)
@@ -1072,7 +1077,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if errors.Is(err, kingpin.ErrExpectedCommand) {
-		if _, ok := cf.TshConfig.Aliases[aliasCommand]; ok {
+		if _, ok := cf.TSHConfig.Aliases[aliasCommand]; ok {
 			log.Debugf("Failing due to recursive alias %q. Aliases seen: %v", aliasCommand, ar.getSeenAliases())
 			return trace.BadParameter("recursive alias %q; correct alias definition and try again", aliasCommand)
 		}
@@ -2795,23 +2800,15 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	return fmt.Sprintf("%v, except: %v", dbUsers.Allowed, dbUsers.Denied)
 }
 
-func getDiscoveredName(r types.ResourceWithLabels) (string, bool) {
-	name, ok := r.GetAllLabels()[types.DiscoveredNameLabel]
-	return name, ok
-}
-
 func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) []string {
 	name := database.GetName()
-	printName := name
-	if d, ok := getDiscoveredName(database); ok && !verbose && d != name {
-		printName = d
-	}
+	displayName := common.FormatResourceName(database, verbose)
 	var connect string
 	for _, a := range active {
 		if a.ServiceName == name {
-			a.ServiceName = printName
-			// format the db name with the print name
-			printName = formatActiveDB(a)
+			a.ServiceName = displayName
+			// format the db name with the display name
+			displayName = formatActiveDB(a)
 			// then revert it for connect string
 			a.ServiceName = name
 			switch a.Protocol {
@@ -2833,7 +2830,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 	labels := common.FormatLabels(database.GetAllLabels(), verbose)
 	if verbose {
 		row = append(row,
-			printName,
+			displayName,
 			database.GetDescription(),
 			database.GetProtocol(),
 			database.GetType(),
@@ -2844,7 +2841,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		)
 	} else {
 		row = append(row,
-			printName,
+			displayName,
 			database.GetDescription(),
 			formatUsersForDB(database, accessChecker),
 			labels,
@@ -3464,7 +3461,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	// Check if this host has a matching proxy template.
-	tProxy, tHost, tCluster, tMatched := cf.TshConfig.ProxyTemplates.Apply(fullHostName)
+	tProxy, tHost, tCluster, tMatched := cf.TSHConfig.ProxyTemplates.Apply(fullHostName)
 	if !tMatched && useProxyTemplate {
 		return nil, trace.BadParameter("proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config")
 	} else if tMatched {
@@ -3561,7 +3558,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	if c.ExtraProxyHeaders == nil {
 		c.ExtraProxyHeaders = map[string]string{}
 	}
-	for _, proxyHeaders := range cf.TshConfig.ExtraHeaders {
+	for _, proxyHeaders := range cf.TSHConfig.ExtraHeaders {
 		proxyGlob := utils.GlobToRegexp(proxyHeaders.Proxy)
 		proxyRegexp, err := regexp.Compile(proxyGlob)
 		if err != nil {
@@ -4176,6 +4173,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		}
 	}
 
+	selectedKubeCluster, _ := kubeconfig.SelectedKubeCluster("", p.Cluster)
 	out := &profileInfo{
 		ProxyURL:           p.ProxyURL.String(),
 		Username:           p.Username,
@@ -4185,7 +4183,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		Traits:             p.Traits,
 		Logins:             logins,
 		KubernetesEnabled:  p.KubeEnabled,
-		KubernetesCluster:  selectedKubeCluster(p.Cluster),
+		KubernetesCluster:  selectedKubeCluster,
 		KubernetesUsers:    p.KubeUsers,
 		KubernetesGroups:   p.KubeGroups,
 		Databases:          p.DatabaseServices(),
@@ -4652,7 +4650,7 @@ func onEnvironment(cf *CLIConf) error {
 			fmt.Printf("unset %v\n", kubeClusterEnvVar)
 			fmt.Printf("unset %v\n", teleport.EnvKubeConfig)
 		case !cf.unsetEnvironment:
-			kubeName := selectedKubeCluster(profile.Cluster)
+			kubeName, _ := kubeconfig.SelectedKubeCluster("", profile.Cluster)
 			fmt.Printf("export %v=%v\n", proxyEnvVar, profile.ProxyURL.Host)
 			fmt.Printf("export %v=%v\n", clusterEnvVar, profile.Cluster)
 			if kubeName != "" {
@@ -4677,7 +4675,7 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 		proxyEnvVar:   profile.ProxyURL.Host,
 		clusterEnvVar: profile.Cluster,
 	}
-	kubeName := selectedKubeCluster(profile.Cluster)
+	kubeName, _ := kubeconfig.SelectedKubeCluster("", profile.Cluster)
 	if kubeName != "" {
 		env[kubeClusterEnvVar] = kubeName
 		env[teleport.EnvKubeConfig] = profile.KubeConfigPath(kubeName)
@@ -4854,7 +4852,15 @@ func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, opts ...upd
 	if len(cf.KubernetesCluster) == 0 {
 		return nil
 	}
-	err := updateKubeConfig(cf, tc, "" /* update the default kubeconfig */, "" /* do not override the context name */)
+	kubeStatus, err := fetchKubeStatus(cf.Context, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// update the default kubeconfig
+	kubeConfigPath := ""
+	// do not override the context name
+	overrideContextName := ""
+	err = updateKubeConfig(cf, tc, kubeConfigPath, overrideContextName, kubeStatus)
 	return trace.Wrap(err)
 }
 

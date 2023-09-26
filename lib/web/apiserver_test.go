@@ -1528,7 +1528,13 @@ func TestResizeTerminal(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws1.Close()) })
 
-	// Create a new user "bar", open a terminal to the session created above
+	// Wait for session to have started
+	require.Eventually(t, func() bool {
+		_, err := s.server.Auth().GetSessionTracker(context.Background(), sess.ID.String())
+		return err == nil
+	}, 3*time.Second, 200*time.Millisecond, "session not available")
+
+	// Create a new user "bar" and join the session created above
 	pack2 := s.authPack(t, "bar")
 	ws2, sess2, err := s.makeTerminal(t, pack2, withSessionID(sess.ID), withParticipantMode(types.SessionPeerMode))
 	require.NoError(t, err)
@@ -1574,7 +1580,7 @@ t1ready:
 	select {
 	case e := <-ws2Messages:
 		if isResizeEventEnvelope(e) {
-			require.FailNow(t, "terminal 2 should not have received a resize event")
+			require.FailNow(t, "terminal 2 should not have received a resize event: %v", e)
 		}
 	case err := <-errs:
 		require.NoError(t, err)
@@ -1703,13 +1709,27 @@ func TestTerminal(t *testing.T) {
 			t.Parallel()
 			s := newWebSuite(t)
 
+			// Set the recording config
 			require.NoError(t, s.server.Auth().SetSessionRecordingConfig(context.Background(), &tt.recordingConfig))
 
+			// Create a new session
 			ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
 			require.NoError(t, err)
-			t.Cleanup(func() { require.NoError(t, ws.Close()) })
+			t.Cleanup(func() { require.True(t, utils.IsOKNetworkError(ws.Close())) })
 
+			// Send a command and validate the output
 			validateTerminalStream(t, ws)
+
+			// Validate that the session is active on the node
+			require.Equal(t, int32(1), s.node.ActiveConnections())
+
+			// Close the web socket to emulate a user closing the browser window
+			require.NoError(t, ws.Close())
+
+			// Validate that the node terminates the session
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				assert.Zero(t, s.node.ActiveConnections())
+			}, 30*time.Second, 250*time.Millisecond)
 		})
 	}
 }
@@ -1813,9 +1833,9 @@ func TestTerminalNameResolution(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Wait for the node to be registered as the registration is asynchronous.
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		nodes, err := s.proxyClient.GetNodes(ctx, "default")
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		return len(nodes) == 2 // one created by default and llama
 	}, 5*time.Second, 200*time.Millisecond, "failed to register node")
@@ -7298,7 +7318,14 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 
 	ws, resp, err := dialer.Dial(u.String(), header)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		var sb strings.Builder
+		sb.WriteString("websocket dial")
+		if resp != nil {
+			fmt.Fprintf(&sb, "; status code %v;", resp.StatusCode)
+			fmt.Fprintf(&sb, "headers: %v; body: ", resp.Header)
+			io.Copy(&sb, resp.Body)
+		}
+		return nil, nil, trace.Wrap(err, sb.String())
 	}
 
 	ty, raw, err := ws.ReadMessage()
@@ -9332,4 +9359,118 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 
 	require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
 
+}
+
+type proxyClientMock struct {
+	auth.ClientI
+	tokens map[string]types.ProvisionToken
+}
+
+// GetToken returns provisioning token
+func (pc *proxyClientMock) GetToken(_ context.Context, token string) (types.ProvisionToken, error) {
+	tok, ok := pc.tokens[token]
+	if ok {
+		return tok, nil
+	}
+
+	return nil, trace.NotFound(token)
+}
+
+func (pc *proxyClientMock) DeleteToken(_ context.Context, token string) error {
+	_, ok := pc.tokens[token]
+	if ok {
+		delete(pc.tokens, token)
+		return nil
+	}
+	return trace.NotFound(token)
+}
+
+func Test_consumeTokenForAPICall(t *testing.T) {
+	pc := &proxyClientMock{tokens: map[string]types.ProvisionToken{}}
+
+	tests := []struct {
+		name     string
+		getToken func() (string, types.ProvisionToken)
+		wantErr  require.ErrorAssertionFunc
+	}{
+		{
+			name: "missing token is rejected",
+			getToken: func() (string, types.ProvisionToken) {
+				return "fake", nil
+			},
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+		{
+			name: "valid token is accepted",
+			getToken: func() (string, types.ProvisionToken) {
+				tok, err := types.NewProvisionToken(uuid.New().String(), []types.SystemRole{types.RoleDatabase}, time.Now().Add(time.Hour))
+				require.NoError(t, err)
+				pc.tokens[tok.GetName()] = tok
+				return tok.GetName(), tok
+			},
+		},
+		{
+			name: "token with no expiry is accepted",
+			getToken: func() (string, types.ProvisionToken) {
+				tok, err := types.NewProvisionToken(uuid.New().String(), []types.SystemRole{types.RoleDatabase}, time.Time{})
+				require.NoError(t, err)
+				pc.tokens[tok.GetName()] = tok
+				return tok.GetName(), tok
+			},
+		},
+		{
+			name: "expired token is rejected",
+			getToken: func() (string, types.ProvisionToken) {
+				tok, err := types.NewProvisionToken(uuid.New().String(), []types.SystemRole{types.RoleDatabase}, time.Now().Add(-time.Hour))
+				require.NoError(t, err)
+				pc.tokens[tok.GetName()] = tok
+				return tok.GetName(), tok
+			},
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "expired token")
+			},
+		},
+		{
+			name: "token with invalid join type is rejected",
+			getToken: func() (string, types.ProvisionToken) {
+				tok, err := types.NewProvisionTokenFromSpec("ec2-token", time.Now().Add(time.Hour), types.ProvisionTokenSpecV2{
+					Roles:      []types.SystemRole{types.RoleDatabase},
+					Allow:      []*types.TokenRule{{AWSAccount: "1234"}},
+					JoinMethod: types.JoinMethodEC2,
+				})
+
+				require.NoError(t, err)
+				pc.tokens[tok.GetName()] = tok
+				return tok.GetName(), tok
+			},
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unexpected join method \"ec2\" for token \"ec2-token\"")
+			},
+		},
+	}
+
+	tokenExists := func(tokenName string) bool {
+		tok, _ := pc.GetToken(context.Background(), tokenName)
+		return tok != nil
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokName, tok := tt.getToken()
+			tokenInitiallyPresent := tokenExists(tokName)
+			result, err := consumeTokenForAPICall(context.Background(), pc, tokName)
+			if tt.wantErr != nil {
+				tt.wantErr(t, err)
+				// verify that if token was present, then it has not been deleted.
+				require.Equal(t, tokenInitiallyPresent, tokenExists(tokName))
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tok, result)
+				// verify that token does not exist now, even if it did.
+				require.False(t, tokenExists(tokName))
+			}
+		})
+	}
 }

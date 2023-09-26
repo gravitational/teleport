@@ -84,6 +84,7 @@ func (a *gkeFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 		return nil, trace.Wrap(err)
 	}
 
+	a.rewriteKubeClusters(clusters)
 	return clusters.AsResources(), nil
 }
 
@@ -106,6 +107,11 @@ func (a *gkeFetcher) getGKEClusters(ctx context.Context) (types.KubeClusters, er
 	}
 
 	return clusters, trace.Wrap(err)
+}
+
+// rewriteKubeClusters rewrites the discovered kube clusters.
+func (a *gkeFetcher) rewriteKubeClusters(clusters types.KubeClusters) {
+	// no-op
 }
 
 func (a *gkeFetcher) ResourceType() string {

@@ -30,13 +30,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
@@ -45,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
@@ -484,21 +483,9 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// awsRegions returns the list of all regions available on every aws partition.
-// It is used to validate the AWSMatcher.Regions values.
-func awsRegions() []string {
-	var regions []string
-	partitions := endpoints.DefaultPartitions()
-	for _, partition := range partitions {
-		regions = append(regions, maps.Keys(partition.Regions())...)
-	}
-	return regions
-}
-
 // checkAndSetDefaultsForAWSMatchers sets the default values for discovery AWS matchers
 // and validates the provided types.
 func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
-	regions := awsRegions()
 	for i := range matcherInput {
 		matcher := &matcherInput[i]
 		for _, matcherType := range matcher.Types {
@@ -510,13 +497,13 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 
 		if len(matcher.Regions) == 0 {
 			return trace.BadParameter("discovery service requires at least one region; supported regions are: %v",
-				regions)
+				awsutils.GetKnownRegions())
 		}
 
 		for _, region := range matcher.Regions {
-			if !slices.Contains(regions, region) {
+			if err := awsapiutils.IsValidRegion(region); err != nil {
 				return trace.BadParameter("discovery service does not support region %q; supported regions are: %v",
-					region, regions)
+					region, awsutils.GetKnownRegions())
 			}
 		}
 
@@ -705,8 +692,16 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 			return trace.BadParameter("GCP discovery service project_ids does cannot be empty; please specify at least one value in project_ids.")
 		}
 
-		if len(matcher.Tags) == 0 {
-			matcher.Tags = map[string]apiutils.Strings{
+		if len(matcher.Labels) > 0 && len(matcher.Tags) > 0 {
+			return trace.BadParameter("labels and tags should not both be set.")
+		}
+
+		if len(matcher.Tags) > 0 {
+			matcher.Labels = matcher.Tags
+		}
+
+		if len(matcher.Labels) == 0 {
+			matcher.Labels = map[string]apiutils.Strings{
 				types.Wildcard: {types.Wildcard},
 			}
 		}
@@ -1634,7 +1629,9 @@ type GCPMatcher struct {
 	Types []string `yaml:"types,omitempty"`
 	// Locations are GKE locations to search resources for.
 	Locations []string `yaml:"locations,omitempty"`
-	// Tags are GCP labels to match.
+	// Labels are GCP labels to match.
+	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
+	// Tags are an alias for Labels, for backwards compatibility.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 	// ProjectIDs are the GCP project ID where the resources are deployed.
 	ProjectIDs []string `yaml:"project_ids,omitempty"`
@@ -2493,6 +2490,9 @@ type Okta struct {
 
 	// APITokenPath is the path to the Okta API token.
 	APITokenPath string `yaml:"api_token_path,omitempty"`
+
+	// SyncPeriod is the duration between synchronization calls.
+	SyncPeriod time.Duration `yaml:"sync_period,omitempty"`
 }
 
 // JamfService is the yaml representation of jamf_service.

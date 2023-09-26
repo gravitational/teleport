@@ -133,6 +133,11 @@ type AuthPreference interface {
 	// SetDefaultSessionTTL sets the max session ttl
 	SetDefaultSessionTTL(Duration)
 
+	// GetOktaSyncPeriod returns the duration between Okta synchronization calls if the Okta service is running.
+	GetOktaSyncPeriod() time.Duration
+	// SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
+	SetOktaSyncPeriod(timeBetweenSyncs time.Duration)
+
 	// String represents a human readable version of authentication settings.
 	String() string
 }
@@ -451,6 +456,16 @@ func (c *AuthPreferenceV2) GetDefaultSessionTTL() Duration {
 	return c.Spec.DefaultSessionTTL
 }
 
+// GetOktaSyncPeriod returns the duration between Okta synchronization calls if the Okta service is running.
+func (c *AuthPreferenceV2) GetOktaSyncPeriod() time.Duration {
+	return c.Spec.Okta.SyncPeriod.Duration()
+}
+
+// SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
+func (c *AuthPreferenceV2) SetOktaSyncPeriod(syncPeriod time.Duration) {
+	c.Spec.Okta.SyncPeriod = Duration(syncPeriod)
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (c *AuthPreferenceV2) setStaticFields() {
 	c.Kind = KindClusterAuthPreference
@@ -628,6 +643,11 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	if c.Spec.IDP.SAML.Enabled == nil {
 		// Enable the IdP by default.
 		c.Spec.IDP.SAML.Enabled = NewBoolOption(true)
+	}
+
+	// Make sure the Okta field is populated.
+	if c.Spec.Okta == nil {
+		c.Spec.Okta = &OktaOptions{}
 	}
 
 	return nil
@@ -921,8 +941,27 @@ func (r *RequireMFAType) decode(val interface{}) error {
 		} else {
 			*r = RequireMFAType_OFF
 		}
+	case int32:
+		return trace.Wrap(r.setFromEnum(v))
+	case int64:
+		return trace.Wrap(r.setFromEnum(int32(v)))
+	case int:
+		return trace.Wrap(r.setFromEnum(int32(v)))
+	case float64:
+		return trace.Wrap(r.setFromEnum(int32(v)))
+	case float32:
+		return trace.Wrap(r.setFromEnum(int32(v)))
 	default:
 		return trace.BadParameter("RequireMFAType invalid type %T", val)
 	}
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (r *RequireMFAType) setFromEnum(val int32) error {
+	if _, ok := RequireMFAType_name[val]; !ok {
+		return trace.BadParameter("invalid required mfa mode %v", val)
+	}
+	*r = RequireMFAType(val)
 	return nil
 }

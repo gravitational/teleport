@@ -197,12 +197,13 @@ events:
 
 - Amazon DynamoDB
 - Google Cloud Firestore
+- PostgreSQL (Azure and self-hosted)
 - etcd (cluster state only)
 
-For Amazon DynamoDB and Google Cloud Firestore, your Teleport configuration
+For Amazon DynamoDB, Google Cloud Firestore and PostgreSQL, your Teleport configuration
 (which we will describe in more detail in the [Configuration](#configuration)
 section) names the two tables or collections where Teleport stores cluster state
-and audit events. 
+and audit events.
 
 The Auth Service can also store cluster state in self-hosted
 [etcd](https://etcd.io/) deployments. In this case, Teleport uses namespaces
@@ -232,9 +233,10 @@ storage services:
 
 - Amazon S3 (or an S3-compatible object store)
 - Google Cloud Storage
+- Azure Blob Storage
 
 In your Teleport configuration (described in the [Configuration](#configuration)
-section), you must name a bucket within Google Cloud Storage or an Amazon
+section), you must name a bucket within Azure Blob Storage, Google Cloud Storage or an Amazon
 S3-compatible service to use for managing session recordings. 
 
 The Auth Service will check that the bucket exists on startup. If it does not,

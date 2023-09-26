@@ -1367,7 +1367,7 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 	// Okta are redirected differently which could create unpredictable or insecure behavior if applied
 	// to non-Okta apps.
 	hasOktaOrigin := server.Origin() == types.OriginOkta || app.Origin() == types.OriginOkta
-	if builtinRole, ok := auth.context.Identity.(authz.BuiltinRole); !ok || builtinRole.Role != types.RoleOkta {
+	if !authz.HasBuiltinRole(auth.context, string(types.RoleOkta)) {
 		if hasOktaOrigin {
 			return nil, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin")
 		}

@@ -24,7 +24,12 @@ import { Participant, Session, SessionKind } from 'teleport/services/session';
 import { SessionJoinBtn } from './SessionJoinBtn';
 
 export default function SessionList(props: Props) {
-  const { sessions, pageSize = 100, showActiveSessionsCTA } = props;
+  const {
+    sessions,
+    pageSize = 100,
+    showActiveSessionsCTA,
+    showModeratedSessionsCTA,
+  } = props;
 
   return (
     <StyledTable
@@ -60,7 +65,11 @@ export default function SessionList(props: Props) {
         {
           altKey: 'join-btn',
           render: session =>
-            renderJoinCell({ ...session, showActiveSessionsCTA }),
+            renderJoinCell({
+              ...session,
+              showActiveSessionsCTA,
+              showModeratedSessionsCTA,
+            }),
         },
       ]}
       emptyText="No Active Sessions Found"
@@ -103,13 +112,17 @@ const renderIconCell = (kind: SessionKind) => {
   );
 };
 
-type renderJoinCellProps = Session & { showActiveSessionsCTA: boolean };
+type renderJoinCellProps = Session & {
+  showActiveSessionsCTA: boolean;
+  showModeratedSessionsCTA: boolean;
+};
 const renderJoinCell = ({
   sid,
   clusterId,
   kind,
   participantModes,
   showActiveSessionsCTA,
+  showModeratedSessionsCTA,
 }: renderJoinCellProps) => {
   const { joinable } = kinds[kind];
   if (!joinable) {
@@ -123,6 +136,7 @@ const renderJoinCell = ({
         clusterId={clusterId}
         participantModes={participantModes}
         showCTA={showActiveSessionsCTA}
+        showModeratedCTA={showModeratedSessionsCTA}
       />
     </Cell>
   );
@@ -137,6 +151,7 @@ type Props = {
   sessions: Session[];
   pageSize?: number;
   showActiveSessionsCTA: boolean;
+  showModeratedSessionsCTA: boolean;
 };
 
 function participantMatcher(

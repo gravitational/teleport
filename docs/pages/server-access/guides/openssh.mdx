@@ -16,13 +16,14 @@ and running, but in the long run, we would recommend replacing `sshd` with `tele
 
 - RBAC and resource filtering based on [dynamically updated labels](../../management/admin/labels.mdx)
 - [Session recording without SSH connection termination](recording-proxy-mode.mdx)
+- [Session sharing](../../connect-your-client/tsh.mdx)
 - [Advanced session recording](bpf-session-recording.mdx)
 - [Restricting outbound network connections in SSH sessions](restricted-session.mdx)
 
-Teleport supports OpenSSH by proxying SSH connections through the Proxy Service. When a Teleport user requests to connect to an OpenSSH node, the Proxy Service checks the user's Teleport roles. 
+Teleport supports OpenSSH by proxying SSH connections through the Proxy Service. When a Teleport user requests to connect to an OpenSSH node, the Proxy Service checks the user's Teleport roles.
 
 If the RBAC checks succeed, the Proxy Service authenticates to the OpenSSH node with a dynamically generated certificate signed by a Teleport CA. This allows the
-Proxy Service to record and audit connections to OpenSSH nodes. 
+Proxy Service to record and audit connections to OpenSSH nodes.
 
 The Proxy Service prevents Teleport users from bypassing auditing by requiring
 a certificate signed by a Teleport CA that only the Auth Service possesses.
@@ -311,31 +312,3 @@ $ ssh -F ssh_config_teleport ${USER?}@node2.leafcluster.${CLUSTER}
   qualified domain name, rather than an IP address.
 
 </Admonition>
-
-## Revoke an SSH certificate
-
-Teleport's approach to using short-lived certificates for all infrastructure
-access means that it can generate large numbers of certificates every day. For
-this reason, Teleport does not support traditional certificate revocation.
-
-There are two options available for revoking access: CA rotations, and Teleport locks.
-
-### CA Rotations
-
-To generate a new certificate authority and invalidate user certificates issued
-by the current CA, run `tctl auth rotate --type-user`. This process will require
-that the newly generated CA certificate is uploaded to your entire fleet of
-OpenSSH servers. This can be a disruptive change, especially in environments
-that lack automation, so proceed with caution.
-
-### Locks
-
-Teleport locks allow you to permanently or temporarily revoke access to a number
-of different "targets". Supported lock targets include: specific users, roles,
-servers, desktops, or MFA devices. When a lock is created any existing sessions
-where the lock applies will be terminated, and new sessions will be rejected while
-the lock remains in force.
-
-For more information, read our
-[Session and Identity Locking Guide](../../access-controls/guides/locking.mdx).
-

@@ -472,7 +472,7 @@ exports[`connected settings false 1`] = `
       </div>
     </nav>
     <canvas
-      style="display: flex; flex: 1;"
+      style="display: flex;"
     />
   </div>
 </div>
@@ -734,7 +734,7 @@ exports[`connected settings true 1`] = `
       </div>
     </nav>
     <canvas
-      style="display: flex; flex: 1;"
+      style="display: flex;"
     />
   </div>
 </div>
@@ -1214,7 +1214,7 @@ exports[`disconnected 1`] = `
       </div>
     </div>
     <canvas
-      style="display: none; flex: 1;"
+      style="display: none;"
     />
   </div>
 </div>
@@ -1879,7 +1879,7 @@ exports[`processing 1`] = `
       class="c17"
     />
     <canvas
-      style="display: none; flex: 1;"
+      style="display: none;"
     />
   </div>
 </div>
@@ -2150,7 +2150,7 @@ exports[`tdp processing 1`] = `
       class="c17"
     />
     <canvas
-      style="display: none; flex: 1;"
+      style="display: none;"
     />
   </div>
 </div>

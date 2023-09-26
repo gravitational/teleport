@@ -382,7 +382,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 						fetcher, err := fetchers.NewGKEFetcher(fetchers.GKEFetcherConfig{
 							Client:       kubeClient,
 							Location:     location,
-							FilterLabels: matcher.Tags,
+							FilterLabels: matcher.GetLabels(),
 							ProjectID:    projectID,
 							Log:          s.Log,
 						})
@@ -811,10 +811,8 @@ func (s *Server) Start() error {
 	if s.gcpWatcher != nil {
 		go s.handleGCPDiscovery()
 	}
-	if len(s.kubeFetchers) > 0 {
-		if err := s.startKubeWatchers(); err != nil {
-			return trace.Wrap(err)
-		}
+	if err := s.startKubeWatchers(); err != nil {
+		return trace.Wrap(err)
 	}
 	if err := s.startDatabaseWatchers(); err != nil {
 		return trace.Wrap(err)

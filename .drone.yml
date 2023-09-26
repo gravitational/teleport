@@ -1341,7 +1341,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -1550,7 +1550,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -1758,7 +1758,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -1973,7 +1973,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -3273,7 +3273,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -4099,7 +4099,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -5428,7 +5428,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.7
+  RUNTIME: go1.20.8
 trigger:
   event:
     include:
@@ -5725,7 +5725,7 @@ steps:
         path: /root/.aws
 
   - name: Build OSS AMIs
-    image: hashicorp/packer:1.7.6
+    image: hashicorp/packer:1.9.4
     volumes:
       - name: dockersock
         path: /var/run
@@ -5733,6 +5733,7 @@ steps:
         path: /root/.aws
     commands:
       - apk add --no-cache aws-cli jq make
+      - packer plugins install github.com/hashicorp/amazon
       - cd /go/src/github.com/gravitational/teleport/assets/aws
       - export TELEPORT_VERSION=$(cat /go/.version.txt)
       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-oss-$TELEPORT_VERSION
@@ -5900,7 +5901,7 @@ steps:
         path: /root/.aws
 
   - name: Build Enterprise AMIs
-    image: hashicorp/packer:1.7.6
+    image: hashicorp/packer:1.9.4
     volumes:
       - name: dockersock
         path: /var/run
@@ -5908,6 +5909,7 @@ steps:
         path: /root/.aws
     commands:
       - apk add --no-cache aws-cli jq make
+      - packer plugins install github.com/hashicorp/amazon
       - cd /go/src/github.com/gravitational/teleport/assets/aws
       - export TELEPORT_VERSION=$(cat /go/.version.txt)
       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION
@@ -17164,6 +17166,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: be891732280e1f15ac1526c52cfa081e448600baceb210e015d280c562aa5134
+hmac: a3a67d99406db9b0bc8012209e4dd7c3ba76984ce1a2b3d5b487b310a0c4f0cd
 
 ...

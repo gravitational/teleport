@@ -24,6 +24,7 @@ import (
 	"math"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -1093,23 +1094,23 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		}
 		fmt.Printf("lock %q has been deleted\n", name)
 	case types.KindDatabaseServer:
-		dbServers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
+		servers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		deleted := false
-		for _, server := range dbServers {
-			if server.GetName() == rc.ref.Name {
-				if err := client.DeleteDatabaseServer(ctx, apidefaults.Namespace, server.GetHostID(), server.GetName()); err != nil {
-					return trace.Wrap(err)
-				}
-				deleted = true
+		resDesc := "database server"
+		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
+		name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, s := range servers {
+			err := client.DeleteDatabaseServer(ctx, apidefaults.Namespace, s.GetHostID(), name)
+			if err != nil {
+				return trace.Wrap(err)
 			}
 		}
-		if !deleted {
-			return trace.NotFound("database server %q not found", rc.ref.Name)
-		}
-		fmt.Printf("database server %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindNetworkRestrictions:
 		if err = resetNetworkRestrictions(ctx, client); err != nil {
 			return trace.Wrap(err)
@@ -1121,15 +1122,35 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		}
 		fmt.Printf("application %q has been deleted\n", rc.ref.Name)
 	case types.KindDatabase:
-		if err = client.DeleteDatabase(ctx, rc.ref.Name); err != nil {
+		databases, err := client.GetDatabases(ctx)
+		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("database %q has been deleted\n", rc.ref.Name)
+		resDesc := "database"
+		databases = filterByNameOrDiscoveredName(databases, rc.ref.Name)
+		name, err := getOneResourceNameToDelete(databases, rc.ref, resDesc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := client.DeleteDatabase(ctx, name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindKubernetesCluster:
-		if err = client.DeleteKubernetesCluster(ctx, rc.ref.Name); err != nil {
+		clusters, err := client.GetKubernetesClusters(ctx)
+		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("kubernetes cluster %q has been deleted\n", rc.ref.Name)
+		resDesc := "kubernetes cluster"
+		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
+		name, err := getOneResourceNameToDelete(clusters, rc.ref, resDesc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := client.DeleteKubernetesCluster(ctx, name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindWindowsDesktopService:
 		if err = client.DeleteWindowsDesktopService(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1182,23 +1203,23 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		}
 		fmt.Printf("%s '%s/%s' has been deleted\n", types.KindCertAuthority, rc.ref.SubKind, rc.ref.Name)
 	case types.KindKubeServer:
-		kubeServers, err := client.GetKubernetesServers(ctx)
+		servers, err := client.GetKubernetesServers(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		deleted := false
-		for _, server := range kubeServers {
-			if server.GetName() == rc.ref.Name {
-				if err := client.DeleteKubernetesServer(ctx, server.GetHostID(), server.GetName()); err != nil {
-					return trace.Wrap(err)
-				}
-				deleted = true
+		resDesc := "kubernetes server"
+		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
+		name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, s := range servers {
+			err := client.DeleteKubernetesServer(ctx, s.GetHostID(), name)
+			if err != nil {
+				return trace.Wrap(err)
 			}
 		}
-		if !deleted {
-			return trace.NotFound("kubernetes server %q not found", rc.ref.Name)
-		}
-		fmt.Printf("kubernetes server %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindUIConfig:
 		err := client.DeleteUIConfig(ctx)
 		if err != nil {
@@ -1658,16 +1679,11 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return &databaseServerCollection{servers: servers}, nil
 		}
 
-		var out []types.DatabaseServer
-		for _, server := range servers {
-			if server.GetName() == rc.ref.Name {
-				out = append(out, server)
-			}
-		}
-		if len(out) == 0 {
+		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
+		if len(servers) == 0 {
 			return nil, trace.NotFound("database server %q not found", rc.ref.Name)
 		}
-		return &databaseServerCollection{servers: out}, nil
+		return &databaseServerCollection{servers: servers}, nil
 	case types.KindKubeServer:
 		servers, err := client.GetKubernetesServers(ctx)
 		if err != nil {
@@ -1676,17 +1692,14 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		if rc.ref.Name == "" {
 			return &kubeServerCollection{servers: servers}, nil
 		}
-
-		var out []types.KubeServer
-		for _, server := range servers {
-			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
-				out = append(out, server)
-			}
+		altNameFn := func(r types.KubeServer) string {
+			return r.GetHostname()
 		}
-		if len(out) == 0 {
+		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name, altNameFn)
+		if len(servers) == 0 {
 			return nil, trace.NotFound("kubernetes server %q not found", rc.ref.Name)
 		}
-		return &kubeServerCollection{servers: out}, nil
+		return &kubeServerCollection{servers: servers}, nil
 
 	case types.KindAppServer:
 		servers, err := client.GetApplicationServers(ctx, rc.namespace)
@@ -1727,31 +1740,31 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		}
 		return &appCollection{apps: []types.Application{app}}, nil
 	case types.KindDatabase:
+		databases, err := client.GetDatabases(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if rc.ref.Name == "" {
-			databases, err := client.GetDatabases(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			return &databaseCollection{databases: databases}, nil
 		}
-		database, err := client.GetDatabase(ctx, rc.ref.Name)
+		databases = filterByNameOrDiscoveredName(databases, rc.ref.Name)
+		if len(databases) == 0 {
+			return nil, trace.NotFound("database %q not found", rc.ref.Name)
+		}
+		return &databaseCollection{databases: databases}, nil
+	case types.KindKubernetesCluster:
+		clusters, err := client.GetKubernetesClusters(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &databaseCollection{databases: []types.Database{database}}, nil
-	case types.KindKubernetesCluster:
 		if rc.ref.Name == "" {
-			clusters, err := client.GetKubernetesClusters(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			return &kubeClusterCollection{clusters: clusters}, nil
 		}
-		cluster, err := client.GetKubernetesCluster(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
+		if len(clusters) == 0 {
+			return nil, trace.NotFound("kubernetes cluster %q not found", rc.ref.Name)
 		}
-		return &kubeClusterCollection{clusters: []types.KubeCluster{cluster}}, nil
+		return &kubeClusterCollection{clusters: clusters}, nil
 	case types.KindWindowsDesktopService:
 		services, err := client.GetWindowsDesktopServices(ctx)
 		if err != nil {
@@ -2129,4 +2142,103 @@ func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustService
 	}
 
 	return nil, trace.BadParameter("found multiple devices for asset tag %q, please retry using the device ID instead", idOrTag)
+}
+
+// keepFn is a predicate function that returns true if a resource should be
+// retained by filterResources.
+type keepFn[T types.ResourceWithLabels] func(T) bool
+
+// filterResources takes a list of resources and returns a filtered list of
+// resources for which the `keep` predicate function returns true.
+func filterResources[T types.ResourceWithLabels](resources []T, keep keepFn[T]) []T {
+	out := make([]T, 0, len(resources))
+	for _, r := range resources {
+		if keep(r) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// altNameFn is a func that returns an alternative name for a resource.
+type altNameFn[T types.ResourceWithLabels] func(T) string
+
+// filterByNameOrDiscoveredName filters resources by name or "discovered name".
+// It prefers exact name filtering first - if none of the resource names match
+// exactly (i.e. all of the resources are filtered out), then it retries and
+// filters the resources by "discovered name" of resource name instead, which
+// comes from an auto-discovery label.
+func filterByNameOrDiscoveredName[T types.ResourceWithLabels](resources []T, prefixOrName string, extra ...altNameFn[T]) []T {
+	// prefer exact names
+	out := filterByName(resources, prefixOrName, extra...)
+	if len(out) == 0 {
+		// fallback to looking for discovered name label matches.
+		out = filterByDiscoveredName(resources, prefixOrName)
+	}
+	return out
+}
+
+// filterByName filters resources by exact name match.
+func filterByName[T types.ResourceWithLabels](resources []T, name string, altNameFns ...altNameFn[T]) []T {
+	return filterResources(resources, func(r T) bool {
+		if r.GetName() == name {
+			return true
+		}
+		for _, altName := range altNameFns {
+			if altName(r) == name {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+// filterByDiscoveredName filters resources that have a "discovered name" label
+// that matches the given name.
+func filterByDiscoveredName[T types.ResourceWithLabels](resources []T, name string) []T {
+	return filterResources(resources, func(r T) bool {
+		discoveredName, ok := r.GetLabel(types.DiscoveredNameLabel)
+		return ok && discoveredName == name
+	})
+}
+
+// getOneResourceNameToDelete checks a list of resources to ensure there is
+// exactly one resource name among them, and returns that name or an error.
+// Heartbeat resources can have the same name but different host ID, so this
+// still allows a user to delete multiple heartbeats of the same name, for
+// example `$ tctl rm db_server/someDB`.
+func getOneResourceNameToDelete[T types.ResourceWithLabels](rs []T, ref services.Ref, resDesc string) (string, error) {
+	seen := make(map[string]struct{})
+	for _, r := range rs {
+		seen[r.GetName()] = struct{}{}
+	}
+	switch len(seen) {
+	case 1: // need exactly one.
+		return rs[0].GetName(), nil
+	case 0:
+		return "", trace.NotFound("%v %q not found", resDesc, ref.Name)
+	default:
+		names := make([]string, 0, len(rs))
+		for _, r := range rs {
+			names = append(names, r.GetName())
+		}
+		msg := formatAmbiguousDeleteMessage(ref, resDesc, names)
+		return "", trace.BadParameter(msg)
+	}
+}
+
+// formatAmbiguousDeleteMessage returns a formatted message when a user is
+// attempting to delete multiple resources by an ambiguous prefix of the
+// resource names.
+func formatAmbiguousDeleteMessage(ref services.Ref, resDesc string, names []string) string {
+	slices.Sort(names)
+	// choose an actual resource for the example in the error.
+	exampleRef := ref
+	exampleRef.Name = names[0]
+	return fmt.Sprintf(`%s matches multiple auto-discovered %vs:
+%v
+
+Use the full resource name that was generated by the Teleport Discovery service, for example:
+$ tctl rm %s`,
+		ref.String(), resDesc, strings.Join(names, "\n"), exampleRef.String())
 }

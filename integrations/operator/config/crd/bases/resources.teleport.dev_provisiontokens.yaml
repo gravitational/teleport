@@ -235,6 +235,19 @@ spec:
                       type: object
                     nullable: true
                     type: array
+                  static_jwks:
+                    description: StaticJWKS is the configuration specific to the `static_jwks`
+                      type.
+                    nullable: true
+                    properties:
+                      jwks:
+                        type: string
+                    type: object
+                  type:
+                    description: 'Type controls which behavior should be used for
+                      validating the Kubernetes Service Account token. Support values:
+                      - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.'
+                    type: string
                 type: object
               roles:
                 description: Roles is a list of roles associated with the token, that

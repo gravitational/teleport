@@ -914,7 +914,7 @@ func TestDiscoveryConfig(t *testing.T) {
 					{
 						Types:     []string{"gke"},
 						Locations: []string{"*"},
-						Tags: map[string]apiutils.Strings{
+						Labels: map[string]apiutils.Strings{
 							"*": []string{"*"},
 						},
 						ProjectIDs: []string{"p1", "p2"},
@@ -944,7 +944,7 @@ func TestDiscoveryConfig(t *testing.T) {
 					{
 						Types:     []string{"gke"},
 						Locations: []string{"eucentral1"},
-						Tags: map[string]apiutils.Strings{
+						Labels: map[string]apiutils.Strings{
 							"discover_teleport": []string{"yes"},
 						},
 						ProjectIDs: []string{"p1", "p2"},
@@ -975,7 +975,7 @@ func TestDiscoveryConfig(t *testing.T) {
 					{
 						Types:     []string{"gke"},
 						Locations: []string{"eucentral1"},
-						Tags: map[string]apiutils.Strings{
+						Labels: map[string]apiutils.Strings{
 							"discover_teleport": []string{"yes"},
 						},
 						ProjectIDs:      []string{"p1", "p2"},

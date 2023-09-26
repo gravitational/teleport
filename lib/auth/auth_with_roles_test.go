@@ -2050,6 +2050,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		Status: aws.String(eks.ClusterStatusActive),
 	})
 	require.NoError(t, err)
+	eksCluster.SetOrigin(types.OriginCloud)
 
 	// Discovery service must not have access to non-cloud cluster (cluster
 	// without "cloud" origin label).
@@ -2069,6 +2070,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		Status: aws.String(eks.ClusterStatusActive),
 	})
 	require.NoError(t, err)
+	clusterWithDynamicLabels.SetOrigin(types.OriginCloud)
 	clusterWithDynamicLabels.SetDynamicLabels(map[string]types.CommandLabel{
 		"hostname": &types.CommandLabelV2{
 			Period:  types.Duration(time.Hour),
@@ -2084,7 +2086,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	t.Run("Read", func(t *testing.T) {
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Equal(t, clusters, []types.KubeCluster{eksCluster})
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters))
 	})
 	t.Run("Update", func(t *testing.T) {
 		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
@@ -4400,33 +4402,22 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	// Test all local service roles, plus RoleInstance.
-	// The latter may also be used to run the uploader.
-	roles := append(types.LocalServiceMappings(), types.RoleInstance)
+	roles := types.LocalServiceMappings()
 	for _, role := range roles {
 		// RoleMDM services don't create events by themselves, instead they rely on
 		// Auth to issue events.
 		if role == types.RoleAuth || role == types.RoleMDM {
 			continue
 		}
+
 		t.Run(role.String(), func(t *testing.T) {
 			ctx := context.Background()
-
-			var identity TestIdentity
-			if role == types.RoleInstance {
-				// RoleInstance needs AdditionalSystemRoles, otherwise the setup is the
-				// same.
-				identity = TestIdentity{
-					I: authz.BuiltinRole{
-						Role: role,
-						AdditionalSystemRoles: []types.SystemRole{
-							types.RoleNode, // Arbitrary, could be any role.
-						},
-						Username: string(role),
-					},
-				}
-			} else {
-				identity = TestBuiltin(role)
+			identity := TestIdentity{
+				I: authz.BuiltinRole{
+					Role:                  types.RoleInstance,
+					AdditionalSystemRoles: []types.SystemRole{role},
+					Username:              string(types.RoleInstance),
+				},
 			}
 
 			authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, identity.I))
@@ -4439,7 +4430,7 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 			}
 
 			t.Run("GetSessionTracker", func(t *testing.T) {
-				sid := session.ID("foo/" + role.String())
+				sid := session.ID("test-session")
 				tracker, err := s.CreateSessionTracker(ctx, &types.SessionTrackerV1{
 					ResourceHeader: types.ResourceHeader{
 						Metadata: types.Metadata{
