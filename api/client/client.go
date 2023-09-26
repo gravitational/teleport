@@ -1586,7 +1586,9 @@ func (c *Client) DeleteRole(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
+// Deprecated: Use AddMFADeviceSync instead.
 func (c *Client) AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error) {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility testing.
 	stream, err := c.grpc.AddMFADevice(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
