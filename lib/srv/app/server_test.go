@@ -415,7 +415,7 @@ func TestStart(t *testing.T) {
 
 	sort.Sort(types.AppServers(servers))
 	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverFoo}, servers,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Expires")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Expires")))
 
 	// Check the expiry time is correct.
 	for _, server := range servers {

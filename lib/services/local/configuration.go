@@ -68,7 +68,7 @@ func (s *ClusterConfigurationService) GetClusterName(opts ...services.MarshalOpt
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalClusterName(item.Value,
-		services.AddOptions(opts, services.WithResourceID(item.ID))...)
+		services.AddOptions(opts, services.WithResourceID(item.ID), services.WithRevision(item.Revision))...)
 }
 
 // DeleteClusterName deletes types.ClusterName from the backend.
@@ -133,7 +133,7 @@ func (s *ClusterConfigurationService) GetStaticTokens() (types.StaticTokens, err
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalStaticTokens(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // SetStaticTokens sets the list of static tokens used to provision nodes.
@@ -178,7 +178,7 @@ func (s *ClusterConfigurationService) GetAuthPreference(ctx context.Context) (ty
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalAuthPreference(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // SetAuthPreference sets the cluster authentication preferences
@@ -229,7 +229,7 @@ func (s *ClusterConfigurationService) GetClusterAuditConfig(ctx context.Context,
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalClusterAuditConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+	return services.UnmarshalClusterAuditConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
 }
 
 // SetClusterAuditConfig sets the cluster audit config on the backend.
@@ -273,7 +273,7 @@ func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Con
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalClusterNetworkingConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+	return services.UnmarshalClusterNetworkingConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
 }
 
 // SetClusterNetworkingConfig sets the cluster networking config
@@ -323,7 +323,7 @@ func (s *ClusterConfigurationService) GetSessionRecordingConfig(ctx context.Cont
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalSessionRecordingConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+	return services.UnmarshalSessionRecordingConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
 }
 
 // SetSessionRecordingConfig sets session recording config on the backend.

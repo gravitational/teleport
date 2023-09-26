@@ -3133,6 +3133,9 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 		if cfg.ID != 0 {
 			role.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			role.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			role.SetExpiry(cfg.Expires)
 		}
@@ -3160,6 +3163,7 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 			// to prevent unexpected data races
 			copy := *role
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			role = &copy
 		}
 		return utils.FastMarshal(role)

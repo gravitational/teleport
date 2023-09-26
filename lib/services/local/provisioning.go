@@ -100,7 +100,7 @@ func (s *ProvisioningService) GetToken(ctx context.Context, token string) (types
 		return nil, trace.Wrap(err)
 	}
 
-	return services.UnmarshalProvisionToken(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	return services.UnmarshalProvisionToken(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // DeleteToken deletes a token by ID
@@ -128,6 +128,7 @@ func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionT
 			item.Value,
 			services.WithResourceID(item.ID),
 			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
