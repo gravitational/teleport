@@ -270,8 +270,10 @@ jobs:
       - name: Verify base image
         env:
           BASE_IMAGE: ${{ inputs.base-image }}
+          CERT_IDENTITY: "keyless@distroless.iam.gserviceaccount.com"
+          CERT_OIDC_ISSUER: "https://accounts.google.com"
         run: |
-          cosign verify ${BASE_IMAGE} --certificate-oidc-issuer https://accounts.google.com --certificate-identity keyless@distroless.iam.gserviceaccount.com > validated-image.json
+          cosign verify ${BASE_IMAGE} --certificate-oidc-issuer="${CERT_OIDC_ISSUER}" --certificate-identity="${CERT_IDENTITY}" > validated-image.json
           BASE_IMAGE_HASH=$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)
           echo BASE_IMAGE_HASH=${BASE_IMAGE_HASH} >> $GITHUB_ENV
 
@@ -353,13 +355,20 @@ jobs:
             TELEPORT_FIPS_INFIX=${{ env.DEB_FIPS_INFIX }}
             ${{ inputs.image-build-args }}
 
-      - name: Sign image
+      - name: Sign image using signing key
         if: steps.check.outputs.build_image == 'true'
         env:
-          SIGNING_KEY: ${{ inputs.signing-key-url }}
+          SIGNING_KEY_URL: ${{ inputs.signing-key-url }}
           DST_IMAGE: "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}@${{ steps.build.outputs.digest }}"
-        run: |        
-          cosign sign --yes --key ${SIGNING_KEY} --recursive ${DST_IMAGE}
+        run: |
+          cosign sign --yes --key ${SIGNING_KEY_URL} --recursive ${DST_IMAGE}
+
+      - name: Sign image using GitHub OIDC Token
+        if: steps.check.outputs.build_image == 'true'
+        env:
+          DST_IMAGE: "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}@${{ steps.build.outputs.digest }}"
+        run: |
+          cosign sign --yes --recursive ${DST_IMAGE}
 
   trivy-scan:
     name: Scan Multiarch Image with Trivy

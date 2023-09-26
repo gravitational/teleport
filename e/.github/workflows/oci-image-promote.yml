@@ -98,12 +98,22 @@ jobs:
         with:
           registry: ${{ inputs.pending-registry }}
 
-      - name: Validate pending image signature
-        shell: bash
+      - name: Validate pending image signature using signing key
+        env:
+          SIGNING_KEY_URL: "${{ inputs.validation-key-url }}"
+          SRC_IMAGE: "${{ inputs.pending-registry }}/${{ inputs.pending-repository }}:${{ inputs.pending-tag }}"
         run: |
-          cosign verify --key ${{ inputs.validation-key-url }} ${{ inputs.pending-registry }}/${{ inputs.pending-repository }}:${{ inputs.pending-tag }} > validated-image.json
+          cosign verify --key ${SIGNING_KEY_URL} ${SRC_IMAGE} > validated-image.json
           TELEPORT_IMAGE_LIST_HASH=$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)
           echo TELEPORT_IMAGE_LIST_HASH=$TELEPORT_IMAGE_LIST_HASH >> $GITHUB_ENV
+
+      - name: Validate pending image signature using GitHub OIDC Token
+        env:
+          SRC_IMAGE: "${{ inputs.pending-registry }}/${{ inputs.pending-repository }}:${{ inputs.pending-tag }}"
+          CERT_IDENTITY_REGEXP: "https://github\.com/gravitational/teleport\.e/\.github/workflows/oci-image-build\.yml@refs/tags/.+"
+          CERT_OIDC_ISSUER: "https://token.actions.githubusercontent.com/teleport"
+        run: |
+          cosign verify ${SRC_IMAGE} --certificate-identity-regexp="${CERT_IDENTITY_REGEXP}" --certificate-oidc-issuer="${CERT_OIDC_ISSUER}"
 
       # From this point we should only refer to the source image by digest rather 
       # than by tag. Referring to an image by tag across multiple operations is 
@@ -130,7 +140,15 @@ jobs:
             docker buildx imagetools create --tag $DST_REPO:$tag $SRC_IMAGE
           done
 
-      - name: Sign production images
-        shell: bash
+      - name: Sign production images using signing key
+        env:
+          SIGNING_KEY_URL: ${{ inputs.production-signing-key-url }}
+          DST_IMAGE: "${{ inputs.production-registry }}/${{ inputs.production-repository }}@${{ env.TELEPORT_IMAGE_LIST_HASH }}"
         run: |
-          cosign sign --yes --recursive --key ${{ inputs.production-signing-key-url }} ${{ inputs.production-registry }}/${{ inputs.production-repository }}@${{ env.TELEPORT_IMAGE_LIST_HASH }}
+          cosign sign --yes --key ${SIGNING_KEY_URL} --recursive ${DST_IMAGE}
+
+      - name: Sign production images using GitHub OIDC Token
+        env:
+          DST_IMAGE: "${{ inputs.production-registry }}/${{ inputs.production-repository }}@${{ env.TELEPORT_IMAGE_LIST_HASH }}"
+        run: |
+          cosign sign --yes --recursive ${DST_IMAGE}
