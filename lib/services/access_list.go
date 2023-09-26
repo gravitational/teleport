@@ -297,3 +297,68 @@ func SelectNextReviewDate(accessList *accesslist.AccessList) time.Time {
 
 	return nextDate
 }
+
+// AccessListReviewsGetter defines an interface for reading access list reviews.
+type AccessListReviewsGetter interface {
+	// ListAccessListReviews will list access list reviews for a particular access list.
+	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
+}
+
+// AccessListReviews defines an interface for managing Access List reviews.
+type AccessListReviews interface {
+	AccessListReviewsGetter
+
+	// CreateAccessListReview will create a new review for an access list. It will also modify the original access list
+	// and its members depending on the details of the review.
+	CreateAccessListReview(ctx context.Context, review *accesslist.Review) (reviewName string, nextAuditDate time.Time, err error)
+
+	// DeleteAccessListReview will delete an access list review from the backend.
+	DeleteAccessListReview(ctx context.Context, accessList, name string) error
+
+	// DeleteAllAccessListReviews will delete all access list reviews.
+	DeleteAllAccessListReviews(ctx context.Context, accessList string) error
+}
+
+// MarshalAccessListReview marshals the access list review resource to JSON.
+func MarshalAccessListReview(review *accesslist.Review, opts ...MarshalOption) ([]byte, error) {
+	if err := review.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !cfg.PreserveResourceID {
+		copy := *review
+		copy.SetResourceID(0)
+		review = &copy
+	}
+	return utils.FastMarshal(review)
+}
+
+// UnmarshalAccessListReview unmarshals the access list review resource from JSON.
+func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.Review, error) {
+	if len(data) == 0 {
+		return nil, trace.BadParameter("missing access list review data")
+	}
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var review accesslist.Review
+	if err := utils.FastUnmarshal(data, &review); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+	if err := review.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if cfg.ID != 0 {
+		review.SetResourceID(cfg.ID)
+	}
+	if !cfg.Expires.IsZero() {
+		review.SetExpiry(cfg.Expires)
+	}
+	return &review, nil
+}

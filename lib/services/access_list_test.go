@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -468,6 +469,107 @@ func TestSelectNextReviewDate(t *testing.T) {
 	}
 }
 
+// TestAccessListReviewUnmarshal verifies an access list review resource can be unmarshaled.
+func TestAccessListReviewUnmarshal(t *testing.T) {
+	expected, err := accesslist.NewReview(
+		header.Metadata{
+			Name: "test-access-list-review",
+		},
+		accesslist.ReviewSpec{
+			AccessList: "access-list",
+			Reviewers: []string{
+				"user1",
+				"user2",
+			},
+			ReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			Notes:      "Some notes",
+			Changes: accesslist.ReviewChanges{
+				MembershipRequirementsChanged: &accesslist.Requires{
+					Roles: []string{
+						"role1",
+						"role2",
+					},
+					Traits: trait.Traits{
+						"trait1": []string{
+							"value1",
+							"value2",
+						},
+						"trait2": []string{
+							"value1",
+							"value2",
+						},
+					},
+				},
+				RemovedMembers: []string{
+					"member1",
+					"member2",
+				},
+				ReviewFrequencyChanged:  accesslist.ThreeMonths,
+				ReviewDayOfMonthChanged: accesslist.FifteenthDayOfMonth,
+			},
+		},
+	)
+	require.NoError(t, err)
+	data, err := utils.ToJSON([]byte(accessListReviewYAML))
+	require.NoError(t, err)
+	actual, err := UnmarshalAccessListReview(data)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+// TestAccessListReviewMarshal verifies a marshaled access list review resource can be unmarshaled back.
+func TestAccessListReviewMarshal(t *testing.T) {
+	expected, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: "test-access-list-review",
+		},
+		accesslist.Spec{
+			Title:       "title",
+			Description: "test access list",
+			Owners: []accesslist.Owner{
+				{
+					Name:        "test-user1",
+					Description: "test user 1",
+				},
+				{
+					Name:        "test-user2",
+					Description: "test user 2",
+				},
+			},
+			Audit: accesslist.Audit{
+				NextAuditDate: time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC),
+			},
+			MembershipRequires: accesslist.Requires{
+				Roles: []string{"mrole1", "mrole2"},
+				Traits: map[string][]string{
+					"mtrait1": {"mvalue1", "mvalue2"},
+					"mtrait2": {"mvalue3", "mvalue4"},
+				},
+			},
+			OwnershipRequires: accesslist.Requires{
+				Roles: []string{"orole1", "orole2"},
+				Traits: map[string][]string{
+					"otrait1": {"ovalue1", "ovalue2"},
+					"otrait2": {"ovalue3", "ovalue4"},
+				},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"grole1", "grole2"},
+				Traits: map[string][]string{
+					"gtrait1": {"gvalue1", "gvalue2"},
+					"gtrait2": {"gvalue3", "gvalue4"},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	data, err := MarshalAccessList(expected)
+	require.NoError(t, err)
+	actual, err := UnmarshalAccessList(data)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
 func newAccessList(t *testing.T) *accesslist.AccessList {
 	t.Helper()
 
@@ -490,6 +592,10 @@ func newAccessList(t *testing.T) *accesslist.AccessList {
 			},
 			Audit: accesslist.Audit{
 				NextAuditDate: time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
+				Recurrence: accesslist.Recurrence{
+					Frequency:  accesslist.ThreeMonths,
+					DayOfMonth: accesslist.FifteenthDayOfMonth,
+				},
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
@@ -623,4 +729,34 @@ spec:
   expires: 2024-01-01T00:00:00Z
   reason: "because"
   added_by: "test-user1"
+`
+
+var accessListReviewYAML = `---
+kind: access_list_review
+version: v1
+metadata:
+  name: test-access-list-review
+spec:
+  access_list: access-list
+  reviewers:
+  - user1
+  - user2
+  review_date: 2023-01-01T00:00:00Z
+  notes: "Some notes"
+  changes:
+    frequency_changed: 300s
+    membership_requirements_changed:
+      roles:
+      - role1
+      - role2
+      traits:
+        trait1:
+        - value1
+        - value2
+        trait2:
+        - value1
+        - value2
+    removed_members:
+    - member1
+    - member2
 `

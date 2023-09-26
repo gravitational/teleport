@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -41,6 +42,9 @@ const (
 	accessListMemberPrefix      = "access_list_member"
 	accessListMemberMaxPageSize = 200
 
+	accessListReviewPrefix      = "access_list_review"
+	accessListReviewMaxPageSize = 200
+
 	// This lock is necessary to prevent a race condition between access lists and members and to ensure
 	// consistency of the one-to-many relationship between them.
 	accessListLockTTL = 5 * time.Second
@@ -52,6 +56,7 @@ type AccessListService struct {
 	clock         clockwork.Clock
 	service       *generic.Service[*accesslist.AccessList]
 	memberService *generic.Service[*accesslist.AccessListMember]
+	reviewService *generic.Service[*accesslist.Review]
 }
 
 // NewAccessListService creates a new AccessListService.
@@ -80,11 +85,24 @@ func NewAccessListService(backend backend.Backend, clock clockwork.Clock) (*Acce
 		return nil, trace.Wrap(err)
 	}
 
+	reviewService, err := generic.NewService(&generic.ServiceConfig[*accesslist.Review]{
+		Backend:       backend,
+		PageLimit:     accessListReviewMaxPageSize,
+		ResourceKind:  types.KindAccessListReview,
+		BackendPrefix: accessListReviewPrefix,
+		MarshalFunc:   services.MarshalAccessListReview,
+		UnmarshalFunc: services.UnmarshalAccessListReview,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &AccessListService{
 		log:           logrus.WithFields(logrus.Fields{trace.Component: "access-list:local-service"}),
 		clock:         clock,
 		service:       service,
 		memberService: memberService,
+		reviewService: reviewService,
 	}, nil
 }
 
@@ -300,6 +318,143 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 
 func (a *AccessListService) AccessRequestPromote(_ context.Context, _ *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
 	return nil, trace.NotImplemented("AccessRequestPromote should not be called")
+}
+
+// ListAccessListReviews will list access list reviews for a particular access list.
+func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
+	err = a.service.RunWhileLocked(ctx, lockName(accessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		_, err := a.service.GetResource(ctx, accessList)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		reviews, nextToken, err = a.reviewService.WithPrefix(accessList).ListResources(ctx, pageSize, pageToken)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return reviews, nextToken, nil
+}
+
+// CreateAccessListReview will create a new review for an access list. It will also modify the original access list
+// and its members depending on the details of the review.
+func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (reviewName string, nextAuditDate time.Time, err error) {
+	err = a.service.RunWhileLocked(ctx, lockName(review.Spec.AccessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		accessList, err := a.service.GetResource(ctx, review.Spec.AccessList)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if review.Spec.Changes.MembershipRequirementsChanged != nil {
+			if accessListRequiresEqual(*review.Spec.Changes.MembershipRequirementsChanged, accessList.Spec.MembershipRequires) {
+				review.Spec.Changes.MembershipRequirementsChanged = nil
+			} else {
+				accessList.Spec.MembershipRequires = *review.Spec.Changes.MembershipRequirementsChanged
+			}
+		}
+
+		if review.Spec.Changes.ReviewFrequencyChanged != 0 {
+			if review.Spec.Changes.ReviewFrequencyChanged == accessList.Spec.Audit.Recurrence.Frequency {
+				review.Spec.Changes.ReviewFrequencyChanged = 0
+			} else {
+				accessList.Spec.Audit.Recurrence.Frequency = review.Spec.Changes.ReviewFrequencyChanged
+			}
+		}
+
+		if review.Spec.Changes.ReviewDayOfMonthChanged != 0 {
+			if review.Spec.Changes.ReviewDayOfMonthChanged == accessList.Spec.Audit.Recurrence.DayOfMonth {
+				review.Spec.Changes.ReviewDayOfMonthChanged = 0
+			} else {
+				accessList.Spec.Audit.Recurrence.DayOfMonth = review.Spec.Changes.ReviewDayOfMonthChanged
+			}
+		}
+
+		reviewName = strings.ToLower(uuid.New().String())
+		review.SetName(reviewName)
+		if err := a.reviewService.WithPrefix(review.Spec.AccessList).CreateResource(ctx, review); err != nil {
+			return trace.Wrap(err)
+		}
+
+		accessList.Spec.Audit.NextAuditDate = services.SelectNextReviewDate(accessList)
+
+		for _, removedMember := range review.Spec.Changes.RemovedMembers {
+			if err := a.memberService.WithPrefix(review.Spec.AccessList).DeleteResource(ctx, removedMember); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		if err := a.service.UpdateResource(ctx, accessList); err != nil {
+			return trace.Wrap(err, "error updating audit date in access list")
+		}
+
+		return nil
+	})
+	if err != nil {
+		return "", time.Time{}, trace.Wrap(err)
+	}
+	return reviewName, nextAuditDate, nil
+}
+
+// accessListRequiresEqual returns true if two access lists are equal.
+func accessListRequiresEqual(a, b accesslist.Requires) bool {
+	// Check roles and traits length.
+	if len(a.Roles) != len(b.Roles) {
+		return false
+	}
+	if len(a.Traits) != len(b.Traits) {
+		return false
+	}
+
+	// Make sure roles are equal.
+	for i, role := range a.Roles {
+		if b.Roles[i] != role {
+			return false
+		}
+	}
+
+	// Make sure traits are equal.
+	for key, vals := range a.Traits {
+		bVals, ok := b.Traits[key]
+		if !ok {
+			return false
+		}
+
+		if len(bVals) != len(vals) {
+			return false
+		}
+
+		for i, val := range vals {
+			if bVals[i] != val {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// DeleteAccessListReview will delete an access list review from the backend.
+func (a *AccessListService) DeleteAccessListReview(ctx context.Context, accessList, name string) error {
+	err := a.service.RunWhileLocked(ctx, lockName(accessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		_, err := a.service.GetResource(ctx, accessList)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(a.reviewService.WithPrefix(accessList).DeleteResource(ctx, name))
+	})
+	return trace.Wrap(err)
+}
+
+// DeleteAllAccessListReviews will delete all access list reviews.
+func (a *AccessListService) DeleteAllAccessListReviews(ctx context.Context, accessList string) error {
+	err := a.service.RunWhileLocked(ctx, lockName(accessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		_, err := a.service.GetResource(ctx, accessList)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(a.reviewService.WithPrefix(accessList).DeleteAllResources(ctx))
+	})
+	return trace.Wrap(err)
 }
 
 func lockName(accessListName string) string {
