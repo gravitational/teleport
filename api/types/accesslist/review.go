@@ -17,6 +17,7 @@ limitations under the License.
 package accesslist
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -44,7 +45,7 @@ type ReviewSpec struct {
 	Reviewers []string `json:"reviewers" yaml:"reviewers"`
 
 	// ReviewDate is the date that this review was created.
-	ReviewDate time.Time `json:"joined" yaml:"joined"`
+	ReviewDate time.Time `json:"review_date" yaml:"review_date"`
 
 	// Notes is an optional plaintext attached to the review that can be used by the review for arbitrary
 	// note taking on the review.
@@ -108,4 +109,66 @@ func (r *Review) CheckAndSetDefaults() error {
 // and should be removed when possible.
 func (r *Review) GetMetadata() types.Metadata {
 	return legacy.FromHeaderMetadata(r.Metadata)
+}
+
+func (r *ReviewSpec) UnmarshalJSON(data []byte) error {
+	type Alias ReviewSpec
+	review := struct {
+		ReviewDate string `json:"review_date"`
+		*Alias
+	}{
+		Alias: (*Alias)(r),
+	}
+	if err := json.Unmarshal(data, &review); err != nil {
+		return trace.Wrap(err)
+	}
+
+	var err error
+	r.ReviewDate, err = time.Parse(time.RFC3339Nano, review.ReviewDate)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (r ReviewSpec) MarshalJSON() ([]byte, error) {
+	type Alias ReviewSpec
+	return json.Marshal(&struct {
+		ReviewDate string `json:"review_date"`
+		Alias
+	}{
+		Alias:      (Alias)(r),
+		ReviewDate: r.ReviewDate.Format(time.RFC3339Nano),
+	})
+}
+
+func (r *ReviewChanges) UnmarshalJSON(data []byte) error {
+	type Alias ReviewChanges
+	review := struct {
+		FrequencyChanged string `json:"frequency_changed"`
+		*Alias
+	}{
+		Alias: (*Alias)(r),
+	}
+	if err := json.Unmarshal(data, &review); err != nil {
+		return trace.Wrap(err)
+	}
+
+	var err error
+	r.FrequencyChanged, err = time.ParseDuration(review.FrequencyChanged)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (r ReviewChanges) MarshalJSON() ([]byte, error) {
+	type Alias ReviewChanges
+	return json.Marshal(&struct {
+		FrequencyChanged string `json:"frequency_changed"`
+		Alias
+	}{
+		Alias:            (Alias)(r),
+		FrequencyChanged: r.FrequencyChanged.String(),
+	})
 }
