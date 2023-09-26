@@ -68,7 +68,7 @@ export class WindowsManager {
       minHeight: 300,
       show: false,
       autoHideMenuBar: true,
-      title: 'Teleport Connect Preview',
+      title: 'Teleport Connect',
       webPreferences: {
         devTools: this.settings.dev,
         webgl: false,
