@@ -19,15 +19,13 @@ import React, { useEffect, useRef, useLayoutEffect } from 'react';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
-
 import {
   makeRootCluster,
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
-
 import { IAppContext } from 'teleterm/ui/types';
-
 import { Cluster } from 'teleterm/services/tshd/types';
+import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
 
 import { ConnectMyComputerContextProvider } from '../connectMyComputerContext';
 
@@ -141,9 +139,11 @@ function ShowState({
   return (
     <MockAppContextProvider appContext={appContext}>
       <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
-        <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
-          <DocumentConnectMyComputerSetup />
-        </ConnectMyComputerContextProvider>
+        <ResourcesContextProvider>
+          <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
+            <DocumentConnectMyComputerSetup />
+          </ConnectMyComputerContextProvider>
+        </ResourcesContextProvider>
       </MockWorkspaceContextProvider>
     </MockAppContextProvider>
   );
