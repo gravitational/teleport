@@ -64,7 +64,7 @@ func (b *Backend) runChangeFeed2(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	rows, err := conn.Query(ctx, "EXPERIMENTAL CHANGEFEED FOR kv WITH diff;")
+	rows, err := conn.Query(ctx, "EXPERIMENTAL CHANGEFEED FOR kv WITH diff, no_initial_scan;")
 	if err != nil {
 		return err
 	}
