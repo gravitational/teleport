@@ -86,7 +86,7 @@ export function arrayStrDiff(stringsA: string[], stringsB: string[]) {
   return stringsA.filter(l => !stringsB.includes(l));
 }
 
-export const compareSemVers = (a: string, b: string): -1 | 1 => {
+export const compareSemVers = (a: string, b: string): -1 | 1 | 0 => {
   const splitA = a.split('.');
   const splitB = b.split('.');
 
@@ -112,7 +112,7 @@ export const compareSemVers = (a: string, b: string): -1 | 1 => {
     return patchA > patchB ? 1 : -1;
   }
 
-  return 1;
+  return 0;
 };
 
 // compareByString is a sort compare function that

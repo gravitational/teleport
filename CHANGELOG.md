@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.4.20 (09/25/23)
+
+* Added support for AWS EC2 IMDSv2 on installer script and when gathering inventory metadata [#32446](https://github.com/gravitational/teleport/pull/32446)
+* Added additional logging for when the Teleport process file is not accessible due to a permission issue upon startup [#32350](https://github.com/gravitational/teleport/pull/32350)
+
 ## 12.4.18 (09/20/23)
 
 ### Security fixes
