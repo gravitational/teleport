@@ -117,16 +117,18 @@ function ShowState({
   appContext: IAppContext;
   clickStartSetup?: boolean;
 }) {
-  appContext.clustersService.state.clusters.set(cluster.uri, cluster);
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = cluster.uri;
-    draftState.workspaces[cluster.uri] = {
-      localClusterUri: cluster.uri,
-      documents: [],
-      location: undefined,
-      accessRequests: undefined,
-    };
-  });
+  if (!appContext.clustersService.state.clusters.get(cluster.uri)) {
+    appContext.clustersService.state.clusters.set(cluster.uri, cluster);
+    appContext.workspacesService.setState(draftState => {
+      draftState.rootClusterUri = cluster.uri;
+      draftState.workspaces[cluster.uri] = {
+        localClusterUri: cluster.uri,
+        documents: [],
+        location: undefined,
+        accessRequests: undefined,
+      };
+    });
+  }
 
   useLayoutEffect(() => {
     if (clickStartSetup) {
@@ -134,7 +136,7 @@ function ShowState({
         document.querySelector('[data-testid=start-setup]') as HTMLButtonElement
       )?.click();
     }
-  }, []);
+  }, [clickStartSetup]);
 
   return (
     <MockAppContextProvider appContext={appContext}>
