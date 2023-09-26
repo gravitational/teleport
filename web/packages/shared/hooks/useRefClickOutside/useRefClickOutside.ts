@@ -29,22 +29,26 @@ export function useRefClickOutside<
   T extends { contains(eventTarget: HTMLElement): boolean }
 >(options: { open: boolean; setOpen(b: boolean): void }): MutableRefObject<T> {
   const ref = useRef<T>();
+  const { setOpen, open } = options;
 
-  const handleClickOutside = useCallback((event: MouseEvent) => {
-    if (ref.current && !ref.current.contains(event.target as HTMLElement)) {
-      options.setOpen(false);
-    }
-  }, []);
+  const handleClickOutside = useCallback(
+    (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as HTMLElement)) {
+        setOpen(false);
+      }
+    },
+    [setOpen]
+  );
 
   useEffect(() => {
-    if (options.open) {
+    if (open) {
       document.addEventListener('mousedown', handleClickOutside);
 
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [ref, options.open, handleClickOutside]);
+  }, [open, handleClickOutside]);
 
   return ref;
 }

@@ -28,10 +28,10 @@ export const Dropdown = styled.div<OpenProps>`
   position: absolute;
   display: flex;
   flex-direction: column;
-  padding: 10px 15px;
+  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
   background: ${({ theme }) => theme.colors.levels.elevated};
   box-shadow: ${({ theme }) => theme.boxShadow[1]};
-  border-radius: 5px;
+  border-radius: ${p => p.theme.radii[2]}px;
   width: 265px;
   right: 0;
   top: 43px;
@@ -47,11 +47,11 @@ export const Dropdown = styled.div<OpenProps>`
 
 export const DropdownItem = styled.div`
   line-height: 1;
-  font-size: 14px;
+  font-size: ${p => p.theme.fontSizes[2]}px;
   color: ${props => props.theme.colors.text.main};
   cursor: pointer;
-  border-radius: 4px;
-  margin-bottom: 5px;
+  border-radius: ${p => p.theme.radii[2]}px;
+  margin-bottom: ${p => p.theme.space[1]}px;
   opacity: ${p => (p.open ? 1 : 0)};
   transition: transform 0.3s ease, opacity 0.7s ease;
   transform: translate3d(${p => (p.open ? 0 : '20px')}, 0, 0);
@@ -70,7 +70,7 @@ export const commonDropdownItemStyles = css`
   opacity: 0.8;
   align-items: center;
   display: flex;
-  padding: 10px 10px;
+  padding: ${p => p.theme.space[1] * 3}px;
   color: ${props => props.theme.colors.text.main};
   text-decoration: none;
   transition: opacity 0.15s ease-in;
@@ -94,12 +94,13 @@ export const DropdownItemLink = styled(NavLink)`
 `;
 
 export const DropdownItemIcon = styled.div`
-  margin-right: 16px;
+  margin-right: ${p => p.theme.space[3]}px;
   line-height: 0;
 `;
 
 export const DropdownDivider = styled.div`
   height: 1px;
   background: ${props => props.theme.colors.spotBackground[1]};
-  margin: 0 5px 5px 5px;
+  margin: ${props => props.theme.space[1]}px;
+  margin-top: 0;
 `;
