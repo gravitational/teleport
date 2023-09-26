@@ -1,9 +1,8 @@
-use std::collections::HashMap;
-use std::io::Error as IoError;
-use std::net::ToSocketAddrs;
-
-use bitflags::Flags;
-use bytes::BytesMut;
+pub mod global;
+use crate::{
+    handle_remote_fx_frame, CGOErrCode, CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton,
+    CGOPointerWheel, CgoHandle,
+};
 use ironrdp_connector::{Config, ConnectorError};
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
 use ironrdp_pdu::input::mouse::PointerFlags;
@@ -12,130 +11,371 @@ use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::PduParsing;
-use ironrdp_session::x224::Processor;
-use ironrdp_session::{ActiveStageOutput, SessionError, SessionResult};
+use ironrdp_session::x224::Processor as X224Processor;
+use ironrdp_session::{reason_err, SessionError};
+use ironrdp_tls::TlsStream;
 use ironrdp_tokio::{Framed, TokioStream};
-use parking_lot::RwLock;
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
-use static_init::dynamic;
+use std::io::Error as IoError;
+use std::net::ToSocketAddrs;
+use std::sync::{Arc, Mutex};
+use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
+use tokio::task::JoinError;
 
-use crate::{
-    handle_remote_fx_frame, CGOErrCode, CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton,
-    CGOPointerWheel,
-};
+// Export this for crate level use.
+pub(crate) use global::call_function_on_handle;
 
-/// Creates a single, static tokio runtime for use by all clients.
-#[dynamic]
-pub static TOKIO_RT: tokio::runtime::Runtime = tokio::runtime::Runtime::new().unwrap();
-
-#[dynamic]
-static CHANNELS: RwLock<HashMap<usize, Sender<TdpMessage>>> = RwLock::new(HashMap::new());
-
-#[derive(Debug)]
-pub enum TdpMessage {
-    Pointer(CGOMousePointerEvent),
-    Key(CGOKeyboardEvent),
-    PDU(Vec<u8>),
+/// The RDP client on the Rust side of things. Each `Client`
+/// corresponds with a Go `Client` specified by `cgo_handle`.
+pub struct Client {
+    cgo_handle: CgoHandle,
+    read_stream: Option<RdpReadStream>,
+    write_stream: Option<RdpWriteStream>,
+    x224_processor: Option<Arc<Mutex<X224Processor>>>,
+    write_requester: Option<ClientHandle>,
+    function_receiver: Option<FunctionReceiver>,
 }
 
-pub fn connect(cgo_ref: usize, params: ConnectParams) {
-    let (tdp_sender, tdp_reader) = mpsc::channel(100);
-    let (frame_sender, mut frame_reader) = mpsc::channel(100);
-    add_channels(cgo_ref, tdp_sender);
-    TOKIO_RT.spawn(async move {
-        if let Err(e) = inner_connect(params, tdp_reader, frame_sender).await {
-            error!("inner_connect error: {:?}", e);
-        }
-        CHANNELS.write().remove(&cgo_ref);
-    });
-    while let Some(mut frame) = frame_reader.blocking_recv() {
-        unsafe { handle_remote_fx_frame(cgo_ref, frame.as_mut_ptr(), frame.len() as u32) }
+impl Client {
+    /// Connects a new client to the RDP server specified by `params` and starts the session.
+    ///
+    /// After creating the connection, this function registers the newly made Client with
+    /// the [`global::ClientHandles`] map, and creates a task for reading frames from the  RDP
+    /// server and sending them back to Go, and receiving function calls via [`global::call_function_on_handle`]
+    /// and executing them.
+    ///
+    /// This function hangs until the RDP session ends or a [`ClientFunction::Stop`] is dispatched
+    /// (see [`global::call_function_on_handle`]).
+    pub fn run(cgo_handle: CgoHandle, params: ConnectParams) -> Result<(), ClientError> {
+        global::TOKIO_RT.block_on(async {
+            Self::connect(cgo_handle, params)
+                .await?
+                .register()
+                .run_loops()
+                .await
+        })
     }
-}
 
-async fn inner_connect(
-    params: ConnectParams,
-    mut tdp_reader: Receiver<TdpMessage>,
-    frame_sender: Sender<BytesMut>,
-) -> Result<(), ConnectError> {
-    let server_addr = params.addr.clone();
-    let server_socket_addr = server_addr.to_socket_addrs().unwrap().next().unwrap();
+    /// Initializes the RDP connection with the given [`ConnectParams`].
+    async fn connect(cgo_handle: CgoHandle, params: ConnectParams) -> Result<Self, ClientError> {
+        let server_addr = params.addr.clone();
+        let server_socket_addr = server_addr.to_socket_addrs().unwrap().next().unwrap();
 
-    let stream = TokioTcpStream::connect(&server_socket_addr).await?;
+        let stream = TokioTcpStream::connect(&server_socket_addr).await?;
 
-    // Create a framed stream for use by connect_begin
-    let mut framed = ironrdp_tokio::TokioFramed::new(stream);
+        // Create a framed stream for use by connect_begin
+        let mut framed = ironrdp_tokio::TokioFramed::new(stream);
 
-    let connector_config = create_config(params);
-    let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
-        .with_server_addr(server_socket_addr)
-        .with_server_name(server_addr)
-        .with_credssp_network_client(RequestClientFactory);
+        let connector_config = create_config(params);
+        let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
+            .with_server_addr(server_socket_addr)
+            .with_server_name(server_addr)
+            .with_credssp_network_client(RequestClientFactory);
 
-    let should_upgrade = ironrdp_tokio::connect_begin(&mut framed, &mut connector).await?;
+        let should_upgrade = ironrdp_tokio::connect_begin(&mut framed, &mut connector).await?;
 
-    // Take the stream back out of the framed object for upgrading
-    let initial_stream = framed.into_inner_no_leftover();
-    let (upgraded_stream, server_public_key) =
-        ironrdp_tls::upgrade(initial_stream, &server_socket_addr.ip().to_string()).await?;
+        // Take the stream back out of the framed object for upgrading
+        let initial_stream = framed.into_inner_no_leftover();
+        let (upgraded_stream, server_public_key) =
+            ironrdp_tls::upgrade(initial_stream, &server_socket_addr.ip().to_string()).await?;
 
-    let upgraded =
-        ironrdp_tokio::mark_as_upgraded(should_upgrade, &mut connector, server_public_key);
+        // Upgrade the stream
+        let upgraded =
+            ironrdp_tokio::mark_as_upgraded(should_upgrade, &mut connector, server_public_key);
 
-    let mut upgraded_framed = ironrdp_tokio::TokioFramed::new(upgraded_stream);
+        // Frame the stream again for use by connect_finalize
+        let mut rdp_stream = ironrdp_tokio::TokioFramed::new(upgraded_stream);
 
-    let connection_result =
-        ironrdp_tokio::connect_finalize(upgraded, &mut upgraded_framed, connector).await?;
+        let connection_result =
+            ironrdp_tokio::connect_finalize(upgraded, &mut rdp_stream, connector).await?;
 
-    info!("connection_result: {:?}", connection_result);
+        debug!("connection_result: {:?}", connection_result);
 
-    let mut x224_processor = Processor::new(
-        connection_result.static_channels,
-        connection_result.user_channel_id,
-        connection_result.io_channel_id,
-        None,
-        None,
-    );
+        // Take the stream back out of the framed object for splitting.
+        let rdp_stream = rdp_stream.into_inner_no_leftover();
+        let (read_stream, write_stream) = split(rdp_stream);
+        let read_stream = ironrdp_tokio::TokioFramed::new(read_stream);
+        let write_stream = ironrdp_tokio::TokioFramed::new(write_stream);
 
-    loop {
+        let x224_processor = X224Processor::new(
+            connection_result.static_channels,
+            connection_result.user_channel_id,
+            connection_result.io_channel_id,
+            None,
+            None,
+        );
+
+        Ok(Self {
+            cgo_handle,
+            read_stream: Some(read_stream),
+            write_stream: Some(write_stream),
+            x224_processor: Some(Arc::new(Mutex::new(x224_processor))),
+            write_requester: None,
+            function_receiver: None,
+        })
+    }
+
+    /// Registers the Client with the [`global::CLIENT_HANDLES`] cache.
+    ///
+    /// This constitutes creating a new [`ClientHandle`]/[`FunctionReceiver`] pair,
+    /// storing the [`ClientHandle`] (indexed by `self.cgo_handle`) in [`global::CLIENT_HANDLES`],
+    /// and assigning the [`FunctionReceiver`] to `self.function_receiver`.
+    fn register(mut self) -> Self {
+        let (client_handle, function_receiver) = channel(100);
+        self.write_requester = Some(client_handle.clone());
+        self.function_receiver = Some(function_receiver);
+        global::CLIENT_HANDLES.insert(self.cgo_handle, client_handle);
+        self
+    }
+
+    /// Spawns separate tasks for the input and output loops:
+    ///
+    /// 1. Read Loop: reads new messages from the RDP server and processes them.
+    ///
+    /// 2. Write Loop: listens on the Client's function_receiver for function calls
+    ///    which it then executes.
+    ///
+    /// When either loop returns, the other is aborted and the result is returned.
+    async fn run_loops(mut self) -> Result<(), ClientError> {
+        let read_stream = self
+            .read_stream
+            .take()
+            .ok_or_else(|| ClientError::InternalError)?;
+
+        let write_stream = self
+            .write_stream
+            .take()
+            .ok_or_else(|| ClientError::InternalError)?;
+
+        let x224_processor = self
+            .x224_processor
+            .take()
+            .ok_or_else(|| ClientError::InternalError)?;
+
+        let write_requester = self
+            .write_requester
+            .take()
+            .ok_or_else(|| ClientError::InternalError)?;
+
+        let write_receiver = self
+            .function_receiver
+            .take()
+            .ok_or_else(|| ClientError::InternalError)?;
+
+        let mut read_loop_handle = Client::run_read_loop(
+            self.cgo_handle,
+            read_stream,
+            x224_processor,
+            write_requester,
+        );
+
+        let mut write_loop_handle = Client::run_write_loop(write_stream, write_receiver);
+
+        // Wait for either loop to finish. When one does, abort the other and return the result.
         tokio::select! {
-             res = upgraded_framed.read_pdu() => {
-                let (action, mut frame) = res?;
-                match action {
-                    ironrdp_pdu::Action::X224 => {
-                        let result =
-                            process_x224_frame(&mut x224_processor, &frame).await;
-                        process_active_stage_result(&mut upgraded_framed, result).await.map_err(|e|{
-                                error!("process_stage_result {:?}", e);
-                                ConnectError::Rdp(RdpError::InvalidSecurityHeader)
-                            })?;
-                    },
-                    ironrdp_pdu::Action::FastPath => {
-                            frame_sender.send(frame).await;
-                    },
-                };
-             }
-             Some(data) = tdp_reader.recv() => {
-                match data {
-                    TdpMessage::Key(p) => {
-                        write_rdp_key(&mut upgraded_framed, p).await;
-                    }
-                    TdpMessage::Pointer(p) => {
-                        write_rdp_pointer(&mut upgraded_framed, p).await;
-                    },
-                    TdpMessage::PDU(res) => {
-                        let output = Ok(vec![ActiveStageOutput::ResponseFrame(res)]);
-                        process_active_stage_result(&mut upgraded_framed, output).await;
-                    },
-                    _ => {}
-                }
+            res = &mut read_loop_handle => {
+                write_loop_handle.abort();
+                res?
+            },
+            res = &mut write_loop_handle => {
+                read_loop_handle.abort();
+                res?
             }
         }
     }
+
+    fn run_read_loop(
+        cgo_handle: CgoHandle,
+        mut read_stream: RdpReadStream,
+        x224_processor: Arc<Mutex<X224Processor>>,
+        write_requester: ClientHandle,
+    ) -> tokio::task::JoinHandle<Result<(), ClientError>> {
+        global::TOKIO_RT.spawn(async move {
+            loop {
+                let (action, mut frame) = read_stream.read_pdu().await?;
+                match action {
+                    // Fast-path PDU, send to the browser for processing / rendering.
+                    ironrdp_pdu::Action::FastPath => {
+                        global::TOKIO_RT
+                            .spawn_blocking(move || unsafe {
+                                handle_remote_fx_frame(
+                                    cgo_handle,
+                                    frame.as_mut_ptr(),
+                                    frame.len() as u32,
+                                );
+                            })
+                            .await?
+                    }
+                    ironrdp_pdu::Action::X224 => {
+                        // X224 PDU, process it and send any immediate response frames to the write loop
+                        // for writing to the RDP server.
+                        let x224_processor = x224_processor.clone();
+                        // Process x224 frame.
+                        let res = global::TOKIO_RT
+                            .spawn_blocking(move || {
+                                x224_processor
+                                    .lock()
+                                    .map_err(|err| {
+                                        reason_err!(
+                                            "x224_processor.lock()",
+                                            "PoisonError: {:?}",
+                                            err
+                                        )
+                                    })?
+                                    .process(&frame)
+                            })
+                            .await??;
+                        // Send response frames to write loop for writing to RDP server.
+                        write_requester
+                            .send(ClientFunction::WriteRawPdu(res))
+                            .await?;
+                    }
+                }
+            }
+        })
+    }
+
+    fn run_write_loop(
+        mut write_stream: RdpWriteStream,
+        mut write_receiver: FunctionReceiver,
+    ) -> tokio::task::JoinHandle<Result<(), ClientError>> {
+        global::TOKIO_RT.spawn(async move {
+            loop {
+                match write_receiver.recv().await {
+                    Some(write_request) => match write_request {
+                        ClientFunction::WriteRdpKey(args) => {
+                            Client::write_rdp_key(&mut write_stream, args).await?;
+                        }
+                        ClientFunction::WriteRdpPointer(args) => {
+                            Client::write_rdp_pointer(&mut write_stream, args).await?;
+                        }
+                        ClientFunction::WriteRawPdu(args) => {
+                            Client::write_raw_pdu(&mut write_stream, args).await?;
+                        }
+                        ClientFunction::Stop => {
+                            // Stop this write loop. The read loop will then be stopped by the caller.
+                            return Ok(());
+                        }
+                    },
+                    None => {
+                        return Ok(());
+                    }
+                }
+            }
+        })
+    }
+
+    async fn write_rdp_key(
+        write_stream: &mut RdpWriteStream,
+        key: CGOKeyboardEvent,
+    ) -> Result<(), ClientError> {
+        let mut fastpath_events = Vec::new();
+
+        let mut flags: KeyboardFlags = KeyboardFlags::empty();
+        if !key.down {
+            flags = KeyboardFlags::RELEASE;
+        }
+        let event = FastPathInputEvent::KeyboardEvent(flags, key.code as u8);
+        fastpath_events.push(event);
+
+        let mut data: Vec<u8> = Vec::new();
+        let input_pdu = FastPathInput(fastpath_events);
+        input_pdu.to_buffer(&mut data).unwrap();
+
+        write_stream.write_all(&data).await?;
+        Ok(())
+    }
+
+    async fn write_rdp_pointer(
+        write_stream: &mut RdpWriteStream,
+        pointer: CGOMousePointerEvent,
+    ) -> Result<(), ClientError> {
+        let mut fastpath_events = Vec::new();
+
+        let mut flags = match pointer.button {
+            CGOPointerButton::PointerButtonLeft => PointerFlags::LEFT_BUTTON,
+            CGOPointerButton::PointerButtonRight => PointerFlags::RIGHT_BUTTON,
+            CGOPointerButton::PointerButtonMiddle => PointerFlags::MIDDLE_BUTTON_OR_WHEEL,
+            _ => PointerFlags::empty(),
+        };
+
+        flags |= match pointer.wheel {
+            CGOPointerWheel::PointerWheelVertical => PointerFlags::VERTICAL_WHEEL,
+            CGOPointerWheel::PointerWheelHorizontal => PointerFlags::HORIZONTAL_WHEEL,
+            _ => PointerFlags::empty(),
+        };
+
+        if pointer.button == CGOPointerButton::PointerButtonNone
+            && pointer.wheel == CGOPointerWheel::PointerWheelNone
+        {
+            flags |= PointerFlags::MOVE;
+        }
+
+        if pointer.down {
+            flags |= PointerFlags::DOWN;
+        }
+
+        // MousePdu.to_buffer takes care of the rest of the flags.
+        let event = FastPathInputEvent::MouseEvent(MousePdu {
+            flags,
+            number_of_wheel_rotation_units: pointer.wheel_delta,
+            x_position: pointer.x,
+            y_position: pointer.y,
+        });
+        fastpath_events.push(event);
+
+        let mut data: Vec<u8> = Vec::new();
+        let input_pdu = FastPathInput(fastpath_events);
+        input_pdu.to_buffer(&mut data).unwrap();
+
+        write_stream.write_all(&data).await?;
+        Ok(())
+    }
+
+    /// Writes a fully encoded PDU to the RDP server.
+    async fn write_raw_pdu(
+        write_stream: &mut RdpWriteStream,
+        resp: Vec<u8>,
+    ) -> Result<(), ClientError> {
+        write_stream.write_all(&resp).await?;
+        Ok(())
+    }
 }
+
+impl Drop for Client {
+    fn drop(&mut self) {
+        global::CLIENT_HANDLES.remove(self.cgo_handle)
+    }
+}
+
+/// [`ClientFunction`] is an enum representing the different functions that can be called on a client.
+/// Each variant corresponds to a different function, and carries the necessary arguments for that function.
+/// This enum is used in conjunction with the [`call_function_on_handle`] function to call a specific function on a client.
+#[derive(Debug)]
+pub enum ClientFunction {
+    /// Corresponds to [`Client::write_rdp_pointer`]
+    WriteRdpPointer(CGOMousePointerEvent),
+    /// Corresponds to [`Client::write_rdp_key`]
+    WriteRdpKey(CGOKeyboardEvent),
+    /// Corresponds to [`Client::write_raw_pdu`]
+    WriteRawPdu(Vec<u8>),
+    /// Aborts the client by stopping both the read and write loops.
+    Stop,
+}
+
+/// `ClientHandle` is used to dispatch [`ClientFunction`]s calls
+/// to a corresponding [`FunctionReceiver`] on a `Client`.
+type ClientHandle = Sender<ClientFunction>;
+
+/// Each `Client` has a `FunctionReceiver` that it listens to for
+/// incoming [`ClientFunction`] calls sent via its corresponding
+/// [`ClientHandle`].
+pub type FunctionReceiver = Receiver<ClientFunction>;
+
+type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
+type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
 fn create_config(params: ConnectParams) -> Config {
     Config {
@@ -165,119 +405,6 @@ fn create_config(params: ConnectParams) -> Config {
     }
 }
 
-fn add_channels(cgo_ref: usize, tdp_sender: Sender<TdpMessage>) {
-    CHANNELS.write().insert(cgo_ref, tdp_sender);
-}
-
-pub fn get_channels(cgo_ref: usize) -> Option<Sender<TdpMessage>> {
-    CHANNELS.read().get(&cgo_ref).map(|c| (*c).clone())
-}
-
-pub async fn write_rdp_key(
-    framed: &mut Framed<TokioStream<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>>,
-    key: CGOKeyboardEvent,
-) -> Result<(), ConnectError> {
-    let mut fastpath_events = Vec::new();
-    // TODO(isaiah): impl From for this
-    let mut flags: KeyboardFlags = KeyboardFlags::empty();
-    if !key.down {
-        flags = KeyboardFlags::RELEASE;
-    }
-    let event = FastPathInputEvent::KeyboardEvent(flags, key.code as u8);
-    fastpath_events.push(event);
-
-    let mut data: Vec<u8> = Vec::new();
-    let input_pdu = FastPathInput(fastpath_events);
-    input_pdu.to_buffer(&mut data).unwrap();
-
-    framed.write_all(&data).await?;
-    Ok(())
-}
-
-pub async fn write_rdp_pointer(
-    framed: &mut Framed<TokioStream<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>>,
-    pointer: CGOMousePointerEvent,
-) -> Result<(), ConnectError> {
-    let mut fastpath_events = Vec::new();
-    // TODO(isaiah): impl From for this
-    let mut flags = match pointer.button {
-        CGOPointerButton::PointerButtonLeft => PointerFlags::LEFT_BUTTON,
-        CGOPointerButton::PointerButtonRight => PointerFlags::RIGHT_BUTTON,
-        CGOPointerButton::PointerButtonMiddle => PointerFlags::MIDDLE_BUTTON_OR_WHEEL,
-        _ => PointerFlags::empty(),
-    };
-
-    flags |= match pointer.wheel {
-        CGOPointerWheel::PointerWheelVertical => PointerFlags::VERTICAL_WHEEL,
-        CGOPointerWheel::PointerWheelHorizontal => PointerFlags::HORIZONTAL_WHEEL,
-        _ => PointerFlags::empty(),
-    };
-
-    if pointer.button == CGOPointerButton::PointerButtonNone
-        && pointer.wheel == CGOPointerWheel::PointerWheelNone
-    {
-        flags |= PointerFlags::MOVE;
-    }
-
-    if pointer.down {
-        flags |= PointerFlags::DOWN;
-    }
-
-    // MousePdu.to_buffer takes care of the rest of the flags.
-    let event = FastPathInputEvent::MouseEvent(MousePdu {
-        flags,
-        number_of_wheel_rotation_units: pointer.wheel_delta,
-        x_position: pointer.x,
-        y_position: pointer.y,
-    });
-    fastpath_events.push(event);
-
-    let mut data: Vec<u8> = Vec::new();
-    let input_pdu = FastPathInput(fastpath_events);
-    input_pdu.to_buffer(&mut data).unwrap();
-
-    framed.write_all(&data).await?;
-    Ok(())
-}
-
-async fn process_x224_frame(
-    this: &mut Processor,
-    frame: &[u8],
-) -> SessionResult<Vec<ActiveStageOutput>> {
-    let output = this.process(frame)?;
-    let mut stage_outputs = Vec::new();
-    if !output.is_empty() {
-        stage_outputs.push(ActiveStageOutput::ResponseFrame(output));
-    }
-    Ok(stage_outputs)
-}
-
-/// Iterates through any response frames in result, sending them to the RDP server.
-/// Typically returns Ok(()) if everything goes as expected and the session should continue.
-async fn process_active_stage_result(
-    writer: &mut Framed<TokioStream<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>>,
-    result: SessionResult<Vec<ActiveStageOutput>>,
-) -> Result<(), CGOErrCode> {
-    let outputs = result.map_err(|_| CGOErrCode::ErrCodeFailure)?;
-    for output in outputs {
-        match output {
-            ActiveStageOutput::ResponseFrame(response) => {
-                writer
-                    .write_all(&response)
-                    .await
-                    .map_err(|_| CGOErrCode::ErrCodeFailure)?;
-            }
-            ActiveStageOutput::Terminate => return Err(CGOErrCode::ErrCodeSuccess),
-            ActiveStageOutput::GraphicsUpdate(_) => {
-                error!("unexpected GraphicsUpdate, this should be handled on the client side");
-                return Err(CGOErrCode::ErrCodeFailure);
-            }
-            _ => {}
-        }
-    }
-    Ok(())
-}
-
 #[derive(Debug)]
 pub struct ConnectParams {
     pub addr: String,
@@ -292,28 +419,55 @@ pub struct ConnectParams {
 }
 
 #[derive(Debug)]
-pub enum ConnectError {
+pub enum ClientError {
     Tcp(IoError),
     Rdp(RdpError),
     SessionError(SessionError),
-    //todo(isaiah): reconsider error typing
     ConnectorError(ConnectorError),
+    CGOErrCode(CGOErrCode),
+    SendError,
+    JoinError(JoinError),
+    InternalError,
 }
 
-impl From<IoError> for ConnectError {
-    fn from(e: IoError) -> ConnectError {
-        ConnectError::Tcp(e)
+impl From<IoError> for ClientError {
+    fn from(e: IoError) -> ClientError {
+        ClientError::Tcp(e)
     }
 }
 
-impl From<RdpError> for ConnectError {
-    fn from(e: RdpError) -> ConnectError {
-        ConnectError::Rdp(e)
+impl From<RdpError> for ClientError {
+    fn from(e: RdpError) -> ClientError {
+        ClientError::Rdp(e)
     }
 }
 
-impl From<ConnectorError> for ConnectError {
+impl From<ConnectorError> for ClientError {
     fn from(value: ConnectorError) -> Self {
-        ConnectError::ConnectorError(value)
+        ClientError::ConnectorError(value)
+    }
+}
+
+impl From<CGOErrCode> for ClientError {
+    fn from(value: CGOErrCode) -> Self {
+        ClientError::CGOErrCode(value)
+    }
+}
+
+impl From<SessionError> for ClientError {
+    fn from(value: SessionError) -> Self {
+        ClientError::SessionError(value)
+    }
+}
+
+impl<T> From<SendError<T>> for ClientError {
+    fn from(value: SendError<T>) -> Self {
+        ClientError::SendError
+    }
+}
+
+impl From<JoinError> for ClientError {
+    fn from(e: JoinError) -> Self {
+        ClientError::JoinError(e)
     }
 }

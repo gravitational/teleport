@@ -30,7 +30,7 @@ package rdpclient
 // The flow is roughly this:
 //    Go                                Rust
 // ==============================================
-//  rdpclient.New -----------------> client_connect
+//  rdpclient.New -----------------> client_run
 //                   *connected*
 //
 //            *register output callback*
@@ -171,14 +171,38 @@ func (c *Client) Run(ctx context.Context) error {
 	c.handle = cgo.NewHandle(c)
 	defer c.handle.Delete()
 
-	c.start()
-	if err := c.connect(ctx); err != nil {
-		return trace.Wrap(err)
-	}
+	// Create a channel to communicate return values
+	returnCh := make(chan error, 2)
 
-	c.wg.Wait()
+	// Create a channel to signal the startInputStreaming goroutine to stop
+	stopCh := make(chan struct{})
 
-	return nil
+	// Kick off input streaming goroutine
+	go func() {
+		returnCh <- c.startInputStreaming(stopCh)
+	}()
+
+	// Kick off rust RDP loop goroutine
+	go func() {
+		returnCh <- c.startRustRdpLoop(ctx)
+	}()
+
+	// Wait for either goroutine to return
+	err1 := <-returnCh
+
+	// If startRustRdpLoop returned first, this will
+	// ensure the startInputStreaming goroutine returns.
+	close(stopCh)
+
+	// If startInputStreaming returned first, this will
+	// ensure the startRustRdpLoop goroutine returns.
+	c.stopRustRdpLoop()
+
+	// Catch the return value of whichever goroutine returned
+	// second.
+	err2 := <-returnCh
+
+	return trace.NewAggregate(err1, err2)
 }
 
 func (c *Client) readClientUsername() error {
@@ -216,20 +240,24 @@ func (c *Client) readClientSize() error {
 	}
 }
 
-func (c *Client) connect(ctx context.Context) error {
+func (c *Client) startRustRdpLoop(ctx context.Context) error {
+	c.cfg.Log.Info("Rust RDP loop starting")
+	defer c.cfg.Log.Info("Rust RDP loop finished")
+
 	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username, c.cfg.CertTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Addr and username strings only need to be valid for the duration of
-	// C.client_connect. They are copied on the Rust side and can be freed here.
+	// C.client_run. They are copied on the Rust side and can be freed here.
 	addr := C.CString(c.cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
 	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
 
-	C.client_connect(
+	// TODO(isaiah): better error handling here
+	C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
 			go_addr:     addr,
@@ -251,274 +279,267 @@ func (c *Client) connect(ctx context.Context) error {
 	return nil
 }
 
-// start kicks off goroutines for input/output streaming and returns right
+func (c *Client) stopRustRdpLoop() {
+	C.client_stop(C.uintptr_t(c.handle))
+}
+
+// start_input_streaming kicks off goroutines for input/output streaming and returns right
 // away. Use Wait to wait for them to finish.
-func (c *Client) start() {
-	// User input streaming worker goroutine.
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
-		defer c.close()
-		defer c.cfg.Log.Info("TDP input streaming finished")
+func (c *Client) startInputStreaming(stopCh chan struct{}) error {
+	c.cfg.Log.Info("TDP input streaming starting")
+	defer c.cfg.Log.Info("TDP input streaming finished")
 
-		c.cfg.Log.Info("TDP input streaming starting")
-
-		// Remember mouse coordinates to send them with all CGOPointer events.
-		var mouseX, mouseY uint32
-		for {
-			msg, err := c.cfg.Conn.ReadMessage()
-			if utils.IsOKNetworkError(err) {
-				return
-			} else if tdp.IsNonFatalErr(err) {
-				c.cfg.Conn.SendNotification(err.Error(), tdp.SeverityWarning)
-				continue
-			} else if err != nil {
-				c.cfg.Log.Warningf("Failed reading TDP input message: %v", err)
-				return
-			}
-
-			if atomic.LoadUint32(&c.readyForInput) == 0 {
-				// Input not allowed yet, drop the message.
-				c.cfg.Log.Debugf("Dropping TDP input message: %T", msg)
-				continue
-			}
-
-			c.UpdateClientActivity()
-
-			switch m := msg.(type) {
-			case tdp.MouseMove:
-				mouseX, mouseY = m.X, m.Y
-				C.client_write_rdp_pointer(
-					C.ulong(c.handle),
-					C.CGOMousePointerEvent{
-						x:      C.uint16_t(m.X),
-						y:      C.uint16_t(m.Y),
-						button: C.PointerButtonNone,
-						wheel:  C.PointerWheelNone,
-					},
-				)
-			case tdp.MouseButton:
-				// Map the button to a C enum value.
-				var button C.CGOPointerButton
-				switch m.Button {
-				case tdp.LeftMouseButton:
-					button = C.PointerButtonLeft
-				case tdp.RightMouseButton:
-					button = C.PointerButtonRight
-				case tdp.MiddleMouseButton:
-					button = C.PointerButtonMiddle
-				default:
-					button = C.PointerButtonNone
-				}
-				C.client_write_rdp_pointer(
-					C.ulong(c.handle),
-					C.CGOMousePointerEvent{
-						x:      C.uint16_t(mouseX),
-						y:      C.uint16_t(mouseY),
-						button: uint32(button),
-						down:   m.State == tdp.ButtonPressed,
-						wheel:  C.PointerWheelNone,
-					},
-				)
-			case tdp.MouseWheel:
-				var wheel C.CGOPointerWheel
-				switch m.Axis {
-				case tdp.VerticalWheelAxis:
-					wheel = C.PointerWheelVertical
-				case tdp.HorizontalWheelAxis:
-					wheel = C.PointerWheelHorizontal
-					// TDP positive scroll deltas move towards top-left.
-					// RDP positive scroll deltas move towards top-right.
-					//
-					// Fix the scroll direction to match TDP, it's inverted for
-					// horizontal scroll in RDP.
-					m.Delta = -m.Delta
-				default:
-					wheel = C.PointerWheelNone
-				}
-				C.client_write_rdp_pointer(
-					C.ulong(c.handle),
-					C.CGOMousePointerEvent{
-						x:           C.uint16_t(mouseX),
-						y:           C.uint16_t(mouseY),
-						button:      C.PointerButtonNone,
-						wheel:       uint32(wheel),
-						wheel_delta: C.int16_t(m.Delta),
-					},
-				)
-			case tdp.KeyboardButton:
-				C.client_write_rdp_keyboard(
-					C.ulong(c.handle),
-					C.CGOKeyboardEvent{
-						code: C.uint16_t(m.KeyCode),
-						down: m.State == tdp.ButtonPressed,
-					},
-				)
-			case tdp.ClipboardData:
-				if len(m) > 0 {
-					if errCode := C.client_update_clipboard(
-						C.ulong(c.handle),
-						(*C.uint8_t)(unsafe.Pointer(&m[0])),
-						C.uint32_t(len(m)),
-					); errCode != C.ErrCodeSuccess {
-						c.cfg.Log.Warningf("ClipboardData: client_update_clipboard (len=%v): %v", len(m), errCode)
-						return
-					}
-				} else {
-					c.cfg.Log.Warning("Received an empty clipboard message")
-				}
-			case tdp.SharedDirectoryAnnounce:
-				if c.cfg.AllowDirectorySharing {
-					driveName := C.CString(m.Name)
-					defer C.free(unsafe.Pointer(driveName))
-					if errCode := C.client_handle_tdp_sd_announce(C.ulong(c.handle), C.CGOSharedDirectoryAnnounce{
-						directory_id: C.uint32_t(m.DirectoryID),
-						name:         driveName,
-					}); errCode != C.ErrCodeSuccess {
-						c.cfg.Log.Errorf("SharedDirectoryAnnounce: failed with %v", errCode)
-						return
-					}
-				}
-			case tdp.SharedDirectoryInfoResponse:
-				if c.cfg.AllowDirectorySharing {
-					path := C.CString(m.Fso.Path)
-					defer C.free(unsafe.Pointer(path))
-					if errCode := C.client_handle_tdp_sd_info_response(C.ulong(c.handle), C.CGOSharedDirectoryInfoResponse{
-						completion_id: C.uint32_t(m.CompletionID),
-						err_code:      m.ErrCode,
-						fso: C.CGOFileSystemObject{
-							last_modified: C.uint64_t(m.Fso.LastModified),
-							size:          C.uint64_t(m.Fso.Size),
-							file_type:     m.Fso.FileType,
-							is_empty:      C.uint8_t(m.Fso.IsEmpty),
-							path:          path,
-						},
-					}); errCode != C.ErrCodeSuccess {
-						c.cfg.Log.Errorf("SharedDirectoryInfoResponse failed: %v", errCode)
-						return
-					}
-				}
-			case tdp.SharedDirectoryCreateResponse:
-				if c.cfg.AllowDirectorySharing {
-					path := C.CString(m.Fso.Path)
-					defer C.free(unsafe.Pointer(path))
-					if errCode := C.client_handle_tdp_sd_create_response(C.ulong(c.handle), C.CGOSharedDirectoryCreateResponse{
-						completion_id: C.uint32_t(m.CompletionID),
-						err_code:      m.ErrCode,
-						fso: C.CGOFileSystemObject{
-							last_modified: C.uint64_t(m.Fso.LastModified),
-							size:          C.uint64_t(m.Fso.Size),
-							file_type:     m.Fso.FileType,
-							is_empty:      C.uint8_t(m.Fso.IsEmpty),
-							path:          path,
-						},
-					}); errCode != C.ErrCodeSuccess {
-						c.cfg.Log.Errorf("SharedDirectoryCreateResponse failed: %v", errCode)
-						return
-					}
-				}
-			case tdp.SharedDirectoryDeleteResponse:
-				if c.cfg.AllowDirectorySharing {
-					if errCode := C.client_handle_tdp_sd_delete_response(C.ulong(c.handle), C.CGOSharedDirectoryDeleteResponse{
-						completion_id: C.uint32_t(m.CompletionID),
-						err_code:      m.ErrCode,
-					}); errCode != C.ErrCodeSuccess {
-						c.cfg.Log.Errorf("SharedDirectoryDeleteResponse failed: %v", errCode)
-						return
-					}
-				}
-			case tdp.SharedDirectoryListResponse:
-				if c.cfg.AllowDirectorySharing {
-					fsoList := make([]C.CGOFileSystemObject, 0, len(m.FsoList))
-
-					for _, fso := range m.FsoList {
-						path := C.CString(fso.Path)
-						defer C.free(unsafe.Pointer(path))
-
-						fsoList = append(fsoList, C.CGOFileSystemObject{
-							last_modified: C.uint64_t(fso.LastModified),
-							size:          C.uint64_t(fso.Size),
-							file_type:     fso.FileType,
-							is_empty:      C.uint8_t(fso.IsEmpty),
-							path:          path,
-						})
-					}
-
-					fsoListLen := len(fsoList)
-					var cgoFsoList *C.CGOFileSystemObject
-
-					if fsoListLen > 0 {
-						cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList[0]))
-					} else {
-						cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList))
-					}
-
-					if errCode := C.client_handle_tdp_sd_list_response(C.ulong(c.handle), C.CGOSharedDirectoryListResponse{
-						completion_id:   C.uint32_t(m.CompletionID),
-						err_code:        m.ErrCode,
-						fso_list_length: C.uint32_t(fsoListLen),
-						fso_list:        cgoFsoList,
-					}); errCode != C.ErrCodeSuccess {
-						c.cfg.Log.Errorf("SharedDirectoryListResponse failed: %v", errCode)
-						return
-					}
-				}
-			case tdp.SharedDirectoryReadResponse:
-				if c.cfg.AllowDirectorySharing {
-					var readData *C.uint8_t
-					if m.ReadDataLength > 0 {
-						readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData[0]))
-					} else {
-						readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData))
-					}
-
-					if errCode := C.client_handle_tdp_sd_read_response(C.ulong(c.handle), C.CGOSharedDirectoryReadResponse{
-						completion_id:    C.uint32_t(m.CompletionID),
-						err_code:         m.ErrCode,
-						read_data_length: C.uint32_t(m.ReadDataLength),
-						read_data:        readData,
-					}); errCode != C.ErrCodeSuccess {
-						c.cfg.Log.Errorf("SharedDirectoryReadResponse failed: %v", errCode)
-						return
-					}
-				}
-			case tdp.SharedDirectoryWriteResponse:
-				if c.cfg.AllowDirectorySharing {
-					if errCode := C.client_handle_tdp_sd_write_response(C.ulong(c.handle), C.CGOSharedDirectoryWriteResponse{
-						completion_id: C.uint32_t(m.CompletionID),
-						err_code:      m.ErrCode,
-						bytes_written: C.uint32_t(m.BytesWritten),
-					}); errCode != C.ErrCodeSuccess {
-						c.cfg.Log.Errorf("SharedDirectoryWriteResponse failed: %v", errCode)
-						return
-					}
-				}
-			case tdp.SharedDirectoryMoveResponse:
-				if c.cfg.AllowDirectorySharing {
-					if errCode := C.client_handle_tdp_sd_move_response(C.ulong(c.handle), C.CGOSharedDirectoryMoveResponse{
-						completion_id: C.uint32_t(m.CompletionID),
-						err_code:      m.ErrCode,
-					}); errCode != C.ErrCodeSuccess {
-						c.cfg.Log.Errorf("SharedDirectoryMoveResponse failed: %v", errCode)
-						return
-					}
-				}
-			case tdp.RDPResponsePDU:
-				pduLen := uint32(len(m))
-				if pduLen == 0 {
-					c.cfg.Log.Error("response PDU empty")
-					return
-				}
-				rdpResponsePDU := (*C.uint8_t)(unsafe.SliceData(m))
-
-				C.client_handle_tdp_rdp_response_pdu(
-					C.ulong(c.handle), rdpResponsePDU, C.uint32_t(pduLen),
-				)
-			default:
-				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
-			}
+	// Remember mouse coordinates to send them with all CGOPointer events.
+	var mouseX, mouseY uint32
+	for {
+		select {
+		case <-stopCh:
+			return nil
+		default:
 		}
-	}()
+
+		msg, err := c.cfg.Conn.ReadMessage()
+		if utils.IsOKNetworkError(err) {
+			return err
+		} else if tdp.IsNonFatalErr(err) {
+			c.cfg.Conn.SendNotification(err.Error(), tdp.SeverityWarning)
+			continue
+		} else if err != nil {
+			c.cfg.Log.Warningf("Failed reading TDP input message: %v", err)
+			return err
+		}
+
+		if atomic.LoadUint32(&c.readyForInput) == 0 {
+			// Input not allowed yet, drop the message.
+			c.cfg.Log.Debugf("Dropping TDP input message: %T", msg)
+			continue
+		}
+
+		c.UpdateClientActivity()
+
+		switch m := msg.(type) {
+		case tdp.MouseMove:
+			mouseX, mouseY = m.X, m.Y
+			C.client_write_rdp_pointer(
+				C.ulong(c.handle),
+				C.CGOMousePointerEvent{
+					x:      C.uint16_t(m.X),
+					y:      C.uint16_t(m.Y),
+					button: C.PointerButtonNone,
+					wheel:  C.PointerWheelNone,
+				},
+			)
+		case tdp.MouseButton:
+			// Map the button to a C enum value.
+			var button C.CGOPointerButton
+			switch m.Button {
+			case tdp.LeftMouseButton:
+				button = C.PointerButtonLeft
+			case tdp.RightMouseButton:
+				button = C.PointerButtonRight
+			case tdp.MiddleMouseButton:
+				button = C.PointerButtonMiddle
+			default:
+				button = C.PointerButtonNone
+			}
+			C.client_write_rdp_pointer(
+				C.ulong(c.handle),
+				C.CGOMousePointerEvent{
+					x:      C.uint16_t(mouseX),
+					y:      C.uint16_t(mouseY),
+					button: uint32(button),
+					down:   m.State == tdp.ButtonPressed,
+					wheel:  C.PointerWheelNone,
+				},
+			)
+		case tdp.MouseWheel:
+			var wheel C.CGOPointerWheel
+			switch m.Axis {
+			case tdp.VerticalWheelAxis:
+				wheel = C.PointerWheelVertical
+			case tdp.HorizontalWheelAxis:
+				wheel = C.PointerWheelHorizontal
+				// TDP positive scroll deltas move towards top-left.
+				// RDP positive scroll deltas move towards top-right.
+				//
+				// Fix the scroll direction to match TDP, it's inverted for
+				// horizontal scroll in RDP.
+				m.Delta = -m.Delta
+			default:
+				wheel = C.PointerWheelNone
+			}
+			C.client_write_rdp_pointer(
+				C.ulong(c.handle),
+				C.CGOMousePointerEvent{
+					x:           C.uint16_t(mouseX),
+					y:           C.uint16_t(mouseY),
+					button:      C.PointerButtonNone,
+					wheel:       uint32(wheel),
+					wheel_delta: C.int16_t(m.Delta),
+				},
+			)
+		case tdp.KeyboardButton:
+			C.client_write_rdp_keyboard(
+				C.ulong(c.handle),
+				C.CGOKeyboardEvent{
+					code: C.uint16_t(m.KeyCode),
+					down: m.State == tdp.ButtonPressed,
+				},
+			)
+		case tdp.ClipboardData:
+			if len(m) > 0 {
+				if errCode := C.client_update_clipboard(
+					C.ulong(c.handle),
+					(*C.uint8_t)(unsafe.Pointer(&m[0])),
+					C.uint32_t(len(m)),
+				); errCode != C.ErrCodeSuccess {
+					return trace.Errorf("ClipboardData: client_update_clipboard (len=%v): %v", len(m), errCode)
+				}
+			} else {
+				c.cfg.Log.Warning("Received an empty clipboard message")
+			}
+		case tdp.SharedDirectoryAnnounce:
+			if c.cfg.AllowDirectorySharing {
+				driveName := C.CString(m.Name)
+				defer C.free(unsafe.Pointer(driveName))
+				if errCode := C.client_handle_tdp_sd_announce(C.ulong(c.handle), C.CGOSharedDirectoryAnnounce{
+					directory_id: C.uint32_t(m.DirectoryID),
+					name:         driveName,
+				}); errCode != C.ErrCodeSuccess {
+					return trace.Errorf("SharedDirectoryAnnounce: failed with %v", errCode)
+				}
+			}
+		case tdp.SharedDirectoryInfoResponse:
+			if c.cfg.AllowDirectorySharing {
+				path := C.CString(m.Fso.Path)
+				defer C.free(unsafe.Pointer(path))
+				if errCode := C.client_handle_tdp_sd_info_response(C.ulong(c.handle), C.CGOSharedDirectoryInfoResponse{
+					completion_id: C.uint32_t(m.CompletionID),
+					err_code:      m.ErrCode,
+					fso: C.CGOFileSystemObject{
+						last_modified: C.uint64_t(m.Fso.LastModified),
+						size:          C.uint64_t(m.Fso.Size),
+						file_type:     m.Fso.FileType,
+						is_empty:      C.uint8_t(m.Fso.IsEmpty),
+						path:          path,
+					},
+				}); errCode != C.ErrCodeSuccess {
+					return trace.Errorf("SharedDirectoryInfoResponse failed: %v", errCode)
+				}
+			}
+		case tdp.SharedDirectoryCreateResponse:
+			if c.cfg.AllowDirectorySharing {
+				path := C.CString(m.Fso.Path)
+				defer C.free(unsafe.Pointer(path))
+				if errCode := C.client_handle_tdp_sd_create_response(C.ulong(c.handle), C.CGOSharedDirectoryCreateResponse{
+					completion_id: C.uint32_t(m.CompletionID),
+					err_code:      m.ErrCode,
+					fso: C.CGOFileSystemObject{
+						last_modified: C.uint64_t(m.Fso.LastModified),
+						size:          C.uint64_t(m.Fso.Size),
+						file_type:     m.Fso.FileType,
+						is_empty:      C.uint8_t(m.Fso.IsEmpty),
+						path:          path,
+					},
+				}); errCode != C.ErrCodeSuccess {
+					return trace.Errorf("SharedDirectoryCreateResponse failed: %v", errCode)
+				}
+			}
+		case tdp.SharedDirectoryDeleteResponse:
+			if c.cfg.AllowDirectorySharing {
+				if errCode := C.client_handle_tdp_sd_delete_response(C.ulong(c.handle), C.CGOSharedDirectoryDeleteResponse{
+					completion_id: C.uint32_t(m.CompletionID),
+					err_code:      m.ErrCode,
+				}); errCode != C.ErrCodeSuccess {
+					return trace.Errorf("SharedDirectoryDeleteResponse failed: %v", errCode)
+				}
+			}
+		case tdp.SharedDirectoryListResponse:
+			if c.cfg.AllowDirectorySharing {
+				fsoList := make([]C.CGOFileSystemObject, 0, len(m.FsoList))
+
+				for _, fso := range m.FsoList {
+					path := C.CString(fso.Path)
+					defer C.free(unsafe.Pointer(path))
+
+					fsoList = append(fsoList, C.CGOFileSystemObject{
+						last_modified: C.uint64_t(fso.LastModified),
+						size:          C.uint64_t(fso.Size),
+						file_type:     fso.FileType,
+						is_empty:      C.uint8_t(fso.IsEmpty),
+						path:          path,
+					})
+				}
+
+				fsoListLen := len(fsoList)
+				var cgoFsoList *C.CGOFileSystemObject
+
+				if fsoListLen > 0 {
+					cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList[0]))
+				} else {
+					cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList))
+				}
+
+				if errCode := C.client_handle_tdp_sd_list_response(C.ulong(c.handle), C.CGOSharedDirectoryListResponse{
+					completion_id:   C.uint32_t(m.CompletionID),
+					err_code:        m.ErrCode,
+					fso_list_length: C.uint32_t(fsoListLen),
+					fso_list:        cgoFsoList,
+				}); errCode != C.ErrCodeSuccess {
+					return trace.Errorf("SharedDirectoryListResponse failed: %v", errCode)
+				}
+			}
+		case tdp.SharedDirectoryReadResponse:
+			if c.cfg.AllowDirectorySharing {
+				var readData *C.uint8_t
+				if m.ReadDataLength > 0 {
+					readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData[0]))
+				} else {
+					readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData))
+				}
+
+				if errCode := C.client_handle_tdp_sd_read_response(C.ulong(c.handle), C.CGOSharedDirectoryReadResponse{
+					completion_id:    C.uint32_t(m.CompletionID),
+					err_code:         m.ErrCode,
+					read_data_length: C.uint32_t(m.ReadDataLength),
+					read_data:        readData,
+				}); errCode != C.ErrCodeSuccess {
+					return trace.Errorf("SharedDirectoryReadResponse failed: %v", errCode)
+				}
+			}
+		case tdp.SharedDirectoryWriteResponse:
+			if c.cfg.AllowDirectorySharing {
+				if errCode := C.client_handle_tdp_sd_write_response(C.ulong(c.handle), C.CGOSharedDirectoryWriteResponse{
+					completion_id: C.uint32_t(m.CompletionID),
+					err_code:      m.ErrCode,
+					bytes_written: C.uint32_t(m.BytesWritten),
+				}); errCode != C.ErrCodeSuccess {
+					return trace.Errorf("SharedDirectoryWriteResponse failed: %v", errCode)
+				}
+			}
+		case tdp.SharedDirectoryMoveResponse:
+			if c.cfg.AllowDirectorySharing {
+				if errCode := C.client_handle_tdp_sd_move_response(C.ulong(c.handle), C.CGOSharedDirectoryMoveResponse{
+					completion_id: C.uint32_t(m.CompletionID),
+					err_code:      m.ErrCode,
+				}); errCode != C.ErrCodeSuccess {
+					return trace.Errorf("SharedDirectoryMoveResponse failed: %v", errCode)
+				}
+			}
+		case tdp.RDPResponsePDU:
+			pduLen := uint32(len(m))
+			if pduLen == 0 {
+				c.cfg.Log.Error("response PDU empty")
+			}
+			rdpResponsePDU := (*C.uint8_t)(unsafe.SliceData(m))
+
+			C.client_handle_tdp_rdp_response_pdu(
+				C.ulong(c.handle), rdpResponsePDU, C.uint32_t(pduLen),
+			)
+		default:
+			c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
+		}
+	}
 }
 
 // asRustBackedSlice creates a Go slice backed by data managed in Rust
@@ -793,6 +814,7 @@ func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) 
 func (c *Client) close() {
 	c.closeOnce.Do(func() {
 		// Ensure the RDP connection is closed
+		// TODO(isaiah): do we need to close something here?
 		if errCode := C.client_close_rdp(C.ulong(c.handle)); errCode != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("error closing the RDP connection")
 		} else {
