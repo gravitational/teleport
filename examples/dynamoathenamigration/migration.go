@@ -48,9 +48,9 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
 type Config struct {
