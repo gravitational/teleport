@@ -284,7 +284,7 @@ pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
     res_len: u32,
 ) -> CGOErrCode {
     let res = from_go_array(res, res_len);
-    call_function_on_handle(cgo_handle, ClientFunction::HandleResponsePdu(res))
+    call_function_on_handle(cgo_handle, ClientFunction::WriteRawPdu(res))
 }
 
 /// # Safety
