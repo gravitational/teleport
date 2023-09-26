@@ -62,8 +62,8 @@ service AccessListService {
   // DeleteAccessListReview will delete an access list review from the backend.
   rpc DeleteAccessListReview(DeleteAccessListReviewRequest) returns (google.protobuf.Empty);
 
-  // PromoteAccessRequest promotes an access request to an access list.
-  rpc PromoteAccessRequest(PromoteAccessRequestRequest) returns (PromoteAccessRequestResponse);
+  // AccessRequestPromote promotes an access request to an access list.
+  rpc AccessRequestPromote(AccessRequestPromoteRequest) returns (AccessRequestPromoteResponse);
 }
 
 // GetAccessListsRequest is the request for getting all access lists.
@@ -232,8 +232,8 @@ message DeleteAccessListReviewRequest {
   string review_name = 1;
 }
 
-// PromoteAccessRequestRequest is the request for promoting an access request to an access list.
-message PromoteAccessRequestRequest {
+// AccessRequestPromoteRequest is the request for promoting an access request to an access list.
+message AccessRequestPromoteRequest {
   // RequestID is the unique ID of the request to be promoted.
   string request_id = 1;
   // AccessListName is the name of the access list to promote the request to.
@@ -242,8 +242,8 @@ message PromoteAccessRequestRequest {
   string reason = 3;
 }
 
-// PromoteAccessRequestResponse is the response for promoting an access request to an access list.
-message PromoteAccessRequestResponse {
+// AccessRequestPromoteResponse is the response for promoting an access request to an access list.
+message AccessRequestPromoteResponse {
   // AccessRequest is the updated access request.
   types.AccessRequestV3 access_request = 1;
 }

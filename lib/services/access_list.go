@@ -58,8 +58,8 @@ type AccessLists interface {
 	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
 	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
 
-	// PromoteAccessRequest promotes an access request to an access list.
-	PromoteAccessRequest(ctx context.Context, req *accesslistv1.PromoteAccessRequestRequest) (*accesslistv1.PromoteAccessRequestResponse, error)
+	// AccessRequestPromote promotes an access request to an access list.
+	AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error)
 }
 
 // MarshalAccessList marshals the access list resource to JSON.

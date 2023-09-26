@@ -298,8 +298,8 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	return accessList, membersIn, trace.Wrap(err)
 }
 
-func (a *AccessListService) PromoteAccessRequest(_ context.Context, _ *accesslistv1.PromoteAccessRequestRequest) (*accesslistv1.PromoteAccessRequestResponse, error) {
-	return nil, trace.NotImplemented("PromoteAccessRequest should not be called")
+func (a *AccessListService) AccessRequestPromote(_ context.Context, _ *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
+	return nil, trace.NotImplemented("AccessRequestPromote should not be called")
 }
 
 func lockName(accessListName string) string {

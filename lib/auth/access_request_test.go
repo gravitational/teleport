@@ -807,7 +807,7 @@ func TestPromotedRequest(t *testing.T) {
 	}
 
 	// Access request promotion is prohibited for everyone, including admins.
-	// An access request can be only approved by using Ent PromoteAccessRequest API
+	// An access request can be only approved by using Ent AccessRequestPromote API
 	// operator can't promote the request
 	_, err = approveAs("operator", types.RequestState_PROMOTED)
 	require.Error(t, err)

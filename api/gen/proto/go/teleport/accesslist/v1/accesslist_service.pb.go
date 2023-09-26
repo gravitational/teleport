@@ -1202,8 +1202,8 @@ func (x *DeleteAccessListReviewRequest) GetReviewName() string {
 	return ""
 }
 
-// PromoteAccessRequestRequest is the request for promoting an access request to an access list.
-type PromoteAccessRequestRequest struct {
+// AccessRequestPromoteRequest is the request for promoting an access request to an access list.
+type AccessRequestPromoteRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -1216,8 +1216,8 @@ type PromoteAccessRequestRequest struct {
 	Reason string `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
 }
 
-func (x *PromoteAccessRequestRequest) Reset() {
-	*x = PromoteAccessRequestRequest{}
+func (x *AccessRequestPromoteRequest) Reset() {
+	*x = AccessRequestPromoteRequest{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[22]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1225,13 +1225,13 @@ func (x *PromoteAccessRequestRequest) Reset() {
 	}
 }
 
-func (x *PromoteAccessRequestRequest) String() string {
+func (x *AccessRequestPromoteRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PromoteAccessRequestRequest) ProtoMessage() {}
+func (*AccessRequestPromoteRequest) ProtoMessage() {}
 
-func (x *PromoteAccessRequestRequest) ProtoReflect() protoreflect.Message {
+func (x *AccessRequestPromoteRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[22]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1243,34 +1243,34 @@ func (x *PromoteAccessRequestRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PromoteAccessRequestRequest.ProtoReflect.Descriptor instead.
-func (*PromoteAccessRequestRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use AccessRequestPromoteRequest.ProtoReflect.Descriptor instead.
+func (*AccessRequestPromoteRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{22}
 }
 
-func (x *PromoteAccessRequestRequest) GetRequestId() string {
+func (x *AccessRequestPromoteRequest) GetRequestId() string {
 	if x != nil {
 		return x.RequestId
 	}
 	return ""
 }
 
-func (x *PromoteAccessRequestRequest) GetAccessListName() string {
+func (x *AccessRequestPromoteRequest) GetAccessListName() string {
 	if x != nil {
 		return x.AccessListName
 	}
 	return ""
 }
 
-func (x *PromoteAccessRequestRequest) GetReason() string {
+func (x *AccessRequestPromoteRequest) GetReason() string {
 	if x != nil {
 		return x.Reason
 	}
 	return ""
 }
 
-// PromoteAccessRequestResponse is the response for promoting an access request to an access list.
-type PromoteAccessRequestResponse struct {
+// AccessRequestPromoteResponse is the response for promoting an access request to an access list.
+type AccessRequestPromoteResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -1279,8 +1279,8 @@ type PromoteAccessRequestResponse struct {
 	AccessRequest *types.AccessRequestV3 `protobuf:"bytes,1,opt,name=access_request,json=accessRequest,proto3" json:"access_request,omitempty"`
 }
 
-func (x *PromoteAccessRequestResponse) Reset() {
-	*x = PromoteAccessRequestResponse{}
+func (x *AccessRequestPromoteResponse) Reset() {
+	*x = AccessRequestPromoteResponse{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[23]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1288,13 +1288,13 @@ func (x *PromoteAccessRequestResponse) Reset() {
 	}
 }
 
-func (x *PromoteAccessRequestResponse) String() string {
+func (x *AccessRequestPromoteResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PromoteAccessRequestResponse) ProtoMessage() {}
+func (*AccessRequestPromoteResponse) ProtoMessage() {}
 
-func (x *PromoteAccessRequestResponse) ProtoReflect() protoreflect.Message {
+func (x *AccessRequestPromoteResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[23]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1306,12 +1306,12 @@ func (x *PromoteAccessRequestResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PromoteAccessRequestResponse.ProtoReflect.Descriptor instead.
-func (*PromoteAccessRequestResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use AccessRequestPromoteResponse.ProtoReflect.Descriptor instead.
+func (*AccessRequestPromoteResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{23}
 }
 
-func (x *PromoteAccessRequestResponse) GetAccessRequest() *types.AccessRequestV3 {
+func (x *AccessRequestPromoteResponse) GetAccessRequest() *types.AccessRequestV3 {
 	if x != nil {
 		return x.AccessRequest
 	}
@@ -1469,16 +1469,16 @@ var file_teleport_accesslist_v1_accesslist_service_proto_rawDesc = []byte{
 	0x63, 0x63, 0x65, 0x73, 0x73, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65, 0x76, 0x69, 0x65, 0x77, 0x52,
 	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1f, 0x0a, 0x0b, 0x72, 0x65, 0x76, 0x69, 0x65, 0x77,
 	0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x72, 0x65, 0x76,
-	0x69, 0x65, 0x77, 0x4e, 0x61, 0x6d, 0x65, 0x22, 0x7e, 0x0a, 0x1b, 0x50, 0x72, 0x6f, 0x6d, 0x6f,
-	0x74, 0x65, 0x41, 0x63, 0x63, 0x65, 0x73, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x52,
+	0x69, 0x65, 0x77, 0x4e, 0x61, 0x6d, 0x65, 0x22, 0x7e, 0x0a, 0x1b, 0x41, 0x63, 0x63, 0x65, 0x73,
+	0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x50, 0x72, 0x6f, 0x6d, 0x6f, 0x74, 0x65, 0x52,
 	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1d, 0x0a, 0x0a, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73,
 	0x74, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x72, 0x65, 0x71, 0x75,
 	0x65, 0x73, 0x74, 0x49, 0x64, 0x12, 0x28, 0x0a, 0x10, 0x61, 0x63, 0x63, 0x65, 0x73, 0x73, 0x5f,
 	0x6c, 0x69, 0x73, 0x74, 0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
 	0x0e, 0x61, 0x63, 0x63, 0x65, 0x73, 0x73, 0x4c, 0x69, 0x73, 0x74, 0x4e, 0x61, 0x6d, 0x65, 0x12,
 	0x16, 0x0a, 0x06, 0x72, 0x65, 0x61, 0x73, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x06, 0x72, 0x65, 0x61, 0x73, 0x6f, 0x6e, 0x22, 0x5d, 0x0a, 0x1c, 0x50, 0x72, 0x6f, 0x6d, 0x6f,
-	0x74, 0x65, 0x41, 0x63, 0x63, 0x65, 0x73, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x52,
+	0x06, 0x72, 0x65, 0x61, 0x73, 0x6f, 0x6e, 0x22, 0x5d, 0x0a, 0x1c, 0x41, 0x63, 0x63, 0x65, 0x73,
+	0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x50, 0x72, 0x6f, 0x6d, 0x6f, 0x74, 0x65, 0x52,
 	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x3d, 0x0a, 0x0e, 0x61, 0x63, 0x63, 0x65, 0x73,
 	0x73, 0x5f, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32,
 	0x16, 0x2e, 0x74, 0x79, 0x70, 0x65, 0x73, 0x2e, 0x41, 0x63, 0x63, 0x65, 0x73, 0x73, 0x52, 0x65,
@@ -1602,14 +1602,14 @@ var file_teleport_accesslist_v1_accesslist_service_proto_rawDesc = []byte{
 	0x73, 0x73, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65, 0x76, 0x69, 0x65, 0x77, 0x52, 0x65, 0x71, 0x75,
 	0x65, 0x73, 0x74, 0x1a, 0x16, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f,
 	0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x12, 0x81, 0x01, 0x0a, 0x14,
-	0x50, 0x72, 0x6f, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x63, 0x63, 0x65, 0x73, 0x73, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x12, 0x33, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e,
-	0x61, 0x63, 0x63, 0x65, 0x73, 0x73, 0x6c, 0x69, 0x73, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x50, 0x72,
-	0x6f, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x63, 0x63, 0x65, 0x73, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x34, 0x2e, 0x74, 0x65, 0x6c, 0x65,
+	0x41, 0x63, 0x63, 0x65, 0x73, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x50, 0x72, 0x6f,
+	0x6d, 0x6f, 0x74, 0x65, 0x12, 0x33, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e,
+	0x61, 0x63, 0x63, 0x65, 0x73, 0x73, 0x6c, 0x69, 0x73, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x63,
+	0x63, 0x65, 0x73, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x50, 0x72, 0x6f, 0x6d, 0x6f,
+	0x74, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x34, 0x2e, 0x74, 0x65, 0x6c, 0x65,
 	0x70, 0x6f, 0x72, 0x74, 0x2e, 0x61, 0x63, 0x63, 0x65, 0x73, 0x73, 0x6c, 0x69, 0x73, 0x74, 0x2e,
-	0x76, 0x31, 0x2e, 0x50, 0x72, 0x6f, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x63, 0x63, 0x65, 0x73, 0x73,
-	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42,
+	0x76, 0x31, 0x2e, 0x41, 0x63, 0x63, 0x65, 0x73, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x50, 0x72, 0x6f, 0x6d, 0x6f, 0x74, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42,
 	0x58, 0x5a, 0x56, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x67, 0x72,
 	0x61, 0x76, 0x69, 0x74, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x2f, 0x74, 0x65, 0x6c, 0x65,
 	0x70, 0x6f, 0x72, 0x74, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x70, 0x72, 0x6f,
@@ -1655,8 +1655,8 @@ var file_teleport_accesslist_v1_accesslist_service_proto_goTypes = []interface{}
 	(*CreateAccessListReviewRequest)(nil),                  // 19: teleport.accesslist.v1.CreateAccessListReviewRequest
 	(*CreateAccessListReviewResponse)(nil),                 // 20: teleport.accesslist.v1.CreateAccessListReviewResponse
 	(*DeleteAccessListReviewRequest)(nil),                  // 21: teleport.accesslist.v1.DeleteAccessListReviewRequest
-	(*PromoteAccessRequestRequest)(nil),                    // 22: teleport.accesslist.v1.PromoteAccessRequestRequest
-	(*PromoteAccessRequestResponse)(nil),                   // 23: teleport.accesslist.v1.PromoteAccessRequestResponse
+	(*AccessRequestPromoteRequest)(nil),                    // 22: teleport.accesslist.v1.AccessRequestPromoteRequest
+	(*AccessRequestPromoteResponse)(nil),                   // 23: teleport.accesslist.v1.AccessRequestPromoteResponse
 	(*AccessList)(nil),                                     // 24: teleport.accesslist.v1.AccessList
 	(*Member)(nil),                                         // 25: teleport.accesslist.v1.Member
 	(*Review)(nil),                                         // 26: teleport.accesslist.v1.Review
@@ -1677,7 +1677,7 @@ var file_teleport_accesslist_v1_accesslist_service_proto_depIdxs = []int32{
 	26, // 9: teleport.accesslist.v1.ListAccessListReviewsResponse.reviews:type_name -> teleport.accesslist.v1.Review
 	26, // 10: teleport.accesslist.v1.CreateAccessListReviewRequest.review:type_name -> teleport.accesslist.v1.Review
 	27, // 11: teleport.accesslist.v1.CreateAccessListReviewResponse.next_audit_date:type_name -> google.protobuf.Timestamp
-	28, // 12: teleport.accesslist.v1.PromoteAccessRequestResponse.access_request:type_name -> types.AccessRequestV3
+	28, // 12: teleport.accesslist.v1.AccessRequestPromoteResponse.access_request:type_name -> types.AccessRequestV3
 	0,  // 13: teleport.accesslist.v1.AccessListService.GetAccessLists:input_type -> teleport.accesslist.v1.GetAccessListsRequest
 	2,  // 14: teleport.accesslist.v1.AccessListService.ListAccessLists:input_type -> teleport.accesslist.v1.ListAccessListsRequest
 	4,  // 15: teleport.accesslist.v1.AccessListService.GetAccessList:input_type -> teleport.accesslist.v1.GetAccessListRequest
@@ -1694,7 +1694,7 @@ var file_teleport_accesslist_v1_accesslist_service_proto_depIdxs = []int32{
 	17, // 26: teleport.accesslist.v1.AccessListService.ListAccessListReviews:input_type -> teleport.accesslist.v1.ListAccessListReviewsRequest
 	19, // 27: teleport.accesslist.v1.AccessListService.CreateAccessListReview:input_type -> teleport.accesslist.v1.CreateAccessListReviewRequest
 	21, // 28: teleport.accesslist.v1.AccessListService.DeleteAccessListReview:input_type -> teleport.accesslist.v1.DeleteAccessListReviewRequest
-	22, // 29: teleport.accesslist.v1.AccessListService.PromoteAccessRequest:input_type -> teleport.accesslist.v1.PromoteAccessRequestRequest
+	22, // 29: teleport.accesslist.v1.AccessListService.AccessRequestPromote:input_type -> teleport.accesslist.v1.AccessRequestPromoteRequest
 	1,  // 30: teleport.accesslist.v1.AccessListService.GetAccessLists:output_type -> teleport.accesslist.v1.GetAccessListsResponse
 	3,  // 31: teleport.accesslist.v1.AccessListService.ListAccessLists:output_type -> teleport.accesslist.v1.ListAccessListsResponse
 	24, // 32: teleport.accesslist.v1.AccessListService.GetAccessList:output_type -> teleport.accesslist.v1.AccessList
@@ -1711,7 +1711,7 @@ var file_teleport_accesslist_v1_accesslist_service_proto_depIdxs = []int32{
 	18, // 43: teleport.accesslist.v1.AccessListService.ListAccessListReviews:output_type -> teleport.accesslist.v1.ListAccessListReviewsResponse
 	20, // 44: teleport.accesslist.v1.AccessListService.CreateAccessListReview:output_type -> teleport.accesslist.v1.CreateAccessListReviewResponse
 	29, // 45: teleport.accesslist.v1.AccessListService.DeleteAccessListReview:output_type -> google.protobuf.Empty
-	23, // 46: teleport.accesslist.v1.AccessListService.PromoteAccessRequest:output_type -> teleport.accesslist.v1.PromoteAccessRequestResponse
+	23, // 46: teleport.accesslist.v1.AccessListService.AccessRequestPromote:output_type -> teleport.accesslist.v1.AccessRequestPromoteResponse
 	30, // [30:47] is the sub-list for method output_type
 	13, // [13:30] is the sub-list for method input_type
 	13, // [13:13] is the sub-list for extension type_name
@@ -1991,7 +1991,7 @@ func file_teleport_accesslist_v1_accesslist_service_proto_init() {
 			}
 		}
 		file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PromoteAccessRequestRequest); i {
+			switch v := v.(*AccessRequestPromoteRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2003,7 +2003,7 @@ func file_teleport_accesslist_v1_accesslist_service_proto_init() {
 			}
 		}
 		file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PromoteAccessRequestResponse); i {
+			switch v := v.(*AccessRequestPromoteResponse); i {
 			case 0:
 				return &v.state
 			case 1:

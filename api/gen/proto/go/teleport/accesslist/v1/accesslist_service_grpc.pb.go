@@ -50,7 +50,7 @@ const (
 	AccessListService_ListAccessListReviews_FullMethodName                   = "/teleport.accesslist.v1.AccessListService/ListAccessListReviews"
 	AccessListService_CreateAccessListReview_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/CreateAccessListReview"
 	AccessListService_DeleteAccessListReview_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/DeleteAccessListReview"
-	AccessListService_PromoteAccessRequest_FullMethodName                    = "/teleport.accesslist.v1.AccessListService/PromoteAccessRequest"
+	AccessListService_AccessRequestPromote_FullMethodName                    = "/teleport.accesslist.v1.AccessListService/AccessRequestPromote"
 )
 
 // AccessListServiceClient is the client API for AccessListService service.
@@ -90,8 +90,8 @@ type AccessListServiceClient interface {
 	CreateAccessListReview(ctx context.Context, in *CreateAccessListReviewRequest, opts ...grpc.CallOption) (*CreateAccessListReviewResponse, error)
 	// DeleteAccessListReview will delete an access list review from the backend.
 	DeleteAccessListReview(ctx context.Context, in *DeleteAccessListReviewRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// PromoteAccessRequest promotes an access request to an access list.
-	PromoteAccessRequest(ctx context.Context, in *PromoteAccessRequestRequest, opts ...grpc.CallOption) (*PromoteAccessRequestResponse, error)
+	// AccessRequestPromote promotes an access request to an access list.
+	AccessRequestPromote(ctx context.Context, in *AccessRequestPromoteRequest, opts ...grpc.CallOption) (*AccessRequestPromoteResponse, error)
 }
 
 type accessListServiceClient struct {
@@ -246,9 +246,9 @@ func (c *accessListServiceClient) DeleteAccessListReview(ctx context.Context, in
 	return out, nil
 }
 
-func (c *accessListServiceClient) PromoteAccessRequest(ctx context.Context, in *PromoteAccessRequestRequest, opts ...grpc.CallOption) (*PromoteAccessRequestResponse, error) {
-	out := new(PromoteAccessRequestResponse)
-	err := c.cc.Invoke(ctx, AccessListService_PromoteAccessRequest_FullMethodName, in, out, opts...)
+func (c *accessListServiceClient) AccessRequestPromote(ctx context.Context, in *AccessRequestPromoteRequest, opts ...grpc.CallOption) (*AccessRequestPromoteResponse, error) {
+	out := new(AccessRequestPromoteResponse)
+	err := c.cc.Invoke(ctx, AccessListService_AccessRequestPromote_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -292,8 +292,8 @@ type AccessListServiceServer interface {
 	CreateAccessListReview(context.Context, *CreateAccessListReviewRequest) (*CreateAccessListReviewResponse, error)
 	// DeleteAccessListReview will delete an access list review from the backend.
 	DeleteAccessListReview(context.Context, *DeleteAccessListReviewRequest) (*emptypb.Empty, error)
-	// PromoteAccessRequest promotes an access request to an access list.
-	PromoteAccessRequest(context.Context, *PromoteAccessRequestRequest) (*PromoteAccessRequestResponse, error)
+	// AccessRequestPromote promotes an access request to an access list.
+	AccessRequestPromote(context.Context, *AccessRequestPromoteRequest) (*AccessRequestPromoteResponse, error)
 	mustEmbedUnimplementedAccessListServiceServer()
 }
 
@@ -349,8 +349,8 @@ func (UnimplementedAccessListServiceServer) CreateAccessListReview(context.Conte
 func (UnimplementedAccessListServiceServer) DeleteAccessListReview(context.Context, *DeleteAccessListReviewRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccessListReview not implemented")
 }
-func (UnimplementedAccessListServiceServer) PromoteAccessRequest(context.Context, *PromoteAccessRequestRequest) (*PromoteAccessRequestResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method PromoteAccessRequest not implemented")
+func (UnimplementedAccessListServiceServer) AccessRequestPromote(context.Context, *AccessRequestPromoteRequest) (*AccessRequestPromoteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AccessRequestPromote not implemented")
 }
 func (UnimplementedAccessListServiceServer) mustEmbedUnimplementedAccessListServiceServer() {}
 
@@ -653,20 +653,20 @@ func _AccessListService_DeleteAccessListReview_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccessListService_PromoteAccessRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PromoteAccessRequestRequest)
+func _AccessListService_AccessRequestPromote_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccessRequestPromoteRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccessListServiceServer).PromoteAccessRequest(ctx, in)
+		return srv.(AccessListServiceServer).AccessRequestPromote(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AccessListService_PromoteAccessRequest_FullMethodName,
+		FullMethod: AccessListService_AccessRequestPromote_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccessListServiceServer).PromoteAccessRequest(ctx, req.(*PromoteAccessRequestRequest))
+		return srv.(AccessListServiceServer).AccessRequestPromote(ctx, req.(*AccessRequestPromoteRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -743,8 +743,8 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AccessListService_DeleteAccessListReview_Handler,
 		},
 		{
-			MethodName: "PromoteAccessRequest",
-			Handler:    _AccessListService_PromoteAccessRequest_Handler,
+			MethodName: "AccessRequestPromote",
+			Handler:    _AccessListService_AccessRequestPromote_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
