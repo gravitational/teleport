@@ -27,8 +27,10 @@ import (
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
 )
 
+type AccessListOption func(*accesslist.AccessList)
+
 // FromProto converts a v1 access list into an internal access list object.
-func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
+func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accesslist.AccessList, error) {
 	if msg == nil {
 		return nil, trace.BadParameter("access list message is nil")
 	}
@@ -54,6 +56,9 @@ func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
 		owners[i] = accesslist.Owner{
 			Name:        owner.Name,
 			Description: owner.Description,
+			// Set it to empty as default.
+			// Must provide as options to set it with the provided value.
+			IneligibleStatus: "",
 		}
 	}
 
@@ -78,17 +83,29 @@ func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
 			Traits: traitv1.FromProto(msg.Spec.Grants.Traits),
 		},
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return accessList, trace.Wrap(err)
+	for _, opt := range opts {
+		opt(accessList)
+	}
+
+	return accessList, nil
 }
 
 // ToProto converts an internal access list into a v1 access list object.
 func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 	owners := make([]*accesslistv1.AccessListOwner, len(accessList.Spec.Owners))
 	for i, owner := range accessList.Spec.Owners {
+		var ineligibleStatus accesslistv1.IneligibleStatus
+		if enumVal, ok := accesslistv1.IneligibleStatus_value[owner.IneligibleStatus]; ok {
+			ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
+		}
 		owners[i] = &accesslistv1.AccessListOwner{
-			Name:        owner.Name,
-			Description: owner.Description,
+			Name:             owner.Name,
+			Description:      owner.Description,
+			IneligibleStatus: ineligibleStatus,
 		}
 	}
 
@@ -115,5 +132,22 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 				Traits: traitv1.ToProto(accessList.Spec.Grants.Traits),
 			},
 		},
+	}
+}
+
+// WithOwnersIneligibleStatusField sets the "ineligibleStatus" field to the provided proto value.
+func WithOwnersIneligibleStatusField(protoOwners []*accesslistv1.AccessListOwner) AccessListOption {
+	return func(a *accesslist.AccessList) {
+		updatedOwners := make([]accesslist.Owner, len(a.GetOwners()))
+		for i, owner := range a.GetOwners() {
+			protoIneligibleStatus := protoOwners[i].GetIneligibleStatus()
+			ineligibleStatus := ""
+			if protoIneligibleStatus != accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED {
+				ineligibleStatus = protoIneligibleStatus.String()
+			}
+			owner.IneligibleStatus = ineligibleStatus
+			updatedOwners[i] = owner
+		}
+		a.SetOwners(updatedOwners)
 	}
 }

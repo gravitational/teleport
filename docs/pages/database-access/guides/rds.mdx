@@ -50,6 +50,7 @@ which supports IAM authentication.
 - A Linux host or Amazon Elastic Kubernetes Service cluster where you will run
   the Teleport Database Service, which proxies connections to your RDS
   databases. 
+- (!docs/pages/includes/database-access/aws-auto-discovery-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
 If you plan to run the Teleport Database Service on Kubernetes, you will need
@@ -111,7 +112,7 @@ Save the token in a file called `/tmp/token` on the host that will run the
 Database Service.
 
 </TabItem>
-<TabItem label="Kubernetes">
+<TabItem label="Kubernetes Cluster">
 
 Later in this guide, you will use this join token when configuring the Teleport
 Database Service.
@@ -128,29 +129,7 @@ Next, get your environment ready to run the Teleport Database Service:
 <Tabs>
 <TabItem label="Linux Host">
 
-Install Teleport on the host where you will run the Teleport Database Service:
-
-(!docs/pages/includes/install-linux.mdx!)
-
-Generate a configuration for the Teleport Database Service:
-
-Run the command below on your Linux host. Assign <Var
-name="example.teleport.sh:443" /> to the host **and port** of your Teleport
-Proxy Service or Enterprise Cloud/Team site. Assign <Var name="us-west-1" /> to
-the region associated with the RDS databases you would like Teleport to
-discover.
-
-```code
-$ sudo teleport db configure create \
-   -o file \
-   --proxy=<Var name="example.teleport.sh:443" />  \
-   --token=/tmp/token \
-   --rds-discovery=<Var name="us-west-1" />
-```
-
-The command will generate a Teleport Database Service configuration with
-RDS/Aurora database auto-discovery enabled on the configured region and place it
-at the `/etc/teleport.yaml` location.
+(!docs/pages/includes/database-access/aws-create-db-configuration.mdx type="RDS" matcher="rds" protocol="&lt;Var name&equals;&quot;mysql or postgres&quot;&sol;&gt;" example="my-aurora-cluster.abcdefghijklm.us-west-1.rds.amazonaws.com:5432" !)
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
@@ -164,8 +143,7 @@ at the `/etc/teleport.yaml` location.
 
 The Teleport Database Service needs AWS IAM permissions to be able to:
 
-- Discover and register RDS instances and Aurora clusters.
-- Configure IAM authentication for them.
+- Configure IAM authentication.
 
 In this step, we will show you how to provide the Teleport Database Service
 access to AWS credentials:
@@ -177,7 +155,7 @@ Follow these instructions on your Linux host.
 
 (!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
 
-(!docs/pages/includes/database-access/aws-bootstrap.mdx!)
+(!docs/pages/includes/database-access/aws-bootstrap.mdx type="rds"!)
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
@@ -330,7 +308,7 @@ annotations:
 Install the Helm chart for Teleport agent services, `teleport-kube-agent`:
 
 ```code
-$ helm -n teleport install teleport-kube-agent teleport/teleport-kube-agent \
+$ helm -n teleport-agent install teleport-kube-agent teleport/teleport-kube-agent \
   --values values.yaml --create-namespace
 ```
 
@@ -338,7 +316,7 @@ Make sure that the Teleport agent pod is running. You should see one
 `teleport-kube-agent` pod with a single ready container:
 
 ```code
-$ kubectl -n teleport get pods
+$ kubectl -n teleport-agent get pods
 NAME                    READY   STATUS    RESTARTS   AGE
 teleport-kube-agent-0   1/1     Running   0          32s
 ```
@@ -346,15 +324,10 @@ teleport-kube-agent-0   1/1     Running   0          32s
 </TabItem>
 </Tabs>
 
-The Database Service will discover all RDS instances and Aurora clusters
-according to the configuration and register them in the cluster. In addition to
-the primary endpoints of the discovered Aurora clusters, their reader and custom
-endpoints will also be registered.
-
-The Database Service will also attempt to enable IAM authentication and
-configure IAM access policies for the discovered databases. Keep in mind that
-AWS IAM changes may not propagate immediately and can take a few minutes to come
-into effect.
+The Database Service will attempt to enable IAM authentication and configure
+IAM access policies for the registered databases. Keep in mind that AWS IAM
+changes may not propagate immediately and can take a few minutes to come into
+effect.
 
 ## Step 5/6. Create a database IAM user
 

@@ -54,6 +54,7 @@ import {
 import { Database } from 'teleport/services/databases';
 
 import { ResourceActionButton } from './ResourceActionButton';
+import { resourceName } from './Resources';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -86,6 +87,8 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
   const [showAllLabels, setShowAllLabels] = useState(false);
   const [numMoreLabels, setNumMoreLabels] = useState(0);
   const [isNameOverflowed, setIsNameOverflowed] = useState(false);
+
+  const [hovered, setHovered] = useState(false);
 
   const innerContainer = useRef<Element | null>(null);
   const labelsInnerContainer = useRef(null);
@@ -172,7 +175,10 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
   };
 
   return (
-    <CardContainer>
+    <CardContainer
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <CardInnerContainer
         ref={innerContainer}
         p={3}
@@ -197,7 +203,7 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
                 </Text>
               )}
             </SingleLineBox>
-            <CopyButton name={name} />
+            {hovered && <CopyButton name={name} />}
             <ResourceActionButton resource={resource} />
           </Flex>
           <Flex flexDirection="row" alignItems="center">
@@ -255,9 +261,34 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
   );
 }
 
-export function LoadingCard() {
-  function randomNum(min: number, max: number) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+type LoadingCardProps = {
+  delay?: 'none' | 'short' | 'long';
+};
+
+const DelayValueMap = {
+  none: 0,
+  short: 400, // 0.4s;
+  long: 600, // 0.6s;
+};
+
+function randomNum(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+export function LoadingCard({ delay = 'none' }: LoadingCardProps) {
+  const [canDisplay, setCanDisplay] = useState(false);
+
+  useEffect(() => {
+    const displayTimeout = setTimeout(() => {
+      setCanDisplay(true);
+    }, DelayValueMap[delay]);
+    return () => {
+      clearTimeout(displayTimeout);
+    };
+  }, []);
+
+  if (!canDisplay) {
+    return null;
   }
 
   return (
@@ -318,16 +349,12 @@ function CopyButton({ name }: { name: string }) {
   );
 }
 
-function resourceName(resource: UnifiedResource) {
-  return resource.kind === 'node' ? resource.hostname : resource.name;
-}
-
 function resourceDescription(resource: UnifiedResource) {
   switch (resource.kind) {
     case 'app':
       return {
-        primary: resource.addrWithProtocol,
-        secondary: resource.description,
+        primary: resource.description,
+        secondary: resource.addrWithProtocol,
       };
     case 'db':
       return { primary: resource.type, secondary: resource.description };

@@ -193,6 +193,12 @@ type webSuiteConfig struct {
 
 	// ClusterFeatures allows overriding default auth server features
 	ClusterFeatures *authproto.Features
+
+	// presenceChecker executes presence prompts for tests
+	presenceChecker PresenceChecker
+
+	// clock to use for all server components
+	clock clockwork.FakeClock
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -203,10 +209,14 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	u, err := user.Current()
 	require.NoError(t, err)
 
+	if cfg.clock == nil {
+		cfg.clock = clockwork.NewFakeClock()
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &WebSuite{
 		mockU2F: mockU2F,
-		clock:   clockwork.NewFakeClock(),
+		clock:   cfg.clock,
 		user:    u.Username,
 		ctx:     ctx,
 		cancel:  cancel,
@@ -471,6 +481,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		HealthCheckAppServer: cfg.HealthCheckAppServer,
 		UI:                   cfg.uiConfig,
 		OpenAIConfig:         cfg.OpenAIConfig,
+		PresenceChecker:      cfg.presenceChecker,
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -1826,13 +1837,27 @@ func TestTerminal(t *testing.T) {
 			t.Parallel()
 			s := newWebSuite(t)
 
+			// Set the recording config
 			require.NoError(t, s.server.Auth().SetSessionRecordingConfig(context.Background(), &tt.recordingConfig))
 
+			// Create a new session
 			ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
 			require.NoError(t, err)
-			t.Cleanup(func() { require.NoError(t, ws.Close()) })
+			t.Cleanup(func() { require.True(t, utils.IsOKNetworkError(ws.Close())) })
 
+			// Send a command and validate the output
 			validateTerminalStream(t, ws)
+
+			// Validate that the session is active on the node
+			require.Equal(t, int32(1), s.node.ActiveConnections())
+
+			// Close the web socket to emulate a user closing the browser window
+			require.NoError(t, ws.Close())
+
+			// Validate that the node terminates the session
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				assert.Zero(t, s.node.ActiveConnections())
+			}, 30*time.Second, 250*time.Millisecond)
 		})
 	}
 }
@@ -1997,20 +2022,22 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "llama", nil /* roles */)
 
-	clt, err := env.server.NewClient(auth.TestUser("llama"))
+	const username = "llama2999"
+	pack := proxy.authPack(t, username, nil /* roles */)
+
+	userClient, err := env.server.NewClient(auth.TestUser(username))
 	require.NoError(t, err)
 
 	cases := []struct {
 		name                      string
-		getAuthPreference         func() types.AuthPreference
-		registerDevice            func() *auth.TestDevice
-		getChallengeResponseBytes func(chals *client.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte
+		getAuthPreference         func(t *testing.T) types.AuthPreference
+		registerDevice            func(t *testing.T) *auth.TestDevice
+		getChallengeResponseBytes func(t *testing.T, chal *client.MFAAuthenticateChallenge, testDev *auth.TestDevice) []byte
 	}{
 		{
 			name: "with webauthn",
-			getAuthPreference: func() types.AuthPreference {
+			getAuthPreference: func(t *testing.T) types.AuthPreference {
 				ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorWebauthn,
@@ -2023,15 +2050,18 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 
 				return ap
 			},
-			registerDevice: func() *auth.TestDevice {
-				webauthnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", authproto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+			registerDevice: func(t *testing.T) *auth.TestDevice {
+				webauthnDev, err := auth.RegisterTestDevice(
+					ctx,
+					userClient,
+					"webauthn", authproto.DeviceType_DEVICE_TYPE_WEBAUTHN, pack.device /* authenticator */)
 				require.NoError(t, err)
 
 				return webauthnDev
 			},
-			getChallengeResponseBytes: func(chals *client.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
-				res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
-					WebauthnChallenge: wantypes.CredentialAssertionToProto(chals.WebauthnChallenge),
+			getChallengeResponseBytes: func(t *testing.T, chal *client.MFAAuthenticateChallenge, testDev *auth.TestDevice) []byte {
+				res, err := testDev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
+					WebauthnChallenge: wantypes.CredentialAssertionToProto(chal.WebauthnChallenge),
 				})
 				require.NoError(t, err)
 
@@ -2050,13 +2080,12 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			},
 		},
 	}
-
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err = env.server.Auth().SetAuthPreference(ctx, tc.getAuthPreference())
+			err = env.server.Auth().SetAuthPreference(ctx, tc.getAuthPreference(t))
 			require.NoError(t, err)
 
-			dev := tc.registerDevice()
+			dev := tc.registerDevice(t)
 
 			// Open a terminal to a new session.
 			ws, _ := proxy.makeTerminal(t, pack, "")
@@ -2068,12 +2097,12 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			var env Envelope
 			require.Nil(t, proto.Unmarshal(raw, &env))
 
-			chals := &client.MFAAuthenticateChallenge{}
-			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chals))
+			chal := &client.MFAAuthenticateChallenge{}
+			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chal))
 
 			// Send response over ws.
 			stream := NewTerminalStream(ctx, ws, utils.NewLoggerForTests())
-			err = stream.ws.WriteMessage(websocket.BinaryMessage, tc.getChallengeResponseBytes(chals, dev))
+			err = stream.ws.WriteMessage(websocket.BinaryMessage, tc.getChallengeResponseBytes(t, chal, dev))
 			require.Nil(t, err)
 
 			// Test we can write.
@@ -7288,8 +7317,8 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 	return ws, &sessResp.Session, nil
 }
 
-func waitForOutput(r io.Reader, substr string) error {
-	timeoutCh := time.After(10 * time.Second)
+func waitForOutputWithDuration(r io.Reader, substr string, timeout time.Duration) error {
+	timeoutCh := time.After(timeout)
 
 	var prev string
 	out := make([]byte, int64(len(substr)*2))
@@ -7318,6 +7347,10 @@ func waitForOutput(r io.Reader, substr string) error {
 		}
 		prev = outStr
 	}
+}
+
+func waitForOutput(r io.Reader, substr string) error {
+	return waitForOutputWithDuration(r, substr, 10*time.Second)
 }
 
 func (s *WebSuite) client(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
@@ -7970,6 +8003,9 @@ func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Ro
 		clt:       clt,
 		cookies:   resp.Cookies(),
 		password:  pass,
+		device: &auth.TestDevice{
+			TOTPSecret: otpSecret,
+		},
 	}
 }
 
@@ -8234,7 +8270,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	accessReq, err := services.NewAccessRequest(username, requestableRolename)
 	require.NoError(t, err)
 	accessReq.SetState(types.RequestState_APPROVED)
-	err = env.server.Auth().CreateAccessRequest(ctx, accessReq, identity)
+	accessReq, err = env.server.Auth().CreateAccessRequestV2(ctx, accessReq, identity)
 	require.NoError(t, err)
 
 	// Get the ID of the created and approved access request.
@@ -9284,7 +9320,9 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	const RPID = "localhost"
 
+	presenceClock := clockwork.NewFakeClock()
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		clock:                     clockwork.NewFakeClockAt(presenceClock.Now()),
 		disableDiskBasedRecording: true,
 		authPreferenceSpec: &types.AuthPreferenceSpecV2{
 			Type:           constants.Local,
@@ -9294,6 +9332,9 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 			Webauthn: &types.Webauthn{
 				RPID: RPID,
 			},
+		},
+		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, promptMFA client.PromptMFAFunc, opts ...client.PresenceOption) error {
+			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, promptMFA, client.WithPresenceClock(presenceClock)))
 		},
 	})
 
@@ -9358,7 +9399,8 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	// run the presence check a few times
 	for i := 0; i < 3; i++ {
-		s.clock.Advance(30 * time.Second)
+		presenceClock.BlockUntil(1)
+		presenceClock.Advance(30 * time.Second)
 		require.NoError(t, waitForOutput(moderatorStream, "Teleport > Please tap your MFA key"))
 
 		challenge, err := moderatorStream.readChallenge(protobufMFACodec{})
@@ -9381,11 +9423,14 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		require.NoError(t, moderatorWS.WriteMessage(websocket.BinaryMessage, envelopeBytes))
 	}
 
-	// advance the clock far enough in the future to make the moderator stale
-	// which will terminate the session
-	s.clock.Advance(180 * time.Second)
-	require.NoError(t, waitForOutput(moderatorStream, "wait: remote command exited without exit status or exit signal"))
-	require.NoError(t, waitForOutput(peerStream, "Process exited with status 255"))
+	// Advance the clock far enough in the future to make the moderator stale
+	// which will terminate the session - because the clock is used by ALL server
+	// components, it's not practical to use BlockUntil here, so we use EventuallyWithT instead.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		s.clock.Advance(3 * time.Minute)
+		assert.NoError(t, waitForOutputWithDuration(moderatorStream, "wait: remote command exited without exit status or exit signal", 3*time.Second))
+		assert.NoError(t, waitForOutputWithDuration(peerStream, "Process exited with status 255", 3*time.Second))
+	}, 15*time.Second, 500*time.Millisecond)
 }
 
 func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
@@ -9417,4 +9462,118 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 	require.NoError(t, err)
 
 	require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
+}
+
+type proxyClientMock struct {
+	auth.ClientI
+	tokens map[string]types.ProvisionToken
+}
+
+// GetToken returns provisioning token
+func (pc *proxyClientMock) GetToken(_ context.Context, token string) (types.ProvisionToken, error) {
+	tok, ok := pc.tokens[token]
+	if ok {
+		return tok, nil
+	}
+
+	return nil, trace.NotFound(token)
+}
+
+func (pc *proxyClientMock) DeleteToken(_ context.Context, token string) error {
+	_, ok := pc.tokens[token]
+	if ok {
+		delete(pc.tokens, token)
+		return nil
+	}
+	return trace.NotFound(token)
+}
+
+func Test_consumeTokenForAPICall(t *testing.T) {
+	pc := &proxyClientMock{tokens: map[string]types.ProvisionToken{}}
+
+	tests := []struct {
+		name     string
+		getToken func() (string, types.ProvisionToken)
+		wantErr  require.ErrorAssertionFunc
+	}{
+		{
+			name: "missing token is rejected",
+			getToken: func() (string, types.ProvisionToken) {
+				return "fake", nil
+			},
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+		{
+			name: "valid token is accepted",
+			getToken: func() (string, types.ProvisionToken) {
+				tok, err := types.NewProvisionToken(uuid.New().String(), []types.SystemRole{types.RoleDatabase}, time.Now().Add(time.Hour))
+				require.NoError(t, err)
+				pc.tokens[tok.GetName()] = tok
+				return tok.GetName(), tok
+			},
+		},
+		{
+			name: "token with no expiry is accepted",
+			getToken: func() (string, types.ProvisionToken) {
+				tok, err := types.NewProvisionToken(uuid.New().String(), []types.SystemRole{types.RoleDatabase}, time.Time{})
+				require.NoError(t, err)
+				pc.tokens[tok.GetName()] = tok
+				return tok.GetName(), tok
+			},
+		},
+		{
+			name: "expired token is rejected",
+			getToken: func() (string, types.ProvisionToken) {
+				tok, err := types.NewProvisionToken(uuid.New().String(), []types.SystemRole{types.RoleDatabase}, time.Now().Add(-time.Hour))
+				require.NoError(t, err)
+				pc.tokens[tok.GetName()] = tok
+				return tok.GetName(), tok
+			},
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "expired token")
+			},
+		},
+		{
+			name: "token with invalid join type is rejected",
+			getToken: func() (string, types.ProvisionToken) {
+				tok, err := types.NewProvisionTokenFromSpec("ec2-token", time.Now().Add(time.Hour), types.ProvisionTokenSpecV2{
+					Roles:      []types.SystemRole{types.RoleDatabase},
+					Allow:      []*types.TokenRule{{AWSAccount: "1234"}},
+					JoinMethod: types.JoinMethodEC2,
+				})
+
+				require.NoError(t, err)
+				pc.tokens[tok.GetName()] = tok
+				return tok.GetName(), tok
+			},
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unexpected join method \"ec2\" for token \"ec2-token\"")
+			},
+		},
+	}
+
+	tokenExists := func(tokenName string) bool {
+		tok, _ := pc.GetToken(context.Background(), tokenName)
+		return tok != nil
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokName, tok := tt.getToken()
+			tokenInitiallyPresent := tokenExists(tokName)
+			result, err := consumeTokenForAPICall(context.Background(), pc, tokName)
+			if tt.wantErr != nil {
+				tt.wantErr(t, err)
+				// verify that if token was present, then it has not been deleted.
+				require.Equal(t, tokenInitiallyPresent, tokenExists(tokName))
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tok, result)
+				// verify that token does not exist now, even if it did.
+				require.False(t, tokenExists(tokName))
+			}
+		})
+	}
 }

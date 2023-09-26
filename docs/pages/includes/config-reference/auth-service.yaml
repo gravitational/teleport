@@ -122,10 +122,17 @@ auth_service:
     # certificates and keys (may need to wipe out /var/lib/teleport directory)
     cluster_name: "main"
 
-    # ProxyProtocol enables support for HAProxy proxy protocol version 1 when it
-    # is turned 'on'. Verify whether the service is in front of a trusted load
-    # balancer.
-    # The default value is 'on'.
+    # proxy_protocol controls support for HAProxy PROXY protocol.
+    # Unspecified by default, possible values:
+    # 'on' - PROXY protocol is enabled and required.
+    # 'off' - PROXY protocol is disabled and forbidden.
+    #
+    # If unspecified, PROXY protocol is allowed, but not required. This is
+    # suitable for test environments, but not recommended for production use.
+    # Teleport's IP pinning functionality will not work if this field is left
+    # unspecified and PROXY headers are received.
+    # Set to `on` if Auth service runs behind a L4 load balancer that sends PROXY
+    # headers, otherwise set to `off`.
     proxy_protocol: on
 
     authentication:

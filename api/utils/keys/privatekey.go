@@ -20,6 +20,8 @@ package keys
 import (
 	"bytes"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
@@ -209,6 +211,31 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 		return NewPrivateKey(priv, keyPEM)
 	default:
 		return nil, trace.BadParameter("unexpected private key PEM type %q", block.Type)
+	}
+}
+
+// MarshalPrivateKey will return a PEM encoded crypto.Signer.
+// Only supports rsa, ecdsa, and ed25519 keys.
+func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
+	switch privateKey := key.(type) {
+	case *rsa.PrivateKey:
+		privPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  PKCS1PrivateKeyType,
+			Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+		})
+		return privPEM, nil
+	case *ecdsa.PrivateKey, *ed25519.PrivateKey:
+		der, err := x509.MarshalPKCS8PrivateKey(privateKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		privPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  PKCS8PrivateKeyType,
+			Bytes: der,
+		})
+		return privPEM, nil
+	default:
+		return nil, trace.BadParameter("unsupported private key type %T", key)
 	}
 }
 

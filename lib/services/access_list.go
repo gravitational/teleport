@@ -208,8 +208,8 @@ func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock cloc
 	}
 
 	expires := member.Spec.Expires
-	if expires.IsZero() || accessList.Spec.Audit.NextAuditDate.Before(expires) {
-		expires = accessList.Spec.Audit.NextAuditDate
+	if expires.IsZero() {
+		return nil
 	}
 
 	if !clock.Now().Before(expires) {
@@ -237,7 +237,7 @@ func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires
 		}
 	}
 
-	// Assemble traits for easy lookyp.
+	// Assemble traits for easy lookup.
 	userTraitsMap := map[string]map[string]struct{}{}
 	for k, values := range identity.Traits {
 		if _, ok := userTraitsMap[k]; !ok {

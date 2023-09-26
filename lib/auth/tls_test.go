@@ -1358,7 +1358,7 @@ func TestOTPCRUD(t *testing.T) {
 }
 
 // TestWebSessions tests web sessions flow for web user,
-// that logs in, extends web session and tries to perform administratvie action
+// that logs in, extends web session and tries to perform administrative action
 // but fails
 func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	t.Parallel()
@@ -1486,7 +1486,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	require.NoError(t, err)
 	roleReq.SetState(types.RequestState_APPROVED)
 	roleReq.SetAccessExpiry(clock.Now().Add(8 * time.Hour))
-	err = clt.CreateAccessRequest(ctx, roleReq)
+	roleReq, err = clt.CreateAccessRequestV2(ctx, roleReq)
 	require.NoError(t, err)
 
 	// Create remote cluster so create access request doesn't err due to non existent cluster
@@ -1499,7 +1499,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	resourceReq, err := services.NewAccessRequestWithResources(username, []string{resourceRequestRoleName}, resourceIDs)
 	require.NoError(t, err)
 	resourceReq.SetState(types.RequestState_APPROVED)
-	err = clt.CreateAccessRequest(ctx, resourceReq)
+	resourceReq, err = clt.CreateAccessRequestV2(ctx, resourceReq)
 	require.NoError(t, err)
 
 	// Create a web session and client for the user.
@@ -1694,7 +1694,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	accessReq.SetAccessExpiry(clock.Now().Add(time.Minute * 10))
 	accessReq.SetState(types.RequestState_APPROVED)
 
-	err = clt.CreateAccessRequest(ctx, accessReq)
+	accessReq, err = clt.CreateAccessRequestV2(ctx, accessReq)
 	require.NoError(t, err)
 
 	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
@@ -1791,9 +1791,13 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	web, err := testSrv.NewClientFromWebSession(ws)
 	require.NoError(t, err)
 
-	// Update some traits.
+	// Update some traits and roles.
+	newRoleName := "new-role"
 	newUser.SetLogins([]string{"apple", "banana"})
 	newUser.SetDatabaseUsers([]string{"llama", "alpaca"})
+	_, err = CreateRole(ctx, clt, newRoleName, types.RoleSpecV6{})
+	require.NoError(t, err)
+	newUser.AddRole(newRoleName)
 	require.NoError(t, clt.UpdateUser(ctx, newUser))
 
 	// Renew session with the updated traits.
@@ -1809,8 +1813,11 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	require.NoError(t, err)
 	traits, err := services.ExtractTraitsFromCert(sshcert)
 	require.NoError(t, err)
+	roles, err := services.ExtractRolesFromCert(sshcert)
+	require.NoError(t, err)
 	require.Equal(t, traits[constants.TraitLogins], []string{"apple", "banana"})
 	require.Equal(t, traits[constants.TraitDBUsers], []string{"llama", "alpaca"})
+	require.Contains(t, roles, newRoleName)
 }
 
 func TestExtendWebSessionWithMaxDuration(t *testing.T) {
@@ -1898,7 +1905,7 @@ func TestExtendWebSessionWithMaxDuration(t *testing.T) {
 			err = accessReq.SetState(types.RequestState_APPROVED)
 			require.NoError(t, err)
 
-			err = adminClient.CreateAccessRequest(ctx, accessReq)
+			accessReq, err = adminClient.CreateAccessRequestV2(ctx, accessReq)
 			require.NoError(t, err)
 
 			sess1, err := userClient.ExtendWebSession(ctx, WebSessionReq{
@@ -2055,7 +2062,8 @@ func TestPluginData(t *testing.T) {
 	req, err := services.NewAccessRequest(user, role)
 	require.NoError(t, err)
 
-	require.NoError(t, userClient.CreateAccessRequest(ctx, req))
+	req, err = userClient.CreateAccessRequestV2(ctx, req)
+	require.NoError(t, err)
 
 	err = pluginClient.UpdatePluginData(ctx, types.PluginDataUpdateParams{
 		Kind:     types.KindAccessRequest,
@@ -4036,16 +4044,6 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 					Roles:      types.SystemRoles{types.RoleTrustedCluster},
 					JoinMethod: types.JoinMethodToken,
 				},
-				//nolint:staticcheck // Emit a deprecated event.
-				&eventtypes.TrustedClusterTokenCreate{
-					Metadata: eventtypes.Metadata{
-						Type: events.TrustedClusterTokenCreateEvent,
-						Code: events.TrustedClusterTokenCreateCode,
-					},
-					UserMetadata: eventtypes.UserMetadata{
-						User: "token-creator",
-					},
-				},
 			},
 		},
 		{
@@ -4194,16 +4192,6 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 					},
 					Roles:      types.SystemRoles{types.RoleTrustedCluster},
 					JoinMethod: types.JoinMethodToken,
-				},
-				//nolint:staticcheck // Emit a deprecated event.
-				&eventtypes.TrustedClusterTokenCreate{
-					Metadata: eventtypes.Metadata{
-						Type: events.TrustedClusterTokenCreateEvent,
-						Code: events.TrustedClusterTokenCreateCode,
-					},
-					UserMetadata: eventtypes.UserMetadata{
-						User: "token-upserter",
-					},
 				},
 			},
 		},

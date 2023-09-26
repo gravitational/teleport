@@ -63,6 +63,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -87,7 +88,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 )
 
@@ -1349,11 +1349,11 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	return key, trace.Wrap(err)
 }
 
-// CreateAccessRequest registers a new access request with the auth server.
-func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+// CreateAccessRequestV2 registers a new access request with the auth server.
+func (tc *TeleportClient) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/CreateAccessRequest",
+		"teleportClient/CreateAccessRequestV2",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(attribute.String("request", req.GetName())),
@@ -1362,11 +1362,11 @@ func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req types.Acc
 
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 
-	return proxyClient.CreateAccessRequest(ctx, req)
+	return proxyClient.CreateAccessRequestV2(ctx, req)
 }
 
 // GetAccessRequests loads all access requests matching the supplied filter.
@@ -1482,17 +1482,13 @@ func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt
 // the current clusters auth server. The auth server will then forward along to the configured
 // telemetry backend.
 func (tc *TeleportClient) NewTracingClient(ctx context.Context) (*apitracing.Client, error) {
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := proxyClient.NewTracingClient(ctx, tc.SiteName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clt, nil
+	tracingClient, err := client.NewTracingClient(ctx, clusterClient.ProxyClient.ClientConfig(ctx, clusterClient.ClusterName()))
+	return tracingClient, trace.Wrap(err)
 }
 
 // SSHOptions allow overriding configuration
@@ -2837,6 +2833,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      tc.InsecureSkipVerify,
 		ViaJumpHost:             len(tc.JumpHosts) > 0,
+		PROXYHeaderGetter:       CreatePROXYHeaderGetter(ctx, tc.PROXYSigner),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

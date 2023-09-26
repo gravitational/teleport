@@ -313,7 +313,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			require.NoError(t, err)
 
 			// send the request to the auth server
-			err = requesterClient.CreateAccessRequest(ctx, req)
+			req, err = requesterClient.CreateAccessRequestV2(ctx, req)
 			require.ErrorIs(t, err, tc.expectRequestError)
 			if tc.expectRequestError != nil {
 				return
@@ -726,4 +726,44 @@ func checkCerts(t *testing.T,
 	require.NoError(t, err)
 	assert.ElementsMatch(t, resourceIDs, sshCertAllowedResources)
 	assert.ElementsMatch(t, resourceIDs, tlsIdentity.AllowedResourceIDs)
+}
+
+func TestCreateSuggestions(t *testing.T) {
+	t.Parallel()
+
+	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+	const username = "admin"
+
+	// Create the access request, so we can attach the promotions to it.
+	adminRequest, err := services.NewAccessRequest(username, "admins")
+	require.NoError(t, err)
+
+	authSrvClient := testAuthServer.AuthServer
+	err = authSrvClient.UpsertAccessRequest(context.Background(), adminRequest)
+	require.NoError(t, err)
+
+	// Create the promotions.
+	err = authSrvClient.CreateAccessRequestAllowedPromotions(context.Background(), adminRequest, &types.AccessRequestAllowedPromotions{
+		Promotions: []*types.AccessRequestAllowedPromotion{
+			{AccessListName: "a"},
+			{AccessListName: "b"},
+			{AccessListName: "c"}},
+	})
+	require.NoError(t, err)
+
+	// Get the promotions and verify them.
+	promotions, err := authSrvClient.GetAccessRequestAllowedPromotions(context.Background(), adminRequest)
+	require.NoError(t, err)
+	require.Len(t, promotions.Promotions, 3)
+	require.Equal(t, []string{"a", "b", "c"},
+		[]string{
+			promotions.Promotions[0].AccessListName,
+			promotions.Promotions[1].AccessListName,
+			promotions.Promotions[2].AccessListName,
+		})
 }

@@ -75,6 +75,9 @@ type Owner struct {
 
 	// Description is the plaintext description of the owner and why they are an owner.
 	Description string `json:"description" yaml:"description"`
+
+	// IneligibleStatus describes the reason why this owner is not eligible.
+	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
 }
 
 // Audit describes the audit configuration for an access list.
@@ -154,12 +157,6 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("owners are missing")
 	}
 
-	for _, owner := range a.Spec.Owners {
-		if owner.Name == "" {
-			return trace.BadParameter("owner name is missing")
-		}
-	}
-
 	if a.Spec.Audit.Frequency == 0 {
 		return trace.BadParameter("audit frequency must be greater than 0")
 	}
@@ -170,12 +167,36 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("grants must specify at least one role or trait")
 	}
 
+	// Deduplicate owners. The backend will currently prevent this, but it's possible that access lists
+	// were created with duplicated owners before the backend checked for duplicate owners. In order to
+	// ensure that these access lists are backwards compatible, we'll deduplicate them here.
+	ownerMap := make(map[string]struct{}, len(a.Spec.Owners))
+	deduplicatedOwners := []Owner{}
+	for _, owner := range a.Spec.Owners {
+		if owner.Name == "" {
+			return trace.BadParameter("owner name is missing")
+		}
+
+		if _, ok := ownerMap[owner.Name]; ok {
+			continue
+		}
+
+		ownerMap[owner.Name] = struct{}{}
+		deduplicatedOwners = append(deduplicatedOwners, owner)
+	}
+	a.Spec.Owners = deduplicatedOwners
+
 	return nil
 }
 
 // GetOwners returns the list of owners from the access list.
 func (a *AccessList) GetOwners() []Owner {
 	return a.Spec.Owners
+}
+
+// GetOwners returns the list of owners from the access list.
+func (a *AccessList) SetOwners(owners []Owner) {
+	a.Spec.Owners = owners
 }
 
 // GetAuditFrequency returns the audit frequency from the access list.

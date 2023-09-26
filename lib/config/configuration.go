@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -207,6 +208,10 @@ type CommandLineFlags struct {
 	// IntegrationConfAWSOIDCIdPArguments contains the arguments of
 	// `teleport integration configure awsoidc-idp` command
 	IntegrationConfAWSOIDCIdPArguments IntegrationConfAWSOIDCIdP
+
+	// IntegrationConfListDatabasesIAMArguments contains the arguments of
+	// `teleport integration configure listdatabases-iam` command
+	IntegrationConfListDatabasesIAMArguments IntegrationConfListDatabasesIAM
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -249,6 +254,15 @@ type IntegrationConfAWSOIDCIdP struct {
 	ProxyPublicURL string
 }
 
+// IntegrationConfListDatabasesIAM contains the arguments of
+// `teleport integration configure listdatabases-iam` command
+type IntegrationConfListDatabasesIAM struct {
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// Role is the AWS Role associated with the Integration
+	Role string
+}
+
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
 // and overrides values in 'cfg' structure
 func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
@@ -271,7 +285,7 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 
 // ReadResources loads a set of resources from a file.
 func ReadResources(filePath string) ([]types.Resource, error) {
-	reader, err := utils.OpenFile(filePath)
+	reader, err := utils.OpenFileAllowingUnsafeLinks(filePath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1352,6 +1366,17 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 
+		for _, region := range matcher.Regions {
+			if !awsutils.IsKnownRegion(region) {
+				log.Warnf("AWS matcher uses unknown region %q. "+
+					"There could be a typo in %q. "+
+					"Ignore this message if this is a new AWS region that is unknown to the AWS SDK used to compile this binary. "+
+					"Known regions are: %v.",
+					region, region, awsutils.GetKnownRegions(),
+				)
+			}
+		}
+
 		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers,
 			types.AWSMatcher{
 				Types:   matcher.Types,
@@ -1390,6 +1415,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		m := types.GCPMatcher{
 			Types:           matcher.Types,
 			Locations:       matcher.Locations,
+			Labels:          matcher.Labels,
 			Tags:            matcher.Tags,
 			ProjectIDs:      matcher.ProjectIDs,
 			ServiceAccounts: matcher.ServiceAccounts,

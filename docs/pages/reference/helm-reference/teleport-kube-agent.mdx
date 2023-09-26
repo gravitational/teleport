@@ -25,6 +25,7 @@ The `teleport-kube-agent` chart can run any or all of three Teleport services:
 | [`kubernetes_service`](../../kubernetes-access/introduction.mdx)   | `kube`                                 | Uses Teleport to handle authentication<br/> with and proxy access to a Kubernetes cluster   |
 | [`application_service`](../../application-access/guides.mdx) | `app`                                  | Uses Teleport to handle authentication<br/> with and proxy access to web-based applications |
 | [`database_service`](../../database-access/guides.mdx)       | `db`                                   | Uses Teleport to handle authentication<br/> with and proxy access to databases              |
+| [`discovery_service`](../../kubernetes-access/discovery/)       | `discovery`                                   | Uses Teleport to discover new resources<br/> and dynamically add them to the cluster             |
 
 ### Legacy releases
 
@@ -81,15 +82,16 @@ This parameter is not mandatory to preserve backwards compatibility with older c
 | Services                     | Value for `roles` | Mandatory additional settings for this role |
 |------------------------------|-------------------|---------------------------------------------|
 | Teleport Kubernetes service  | `kube`            | [`kubeClusterName`](#kubeclustername)       |
-| Teleport Application service | `app`             | [`apps`](#apps)                             |
-| Teleport Database service    | `db`              | [`databases`](#databases)                   |
+| Teleport Application service | `app`             | [`apps`](#apps) or [`appResources`](#appresources) |
+| Teleport Database service    | `db`              | [`databases`](#databases) or [`databaseResources`](#databaseresources) |
+| Teleport Discovery service   | `discovery`       | [`kubeClusterName`](#kubeclustername) |
 
 `values.yaml` example:
 
   ```yaml
-  roles: kube,app,db
+  roles: kube,app,discovery
   ```
-  
+
 ## `enterprise`
 
 | Type     | Default value |
@@ -99,19 +101,19 @@ This parameter is not mandatory to preserve backwards compatibility with older c
 When `enterprise` is set to `true`, the container image used for Teleport agent
 pods run by the `teleport-kube-agent` chart will be the enterprise version.
 This should be set to `true` for connecting to Teleport Cloud and self-hosted
-Teleport Enterprise clusters to use enterprise features within the Kube Agent. 
+Teleport Enterprise clusters to use enterprise features within the Kube Agent.
 
 `values.yaml` example:
 
   ```yaml
   enterprise: true
-  ```  
-  
+  ```
+
 ## `updater`
 
 `updater` controls whether the Kube Agent Updater should be deployed alongside
 the `teleport-kube-agent`. The updater fetches the target version, validates the
-image signature, and updates the teleport deployment. The `enterprise` value should 
+image signature, and updates the teleport deployment. The `enterprise` value should
 have been set to `true`.
 
 All Kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
@@ -376,6 +378,56 @@ connecting to the cluster.
   ```yaml
   kubeClusterName: my-gke-cluster
   ```
+
+## `kubernetesDiscovery`
+
+| Type   | Required? |
+|--------|-----------|
+| `list` | No |
+
+`kubernetesDiscovery` is a YAML list object detailing the Kubernetes App Discovery Configuration
+
+You can specify multiple discovery configurations by adding additional list elements.
+
+`values.yaml` example:
+
+  ```yaml
+  kubernetesDiscovery:
+  - types: ["app"]
+    namespaces: [ "toronto", "porto" ]
+    labels:
+      env: staging
+  - types: ["app"]
+    namespaces: [ "seattle", "oakland" ]
+    labels:
+      env: testing
+  ```
+
+### `kubernetesDiscovery.types`
+
+| Type   | Required? |
+|--------|-----------|
+| `list` | Yes |
+
+`kubernetesDiscovery.types` is a list of Teleport resource types to be created
+from the discovered Kubernetes Services. Currently only supports `app`.
+
+### `kubernetesDiscovery.namespaces`
+
+| Type  | Default | Required? |
+|-------| ------- |-----------|
+| `list`| All Namespaces | No |
+
+`kubernetesDiscovery.namespaces` is a list of Kubernetes namespaces to be scanned for resources.
+
+### `kubernetesDiscovery.labels`
+
+| Type  | Default | Required? |
+|-------| ------- |-----------|
+| `map` | `{"*":"*"}` | No |
+
+`kubernetesDiscovery.labels` is a map of labels to be matched against the Kubernetes Services.
+Only Services with matching labels will be imported to Teleport.
 
 ## `apps`
 
@@ -652,6 +704,49 @@ You can specify multiple selectors by adding elements to the list.
 <Admonition type="tip" title="Example">
   Once `databaseResources` is set, you can dynamically register database with `tsh` by following [this guide](../../database-access/guides/dynamic-registration.mdx).
 </Admonition>
+
+
+## kubernetesDiscovery
+
+| Type   | Default value | Required?                                                                                                                             |
+|--------|---------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `list` | Discovery of all applications in all namespaces   | When the `discovery` chart role is used, `kubernetesDiscovery` is required. |
+
+Default value:
+
+  ```yaml
+  kubernetesDiscovery:
+  - types: ["app"]
+    namespaces: ["*"]
+    labels:
+      "*": "*"
+  ```
+
+`kubernetesDiscovery` is a YAML list object detailing the filters for the services of the Kubernetes cluster that should be discovered
+ and exposed as apps in Teleport. By default the Discovery Service will try to find all apps that are serving HTTP/HTTPS, but you can manually
+ make it expose TCP apps as well, using Kubernetes annotations.
+
+You can specify multiple filters, each of which can include these parameters:
+- `types` is a list of types of services to be exposed in Teleport. Currently only `app` is supported.
+- `namespaces` is a list of namespaces of the Kubernetes cluster to search in. The default value is `*`, which denotes all namespaces.
+- `labels` is a list of Kubernetes labels based on which to filter out services. The default value is `*`: `*` that will match any labels.
+
+
+`values.yaml` example:
+
+  ```yaml
+  kubernetesDiscovery:
+  - types: ["app"]
+    namespaces: ["staging", "test"]
+    labels:
+      "*": "*"
+  - types: ["app"]
+    namespaces: ["*"]
+    labels:
+      "purpose": "monitoring"
+      "department": "security"
+  ```
+
 
 ## `teleportVersionOverride`
 

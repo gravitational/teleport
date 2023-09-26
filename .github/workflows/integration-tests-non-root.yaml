@@ -2,33 +2,38 @@ name: Integration Tests (Non-root)
 run-name: Integration Tests (Non-root) - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
-  push:
-    branches:
-      - master
-      - branch/*
   pull_request:
-    paths:
-      - '.github/workflows/integration-tests-non-root.yaml'
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
-      - 'Makefile'
+
   merge_group:
-    paths:
-      - '.github/workflows/integration-tests-non-root.yaml'
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
-      - 'Makefile'
 
 jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            changed:
+              - '.github/workflows/integration-tests-non-root.yaml'
+              - '**.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+              - 'Makefile'
+
   test:
     name: Integration Tests (Non-root)
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }} && needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-22.04-16core
 
     permissions:
@@ -58,7 +63,7 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace

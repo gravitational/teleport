@@ -1426,6 +1426,7 @@ func TestCheckAccessToServer(t *testing.T) {
 				{server: serverDB, login: "root", hasAccess: true},
 			},
 		},
+		// MFA with private key policy.
 		{
 			name: "cluster requires session+hardware key, MFA not verified",
 			roles: []*types.RoleV6{
@@ -1469,9 +1470,27 @@ func TestCheckAccessToServer(t *testing.T) {
 				}),
 			},
 			authSpec: types.AuthPreferenceSpecV2{
-				// Functionally equivalent to "off".
+				// Functionally equivalent to "session".
 				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
 			},
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+			},
+		},
+		{
+			name: "cluster requires hardware key touch, MFA verified",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+				}),
+			},
+			authSpec: types.AuthPreferenceSpecV2{
+				// Functionally equivalent to "session".
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+			},
+			mfaVerified: true,
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: true},
 				{server: serverWorker, login: "root", hasAccess: true},
@@ -6875,9 +6894,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
@@ -6901,9 +6917,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Name: "a",
 				},
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"sudoers entry 1"},
@@ -6914,9 +6927,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Name: "b",
 				},
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 						HostSudoers: []string{"sudoers entry 2"},
@@ -6924,9 +6934,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 				},
 			}, &types.RoleV6{
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{"fail": []string{"abc"}},
 						HostSudoers: []string{"not present sudoers entry"},
@@ -6947,9 +6954,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 			sudoers: nil,
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
@@ -6957,9 +6961,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 				},
 			}, &types.RoleV6{
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Deny: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"*"},
@@ -6980,9 +6981,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{
@@ -6993,9 +6991,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 				},
 			}, &types.RoleV6{
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Deny: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"removed entry"},
@@ -7019,9 +7014,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Name: "a",
 				},
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"sudoers entry 1"},
@@ -7032,9 +7024,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Name: "c",
 				},
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 						HostSudoers: []string{"sudoers entry 4", "sudoers entry 1"},
@@ -7045,9 +7034,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Name: "b",
 				},
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 						HostSudoers: []string{"sudoers entry 2", "sudoers entry 3"},
@@ -7071,9 +7057,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Name: "a",
 				},
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"sudoers entry 1"},
@@ -7084,9 +7067,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Name: "d",
 				},
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Deny: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"sudoers entry 1"},
@@ -7097,9 +7077,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Name: "c",
 				},
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 						HostSudoers: []string{"sudoers entry 1", "sudoers entry 2"},
@@ -7118,9 +7095,9 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 	} {
 		t.Run(tc.test, func(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
-			info, err := accessChecker.HostUsers(tc.server)
+			info, err := accessChecker.HostSudoers(tc.server)
 			require.NoError(t, err)
-			require.Equal(t, tc.sudoers, info.Sudoers)
+			require.Equal(t, tc.sudoers, info)
 		})
 	}
 }
@@ -7549,25 +7526,43 @@ func TestRoleSet_GetAccessState(t *testing.T) {
 			},
 		},
 		{
+			name: "auth pref requires hardware key",
+			roleMFARequireTypes: []types.RequireMFAType{
+				types.RequireMFAType_OFF,
+			},
+			authPrefMFARequireType: types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
+			expectState: AccessState{
+				MFARequired: MFARequiredAlways,
+			},
+		},
+		{
 			name: "auth pref requires hardware key touch",
 			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireMFAType_SESSION,
-				types.RequireMFAType_SESSION,
+				types.RequireMFAType_OFF,
 			},
 			authPrefMFARequireType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
 			expectState: AccessState{
-				MFARequired: MFARequiredNever,
+				MFARequired: MFARequiredAlways,
+			},
+		},
+		{
+			name: "role requires hardware key",
+			roleMFARequireTypes: []types.RequireMFAType{
+				types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
+			},
+			authPrefMFARequireType: types.RequireMFAType_OFF,
+			expectState: AccessState{
+				MFARequired: MFARequiredAlways,
 			},
 		},
 		{
 			name: "role requires hardware key touch",
 			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireMFAType_SESSION,
 				types.RequireMFAType_HARDWARE_KEY_TOUCH,
 			},
-			authPrefMFARequireType: types.RequireMFAType_SESSION,
+			authPrefMFARequireType: types.RequireMFAType_OFF,
 			expectState: AccessState{
-				MFARequired: MFARequiredNever,
+				MFARequired: MFARequiredAlways,
 			},
 		},
 	}

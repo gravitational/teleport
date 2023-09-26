@@ -38,6 +38,9 @@ import {
   useConnectMyComputerContext,
 } from './connectMyComputerContext';
 
+import type { IAppContext } from 'teleterm/ui/types';
+import type { Cluster } from 'teleterm/services/tshd/types';
+
 function getMocksWithConnectMyComputerEnabled() {
   const rootCluster = makeRootCluster({
     loggedInUser: makeLoggedInUser({
@@ -53,7 +56,9 @@ function getMocksWithConnectMyComputerEnabled() {
       },
     }),
   });
-  const appContext = new MockAppContext({});
+  const appContext = new MockAppContext({
+    appVersion: rootCluster.proxyVersion,
+  });
 
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(rootCluster.uri, rootCluster);
@@ -67,8 +72,28 @@ function getMocksWithConnectMyComputerEnabled() {
       accessRequests: undefined,
     };
   });
+  appContext.configService = createMockConfigService({
+    'feature.connectMyComputer': true,
+  });
 
   return { appContext, rootCluster };
+}
+
+function renderUseConnectMyComputerContextHook(
+  appContext: IAppContext,
+  rootCluster: Cluster
+) {
+  return renderHook(() => useConnectMyComputerContext(), {
+    wrapper: ({ children }) => (
+      <MockAppContextProvider appContext={appContext}>
+        <WorkspaceContextProvider value={null}>
+          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
+            {children}
+          </ConnectMyComputerContextProvider>
+        </WorkspaceContextProvider>
+      </MockAppContextProvider>
+    ),
+  });
 }
 
 test('startAgent re-throws errors that are thrown while spawning the process', async () => {
@@ -78,6 +103,14 @@ test('startAgent re-throws errors that are thrown while spawning the process', a
     status: 'error',
     message: 'ENOENT',
   };
+
+  jest
+    .spyOn(appContext.connectMyComputerService, 'waitForNodeToJoin')
+    .mockImplementation(
+      // Hang until abort.
+      (rootClusterUri, abortSignal) =>
+        new Promise((resolve, reject) => abortSignal.addEventListener(reject))
+    );
   jest
     .spyOn(appContext.mainProcessClient, 'getAgentState')
     .mockImplementation(() => errorStatus);
@@ -95,48 +128,42 @@ test('startAgent re-throws errors that are thrown while spawning the process', a
       return { cleanup: () => eventEmitter.off('', listener) };
     });
 
-  const { result } = renderHook(() => useConnectMyComputerContext(), {
-    wrapper: ({ children }) => (
-      <MockAppContextProvider appContext={appContext}>
-        <WorkspaceContextProvider value={null}>
-          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
-            {children}
-          </ConnectMyComputerContextProvider>
-        </WorkspaceContextProvider>
-      </MockAppContextProvider>
-    ),
-  });
+  const { result } = renderUseConnectMyComputerContextHook(
+    appContext,
+    rootCluster
+  );
 
   let error: Error;
   await act(async () => {
     [, error] = await result.current.startAgent();
   });
-  expect(error).toBeInstanceOf(AgentProcessError);
   expect(result.current.currentAction).toStrictEqual({
     kind: 'start',
-    attempt: makeErrorAttempt(AgentProcessError.name),
+    attempt: makeErrorAttempt(new AgentProcessError()),
     agentProcessState: {
       status: 'error',
       message: 'ENOENT',
     },
   });
+  expect(error).toBeInstanceOf(AgentProcessError);
 });
 
 test('starting the agent flips the workspace autoStart flag to true', async () => {
   const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
-  const { result } = renderHook(() => useConnectMyComputerContext(), {
-    wrapper: ({ children }) => (
-      <MockAppContextProvider appContext={appContext}>
-        <WorkspaceContextProvider value={null}>
-          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
-            {children}
-          </ConnectMyComputerContextProvider>
-        </WorkspaceContextProvider>
-      </MockAppContextProvider>
-    ),
-  });
 
-  await act(() => result.current.startAgent());
+  jest
+    .spyOn(appContext.connectMyComputerService, 'waitForNodeToJoin')
+    .mockResolvedValue(makeServer());
+
+  const { result } = renderUseConnectMyComputerContextHook(
+    appContext,
+    rootCluster
+  );
+
+  await act(async () => {
+    const [, error] = await result.current.startAgent();
+    expect(error).toBeFalsy();
+  });
 
   expect(
     appContext.workspacesService.getConnectMyComputerAutoStart(rootCluster.uri)
@@ -146,17 +173,10 @@ test('starting the agent flips the workspace autoStart flag to true', async () =
 test('killing the agent flips the workspace autoStart flag to false', async () => {
   const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
 
-  const { result } = renderHook(() => useConnectMyComputerContext(), {
-    wrapper: ({ children }) => (
-      <MockAppContextProvider appContext={appContext}>
-        <WorkspaceContextProvider value={null}>
-          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
-            {children}
-          </ConnectMyComputerContextProvider>
-        </WorkspaceContextProvider>
-      </MockAppContextProvider>
-    ),
-  });
+  const { result } = renderUseConnectMyComputerContextHook(
+    appContext,
+    rootCluster
+  );
 
   await act(() => result.current.killAgent());
 
@@ -167,9 +187,6 @@ test('killing the agent flips the workspace autoStart flag to false', async () =
 
 test('starts the agent automatically if the workspace autoStart flag is true', async () => {
   const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
-  appContext.configService = createMockConfigService({
-    'feature.connectMyComputer': true,
-  });
 
   const eventEmitter = new EventEmitter();
   let currentAgentProcessState: AgentProcessState = {
@@ -202,17 +219,10 @@ test('starts the agent automatically if the workspace autoStart flag is true', a
     .spyOn(appContext.workspacesService, 'getConnectMyComputerAutoStart')
     .mockReturnValue(true);
 
-  const { result, waitFor } = renderHook(() => useConnectMyComputerContext(), {
-    wrapper: ({ children }) => (
-      <MockAppContextProvider appContext={appContext}>
-        <WorkspaceContextProvider value={null}>
-          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
-            {children}
-          </ConnectMyComputerContextProvider>
-        </WorkspaceContextProvider>
-      </MockAppContextProvider>
-    ),
-  });
+  const { result, waitFor } = renderUseConnectMyComputerContextHook(
+    appContext,
+    rootCluster
+  );
 
   await waitFor(
     () =>
@@ -224,4 +234,126 @@ test('starts the agent automatically if the workspace autoStart flag is true', a
     appContext.connectMyComputerService.downloadAgent
   ).toHaveBeenCalledTimes(1);
   expect(appContext.connectMyComputerService.runAgent).toHaveBeenCalledTimes(1);
+});
+
+describe('canUse', () => {
+  const cases = [
+    {
+      name: 'should be true when the user has permissions and the feature flag is enabled',
+      hasPermissions: true,
+      isFeatureFlagEnabled: true,
+      isAgentConfigured: false,
+      expected: true,
+    },
+    {
+      name: 'should be true when the user does not have permissions, but the agent has been configured and the feature flag is enabled',
+      hasPermissions: false,
+      isFeatureFlagEnabled: true,
+      isAgentConfigured: true,
+      expected: true,
+    },
+    {
+      name: 'should be false when the user does not have permissions, the agent has not been configured and the feature flag is enabled',
+      hasPermissions: false,
+      isAgentConfigured: false,
+      isFeatureFlagEnabled: true,
+      expected: false,
+    },
+    {
+      name: 'should be false when the user has permissions and the agent is configured but the feature flag is disabled',
+      hasPermissions: true,
+      isAgentConfigured: true,
+      isFeatureFlagEnabled: false,
+      expected: false,
+    },
+  ];
+
+  test.each(cases)(
+    '$name',
+    async ({
+      hasPermissions,
+      isAgentConfigured,
+      isFeatureFlagEnabled,
+      expected,
+    }) => {
+      const { appContext, rootCluster } =
+        getMocksWithConnectMyComputerEnabled();
+      // update Connect My Computer permissions
+      appContext.clustersService.setState(draftState => {
+        draftState.clusters.get(
+          rootCluster.uri
+        ).loggedInUser.acl.tokens.create = hasPermissions;
+      });
+      appContext.configService = createMockConfigService({
+        'feature.connectMyComputer': isFeatureFlagEnabled,
+      });
+      const isAgentConfigFileCreated = Promise.resolve(isAgentConfigured);
+      jest
+        .spyOn(appContext.connectMyComputerService, 'isAgentConfigFileCreated')
+        .mockReturnValue(isAgentConfigFileCreated);
+
+      const { result } = renderHook(() => useConnectMyComputerContext(), {
+        wrapper: ({ children }) => (
+          <MockAppContextProvider appContext={appContext}>
+            <WorkspaceContextProvider value={null}>
+              <ConnectMyComputerContextProvider
+                rootClusterUri={rootCluster.uri}
+              >
+                {children}
+              </ConnectMyComputerContextProvider>
+            </WorkspaceContextProvider>
+          </MockAppContextProvider>
+        ),
+      });
+
+      await act(() => isAgentConfigFileCreated);
+
+      expect(result.current.canUse).toBe(expected);
+    }
+  );
+});
+
+test('removing the agent shows a notification', async () => {
+  const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
+
+  const { result } = renderUseConnectMyComputerContextHook(
+    appContext,
+    rootCluster
+  );
+
+  await act(() => result.current.removeAgent());
+
+  expect(appContext.notificationsService.getNotifications()).toEqual([
+    {
+      id: expect.any(String),
+      severity: 'info',
+      content: 'The agent has been removed.',
+    },
+  ]);
+});
+
+test('when the user does not have permissions to remove node a custom notification is shown', async () => {
+  const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
+  jest
+    .spyOn(appContext.connectMyComputerService, 'removeConnectMyComputerNode')
+    .mockRejectedValue(new Error('access denied'));
+
+  const { result } = renderUseConnectMyComputerContextHook(
+    appContext,
+    rootCluster
+  );
+
+  await act(() => result.current.removeAgent());
+
+  expect(appContext.notificationsService.getNotifications()).toEqual([
+    {
+      id: expect.any(String),
+      severity: 'info',
+      content: {
+        title: 'The agent has been removed.',
+        description:
+          'The corresponding server may still be visible in the cluster for a few more minutes until it gets purged from the cache.',
+      },
+    },
+  ]);
 });

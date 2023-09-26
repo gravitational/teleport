@@ -64,6 +64,8 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				AWSRDS: &awsRDS{
 					ResourceID: "resource-id",
 					AccountID:  "account-id",
+					Subnets:    []string{"subnet-123", "subnet-321"},
+					VPCID:      "vpc-123",
 				},
 			},
 			errAssert: require.NoError,
@@ -112,6 +114,8 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				URI:      "uri",
 				AWSRDS: &awsRDS{
 					ResourceID: "resource-id",
+					Subnets:    []string{"subnet-123", "subnet-321"},
+					VPCID:      "vpc-123",
 				},
 			},
 			errAssert: func(t require.TestingT, err error, i ...interface{}) {
@@ -127,6 +131,42 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				URI:      "uri",
 				AWSRDS: &awsRDS{
 					AccountID: "account-id",
+					Subnets:   []string{"subnet-123", "subnet-321"},
+					VPCID:     "vpc-123",
+				},
+			},
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
+			},
+		},
+		{
+			desc: "invalid missing aws rds subnets",
+			req: createDatabaseRequest{
+				Name:     "",
+				Protocol: "protocol",
+				URI:      "uri",
+				AWSRDS: &awsRDS{
+					ResourceID: "resource-id",
+					AccountID:  "account-id",
+					VPCID:      "vpc-123",
+				},
+			},
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
+			},
+		},
+		{
+			desc: "invalid missing aws rds vpcid",
+			req: createDatabaseRequest{
+				Name:     "",
+				Protocol: "protocol",
+				URI:      "uri",
+				AWSRDS: &awsRDS{
+					ResourceID: "resource-id",
+					AccountID:  "account-id",
+					Subnets:    []string{"subnet-123", "subnet-321"},
 				},
 			},
 			errAssert: func(t require.TestingT, err error, i ...interface{}) {

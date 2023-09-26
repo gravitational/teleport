@@ -69,9 +69,6 @@ build_teleport_fuzzers() {
     FuzzParseProxyJump fuzz_parse_proxy_jump
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/utils \
-    FuzzParseWebLinks fuzz_parse_web_links
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/utils \
     FuzzReadYAML fuzz_read_yaml
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \

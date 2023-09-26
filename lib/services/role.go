@@ -28,7 +28,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/google/uuid"
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
@@ -371,7 +370,7 @@ func filterInvalidUnixLogins(candidates []string) []string {
 	var output []string
 
 	for _, candidate := range candidates {
-		if cstrings.IsValidUnixUser(candidate) {
+		if utils.IsValidUnixUser(candidate) {
 			// A valid variable was found in the traits, append it to the list of logins.
 			output = append(output, candidate)
 			continue
@@ -1193,17 +1192,6 @@ func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
 }
 
 func (set RoleSet) getMFARequired(clusterRequireMFAType types.RequireMFAType) MFARequired {
-	// per-session MFA is overridden by hardware key PIV touch requirement.
-	// check if the auth pref or any roles have this option.
-	if clusterRequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-		return MFARequiredNever
-	}
-	for _, role := range set {
-		if role.GetOptions().RequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-			return MFARequiredNever
-		}
-	}
-
 	// MFA is always required according to the cluster auth pref.
 	if clusterRequireMFAType.IsSessionMFARequired() {
 		return MFARequiredAlways

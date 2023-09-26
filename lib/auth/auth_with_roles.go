@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -2365,20 +2366,6 @@ func emitTokenEvent(
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit join token create event.")
 	}
-	for _, role := range roles {
-		if role == types.RoleTrustedCluster {
-			//nolint:staticcheck // Emit a deprecated event.
-			if err := e.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
-				Metadata: apievents.Metadata{
-					Type: events.TrustedClusterTokenCreateEvent,
-					Code: events.TrustedClusterTokenCreateCode,
-				},
-				UserMetadata: userMetadata,
-			}); err != nil {
-				log.WithError(err).Warn("Failed to emit trusted cluster token create event.")
-			}
-		}
-	}
 }
 
 func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
@@ -2649,11 +2636,6 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 	return filtered, nil
 }
 
-func (a *ServerWithRoles) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
-	_, err := a.CreateAccessRequestV2(ctx, req)
-	return trace.Wrap(err)
-}
-
 func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
 	// An exception is made to allow users to create access *pending* requests for themselves.
 	if !req.GetState().IsPending() || a.currentUserAction(req.GetUser()) != nil {
@@ -2661,6 +2643,10 @@ func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.A
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	// ensure request ID is set server-side
+	req.SetName(uuid.NewString())
+
 	resp, err := a.authServer.CreateAccessRequestV2(ctx, req, a.context.Identity.GetIdentity())
 	return resp, trace.Wrap(err)
 }
@@ -3360,6 +3346,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 
 	return certs, nil
+}
+
+// GetAccessRequestAllowedPromotions returns a list of roles that the user can
+// promote to, based on the given access requests.
+func (a *ServerWithRoles) GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+	promotions, err := a.authServer.GetAccessRequestAllowedPromotions(ctx, req)
+	return promotions, trace.Wrap(err)
 }
 
 // verifyUserDeviceForCertIssuance verifies if the user device is a trusted
@@ -4591,6 +4584,11 @@ func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.Tru
 }
 
 func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+	// Don't allow leaf clusters if running in Cloud.
+	if modules.GetModules().Features().Cloud {
+		return nil, trace.NotImplemented("cloud clusters do not support trusted cluster resources")
+	}
+
 	// the token provides it's own authorization and authentication
 	return a.authServer.validateTrustedCluster(ctx, validateRequest)
 }
@@ -5411,9 +5409,19 @@ func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthServic
 
 // AddMFADeviceSync is implemented by AuthService.AddMFADeviceSync.
 func (a *ServerWithRoles) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
-	// The token provides its own authorization and authentication.
-	res, err := a.authServer.AddMFADeviceSync(ctx, req)
-	return res, trace.Wrap(err)
+	switch {
+	case req.TokenID != "":
+	default: // ContextUser
+		if !authz.IsLocalOrRemoteUser(a.context) {
+			return nil, trace.BadParameter("only end users are allowed to register devices using ContextUser")
+		}
+	}
+
+	// The following serve as means of authentication for this RPC:
+	//   - privilege token (or equivalent)
+	//   - authenticated user using non-Proxy identity
+	resp, err := a.authServer.AddMFADeviceSync(ctx, req)
+	return resp, trace.Wrap(err)
 }
 
 // DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.
@@ -5441,6 +5449,12 @@ func (a *ServerWithRoles) GetResources(ctx context.Context, req *proto.ListResou
 func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 	if !hasLocalUserRole(a.context) && !hasRemoteUserRole(a.context) {
 		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
+	}
+	// Certain hardware-key based private key policies are treated as MFA verification.
+	if a.context.Identity.GetIdentity().PrivateKeyPolicy.MFAVerified() {
+		return &proto.IsMFARequiredResponse{
+			Required: false,
+		}, nil
 	}
 	return a.authServer.isMFARequired(ctx, a.context.Checker, req)
 }
@@ -6213,10 +6227,20 @@ func (a *ServerWithRoles) GetAccountRecoveryToken(ctx context.Context, req *prot
 
 // CreateAuthenticateChallenge is implemented by AuthService.CreateAuthenticateChallenge.
 func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+	switch req.GetRequest().(type) {
+	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
+	case *proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID:
+	case *proto.CreateAuthenticateChallengeRequest_Passwordless:
+	default: // nil or *proto.CreateAuthenticateChallengeRequest_ContextUser:
+		if !authz.IsLocalOrRemoteUser(a.context) {
+			return nil, trace.BadParameter("only end users are allowed to issue authentication challenges using ContextUser")
+		}
+	}
+
 	// No permission check is required b/c this request verifies request by one of the following:
 	//   - username + password, anyone who has user's password can generate a sign request
 	//   - token provide its own auth
-	//   - the user extracted from context can retrieve their own challenges
+	//   - the user extracted from context can create their own challenges
 	return a.authServer.CreateAuthenticateChallenge(ctx, req)
 }
 
@@ -6227,7 +6251,17 @@ func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.C
 
 // CreateRegisterChallenge is implemented by AuthService.CreateRegisterChallenge.
 func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
-	// The token provides its own authorization and authentication.
+	switch {
+	case req.TokenID != "":
+	case req.ExistingMFAResponse != nil:
+		if !authz.IsLocalOrRemoteUser(a.context) {
+			return nil, trace.BadParameter("only end users are allowed issue registration challenges without a privilege token")
+		}
+	}
+
+	// The following serve as means of authentication for this RPC:
+	//   - privilege token (or equivalent)
+	//   - authenticated user using non-Proxy identity
 	return a.authServer.CreateRegisterChallenge(ctx, req)
 }
 

@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -59,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
+	"github.com/gravitational/teleport/lib/auth/loginrule"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
@@ -779,8 +781,7 @@ func (g *GRPCServer) GetAccessRequestsV2(f *types.AccessRequestFilter, stream au
 }
 
 func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *types.AccessRequestV3) (*emptypb.Empty, error) {
-	_, err := g.CreateAccessRequestV2(ctx, req)
-	return &emptypb.Empty{}, trace.Wrap(err)
+	return nil, trace.NotImplemented("access request creation API has changed, please update your client to v14 or newer")
 }
 
 func (g *GRPCServer) CreateAccessRequestV2(ctx context.Context, req *types.AccessRequestV3) (*types.AccessRequestV3, error) {
@@ -796,10 +797,17 @@ func (g *GRPCServer) CreateAccessRequestV2(ctx context.Context, req *types.Acces
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.ServerWithRoles.CreateAccessRequest(ctx, req); err != nil {
+	out, err := auth.ServerWithRoles.CreateAccessRequestV2(ctx, req)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return req, nil
+
+	r, ok := out.(*types.AccessRequestV3)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected access request type %T", r))
+	}
+
+	return r, nil
 }
 
 func (g *GRPCServer) DeleteAccessRequest(ctx context.Context, id *authpb.RequestID) (*emptypb.Empty, error) {
@@ -851,6 +859,31 @@ func (g *GRPCServer) SubmitAccessReview(ctx context.Context, review *types.Acces
 	}
 
 	return r, nil
+}
+
+func (g *GRPCServer) GetAccessRequestAllowedPromotions(ctx context.Context, request *authpb.AccessRequestAllowedPromotionRequest) (*authpb.AccessRequestAllowedPromotionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessRequest, err := auth.GetAccessRequests(ctx, types.AccessRequestFilter{
+		ID: request.AccessRequestID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(accessRequest) != 1 {
+		return nil, trace.NotFound("access request not found")
+	}
+
+	allowedPromotions, err := auth.ServerWithRoles.GetAccessRequestAllowedPromotions(ctx, accessRequest[0])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &authpb.AccessRequestAllowedPromotionResponse{
+		AllowedPromotions: allowedPromotions,
+	}, nil
 }
 
 func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
@@ -2240,6 +2273,10 @@ func (g *GRPCServer) MaintainSessionPresence(stream authpb.AuthService_MaintainS
 	}
 }
 
+// Deprecated: Use AddMFADeviceSync instead.
+//
+// DELETE IN v16, kept for compatibility with older tsh versions (codingllama).
+// (Don't actually delete it, but instead make it always error.)
 func (g *GRPCServer) AddMFADevice(stream authpb.AuthService_AddMFADeviceServer) error {
 	actx, err := g.authenticate(stream.Context())
 	if err != nil {
@@ -2300,6 +2337,7 @@ func (g *GRPCServer) AddMFADevice(stream authpb.AuthService_AddMFADeviceServer) 
 	return nil
 }
 
+//nolint:staticcheck // SA1019. Kept for compatibility with older tsh versions.
 func addMFADeviceInit(gctx *grpcContext, stream authpb.AuthService_AddMFADeviceServer) (*authpb.AddMFADeviceRequestInit, error) {
 	req, err := stream.Recv()
 	if err != nil {
@@ -2332,6 +2370,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_AddM
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	//nolint:staticcheck // SA1019. Kept for compatibility with older tsh versions.
 	if err := stream.Send(&authpb.AddMFADeviceResponse{
 		Response: &authpb.AddMFADeviceResponse_ExistingMFAChallenge{ExistingMFAChallenge: authChallenge},
 	}); err != nil {
@@ -2355,6 +2394,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_AddM
 	return nil
 }
 
+//nolint:staticcheck // SA1019. Kept for compatibility with older tsh versions.
 func addMFADeviceRegisterChallenge(gctx *grpcContext, stream authpb.AuthService_AddMFADeviceServer, initReq *authpb.AddMFADeviceRequestInit) (*types.MFADevice, error) {
 	auth := gctx.authServer
 	user := gctx.User.GetName()
@@ -2378,6 +2418,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream authpb.AuthService_
 	}
 	regChallenge.Request = res.GetRequest()
 
+	//nolint:staticcheck // SA1019. Kept for compatibility with older tsh versions.
 	if err := stream.Send(&authpb.AddMFADeviceResponse{
 		Response: &authpb.AddMFADeviceResponse_NewMFARegisterChallenge{NewMFARegisterChallenge: regChallenge},
 	}); err != nil {
@@ -5365,6 +5406,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	userloginstatev1.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
+
+	// Only register the service if this is an open source build. Enterprise builds
+	// register the actual service via an auth plugin, if we register here then all
+	// Enterprise builds would fail with a duplicate service registered error.
+	if cfg.PluginRegistry == nil || !cfg.PluginRegistry.IsRegistered("auth.enterprise") {
+		loginrulepb.RegisterLoginRuleServiceServer(server, loginrule.NotImplementedService{})
+	}
 
 	return authServer, nil
 }

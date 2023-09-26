@@ -2922,6 +2922,19 @@ message AccessReviewConditions {
   repeated string PreviewAsRoles = 4 [(gogoproto.jsontag) = "preview_as_roles,omitempty"];
 }
 
+// AccessRequestAllowedPromotion describes an allowed promotion to an access list.
+message AccessRequestAllowedPromotion {
+  // associated access list
+  string accessListName = 1;
+}
+
+// AccessRequestAllowedPromotions describes an valid promotion from an access request
+// to an access list.
+message AccessRequestAllowedPromotions {
+  // suggestions is a list of allowed access lists promotions.
+  repeated AccessRequestAllowedPromotion promotions = 1;
+}
+
 // ClaimMapping maps a claim to teleport roles.
 message ClaimMapping {
   // Claim is a claim name.
@@ -5286,9 +5299,8 @@ enum RequireMFAType {
   // and login sessions must use a private key backed by a hardware key.
   SESSION_AND_HARDWARE_KEY = 2;
   // HARDWARE_KEY_TOUCH means login sessions must use a hardware private key that
-  // requires touch to be used. This touch requirement applies to all API requests
-  // rather than only session requests. This touch is different from MFA, so to prevent
-  // requiring double touch on session requests, normal Session MFA is disabled.
+  // requires touch to be used. This touch is required for all private key operations,
+  // so the key is always treated as MFA verified for sessions.
   HARDWARE_KEY_TOUCH = 3;
 }
 
@@ -6197,7 +6209,7 @@ message GCPMatcher {
   repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
   // Locations are GKE locations to search resources for.
   repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
-  // Tags are GCP labels to match.
+  // Tags is obsolete and only exists for backwards compatibility. Use Labels instead.
   wrappers.LabelValues Tags = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "tags,omitempty",
@@ -6210,6 +6222,12 @@ message GCPMatcher {
   // Params sets the join method when installing on
   // discovered GCP nodes.
   InstallerParams Params = 6 [(gogoproto.jsontag) = "install_params,omitempty"];
+  // Labels are GCP labels to match.
+  wrappers.LabelValues Labels = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // KubernetesMatcher matches Kubernetes services.

@@ -486,6 +486,12 @@ func (s *Server) GetHostUsers() srv.HostUsers {
 	return nil
 }
 
+// GetHostSudoers returns the HostSudoers instance being used to manage
+// sudoer file provisioning, unimplemented for the forwarder server.
+func (s *Server) GetHostSudoers() srv.HostSudoers {
+	return &srv.HostSudoersNotImplemented{}
+}
+
 // GetRestrictedSessionManager returns a NOP manager since for a
 // forwarding server it makes no sense (it has to run on the actual
 // node).
@@ -518,11 +524,11 @@ func (s *Server) GetClock() clockwork.Clock {
 	return s.clock
 }
 
-// GetUtmpPath returns the optional override of the utmp and wtmp path.
-// These values are never set for the forwarding server because utmp and wtmp
+// GetUserAccountingPaths returns the optional override of the utmp, wtmp, and btmp path.
+// These values are never set for the forwarding server because utmp, wtmp, and btmp
 // are updated by the target server and not the forwarding server.
-func (s *Server) GetUtmpPath() (string, string) {
-	return "", ""
+func (s *Server) GetUserAccountingPaths() (string, string, string) {
+	return "", "", ""
 }
 
 // GetLockWatcher gets the server's lock watcher.

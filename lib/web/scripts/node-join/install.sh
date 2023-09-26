@@ -9,6 +9,7 @@ COPY_COMMAND="cp"
 DISTRO_TYPE=""
 IGNORE_CONNECTIVITY_CHECK="${TELEPORT_IGNORE_CONNECTIVITY_CHECK:-false}"
 LAUNCHD_CONFIG_PATH="/Library/LaunchDaemons"
+LAUNCHD_PLIST_FILE="com.goteleport.teleport.plist"
 LOG_FILENAME="$(mktemp -t ${SCRIPT_NAME}.log.XXXXXXXXXX)"
 MACOS_STDERR_LOG="/var/log/teleport-stderr.log"
 MACOS_STDOUT_LOG="/var/log/teleport-stdout.log"
@@ -237,6 +238,11 @@ log_cleanup_message() {
     log_only "- remove any Teleport binaries (${TELEPORT_BINARY_LIST}) installed under ${TELEPORT_BINARY_DIR}"
     for BINARY in ${TELEPORT_BINARY_LIST}; do EXAMPLE_DELETE_COMMAND+="${TELEPORT_BINARY_DIR}/${BINARY} "; done
     log_only "  - rm -f ${EXAMPLE_DELETE_COMMAND}"
+    if is_macos_host; then
+        log_only "- unload and remove Teleport launchd config ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}"
+        log_only "  - launchctl unload ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}"
+        log_only "  - rm -f ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}"
+    fi
     log_only "Run this installer again when done."
     log_only
 }
@@ -347,7 +353,7 @@ download() {
     fi
     # if we have a hashing utility installed, also download and validate the checksum
     SHA_COMMAND=""
-    # shasum is installed by default on MacOS and some distros
+    # shasum is installed by default on macOS and some distros
     if check_exists shasum; then
         SHA_COMMAND="shasum -a 256"
     # sha256sum is installed by default in some other distros
@@ -392,7 +398,7 @@ get_teleport_start_command() {
 # installs the teleport-provided launchd config
 install_launchd_config() {
     log "Installing Teleport launchd config to ${LAUNCHD_CONFIG_PATH}"
-    ${COPY_COMMAND} ./${TELEPORT_ARCHIVE_PATH}/examples/launchd/com.goteleport.teleport.plist ${LAUNCHD_CONFIG_PATH}/com.goteleport.teleport.plist
+    ${COPY_COMMAND} ./${TELEPORT_ARCHIVE_PATH}/examples/launchd/${LAUNCHD_PLIST_FILE} ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}
 }
 # installs the teleport-provided systemd unit
 install_systemd_unit() {
@@ -485,7 +491,7 @@ install_teleport_node_config() {
       "${LABELS_FLAG[@]}" \
       --output ${TELEPORT_CONFIG_PATH}
 }
-# checks whether the given host is running MacOS
+# checks whether the given host is running macOS
 is_macos_host() { if [[ ${OSTYPE} == "darwin"* ]]; then return 0; else return 1; fi }
 # checks whether teleport is already running on the host
 is_running_teleport() {
@@ -525,8 +531,8 @@ print_welcome_message() {
             log_only "To start Teleport again if you stop it, run 'sudo systemctl start teleport.service'"
         elif is_macos_host; then
             log_only "View Teleport logs in '${MACOS_STDERR_LOG}' and '${MACOS_STDOUT_LOG}'"
-            log_only "To stop Teleport, run 'sudo launchctl unload ${LAUNCHD_CONFIG_PATH}/com.goteleport.teleport.plist'"
-            log_only "To start Teleport again if you stop it, run 'sudo launchctl load ${LAUNCHD_CONFIG_PATH}/com.goteleport.teleport.plist'"
+            log_only "To stop Teleport, run 'sudo launchctl unload ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}'"
+            log_only "To start Teleport again if you stop it, run 'sudo launchctl load ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}'"
         fi
         log_only ""
         log_only "You can see this node connected in the Teleport web UI or 'tsh ls' with the name '${NODENAME}'"
@@ -552,7 +558,7 @@ start_teleport_foreground() {
 # start teleport via launchd (after installing config)
 start_teleport_launchd() {
     log "Starting Teleport via launchctl. It will automatically be started whenever the system reboots."
-    launchctl load ${LAUNCHD_CONFIG_PATH}/com.goteleport.teleport.plist
+    launchctl load ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}
     sleep ${ALIVE_CHECK_DELAY}
 }
 # start teleport via systemd (after installing unit)
@@ -572,6 +578,8 @@ teleport_binaries_exist() {
 teleport_config_exists() { if [ -f ${TELEPORT_CONFIG_PATH} ]; then return 0; else return 1; fi; }
 # checks whether a teleport data dir exists on the host
 teleport_datadir_exists() { if [ -d ${TELEPORT_DATA_DIR} ]; then return 0; else return 1; fi; }
+# checks whether a launchd plist file for teleport already exists on the host
+launchd_plist_file_exists() { if [ -f ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE} ]; then return 0; else return 1; fi; }
 
 # error out if any required values are not set
 check_set TELEPORT_VERSION
@@ -676,7 +684,7 @@ if [[ "${OSTYPE}" == "linux"* ]]; then
         fi
     fi
 elif [[ "${OSTYPE}" == "darwin"* ]]; then
-    # macos host, now detect arch
+    # macOS host, now detect arch
     TELEPORT_BINARY_TYPE="darwin"
     ARCH=$(uname -m)
     log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
@@ -688,8 +696,13 @@ elif [[ "${OSTYPE}" == "darwin"* ]]; then
         log_important "Error: unsupported architecture from uname -m: ${ARCH}"
         exit 1
     fi
-    log "Detected MacOS ${ARCH} architecture, using Teleport arch ${TELEPORT_ARCH}"
+    log "Detected macOS ${ARCH} architecture, using Teleport arch ${TELEPORT_ARCH}"
     TELEPORT_FORMAT="tarball"
+    if launchd_plist_file_exists; then
+        log_header "Warning: Found existing Teleport launchd config ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}."
+        log_cleanup_message
+        exit 1
+    fi
 else
     log_important "Error - unsupported platform: ${OSTYPE}"
     exit 1
@@ -876,7 +889,7 @@ install_from_repo() {
         fi
         apt-get update
         apt-get install -y ${PACKAGE_LIST}
-    elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ] || [ "$ID" = "centos" ] ; then
+    elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ] || [ "$ID" = "centos" ]; then
         if [ "$ID" = "rhel" ]; then
             VERSION_ID="${VERSION_ID//.*/}" # convert version numbers like '7.2' to only include the major version
         fi
@@ -944,7 +957,7 @@ is_repo_available() {
     # The following distros+version have a Teleport repository to install from.
     case "${ID}-${VERSION_ID}" in
         ubuntu-16.04* | ubuntu-18.04* | ubuntu-20.04* | ubuntu-22.04* | \
-        debian-9* | debian-10* | debian-11* | \
+        debian-9* | debian-10* | debian-11* | debian-12* | \
         rhel-7* | rhel-8* | rhel-9* | \
         centos-7* | centos-8* | centos-9* | \
         amzn-2 | amzn-2023 | \
@@ -996,13 +1009,13 @@ if is_using_systemd; then
     fi
     start_teleport_systemd
     print_welcome_message
-# install launchd config on MacOS hosts
+# install launchd config on macOS hosts
 elif is_macos_host; then
-    log "Host is running MacOS"
+    log "Host is running macOS"
     install_launchd_config
     start_teleport_launchd
     print_welcome_message
-# not a MacOS host and no systemd available, print a warning
+# not a macOS host and no systemd available, print a warning
 # and temporarily start Teleport in the foreground
 else
     log "Host does not appear to be using systemd"

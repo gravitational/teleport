@@ -32,8 +32,16 @@ type AssistUserPreferencesResponse struct {
 	ViewMode        userpreferencesv1.AssistViewMode `json:"viewMode"`
 }
 
+type preferencesMarketingParams struct {
+	Campaign string `json:"campaign"`
+	Source   string `json:"source"`
+	Medium   string `json:"medium"`
+	Intent   string `json:"intent"`
+}
+
 type OnboardUserPreferencesResponse struct {
 	PreferredResources []userpreferencesv1.Resource `json:"preferredResources"`
+	MarketingParams    preferencesMarketingParams   `json:"marketingParams"`
 }
 
 // UserPreferencesResponse is the JSON response for the user preferences.
@@ -44,7 +52,7 @@ type UserPreferencesResponse struct {
 }
 
 // getUserPreferences is a handler for GET /webapi/user/preferences
-func (h *Handler) getUserPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext) (any, error) {
+func (h *Handler) getUserPreferences(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
 	authClient, err := sctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -59,7 +67,7 @@ func (h *Handler) getUserPreferences(_ http.ResponseWriter, r *http.Request, p h
 }
 
 // updateUserPreferences is a handler for PUT /webapi/user/preferences.
-func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext) (any, error) {
+func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
 	req := UserPreferencesResponse{}
 
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -80,6 +88,12 @@ func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, 
 			},
 			Onboard: &userpreferencesv1.OnboardUserPreferences{
 				PreferredResources: req.Onboard.PreferredResources,
+				MarketingParams: &userpreferencesv1.MarketingParams{
+					Campaign: req.Onboard.MarketingParams.Campaign,
+					Source:   req.Onboard.MarketingParams.Source,
+					Medium:   req.Onboard.MarketingParams.Medium,
+					Intent:   req.Onboard.MarketingParams.Intent,
+				},
 			},
 		},
 	}
@@ -118,6 +132,12 @@ func assistUserPreferencesResponse(resp *userpreferencesv1.AssistUserPreferences
 func onboardUserPreferencesResponse(resp *userpreferencesv1.OnboardUserPreferences) OnboardUserPreferencesResponse {
 	jsonResp := OnboardUserPreferencesResponse{
 		PreferredResources: make([]userpreferencesv1.Resource, 0, len(resp.PreferredResources)),
+		MarketingParams: preferencesMarketingParams{
+			Campaign: resp.MarketingParams.Campaign,
+			Source:   resp.MarketingParams.Source,
+			Medium:   resp.MarketingParams.Medium,
+			Intent:   resp.MarketingParams.Intent,
+		},
 	}
 
 	jsonResp.PreferredResources = append(jsonResp.PreferredResources, resp.PreferredResources...)

@@ -61,6 +61,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -81,7 +82,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mlock"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -181,6 +181,7 @@ type CLIConf struct {
 	SiteName string
 	// KubernetesCluster specifies the kubernetes cluster to login to.
 	KubernetesCluster string
+
 	// DaemonAddr is the daemon listening address.
 	DaemonAddr string
 	// DaemonCertsDir is the directory containing certs used to create secure gRPC connection with daemon service
@@ -190,8 +191,11 @@ type CLIConf struct {
 	// DaemonKubeconfigsDir is the directory "Directory containing kubeconfig
 	// for Kubernetes Access.
 	DaemonKubeconfigsDir string
-	// DaemonPid is the PID to be stopped
+	// DaemonAgentsDir contains agent config files and data directories for Connect My Computer.
+	DaemonAgentsDir string
+	// DaemonPid is the PID to be stopped by tsh daemon stop.
 	DaemonPid int
+
 	// DatabaseService specifies the database proxy server to log into.
 	DatabaseService string
 	// DatabaseUser specifies database user to embed in the certificate.
@@ -397,8 +401,8 @@ type CLIConf struct {
 	// displayParticipantRequirements is set if verbose participant requirement information should be printed for moderated sessions.
 	displayParticipantRequirements bool
 
-	// TshConfig is the loaded tsh configuration file ~/.tsh/config/config.yaml.
-	TshConfig TshConfig
+	// TSHConfig is the loaded tsh configuration file ~/.tsh/config/config.yaml.
+	TSHConfig TSHConfig
 
 	// ListAll specifies if an ls command should return results from all clusters and proxies.
 	ListAll bool
@@ -722,6 +726,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	daemonStart.Flag("certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service").StringVar(&cf.DaemonCertsDir)
 	daemonStart.Flag("prehog-addr", "URL where prehog events should be submitted").StringVar(&cf.DaemonPrehogAddr)
 	daemonStart.Flag("kubeconfigs-dir", "Directory containing kubeconfig for Kubernetes Access").StringVar(&cf.DaemonKubeconfigsDir)
+	daemonStart.Flag("agents-dir", "Directory containing agent config files and data directories for Connect My Computer").StringVar(&cf.DaemonAgentsDir)
 	daemonStop := daemon.Command("stop", "Gracefully stops a process on Windows by sending Ctrl-Break to it.").Hidden()
 	daemonStop.Flag("pid", "PID to be stopped").IntVar(&cf.DaemonPid)
 
@@ -780,7 +785,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsRecordings.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&cf.ToUTC)
 	lsRecordings.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&cf.maxRecordingsToShow)
 	lsRecordings.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&cf.recordingsSince)
-	exportRecordings := recordings.Command("export", "Export recorded desktop sesions to video.")
+	exportRecordings := recordings.Command("export", "Export recorded desktop sessions to video.")
 	exportRecordings.Flag("out", "Override output file name").StringVar(&cf.OutFile)
 	exportRecordings.Arg("session-id", "ID of the session to export").Required().StringVar(&cf.SessionID)
 
@@ -1091,10 +1096,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cf.TshConfig = *confOptions
+	cf.TSHConfig = *confOptions
 
 	// aliases
-	ar := newAliasRunner(cf.TshConfig.Aliases)
+	ar := newAliasRunner(cf.TSHConfig.Aliases)
 	aliasCommand, runtimeArgs := findAliasCommand(args)
 	if aliasDefinition, ok := ar.getAliasDefinition(aliasCommand); ok {
 		return ar.runAlias(ctx, aliasCommand, aliasDefinition, cf.executablePath, runtimeArgs)
@@ -1104,7 +1109,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if errors.Is(err, kingpin.ErrExpectedCommand) {
-		if _, ok := cf.TshConfig.Aliases[aliasCommand]; ok {
+		if _, ok := cf.TSHConfig.Aliases[aliasCommand]; ok {
 			log.Debugf("Failing due to recursive alias %q. Aliases seen: %v", aliasCommand, ar.getSeenAliases())
 			return trace.BadParameter("recursive alias %q; correct alias definition and try again", aliasCommand)
 		}
@@ -2025,7 +2030,7 @@ func onLogin(cf *CLIConf) error {
 func onLogout(cf *CLIConf) error {
 	// Extract all clusters the user is currently logged into.
 	active, available, err := cf.FullProfileStatus()
-	if err != nil {
+	if err != nil && !trace.IsCompareFailed(err) {
 		if trace.IsNotFound(err) {
 			fmt.Printf("All users logged out.\n")
 			return nil
@@ -2056,7 +2061,7 @@ func onLogout(cf *CLIConf) error {
 
 		// Load profile for the requested proxy/user.
 		profile, err := tc.ProfileStatus()
-		if err != nil && !trace.IsNotFound(err) {
+		if err != nil && !trace.IsNotFound(err) && !trace.IsCompareFailed(err) {
 			return trace.Wrap(err)
 		}
 
@@ -2499,28 +2504,17 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		}
 	}
 
-	// Watch for resolution events on the given request. Start watcher and wait
-	// for it to be ready before creating the request to avoid a potential race.
-	requestWatcher := newAccessRequestWatcher(req)
-	defer requestWatcher.Close()
-	if !cf.NoWait {
-		// Don't initialize the watcher unless we'll actually use it.
-		if err := requestWatcher.initialize(cf.Context, tc); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	// Upsert request if it doesn't already exist.
 	if cf.RequestID == "" {
-		cf.RequestID = req.GetName()
 		fmt.Fprint(os.Stdout, "Creating request...\n")
 		// always create access request against the root cluster
 		if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-			err := clt.CreateAccessRequest(cf.Context, req)
+			req, err = clt.CreateAccessRequestV2(cf.Context, req)
 			return trace.Wrap(err)
 		}); err != nil {
 			return trace.Wrap(err)
 		}
+		cf.RequestID = req.GetName()
 	}
 
 	onRequestShow(cf)
@@ -2533,13 +2527,12 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 
 	// Wait for the request to be resolved.
 	fmt.Fprintf(os.Stdout, "Waiting for request approval...\n")
-	resolvedReq, err := requestWatcher.awaitResolution()
-	if err != nil {
+
+	var resolvedReq types.AccessRequest
+	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+		resolvedReq, err = awaitRequestResolution(cf.Context, clt, req)
 		return trace.Wrap(err)
-	}
-	if err := requestWatcher.Close(); err != nil {
-		// This was deferred above to catch all other error cases, here we
-		// actually handle any errors from requestWatcher.Close().
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3123,7 +3116,8 @@ func accessRequestForSSH(ctx context.Context, _ *CLIConf, tc *client.TeleportCli
 	req.SetDryRun(true)
 	req.SetRequestReason("Dry run, this request will not be created. If you see this, there is a bug.")
 	if err := tc.WithRootClusterClient(ctx, func(clt auth.ClientI) error {
-		return trace.Wrap(clt.CreateAccessRequest(ctx, req))
+		req, err = clt.CreateAccessRequestV2(ctx, req)
+		return trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3174,18 +3168,11 @@ func retryWithAccessRequest(
 	}
 	req.SetRequestReason(requestReason)
 
-	// Watch for resolution events on the given request. Start watcher and wait
-	// for it to be ready before creating the request to avoid a potential race.
-	requestWatcher := newAccessRequestWatcher(req)
-	defer requestWatcher.Close()
-	if err := requestWatcher.initialize(cf.Context, tc); err != nil {
-		return trace.Wrap(err)
-	}
-
 	fmt.Fprint(os.Stdout, "Creating request...\n")
 	// Always create access request against the root cluster.
 	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		return trace.Wrap(clt.CreateAccessRequest(cf.Context, req))
+		req, err = clt.CreateAccessRequestV2(cf.Context, req)
+		return trace.Wrap(err)
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -3199,13 +3186,11 @@ func retryWithAccessRequest(
 
 	// Wait for the request to be resolved.
 	fmt.Fprintf(os.Stdout, "Waiting for request approval...\n")
-	resolvedReq, err := requestWatcher.awaitResolution()
-	if err != nil {
+	var resolvedReq types.AccessRequest
+	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+		resolvedReq, err = awaitRequestResolution(cf.Context, clt, req)
 		return trace.Wrap(err)
-	}
-	if err := requestWatcher.Close(); err != nil {
-		// This was deferred above to catch all other error cases, here we
-		// actually handle any errors from requestWatcher.Close().
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3404,7 +3389,7 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 	profile, profileError := c.GetProfile(c.ClientStore, proxy)
 	if profileError == nil {
 		if err := tc.LoadKeyForCluster(ctx, profile.SiteName); err != nil {
-			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
+			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
 				return nil, trace.Wrap(err)
 			}
 			log.WithError(err).Infof("Could not load key for %s into the local agent.", cf.SiteName)
@@ -3519,7 +3504,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	// Check if this host has a matching proxy template.
-	tProxy, tHost, tCluster, tMatched := cf.TshConfig.ProxyTemplates.Apply(fullHostName)
+	tProxy, tHost, tCluster, tMatched := cf.TSHConfig.ProxyTemplates.Apply(fullHostName)
 	if !tMatched && useProxyTemplate {
 		return nil, trace.BadParameter("proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config")
 	} else if tMatched {
@@ -3616,7 +3601,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	if c.ExtraProxyHeaders == nil {
 		c.ExtraProxyHeaders = map[string]string{}
 	}
-	for _, proxyHeaders := range cf.TshConfig.ExtraHeaders {
+	for _, proxyHeaders := range cf.TSHConfig.ExtraHeaders {
 		proxyGlob := utils.GlobToRegexp(proxyHeaders.Proxy)
 		proxyRegexp, err := regexp.Compile(proxyGlob)
 		if err != nil {
@@ -4347,50 +4332,12 @@ func host(in string) string {
 	return out
 }
 
-// accessRequestWatcher is a helper to wait for an access request to be resolved.
-type accessRequestWatcher struct {
-	req     types.AccessRequest
-	watcher types.Watcher
-	closers []io.Closer
-	sync.RWMutex
-}
-
-// newAccessRequestWatcher returns a new accessRequestWatcher. Callers should
-// always defer (*accessRequestWatcher).Close().
-func newAccessRequestWatcher(req types.AccessRequest) *accessRequestWatcher {
-	return &accessRequestWatcher{
-		req: req,
-	}
-}
-
-// initialize sets up the underlying event watcher, when this returns without
-// error the watcher is guaranteed to be in a ready state. Call this before
-// creating the request to prevent a race.
-func (w *accessRequestWatcher) initialize(ctx context.Context, tc *client.TeleportClient) error {
-	w.Lock()
-	defer w.Unlock()
-
-	if w.watcher != nil {
-		return trace.BadParameter("cannot re-initialize accessRequestWatcher")
-	}
-
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	w.closers = append(w.closers, proxyClient)
-
-	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	w.closers = append(w.closers, rootClient)
-
+func awaitRequestResolution(ctx context.Context, clt auth.ClientI, req types.AccessRequest) (types.AccessRequest, error) {
 	filter := types.AccessRequestFilter{
-		User: w.req.GetUser(),
-		ID:   w.req.GetName(),
+		User: req.GetUser(),
+		ID:   req.GetName(),
 	}
-	w.watcher, err = rootClient.NewWatcher(ctx, types.Watch{
+	watcher, err := clt.NewWatcher(ctx, types.Watch{
 		Name: "await-request-approval",
 		Kinds: []types.WatchKind{{
 			Kind:   types.KindAccessRequest,
@@ -4398,75 +4345,49 @@ func (w *accessRequestWatcher) initialize(ctx context.Context, tc *client.Telepo
 		}},
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	w.closers = append(w.closers, w.watcher)
+	defer watcher.Close()
 
 	// Wait for OpInit event so that returned watcher is ready.
 	select {
-	case event := <-w.watcher.Events():
+	case event := <-watcher.Events():
 		if event.Type != types.OpInit {
-			return trace.BadParameter("failed to watch for access requests: received an unexpected event while waiting for the initial OpInit")
+			return nil, trace.BadParameter("failed to watch for access requests: received an unexpected event while waiting for the initial OpInit")
 		}
-	case <-w.watcher.Done():
-		return trace.Wrap(w.watcher.Error())
-	case <-ctx.Done():
-		// This should be the same as w.watcher.Done(), including for completeness.
-		return trace.Wrap(ctx.Err())
+	case <-watcher.Done():
+		return nil, trace.Wrap(watcher.Error())
 	}
 
-	return nil
-}
-
-// awaitResolution waits for the request to be resolved (state != PENDING).
-func (w *accessRequestWatcher) awaitResolution() (types.AccessRequest, error) {
-	w.RLock()
-	defer w.RUnlock()
-
-	if w.watcher == nil {
-		return nil, trace.BadParameter("must initialize accessRequestWatcher before calling awaitResolution()")
+	// get initial state of request
+	reqState, err := services.GetAccessRequest(ctx, clt, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	for {
+		if !reqState.GetState().IsPending() {
+			return reqState, nil
+		}
+
 		select {
-		case event := <-w.watcher.Events():
+		case event := <-watcher.Events():
 			switch event.Type {
 			case types.OpPut:
-				r, ok := event.Resource.(*types.AccessRequestV3)
+				var ok bool
+				reqState, ok = event.Resource.(*types.AccessRequestV3)
 				if !ok {
 					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
-				}
-				if !r.GetState().IsPending() {
-					return r, nil
 				}
 			case types.OpDelete:
 				return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
 			default:
 				log.Warnf("Skipping unknown event type %s", event.Type)
 			}
-		case <-w.watcher.Done():
-			return nil, trace.Wrap(w.watcher.Error())
+		case <-watcher.Done():
+			return nil, trace.Wrap(watcher.Error())
 		}
 	}
-}
-
-// Close closes the clients held by the watcher.
-func (w *accessRequestWatcher) Close() error {
-	var errs []error
-	// Close in reverse order, like defer.
-	w.RLock()
-	for i := len(w.closers) - 1; i >= 0; i-- {
-		errs = append(errs, w.closers[i].Close())
-	}
-	w.RUnlock()
-
-	// Closed the watcher above, awaitResolution should now terminate and we can
-	// grab the lock.
-	w.Lock()
-	w.closers = nil
-	w.Unlock()
-
-	return trace.NewAggregate(errs...)
 }
 
 func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.AccessRequest) error {
