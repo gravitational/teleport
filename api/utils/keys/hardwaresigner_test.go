@@ -16,14 +16,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package keys
+package keys_test
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // TestHardwareSigner tests the HardwareSigner interface with hardware keys.
@@ -38,27 +43,29 @@ func TestHardwareSigner(t *testing.T) {
 	resetYubikey(ctx, t)
 
 	// Generate a new YubiKeyPrivateKey. It should return a valid attestation statement and key policy.
-	priv, err := GetOrGenerateYubiKeyPrivateKey(false)
+	priv, err := keys.GetOrGenerateYubiKeyPrivateKey(false)
 	require.NoError(t, err)
 
-	att, err := GetAttestationStatement(priv)
+	att, err := keys.GetAttestationStatement(priv)
 	require.NoError(t, err)
 	require.NotNil(t, att)
 
-	policy := GetPrivateKeyPolicy(priv)
-	require.Equal(t, PrivateKeyPolicyHardwareKey, policy)
+	policy := keys.GetPrivateKeyPolicy(priv)
+	require.Equal(t, keys.PrivateKeyPolicyHardwareKey, policy)
 }
 
 // TestNonHardwareSigner tests the HardwareSigner interface with non-hardware keys.
 func TestNonHardwareSigner(t *testing.T) {
-	// Non-hardware keys should return a nil attestation statement and PrivateKeyPolicyNone.
-	priv, err := ParsePrivateKey(rsaKeyPEM)
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
-	att, err := GetAttestationStatement(priv)
+	key, err := keys.NewPrivateKey(priv, nil)
+	require.NoError(t, err)
+
+	att, err := keys.GetAttestationStatement(key)
 	require.NoError(t, err)
 	require.Nil(t, att)
 
-	policy := GetPrivateKeyPolicy(priv)
-	require.Equal(t, PrivateKeyPolicyNone, policy)
+	policy := keys.GetPrivateKeyPolicy(key)
+	require.Equal(t, keys.PrivateKeyPolicyNone, policy)
 }
