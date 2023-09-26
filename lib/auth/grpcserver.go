@@ -881,6 +881,7 @@ func (g *GRPCServer) GetAccessRequestAllowedPromotions(ctx context.Context, requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &authpb.AccessRequestAllowedPromotionResponse{
 		AllowedPromotions: allowedPromotions,
 	}, nil
