@@ -26,6 +26,7 @@ lint:
     - teleport/legacy/types/events/events.proto
     - teleport/legacy/types/events/athena.proto
     - teleport/legacy/types/types.proto
+    - teleport/legacy/typestest/typestest.proto
     - teleport/legacy/types/wrappers/wrappers.proto
   ignore_only:
     # Allow package/directory mismatch for legacy protos.
