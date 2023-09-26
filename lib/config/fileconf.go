@@ -2350,10 +2350,10 @@ type Metrics struct {
 	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
 	CACerts []string `yaml:"ca_certs,omitempty"`
 
-	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	// GRPCServerLatency enables histogram metrics for each gRPC endpoint on the auth server
 	GRPCServerLatency bool `yaml:"grpc_server_latency,omitempty"`
 
-	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	// GRPCServerLatency enables histogram metrics for each gRPC endpoint on the auth server
 	GRPCClientLatency bool `yaml:"grpc_client_latency,omitempty"`
 }
 

@@ -155,7 +155,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 // ServicesTestSuite is an acceptance test suite
 // for services. It is used for local implementations and implementations
-// using GRPC to guarantee consistency between local and remote services
+// using gRPC to guarantee consistency between local and remote services
 type ServicesTestSuite struct {
 	Access        services.Access
 	CAS           services.Trust
