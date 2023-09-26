@@ -2,6 +2,7 @@
 
 ## 14.0.1 (09/26/23)
 
+* Fixed issue where Teleport Connect Kube terminal throws an internal server error [#32612](https://github.com/gravitational/teleport/pull/32612)
 * Fixed `create_host_user_mode` issue with TeleportRole in the Teleport Operator CRDs [#32557](https://github.com/gravitational/teleport/pull/32557)
 * Resources will now be refreshed after Connect My Computer setup [#32484](https://github.com/gravitational/teleport/pull/32484)
 * Fixed issue that allowed for duplicate Access List owners [#32481](https://github.com/gravitational/teleport/pull/32481)
