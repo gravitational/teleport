@@ -103,7 +103,7 @@ func (s State) String() string {
 
 // ErrStateTripped will be returned from executions performed while the CircuitBreaker
 // is in StateTripped
-var ErrStateTripped = trace.ConnectionProblem(nil, "Circuit Breaker is tripped. Unable to connect to Teleport Auth service.")
+var ErrStateTripped = trace.ConnectionProblem(nil, "circuit breaker is tripped. unable to connect to Teleport auth service.")
 
 // Config contains configuration of the CircuitBreaker
 type Config struct {
