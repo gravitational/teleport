@@ -101,7 +101,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 		return trace.Wrap(err)
 	}
 
-	// Use "teleport-<hash>" in case DatabaseUser is over max username length.
+	// Use "tp-<hash>" in case DatabaseUser is over max username length.
 	sessionCtx.DatabaseUser = maybeHashUsername(sessionCtx.DatabaseUser, maxUsernameLength(conn))
 	e.Log.Infof("Activating MySQL user %q with roles %v for %v.", sessionCtx.DatabaseUser, sessionCtx.DatabaseRoles, sessionCtx.Identity.Username)
 
@@ -230,7 +230,7 @@ func getSQLState(err error) string {
 }
 
 func convertActivateError(sessionCtx *common.Session, err error) error {
-	// This operation failed message usually appear when the user already
+	// This operation-failed message usually appear when the user already
 	// exists. A different error would be raised if the admin user has no
 	// permission to "CREATE USER".
 	if strings.Contains(err.Error(), "Operation CREATE USER failed") {

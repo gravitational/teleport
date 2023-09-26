@@ -100,7 +100,7 @@ func Test_convertActivateError(t *testing.T) {
 		State:   sqlStateRolesChanged,
 		Message: `user has active connections and roles have changed`,
 	}
-	// Current not converted to trace.AccessDeined as it may conflict with
+	// Currently not converted to trace.AccessDeined as it may conflict with
 	// common.ConvertConnectError.
 	permissionError := &mysql.MyError{
 		Code:    mysql.ER_SPECIFIC_ACCESS_DENIED_ERROR,
