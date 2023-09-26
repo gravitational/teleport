@@ -1,5 +1,19 @@
 # Changelog
 
+## 13.4.1 (09/26/23)
+
+* Fixed `create_host_user_mode` issue with TeleportRole in the Teleport Operator CRDs [#32556](https://github.com/gravitational/teleport/pull/32556)
+* Fixed issue that allowed for duplicate Access List owners. [#32480](https://github.com/gravitational/teleport/pull/32480)
+* Added feature allowing for managing host sudoers without also creating users [#32404](https://github.com/gravitational/teleport/pull/32404)
+* Fixed dynamic labels not being present on server access audit events [#32383](https://github.com/gravitational/teleport/pull/32383)
+* Added additional logging for when the Teleport process file is not accessible due to a permission issue upon startup [#32349](https://github.com/gravitational/teleport/pull/32349)
+* Fixed issue where the `teleport-kube-agent` Helm chart would created the same `ServiceAccount` multiple times [#32337](https://github.com/gravitational/teleport/pull/32337)
+* Added Access List usage events [#32298](https://github.com/gravitational/teleport/pull/32298)
+* Allowed for including only traits when doing a JWT rewrite for web application access [#32290](https://github.com/gravitational/teleport/pull/32290)
+* Added `IneligibleStatus` fields for access list members and owners (#31857) [#32279](https://github.com/gravitational/teleport/pull/32279)
+* Fixed issue where the auth server was listed twice in the inventory of connected resources [#32269](https://github.com/gravitational/teleport/pull/32269)
+* Added support for AWS EC2 IMDSv2 on installer script and when gathering inventory metadata [#31134](https://github.com/gravitational/teleport/pull/31134)
+
 ## 13.4.0 (09/20/23)
 
 ### Security Fixes
