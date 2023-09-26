@@ -165,6 +165,7 @@
     "SAMLIDP",
     "SECURITYADMIN",
     "SIEM",
+    "SIGTERM",
     "SIGINT",
     "SLAVEOF",
     "SLES",
@@ -855,5 +856,7 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }
