@@ -400,15 +400,17 @@ func TestMarshallCreateHostUserModeYAML(t *testing.T) {
 func TestUnmarshallCreateHostUserModeJSON(t *testing.T) {
 	for _, tc := range []struct {
 		expected CreateHostUserMode
-		input    string
+		input    any
 	}{
-		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "off"},
-		{expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, input: ""},
-		{expected: CreateHostUserMode_HOST_USER_MODE_DROP, input: "drop"},
-		{expected: CreateHostUserMode_HOST_USER_MODE_KEEP, input: "keep"},
+		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "\"off\""},
+		{expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, input: "\"\""},
+		{expected: CreateHostUserMode_HOST_USER_MODE_DROP, input: "\"drop\""},
+		{expected: CreateHostUserMode_HOST_USER_MODE_KEEP, input: "\"keep\""},
+		{expected: CreateHostUserMode_HOST_USER_MODE_KEEP, input: 3},
+		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: 1},
 	} {
 		var got CreateHostUserMode
-		err := json.Unmarshal([]byte(fmt.Sprintf("%q", tc.input)), &got)
+		err := json.Unmarshal([]byte(fmt.Sprintf("%v", tc.input)), &got)
 		require.NoError(t, err)
 		require.Equal(t, tc.expected, got)
 	}
