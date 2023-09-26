@@ -1,11 +1,17 @@
 Use the appropriate commands for your environment to install your package:
 
 <Tabs dropdownView dropdownCaption="Teleport Edition">
-  <TabItem label="Teleport Team" scope="team">
+  <TabItem label="Teleport Community Edition">
 
   ```code
-  $ curl https://goteleport.com/static/install.sh | bash -s (=cloud.version=)
+  $ curl https://goteleport.com/static/install.sh | bash -s (=teleport.version=)
   ```
+
+  </TabItem>
+  <TabItem label="Teleport Team">
+  (!docs/pages/includes/cloud/install-linux-cloud.mdx!)
+
+  (!docs/pages/includes/repo-channels.mdx!)
 
   <Details title="Is my Teleport instance compatible with Teleport Team?">
 
@@ -18,19 +24,12 @@ Use the appropriate commands for your environment to install your package:
   </Details>
 
   </TabItem>
-  <TabItem label="Open Source" scope="oss">
-
-  ```code
-  $ curl https://goteleport.com/static/install.sh | bash -s (=teleport.version=)
-  ```
-
-  </TabItem>
-  <TabItem label="Enterprise" scope="enterprise">
+  <TabItem label="Teleport Enterprise">
   (!docs/pages/includes/install-linux-ent-self-hosted.mdx!)
 
   (!docs/pages/includes/repo-channels.mdx!)
   </TabItem>
-  <TabItem label="Enterprise Cloud" scope="cloud">
+  <TabItem label="Teleport Enterprise Cloud">
   (!docs/pages/includes/cloud/install-linux-cloud.mdx!)
 
   (!docs/pages/includes/repo-channels.mdx!)
