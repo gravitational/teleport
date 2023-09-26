@@ -16,7 +16,7 @@ limitations under the License.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Text } from 'design';
+import { Box, ButtonPrimary, Flex, Text } from 'design';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
 import * as Alerts from 'design/Alert';
@@ -347,8 +347,8 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
   const { clusterName, hostname } = useAgentProperties();
 
   return (
-    <>
-      <Text mb={3}>
+    <Flex flexDirection="column" alignItems="flex-start" gap={3}>
+      <Text>
         <ClusterAndHostnameCopy clusterName={clusterName} hostname={hostname} />
       </Text>
       <ProgressBar
@@ -363,18 +363,11 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
         }))}
       />
       {hasSetupFailed && (
-        <ButtonPrimary
-          mt={3}
-          mx="auto"
-          css={`
-            display: block;
-          `}
-          onClick={runSteps}
-        >
+        <ButtonPrimary alignSelf="center" onClick={runSteps}>
           Retry
         </ButtonPrimary>
       )}
-    </>
+    </Flex>
   );
 }
 
