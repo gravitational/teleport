@@ -15,11 +15,10 @@
  */
 
 import React, { useState } from 'react';
-import styled, { css, useTheme } from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
 import { Text } from 'design';
-import { NavLink } from 'react-router-dom';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
 import session from 'teleport/services/websession';
@@ -27,6 +26,16 @@ import { useFeatures } from 'teleport/FeaturesContext';
 import { useTeleport } from 'teleport';
 import { useUser } from 'teleport/User/UserContext';
 import { ThemePreference } from 'teleport/services/userPreferences/types';
+import {
+  Dropdown,
+  DropdownItem,
+  DropdownItemButton,
+  DropdownItemLink,
+  DropdownItemIcon,
+  DropdownDivider,
+  STARTING_TRANSITION_DELAY,
+  INCREMENT_TRANSITION_DELAY,
+} from 'teleport/components/Dropdown';
 
 interface UserMenuNavProps {
   username: string;
@@ -88,89 +97,6 @@ const Arrow = styled.div`
   }
 `;
 
-interface OpenProps {
-  open: boolean;
-}
-
-const Dropdown = styled.div<OpenProps>`
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  padding: 10px 15px;
-  background: ${({ theme }) => theme.colors.levels.elevated};
-  box-shadow: ${({ theme }) => theme.boxShadow[1]};
-  border-radius: 5px;
-  width: 265px;
-  right: 0;
-  top: 43px;
-  z-index: 999;
-  opacity: ${p => (p.open ? 1 : 0)};
-  visibility: ${p => (p.open ? 'visible' : 'hidden')};
-  transform-origin: top right;
-  transition: opacity 0.2s ease, visibility 0.2s ease,
-    transform 0.3s cubic-bezier(0.45, 0.6, 0.5, 1.25);
-  transform: ${p =>
-    p.open ? 'scale(1) translate(0, 12px)' : 'scale(.8) translate(0, 4px)'};
-`;
-
-const DropdownItem = styled.div`
-  line-height: 1;
-  font-size: 14px;
-  color: ${props => props.theme.colors.text.main};
-  cursor: pointer;
-  border-radius: 4px;
-  margin-bottom: 5px;
-  opacity: ${p => (p.open ? 1 : 0)};
-  transition: transform 0.3s ease, opacity 0.7s ease;
-  transform: translate3d(${p => (p.open ? 0 : '20px')}, 0, 0);
-
-  &:hover {
-    background: ${props => props.theme.colors.spotBackground[0]};
-  }
-
-  &:last-of-type {
-    margin-bottom: 0;
-  }
-`;
-
-const commonDropdownItemStyles = css`
-  opacity: 0.8;
-  align-items: center;
-  display: flex;
-  padding: 10px 10px;
-  color: ${props => props.theme.colors.text.main};
-  text-decoration: none;
-  transition: opacity 0.15s ease-in;
-
-  &:hover {
-    opacity: 1;
-  }
-
-  svg {
-    height: 18px;
-    width: 18px;
-  }
-`;
-
-const DropdownItemButton = styled.div`
-  ${commonDropdownItemStyles};
-`;
-
-const DropdownItemLink = styled(NavLink)`
-  ${commonDropdownItemStyles};
-`;
-
-const DropdownItemIcon = styled.div`
-  margin-right: 16px;
-  line-height: 0;
-`;
-
-const DropdownDivider = styled.div`
-  height: 1px;
-  background: ${props => props.theme.colors.spotBackground[1]};
-  margin: 0 5px 5px 5px;
-`;
-
 export function UserMenuNav({ username }: UserMenuNavProps) {
   const [open, setOpen] = useState(false);
   const theme = useTheme();
@@ -200,16 +126,10 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
 
   const items = [];
 
-  let transitionDelay = 80;
+  let transitionDelay = STARTING_TRANSITION_DELAY;
   for (const [index, item] of topMenuItems.entries()) {
     items.push(
-      <DropdownItem
-        open={open}
-        key={index}
-        style={{
-          transitionDelay: `${transitionDelay}ms`,
-        }}
-      >
+      <DropdownItem open={open} key={index} $transitionDelay={transitionDelay}>
         <DropdownItemLink
           to={item.topMenuItem.getLink(clusterId)}
           onClick={() => setOpen(false)}
@@ -220,7 +140,7 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
       </DropdownItem>
     );
 
-    transitionDelay += 20;
+    transitionDelay += INCREMENT_TRANSITION_DELAY;
   }
 
   return (
@@ -242,12 +162,7 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
 
         {/* Hide ability to switch themes if the theme is a custom theme */}
         {!theme.isCustomTheme && (
-          <DropdownItem
-            open={open}
-            style={{
-              transitionDelay: `${transitionDelay}ms`,
-            }}
-          >
+          <DropdownItem open={open} $transitionDelay={transitionDelay}>
             <DropdownItemButton onClick={onThemeChange}>
               <DropdownItemIcon>
                 {preferences.theme === ThemePreference.Dark ? (
@@ -263,12 +178,7 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
           </DropdownItem>
         )}
 
-        <DropdownItem
-          open={open}
-          style={{
-            transitionDelay: `${transitionDelay}ms`,
-          }}
-        >
+        <DropdownItem open={open} $transitionDelay={transitionDelay}>
           <DropdownItemButton onClick={() => session.logout()}>
             <DropdownItemIcon>
               <LogoutIcon />
