@@ -1034,7 +1034,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 	}
 
 	if !req.GetState().IsPromoted() && req.GetPromotedAccessListTitle() != "" {
-		return trace.BadParameter("only promoted requests can have a promoted access list title")
+		return trace.BadParameter("only promoted requests can set the promoted access list title")
 	}
 
 	// check for "wildcard request" (`roles=*`).  wildcard requests

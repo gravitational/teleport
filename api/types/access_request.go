@@ -659,6 +659,7 @@ func (s RequestState) IsDenied() bool {
 	return s == RequestState_DENIED
 }
 
+// IsPromoted returns true is the request in the PROMOTED state.
 func (s RequestState) IsPromoted() bool {
 	return s == RequestState_PROMOTED
 }
