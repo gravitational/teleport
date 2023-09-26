@@ -10,7 +10,20 @@ deploying Machine ID on Amazon Web Services.
 
 ### The `iam` join method
 
-TODO: Brief overview of how the join method works for this platform.
+The process of `tbot` initially authenticating with the Teleport cluster is
+known as joining. A join method is a specific technique for the bot to prove
+its identity.
+
+On the AWS platform, virtual machines can be assigned an IAM role. The AWS
+platform will then make this role available to the machine as an assumed
+identity. This allows the machine to act as the assigned role. Using this
+identity, the machine is able to request a signed document that includes
+information about the machine.
+
+The `iam` join method instructs the bot to request this signed document from
+AWS using the assigned identity. This signed document is then sent to the
+Auth Server as proof of the machine's identity. This allows the bot to join
+the cluster without the exchange of a long lived secret.
 
 ### Elastic Kubernetes Service
 

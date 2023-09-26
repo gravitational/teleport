@@ -10,7 +10,15 @@ deploying Machine ID on a Linux host.
 
 ### The `token` join method
 
-TODO: Brief overview of how the join method works for this platform.
+The process of `tbot` initially authenticating with the Teleport cluster is
+known as joining. A join method is a specific technique for the bot to prove
+its identity.
+
+On platforms where there is no form of identity available to the machine, the
+only available join method is `token`. The `token` join method is special as
+it is the only join method that relies on a shared secret. In order to mitigate
+the risks associated with this, the `token` join method is single use and it
+is not possible to use the same token multiple times.
 
 ## Guide
 
