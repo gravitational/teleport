@@ -3317,7 +3317,10 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Updating traits is needed for guided SSH flow in Discover.
 		traits = user.GetTraits()
+		// Updating roles is needed for guided Connect My Computer flow in Discover.
+		roles = user.GetRoles()
 
 	} else if req.AccessRequestID != "" {
 		accessRequest, err := a.getValidatedAccessRequest(ctx, identity, req.User, req.AccessRequestID)
