@@ -2682,20 +2682,20 @@ func AuthorizeAccessReviewRequest(context authz.Context, params types.AccessRevi
 	return nil
 }
 
-func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error) {
+func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission types.AccessReviewSubmission) (types.AccessRequest, error) {
 	// Prevent users from submitting access reviews with the "promoted" state.
 	// Promotion is only allowed by SubmitAccessReviewAllowPromotion API in the Enterprise module.
-	if params.Review.ProposedState.IsPromoted() {
+	if submission.Review.ProposedState.IsPromoted() {
 		return nil, trace.BadParameter("state promoted can be only set when promoting to access list")
 	}
 
 	// review author defaults to username of caller.
-	if params.Review.Author == "" {
-		params.Review.Author = a.context.User.GetName()
+	if submission.Review.Author == "" {
+		submission.Review.Author = a.context.User.GetName()
 	}
 
 	// Check if the current user is allowed to submit the given access review request.
-	if err := AuthorizeAccessReviewRequest(a.context, params); err != nil {
+	if err := AuthorizeAccessReviewRequest(a.context, submission); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2704,7 +2704,7 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, params types.A
 	// under optimistic locking at the level of the backend service.  the correctness of the
 	// author field is all that needs to be enforced at this level.
 
-	return a.authServer.SubmitAccessReview(ctx, params)
+	return a.authServer.SubmitAccessReview(ctx, submission)
 }
 
 func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
