@@ -247,7 +247,7 @@ func (s *Server) TargetMetadata() apievents.ServerMetadata {
 		ServerNamespace: s.GetNamespace(),
 		ServerID:        s.ID(),
 		ServerAddr:      s.Addr(),
-		ServerLabels:    s.labels,
+		ServerLabels:    s.getAllLabels(),
 		ServerHostname:  s.hostname,
 	}
 }
@@ -1034,6 +1034,18 @@ func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
 		return make(map[string]types.CommandLabelV2)
 	}
 	return types.LabelsToV2(s.dynamicLabels.Get())
+}
+
+// getAllLabels return a combination of static and dynamic labels.
+func (s *Server) getAllLabels() map[string]string {
+	lmap := make(map[string]string)
+	for key, value := range s.getStaticLabels() {
+		lmap[key] = value
+	}
+	for key, cmd := range s.getDynamicLabels() {
+		lmap[key] = cmd.Result
+	}
+	return lmap
 }
 
 // GetInfo returns a services.Server that represents this server.
