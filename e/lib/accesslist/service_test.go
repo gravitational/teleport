@@ -55,7 +55,7 @@ const (
 
 // cmpOpts are general cmpOpts for all comparisons.
 var cmpOpts = []cmp.Option{
-	cmpopts.IgnoreFields(header.Metadata{}, "ID"),
+	cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 	// TODO(mdwn): Remove this EquateEmpty once members has been properly removed from the OSS repo.
 	cmpopts.EquateEmpty(),
 	cmpopts.SortSlices(func(a, b *accesslist.AccessList) bool {

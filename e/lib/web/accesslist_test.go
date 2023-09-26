@@ -75,10 +75,11 @@ func TestGetAccessLists(t *testing.T) {
 	require.Len(t, accessListResp.AccessLists, 2)
 	require.Equal(t, 1, *accessListResp.AccessLists[0].MembersCount)
 
-	require.ElementsMatch(t,
+	require.Empty(t, cmp.Diff(
 		[]*accesslist.AccessList{accessListResp.AccessLists[0].AccessList, accessListResp.AccessLists[1].AccessList},
 		[]*accesslist.AccessList{createdAccessList1, createdAccessList2},
-	)
+		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+	))
 }
 
 func TestCreateAccessList(t *testing.T) {
@@ -206,11 +207,7 @@ func TestGetAccessList(t *testing.T) {
 	createdMember.Spec.IneligibleStatus = member.Spec.IneligibleStatus
 
 	accessListResp := getAccessList(t, webPack, s, createdAccessList.GetName())
-
-	// Unset the ID. This ID gets set just before upsert, and the "create" api does not
-	// return the item with the ID updated.
-	accessListResp.AccessList.Metadata.ID = 0
-	require.Equal(t, createdAccessList, accessListResp.AccessList.AccessList)
+	require.Empty(t, cmp.Diff(createdAccessList, accessListResp.AccessList.AccessList, cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision")))
 
 	// Members are returned by the API.
 	require.Len(t, accessListResp.AccessList.Members, 1)

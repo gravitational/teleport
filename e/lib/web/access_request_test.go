@@ -667,7 +667,7 @@ func TestSuggestAccessLists(t *testing.T) {
 		p := path.String()
 		// ResourceHeader.Metadata.ID is not set on the request
 		// Spec.Owners.IneligibleStatus is not set on the response
-		return p == "ResourceHeader.Metadata.ID" || p == "Spec.Owners.IneligibleStatus"
+		return p == "ResourceHeader.Metadata.ID" || p == "Spec.Owners.IneligibleStatus" || p == "ResourceHeader.Metadata.Revision"
 	}, cmp.Ignore())
 
 	require.Empty(t, cmp.Diff(accessListCloseMatch, accessListResp.AccessLists[0], ignoreFieldsFn))
