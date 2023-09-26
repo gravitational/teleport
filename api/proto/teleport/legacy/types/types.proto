@@ -2081,6 +2081,11 @@ message AccessReview {
   // ThresholdIndexes stores the indexes of thresholds which this review matches
   // (internal use only).
   repeated uint32 ThresholdIndexes = 7 [(gogoproto.jsontag) = "i,omitempty"];
+
+  // PromotedAccessListTitle is the title of the access list that this request
+  // was promoted to. Used by WebUI to display the title of the access list.
+  // This field is only populated when the request is in the PROMOTED state.
+  string PromotedAccessListTitle = 8 [(gogoproto.jsontag) = "promoted_access_list_title,omitempty"];
 }
 
 // AccessReviewSubmission encodes the necessary parameters for submitting
@@ -2109,6 +2114,9 @@ enum RequestState {
   // DENIED variant indicates that a request has been rejected by
   // an administrating party.
   DENIED = 3;
+  // PROMOTED variant indicates that a request has been promoted to
+  // an access list.
+  PROMOTED = 4;
 }
 
 // ThresholdIndexSet encodes a list of threshold indexes. One of the listed thresholds
@@ -2236,6 +2244,11 @@ message AccessRequestSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "session_ttl,omitempty"
   ];
+
+  // PromotedAccessListTitle is the title of the access list that this request
+  // was promoted to. Used by WebUI to display the title of the access list.
+  // This field is only populated when the request is in the PROMOTED state.
+  string PromotedAccessListTitle = 19 [(gogoproto.jsontag) = "promoted_access_list_title,omitempty"];
 }
 
 // AccessRequestFilter encodes filter params for access requests.

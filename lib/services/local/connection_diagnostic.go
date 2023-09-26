@@ -135,7 +135,7 @@ func (s *ConnectionDiagnosticService) GetConnectionDiagnostic(ctx context.Contex
 	}
 
 	connectionDiagnostic, err := services.UnmarshalConnectionDiagnostic(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

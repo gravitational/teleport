@@ -1123,6 +1123,8 @@ message TOTPRegisterResponse {
 }
 
 // AddMFADeviceRequest is a message sent by the client during AddMFADevice RPC.
+//
+// Deprecated: Use [AuthService.AddMFADeviceSync] instead.
 message AddMFADeviceRequest {
   oneof Request {
     // Init describes the new device.
@@ -1138,6 +1140,8 @@ message AddMFADeviceRequest {
 
 // AddMFADeviceResponse is a message sent by the server during AddMFADevice
 // RPC.
+//
+// Deprecated: Use [AuthService.AddMFADeviceSync] instead.
 message AddMFADeviceResponse {
   oneof Response {
     // ExistingMFAChallenge is an auth challenge using an existing MFA
@@ -1152,6 +1156,8 @@ message AddMFADeviceResponse {
 }
 
 // AddMFADeviceRequestInit describes the new MFA device.
+//
+// Deprecated: Use [AuthService.AddMFADeviceSync] instead.
 message AddMFADeviceRequestInit {
   string DeviceName = 1;
   reserved 2; // LegacyDeviceType LegacyType
@@ -2617,7 +2623,11 @@ service AuthService {
   // <- NewMFARegisterChallenge
   // -> NewMFARegisterResponse
   // <- Ack
-  rpc AddMFADevice(stream AddMFADeviceRequest) returns (stream AddMFADeviceResponse);
+  //
+  // Deprecated: Use [AddMFADeviceSync] instead.
+  rpc AddMFADevice(stream AddMFADeviceRequest) returns (stream AddMFADeviceResponse) {
+    option deprecated = true;
+  }
   // DeleteMFADevice deletes an MFA device for the user calling this RPC.
   //
   // The RPC is streaming both ways and the message sequence is:
@@ -2627,7 +2637,14 @@ service AuthService {
   // -> MFAResponse
   // <- Ack
   rpc DeleteMFADevice(stream DeleteMFADeviceRequest) returns (stream DeleteMFADeviceResponse);
-  // AddMFADeviceSync adds a new MFA device (nonstream).
+  // AddMFADeviceSync adds a new MFA device.
+  //
+  // A typical MFA registration sequence calls the following RPCs:
+  //
+  // 1. CreateAuthenticateChallenge (necessary for registration challenge)
+  // 2. (optional) CreatePrivilegeToken
+  // 3. CreateRegisterChallenge (uses authn challenge and optionally a token)
+  // 4. AddMFADeviceSync
   rpc AddMFADeviceSync(AddMFADeviceSyncRequest) returns (AddMFADeviceSyncResponse);
   // DeleteMFADeviceSync deletes a users MFA device (nonstream).
   rpc DeleteMFADeviceSync(DeleteMFADeviceSyncRequest) returns (google.protobuf.Empty);
