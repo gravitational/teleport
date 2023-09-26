@@ -185,26 +185,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testServer.Shutdown(ctx)) })
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-
-	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
-	require.NoError(t, err)
-
-	certs, err := testServer.Auth().GenerateHostCerts(ctx,
-		&proto.HostCertsRequest{
-			HostID:       hostID,
-			NodeName:     testServer.ClusterName(),
-			Role:         types.RoleNode,
-			PublicSSHKey: pub,
-			PublicTLSKey: tlsPub,
-		})
-	require.NoError(t, err)
-
-	// set up user CA and set up a user that has access to the server
-	signer, err := sshutils.NewSigner(priv, certs.SSH)
-	require.NoError(t, err)
-
+	signer := newSigner(t, ctx, testServer)
 	nodeID := uuid.New().String()
 	nodeClient, err := testServer.NewClient(auth.TestIdentity{
 		I: authz.BuiltinRole{
@@ -2493,6 +2474,84 @@ func TestHandlePuTTYWinadj(t *testing.T) {
 	require.Equal(t, "hello once more\n", string(out))
 }
 
+func TestTargetMetadata(t *testing.T) {
+	ctx := context.Background()
+	testServer, err := auth.NewTestServer(auth.TestServerConfig{
+		Auth: auth.TestAuthServerConfig{
+			ClusterName: "localhost",
+			Dir:         t.TempDir(),
+			Clock:       clockwork.NewFakeClock(),
+		},
+	})
+	require.NoError(t, err)
+
+	nodeID := uuid.New().String()
+	nodeClient, err := testServer.NewClient(auth.TestIdentity{
+		I: authz.BuiltinRole{
+			Role:     types.RoleNode,
+			Username: nodeID,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeClient.Close()) })
+
+	lockWatcher := newLockWatcher(ctx, t, nodeClient)
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   nodeClient,
+		AccessPoint:  nodeClient,
+		LockEnforcer: lockWatcher,
+		Emitter:      nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     nodeID,
+	})
+	require.NoError(t, err)
+
+	nodeDir := t.TempDir()
+	serverOptions := []ServerOption{
+		SetUUID(nodeID),
+		SetNamespace(apidefaults.Namespace),
+		SetEmitter(nodeClient),
+		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetLabels(
+			map[string]string{"foo": "bar"},
+			services.CommandLabels{
+				"baz": &types.CommandLabelV2{
+					Period:  types.NewDuration(time.Second),
+					Command: []string{"expr", "1", "+", "3"},
+				},
+			}, nil,
+		),
+		SetBPF(&bpf.NOP{}),
+		SetRestrictedSessionManager(&restricted.NOP{}),
+		SetLockWatcher(lockWatcher),
+		SetX11ForwardingConfig(&x11.ServerConfig{}),
+		SetSessionController(sessionController),
+	}
+
+	sshSrv, err := New(
+		ctx,
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		testServer.ClusterName(),
+		[]ssh.Signer{newSigner(t, ctx, testServer)},
+		nodeClient,
+		nodeDir,
+		"",
+		utils.NetAddr{},
+		nodeClient,
+		serverOptions...)
+	require.NoError(t, err)
+
+	metadata := sshSrv.TargetMetadata()
+	require.Equal(t, nodeID, metadata.ServerID)
+	require.Equal(t, apidefaults.Namespace, metadata.ServerNamespace)
+	require.Equal(t, "", metadata.ServerAddr)
+	require.Equal(t, "localhost", metadata.ServerHostname)
+
+	require.Contains(t, metadata.ServerLabels, "foo")
+	require.Contains(t, metadata.ServerLabels, "baz")
+}
+
 // upack holds all ssh signing artifacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
@@ -2624,6 +2683,32 @@ func requireRoot(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("This test will be skipped because tests are not being run as root.")
 	}
+}
+
+// newSigner creates a new SSH signer that can be used by the Server.
+func newSigner(t *testing.T, ctx context.Context, testServer *auth.TestServer) ssh.Signer {
+	t.Helper()
+
+	priv, pub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	certs, err := testServer.Auth().GenerateHostCerts(ctx,
+		&proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     testServer.ClusterName(),
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
+	require.NoError(t, err)
+
+	// set up user CA and set up a user that has access to the server
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
+	require.NoError(t, err)
+	return signer
 }
 
 // maxPipeSize is one larger than the maximum pipe size for most operating
