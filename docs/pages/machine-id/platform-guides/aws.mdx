@@ -10,7 +10,20 @@ deploying Machine ID on Amazon Web Services.
 
 ### The `iam` join method
 
-TODO: Brief overview of how the join method works for this platform.
+The process of `tbot` initially authenticating with the Teleport cluster is
+known as joining. A join method is a specific technique for the bot to prove
+its identity.
+
+On the AWS platform, virtual machines can be assigned an IAM role. The AWS
+platform will then make this role available to the machine as an assumed
+identity. This allows the machine to act as the assigned role. Using this
+identity, the machine is able to request a signed document that includes
+information about the machine.
+
+The `iam` join method instructs the bot to request this signed document from
+AWS using the assigned identity. This signed document is then sent to the
+Auth Server as proof of the machine's identity. This allows the bot to join
+the cluster without the exchange of a long lived secret.
 
 ### Elastic Kubernetes Service
 
@@ -28,13 +41,35 @@ on deploying Machine ID as a workload on Kubernetes.
 
 ## Guide
 
-This guide will...
+In this guide, you will install Machine ID's agent, `tbot`, on an AWS EC2
+instance. The bot will be configured to use the `iam` delegated joining method
+to eliminate the need for long-lived secrets.
 
-### Before you start
+### Prerequisites
 
-### Step 1/3. Assign a GCP Service Account to a VM
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-### Step 2/3. Create a role and bot user
+- (!docs/pages/includes/tctl.mdx!)
+- An AWS IAM role that you wish to grant access to your Teleport cluster. This
+  role must be granted `sts:GetCallerIdentity`. In this guide, this role will
+  be named `teleport-bot-role`.
+- An AWS EC2 virtual machine that you wish to install Machine ID onto configured
+  with the IAM role attached.
+
+### Step 1/4. Install `tbot`
+
+**This step is completed on the AWS EC2 instance.**
+
+First, `tbot` needs to be installed on the VM that you wish to use Machine ID
+on.
+
+Download and install the appropriate Teleport package for your platform:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Step 2/4. Create a role and bot user
+
+**This step is completed on your local machine.**
 
 (!docs/pages/includes/machine-id/blank-role.mdx!)
 
@@ -59,6 +94,15 @@ spec:
       aws_arn: "arn:aws:sts::111111111111:assumed-role/teleport-bot-role/i-*"
 ```
 
+Replace:
+
+- `111111111111` with the ID of your AWS account.
+- `teleport-bot-role` with the name of the AWS IAM role you created and assigned
+  to the EC2 instance.
+- `i-*` indicates that any instance with the specified role can use the join
+  method. If you wish to restrict this to an individual instance, replace `i-*`
+  with the full instance ID.
+
 Use `tctl` to apply this file:
 
 ```code
@@ -71,12 +115,35 @@ Create the bot, specifying the token and role that you have created:
 $ tctl bots add example --token example-bot --roles example-bot
 ```
 
-### Step 3/3. Configure `tbot`
+### Step 3/4. Configure `tbot`
+
+**This step is completed on the AWS EC2 instance.**
+
+Create `/etc/tbot.yaml`:
+
+```yaml
+version: v2
+auth_server: example.teleport.sh:443
+onboarding:
+  join_method: iam
+  token: example-bot
+storage:
+  type: memory
+# outputs will be filled in during the completion of an access guide.
+outputs: []
+```
+
+Replace:
+
+- `example.teleport.sh:443` with the address of your Teleport Proxy or
+  Auth Server. Prefer using the address of a Teleport Proxy.
+- `example-bot` with the name of the token you created in the second step.
+
+(!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
 
 ### Step 4/4. Configure Outputs
 
-Follow one of the [access guides](../access-guides.mdx) to configure an output
-that meets your access needs.
+(!docs/pages/includes/machine-id/configure-outputs.mdx!)
 
 ## Next steps
 

@@ -73,11 +73,12 @@ Namespace you wish to use.
 ### Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
-- A Kubernetes cluster with support for Token Volume Projection (enabled by
-  default in Kubernetes 1.20).
+
+- (!docs/pages/includes/tctl.mdx!)
+- A Kubernetes cluster with support for Token Request Projection (which
+  graduated to a generally available feature in Kubernetes 1.20).
 - `kubectl` authenticated with the ability to create resources in the cluster
   you wish to deploy `tbot` into.
-- TODO: Rest of prerequisites
 
 ### Step 1/4. Prepare Kubernetes RBAC
 
@@ -327,7 +328,7 @@ $ kubectl logs deployment/tbot
 With this complete, `tbot` is now successfully deployed to your cluster.
 However, it is not yet producing any useful output.
 
-### Step 4/4. Configure Outputs
+### Step 4/4. Configure outputs
 
 Follow one of the [access guides](../access-guides.mdx) to configure an output
 that meets your access needs.

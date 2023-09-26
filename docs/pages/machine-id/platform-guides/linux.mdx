@@ -10,21 +10,43 @@ deploying Machine ID on a Linux host.
 
 ### The `token` join method
 
-TODO: Brief overview of how the join method works for this platform.
+The process of `tbot` initially authenticating with the Teleport cluster is
+known as joining. A join method is a specific technique for the bot to prove
+its identity.
 
-### Daemon vs Oneshot
-
-TODO: Explain when you'd want to  use a service and when you'd want to use
-oneshot. This guide will show service with systemd - explain choice of service
-supervisor
+On platforms where there is no form of identity available to the machine, the
+only available join method is `token`. The `token` join method is special as
+it is the only join method that relies on a shared secret. In order to mitigate
+the risks associated with this, the `token` join method is single use and it
+is not possible to use the same token multiple times.
 
 ## Guide
 
-This guide will...
+In this guide, you will install Machine ID's agent, `tbot`, on a Linux host.
 
-### Before you start
+### Prerequisites
 
-### Step 1/3. Create a role and bot user
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- A Linux host that you wish to install Machine ID onto.
+- A Linux user on that host that you wish Machine ID to run as. In the guide,
+  we will use `teleport` for this.
+
+### Step 1/4. Install `tbot`
+
+**This step is completed on the Linux host.**
+
+First, `tbot` needs to be installed on the VM that you wish to use Machine ID
+on.
+
+Download the appropriate Teleport package for your platform:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Step 2/4. Create a role and bot user
+
+**This step is completed on your local machine.**
 
 (!docs/pages/includes/machine-id/blank-role.mdx!)
 
@@ -34,12 +56,68 @@ Create the bot, specifying the role that you have created:
 $ tctl bots add example --roles example-bot
 ```
 
-### Step 2/3. Configure `tbot`
+A join token will be included in the results of `tctl bots add`, record this
+value as it will be needed when configuring `tbot`.
 
-### Step 3/3. Configure Outputs
+### Step 3/4. Configure `tbot`
 
-Follow one of the [access guides](../access-guides.mdx) to configure an output
-that meets your access needs.
+**This step is completed on the Linux host.**
+
+Create `/etc/tbot.yaml`:
+
+```yaml
+version: v2
+auth_server: example.teleport.sh:443
+onboarding:
+  join_method: token
+  token: (=presets.tokens.first=)
+storage:
+  type: directory
+  path: /var/lib/teleport/bot
+# outputs will be filled in during the completion of an access guide.
+outputs: []
+```
+
+Replace:
+- `example.teleport.sh:443` with the address of your Teleport Proxy or
+  Auth Server. Prefer using the address of a Teleport Proxy.
+- `(=presets.tokens.first=)` with the token that was returned by `tctl bots add`
+  in the previous step.
+
+<Notice type="note">
+The first time that `tbot` runs, this token will be exchanged for a certificate
+that the bot uses for authentication. At this point, the token is invalidated.
+This means you may remove the token from the configuration file after the first
+run has completed, but there is no tangible security benefit to doing so.
+</Notice>
+
+#### Prepare the storage directory
+
+When using the `token` join method, `tbot` must be able to persist its state
+across restarts. The destination used to persist this state is known as the
+bot's "storage destination". In this guide, the directory
+`/var/lib/teleport/bot` will be used.
+
+As this directory will store the bots sensitive credentials, it is important
+to protect it. To do this, you will configure the directory to only be
+accessible to the Linux user which `tbot` will run as.
+
+Execute the following, replacing `teleport` with the Linux user that you will
+run `tbot` as:
+
+```code
+# Make the bot directory and assign ownership to teleport user
+$ sudo mkdir -p /var/lib/teleport/bot
+$ sudo chown teleport:teleport /var/lib/teleport/bot
+```
+
+#### Creating a systemd service
+
+(!docs/pages/includes/machine-id/daemon.mdx!)
+
+### Step 4/4. Configure outputs
+
+(!docs/pages/includes/machine-id/configure-outputs.mdx!)
 
 ## Next steps
 

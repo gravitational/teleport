@@ -10,7 +10,19 @@ deploying Machine ID on Google Cloud Platform.
 
 ### The `gcp` join method
 
-TODO: Introduce GCP IAM Concepts and overview of the join method
+The process of `tbot` initially authenticating with the Teleport cluster is
+known as joining. A join method is a specific technique for the bot to prove
+its identity.
+
+On the GCP platform, virtual machines can be assigned a service account. The
+GCP platform will then make available to the virtual machine a signed JWT that
+references this service account. This signed JWT can be validated by a third
+party using GCP's public key.
+
+The `gcp` join method instructs the bot to use this service account JWT to
+prove its identity to the Teleport Auth Server. This allows joining to be
+restricted to VMs that have access to a specific GCP service account and
+avoids the use of long-lived secrets.
 
 ### Google Kubernetes Engine
 
@@ -28,13 +40,34 @@ on deploying Machine ID as a workload on Kubernetes.
 
 ## Guide
 
-This guide will...
+In this guide, you will install Machine ID's agent, `tbot`, on a GCP GCE
+instance. The bot will be configured to use the `gcp` delegated joining method
+to eliminate the need for long-lived secrets.
 
-### Before you start
+### Prerequisites
 
-### Step 1/4. Assign a GCP Service Account to a VM
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- A GCP service account you wish to grant access to your Teleport cluster that
+  is not the GCP compute default service account.
+- A GCP Compute Engine VM that you wish to install Machine ID onto that has
+  been configured with the GCP service account.
+
+### Step 1/4. Install `tbot`
+
+**This step is completed on the GCP VM.**
+
+First, `tbot` needs to be installed on the VM that you wish to use Machine ID
+on.
+
+Download and install the appropriate Teleport package for your platform:
+
+(!docs/pages/includes/install-linux.mdx!)
 
 ### Step 2/4. Create a join token, role and bot user
+
+**This step is completed on your local machine.**
 
 (!docs/pages/includes/machine-id/blank-role.mdx!)
 
@@ -64,9 +97,11 @@ spec:
 ```
 
 Replace:
+
 - `my-project-123456` with the ID of your GCP project
 - `my-service-account@my-project-123456.iam.gserviceaccount.com` with the email
-  of the service account configured in the previous step.
+  of the service account configured in the previous step. The default compute
+  service account is not supported.
 
 Use `tctl` to apply this file:
 
@@ -82,10 +117,33 @@ $ tctl bots add example --token example-bot --roles example-bot
 
 ### Step 3/4. Configure `tbot`
 
-### Step 4/4. Configure Outputs
+**This step is completed on the GCP VM.**
 
-Follow one of the [access guides](../access-guides.mdx) to configure an output
-that meets your access needs.
+Create `/etc/tbot.yaml`:
+
+```yaml
+version: v2
+auth_server: example.teleport.sh:443
+onboarding:
+  join_method: gcp
+  token: example-bot
+storage:
+  type: memory
+# outputs will be filled in during the completion of an access guide.
+outputs: []
+```
+
+Replace:
+
+- `example.teleport.sh:443` with the address of your Teleport Proxy or
+  Auth Server. Prefer using the address of a Teleport Proxy.
+- `example-bot` with the name of the token you created in the second step.
+
+(!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
+
+### Step 4/4. Configure outputs
+
+(!docs/pages/includes/machine-id/configure-outputs.mdx!)
 
 ## Next steps
 
