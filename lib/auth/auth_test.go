@@ -2420,10 +2420,11 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 func TestAddMFADeviceSync(t *testing.T) {
 	t.Parallel()
 
-	srv := newTestTLSServer(t)
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
 	mockEmitter := &eventstest.MockRecorderEmitter{}
-	srv.Auth().emitter = mockEmitter
-	clock := srv.Auth().GetClock()
+	authServer.emitter = mockEmitter
+	clock := authServer.GetClock()
 	ctx := context.Background()
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2434,14 +2435,36 @@ func TestAddMFADeviceSync(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPreference)
+	err = authServer.SetAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
-	u, err := createUserWithSecondFactors(srv)
+	u, err := createUserWithSecondFactors(testServer)
 	require.NoError(t, err)
 
-	userClient, err := srv.NewClient(TestUser(u.username))
+	userClient, err := testServer.NewClient(TestUser(u.username))
 	require.NoError(t, err)
+
+	solveChallengeWithToken := func(
+		t *testing.T,
+		tokenType string,
+		deviceType proto.DeviceType,
+		deviceUsage proto.DeviceUsage,
+	) (token string, testDev *TestDevice, registerSolved *proto.MFARegisterResponse) {
+		privilegeToken, err := authServer.createPrivilegeToken(ctx, u.username, tokenType)
+		require.NoError(t, err, "createPrivilegeToken")
+		token = privilegeToken.GetName()
+
+		registerChal, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			TokenID:     token,
+			DeviceType:  deviceType,
+			DeviceUsage: deviceUsage,
+		})
+		require.NoError(t, err, "CreateRegisterChallenge")
+
+		testDev, registerSolved, err = NewTestDeviceFromChallenge(registerChal, WithTestDeviceClock(clock))
+		require.NoError(t, err, "NewTestDeviceFromChallenge")
+		return token, testDev, registerSolved
+	}
 
 	solveChallengeWithUser := func(
 		t *testing.T,
@@ -2485,13 +2508,13 @@ func TestAddMFADeviceSync(t *testing.T) {
 			wantErr: true,
 			getReq: func(t *testing.T, deviceName string) *proto.AddMFADeviceSyncRequest {
 				// Obtain a non privilege token.
-				token, err := srv.Auth().newUserToken(CreateUserTokenRequest{
+				token, err := authServer.newUserToken(CreateUserTokenRequest{
 					Name: u.username,
 					TTL:  5 * time.Minute,
 					Type: UserTokenTypeResetPassword,
 				})
 				require.NoError(t, err)
-				_, err = srv.Auth().CreateUserToken(ctx, token)
+				_, err = authServer.CreateUserToken(ctx, token)
 				require.NoError(t, err)
 
 				return &proto.AddMFADeviceSyncRequest{
@@ -2504,24 +2527,13 @@ func TestAddMFADeviceSync(t *testing.T) {
 			name:       "TOTP device with privilege token",
 			deviceName: "new-totp",
 			getReq: func(t *testing.T, deviceName string) *proto.AddMFADeviceSyncRequest {
-				// Obtain a privilege token.
-				privelegeToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilege)
-				require.NoError(t, err)
-
-				// Create token secrets.
-				res, err := srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
-					TokenID:    privelegeToken.GetName(),
-					DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
-				})
-				require.NoError(t, err)
-
-				_, totpRegRes, err := NewTestDeviceFromChallenge(res, WithTestDeviceClock(clock))
-				require.NoError(t, err)
+				token, _, registerSolved := solveChallengeWithToken(
+					t, UserTokenTypePrivilege, proto.DeviceType_DEVICE_TYPE_TOTP, proto.DeviceUsage_DEVICE_USAGE_MFA)
 
 				return &proto.AddMFADeviceSyncRequest{
-					TokenID:        privelegeToken.GetName(),
+					TokenID:        token,
 					NewDeviceName:  deviceName,
-					NewMFAResponse: totpRegRes,
+					NewMFAResponse: registerSolved,
 				}
 			},
 		},
@@ -2529,16 +2541,13 @@ func TestAddMFADeviceSync(t *testing.T) {
 			name:       "Webauthn device with privilege exception token",
 			deviceName: "new-webauthn",
 			getReq: func(t *testing.T, deviceName string) *proto.AddMFADeviceSyncRequest {
-				privExToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilegeException)
-				require.NoError(t, err)
-
-				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), privExToken.GetName(), proto.DeviceUsage_DEVICE_USAGE_MFA)
-				require.NoError(t, err)
+				token, _, registerSolved := solveChallengeWithToken(
+					t, UserTokenTypePrivilegeException, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, proto.DeviceUsage_DEVICE_USAGE_MFA)
 
 				return &proto.AddMFADeviceSyncRequest{
-					TokenID:        privExToken.GetName(),
+					TokenID:        token,
 					NewDeviceName:  deviceName,
-					NewMFAResponse: webauthnRes,
+					NewMFAResponse: registerSolved,
 				}
 			},
 		},
@@ -2547,16 +2556,13 @@ func TestAddMFADeviceSync(t *testing.T) {
 			deviceName: strings.Repeat("A", mfaDeviceNameMaxLen+1),
 			wantErr:    true,
 			getReq: func(t *testing.T, deviceName string) *proto.AddMFADeviceSyncRequest {
-				privExToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilegeException)
-				require.NoError(t, err)
-
-				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), privExToken.GetName(), proto.DeviceUsage_DEVICE_USAGE_MFA)
-				require.NoError(t, err)
+				token, _, registerSolved := solveChallengeWithToken(
+					t, UserTokenTypePrivilegeException, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, proto.DeviceUsage_DEVICE_USAGE_MFA)
 
 				return &proto.AddMFADeviceSyncRequest{
-					TokenID:        privExToken.GetName(),
+					TokenID:        token,
 					NewDeviceName:  deviceName,
-					NewMFAResponse: webauthnRes,
+					NewMFAResponse: registerSolved,
 				}
 			},
 		},
