@@ -142,6 +142,23 @@ func TestAddHostToHostList(t *testing.T) {
 				"six",
 			},
 		},
+		{
+			hostList: []string{
+				"((*.example.com && port:22) || example.test.com)",
+				"singlehost",
+				"three.example.com",
+				"four.example.com",
+				"five.test.com",
+			},
+			hostname: "six",
+			expected: []string{
+				"((*.example.com && port:22) || example.test.com)",
+				"singlehost",
+				"*.example.com",
+				"five.test.com",
+				"six",
+			},
+		},
 	}
 
 	for i, tt := range tests {
@@ -302,6 +319,81 @@ func TestNaivelyValidateHostname(t *testing.T) {
 		t.Run(tt.hostname, func(t *testing.T) {
 			testResult := NaivelyValidateHostname(tt.hostname)
 			require.Equal(t, tt.shouldPass, testResult)
+		})
+	}
+}
+
+func TestSplitValidityKey(t *testing.T) {
+	t.Parallel()
+
+	var tests = []struct {
+		validity      string
+		desiredOutput []string
+	}{
+		{
+			validity: "*.foo.example.com || *.bar.example.com",
+			desiredOutput: []string{
+				"*.foo.example.com",
+				"*.bar.example.com",
+			},
+		},
+		{
+			validity:      "test",
+			desiredOutput: []string{"test"},
+		},
+		{
+			validity: "*.example.com || test || teleport.test.com",
+			desiredOutput: []string{
+				"*.example.com",
+				"test",
+				"teleport.test.com",
+			},
+		},
+		{
+			validity: "*.example.com && port:22",
+			desiredOutput: []string{
+				"*.example.com && port:22",
+			},
+		},
+		{
+			validity: "*.example.com && ! *.extrasecure.example.com",
+			desiredOutput: []string{
+				"*.example.com && ! *.extrasecure.example.com",
+			},
+		},
+		{
+			validity: "(*.foo.example.com || *.bar.example.com) && port:0-1023",
+			desiredOutput: []string{
+				"(*.foo.example.com || *.bar.example.com) && port:0-1023",
+			},
+		},
+		{
+			validity: "(*.foo.example.com || *.bar.example.com || *.qux.example.com) && port:0-1023",
+			desiredOutput: []string{
+				"(*.foo.example.com || *.bar.example.com || *.qux.example.com) && port:0-1023",
+			},
+		},
+		{
+			validity: "((*.foo.example.com || *.bar.example.com || *.qux.example.com) && port:0-1023) || teleport.example.com",
+			desiredOutput: []string{
+				"((*.foo.example.com || *.bar.example.com || *.qux.example.com) && port:0-1023)",
+				"teleport.example.com",
+			},
+		},
+		{
+			validity: "((*.example.com || lol.example.com && port:22) && port:1024) || test.teleport.com || teleport.test.com",
+			desiredOutput: []string{
+				"((*.example.com || lol.example.com && port:22) && port:1024)",
+				"test.teleport.com",
+				"teleport.test.com",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.validity, func(t *testing.T) {
+			testResult := SplitValidityKey(tt.validity)
+			require.Equal(t, tt.desiredOutput, testResult)
 		})
 	}
 }
