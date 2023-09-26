@@ -402,7 +402,7 @@ export const useConnectMyComputerContext = () => {
 
   if (!context) {
     throw new Error(
-      'ConnectMyComputerContext requires ConnectMyComputerContextProvider context.'
+      'useConnectMyComputerContext must be used within a ConnectMyComputerContextProvider'
     );
   }
 
