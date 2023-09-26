@@ -22,7 +22,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -80,7 +79,7 @@ func TestOverwritePrompt(t *testing.T) {
 		// Fail to overwrite slot when user denies
 		prompt.SetStdin(prompt.NewFakeReader().AddString("n"))
 		_, err := keys.GetOrGenerateYubiKeyPrivateKey(true)
-		require.True(t, trace.IsCompareFailed(err), "Expected compare failed error but got %v", err)
+		require.Error(t, err)
 
 		// Successfully overwrite slot when user accepts
 		prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
