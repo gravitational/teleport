@@ -113,6 +113,7 @@ export { Link } from './Icons/Link';
 export { Linkedin } from './Icons/Linkedin';
 export { Linux } from './Icons/Linux';
 export { ListAddCheck } from './Icons/ListAddCheck';
+export { ListMagnifyingGlass } from './Icons/ListMagnifyingGlass';
 export { ListThin } from './Icons/ListThin';
 export { ListView } from './Icons/ListView';
 export { Lock } from './Icons/Lock';
