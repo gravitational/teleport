@@ -76,6 +76,8 @@ type querierConfig struct {
 	// If not provided, default will be used.
 	getQueryResultsInitialDelay time.Duration
 
+	disableQueryCostOptimization bool
+
 	clock  clockwork.Clock
 	awsCfg *aws.Config
 	logger log.FieldLogger
@@ -171,6 +173,23 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 		}
 	}
 
+	// If pagination key was used and range is big, try to optimize costs by
+	// doing queries on smaller range.
+	// This is temporary workaround for polling of event exporter
+	// until we have new API for exporting events.
+	if q.canOptimizePaginatedSearchCosts(ctx, startKeyset, from, to) {
+		events, keyset, err := q.costOptimizedPaginatedSearch(ctx, searchEventsRequest{
+			fromUTC:   from.UTC(),
+			toUTC:     to.UTC(),
+			limit:     req.Limit,
+			order:     req.Order,
+			startKey:  startKeyset,
+			filter:    searchEventsFilter{eventTypes: req.EventTypes},
+			sessionID: "",
+		})
+		return events, keyset, trace.Wrap(err)
+	}
+
 	events, keyset, err := q.searchEvents(ctx, searchEventsRequest{
 		fromUTC:   from.UTC(),
 		toUTC:     to.UTC(),
@@ -181,6 +200,94 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 		sessionID: "",
 	})
 	return events, keyset, trace.Wrap(err)
+}
+
+func (q *querier) canOptimizePaginatedSearchCosts(ctx context.Context, startKey *keyset, from, to time.Time) bool {
+	return !q.disableQueryCostOptimization && startKey != nil && to.Sub(from) > 24*time.Hour
+}
+
+// costOptimizedPaginatedSearch instead of scanning data on big time range from request
+// do scans on smaller ranges first and if there are not enough results,
+// it extends range using steps, up to original time range.
+// It's temporary workaround to reduce costs when event exporter is executing
+// search events endpoint using big time range and requesting only small amount
+// of data.
+// Ex. For timerange (2023-04-01 12:00, 2023-08-01 12:00) we will do following calls:
+// - 1. (2023-04-01 12:00, 2023-04-01 13:00) - 1h increase
+// - 2. (2023-04-01 12:00, 2023-04-02 12:00) - 24h increase
+// - 3. (2023-04-01 12:00, 2023-04-08 12:00) - 24*7h increase
+// - 4. (2023-04-01 12:00, 2023-05-01 12:00) - 24*30h increase
+// - 5. (2023-04-01 12:00, 2023-08-01 12:00) - original range.
+// If any of steps returns enough data based on limit, we return immediately.
+func (q *querier) costOptimizedPaginatedSearch(ctx context.Context, req searchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	var events []apievents.AuditEvent
+	var err error
+	var keyset string
+
+	toUTC := req.toUTC
+	fromUTC := req.fromUTC
+
+	for _, dateToMod := range prepareTimeRangesForCostOptimizedSearch(req.fromUTC, req.toUTC, req.order) {
+		if req.order == types.EventOrderAscending {
+			toUTC = dateToMod.UTC()
+			q.logger.Debugf("Doing cost optimized query by modifying to date (original %s, updated %s)", req.toUTC, toUTC)
+		} else {
+			fromUTC = dateToMod.UTC()
+			q.logger.Debugf("Doing cost optimized query by modifying from date (original %s, updated %s)", req.fromUTC, fromUTC)
+
+		}
+		events, keyset, err = q.searchEvents(ctx, searchEventsRequest{
+			fromUTC:   fromUTC,
+			toUTC:     toUTC,
+			limit:     req.limit,
+			order:     req.order,
+			startKey:  req.startKey,
+			filter:    req.filter,
+			sessionID: req.sessionID,
+		})
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		if keyset != "" {
+			// means limit is reached, we can return now.
+			return events, keyset, nil
+		}
+	}
+	// if we never had non empty keyset, we return just last response
+	// which was on original range.
+	return events, keyset, nil
+}
+
+// prepareTimeRangesForCostOptimizedSearch based on order, prepare slice of timestamps
+// which should be used for modification of to/from in searchEvents call.
+func prepareTimeRangesForCostOptimizedSearch(from, to time.Time, order types.EventOrder) []time.Time {
+	stepsToIncrease := []time.Duration{
+		1 * time.Hour,
+		24 * time.Hour,
+		7 * 24 * time.Hour,
+		30 * 24 * time.Hour,
+	}
+	var out []time.Time
+
+	if order == types.EventOrderAscending {
+		for _, durationToAdd := range stepsToIncrease {
+			if newTo := from.Add(durationToAdd); newTo.Before(to) {
+				out = append(out, newTo)
+			}
+		}
+		// at the end add original range.
+		out = append(out, to)
+	} else {
+		for _, durationToAdd := range stepsToIncrease {
+			if newFrom := to.Add(-1 * durationToAdd); newFrom.After(from) {
+				out = append(out, newFrom)
+			}
+		}
+		// at the end add original range.
+		out = append(out, from)
+	}
+	return out
 }
 
 func (q *querier) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
