@@ -23,8 +23,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/prompt"
