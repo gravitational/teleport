@@ -1324,7 +1324,7 @@ type userAuthCreds struct {
 	totpDev, webDev *TestDevice
 }
 
-func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
+func createUserWithSecondFactors(testServer *TestTLSServer) (*userAuthCreds, error) {
 	ctx := context.Background()
 	username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
 	password := []byte("abc123")
@@ -1336,49 +1336,60 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
-		// Use default Webauthn config.
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := srv.Auth().SetAuthPreference(ctx, ap); err != nil {
+	authServer := testServer.Auth()
+	if err := authServer.SetAuthPreference(ctx, ap); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err = CreateUserAndRole(authServer, username, []string{username}, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resetToken, err := srv.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+	// Reset password and register a Webauthn device.
+	resetToken, err := authServer.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
 		Name: username,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Insert a password, device, and recovery codes.
-	webDev, mfaResp, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetToken.GetName(), proto.DeviceUsage_DEVICE_USAGE_MFA)
+	registerChal, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:     resetToken.GetName(),
+		DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	res, err := srv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+	webDev, registerSolved, err := NewTestDeviceFromChallenge(registerChal)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	changeAuthnResp, err := authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
 		TokenID:                resetToken.GetName(),
 		NewPassword:            password,
-		NewMFARegisterResponse: mfaResp,
+		NewMFARegisterResponse: registerSolved,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := srv.NewClient(TestUser(username))
+	// Register a TOTP device.
+	userClient, err := testServer.NewClient(TestUser(username))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	totpDev, err := RegisterTestDevice(ctx, clt, "otp-1", proto.DeviceType_DEVICE_TYPE_TOTP, webDev, WithTestDeviceClock(srv.Clock()))
+	totpDev, err := RegisterTestDevice(
+		ctx,
+		userClient,
+		"otp-1", proto.DeviceType_DEVICE_TYPE_TOTP,
+		webDev, /* authenticator */
+		WithTestDeviceClock(testServer.Clock()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1386,7 +1397,7 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 	return &userAuthCreds{
 		username:      username,
 		password:      password,
-		recoveryCodes: res.GetRecovery().GetCodes(),
+		recoveryCodes: changeAuthnResp.GetRecovery().GetCodes(),
 		totpDev:       totpDev,
 		webDev:        webDev,
 	}, nil
