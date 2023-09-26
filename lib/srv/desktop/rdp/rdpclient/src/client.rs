@@ -12,12 +12,13 @@ use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::PduParsing;
 use ironrdp_session::x224::Processor as X224Processor;
-use ironrdp_session::SessionError;
+use ironrdp_session::{custom_err, reason_err, SessionError};
 use ironrdp_tls::TlsStream;
 use ironrdp_tokio::{Framed, TokioStream};
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
 use std::io::Error as IoError;
 use std::net::ToSocketAddrs;
+use std::sync::{Arc, Mutex};
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
@@ -32,7 +33,7 @@ pub struct Client {
     cgo_handle: CgoHandle,
     read_stream: Option<RdpReadStream>,
     write_stream: Option<RdpWriteStream>,
-    x224_processor: Option<X224Processor>,
+    x224_processor: Option<Arc<Mutex<X224Processor>>>,
     write_requester: Option<ClientHandle>,
     function_receiver: Option<FunctionReceiver>,
 }
@@ -110,7 +111,7 @@ impl Client {
             cgo_handle,
             read_stream: Some(read_stream),
             write_stream: Some(write_stream),
-            x224_processor: Some(x224_processor),
+            x224_processor: Some(Arc::new(Mutex::new(x224_processor))),
             write_requester: None,
             function_receiver: None,
         })
@@ -204,18 +205,40 @@ impl Client {
     fn run_read_loop(
         cgo_handle: CgoHandle,
         mut read_stream: RdpReadStream,
-        mut x224_processor: X224Processor,
+        x224_processor: Arc<Mutex<X224Processor>>,
         write_requester: ClientHandle,
     ) -> tokio::task::JoinHandle<Result<(), ClientError>> {
         global::TOKIO_RT.spawn(async move {
             loop {
                 let (action, mut frame) = read_stream.read_pdu().await?;
                 match action {
-                    ironrdp_pdu::Action::FastPath => unsafe {
-                        handle_remote_fx_frame(cgo_handle, frame.as_mut_ptr(), frame.len() as u32);
-                    },
+                    ironrdp_pdu::Action::FastPath => {
+                        global::TOKIO_RT
+                            .spawn_blocking(move || unsafe {
+                                handle_remote_fx_frame(
+                                    cgo_handle,
+                                    frame.as_mut_ptr(),
+                                    frame.len() as u32,
+                                );
+                            })
+                            .await?
+                    }
                     ironrdp_pdu::Action::X224 => {
-                        let res = x224_processor.process(&frame)?;
+                        let x224_processor = x224_processor.clone();
+                        let res = global::TOKIO_RT
+                            .spawn_blocking(move || {
+                                x224_processor
+                                    .lock()
+                                    .map_err(|err| {
+                                        reason_err!(
+                                            "x224_processor.lock()",
+                                            "PoisonError: {:?}",
+                                            err
+                                        )
+                                    })?
+                                    .process(&frame)
+                            })
+                            .await??;
                         write_requester
                             .send(ClientFunction::WriteRawPdu(res))
                             .await?;
