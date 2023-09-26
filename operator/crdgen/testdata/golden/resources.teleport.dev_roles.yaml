@@ -863,13 +863,6 @@ spec:
                     description: CreateHostUser allows users to be automatically created
                       on a host
                     type: boolean
-<<<<<<< HEAD:operator/crdgen/testdata/golden/resources.teleport.dev_roles.yaml
-=======
-                  create_host_user_mode:
-                    description: CreateHostUserMode allows users to be automatically
-                      created on a host when not set to off
-                    x-kubernetes-int-or-string: true
->>>>>>> 9a556d8ab1 (Add support for Protobuf Enums into Operator CRDs (#32469)):integrations/operator/crdgen/testdata/golden/resources.teleport.dev_roles.yaml
                   desktop_clipboard:
                     description: DesktopClipboard indicates whether clipboard sharing
                       is allowed between the user's workstation and the remote desktop.
@@ -1921,13 +1914,6 @@ spec:
                     description: CreateHostUser allows users to be automatically created
                       on a host
                     type: boolean
-<<<<<<< HEAD:operator/crdgen/testdata/golden/resources.teleport.dev_roles.yaml
-=======
-                  create_host_user_mode:
-                    description: CreateHostUserMode allows users to be automatically
-                      created on a host when not set to off
-                    x-kubernetes-int-or-string: true
->>>>>>> 9a556d8ab1 (Add support for Protobuf Enums into Operator CRDs (#32469)):integrations/operator/crdgen/testdata/golden/resources.teleport.dev_roles.yaml
                   desktop_clipboard:
                     description: DesktopClipboard indicates whether clipboard sharing
                       is allowed between the user's workstation and the remote desktop.
