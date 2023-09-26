@@ -174,7 +174,7 @@ spec:
     db_users: ['{{email.local(external.email)}}']
     db_names: ['{{external.db_names}}']
     db_labels:
-      'env': '{{regexp.replace(external.access["env"], "^(staging)$", "$1")}}'
+      'env': '{{regexp.replace(external.env, "^(staging)$", "$1")}}'
 
     # app_labels: a user with this role will be allowed to connect to
     # applications, which labels match expressions below.
