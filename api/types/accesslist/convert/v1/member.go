@@ -30,7 +30,7 @@ type MemberOption func(*accesslist.AccessListMember)
 // FromMemberProto converts a v1 access list member into an internal access list member object.
 func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslist.AccessListMember, error) {
 	if msg == nil {
-		return nil, trace.BadParameter("access list message is nil")
+		return nil, trace.BadParameter("access list member message is nil")
 	}
 
 	if msg.Spec == nil {

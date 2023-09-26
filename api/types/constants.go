@@ -460,6 +460,9 @@ const (
 	// KindAccessListMember is an AccessListMember resource
 	KindAccessListMember = "access_list_member"
 
+	// KindAccessListReview is an AccessListReview resource
+	KindAccessListReview = "access_list_review"
+
 	// KindDiscoveryConfig is a DiscoveryConfig resource.
 	// Used for adding additional matchers in Discovery Service.
 	KindDiscoveryConfig = "discovery_config"
