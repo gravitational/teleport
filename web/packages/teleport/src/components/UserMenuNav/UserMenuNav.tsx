@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import styled, { css, useTheme } from 'styled-components';
 
 import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
 import { Text } from 'design';
 import { NavLink } from 'react-router-dom';
+import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
 import session from 'teleport/services/websession';
 import { useFeatures } from 'teleport/FeaturesContext';
@@ -176,7 +177,7 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
 
   const { preferences, updatePreferences } = useUser();
 
-  const ref = useRef<HTMLDivElement>();
+  const ref = useRefClickOutside<HTMLDivElement>({ open, setOpen });
 
   const ctx = useTeleport();
   const clusterId = ctx.storeUser.getClusterId();
@@ -194,25 +195,6 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
 
   const initial =
     username && username.length ? username.trim().charAt(0).toUpperCase() : '';
-
-  const handleClickOutside = useCallback(
-    (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as HTMLElement)) {
-        setOpen(false);
-      }
-    },
-    [ref.current]
-  );
-
-  useEffect(() => {
-    if (open) {
-      document.addEventListener('mousedown', handleClickOutside);
-
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [ref, open, handleClickOutside]);
 
   const topMenuItems = features.filter(feature => Boolean(feature.topMenuItem));
 
