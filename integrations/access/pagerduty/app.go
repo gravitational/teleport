@@ -525,7 +525,7 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 		Review: types.AccessReview{
 			Author:        a.conf.TeleportUser,
 			ProposedState: types.RequestState_APPROVED,
-			Reason: fmt.Sprintf("Access requested by user %s (%s) which is on call in service(s) %s",
+			Reason: fmt.Sprintf("Access requested by user %s (%s) who is on call in service(s) %s",
 				user.Name,
 				user.Email,
 				strings.Join(serviceNames, ","),
