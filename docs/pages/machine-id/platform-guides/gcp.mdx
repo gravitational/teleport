@@ -44,7 +44,9 @@ to eliminate the need for long-lived secrets.
 
 ### Step 1/4. Install `tbot`
 
-First, `tbot` need to be installed on the VM that you wish to use Machine ID
+**This step is completed on the GCP VM.**
+
+First, `tbot` needs to be installed on the VM that you wish to use Machine ID
 on.
 
 Download and install the appropriate Teleport package for your platform:
@@ -53,9 +55,11 @@ Download and install the appropriate Teleport package for your platform:
 
 ### Step 2/4. Create a join token, role and bot user
 
+**This step is completed on your local machine.**
+
 (!docs/pages/includes/machine-id/blank-role.mdx!)
 
-On your dev machine, create `bot-token.yaml`:
+Create `bot-token.yaml`:
 
 ```yaml
 kind: token
@@ -91,8 +95,7 @@ Use `tctl` to apply this file:
 $ tctl create -f bot-token.yaml
 ```
 
-On your dev machine, create the bot, specifying the token and role that you have
-created:
+Create the bot, specifying the token and role that you have created:
 
 ```code
 $ tctl bots add example --token example-bot --roles example-bot
@@ -100,7 +103,9 @@ $ tctl bots add example --token example-bot --roles example-bot
 
 ### Step 3/4. Configure `tbot`
 
-On the VM, create `/etc/tbot.yaml`:
+**This step is completed on the GCP VM.**
+
+Create `/etc/tbot.yaml`:
 
 ```yaml
 version: v2
