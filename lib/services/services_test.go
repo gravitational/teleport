@@ -43,22 +43,24 @@ func TestOptions(t *testing.T) {
 	require.Len(t, out, 0)
 
 	// make sure original option list is not affected
-	in := []MarshalOption{}
-	out = AddOptions(in, WithResourceID(1))
-	require.Len(t, out, 1)
+	var in []MarshalOption
+	out = AddOptions(in, WithResourceID(1), WithRevision("abc"))
+	require.Len(t, out, 2)
 	require.Len(t, in, 0)
 	cfg, err := CollectOptions(out)
 	require.NoError(t, err)
-	require.Equal(t, cfg.ID, int64(1))
+	require.Equal(t, int64(1), cfg.ID)
+	require.Equal(t, "abc", cfg.Revision)
 
 	// Add a couple of other parameters
-	out = AddOptions(in, WithResourceID(2), WithVersion(types.V2))
-	require.Len(t, out, 2)
+	out = AddOptions(in, WithResourceID(2), WithVersion(types.V2), WithRevision("xyz"))
+	require.Len(t, out, 3)
 	require.Len(t, in, 0)
 	cfg, err = CollectOptions(out)
 	require.NoError(t, err)
-	require.Equal(t, cfg.ID, int64(2))
-	require.Equal(t, cfg.Version, types.V2)
+	require.Equal(t, int64(2), cfg.ID)
+	require.Equal(t, types.V2, cfg.Version)
+	require.Equal(t, "xyz", cfg.Revision)
 }
 
 // TestCommandLabels tests command labels

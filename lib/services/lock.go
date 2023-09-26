@@ -96,6 +96,9 @@ func UnmarshalLock(bytes []byte, opts ...MarshalOption) (types.Lock, error) {
 	if cfg.ID != 0 {
 		lock.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		lock.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		lock.SetExpiry(cfg.Expires)
 	}
@@ -123,6 +126,7 @@ func MarshalLock(lock types.Lock, opts ...MarshalOption) ([]byte, error) {
 			// to prevent unexpected data races
 			copy := *lock
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			lock = &copy
 		}
 		return utils.FastMarshal(lock)

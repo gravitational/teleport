@@ -18,6 +18,7 @@ package server
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
@@ -72,5 +73,14 @@ func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
 }
 
 func getInstallerScript(installerName, publicProxyAddr string) string {
-	return fmt.Sprintf("curl -s -L https://%s/v1/webapi/scripts/installer/%v | bash -s $@", publicProxyAddr, installerName)
+	// Azure treats scripts with the same content as the same invocation and
+	// won't run them more than once. This is fine when the installer script
+	// succeeds, but it makes troubleshooting much harder when it fails. To
+	// work around this, we generate a random string and append it as a comment
+	// to the script, forcing Azure to see each invocation as unique.
+	nonce := make([]byte, 8)
+	// No big deal if rand.Read fails, the script is still valid.
+	_, _ = rand.Read(nonce)
+	return fmt.Sprintf("curl -s -L https://%s/v1/webapi/scripts/installer/%v | bash -s $@ #%x",
+		publicProxyAddr, installerName, nonce)
 }

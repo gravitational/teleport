@@ -84,6 +84,9 @@ func UnmarshalUserLoginState(data []byte, opts ...MarshalOption) (*userloginstat
 	if cfg.ID != 0 {
 		uls.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		uls.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		uls.SetExpiry(cfg.Expires)
 	}
