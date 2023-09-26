@@ -18,7 +18,9 @@ package mysql
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -66,6 +68,18 @@ func MakeTestClientWithoutTLS(addr string, routeToDatabase tlsca.RouteToDatabase
 		return nil, trace.Wrap(err)
 	}
 	return conn, nil
+}
+
+// UserEvent represents a user activation/deactivation event.
+type UserEvent struct {
+	// TeleportUser is the Teleport username.
+	TeleportUser string
+	// DatabaseUser is the in-database username.
+	DatabaseUser string
+	// Roles are the user Roles.
+	Roles []string
+	// Active is whether user activated or deactivated.
+	Active bool
 }
 
 // TestServer is a test MySQL server used in functional database
@@ -127,7 +141,11 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 		listener: listener,
 		port:     port,
 		log:      log,
-		handler:  &testHandler{log: log},
+		handler: &testHandler{
+			log:          log,
+			userEventsCh: make(chan UserEvent, 100),
+			usersMapping: make(map[string]string),
+		},
 	}
 
 	if !config.ListenTLS {
@@ -251,16 +269,27 @@ func (s *TestServer) ConnsClosed() bool {
 	return true
 }
 
+// UserEventsCh returns channel that receives user activate/deactivate events.
+func (s *TestServer) UserEventsCh() <-chan UserEvent {
+	return s.handler.userEventsCh
+}
+
 type testHandler struct {
 	server.EmptyHandler
 	log logrus.FieldLogger
 	// queryCount keeps track of the number of queries the server has received.
 	queryCount uint32
+
+	userEventsCh chan UserEvent
+	// usersMapping maps in-database username to Teleport username.
+	usersMapping   map[string]string
+	usersMappingMu sync.Mutex
 }
 
 func (h *testHandler) HandleQuery(query string) (*mysql.Result, error) {
 	h.log.Debugf("Received query %q.", query)
 	atomic.AddUint32(&h.queryCount, 1)
+
 	// When getting a "show tables" query, construct the response in a way
 	// which previously caused server packets parsing logic to fail.
 	if query == "show tables" {
@@ -278,6 +307,80 @@ func (h *testHandler) HandleQuery(query string) (*mysql.Result, error) {
 		return &mysql.Result{
 			Resultset: resultSet,
 		}, nil
+	}
+
+	return TestQueryResponse, nil
+}
+
+func (h *testHandler) HandleStmtPrepare(prepare string) (int, int, interface{}, error) {
+	params := strings.Count(prepare, "?")
+	return params, 0, nil, nil
+}
+func (h *testHandler) HandleStmtExecute(_ interface{}, query string, args []interface{}) (*mysql.Result, error) {
+	h.log.Debugf("Received execute %q with args %+v.", args)
+	if strings.HasPrefix(query, "CALL ") {
+		return h.handleCallProcedure(query, args)
+	}
+	return TestQueryResponse, nil
+}
+
+func (h *testHandler) handleCallProcedure(query string, args []interface{}) (*mysql.Result, error) {
+	query = strings.TrimSpace(strings.TrimPrefix(query, "CALL"))
+	openBracketIndex := strings.IndexByte(query, '(')
+	endBracketIndex := strings.LastIndexByte(query, ')')
+	if openBracketIndex < 0 || endBracketIndex < 0 {
+		return nil, trace.BadParameter("invalid query: %v", query)
+	}
+
+	procedureName := query[:openBracketIndex]
+	switch procedureName {
+	case activateUserProcedureName:
+		if len(args) != 2 {
+			return nil, trace.BadParameter("invalid number of parameters: %v", args)
+		}
+		databaseUserBytes, ok := args[0].([]byte)
+		if !ok {
+			return nil, trace.BadParameter("invalid database user: %v", args[0])
+		}
+		detailsBytes, ok := args[1].([]byte)
+		if !ok {
+			return nil, trace.BadParameter("invalid details: %v", args[1])
+		}
+		details := activateUserDetails{}
+		err := json.Unmarshal(detailsBytes, &details)
+		if err != nil {
+			return nil, trace.BadParameter("invalid JSON: %v", err)
+		}
+
+		// Update mapping and send event.
+		databaseUser := string(databaseUserBytes)
+		h.usersMappingMu.Lock()
+		defer h.usersMappingMu.Unlock()
+		h.usersMapping[databaseUser] = details.Attributes.User
+		h.userEventsCh <- UserEvent{
+			DatabaseUser: databaseUser,
+			TeleportUser: h.usersMapping[databaseUser],
+			Roles:        details.Roles,
+			Active:       true,
+		}
+
+	case deactivateUserProcedureName:
+		if len(args) != 1 {
+			return nil, trace.BadParameter("invalid number of parameters: %v", args)
+		}
+		databaseUserBytes, ok := args[0].([]byte)
+		if !ok {
+			return nil, trace.BadParameter("invalid database user: %v", args[0])
+		}
+
+		// Send event.
+		h.usersMappingMu.Lock()
+		defer h.usersMappingMu.Unlock()
+		h.userEventsCh <- UserEvent{
+			DatabaseUser: string(databaseUserBytes),
+			TeleportUser: h.usersMapping[string(databaseUserBytes)],
+			Active:       false,
+		}
 	}
 	return TestQueryResponse, nil
 }
