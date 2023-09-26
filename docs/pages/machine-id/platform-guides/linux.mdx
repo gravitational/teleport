@@ -49,6 +49,8 @@ value as it will be needed when configuring `tbot`.
 
 ### Step 3/4. Configure `tbot`
 
+#### Prepare the storage directory
+
 When using the `token` join method, `tbot` must be able to persist its state
 across restarts. The destination used to persist this state is known as the
 bot's "storage destination". In this guide, the directory
@@ -67,37 +69,35 @@ $ sudo mkdir -p /var/lib/teleport/bot
 $ sudo chown teleport:teleport /var/lib/teleport/bot
 ```
 
-Next, the token that was generated when the bot was created using `tctl` must
-be written to disk. As this token is sensitive, we want to ensure that this
-can only be read by `tbot`. Execute the following, replacing `teleport` with the
-Linux user that you will run `tbot` as and `(=presets.tokens.first=)` with the
-token returned by `tctl bots add`:
-
-```code
-# Write the token you received when running `tctl bots add` to a file
-$ echo "(=presets.tokens.first=)" | sudo tee /var/lib/teleport/bot/token
-# Set the file permissions so it can only be accessed by its owner
-$ sudo chmod 700 /var/lib/teleport/bot/token
-# Set the owner of the file to the Linux user that `tbot` will run as:
-$ sudo chown teleport:teleport /var/lib/teleport/bot/token
-```
+#### Create the configuration file
 
 Create `/etc/tbot.yaml`:
 
 ```yaml
 version: v2
-# ensure this is configured to the address of your Teleport Proxy or
-# Auth Server. Prefer the address of the Teleport Proxy.
 auth_server: example.teleport.sh:443
 onboarding:
   join_method: token
-  token: /var/lib/teleport/bot/token
+  token: (=presets.tokens.first=)
 storage:
   type: directory
   path: /var/lib/teleport/bot
 # outputs will be filled in during the completion of an access guide.
 outputs: []
 ```
+
+Replace:
+- `example.teleport.sh:443` with the address of your Teleport Proxy or
+  Auth Server. Prefer using the address of a Teleport Proxy.
+- `(=presets.tokens.first=)` with the token that was returned by `tctl bots add`
+  in the previous step.
+
+<Notice type="note">
+The first time that `tbot` runs, this token will be exchanged for a certificate
+that the bot uses for authentication. At this point, the token is invalidated.
+This means you may remove the token from the configuration file after the first
+run has completed, but there is no tangible security benefit to doing so.
+</Notice>
 
 #### Creating a systemd service
 
