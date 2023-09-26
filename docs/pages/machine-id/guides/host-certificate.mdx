@@ -175,7 +175,7 @@ First, create a basic configuration file using the following parameters:
      --join-method=token \
      --certificate-ttl=1h0m0s \
      --ca-pin=(=presets.ca_pin=) \
-     --auth-server=example.teleport.sh:443
+     --=example.teleport.sh:443
   ```
   </TabItem>
   <TabItem label="IAM method">
@@ -186,7 +186,7 @@ First, create a basic configuration file using the following parameters:
      --join-method=iam \
      --certificate-ttl=1h0m0s \
      --ca-pin=(=presets.ca_pin=) \
-     --auth-server=example.teleport.sh:443
+     --proxy=example.teleport.sh:443
   ```
   </TabItem>
 </Tabs>

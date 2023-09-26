@@ -42,11 +42,10 @@ behind-firewall clusters refer to our
 
 ## Can individual agents create reverse tunnels to the Proxy Service without creating a new cluster?
 
-Yes. When running a Teleport agent, use the `--auth-server` flag to point to the
-Proxy Service address (this would be `public_addr` and `web_listen_addr` in your
-file configuration). For more information, see
-[Adding Nodes to the
-Cluster](./agents/join-services-to-your-cluster/join-token.mdx).
+Yes. When running a Teleport agent, use the `--proxy` flag to point to the
+Teleport Proxy Service address specified in the `public_addr` and `web_listen_addr` 
+fields in the Teleport configuratin file. For more information, see
+[Join Services with a Secure Token](./agents/join-services-to-your-cluster/join-token.mdx).
 
 ## Can Nodes use a single port for reverse tunnels?
 

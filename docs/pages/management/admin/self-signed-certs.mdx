@@ -87,9 +87,9 @@ Proxy Service TLS certificate. This is the case when:
 - The Teleport config file `proxy_server` setting is set to the Proxy Service endpoint:
   - `proxy_server: "tele.example.com:443"` or
   - `proxy_server: "tele.example.com:3080"`
-- Teleport is started with the `--auth-server` flag pointing to the Proxy Service endpoint:
-  - `teleport [app | db] start --auth-server=tele.example.com:443` or
-  - `teleport [app | db] start --auth-server=tele.example.com:3080`
+- Teleport is started with the `--proxy` flag pointing to the Proxy Service endpoint:
+  - `teleport [app | db] start --proxy=tele.example.com:443` or
+  - `teleport [app | db] start --proxy=tele.example.com:3080`
 
 Instructions for disabling TLS certificate verification depend on how you are
 running Teleport: via the `teleport` CLI, using a Helm chart, or via systemd:
@@ -178,9 +178,9 @@ To disable certificate verification use the `--insecure` flag when running `tctl
 `tctl` will determine how to connect to the Auth Service in a few ways:
 - loading configuration from a local profile after logging in with `tsh`
 - loading from a config file passed as an argument: `tctl -c /etc/teleport.yaml`
-- passing the `--auth-server` flag directly, as in:
-  - `tctl --auth-server=tele.example.com:443` or
-  - `tctl --auth-server=tele.example.com:3080`
+- passing the `--proxy` flag directly, as in:
+  - `tctl --proxy=tele.example.com:443` or
+  - `tctl --proxy=tele.example.com:3080`
 
 If any of these methods tries to connect via the Teleport Proxy Service, and the Proxy Service is using 
 self-signed certificates, then `tctl` will not trust the certificate from the Proxy Service and you will get an

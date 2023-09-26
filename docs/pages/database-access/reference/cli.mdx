@@ -39,7 +39,7 @@ $ teleport db start \
 ```code
 $ teleport db start \
     --token=/path/to/token \
-    --auth-server=mytenant.teleport.sh:443 \
+    --proxy=mytenant.teleport.sh:443 \
     --name=example \
     --protocol=postgres \
     --uri=postgres.mytenant.teleport.sh:5432
@@ -53,7 +53,7 @@ $ teleport db start \
 | - | - |
 | `-d/--debug` | Enable verbose logging to stderr. |
 | `--pid-file` | Full path to the PID file. By default no PID file will be created. |
-| `--auth-server` | Address of the Teleport Proxy Service. |
+| `--proxy` | Address of the Teleport Proxy Service. |
 | `--token` | Invitation token to register with the Auth Service. |
 | `--ca-pin` | CA pin to validate the Auth Service. |
 | `-c/--config` | Path to a configuration file (default `/etc/teleport.yaml`). |

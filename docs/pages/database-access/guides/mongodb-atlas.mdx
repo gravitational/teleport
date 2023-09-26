@@ -42,12 +42,12 @@ Next, start the Database Service.
 <TabItem label="Teleport CLI">
 
 On the node where you will run the Database Service, start Teleport, pointing
-the `--auth-server` flag at the address of your Teleport Proxy Service:
+the `--proxy` flag at the address of your Teleport Proxy Service:
 
 ```code
 $ sudo teleport db start \
   --token=/tmp/token \
-  --auth-server=teleport.example.com:443 \
+  --proxy=teleport.example.com:443 \
   --name=mongodb-atlas \
   --protocol=mongodb \
   --uri=mongodb+srv://cluster0.abcde.mongodb.net \
@@ -56,7 +56,7 @@ $ sudo teleport db start \
 ```
 
 <Admonition type="note">
-  The `--auth-server` flag must point to the Teleport cluster's Proxy Service endpoint
+  The `--proxy` flag must point to the Teleport cluster's Proxy Service endpoint
   because the Database Service always connects back to the cluster over a reverse
   tunnel.
 </Admonition>
@@ -104,13 +104,13 @@ See the full [YAML reference](../reference/configuration.mdx) for details.
 <TabItem label="Teleport CLI">
 
 On the node where you will run the Database Service, start Teleport, pointing the
-`--auth-server` flag at the address of your Teleport Cloud tenant, e.g.,
+`--proxy` flag at the address of your Teleport Cloud tenant, e.g.,
 `mytenant.teleport.sh`.
 
 ```code
 $ sudo teleport db start \
   --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh:443 \
+  --proxy=mytenant.teleport.sh:443 \
   --name=mongodb-atlas \
   --protocol=mongodb \
   --uri=mongodb+srv://cluster0.abcde.mongodb.net \

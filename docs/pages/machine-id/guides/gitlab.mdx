@@ -140,7 +140,7 @@ deploy-job:
     - 'curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz'
     - tar -xvf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
     - sudo ./teleport/install
-    - 'tbot start --token=gitlab-demo --destination-dir=/tmp/tbot-user --data-dir=/tmp/tbot-data --auth-server=teleport.example.com:443 --join-method=gitlab --oneshot'
+    - 'tbot start --token=gitlab-demo --destination-dir=/tmp/tbot-user --data-dir=/tmp/tbot-data --proxy=teleport.example.com:443 --join-method=gitlab --oneshot'
     - 'tsh -i /tmp/tbot-user/identity --proxy teleport.example.com:443 ssh ci-user@my-node "echo $CI_JOB_ID >> ~/gitlab_run_log"'
 ```
 

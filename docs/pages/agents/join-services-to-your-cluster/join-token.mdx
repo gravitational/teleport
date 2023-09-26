@@ -80,7 +80,7 @@ Run this on the new node to join the cluster:
    --roles=node \
    --token=(=presets.tokens.first=) \
    --ca-pin=(=presets.ca_pin=) \
-   --auth-server=192.0.2.0:3025
+   --proxy=192.0.2.0:3025
 
 Please note:
 
@@ -293,7 +293,7 @@ $ tctl nodes add --ttl=5m --roles=proxy
 #    --roles=proxy \
 #    --token=(=presets.tokens.first=) \
 #    --ca-pin=(=presets.ca_pin=) \
-#    --auth-server=123.123.123.123:443
+#    --proxy=123.123.123.123:443
 # 
 # Please note:
 # 

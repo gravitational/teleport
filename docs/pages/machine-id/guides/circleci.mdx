@@ -181,7 +181,7 @@ jobs:
           command: |
             export TELEPORT_ANONYMOUS_TELEMETRY=1
             tbot start \
-              --auth-server=tele.example.com:443 \
+              --proxy=tele.example.com:443 \
               --join-method=circleci --token=circleci-demo \
               --oneshot \
               --destination-dir=./certs \
