@@ -34,16 +34,25 @@ import (
 
 // HostUsersProvisioningBackend is used to implement HostUsersBackend
 type HostUsersProvisioningBackend struct {
-	// SudoersPath is the path to write sudoers files to.
-	SudoersPath string
+}
+
+// HostSudoersProvisioningBackend is used to implement HostSudoersBackend
+type HostSudoersProvisioningBackend struct {
 	// HostUUID is the UUID of the running host
 	HostUUID string
+	// SudoersPath is the path to write sudoers files to.
+	SudoersPath string
 }
 
 // newHostUsersBackend initializes a new OS specific HostUsersBackend
-func newHostUsersBackend(uuid string) (HostUsersBackend, error) {
-	return &HostUsersProvisioningBackend{
-		SudoersPath: "/etc/sudoers.d",
+func newHostUsersBackend() (HostUsersBackend, error) {
+	return &HostUsersProvisioningBackend{}, nil
+}
+
+// newHostUsersBackend initializes a new OS specific HostUsersBackend
+func newHostSudoersBackend(uuid string) (HostSudoersBackend, error) {
+	return &HostSudoersProvisioningBackend{
+		SudoersPath: "/etc/sudoers.d/",
 		HostUUID:    uuid,
 	}, nil
 }
@@ -100,7 +109,7 @@ func (*HostUsersProvisioningBackend) DeleteUser(name string) error {
 }
 
 // CheckSudoers ensures that a sudoers file to be written is valid
-func (*HostUsersProvisioningBackend) CheckSudoers(contents []byte) error {
+func (*HostSudoersProvisioningBackend) CheckSudoers(contents []byte) error {
 	err := host.CheckSudoers(contents)
 	if err != nil {
 		return trace.Wrap(err)
@@ -127,7 +136,7 @@ func writeSudoersFile(root, name string, data []byte) (string, error) {
 }
 
 // WriteSudoersFile creates the user's sudoers file.
-func (u *HostUsersProvisioningBackend) WriteSudoersFile(username string, contents []byte) error {
+func (u *HostSudoersProvisioningBackend) WriteSudoersFile(username string, contents []byte) error {
 	if err := u.CheckSudoers(contents); err != nil {
 		return trace.Wrap(err)
 	}
@@ -147,7 +156,7 @@ func (u *HostUsersProvisioningBackend) WriteSudoersFile(username string, content
 }
 
 // RemoveSudoersFile deletes a user's sudoers file.
-func (u *HostUsersProvisioningBackend) RemoveSudoersFile(username string) error {
+func (u *HostSudoersProvisioningBackend) RemoveSudoersFile(username string) error {
 	fileUsername := sanitizeSudoersName(username)
 	sudoersFilePath := filepath.Join(u.SudoersPath, fmt.Sprintf("teleport-%s-%s", u.HostUUID, fileUsername))
 	if _, err := os.Stat(sudoersFilePath); os.IsNotExist(err) {

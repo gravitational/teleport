@@ -471,10 +471,6 @@ var staticAWSCredentialsForAssumedRole = credentials.NewStaticCredentials(assume
 var staticAWSCredentials = credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION")
 var staticAWSCredentialsForClient = credentials.NewStaticCredentials("fakeClientKeyID", "fakeClientSecret", "")
 
-func getStaticAWSCredentials(client.ConfigProvider, time.Time, string, string, string) *credentials.Credentials {
-	return staticAWSCredentials
-}
-
 type suite struct {
 	*httptest.Server
 	identity *tlsca.Identity
@@ -499,8 +495,8 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 	})
 
 	svc, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
-		GetSigningCredentials: getStaticAWSCredentials,
-		Clock:                 clock,
+		CredentialsGetter: awsutils.NewStaticCredentialsGetter(staticAWSCredentials),
+		Clock:             clock,
 	})
 	require.NoError(t, err)
 

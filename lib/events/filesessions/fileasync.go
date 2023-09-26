@@ -23,6 +23,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -108,7 +109,6 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 		semaphore: make(chan struct{}, cfg.ConcurrentUploads),
 		eventsCh:  make(chan events.UploadEvent, cfg.ConcurrentUploads),
 	}
-
 	return uploader, nil
 }
 
@@ -127,11 +127,19 @@ type Uploader struct {
 	cfg UploaderConfig
 	log *log.Entry
 
-	eventsCh chan events.UploadEvent
-	closeC   chan struct{}
+	eventsCh  chan events.UploadEvent
+	closeC    chan struct{}
+	wg        sync.WaitGroup
+	mu        sync.Mutex
+	isClosing bool
 }
 
 func (u *Uploader) Close() {
+	// TODO(tigrato): prevent close to be called before Serve starts.
+	u.mu.Lock()
+	u.isClosing = true
+	u.mu.Unlock()
+
 	close(u.closeC)
 }
 
@@ -140,7 +148,7 @@ func (u *Uploader) writeSessionError(sessionID session.ID, err error) error {
 		return trace.BadParameter("missing session ID")
 	}
 	path := u.sessionErrorFilePath(sessionID)
-	return trace.ConvertSystemError(os.WriteFile(path, []byte(err.Error()), 0600))
+	return trace.ConvertSystemError(os.WriteFile(path, []byte(err.Error()), 0o600))
 }
 
 func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
@@ -160,6 +168,23 @@ func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
 
 // Serve runs the uploader until stopped
 func (u *Uploader) Serve(ctx context.Context) error {
+	// Check if close operation is already in progress.
+	// We need to do this because Serve is spawned in a goroutine
+	// and Close can be called before Serve starts which ends up in a data
+	// race because Close is waiting for wg to be 0 and Serve is adding to wg.
+	// To avoid this, we check if Close is already in progress and return
+	// immediately. If Close is not in progress, we add to wg under the mutex
+	// lock to ensure that Close can't reach wg.Wait() before Serve adds to wg.
+	u.mu.Lock()
+	if u.isClosing {
+		u.mu.Unlock()
+		return nil
+	}
+	u.wg.Add(1)
+	u.mu.Unlock()
+	defer u.wg.Done()
+
+	u.log.Infof("uploader will scan %v every %v", u.cfg.ScanDir, u.cfg.ScanPeriod.String())
 	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step:  u.cfg.ScanPeriod,
 		Max:   u.cfg.ScanPeriod * 100,
@@ -405,7 +430,7 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 		file:         sessionFile,
 		fileUnlockFn: unlock,
 	}
-	upload.checkpointFile, err = os.OpenFile(u.checkpointFilePath(sessionID), os.O_RDWR|os.O_CREATE, 0600)
+	upload.checkpointFile, err = os.OpenFile(u.checkpointFilePath(sessionID), os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		if err := upload.Close(); err != nil {
 			u.log.WithError(err).Warningf("Failed to close upload.")
