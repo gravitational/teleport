@@ -98,6 +98,11 @@ func (k *kube) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) error {
 		return trace.NewAggregate(err, listener.Close())
 	}
 
+	webProxyHost, err := utils.Host(k.cfg.WebProxyAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	k.localProxy, err = alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		InsecureSkipVerify:      k.cfg.Insecure,
 		RemoteProxyAddr:         k.cfg.WebProxyAddr,
@@ -107,7 +112,7 @@ func (k *kube) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) error {
 		ALPNConnUpgradeRequired: k.cfg.TLSRoutingConnUpgradeRequired,
 	},
 		alpnproxy.WithHTTPMiddleware(middleware),
-		alpnproxy.WithSNI(client.GetKubeTLSServerName(k.cfg.WebProxyAddr)),
+		alpnproxy.WithSNI(client.GetKubeTLSServerName(webProxyHost)),
 		alpnproxy.WithClusterCAs(k.closeContext, k.cfg.RootClusterCACertPoolFunc),
 	)
 	if err != nil {
