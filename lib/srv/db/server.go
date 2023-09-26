@@ -1021,7 +1021,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 	if err != nil {
 		connectionDiagnosticID := sessionCtx.Identity.ConnectionDiagnosticID
 		if connectionDiagnosticID != "" && trace.IsAccessDenied(err) {
-			_, diagErr := s.cfg.AuthClient.AppendDiagnosticTrace(ctx,
+			_, diagErr := s.cfg.AuthClient.AppendDiagnosticTrace(cancelCtx,
 				connectionDiagnosticID,
 				&types.ConnectionDiagnosticTrace{
 					Type:    types.ConnectionDiagnosticTrace_RBAC_DATABASE_LOGIN,
