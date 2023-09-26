@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -131,7 +132,7 @@ func NewServer(config ServerConfig) (*Server, error) {
 	server := grpc.NewServer(
 		grpc.Creds(newServerCredentials(credentials.NewTLS(config.TLSConfig))),
 		grpc.StatsHandler(newStatsHandler(reporter)),
-		grpc.ChainStreamInterceptor(metadata.StreamServerInterceptor, utils.GRPCServerStreamErrorInterceptor),
+		grpc.ChainStreamInterceptor(metadata.StreamServerInterceptor, interceptors.GRPCServerStreamErrorInterceptor),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			Time:    peerKeepAlive,
 			Timeout: peerTimeout,

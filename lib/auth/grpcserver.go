@@ -99,7 +99,7 @@ var (
 	)
 )
 
-// GRPCServer is GPRC Auth Server API
+// GRPCServer is gRPC Auth Server API
 type GRPCServer struct {
 	*logrus.Entry
 	APIConfig
@@ -2196,11 +2196,11 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *proto.DeleteRoleReques
 // and updates the users presence for a given session.
 //
 // This function bypasses the `ServerWithRoles` RBAC layer. This is not
-// usually how the GRPC layer accesses the underlying auth server API's but it's done
+// usually how the gRPC layer accesses the underlying auth server API's but it's done
 // here to avoid bloating the ClientI interface with special logic that isn't designed to be touched
 // by anyone external to this process. This is not the norm and caution should be taken
 // when looking at or modifying this function. This is the same approach taken by other MFA
-// related GRPC API endpoints.
+// related gRPC API endpoints.
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream proto.AuthService_MaintainSessionPresenceServer, challengeReq *proto.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
 
@@ -5072,11 +5072,11 @@ func (g *GRPCServer) GetBackend() backend.Backend {
 	return g.AuthServer.bk
 }
 
-// GRPCServerConfig specifies GRPC server configuration
+// GRPCServerConfig specifies gRPC server configuration
 type GRPCServerConfig struct {
-	// APIConfig is GRPC server API configuration
+	// APIConfig is gRPC server API configuration
 	APIConfig
-	// TLS is GRPC server config
+	// TLS is gRPC server config
 	TLS *tls.Config
 	// UnaryInterceptors is the gRPC unary interceptor chain.
 	UnaryInterceptors []grpc.UnaryServerInterceptor
@@ -5098,7 +5098,7 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewGRPCServer returns a new instance of GRPC server
+// NewGRPCServer returns a new instance of gRPC server
 func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	err := metrics.RegisterPrometheusCollectors(heartbeatConnectionsReceived, watcherEventsEmitted, watcherEventSizes, connectedResources)
 	if err != nil {
@@ -5108,7 +5108,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("GRPC(SERVER): keep alive %v count: %v.", cfg.KeepAlivePeriod, cfg.KeepAliveCount)
+	log.Debugf("gRPC(SERVER): keep alive %v count: %v.", cfg.KeepAlivePeriod, cfg.KeepAliveCount)
 	opts := []grpc.ServerOption{
 		grpc.Creds(&httplib.TLSCreds{
 			Config: cfg.TLS,

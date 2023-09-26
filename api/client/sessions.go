@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/types"
@@ -39,18 +38,18 @@ func (c *Client) WebSessions() types.WebSessionInterface {
 
 // Get returns the web session for the specified request
 func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	resp, err := r.c.grpc.GetWebSession(ctx, &req, r.c.callOpts...)
+	resp, err := r.c.grpc.GetWebSession(ctx, &req)
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 	return resp.Session, nil
 }
 
 // List returns the list of all web sessions
 func (r *webSessions) List(ctx context.Context) ([]types.WebSession, error) {
-	resp, err := r.c.grpc.GetWebSessions(ctx, &emptypb.Empty{}, r.c.callOpts...)
+	resp, err := r.c.grpc.GetWebSessions(ctx, &emptypb.Empty{})
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 	out := make([]types.WebSession, 0, len(resp.Sessions))
 	for _, session := range resp.Sessions {
@@ -66,18 +65,18 @@ func (r *webSessions) Upsert(ctx context.Context, session types.WebSession) erro
 
 // Delete deletes the web session specified with the request
 func (r *webSessions) Delete(ctx context.Context, req types.DeleteWebSessionRequest) error {
-	_, err := r.c.grpc.DeleteWebSession(ctx, &req, r.c.callOpts...)
+	_, err := r.c.grpc.DeleteWebSession(ctx, &req)
 	if err != nil {
-		return trail.FromGRPC(err)
+		return trace.Wrap(err)
 	}
 	return nil
 }
 
 // DeleteAll deletes all web sessions
 func (r *webSessions) DeleteAll(ctx context.Context) error {
-	_, err := r.c.grpc.DeleteAllWebSessions(ctx, &emptypb.Empty{}, r.c.callOpts...)
+	_, err := r.c.grpc.DeleteAllWebSessions(ctx, &emptypb.Empty{})
 	if err != nil {
-		return trail.FromGRPC(err)
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -99,18 +98,18 @@ func (c *Client) WebTokens() types.WebTokenInterface {
 
 // Get returns the web token for the specified request
 func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	resp, err := r.c.grpc.GetWebToken(ctx, &req, r.c.callOpts...)
+	resp, err := r.c.grpc.GetWebToken(ctx, &req)
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 	return resp.Token, nil
 }
 
 // List returns the list of all web tokens
 func (r *webTokens) List(ctx context.Context) ([]types.WebToken, error) {
-	resp, err := r.c.grpc.GetWebTokens(ctx, &emptypb.Empty{}, r.c.callOpts...)
+	resp, err := r.c.grpc.GetWebTokens(ctx, &emptypb.Empty{})
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 	out := make([]types.WebToken, 0, len(resp.Tokens))
 	for _, token := range resp.Tokens {
@@ -126,18 +125,18 @@ func (r *webTokens) Upsert(ctx context.Context, token types.WebToken) error {
 
 // Delete deletes the web token specified with the request
 func (r *webTokens) Delete(ctx context.Context, req types.DeleteWebTokenRequest) error {
-	_, err := r.c.grpc.DeleteWebToken(ctx, &req, r.c.callOpts...)
+	_, err := r.c.grpc.DeleteWebToken(ctx, &req)
 	if err != nil {
-		return trail.FromGRPC(err)
+		return trace.Wrap(err)
 	}
 	return nil
 }
 
 // DeleteAll deletes all web tokens
 func (r *webTokens) DeleteAll(ctx context.Context) error {
-	_, err := r.c.grpc.DeleteAllWebTokens(ctx, &emptypb.Empty{}, r.c.callOpts...)
+	_, err := r.c.grpc.DeleteAllWebTokens(ctx, &emptypb.Empty{})
 	if err != nil {
-		return trail.FromGRPC(err)
+		return trace.Wrap(err)
 	}
 	return nil
 }

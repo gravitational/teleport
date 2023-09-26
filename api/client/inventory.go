@@ -22,7 +22,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -197,27 +196,27 @@ func (d downstreamPipeControlStream) Recv() <-chan proto.DownstreamInventoryMess
 // UpstreamInventoryHello, and the first message received must be a DownstreamInventoryHello.
 func (c *Client) InventoryControlStream(ctx context.Context) (DownstreamInventoryControlStream, error) {
 	cancelCtx, cancel := context.WithCancel(ctx)
-	stream, err := c.grpc.InventoryControlStream(cancelCtx, c.callOpts...)
+	stream, err := c.grpc.InventoryControlStream(cancelCtx)
 	if err != nil {
 		cancel()
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 	return newDownstreamInventoryControlStream(stream, cancel), nil
 }
 
 func (c *Client) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
-	rsp, err := c.grpc.GetInventoryStatus(ctx, &req, c.callOpts...)
+	rsp, err := c.grpc.GetInventoryStatus(ctx, &req)
 	if err != nil {
-		return proto.InventoryStatusSummary{}, trail.FromGRPC(err)
+		return proto.InventoryStatusSummary{}, trace.Wrap(err)
 	}
 
 	return *rsp, nil
 }
 
 func (c *Client) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
-	rsp, err := c.grpc.PingInventory(ctx, &req, c.callOpts...)
+	rsp, err := c.grpc.PingInventory(ctx, &req)
 	if err != nil {
-		return proto.InventoryPingResponse{}, trail.FromGRPC(err)
+		return proto.InventoryPingResponse{}, trace.Wrap(err)
 	}
 
 	return *rsp, nil
@@ -228,10 +227,10 @@ func (c *Client) GetInstances(ctx context.Context, filter types.InstanceFilter) 
 	// halts early.
 	ctx, cancel := context.WithCancel(ctx)
 
-	instances, err := c.grpc.GetInstances(ctx, &filter, c.callOpts...)
+	instances, err := c.grpc.GetInstances(ctx, &filter)
 	if err != nil {
 		cancel()
-		return stream.Fail[types.Instance](trail.FromGRPC(err))
+		return stream.Fail[types.Instance](trace.Wrap(err))
 	}
 	return stream.Func[types.Instance](func() (types.Instance, error) {
 		instance, err := instances.Recv()
@@ -240,7 +239,7 @@ func (c *Client) GetInstances(ctx context.Context, filter types.InstanceFilter) 
 				// io.EOF signals that stream has completed successfully
 				return nil, io.EOF
 			}
-			return nil, trail.FromGRPC(err)
+			return nil, trace.Wrap(err)
 		}
 		return instance, nil
 	}, cancel)
@@ -285,7 +284,7 @@ func (i *downstreamICS) runRecvLoop(stream proto.AuthService_InventoryControlStr
 		if err != nil {
 			// preserve EOF to help distinguish "ok" closure.
 			if !trace.IsEOF(err) {
-				err = trace.Errorf("inventory control stream closed: %v", trail.FromGRPC(err))
+				err = trace.Errorf("inventory control stream closed: %v", trace.Wrap(err))
 			}
 			i.CloseWithError(err)
 			return
@@ -341,7 +340,7 @@ func (i *downstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStr
 				sendMsg.errC <- trace.BadParameter("cannot send unexpected upstream msg type: %T", msg)
 				continue
 			}
-			err := trail.FromGRPC(stream.Send(&oneOf))
+			err := stream.Send(&oneOf)
 			sendMsg.errC <- err
 			if err != nil {
 				// preserve EOF errors
@@ -415,7 +414,7 @@ func (i *downstreamICS) Error() error {
 }
 
 // NewUpstreamInventoryControlStream wraps the server-side control stream handle. For use as part of the internals
-// of the auth server's GRPC API implementation.
+// of the auth server's gRPC API implementation.
 func NewUpstreamInventoryControlStream(stream proto.AuthService_InventoryControlStreamServer, peerAddr string) UpstreamInventoryControlStream {
 	ics := &upstreamICS{
 		sendC:    make(chan downstreamSend),
@@ -455,7 +454,7 @@ func (i *upstreamICS) runRecvLoop(stream proto.AuthService_InventoryControlStrea
 		if err != nil {
 			// preserve eof errors
 			if !trace.IsEOF(err) {
-				err = trace.Errorf("inventory control stream recv failed: %v", trail.FromGRPC(err))
+				err = trace.Errorf("inventory control stream recv failed: %v", trace.Wrap(err))
 			}
 			i.CloseWithError(err)
 			return
@@ -507,7 +506,7 @@ func (i *upstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStrea
 				sendMsg.errC <- trace.BadParameter("cannot send unexpected upstream msg type: %T", msg)
 				continue
 			}
-			err := trail.FromGRPC(stream.Send(&oneOf))
+			err := stream.Send(&oneOf)
 			sendMsg.errC <- err
 			if err != nil {
 				// preserve eof errors

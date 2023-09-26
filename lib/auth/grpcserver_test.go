@@ -44,8 +44,6 @@ import (
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -214,7 +212,7 @@ func TestMFADeviceManagement(t *testing.T) {
 				},
 				checkAuthErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.Error(t, err)
-					require.Equal(t, codes.PermissionDenied, status.Code(err))
+					require.True(t, trace.IsAccessDenied(err))
 				},
 			},
 		},
@@ -245,7 +243,7 @@ func TestMFADeviceManagement(t *testing.T) {
 				},
 				checkRegisterErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.Error(t, err)
-					require.Equal(t, codes.InvalidArgument, status.Code(err))
+					require.True(t, trace.IsBadParameter(err))
 				},
 			},
 		},

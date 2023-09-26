@@ -25,7 +25,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
 // E is an integrated test environment for device trust.
@@ -75,8 +75,8 @@ func New() (*E, error) {
 
 	s := grpc.NewServer(
 		// Options below are similar to auth.GRPCServer.
-		grpc.StreamInterceptor(utils.GRPCServerStreamErrorInterceptor),
-		grpc.UnaryInterceptor(utils.GRPCServerUnaryErrorInterceptor),
+		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
+		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 	)
 	e.closers = append(e.closers, func() error {
 		s.GracefulStop()
@@ -102,8 +102,8 @@ func New() (*E, error) {
 			return lis.DialContext(ctx)
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithStreamInterceptor(utils.GRPCClientStreamErrorInterceptor),
-		grpc.WithUnaryInterceptor(utils.GRPCClientUnaryErrorInterceptor),
+		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
+		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
 	)
 	if err != nil {
 		return nil, err

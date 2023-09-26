@@ -41,6 +41,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -139,7 +140,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// sets up grpc metrics interceptor
+	// sets up gRPC metrics interceptor
 	grpcMetrics := metrics.CreateGRPCServerMetrics(cfg.Metrics.GRPCServerLatency, prometheus.Labels{teleport.TagServer: "teleport-auth"})
 	err = metrics.RegisterPrometheusCollectors(grpcMetrics)
 	if err != nil {
@@ -245,7 +246,7 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 	return trace.NewAggregate(errors...)
 }
 
-// Serve starts GRPC and HTTP1.1 services on the mux listener
+// Serve starts gRPC and HTTP1.1 services on the mux listener
 func (t *TLSServer) Serve() error {
 	errC := make(chan error, 2)
 	go func() {
@@ -336,7 +337,7 @@ type Middleware struct {
 	AcceptedUsage []string
 	// Limiter is a rate and connection limiter
 	Limiter *limiter.Limiter
-	// GRPCMetrics is the configured grpc metrics for the interceptors
+	// GRPCMetrics is the configured gRPC metrics for the interceptors
 	GRPCMetrics *om.ServerMetrics
 }
 
@@ -438,7 +439,7 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 	}
 
 	return append(is,
-		utils.GRPCServerUnaryErrorInterceptor,
+		interceptors.GRPCServerUnaryErrorInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor,
 	)
@@ -455,7 +456,7 @@ func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
 	}
 
 	return append(is,
-		utils.GRPCServerStreamErrorInterceptor,
+		interceptors.GRPCServerStreamErrorInterceptor,
 		a.Limiter.StreamServerInterceptor,
 		a.withAuthenticatedUserStreamInterceptor)
 }
