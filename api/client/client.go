@@ -3894,6 +3894,22 @@ func (c *Client) ListIntegrations(ctx context.Context, pageSize int, nextKey str
 	return integrations, resp.GetNextKey(), nil
 }
 
+// ListAllIntegrations returns the list of all Integrations.
+func (c *Client) ListAllIntegrations(ctx context.Context) ([]types.Integration, error) {
+	var result []types.Integration
+	var nextKey string
+	for {
+		integrations, nextKey, err := c.ListIntegrations(ctx, 0, nextKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result = append(result, integrations...)
+		if nextKey == "" {
+			return result, nil
+		}
+	}
+}
+
 // GetIntegration returns an Integration by its name.
 func (c *Client) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
 	ig, err := c.integrationsClient().GetIntegration(ctx, &integrationpb.GetIntegrationRequest{

@@ -58,11 +58,10 @@ var (
 )
 
 const (
-	// teleportOSS is the prefix for the image name when deploying the OSS version of Teleport
-	teleportOSS = "teleport"
-
-	// teleportEnt is the prefix for the image name when deploying the Enterprise version of Teleport
-	teleportEnt = "teleport-ent"
+	// distrolessTeleportOSS is the distroless image of the OSS version of Teleport
+	distrolessTeleportOSS = "public.ecr.aws/gravitational/teleport-distroless"
+	// distrolessTeleportEnt is the distroless image of the Enterprise version of Teleport
+	distrolessTeleportEnt = "public.ecr.aws/gravitational/teleport-ent-distroless"
 
 	// clusterStatusActive is the string representing an ACTIVE ECS Cluster.
 	clusterStatusActive = "ACTIVE"
@@ -181,12 +180,26 @@ func normalizeECSResourceName(name string) string {
 	return replacer.Replace(name)
 }
 
+// normalizeECSClusterName returns the normalized ECS Cluster Name
+func normalizeECSClusterName(teleportClusterName string) string {
+	return normalizeECSResourceName(fmt.Sprintf("%s-teleport", teleportClusterName))
+}
+
+// normalizeECSServiceName returns the normalized ECS Service Name
+func normalizeECSServiceName(teleportClusterName, deploymentMode string) string {
+	return normalizeECSResourceName(fmt.Sprintf("%s-teleport-%s", teleportClusterName, deploymentMode))
+}
+
+// normalizeECSTaskName returns the normalized ECS TaskDefinition Family
+func normalizeECSTaskName(teleportClusterName, deploymentMode string) string {
+	return normalizeECSResourceName(fmt.Sprintf("%s-teleport-%s", teleportClusterName, deploymentMode))
+}
+
 // CheckAndSetDefaults checks if the required fields are present.
 func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	if r.TeleportClusterName == "" {
 		return trace.BadParameter("teleport cluster name is required")
 	}
-	baseResourceName := normalizeECSResourceName(r.TeleportClusterName)
 
 	if r.TeleportVersionTag == "" {
 		r.TeleportVersionTag = teleport.Version
@@ -217,17 +230,17 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ClusterName == nil || *r.ClusterName == "" {
-		clusterName := fmt.Sprintf("%s-teleport", baseResourceName)
+		clusterName := normalizeECSClusterName(r.TeleportClusterName)
 		r.ClusterName = &clusterName
 	}
 
 	if r.ServiceName == nil || *r.ServiceName == "" {
-		serviceName := fmt.Sprintf("%s-teleport-%s", baseResourceName, r.DeploymentMode)
+		serviceName := normalizeECSServiceName(r.TeleportClusterName, r.DeploymentMode)
 		r.ServiceName = &serviceName
 	}
 
 	if r.TaskName == nil || *r.TaskName == "" {
-		taskName := fmt.Sprintf("%s-teleport-%s", baseResourceName, r.DeploymentMode)
+		taskName := normalizeECSTaskName(r.TeleportClusterName, r.DeploymentMode)
 		r.TaskName = &taskName
 	}
 
@@ -441,11 +454,7 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 
 // upsertTask ensures a TaskDefinition with TaskName exists
 func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest, configB64 string) (*ecsTypes.TaskDefinition, error) {
-	teleportFlavor := teleportOSS
-	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		teleportFlavor = teleportEnt
-	}
-	taskAgentContainerImage := fmt.Sprintf("public.ecr.aws/gravitational/%s-distroless:%s", teleportFlavor, req.TeleportVersionTag)
+	taskAgentContainerImage := getDistrolessTeleportImage(req.TeleportVersionTag)
 
 	taskDefOut, err := clt.RegisterTaskDefinition(ctx, &ecs.RegisterTaskDefinitionInput{
 		Family: req.TaskName,
@@ -696,4 +705,13 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req DeployServi
 	}
 
 	return createServiceOut.Service, nil
+}
+
+// getDistrolessTeleportImage returns the distroless teleport image string
+func getDistrolessTeleportImage(version string) string {
+	teleportImage := distrolessTeleportOSS
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		teleportImage = distrolessTeleportEnt
+	}
+	return fmt.Sprintf("%s:%s", teleportImage, version)
 }

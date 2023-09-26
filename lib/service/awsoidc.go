@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport"
@@ -44,14 +43,14 @@ const (
 	updateDeployAgentsRateLimit = time.Second * 30
 )
 
-func (process *TeleportProcess) periodUpdateDeployServiceAgents() error {
+func (process *TeleportProcess) periodicUpdateDeployServiceAgents() error {
 	if !process.Config.Proxy.Enabled {
 		return nil
 	}
 
 	// start process only after teleport process has started
 	if _, err := process.WaitForEvent(process.GracefulExitContext(), TeleportReadyEvent); err != nil {
-		return nil
+		return trace.Wrap(err)
 	}
 	process.log.Infof("The new service has started successfully. Checking for deploy service updates every %v.", updateDeployAgentsInterval)
 
@@ -89,27 +88,37 @@ func (process *TeleportProcess) updateDeployServiceAgents(ctx context.Context, a
 		return trace.Wrap(err)
 	}
 
+	// If criticalEndpoint or versionEndpoint are empty, the default stable/cloud endpoint will be used
 	var criticalEndpoint string
+	var versionEndpoint string
 	if automaticupgrades.GetChannel() != "" {
 		criticalEndpoint, err = url.JoinPath(automaticupgrades.GetChannel(), "critical")
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		versionEndpoint, err = url.JoinPath(automaticupgrades.GetChannel(), "version")
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	critical, err := automaticupgrades.Critical(process.GracefulExitContext(), criticalEndpoint)
+	critical, err := automaticupgrades.Critical(ctx, criticalEndpoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if !withinUpgradeWindow(cmc, process.Clock) && !critical {
+	// Upgrade should only be attempted if the current time is within the configured
+	// upgrade window, or if a critical upgrade is available
+	if !cmc.WithinUpgradeWindow(process.Clock.Now()) && !critical {
 		return nil
 	}
 
-	teleportVersion, err := getStableTeleportVersion(ctx)
+	stableVersion, err := automaticupgrades.Version(ctx, versionEndpoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// cloudStableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
+	cloudStableVersion := strings.TrimPrefix(stableVersion, "v")
 
 	issuer, err := awsoidc.IssuerFromPublicAddress(process.proxyPublicAddr().Addr)
 	if err != nil {
@@ -134,21 +143,13 @@ func (process *TeleportProcess) updateDeployServiceAgents(ctx context.Context, a
 		}
 	}
 
-	var resources []types.Integration
-	var nextKey string
-	for {
-		igs, nextKey, err := authClient.ListIntegrations(ctx, 0, nextKey)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resources = append(resources, igs...)
-		if nextKey == "" {
-			break
-		}
+	integrations, err := authClient.ListAllIntegrations(ctx)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	limit := rate.NewLimiter(rate.Every(updateDeployAgentsRateLimit), 1)
-	for _, ig := range resources {
+	for _, ig := range integrations {
 		spec := ig.GetAWSOIDCIntegrationSpec()
 		if spec == nil {
 			continue
@@ -204,7 +205,8 @@ func (process *TeleportProcess) updateDeployServiceAgents(ctx context.Context, a
 				return trace.Wrap(err)
 			}
 
-			if err := awsoidc.UpdateDeployServiceAgents(ctx, deployServiceClient, clusterNameConfig.GetClusterName(), teleportVersion, ownershipTags); err != nil {
+			process.log.Debugf("Updating Deploy Service Agents in AWS region: %s", region)
+			if err := awsoidc.UpdateDeployServiceAgent(ctx, deployServiceClient, clusterNameConfig.GetClusterName(), cloudStableVersion, ownershipTags); err != nil {
 				process.log.Warningf("Failed to update deploy service agents: %v", err)
 
 				// Release the semaphore lease on failure so that another instance may attempt the update
@@ -215,49 +217,4 @@ func (process *TeleportProcess) updateDeployServiceAgents(ctx context.Context, a
 		}
 	}
 	return nil
-}
-
-// getStableTeleportVersion returns the current stable version of teleport
-func getStableTeleportVersion(ctx context.Context) (string, error) {
-	var versionEndpoint string
-	var err error
-	if automaticupgrades.GetChannel() != "" {
-		versionEndpoint, err = url.JoinPath(automaticupgrades.GetChannel(), "version")
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-	}
-
-	stableVersion, err := automaticupgrades.Version(ctx, versionEndpoint)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	// cloudStableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
-	return strings.TrimPrefix(stableVersion, "v"), nil
-}
-
-// withinUpgradeWindow returns true if the current time is within the configured
-// upgrade window.
-func withinUpgradeWindow(cmc types.ClusterMaintenanceConfig, clock clockwork.Clock) bool {
-	upgradeWindow, ok := cmc.GetAgentUpgradeWindow()
-	if !ok {
-		return false
-	}
-
-	now := clock.Now()
-	if len(upgradeWindow.Weekdays) == 0 {
-		if int(upgradeWindow.UTCStartHour) == now.Hour() {
-			return true
-		}
-	}
-
-	weekday := now.Weekday().String()
-	for _, upgradeWeekday := range upgradeWindow.Weekdays {
-		if weekday == upgradeWeekday {
-			if int(upgradeWindow.UTCStartHour) == now.Hour() {
-				return true
-			}
-		}
-	}
-	return false
 }

@@ -18,7 +18,6 @@ package awsoidc
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -26,28 +25,14 @@ import (
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/aws/aws-sdk-go/aws/awsutil"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/modules"
 )
 
 // waitDuration specifies the amount of time to wait for a service to become healthy after an update.
 const waitDuration = time.Minute * 5
 
-// UpdateDeployServiceAgents updates the deploy service agents with the specified teleportVersionTag.
-func UpdateDeployServiceAgents(ctx context.Context, clt DeployServiceClient, teleportClusterName, teleportVersionTag string, ownershipTags AWSTags) error {
-	teleportFlavor := teleportOSS
-	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		teleportFlavor = teleportEnt
-	}
-	teleportImage := fmt.Sprintf("public.ecr.aws/gravitational/%s-distroless:%s", teleportFlavor, teleportVersionTag)
-
-	if err := updateDeployServiceAgent(ctx, clt, teleportClusterName, teleportImage, ownershipTags); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func updateDeployServiceAgent(ctx context.Context, clt DeployServiceClient, teleportClusterName, teleportImage string, ownershipTags AWSTags) error {
+// UpdateDeployServiceAgent updates the deploy service agent with the specified teleportVersionTag.
+func UpdateDeployServiceAgent(ctx context.Context, clt DeployServiceClient, teleportClusterName, teleportVersionTag string, ownershipTags AWSTags) error {
+	teleportImage := getDistrolessTeleportImage(teleportVersionTag)
 	service, err := getManagedService(ctx, clt, teleportClusterName, ownershipTags)
 	if err != nil {
 		return trace.Wrap(err)
@@ -98,15 +83,13 @@ func updateDeployServiceAgent(ctx context.Context, clt DeployServiceClient, tele
 }
 
 func getManagedService(ctx context.Context, clt DeployServiceClient, teleportClusterName string, ownershipTags AWSTags) (*ecsTypes.Service, error) {
-	ecsClusterName := fmt.Sprintf("%s-teleport", normalizeECSResourceName(teleportClusterName))
-
 	var ecsServiceNames []string
 	for _, deploymentMode := range DeploymentModes {
-		ecsServiceNames = append(ecsServiceNames, fmt.Sprintf("%s-%s", ecsClusterName, deploymentMode))
+		ecsServiceNames = append(ecsServiceNames, normalizeECSServiceName(teleportClusterName, deploymentMode))
 	}
 
 	describeServicesOut, err := clt.DescribeServices(ctx, &ecs.DescribeServicesInput{
-		Cluster:  aws.String(ecsClusterName),
+		Cluster:  aws.String(normalizeECSClusterName(teleportClusterName)),
 		Services: ecsServiceNames,
 		Include:  []ecsTypes.ServiceField{ecsTypes.ServiceFieldTags},
 	})

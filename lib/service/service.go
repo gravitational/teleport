@@ -1194,7 +1194,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	// at any time with dynamic configuration
 	process.RegisterFunc("common.upload.init", process.initUploaderService)
 
-	process.RegisterFunc("update.deploy.agents", process.periodUpdateDeployServiceAgents)
+	process.RegisterFunc("update.aws-oidc.deploy.agents", process.periodicUpdateDeployServiceAgents)
 
 	if !serviceStarted {
 		return nil, trace.BadParameter("all services failed to start")

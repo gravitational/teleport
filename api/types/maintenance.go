@@ -147,6 +147,10 @@ type ClusterMaintenanceConfig interface {
 	// SetAgentUpgradeWindow sets the agent upgrade window.
 	SetAgentUpgradeWindow(win AgentUpgradeWindow)
 
+	// WithinUpgradeWindow returns true if the time is within the configured
+	// upgrade window.
+	WithinUpgradeWindow(t time.Time) bool
+
 	CheckAndSetDefaults() error
 }
 
@@ -228,4 +232,29 @@ func (m *ClusterMaintenanceConfigV1) GetAgentUpgradeWindow() (win AgentUpgradeWi
 
 func (m *ClusterMaintenanceConfigV1) SetAgentUpgradeWindow(win AgentUpgradeWindow) {
 	m.Spec.AgentUpgrades = &win
+}
+
+// WithinUpgradeWindow returns true if the time is within the configured
+// upgrade window.
+func (m *ClusterMaintenanceConfigV1) WithinUpgradeWindow(t time.Time) bool {
+	upgradeWindow, ok := m.GetAgentUpgradeWindow()
+	if !ok {
+		return false
+	}
+
+	if len(upgradeWindow.Weekdays) == 0 {
+		if int(upgradeWindow.UTCStartHour) == t.Hour() {
+			return true
+		}
+	}
+
+	weekday := t.Weekday().String()
+	for _, upgradeWeekday := range upgradeWindow.Weekdays {
+		if weekday == upgradeWeekday {
+			if int(upgradeWindow.UTCStartHour) == t.Hour() {
+				return true
+			}
+		}
+	}
+	return false
 }
