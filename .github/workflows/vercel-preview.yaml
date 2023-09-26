@@ -39,7 +39,7 @@ jobs:
       - name: Deploy Project Artifacts to Vercel
         id: deploy
         run: |
-          vercel deploy --archive=tgz --prebuilt --token=${{ secrets.VERCEL_TOKEN }} > deployment-url.txt
+          vercel deploy --debug --archive=tgz --prebuilt --token=${{ secrets.VERCEL_TOKEN }} > deployment-url.txt
           preview_url="$(cat deployment-url.txt)"
           echo "PREVIEW_URL=$preview_url" >> $GITHUB_OUTPUT
       - uses: actions/github-script@v6
