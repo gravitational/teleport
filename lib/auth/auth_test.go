@@ -2111,7 +2111,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 
 	ctx := context.Background()
 
-	username := "llama@goteleport.com"
+	const username = "llama@goteleport.com"
 	_, _, err := CreateUserAndRole(authServer, username, []string{username}, nil /* allowRules */)
 	require.NoError(t, err)
 
@@ -2126,56 +2126,134 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	err = authServer.SetAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
-	clt, err := testServer.NewClient(TestUser(username))
+	userClient, err := testServer.NewClient(TestUser(username))
 	require.NoError(t, err)
 
-	// Insert dummy devices.
-	webDev1, err := RegisterTestDevice(ctx, clt, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
-	require.NoError(t, err)
-	_, err = RegisterTestDevice(ctx, clt, "web-2", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, webDev1)
-	require.NoError(t, err)
-	totpDev1, err := RegisterTestDevice(ctx, clt, "otp-1", proto.DeviceType_DEVICE_TYPE_TOTP, webDev1, WithTestDeviceClock(testServer.Clock()))
-	require.NoError(t, err)
-	_, err = RegisterTestDevice(ctx, clt, "otp-2", proto.DeviceType_DEVICE_TYPE_TOTP, webDev1, WithTestDeviceClock(testServer.Clock()))
-	require.NoError(t, err)
+	// webDev1 is used as the authenticator for various checks.
+	webDev1, err := RegisterTestDevice(ctx, userClient, "web1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+	require.NoError(t, err, "RegisterTestDevice(web1)")
+
+	// Insert a few devices.
+	// Devices with the "delete-" prefix are deleted by following tests.
+	totpOpts := []TestDeviceOpt{WithTestDeviceClock(testServer.Clock())}
+	var allDevs []*TestDevice
+	for _, spec := range []struct {
+		name       string
+		deviceType proto.DeviceType
+		opts       []TestDeviceOpt
+	}{
+		{
+			name:       "delete-web1",
+			deviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		},
+		{
+			name:       "delete-web2",
+			deviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		},
+		{
+			name:       "delete-totp1",
+			deviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+			opts:       totpOpts,
+		},
+		{
+			name:       "delete-totp2",
+			deviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+			opts:       totpOpts,
+		},
+		{
+			name:       "spare-web1",
+			deviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		},
+		{
+			name:       "spare-totp1",
+			deviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+			opts:       totpOpts,
+		},
+	} {
+		testDev, err := RegisterTestDevice(
+			ctx, userClient, spec.name, spec.deviceType, webDev1 /* authenticator */, spec.opts...)
+		require.NoError(t, err, "RegisterTestDevice(%v)", spec.name)
+		allDevs = append(allDevs, testDev)
+	}
+	deleteWeb1 := allDevs[0]
+	deleteWeb2 := allDevs[1]
+	deleteTOTP1 := allDevs[2]
+	deleteTOTP2 := allDevs[3]
+
+	deleteReqUsingToken := func(tokenReq CreateUserTokenRequest) func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
+		return func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
+			token, err := authServer.newUserToken(tokenReq)
+			require.NoError(t, err, "newUserToken")
+
+			_, err = authServer.CreateUserToken(ctx, token)
+			require.NoError(t, err, "CreateUserToken")
+
+			return &proto.DeleteMFADeviceSyncRequest{
+				TokenID: token.GetName(),
+			}
+		}
+	}
+
+	deleteReqUsingChallenge := func(authenticator *TestDevice) func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
+		return func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
+			authnChal, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+					ContextUser: &proto.ContextUser{},
+				},
+			})
+			require.NoError(t, err, "CreateAuthenticateChallenge")
+
+			authnSolved, err := authenticator.SolveAuthn(authnChal)
+			require.NoError(t, err, "SolveAuthn")
+
+			return &proto.DeleteMFADeviceSyncRequest{
+				ExistingMFAResponse: authnSolved,
+			}
+		}
+	}
 
 	tests := []struct {
-		name           string
-		tokenReq       CreateUserTokenRequest
-		deviceToDelete string
+		name            string
+		createDeleteReq func(t *testing.T) *proto.DeleteMFADeviceSyncRequest
+		deviceToDelete  string
 	}{
 		{
 			name: "recovery approved token",
-			tokenReq: CreateUserTokenRequest{
+			createDeleteReq: deleteReqUsingToken(CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: UserTokenTypeRecoveryApproved,
-			},
-			deviceToDelete: webDev1.MFA.GetName(),
+			}),
+			deviceToDelete: deleteWeb1.MFA.GetName(),
 		},
 		{
 			name: "privilege token",
-			tokenReq: CreateUserTokenRequest{
+			createDeleteReq: deleteReqUsingToken(CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: UserTokenTypePrivilege,
-			},
-			deviceToDelete: totpDev1.MFA.GetName(),
+			}),
+			deviceToDelete: deleteTOTP1.MFA.GetName(),
+		},
+		{
+			name:            "Webauthn using challenge",
+			createDeleteReq: deleteReqUsingChallenge(webDev1),
+			deviceToDelete:  deleteWeb2.MFA.GetName(),
+		},
+		{
+			name:            "TOTP using challenge",
+			createDeleteReq: deleteReqUsingChallenge(webDev1),
+			deviceToDelete:  deleteTOTP2.MFA.GetName(),
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			token, err := authServer.newUserToken(test.tokenReq)
-			require.NoError(t, err)
-			_, err = authServer.CreateUserToken(ctx, token)
-			require.NoError(t, err)
+			deleteReq := test.createDeleteReq(t)
+			deleteReq.DeviceName = test.deviceToDelete
 
 			// Delete the device.
 			mockEmitter.Reset()
-			err = authServer.DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
-				TokenID:    token.GetName(),
-				DeviceName: test.deviceToDelete,
-			})
+			err = userClient.DeleteMFADeviceSync(ctx, deleteReq)
 			require.NoError(t, err, "DeleteMFADeviceSync failed")
 
 			// Verify device deletion.
@@ -2201,83 +2279,123 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 
 func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	clock := testServer.Clock()
 	ctx := context.Background()
 
-	username := "llama@goteleport.com"
-	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	const username = "llama@goteleport.com"
+	_, _, err := CreateUserAndRole(authServer, username, []string{username}, nil)
 	require.NoError(t, err)
 
+	const origin = "localhost"
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		Webauthn: &types.Webauthn{
-			RPID: "localhost",
+			RPID: origin,
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPreference)
+	err = authServer.SetAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
-	clt, err := srv.NewClient(TestUser(username))
+	userClient, err := testServer.NewClient(TestUser(username))
 	require.NoError(t, err)
 
 	// Insert a device.
 	const devName = "otp"
-	_, err = RegisterTestDevice(ctx, clt, devName, proto.DeviceType_DEVICE_TYPE_TOTP, nil /* authenticator */, WithTestDeviceClock(srv.Clock()))
+	_, err = RegisterTestDevice(
+		ctx, userClient, devName, proto.DeviceType_DEVICE_TYPE_TOTP, nil /* authenticator */, WithTestDeviceClock(clock))
 	require.NoError(t, err)
 
+	createReq := func(name string) *proto.DeleteMFADeviceSyncRequest {
+		return &proto.DeleteMFADeviceSyncRequest{
+			DeviceName: name,
+		}
+	}
+
 	tests := []struct {
-		name          string
-		deviceName    string
-		tokenRequest  *CreateUserTokenRequest
-		assertErrType func(error) bool
+		name         string
+		tokenRequest *CreateUserTokenRequest
+		deleteReq    *proto.DeleteMFADeviceSyncRequest
+		wantErr      string
+		assertErr    func(error) bool
 	}{
 		{
-			name:          "token not found",
-			deviceName:    devName,
-			assertErrType: trace.IsAccessDenied,
+			name: "token not found",
+			deleteReq: &proto.DeleteMFADeviceSyncRequest{
+				TokenID:    "unknown-token-id",
+				DeviceName: devName,
+			},
+			wantErr:   "invalid token",
+			assertErr: trace.IsAccessDenied,
 		},
 		{
-			name:       "invalid token type",
-			deviceName: devName,
+			name: "invalid token type",
 			tokenRequest: &CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: "unknown-token-type",
 			},
-			assertErrType: trace.IsAccessDenied,
+			deleteReq: createReq(devName),
+			wantErr:   "invalid token",
+			assertErr: trace.IsAccessDenied,
 		},
 		{
-			name:       "device not found",
-			deviceName: "does-not-exist",
+			name: "device not found",
 			tokenRequest: &CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: UserTokenTypeRecoveryApproved,
 			},
-			assertErrType: trace.IsNotFound,
+			deleteReq: &proto.DeleteMFADeviceSyncRequest{
+				DeviceName: "does-not-exist",
+			},
+			wantErr:   "does not exist",
+			assertErr: trace.IsNotFound,
+		},
+		{
+			name:      "neither token nor challenge provided",
+			deleteReq: createReq(devName),
+			wantErr:   "either a privilege token or",
+			assertErr: trace.IsBadParameter,
+		},
+		{
+			name: "invalid challenge",
+			deleteReq: &proto.DeleteMFADeviceSyncRequest{
+				DeviceName: devName,
+				ExistingMFAResponse: &proto.MFAAuthenticateResponse{
+					Response: &proto.MFAAuthenticateResponse_TOTP{
+						TOTP: &proto.TOTPResponse{
+							Code: "not an OTP code",
+						},
+					},
+				},
+			},
+			wantErr:   "invalid totp token",
+			assertErr: trace.IsAccessDenied,
 		},
 	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			deleteReq := test.deleteReq
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			tokenID := "test-token-not-found"
-
-			if tc.tokenRequest != nil {
-				token, err := srv.Auth().newUserToken(*tc.tokenRequest)
+			if test.tokenRequest != nil {
+				token, err := authServer.newUserToken(*test.tokenRequest)
 				require.NoError(t, err)
-				_, err = srv.Auth().CreateUserToken(context.Background(), token)
+				_, err = authServer.CreateUserToken(context.Background(), token)
 				require.NoError(t, err)
 
-				tokenID = token.GetName()
+				deleteReq.TokenID = token.GetName()
 			}
 
-			err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
-				TokenID:    tokenID,
-				DeviceName: tc.deviceName,
-			})
-			require.True(t, tc.assertErrType(err))
+			err := userClient.DeleteMFADeviceSync(ctx, deleteReq)
+			assert.ErrorContains(t, err, test.wantErr, "DeleteMFADeviceSync error mismatch")
+			assert.True(t,
+				test.assertErr(err),
+				"DeleteMFADeviceSync error type assertion failed, got err=%q (%T)", err, trace.Unwrap(err))
 		})
 	}
 }
