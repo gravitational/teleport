@@ -4,13 +4,25 @@ description: How to install and configure Machine ID on an Azure VM
 ---
 
 This page contains relevant background information and specific steps for
-deploying Machine ID on an Azure VM.
+deploying Machine ID on Azure.
 
 ## Background
 
 ### The `azure` join method
 
-TODO: Introduce Azure IAM Concepts and overview of the join method
+The process of `tbot` initially authenticating with the Teleport cluster is
+known as joining. A join method is a specific technique for the bot to prove
+its identity.
+
+On the Azure platform, virtual machines can be assigned a managed identity. The
+Azure platform will then make available to the virtual machine an attested
+data document and JWT that allows the virtual machine to act as this identity.
+This identity can be validated by a third party by attempting to use this token
+to fetch it's own identity from the Azure identity service.
+
+The `azure` join method instructs the bot to use this attested data document and
+JWT to prove its identity to the Teleport Auth Server. This allows joining to
+occur without the use of a long-lived secret.
 
 ## Guide
 
@@ -71,6 +83,7 @@ spec:
 ```
 
 Replace:
+
 - `11111111-1111-1111-1111-111111111111` with the UID of your Azure subscription
 - `group1` with the name of the resource group that the VM resides within or
   omit this entirely to allow joining from any VM within the subscription
@@ -95,8 +108,6 @@ Create `/etc/tbot.yaml`:
 
 ```yaml
 version: v2
-# ensure this is configured to the address of your Teleport Proxy or
-# Auth Server. Prefer the address of the Teleport Proxy.
 auth_server: example.teleport.sh:443
 onboarding:
   join_method: azure
@@ -109,8 +120,13 @@ storage:
 outputs: []
 ```
 
-Replace `22222222-2222-2222-2222-222222222222` with the ID of the Azure
-managed identity that has been assigned to the VM.
+Replace:
+
+- `example.teleport.sh:443` with the address of your Teleport Proxy or
+  Auth Server. Prefer using the address of a Teleport Proxy.
+- `22222222-2222-2222-2222-222222222222` with the ID of the Azure managed
+  identity that has been assigned to the VM.
+- `example-bot` with the name of the token you created in the second step.
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
 
