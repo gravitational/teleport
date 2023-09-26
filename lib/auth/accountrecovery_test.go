@@ -659,47 +659,55 @@ func TestCompleteAccountRecovery(t *testing.T) {
 
 	cases := []struct {
 		name       string
-		getRequest func() *proto.CompleteAccountRecoveryRequest
+		getRequest func(t *testing.T) *proto.CompleteAccountRecoveryRequest
 	}{
 		{
 			name: "add new TOTP device",
-			getRequest: func() *proto.CompleteAccountRecoveryRequest {
-				res, err := srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			getRequest: func(t *testing.T) *proto.CompleteAccountRecoveryRequest {
+				registerChal, err := srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
 					TokenID:    approvedToken.GetName(),
 					DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
 				})
-				require.NoError(t, err)
+				require.NoError(t, err, "CreateRegisterChallenge")
 
-				otpCode, err := totp.GenerateCode(res.GetTOTP().GetSecret(), srv.Clock().Now())
-				require.NoError(t, err)
+				_, registerSolved, err := NewTestDeviceFromChallenge(registerChal, WithTestDeviceClock(srv.Clock()))
+				require.NoError(t, err, "NewTestDeviceFromChallenge")
 
 				return &proto.CompleteAccountRecoveryRequest{
 					NewDeviceName:           "new-otp",
 					RecoveryApprovedTokenID: approvedToken.GetName(),
-					NewAuthnCred: &proto.CompleteAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
-						Response: &proto.MFARegisterResponse_TOTP{TOTP: &proto.TOTPRegisterResponse{Code: otpCode}},
-					}},
+					NewAuthnCred: &proto.CompleteAccountRecoveryRequest_NewMFAResponse{
+						NewMFAResponse: registerSolved,
+					},
 				}
 			},
 		},
 		{
 			name: "add new WEBAUTHN device",
-			getRequest: func() *proto.CompleteAccountRecoveryRequest {
-				_, webauthnRegRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), approvedToken.GetName(), proto.DeviceUsage_DEVICE_USAGE_MFA)
-				require.NoError(t, err)
+			getRequest: func(t *testing.T) *proto.CompleteAccountRecoveryRequest {
+				registerChal, err := srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+					TokenID:     approvedToken.GetName(),
+					DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
+				})
+				require.NoError(t, err, "CreateRegisterChallenge")
+
+				_, registerSolved, err := NewTestDeviceFromChallenge(registerChal)
+				require.NoError(t, err, "NewTestDeviceFromChallenge")
 
 				return &proto.CompleteAccountRecoveryRequest{
 					NewDeviceName:           "new-webauthn",
 					RecoveryApprovedTokenID: approvedToken.GetName(),
-					NewAuthnCred:            &proto.CompleteAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: webauthnRegRes},
+					NewAuthnCred: &proto.CompleteAccountRecoveryRequest_NewMFAResponse{
+						NewMFAResponse: registerSolved,
+					},
 				}
 			},
 		},
 	}
-
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			req := c.getRequest()
+			req := c.getRequest(t)
 
 			// Change authentication.
 			err = srv.Auth().CompleteAccountRecovery(ctx, req)
