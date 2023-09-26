@@ -110,7 +110,7 @@ jobs:
       - name: Validate pending image signature using GitHub OIDC Token
         env:
           SRC_IMAGE: "${{ inputs.pending-registry }}/${{ inputs.pending-repository }}:${{ inputs.pending-tag }}"
-          CERT_IDENTITY_REGEXP: "https://github\.com/gravitational/teleport\.e/\.github/workflows/oci-image-build\.yml@refs/tags/.+"
+          CERT_IDENTITY_REGEXP: 'https://github\.com/gravitational/teleport\.e/\.github/workflows/oci-image-build\.yml@refs/tags/.+'
           CERT_OIDC_ISSUER: "https://token.actions.githubusercontent.com/teleport"
         run: |
           cosign verify ${SRC_IMAGE} --certificate-identity-regexp="${CERT_IDENTITY_REGEXP}" --certificate-oidc-issuer="${CERT_OIDC_ISSUER}"
