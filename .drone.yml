@@ -5809,7 +5809,7 @@ steps:
         path: /root/.aws
 
   - name: Build OSS AMIs
-    image: hashicorp/packer:1.7.6
+    image: hashicorp/packer:1.9.4
     volumes:
       - name: dockersock
         path: /var/run
@@ -5817,6 +5817,7 @@ steps:
         path: /root/.aws
     commands:
       - apk add --no-cache aws-cli jq make
+      - packer plugins install github.com/hashicorp/amazon
       - cd /go/src/github.com/gravitational/teleport/assets/aws
       - export TELEPORT_VERSION=$(cat /go/.version.txt)
       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-oss-$TELEPORT_VERSION
@@ -5984,7 +5985,7 @@ steps:
         path: /root/.aws
 
   - name: Build Enterprise AMIs
-    image: hashicorp/packer:1.7.6
+    image: hashicorp/packer:1.9.4
     volumes:
       - name: dockersock
         path: /var/run
@@ -5992,6 +5993,7 @@ steps:
         path: /root/.aws
     commands:
       - apk add --no-cache aws-cli jq make
+      - packer plugins install github.com/hashicorp/amazon
       - cd /go/src/github.com/gravitational/teleport/assets/aws
       - export TELEPORT_VERSION=$(cat /go/.version.txt)
       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION
@@ -19680,6 +19682,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: ffcdd9509f130bf1b53c31bf1bba6ec7f4a5286e91ad5233a2afebdc30d888eb
+hmac: a1dd263395a8e6d01c667265c21ebddc12310d39b0b6708f991054680794d73a
 
 ...
