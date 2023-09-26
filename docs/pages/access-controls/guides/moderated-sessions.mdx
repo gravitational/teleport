@@ -44,10 +44,10 @@ There are two types of policies you can use to control moderated sessions:
 
 ## Configure a require policy
 
-You can use `require_session_join` in a role to specify the conditions that must be a met 
-for a session to start or run. For example, the following policy specifies that users 
-assigned the `prod-access` role must have a minimum of one user with the role `auditor` 
-and the mode `moderator` present in to start SSH or Kubernetes sessions:
+In Teleport Enterprise editions, you can use `require_session_join` in a role to specify 
+the conditions that must be a met for a session to start or run. For example, the following 
+policy specifies that users assigned the `prod-access` role must have a minimum of one user 
+with the `auditor` role and the `moderator` mode present to start SSH or Kubernetes sessions:
 
 ```yaml
 kind: role
