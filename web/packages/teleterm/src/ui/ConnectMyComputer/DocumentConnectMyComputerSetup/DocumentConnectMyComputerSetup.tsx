@@ -77,6 +77,8 @@ function Information(props: { onSetUpAgentClick(): void }) {
         </>
       )}
       <Text>
+        Connect My Computer allows you to add this device to the Teleport
+        cluster with just a few clicks.{' '}
         <ClusterAndHostnameCopy clusterName={clusterName} hostname={hostname} />
         <br />
         <br />
@@ -398,7 +400,7 @@ function ClusterAndHostnameCopy(props: {
 }): JSX.Element {
   return (
     <>
-      The setup process will download and launch the Teleport agent, making your
+      The setup process will download and launch a Teleport agent, making your
       computer available in the <strong>{props.clusterName}</strong> cluster as{' '}
       <strong>{props.hostname}</strong>.
     </>
