@@ -927,8 +927,27 @@ func (r *RequireMFAType) decode(val interface{}) error {
 		} else {
 			*r = RequireMFAType_OFF
 		}
+	case int32:
+		return trace.Wrap(r.setFromEnum(v))
+	case int64:
+		return trace.Wrap(r.setFromEnum(int32(v)))
+	case int:
+		return trace.Wrap(r.setFromEnum(int32(v)))
+	case float64:
+		return trace.Wrap(r.setFromEnum(int32(v)))
+	case float32:
+		return trace.Wrap(r.setFromEnum(int32(v)))
 	default:
 		return trace.BadParameter("RequireMFAType invalid type %T", val)
 	}
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (r *RequireMFAType) setFromEnum(val int32) error {
+	if _, ok := RequireMFAType_name[val]; !ok {
+		return trace.BadParameter("invalid required mfa mode %v", val)
+	}
+	*r = RequireMFAType(val)
 	return nil
 }
