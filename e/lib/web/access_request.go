@@ -10,17 +10,13 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/e/lib/accessrequest"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -54,7 +50,12 @@ func (p *Plugin) createAccessRequestHandle(w http.ResponseWriter, r *http.Reques
 	return createAccessRequest(r.Context(), clt, *req, ctx.GetUser(), withClusterClientProvider(clusterClientProvider))
 }
 
-func createAccessRequest(ctx context.Context, clt accessRequestAPIGetter, request accessRequestParameters, user string, opts ...getAccessRequestOption) (*ui.AccessRequest, error) {
+type accessRequestGetCreator interface {
+	accessRequestGetter
+	CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error)
+}
+
+func createAccessRequest(ctx context.Context, clt accessRequestGetCreator, request accessRequestParameters, user string, opts ...getAccessRequestOption) (*ui.AccessRequest, error) {
 	cfg := defaultGetAccessRequestConfig()
 	for _, opt := range opts {
 		opt(cfg)
@@ -168,7 +169,7 @@ func (p *Plugin) getAccessRequestHandle(w http.ResponseWriter, r *http.Request, 
 	return getAccessRequest(r.Context(), clt, requestID, withClusterClientProvider(clusterClientProvider))
 }
 
-func getAccessRequest(ctx context.Context, clt accessRequestAPIGetter, requestID string, opts ...getAccessRequestOption) (*ui.AccessRequest, error) {
+func getAccessRequest(ctx context.Context, clt accessRequestGetter, requestID string, opts ...getAccessRequestOption) (*ui.AccessRequest, error) {
 	cfg := defaultGetAccessRequestConfig()
 	for _, opt := range opts {
 		opt(cfg)
@@ -251,7 +252,11 @@ func (p *Plugin) getAccessRequestsHandle(w http.ResponseWriter, r *http.Request,
 	return p.getAccessRequests(r.Context(), clt, filter, withClusterClientProvider(clusterClientProvider))
 }
 
-func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestAPIGetter, filter types.AccessRequestFilter, opts ...getAccessRequestOption) ([]ui.AccessRequest, error) {
+type accessRequestGetter interface {
+	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
+}
+
+func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestGetter, filter types.AccessRequestFilter, opts ...getAccessRequestOption) ([]ui.AccessRequest, error) {
 	reqs, err := clt.GetAccessRequests(ctx, filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -300,7 +305,11 @@ func (p *Plugin) reviewAccessRequestHandle(w http.ResponseWriter, r *http.Reques
 	return reviewAccessRequest(r.Context(), clt, *req, withClusterClientProvider(clusterClientProvider))
 }
 
-func reviewAccessRequest(ctx context.Context, clt accessRequestAPIGetter, review accessRequestParameters, opts ...getAccessRequestOption) (*ui.AccessRequest, error) {
+type accessReviewSubmitter interface {
+	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
+}
+
+func reviewAccessRequest(ctx context.Context, clt accessReviewSubmitter, review accessRequestParameters, opts ...getAccessRequestOption) (*ui.AccessRequest, error) {
 	cfg := defaultGetAccessRequestConfig()
 	for _, opt := range opts {
 		opt(cfg)
@@ -359,15 +368,6 @@ func (p *Plugin) deleteAccessRequestHandle(w http.ResponseWriter, r *http.Reques
 	return web.OK(), nil
 }
 
-type accessRequestAPIGetter interface {
-	// CreateAccessRequestV2 stores a new access request and returns the created request.
-	CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error)
-	// GetAccessRequests gets all currently active access requests.
-	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
-	// SubmitAccessReview applies a review to a request and returns the post-application state.
-	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
-}
-
 type accessRequestParameters struct {
 	// Reason is the AccessRequest request reason.
 	// Used interchangeably between reason why request is made and resolved reason.
@@ -390,221 +390,34 @@ type accessRequestParameters struct {
 	DryRun bool `json:"dryRun,omitempty"`
 }
 
-// accessListSuggestionClient defines interfaces needed for suggesting access lists.
-type accessListSuggestionClient interface {
-	AccessListClient() services.AccessLists
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
-	GetUser(string, bool) (types.User, error)
-	services.RoleGetter
-	accessRequestAPIGetter
-}
-
 func (p *Plugin) getSuggestedAccessListsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	const defaultMaxSuggestions = 50
+
 	requestID := params.ByName("requestId")
 	maxSuggestionsStr := params.ByName("maxSuggestions")
-	if maxSuggestionsStr == "" {
-		maxSuggestionsStr = "50"
-	}
 
-	maxSuggestions, err := strconv.Atoi(maxSuggestionsStr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return getSuggestedAccessLists(r.Context(), clt, ctx.GetUser(), requestID, maxSuggestions)
-}
-
-// getSuggestedAccessLists returns a list of access lists that are suggested for a given request.
-func getSuggestedAccessLists(ctx context.Context, clt accessListSuggestionClient, reviewerName string, requestID string, maxSuggestions int, opts ...getAccessRequestOption) (*ui.SuggestedAccessLists, error) {
-	accessRequest, err := getAccessRequest(ctx, clt, requestID, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	userName := accessRequest.User
-	targetUser, err := clt.GetUser(userName, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	accessLists, err := clt.AccessListClient().GetAccessLists(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Filter out access lists that the reviewer cannot modify using an in-place truncate.
-	reviewer, err := clt.GetUser(reviewerName, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cursor := 0
-	for _, accessList := range accessLists {
-		err := shouldSuggestAccessList(ctx, clt, reviewer, accessList)
-		switch {
-		case err == nil:
-			// write the access list to it's potentially new position
-			accessLists[cursor] = accessList
-			cursor++
-		case trace.IsAccessDenied(err):
-			// do nothing, we'll truncate out the denied lists later
-		default:
-			// unexpected error, abort
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	ranked, err := scoreRelevance(ctx, clt, targetUser, accessRequest, accessLists[:cursor])
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &ui.SuggestedAccessLists{AccessLists: ranked[:min(maxSuggestions, len(ranked))]}, nil
-}
-
-func shouldSuggestAccessList(ctx context.Context, clt accessListSuggestionClient, reviewer types.User, accessList *accesslist.AccessList) error {
-	// if owner, then can list and modify
-	for _, owner := range accessList.GetOwners() {
-		if owner.Name == reviewer.GetName() {
-			return nil
-		}
-	}
-
-	accessChecker, err := services.NewAccessChecker(&services.AccessInfo{
-		Roles:  reviewer.GetRoles(),
-		Traits: reviewer.GetTraits(),
-	}, "", clt)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// check if the reviewer can modify this access list
-	authErrCreate := accessChecker.CheckAccessToRule(&services.Context{User: reviewer, Resource: accessList}, apidefaults.Namespace, types.KindAccessList, types.VerbCreate, true)
-	authErrUpdate := accessChecker.CheckAccessToRule(&services.Context{User: reviewer, Resource: accessList}, apidefaults.Namespace, types.KindAccessList, types.VerbUpdate, true)
-	authErr := trace.NewAggregate(authErrCreate, authErrUpdate)
-	switch {
-	case authErr == nil:
-		return nil
-	case trace.IsAccessDenied(authErr):
-		return trace.AccessDenied("access denied to modify access list")
-	default:
-		return trace.Wrap(authErr)
-	}
-}
-
-type scoredAccessList struct {
-	list *accesslist.AccessList
-	// score is the score of the access list. Higher scores are more relevant.
-	// The score can be any valid integer.
-	score int
-}
-
-func scoreRelevance(ctx context.Context, clt accessListSuggestionClient, targetUser types.User, request *ui.AccessRequest, lists []*accesslist.AccessList) ([]*accesslist.AccessList, error) {
-	scores := make([]scoredAccessList, 0, len(lists))
-	resources := make([]types.ResourceWithLabels, len(request.Resources))
-
-	for i, uiResource := range request.Resources {
-		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType:        uiResource.ID.Kind,
-			Namespace:           apidefaults.Namespace,
-			Limit:               1,
-			UseSearchAsRoles:    true,
-			PredicateExpression: "name == " + uiResource.ID.Name,
-		})
+	maxSuggestions := defaultMaxSuggestions
+	if maxSuggestionsStr != "" {
+		maxSuggestions, err = strconv.Atoi(maxSuggestionsStr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		if len(resp.Resources) == 0 {
-			return nil, trace.NotFound("resource %q not found", uiResource.ID)
-		}
-
-		resources[i] = resp.Resources[0]
 	}
 
-	for _, list := range lists {
-		score, err := computeAccessListRelevancy(ctx, clt, targetUser, request.Roles, resources, list)
-		if _, ok := err.(accessListIrrelevantError); ok {
-			continue
-		} else if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		scores = append(scores, scoredAccessList{
-			list:  list,
-			score: score,
-		})
-	}
-
-	slices.SortFunc(scores, func(a, b scoredAccessList) int {
-		switch {
-		case a.score < b.score:
-			return -1
-		case a.score > b.score:
-			return 1
-		default:
-			return 0
-		}
-	})
-
-	for i, scoredList := range scores {
-		lists[i] = scoredList.list
-	}
-
-	return lists[:len(scores)], nil
-}
-
-func computeAccessListRelevancy(ctx context.Context, clt accessListSuggestionClient, targetUser types.User, requestRoles []string, requestResources []types.ResourceWithLabels, list *accesslist.AccessList) (int, error) {
-	const (
-		roleNegativeWeight = -4
-	)
-
-	score := 0
-	grantedRolesNames := list.GetGrants().Roles
-	requirements := list.GetMembershipRequires()
-
-	// Access list not assignable to the user are irrelevant.
-	if !services.UserMeetsRequirements(tlsca.Identity{
-		Groups: targetUser.GetRoles(),
-		Traits: targetUser.GetTraits(),
-	}, requirements) {
-		return 0, accessListIrrelevantError{}
-	}
-
-	// Penalize access lists that provide access to roles that were not requested.
-	for _, grantedRole := range grantedRolesNames {
-		if !slices.Contains(requestRoles, grantedRole) {
-			score += roleNegativeWeight
-		}
-	}
-
-	// Access lists that don't provide access to the requested resources are irrelevant
-	accessChecker, err := services.NewAccessChecker(&services.AccessInfo{
-		Roles: grantedRolesNames,
-	}, "", clt)
+	identity, err := ctx.GetIdentity()
 	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	for _, resource := range requestResources {
-		err := accessChecker.CheckAccess(resource, services.AccessState{MFAVerified: true})
-		switch {
-		case trace.IsAccessDenied(err):
-			return 0, accessListIrrelevantError{}
-		default:
-			return 0, trace.Wrap(err)
-		}
+		return nil, trace.Wrap(err)
 	}
 
-	return 0, nil
-}
+	suggestions, err := accessrequest.GetSuggestedAccessLists(r.Context(), identity, clt, clt.AccessListClient(), requestID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-type accessListIrrelevantError struct{}
-
-func (accessListIrrelevantError) Error() string {
-	return "access list is irrelevant"
+	return &ui.SuggestedAccessLists{AccessLists: suggestions[:min(len(suggestions), maxSuggestions)]}, nil
 }

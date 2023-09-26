@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/e/api/cloud"
+	"github.com/gravitational/teleport/e/lib/accessrequest"
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/e/lib/hardwarekey"
 	"github.com/gravitational/teleport/e/lib/licensefile"
@@ -90,11 +91,6 @@ type enterpriseModules struct {
 	log               *logrus.Entry
 	automaticUpgrades bool
 	loadDynamicValues sync.Once
-}
-
-// GenerateAccessRequestPromotions returns a list of promotions for the given access list.
-func (p *enterpriseModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
-	return types.NewAccessRequestAllowedPromotions(nil), nil
 }
 
 // Features returns supported features
@@ -170,6 +166,10 @@ func (p *enterpriseModules) AttestHardwareKey(ctx context.Context, serverI inter
 		return "", trace.BadParameter("Received unexpected server interface of type %T", serverI)
 	}
 	return hardwarekey.AttestHardwareKey(ctx, server, requiredKeyPolicy, att, pub, sessionTTL)
+}
+
+func (p *enterpriseModules) GenerateAccessRequestPromotions(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessRequest types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+	return accessrequest.GenerateAccessRequestPromotions(ctx, accessListGetter, accessRequest)
 }
 
 func getLicenseFeatures(license types.License) modules.Features {

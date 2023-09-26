@@ -172,6 +172,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET("/enterprise/accessrequest/:requestId", h.WithClusterClientProvider(p.getAccessRequestHandle))
 	h.GET("/enterprise/accessrequest", h.WithClusterClientProvider(p.getAccessRequestsHandle))
 	h.GET("/enterprise/resourcerequestroles", h.WithAuth(p.getResourceRequestRolesHandle))
+	h.GET("/enterprise/accessrequest/:requestId/suggestions/accesslist", h.WithClusterClientProvider(p.getSuggestedAccessListsHandle))
 
 	h.GET("/enterprise/accesslist", h.WithAuth(p.getAccessLists))
 	h.GET("/enterprise/accesslist/:accessListId", h.WithAuth(p.getAccessList))
@@ -180,6 +181,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.PUT("/enterprise/accesslist/:accessListId", h.WithAuth(p.upsertAccessList))
 	h.DELETE("/enterprise/accesslist/:accessListId", h.WithAuth(p.deleteAccessList))
 	h.POST("/enterprise/accesslist/:accessListId/members", h.WithAuth(p.addMembersToAccessList))
+	// Deprecated: use /enterprise/accessrequest/:requestId/suggestions/accesslist instead.
 	h.GET("/enterprise/accesslistsuggestions/accessrequest/:requestId", h.WithClusterClientProvider(p.getSuggestedAccessListsHandle))
 
 	h.GET("/enterprise/releases", h.WithAuth(p.getReleases))
