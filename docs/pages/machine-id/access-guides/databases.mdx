@@ -5,12 +5,11 @@ description: How to use Machine ID to access Database servers
 
 (!docs/pages/includes/machine-id/v2-config-warning.mdx!)
 
-In this guide, we will demonstrate how to use Machine ID to access a database
-protected by Teleport from a custom application.
+Teleport Database Access protects and controls access to databases. Machine ID
+can be used to grant machines secure, short-lived access to these databases.
 
-With Machine ID, Teleport issues short-lived certificates, tied to a machine identity,
-that can be rotated, audited, and managed with the same access controls that 
-Teleport provides for human users.
+In this guide, you will configure `tbot` to produce credentials that can be
+used to access a database configured in Teleport Database Access.
 
 <Figure align="left" bordered caption="Machine ID and Database Access Deployment">
 ![Machine ID and Database Access Deployment](../../../img/machine-id/machine-id-database-access.svg)
@@ -25,70 +24,56 @@ Teleport provides for human users.
   The Teleport Database Service supports databases like PostgreSQL, MongoDB,
   Redis, and much more. See our [database access
   guides](../../database-access/guides.mdx) for a complete list.
-- If you have not already set up Machine ID, follow the [Machine ID getting
-  started guide](../getting-started.mdx) to familiarize yourself with Machine ID.
-  You'll need `tctl` access to initially configure the bot.
 - (!docs/pages/includes/tctl.mdx!)
-- Ensure both the `tbot` and `tsh` executables are available on your
-  application host. See [Installation](../../installation.mdx) for details.
+- The `tsh` binary must be installed on the machine that will access the
+  database. Depending on how `tbot` was installed, this may already be
+  installed. If it is not, see [Installation](../../installation.mdx) for
+  details.
+- `tbot` must already be installed and configured on the machine that will
+  access the Database. For more information, see the
+  [platform guides](../platform-guides.mdx).
 
-## Step 1/3. Create a Machine ID bot and assign permissions
+## Step 1/3. Configure RBAC
 
-In the example below, you will create a bot user named `app` and assign
-this bot user the `machine-id-db` role.
+First, Teleport must be configured to allow the credentials produced by the bot
+to access the database server and database.
 
-First, create a role that Machine ID can use to access your database:
+If you have followed an access guide, you will have created a role and granted
+the bot the ability to impersonate it already. This role just needs to have the
+additional privileges added to it.
+
+Use `tctl edit role/example-bot` to add the following rule to the role:
 
 ```yaml
-kind: role
-version: v5
-metadata:
-  name: machine-id-db
 spec:
   allow:
     db_labels:
       '*': '*'
-    db_names: [example]
+    db_names: [example-db]
     db_users: [alice]
     rules:
       - resources: [db_server, db]
         verbs: [read, list]
 ```
 
-This role allows Machine ID bots to do two things:
+Replace:
 
- - Access the database `example` on any database server (due to the `'*': '*'`
-    label selector) as the user `alice`. You may restrict access to the bot
-    using a more specific label selector; see the [Database Access RBAC 
-    guide](../../database-access/rbac.mdx) for more info.
- - Discover information about databases in Teleport.
+- `example-db` with the name of the database which the bot will be used to
+  access.
+- `alice` with the name of the user which the bot will use when connecting to
+  the database.
 
-Write this to `role.yaml` and run the following to create the role in Teleport:
+This rule will allow the bot to do two things:
 
-```code
-$ tctl create -f role.yaml
-```
+- Access the database `example` on any database server (due to the `'*': '*'`
+  label selector) as the user `alice`.
+- Discover information about database resources in Teleport.
 
-With the role created, create a new bot and allow it to assume the new role.
+The `'*': '*'` grants access to any database server configured in Teleport.
+In production, consider restricting the bot's access using a more specific
+label selector; see the
+[Database Access RBAC guide](../../database-access/rbac.mdx) for more info.
 
-<Tabs>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-On your client machine, log in to Teleport using `tsh` before using `tctl` to
-create the bot:
-
-```code
-$ tctl bots add app --roles=machine-id-db
-```
-</TabItem>
-<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
-Connect to the Teleport Auth Server and use `tctl` to create the bot:
-
-```code
-$ tctl bots add app --roles=machine-id-db
-```
-</TabItem>
-
-</Tabs>
 
 ## Step 2/3. Configure and start Machine ID
 
