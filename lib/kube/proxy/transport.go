@@ -524,6 +524,10 @@ func (f *Forwarder) getTLSConfig(sess *clusterSession) (*tls.Config, bool, error
 	// if the next hop supports impersonation, we can use the TLS config
 	// of the proxy to connect to it.
 	if f.allServersSupportImpersonation(sess) {
+		if sess.teleportCluster.isRemote {
+			tlsConfig, err := f.getTLSConfigForLeafCluster(sess.teleportCluster.name)
+			return tlsConfig, err == nil, trace.Wrap(err)
+		}
 		return f.cfg.ConnTLSConfig.Clone(), true, nil
 	}
 
