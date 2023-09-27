@@ -408,6 +408,7 @@ func (a *agent) sendFirstHeartbeat(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	sshutils.DiscardChannelData(channel)
 
 	a.hbChannel = channel
 	a.hbRequests = requests
@@ -630,6 +631,7 @@ func (a *agent) handleChannels() error {
 // reqC : request payload
 func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	a.log.Debugf("handleDiscovery requests channel.")
+	sshutils.DiscardChannelData(ch)
 	defer func() {
 		if err := ch.Close(); err != nil {
 			a.log.Warnf("Failed to close discovery channel: %v", err)
