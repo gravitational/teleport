@@ -942,7 +942,7 @@ integration-test-setup:
 %-integration-test: RUN_ARGS += --platform $(PLATFORM)
 %-integration-test: RUN_ARGS += $(addprefix -e ,$(strip $(ENV_VARS)))
 %-integration-test: RUN_ARGS += $(addprefix -v ,$(strip $(VOLUME_MOUNTS)))
-%-integration-test: IMAGE_TAG = $(shell $(MAKE) -C build.assets print-go-version | sed "s/go//")
+%-integration-test: IMAGE_TAG = $(shell $(MAKE) --no-print-directory -C build.assets print-go-version | sed "s/go//")
 %-integration-test: IMAGE = golang:$(IMAGE_TAG)
 %-integration-test: LOG_PATH = $(TEST_LOG_DIR)/$*-integration.json
 %-integration-test: ensure-gotestsum integration-test-setup
