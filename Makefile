@@ -267,6 +267,10 @@ CGOFLAG_TSH ?= $(CGOFLAG)
 ELECTRON_BUILDER_ARCH_amd64 = x64
 ELECTRON_BUILDER_ARCH = $(or $(ELECTRON_BUILDER_ARCH_$(ARCH)),$(ARCH))
 
+# Used for caching when on a build system that frequently switches namespaces (i.e. running in containers)
+GOMODCACHE ?= /tmp/gomodcache
+GOCACHE ?= /tmp/gocache
+
 #
 # 'make all' builds all 4 executables and places them in the current directory.
 #
@@ -921,12 +925,15 @@ integration-test-setup:
 	@go mod download
 	@cd api; go mod download
 
+# Run a specific integration test. Should only be ran from inside an integration test container.
+.PHONY: %-run-integration-test
+%-run-integration-test: FLAGS ?= -v -race
+%-run-integration-test:
+	go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $* $(FLAGS)
+
 # Run each integration test package inside a docker container,
 # allowing them to run in parallel without a risk of interference between tests
 .PHONY: %-integration-test
-%-integration-test: FLAGS ?= -v -race
-%-integration-test: GOMODCACHE ?= /tmp/gomodcache
-%-integration-test: GOCACHE ?= /tmp/gocache
 %-integration-test: VOLUME_MOUNTS = -v $(TEST_LOG_DIR):$(TEST_LOG_DIR)
 %-integration-test: VOLUME_MOUNTS += -v $(PWD):$(PWD)
 %-integration-test: VOLUME_MOUNTS += -v $(GOMODCACHE):$(GOMODCACHE)
@@ -943,11 +950,9 @@ integration-test-setup:
 %-integration-test: LOG_PATH = $(TEST_LOG_DIR)/$@.json
 %-integration-test: ensure-gotestsum integration-test-setup
 	@mkdir -p $(dir $(LOG_PATH))
-	docker run $(RUN_ARGS) $(IMAGE) \
-			go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $* $(FLAGS)
-# env $(CGOFLAG) GOMODCACHE=$(GOMODCACHE) GOCACHE=$(GOCACHE) GOMOD=$(PWD)/go.mod \
-# | tee $(LOG_PATH) \
-# | gotestsum --raw-command --format=testname -- cat
+	docker run $(RUN_ARGS) $(IMAGE) make $*-run-integration-test \
+		| tee $(LOG_PATH) \
+		| gotestsum --raw-command --format=testname -- cat
 
 #
 # Integration tests. Need a TTY to work.
