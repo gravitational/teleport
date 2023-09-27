@@ -944,10 +944,10 @@ integration-test-setup:
 %-integration-test: ensure-gotestsum integration-test-setup
 	@mkdir -p $(dir $(LOG_PATH))
 	docker run $(RUN_ARGS) $(IMAGE) \
-		env $(CGOFLAG) GOMODCACHE=$(GOMODCACHE) GOCACHE=$(GOCACHE) GOMOD=$(PWD)/go.mod \
-				go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $* $(FLAGS) \
-	| tee $(LOG_PATH) \
-	| gotestsum --raw-command --format=testname -- cat
+			go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $* $(FLAGS)
+# env $(CGOFLAG) GOMODCACHE=$(GOMODCACHE) GOCACHE=$(GOCACHE) GOMOD=$(PWD)/go.mod \
+# | tee $(LOG_PATH) \
+# | gotestsum --raw-command --format=testname -- cat
 
 #
 # Integration tests. Need a TTY to work.
