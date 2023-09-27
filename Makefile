@@ -912,18 +912,52 @@ run-etcd:
 	docker build -f .github/services/Dockerfile.etcd -t etcdbox --build-arg=ETCD_VERSION=3.3.9 .
 	docker run -it --rm -p'2379:2379' etcdbox
 
+# Do tasks that should run before any integration package test is run, rather than before
+# each integration package
+.PHONY: integration-test-setup
+integration-test-setup:
+	@mkdir -p $(GOMODCACHE) $(GOCACHE)
+	@docker pull --platform $(PLATFORM) $(IMAGE)
+	@go mod download -x
+	@cd api; go mod download -x
+
+# Run each integration test package inside a docker container,
+# allowing them to run in parallel without a risk of interference between tests
+.PHONY: %-integration-test
+%-integration-test: FLAGS ?= -v -race
+%-integration-test: ENV_VARS = $(CGOFLAG)
+%-integration-test: ENV_VARS += $(if $(GOMODCACHE),GOMODCACHE=$(GOMODCACHE))
+%-integration-test: ENV_VARS += $(if $(GOCACHE),GOCACHE=$(GOCACHE))
+%-integration-test: VOLUME_MOUNTS = $(TEST_LOG_DIR):$(TEST_LOG_DIR)
+%-integration-test: VOLUME_MOUNTS += $(PWD):$(PWD)
+%-integration-test: VOLUME_MOUNTS += $(if $(GOMODCACHE),$(GOMODCACHE):$(GOMODCACHE))
+%-integration-test: VOLUME_MOUNTS += $(if $(GOCACHE),$(GOCACHE):$(GOCACHE))
+%-integration-test: GOOS = linux
+%-integration-test: GOARCH = $(shell uname -m)
+%-integration-test: PLATFORM = $(GOOS)/$(GOARCH)
+%-integration-test: RUN_ARGS = --rm
+%-integration-test: RUN_ARGS += -w "$(PWD)"
+%-integration-test: RUN_ARGS += --platform $(PLATFORM)
+%-integration-test: RUN_ARGS += $(addprefix -e ,"$(strip $(ENV_VARS))")
+%-integration-test: RUN_ARGS += $(addprefix -v ,$(strip $(VOLUME_MOUNTS)))
+%-integration-test: IMAGE_TAG = $(shell $(MAKE) -C build.assets print-go-version | sed "s/go//")
+%-integration-test: IMAGE = golang:$(IMAGE_TAG)
+%-integration-test: LOG_PATH = $(TEST_LOG_DIR)/$*-integration.json
+%-integration-test: ensure-gotestsum integration-test-setup
+	@mkdir -p $(dir $(LOG_PATH))
+	docker run $(RUN_ARGS) $(IMAGE) \
+		go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $* $(FLAGS) \
+		| tee $(LOG_PATH) \
+		| gotestsum --raw-command --format=testname -- cat
+
 #
 # Integration tests. Need a TTY to work.
 # Any tests which need to run as root must be skipped during regular integration testing.
 #
+# The prerequisite generation should be split up to be more readable but I don't know how
+# without evaluating the shell command on every single makefile run, regardless of target
 .PHONY: integration
-integration: FLAGS ?= -v -race
-integration: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
-integration:  $(TEST_LOG_DIR) ensure-gotestsum
-	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
-		| tee $(TEST_LOG_DIR)/integration.json \
-		| gotestsum --raw-command --format=testname -- cat
+integration: $(addsuffix -integration-test,$(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration ))
 
 #
 # Integration tests that run Kubernetes tests in order to complete successfully
@@ -932,7 +966,7 @@ integration:  $(TEST_LOG_DIR) ensure-gotestsum
 INTEGRATION_KUBE_REGEX := TestKube.*
 .PHONY: integration-kube
 integration-kube: FLAGS ?= -v -race
-integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
+integration-kube: PACKAGES = github.com/gravitational/teleport/integration
 integration-kube: $(TEST_LOG_DIR) ensure-gotestsum
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) \
