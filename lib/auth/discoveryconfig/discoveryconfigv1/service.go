@@ -39,8 +39,8 @@ type ServiceConfig struct {
 	// Authorizer is the authorizer to use.
 	Authorizer authz.Authorizer
 
-	// BackendDiscoveryConfig is the backend for storing DiscoveryConfigs.
-	BackendDiscoveryConfig services.DiscoveryConfigs
+	// Backend is the backend for storing DiscoveryConfigs.
+	Backend services.DiscoveryConfigs
 
 	// Clock is the clock.
 	Clock clockwork.Clock
@@ -53,12 +53,8 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	if s.Authorizer == nil {
 		return trace.BadParameter("authorizer is required")
 	}
-	if s.BackendDiscoveryConfig == nil {
-		return trace.BadParameter("backend for discovery config is required")
-	}
-
-	if s.Logger == nil {
-		s.Logger = logrus.WithField(trace.Component, "DiscoveryConfig.service")
+	if s.Backend == nil {
+		return trace.BadParameter("backend is required")
 	}
 
 	if s.Logger == nil {
@@ -76,10 +72,10 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 type Service struct {
 	discoveryconfigv1.UnimplementedDiscoveryConfigServiceServer
 
-	log                    logrus.FieldLogger
-	authorizer             authz.Authorizer
-	backendDiscoveryConfig services.DiscoveryConfigs
-	clock                  clockwork.Clock
+	log        logrus.FieldLogger
+	authorizer authz.Authorizer
+	backend    services.DiscoveryConfigs
+	clock      clockwork.Clock
 }
 
 // NewService returns a new DiscoveryConfigs gRPC service.
@@ -89,14 +85,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		log:                    cfg.Logger,
-		authorizer:             cfg.Authorizer,
-		backendDiscoveryConfig: cfg.BackendDiscoveryConfig,
-		clock:                  cfg.Clock,
+		log:        cfg.Logger,
+		authorizer: cfg.Authorizer,
+		backend:    cfg.Backend,
+		clock:      cfg.Clock,
 	}, nil
 }
-
-var _ discoveryconfigv1.DiscoveryConfigServiceServer = (*Service)(nil)
 
 // ListDiscoveryConfigs returns a paginated list of all DiscoveryConfig resources.
 func (s *Service) ListDiscoveryConfigs(ctx context.Context, req *discoveryconfigv1.ListDiscoveryConfigsRequest) (*discoveryconfigv1.ListDiscoveryConfigsResponse, error) {
@@ -105,7 +99,7 @@ func (s *Service) ListDiscoveryConfigs(ctx context.Context, req *discoveryconfig
 		return nil, trace.Wrap(err)
 	}
 
-	results, nextKey, err := s.backendDiscoveryConfig.ListDiscoveryConfigs(ctx, int(req.GetPageSize()), req.GetNextToken())
+	results, nextKey, err := s.backend.ListDiscoveryConfigs(ctx, int(req.GetPageSize()), req.GetNextToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -128,7 +122,7 @@ func (s *Service) GetDiscoveryConfig(ctx context.Context, req *discoveryconfigv1
 		return nil, trace.Wrap(err)
 	}
 
-	dc, err := s.backendDiscoveryConfig.GetDiscoveryConfig(ctx, req.Name)
+	dc, err := s.backend.GetDiscoveryConfig(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,7 +142,7 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := s.backendDiscoveryConfig.CreateDiscoveryConfig(ctx, dc)
+	resp, err := s.backend.CreateDiscoveryConfig(ctx, dc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -168,7 +162,7 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := s.backendDiscoveryConfig.UpdateDiscoveryConfig(ctx, dc)
+	resp, err := s.backend.UpdateDiscoveryConfig(ctx, dc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -183,7 +177,7 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backendDiscoveryConfig.DeleteDiscoveryConfig(ctx, req.GetName()); err != nil {
+	if err := s.backend.DeleteDiscoveryConfig(ctx, req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -197,7 +191,7 @@ func (s *Service) DeleteAllDiscoveryConfigs(ctx context.Context, _ *discoverycon
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backendDiscoveryConfig.DeleteAllDiscoveryConfigs(ctx); err != nil {
+	if err := s.backend.DeleteAllDiscoveryConfigs(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
