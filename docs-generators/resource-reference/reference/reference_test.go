@@ -2,6 +2,7 @@ package reference
 
 import (
 	"bytes"
+	"gen-resource-ref/resource"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -94,7 +95,11 @@ type MyStruct struct{
 
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
-			assert.Equal(t, c.expected, shouldProcess(l, c.input))
+			assert.Equal(t, c.expected, shouldProcess(resource.DeclarationInfo{
+				FilePath:    "myfile.go",
+				Decl:        l,
+				PackageName: "testpkg",
+			}, c.input))
 		})
 	}
 }
