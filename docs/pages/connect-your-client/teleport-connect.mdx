@@ -283,29 +283,18 @@ To completely wipe all app state:
 <Tabs>
 <TabItem label="macOS">
 ```code
-~/Library/Application Support/Teleport Connect/tsh
-```
-
-```code
-~/Library/Application Support/Teleport Connect/app_state.json
+$ rm -rf ~/Library/Application\ Support/Teleport\ Connect/{tsh,app_state.json}
 ```
 </TabItem>
 <TabItem label="Linux">
 ```code
-~/.config/Teleport Connect/tsh
-```
-
-```code
-~/.config/Teleport Connect/app_state.json
+$ rm -rf ~/.config/Teleport\ Connect/{tsh,app_state.json}
 ```
 </TabItem>
 <TabItem label="Windows">
 ```code
-C:\Users\%UserName%\AppData\Roaming\Teleport Connect\tsh
-```
-
-```code
-C:\Users\%UserName%\AppData\Roaming\Teleport Connect\app_state.json
+$ rmdir /s /q C:\Users\%UserName%\AppData\Roaming\"Teleport Connect"\tsh
+$ del C:\Users\%UserName%\AppData\Roaming\"Teleport Connect"\app_state.json
 ```
 </TabItem>
 </Tabs>
