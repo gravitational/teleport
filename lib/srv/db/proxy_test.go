@@ -487,7 +487,7 @@ func setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx context.Context, t *t
 func TestExtractMySQLVersion(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql", mysql.WithServerVersion("8.0.25")))
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql", withMySQLServerVersion("8.0.25")))
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"root"}, []string{types.Wildcard})

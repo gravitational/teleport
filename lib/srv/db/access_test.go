@@ -2642,13 +2642,41 @@ func withAzurePostgres(name, authToken string) withDatabaseOption {
 	}
 }
 
-func withSelfHostedMySQL(name string, opts ...mysql.TestServerOption) withDatabaseOption {
+type selfHostedMySQLOptions struct {
+	serverOptions   []mysql.TestServerOption
+	databaseOptions []databaseOption
+}
+
+type selfHostedMySQLOption func(*selfHostedMySQLOptions)
+
+func withMySQLServerVersion(version string) selfHostedMySQLOption {
+	return func(opts *selfHostedMySQLOptions) {
+		opts.serverOptions = append(opts.serverOptions, mysql.WithServerVersion(version))
+	}
+}
+
+func withMySQLAdminUser(username string) selfHostedMySQLOption {
+	return func(opts *selfHostedMySQLOptions) {
+		opts.databaseOptions = append(opts.databaseOptions, func(db *types.DatabaseV3) {
+			db.Spec.AdminUser = &types.DatabaseAdminUser{
+				Name: username,
+			}
+		})
+	}
+}
+
+func withSelfHostedMySQL(name string, applyOpts ...selfHostedMySQLOption) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
+		opts := selfHostedMySQLOptions{}
+		for _, applyOpt := range applyOpts {
+			applyOpt(&opts)
+		}
+
 		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
 			ClientAuth: tls.RequireAndVerifyClientCert,
-		}, opts...)
+		}, opts.serverOptions...)
 		require.NoError(t, err)
 		go mysqlServer.Serve()
 		t.Cleanup(func() {
@@ -2662,6 +2690,11 @@ func withSelfHostedMySQL(name string, opts ...mysql.TestServerOption) withDataba
 			DynamicLabels: dynamicLabels,
 		})
 		require.NoError(t, err)
+
+		for _, applyDatabaseOpt := range opts.databaseOptions {
+			applyDatabaseOpt(database)
+		}
+
 		testCtx.mysql[name] = testMySQL{
 			db:       mysqlServer,
 			resource: database,

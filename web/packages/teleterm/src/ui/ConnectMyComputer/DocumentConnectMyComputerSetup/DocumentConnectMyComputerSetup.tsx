@@ -16,7 +16,7 @@ limitations under the License.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Text } from 'design';
+import { Box, ButtonPrimary, Flex, Text } from 'design';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
 import * as Alerts from 'design/Alert';
@@ -33,6 +33,7 @@ import Logger from 'teleterm/logger';
 import { codeOrSignal } from 'teleterm/ui/utils/process';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { isAccessDeniedError } from 'teleterm/services/tshd/errors';
+import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
@@ -79,6 +80,8 @@ function Information(props: { onSetUpAgentClick(): void }) {
         </>
       )}
       <Text>
+        Connect My Computer allows you to add this device to the Teleport
+        cluster with just a few clicks.{' '}
         <ClusterAndHostnameCopy clusterName={clusterName} hostname={hostname} />
         <br />
         <br />
@@ -117,6 +120,7 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
     setDownloadAgentAttempt,
     agentProcessState,
   } = useConnectMyComputerContext();
+  const { requestResourcesRefresh } = useResourcesContext();
   const cluster = ctx.clustersService.findCluster(rootClusterUri);
   const nodeToken = useRef<string>();
 
@@ -172,6 +176,11 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
         if (error) {
           throw error;
         }
+
+        // Now that the node has joined the server, let's refresh all open DocumentCluster instances
+        // to show the new node.
+        requestResourcesRefresh();
+
         try {
           await ctx.connectMyComputerService.deleteToken(
             cluster.uri,
@@ -185,7 +194,12 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
           }
           throw error;
         }
-      }, [startAgent, ctx.connectMyComputerService, cluster.uri])
+      }, [
+        startAgent,
+        ctx.connectMyComputerService,
+        cluster.uri,
+        requestResourcesRefresh,
+      ])
     );
 
   const steps = [
@@ -336,8 +350,8 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
   const { clusterName, hostname } = useAgentProperties();
 
   return (
-    <>
-      <Text mb={3}>
+    <Flex flexDirection="column" alignItems="flex-start" gap={3}>
+      <Text>
         <ClusterAndHostnameCopy clusterName={clusterName} hostname={hostname} />
       </Text>
       <ProgressBar
@@ -352,18 +366,11 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
         }))}
       />
       {hasSetupFailed && (
-        <ButtonPrimary
-          mt={3}
-          mx="auto"
-          css={`
-            display: block;
-          `}
-          onClick={runSteps}
-        >
+        <ButtonPrimary alignSelf="center" onClick={runSteps}>
           Retry
         </ButtonPrimary>
       )}
-    </>
+    </Flex>
   );
 }
 
@@ -389,7 +396,7 @@ function ClusterAndHostnameCopy(props: {
 }): JSX.Element {
   return (
     <>
-      The setup process will download and launch the Teleport agent, making your
+      The setup process will download and launch a Teleport agent, making your
       computer available in the <strong>{props.clusterName}</strong> cluster as{' '}
       <strong>{props.hostname}</strong>.
     </>

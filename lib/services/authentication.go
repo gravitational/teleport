@@ -117,6 +117,9 @@ func UnmarshalAuthPreference(bytes []byte, opts ...MarshalOption) (types.AuthPre
 	if cfg.ID != 0 {
 		authPreference.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		authPreference.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		authPreference.SetExpiry(cfg.Expires)
 	}

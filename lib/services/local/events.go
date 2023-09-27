@@ -358,7 +358,7 @@ func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error)
 		}, nil
 	case types.OpPut:
 		ca, err := services.UnmarshalCertAuthority(event.Item.Value,
-			services.WithResourceID(event.Item.ID), services.WithExpires(event.Item.Expires))
+			services.WithResourceID(event.Item.ID), services.WithExpires(event.Item.Expires), services.WithRevision(event.Item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -389,6 +389,7 @@ func (p *provisionTokenParser) parse(event backend.Event) (types.Resource, error
 		token, err := services.UnmarshalProvisionToken(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -422,6 +423,7 @@ func (p *staticTokensParser) parse(event backend.Event) (types.Resource, error) 
 		tokens, err := services.UnmarshalStaticTokens(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -456,6 +458,7 @@ func (p *clusterAuditConfigParser) parse(event backend.Event) (types.Resource, e
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -490,6 +493,7 @@ func (p *clusterNetworkingConfigParser) parse(event backend.Event) (types.Resour
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -524,6 +528,7 @@ func (p *authPreferenceParser) parse(event backend.Event) (types.Resource, error
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -558,6 +563,7 @@ func (p *uiConfigParser) parse(event backend.Event) (types.Resource, error) {
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -592,6 +598,7 @@ func (p *sessionRecordingConfigParser) parse(event backend.Event) (types.Resourc
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -625,6 +632,7 @@ func (p *clusterNameParser) parse(event backend.Event) (types.Resource, error) {
 		clusterName, err := services.UnmarshalClusterName(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -665,6 +673,7 @@ func (p *namespaceParser) parse(event backend.Event) (types.Resource, error) {
 		namespace, err := services.UnmarshalNamespace(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -693,6 +702,7 @@ func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 		resource, err := services.UnmarshalRole(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -779,6 +789,7 @@ func (p *userParser) parse(event backend.Event) (types.Resource, error) {
 		resource, err := services.UnmarshalUser(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -861,6 +872,7 @@ func (p *tunnelConnectionParser) parse(event backend.Event) (types.Resource, err
 		resource, err := services.UnmarshalTunnelConnection(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -889,6 +901,7 @@ func (p *reverseTunnelParser) parse(event backend.Event) (types.Resource, error)
 		resource, err := services.UnmarshalReverseTunnel(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -993,6 +1006,7 @@ func (p *webSessionParser) parse(event backend.Event) (types.Resource, error) {
 		resource, err := services.UnmarshalWebSession(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1021,6 +1035,7 @@ func (p *webTokenParser) parse(event backend.Event) (types.Resource, error) {
 		resource, err := services.UnmarshalWebToken(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1062,6 +1077,7 @@ func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1099,6 +1115,7 @@ func (p *databaseServerParser) parse(event backend.Event) (types.Resource, error
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1124,6 +1141,7 @@ func (p *databaseServiceParser) parse(event backend.Event) (types.Resource, erro
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1148,6 +1166,7 @@ func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
 		return services.UnmarshalKubeCluster(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1172,6 +1191,7 @@ func (p *appParser) parse(event backend.Event) (types.Resource, error) {
 		return services.UnmarshalApp(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1196,6 +1216,7 @@ func (p *databaseParser) parse(event backend.Event) (types.Resource, error) {
 		return services.UnmarshalDatabase(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1211,6 +1232,7 @@ func parseServer(event backend.Event, kind string) (types.Resource, error) {
 			kind,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1247,6 +1269,7 @@ func (p *remoteClusterParser) parse(event backend.Event) (types.Resource, error)
 		resource, err := services.UnmarshalRemoteCluster(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1276,6 +1299,7 @@ func (p *lockParser) parse(event backend.Event) (types.Resource, error) {
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1308,6 +1332,7 @@ func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, 
 		resource, err := services.UnmarshalNetworkRestrictions(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1337,6 +1362,7 @@ func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resourc
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1374,6 +1400,7 @@ func (p *windowsDesktopsParser) parse(event backend.Event) (types.Resource, erro
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1402,6 +1429,7 @@ func (p *installerParser) parse(event backend.Event) (types.Resource, error) {
 		inst, err := services.UnmarshalInstaller(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1436,6 +1464,7 @@ func (p *pluginParser) parse(event backend.Event) (types.Resource, error) {
 		plugin, err := services.UnmarshalPlugin(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1464,6 +1493,7 @@ func (p *samlIDPServiceProviderParser) parse(event backend.Event) (types.Resourc
 		return services.UnmarshalSAMLIdPServiceProvider(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1488,6 +1518,7 @@ func (p *userGroupParser) parse(event backend.Event) (types.Resource, error) {
 		return services.UnmarshalUserGroup(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1512,6 +1543,7 @@ func (p *oktaImportRuleParser) parse(event backend.Event) (types.Resource, error
 		return services.UnmarshalOktaImportRule(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1536,6 +1568,7 @@ func (p *oktaAssignmentParser) parse(event backend.Event) (types.Resource, error
 		return services.UnmarshalOktaAssignment(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1560,6 +1593,7 @@ func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
 		return services.UnmarshalIntegration(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1619,6 +1653,7 @@ func (p *accessListParser) parse(event backend.Event) (types.Resource, error) {
 		return services.UnmarshalAccessList(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1643,6 +1678,7 @@ func (p *userLoginStateParser) parse(event backend.Event) (types.Resource, error
 		return services.UnmarshalUserLoginState(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1667,6 +1703,7 @@ func (p *accessListMemberParser) parse(event backend.Event) (types.Resource, err
 		return services.UnmarshalAccessListMember(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)

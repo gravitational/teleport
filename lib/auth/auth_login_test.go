@@ -16,6 +16,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -429,6 +430,113 @@ func TestCreateRegisterChallenge(t *testing.T) {
 		require.NoError(t, err, "CreateRegisterChallenge")
 		assert.NotNil(t, registerChal.GetWebauthn(), "CreateRegisterChallenge returned a nil Webauthn challenge")
 	})
+}
+
+// TestCreateRegisterChallenge_unusableDevice tests that it is possible to
+// register new devices even if the user has an "unusable" device (due to
+// cluster setting changes).
+func TestCreateRegisterChallenge_unusableDevice(t *testing.T) {
+	t.Parallel()
+
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	clock := authServer.GetClock()
+	ctx := context.Background()
+
+	initialPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional, // most permissive setting
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+	})
+	require.NoError(t, err, "NewAuthPreference")
+
+	setAuthPref := func(t *testing.T, authPref types.AuthPreference) {
+		require.NoError(t,
+			authServer.SetAuthPreference(ctx, authPref),
+			"SetAuthPreference")
+	}
+	setAuthPref(t, initialPref)
+
+	tests := []struct {
+		name                  string
+		existingType, newType proto.DeviceType
+		newAuthSpec           types.AuthPreferenceSpecV2
+	}{
+		{
+			name:         "unusable totp, new webauthn",
+			existingType: proto.DeviceType_DEVICE_TYPE_TOTP,
+			newType:      proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			newAuthSpec: types.AuthPreferenceSpecV2{
+				Type:         initialPref.GetType(),
+				SecondFactor: constants.SecondFactorWebauthn, // makes TOTP unusable
+				Webauthn: func() *types.Webauthn {
+					w, _ := initialPref.GetWebauthn()
+					return w
+				}(),
+			},
+		},
+		{
+			name:         "unusable webauthn, new totp",
+			existingType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			newType:      proto.DeviceType_DEVICE_TYPE_TOTP,
+			newAuthSpec: types.AuthPreferenceSpecV2{
+				Type:         initialPref.GetType(),
+				SecondFactor: constants.SecondFactorOTP, // makes Webauthn unusable
+			},
+		},
+	}
+
+	devOpts := []TestDeviceOpt{WithTestDeviceClock(clock)}
+	for i, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setAuthPref(t, initialPref) // restore permissive settings.
+
+			// Create user.
+			username := fmt.Sprintf("llama-%d", i)
+			user, _, err := CreateUserAndRole(authServer, username, []string{username} /* logins */, nil /* allowRules */)
+			require.NoError(t, err, "CreateUserAndRole")
+			userClient, err := testServer.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err, "NewClient")
+
+			// Register initial MFA device.
+			_, err = RegisterTestDevice(
+				ctx,
+				userClient,
+				"existing", test.existingType, nil /* authenticator */, devOpts...)
+			require.NoError(t, err, "RegisterTestDevice")
+
+			// Sanity check: register challenges for test.existingType require a
+			// solved authn challenge.
+			_, err = userClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+				ExistingMFAResponse: &proto.MFAAuthenticateResponse{},
+				DeviceType:          test.existingType,
+				DeviceUsage:         proto.DeviceUsage_DEVICE_USAGE_MFA, // not important for this test
+			})
+			assert.ErrorContains(t, err, "second factor")
+
+			// Restore initial settings after test.
+			defer func() {
+				setAuthPref(t, initialPref)
+			}()
+
+			// Change cluster settings.
+			// This should make the device registered above unusable.
+			newAuthPref, err := types.NewAuthPreference(test.newAuthSpec)
+			require.NoError(t, err, "NewAuthPreference")
+			setAuthPref(t, newAuthPref)
+
+			// Create a challenge for the "new" device without an ExistingMFAResponse.
+			// Not allowed if the device above was usable.
+			_, err = userClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+				ExistingMFAResponse: &proto.MFAAuthenticateResponse{},
+				DeviceType:          test.newType,
+				DeviceUsage:         proto.DeviceUsage_DEVICE_USAGE_MFA, // not important for this test
+			})
+			assert.NoError(t, err, "CreateRegisterChallenge")
+		})
+	}
 }
 
 // sshPubKey is a randomly-generated public key used for login tests.

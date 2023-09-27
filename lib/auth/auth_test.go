@@ -2629,6 +2629,154 @@ func TestAddMFADeviceSync(t *testing.T) {
 	}
 }
 
+// DELETE IN 16. Kept so we don't lose coverage on AddMFADevice (codingllama)
+func TestAddMFADevice(t *testing.T) {
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	clock := testServer.Auth().GetClock()
+
+	ctx := context.Background()
+
+	// Start with disabled second factor, makes it easy to set the user's
+	// password.
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOff, // for initial user creation
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+	})
+	require.NoError(t, err, "NewAuthPreference")
+	require.NoError(t,
+		authServer.SetAuthPreference(ctx, authPreference),
+		"SetAuthPreference")
+
+	// Create user and set password.
+	const username = "TestAddMFADevice"
+	const password = "supersecretpassword!!1!"
+	_, _, err = CreateUserAndRole(authServer, username, []string{username}, nil /* allowRules */)
+	require.NoError(t, err, "CreateUserAndRole")
+
+	resetToken, err := authServer.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+		Name: username,
+	})
+	require.NoError(t, err, "CreateResetPasswordToken")
+
+	_, err = authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     resetToken.GetName(),
+		NewPassword: []byte(password),
+	})
+	require.NoError(t, err, "ChangeUserAuthentication")
+
+	// Enable second factor.
+	authPreference.SetSecondFactor(constants.SecondFactorOptional)
+	require.NoError(t,
+		authServer.SetAuthPreference(ctx, authPreference),
+		"SetAuthPreference")
+
+	// User client used from now on.
+	userClient, err := testServer.NewClient(TestUser(username))
+	require.NoError(t, err, "NewClient")
+
+	tests := []struct {
+		name        string
+		deviceName  string
+		deviceType  proto.DeviceType
+		deviceUsage proto.DeviceUsage
+		devOpts     []TestDeviceOpt
+	}{
+		{
+			name:        "totp",
+			deviceName:  "totp",
+			deviceType:  proto.DeviceType_DEVICE_TYPE_TOTP,
+			deviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
+			devOpts:     []TestDeviceOpt{WithTestDeviceClock(clock)},
+		},
+		{
+			name:        "webauthn",
+			deviceName:  "webauthn",
+			deviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			deviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
+		},
+		{
+			name:        "passwordless",
+			deviceName:  "passwordless",
+			deviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			deviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+			devOpts:     []TestDeviceOpt{WithPasswordless()},
+		},
+	}
+
+	var existingDev *TestDevice
+	for _, test := range tests {
+		//nolint:staticcheck // SA1019. Kept for backward compatibility testing.
+		t.Run(test.name, func(t *testing.T) {
+			stream, err := userClient.AddMFADevice(ctx)
+			require.NoError(t, err, "AddMFADevice")
+
+			// Init.
+			require.NoError(t,
+				stream.Send(&proto.AddMFADeviceRequest{
+					Request: &proto.AddMFADeviceRequest_Init{
+						Init: &proto.AddMFADeviceRequestInit{
+							DeviceName:  test.deviceName,
+							DeviceType:  test.deviceType,
+							DeviceUsage: test.deviceUsage,
+						},
+					},
+				}), "Send")
+			resp, err := stream.Recv()
+			require.NoError(t, err, "Recv: init")
+
+			// Solve existing device challenge.
+			// Reply with an empty solution if it's the first device.
+			authnChal := resp.GetExistingMFAChallenge()
+
+			var authnSolved *proto.MFAAuthenticateResponse
+			if hasChallenge := authnChal.GetTOTP() != nil || authnChal.GetWebauthnChallenge() != nil; hasChallenge {
+				// Sanity check.
+				require.NotNil(t, existingDev, "Got an existing challenge, but existingDev is nil")
+
+				authnSolved, err = existingDev.SolveAuthn(authnChal)
+				require.NoError(t, err, "SolveAuthn")
+			} else {
+				authnSolved = &proto.MFAAuthenticateResponse{} // empty reply
+			}
+
+			require.NoError(t,
+				stream.Send(&proto.AddMFADeviceRequest{
+					Request: &proto.AddMFADeviceRequest_ExistingMFAResponse{
+						ExistingMFAResponse: authnSolved,
+					},
+				}), "Send")
+			resp, err = stream.Recv()
+			require.NoError(t, err, "Recv: existing challenge response")
+
+			// Solve new device challenge.
+			registerChal := resp.GetNewMFARegisterChallenge()
+			require.NotNil(t, registerChal, "Got response of type %T, want MFARegisterChallenge", resp.Response)
+
+			newDev, registerSolved, err := NewTestDeviceFromChallenge(registerChal, test.devOpts...)
+			require.NoError(t, err, "NewTestDeviceFromChallenge")
+
+			require.NoError(t,
+				stream.Send(&proto.AddMFADeviceRequest{
+					Request: &proto.AddMFADeviceRequest_NewMFARegisterResponse{
+						NewMFARegisterResponse: registerSolved,
+					},
+				}), "Send")
+			resp, err = stream.Recv()
+			require.NoError(t, err, "Recv: register challenge response")
+			assert.NotNil(t, resp.GetAck().GetDevice(), "Got nil Ack or Ack.Device, want non-nil")
+
+			if existingDev == nil {
+				// Use registered device to solve future existing challenges.
+				existingDev = newDev
+			}
+		})
+	}
+}
+
 func TestGetMFADevices_WithToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)

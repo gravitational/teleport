@@ -66,7 +66,7 @@ func (s *RestrictionsService) GetNetworkRestrictions(ctx context.Context) (types
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalNetworkRestrictions(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // SetNetworkRestrictions upserts NetworkRestrictions

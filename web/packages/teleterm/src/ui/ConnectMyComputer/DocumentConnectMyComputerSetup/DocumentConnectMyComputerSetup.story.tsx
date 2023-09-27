@@ -19,15 +19,13 @@ import React, { useEffect, useRef, useLayoutEffect } from 'react';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
-
 import {
   makeRootCluster,
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
-
 import { IAppContext } from 'teleterm/ui/types';
-
 import { Cluster } from 'teleterm/services/tshd/types';
+import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
 
 import { ConnectMyComputerContextProvider } from '../connectMyComputerContext';
 
@@ -119,16 +117,18 @@ function ShowState({
   appContext: IAppContext;
   clickStartSetup?: boolean;
 }) {
-  appContext.clustersService.state.clusters.set(cluster.uri, cluster);
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = cluster.uri;
-    draftState.workspaces[cluster.uri] = {
-      localClusterUri: cluster.uri,
-      documents: [],
-      location: undefined,
-      accessRequests: undefined,
-    };
-  });
+  if (!appContext.clustersService.state.clusters.get(cluster.uri)) {
+    appContext.clustersService.state.clusters.set(cluster.uri, cluster);
+    appContext.workspacesService.setState(draftState => {
+      draftState.rootClusterUri = cluster.uri;
+      draftState.workspaces[cluster.uri] = {
+        localClusterUri: cluster.uri,
+        documents: [],
+        location: undefined,
+        accessRequests: undefined,
+      };
+    });
+  }
 
   useLayoutEffect(() => {
     if (clickStartSetup) {
@@ -136,14 +136,16 @@ function ShowState({
         document.querySelector('[data-testid=start-setup]') as HTMLButtonElement
       )?.click();
     }
-  }, []);
+  }, [clickStartSetup]);
 
   return (
     <MockAppContextProvider appContext={appContext}>
       <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
-        <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
-          <DocumentConnectMyComputerSetup />
-        </ConnectMyComputerContextProvider>
+        <ResourcesContextProvider>
+          <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
+            <DocumentConnectMyComputerSetup />
+          </ConnectMyComputerContextProvider>
+        </ResourcesContextProvider>
       </MockWorkspaceContextProvider>
     </MockAppContextProvider>
   );

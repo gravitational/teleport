@@ -23,6 +23,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -56,6 +57,9 @@ type AccessLists interface {
 
 	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
 	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
+
+	// AccessRequestPromote promotes an access request to an access list.
+	AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error)
 }
 
 // MarshalAccessList marshals the access list resource to JSON.
@@ -72,6 +76,7 @@ func MarshalAccessList(accessList *accesslist.AccessList, opts ...MarshalOption)
 	if !cfg.PreserveResourceID {
 		copy := *accessList
 		copy.SetResourceID(0)
+		copy.SetRevision("")
 		accessList = &copy
 	}
 	return utils.FastMarshal(accessList)
@@ -95,6 +100,9 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 	}
 	if cfg.ID != 0 {
 		accessList.SetResourceID(cfg.ID)
+	}
+	if cfg.Revision != "" {
+		accessList.SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
 		accessList.SetExpiry(cfg.Expires)
@@ -138,6 +146,7 @@ func MarshalAccessListMember(member *accesslist.AccessListMember, opts ...Marsha
 	if !cfg.PreserveResourceID {
 		copy := *member
 		copy.SetResourceID(0)
+		copy.SetRevision("")
 		member = &copy
 	}
 	return utils.FastMarshal(member)
@@ -161,6 +170,9 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 	}
 	if cfg.ID != 0 {
 		member.SetResourceID(cfg.ID)
+	}
+	if cfg.Revision != "" {
+		member.SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
 		member.SetExpiry(cfg.Expires)
