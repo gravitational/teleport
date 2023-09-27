@@ -281,7 +281,6 @@ func TestService_SearchUnifiedResources(t *testing.T) {
 	tests := []struct {
 		username    string
 		req         *assistpb.SearchUnifiedResourcesRequest
-		wantErr     assert.ErrorAssertionFunc
 		returnedLen int
 	}{
 		{
@@ -289,7 +288,6 @@ func TestService_SearchUnifiedResources(t *testing.T) {
 			req: &assistpb.SearchUnifiedResourcesRequest{
 				Kinds: []string{types.KindNode},
 			},
-			wantErr:     assert.NoError,
 			returnedLen: 2,
 		},
 		{
@@ -297,7 +295,6 @@ func TestService_SearchUnifiedResources(t *testing.T) {
 			req: &assistpb.SearchUnifiedResourcesRequest{
 				Kinds: []string{types.KindNode},
 			},
-			wantErr:     assert.NoError,
 			returnedLen: 0,
 		},
 	}
@@ -305,10 +302,11 @@ func TestService_SearchUnifiedResources(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.username, func(t *testing.T) {
 			ctxs, svc := initSvc(t)
-			time.Sleep(time.Second * 5)
-			resp, err := svc.SearchUnifiedResources(ctxs[tt.username], tt.req)
-			tt.wantErr(t, err)
-			assert.Equal(t, tt.returnedLen, len(resp.GetResources()))
+			require.Eventually(t, func() bool {
+				resp, err := svc.SearchUnifiedResources(ctxs[tt.username], tt.req)
+				require.NoError(t, err)
+				return tt.returnedLen == len(resp.GetResources())
+			}, 5*time.Second, 100*time.Millisecond)
 		})
 	}
 }
@@ -466,7 +464,10 @@ func initSvc(t *testing.T) (map[string]context.Context, *assistv1.Service) {
 		Log:                 log.NewEntry(log.StandardLogger()),
 	})
 	log.Debugf("Starting embedding processor")
-	go embeddingProcessor.Run(context.Background(), time.Second, time.Second*10)
+
+	embeddingProcessorCtx, embeddingProcessorCancel := context.WithCancel(context.Background())
+	go embeddingProcessor.Run(embeddingProcessorCtx, time.Millisecond*100, time.Millisecond*100)
+	t.Cleanup(embeddingProcessorCancel)
 	return ctxs, svc
 }
 
