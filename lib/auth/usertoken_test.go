@@ -504,7 +504,7 @@ func TestCreatePrivilegeToken_unusableDevice(t *testing.T) {
 
 			// Create user.
 			username := fmt.Sprintf("llama-%d", i)
-			user, _, err := CreateUserAndRole(authServer, username, []string{username} /* logins */, nil /* allowRules */)
+			user, _, err := CreateUserAndRole(authServer, username, []string{username} /* logins */)
 			require.NoError(t, err, "CreateUserAndRole")
 			userClient, err := testServer.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err, "NewClient")
