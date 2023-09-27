@@ -93,6 +93,9 @@ type AccessRequest interface {
 	// GetPromotedAccessListName returns the access list name that this access request
 	// was promoted to.
 	GetPromotedAccessListName() string
+	// SetPromotedAccessListName sets the access list name that this access request
+	// was promoted to.
+	SetPromotedAccessListName(name string)
 	// GetPromotedAccessListTitle returns the access list title that this access request
 	// was promoted to.
 	GetPromotedAccessListTitle() string
@@ -319,6 +322,14 @@ func (r *AccessRequestV3) GetPromotedAccessListName() string {
 		return ""
 	}
 	return r.Spec.AccessList.Name
+}
+
+// SetPromotedAccessListName sets PromotedAccessListName.
+func (r *AccessRequestV3) SetPromotedAccessListName(name string) {
+	if r.Spec.AccessList == nil {
+		r.Spec.AccessList = &PromotedAccessList{}
+	}
+	r.Spec.AccessList.Name = name
 }
 
 // GetPromotedAccessListTitle returns PromotedAccessListTitle.

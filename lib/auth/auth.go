@@ -4337,7 +4337,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 
 func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error) {
 	// When promoting a request, the access list name must be set.
-	if !params.Review.ProposedState.IsPromoted() && params.Review.GetAccessListName() != "" {
+	if params.Review.ProposedState.IsPromoted() && params.Review.GetAccessListName() == "" {
 		return nil, trace.BadParameter("promoted access list can be only set when promoting access requests")
 	}
 
@@ -4379,7 +4379,7 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 		Reason:                 params.Review.Reason,
 		Reviewer:               params.Review.Author,
 		MaxDuration:            req.GetMaxDuration(),
-		PromotedAccessListName: req.GetPromotedAccessListTitle(),
+		PromotedAccessListName: req.GetPromotedAccessListName(),
 	}
 
 	if len(params.Review.Annotations) > 0 {
