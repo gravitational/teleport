@@ -1676,6 +1676,14 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 	}
 	clusterName := cfg.Auth.ClusterName.GetClusterName()
+	ident, err := process.storage.ReadIdentity(auth.IdentityCurrent, types.RoleAdmin)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if ident != nil {
+		clusterName = ident.ClusterName
+	}
+
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),
 		Clock:       process.Clock,
@@ -1714,7 +1722,12 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	embeddingsRetriever := ai.NewSimpleRetriever()
-
+	cn, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: clusterName,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	// first, create the AuthServer
 	authServer, err := auth.Init(
 		process.ExitContext(),
@@ -1725,7 +1738,7 @@ func (process *TeleportProcess) initAuthService() error {
 			ClusterAuditConfig:      cfg.Auth.AuditConfig,
 			ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
 			SessionRecordingConfig:  cfg.Auth.SessionRecordingConfig,
-			ClusterName:             cfg.Auth.ClusterName,
+			ClusterName:             cn,
 			AuthServiceName:         cfg.Hostname,
 			DataDir:                 cfg.DataDir,
 			HostUUID:                cfg.HostUUID,
