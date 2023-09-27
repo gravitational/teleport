@@ -25,7 +25,7 @@ const referenceTemplate string = `{{ range . }}
 |Field Name|Description|Type|
 |---|---|---|
 {{ range .Fields }}
-|.Name|.Description|.Type|
+|{{.Name}}|{{.Description}}|{{.Type}}|
 {{ end }} 
 
 {{ .YAMLExample }}
