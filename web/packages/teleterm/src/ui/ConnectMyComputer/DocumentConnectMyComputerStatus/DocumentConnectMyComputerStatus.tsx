@@ -248,7 +248,18 @@ export function DocumentConnectMyComputerStatus(
       {prettyCurrentAction.logs && <Logs logs={prettyCurrentAction.logs} />}
 
       {isAgentIncompatible ? (
-        <CompatibilityError />
+        <CompatibilityError
+          // Hide the alert if the current action has failed. downloadAgent and startAgent already
+          // return an error message related to compatibility.
+          //
+          // Basically, we have to cover two use cases:
+          //
+          // * Auto start has failed due to compatibility promise, so the downloadAgent failed with
+          // an error.
+          // * Auto start wasn't enabled, so the current action has no errors, but the user should
+          // not be able to start the agent due to compatibility issues.
+          hideAlert={!!prettyCurrentAction.error}
+        />
       ) : (
         <>
           <Text mb={4} mt={1}>

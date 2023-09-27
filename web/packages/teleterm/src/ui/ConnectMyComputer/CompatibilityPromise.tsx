@@ -49,7 +49,9 @@ export function checkAgentCompatibility(
     : 'incompatible';
 }
 
-export function CompatibilityError(): JSX.Element {
+export function CompatibilityError(props: {
+  hideAlert?: boolean;
+}): JSX.Element {
   const { proxyVersion, appVersion } = useVersions();
 
   const clusterMajorVersion = getMajorVersion(proxyVersion);
@@ -91,7 +93,11 @@ export function CompatibilityError(): JSX.Element {
 
   return (
     <>
-      <Alert>Detected an incompatible agent version.</Alert>
+      {!props.hideAlert && (
+        <Alert>
+          The agent version is not compatible with the cluster version
+        </Alert>
+      )}
       <Text>
         The cluster is on version {proxyVersion} while Teleport Connect is on
         version {appVersion}. Per our{' '}
