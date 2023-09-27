@@ -45,13 +45,13 @@ func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (conn *
 		return nil, false, trace.Wrap(err)
 	}
 
-	channel, discard, err := sconn.OpenChannel(constants.ChanTransport, nil)
+	channel, reqC, err := sconn.OpenChannel(constants.ChanTransport, nil)
 	if err != nil {
 		return nil, true, trace.Wrap(err)
 	}
 
 	// DiscardRequests will return when the channel or underlying connection is closed.
-	go ssh.DiscardRequests(discard)
+	go ssh.DiscardRequests(reqC)
 
 	// Send a special SSH out-of-band request called "teleport-transport"
 	// the agent on the other side will create a new TCP/IP connection to

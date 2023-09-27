@@ -460,6 +460,10 @@ const (
 	// KindAccessListMember is an AccessListMember resource
 	KindAccessListMember = "access_list_member"
 
+	// KindDiscoveryConfig is a DiscoveryConfig resource.
+	// Used for adding additional matchers in Discovery Service.
+	KindDiscoveryConfig = "discovery_config"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 
@@ -592,23 +596,23 @@ const (
 	// SubscriptionIDLabel is used to identify virtual machines by Azure
 	// subscription ID found via automatic discovery, to avoid re-running
 	// installation commands on the node.
-	SubscriptionIDLabel = TeleportNamespace + "/subscription-id"
+	SubscriptionIDLabel = TeleportInternalLabelPrefix + "subscription-id"
 	// VMIDLabel is used to identify virtual machines by ID found
 	// via automatic discovery, to avoid re-running installation commands
 	// on the node.
-	VMIDLabel = TeleportNamespace + "/vm-id"
+	VMIDLabel = TeleportInternalLabelPrefix + "vm-id"
 	// ProjectIDLabel is used to identify virtual machines by GCP project
 	// id found via automatic discovery, to avoid re-running
 	// installation commands on the node.
-	ProjectIDLabel = TeleportNamespace + "/project-id"
+	ProjectIDLabel = TeleportInternalLabelPrefix + "project-id"
 	// ZoneLabek is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
-	ZoneLabel = TeleportNamespace + "/zone"
+	ZoneLabel = TeleportInternalLabelPrefix + "zone"
 	// NameLabel is used to identify virtual machines by GCP VM name
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
-	NameLabel = TeleportNamespace + "/name"
+	NameLabel = TeleportInternalLabelPrefix + "name"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
@@ -778,6 +782,10 @@ const (
 	// labels per the discovery LDAP attribute labels configuration.
 	DiscoveryLabelLDAPPrefix = "ldap/"
 )
+
+// CloudLabelPrefixes are prefixes used by cloud labels, generally added when
+// using automatic discovery
+var CloudLabelPrefixes = []string{CloudAWS, CloudAzure, CloudGCP, DiscoveryLabelLDAPPrefix}
 
 const (
 	// TeleportInternalLabelPrefix is the prefix used by all Teleport internal labels. Those labels

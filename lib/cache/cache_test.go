@@ -336,8 +336,7 @@ func TestCA(t *testing.T) {
 
 	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
-	ca.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(ca, out))
+	require.Empty(t, cmp.Diff(ca, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = p.trustS.DeleteCertAuthority(ctx, ca.GetID())
 	require.NoError(t, err)
@@ -1048,7 +1047,6 @@ func initStrategy(t *testing.T) {
 
 	normalizeCA := func(ca types.CertAuthority) types.CertAuthority {
 		ca = ca.Clone()
-		ca.SetResourceID(0)
 		ca.SetExpiry(time.Time{})
 		types.RemoveCASecrets(ca)
 		return ca
@@ -1057,7 +1055,7 @@ func initStrategy(t *testing.T) {
 
 	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
+	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// fail again, make sure last recent data is still served
 	// on errors
@@ -1072,7 +1070,7 @@ func initStrategy(t *testing.T) {
 	out2, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
 	require.Equal(t, out.GetResourceID(), out2.GetResourceID())
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
+	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// add modification and expect the resource to recover
 	ca.SetRoleMap(types.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
@@ -1089,7 +1087,7 @@ func initStrategy(t *testing.T) {
 	// new value is available now
 	out, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
+	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 // TestRecovery tests error recovery scenario
@@ -1132,9 +1130,8 @@ func TestRecovery(t *testing.T) {
 
 	out, err := p.cache.GetCertAuthority(context.Background(), ca2.GetID(), false)
 	require.NoError(t, err)
-	ca2.SetResourceID(out.GetResourceID())
 	types.RemoveCASecrets(ca2)
-	require.Empty(t, cmp.Diff(ca2, out))
+	require.Empty(t, cmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 // TestTokens tests static and dynamic tokens
@@ -1168,8 +1165,7 @@ func TestTokens(t *testing.T) {
 
 	out, err := p.cache.GetStaticTokens()
 	require.NoError(t, err)
-	staticTokens.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(staticTokens, out))
+	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	expires := time.Now().Add(10 * time.Hour).Truncate(time.Second).UTC()
 	token, err := types.NewProvisionToken("token", types.SystemRoles{types.RoleAuth, types.RoleNode}, expires)
@@ -1187,8 +1183,7 @@ func TestTokens(t *testing.T) {
 
 	tout, err := p.cache.GetToken(ctx, token.GetName())
 	require.NoError(t, err)
-	token.SetResourceID(tout.GetResourceID())
-	require.Empty(t, cmp.Diff(token, tout))
+	require.Empty(t, cmp.Diff(token, tout, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = p.provisionerS.DeleteToken(ctx, token.GetName())
 	require.NoError(t, err)
@@ -1230,8 +1225,7 @@ func TestAuthPreference(t *testing.T) {
 	outAuthPref, err := p.cache.GetAuthPreference(ctx)
 	require.NoError(t, err)
 
-	authPref.SetResourceID(outAuthPref.GetResourceID())
-	require.Empty(t, cmp.Diff(outAuthPref, authPref))
+	require.Empty(t, cmp.Diff(outAuthPref, authPref, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestClusterNetworkingConfig(t *testing.T) {
@@ -1260,8 +1254,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 	outNetConfig, err := p.cache.GetClusterNetworkingConfig(ctx)
 	require.NoError(t, err)
 
-	netConfig.SetResourceID(outNetConfig.GetResourceID())
-	require.Empty(t, cmp.Diff(outNetConfig, netConfig))
+	require.Empty(t, cmp.Diff(outNetConfig, netConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestSessionRecordingConfig(t *testing.T) {
@@ -1290,8 +1283,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 	outRecConfig, err := p.cache.GetSessionRecordingConfig(ctx)
 	require.NoError(t, err)
 
-	recConfig.SetResourceID(outRecConfig.GetResourceID())
-	require.Empty(t, cmp.Diff(outRecConfig, recConfig))
+	require.Empty(t, cmp.Diff(outRecConfig, recConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestClusterAuditConfig(t *testing.T) {
@@ -1319,8 +1311,7 @@ func TestClusterAuditConfig(t *testing.T) {
 	outAuditConfig, err := p.cache.GetClusterAuditConfig(ctx)
 	require.NoError(t, err)
 
-	auditConfig.SetResourceID(outAuditConfig.GetResourceID())
-	require.Empty(t, cmp.Diff(outAuditConfig, auditConfig))
+	require.Empty(t, cmp.Diff(outAuditConfig, auditConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestClusterName(t *testing.T) {
@@ -1347,8 +1338,7 @@ func TestClusterName(t *testing.T) {
 	outName, err := p.cache.GetClusterName()
 	require.NoError(t, err)
 
-	clusterName.SetResourceID(outName.GetResourceID())
-	require.Empty(t, cmp.Diff(outName, clusterName))
+	require.Empty(t, cmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 // TestNamespaces tests caching of namespaces
@@ -1376,8 +1366,7 @@ func TestNamespaces(t *testing.T) {
 
 	out, err := p.cache.GetNamespace(ns.GetName())
 	require.NoError(t, err)
-	ns.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(ns, out))
+	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// update namespace metadata
 	ns.Metadata.Labels = map[string]string{"a": "b"}
@@ -1397,8 +1386,7 @@ func TestNamespaces(t *testing.T) {
 
 	out, err = p.cache.GetNamespace(ns.GetName())
 	require.NoError(t, err)
-	ns.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(ns, out))
+	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = p.presenceS.DeleteNamespace(ns.GetName())
 	require.NoError(t, err)
@@ -2204,8 +2192,8 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	require.NoError(t, err)
 
 	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
-		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 	}
 
 	// Check that the resource is now in the backend.

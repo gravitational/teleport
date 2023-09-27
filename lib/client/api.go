@@ -63,6 +63,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -87,7 +88,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 )
 
@@ -2859,6 +2859,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 		AuthClient:  authClient,
 		Tracer:      tc.Tracer,
 		cluster:     cluster,
+		root:        root,
 	}, nil
 }
 
@@ -4075,7 +4076,7 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 
 // ConnectToRootCluster activates the provided key and connects to the
 // root cluster with its credentials.
-func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *Key) (*ProxyClient, auth.ClientI, error) {
+func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *Key) (*ClusterClient, auth.ClientI, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ConnectToRootCluster",
@@ -4087,21 +4088,21 @@ func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *Key) (*
 		return nil, nil, trace.Wrap(err)
 	}
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
+	rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
 	if err != nil {
-		return nil, nil, trace.NewAggregate(err, proxyClient.Close())
+		return nil, nil, trace.NewAggregate(err, clusterClient.Close())
 	}
 
 	if err := tc.UpdateTrustedCA(ctx, rootAuthClient); err != nil {
-		return nil, nil, trace.NewAggregate(err, rootAuthClient.Close(), proxyClient.Close())
+		return nil, nil, trace.NewAggregate(err, rootAuthClient.Close(), clusterClient.Close())
 	}
 
-	return proxyClient, rootAuthClient, nil
+	return clusterClient, rootAuthClient, nil
 }
 
 // activateKey saves the target session cert into the local
