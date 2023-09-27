@@ -154,7 +154,7 @@ func (c *Ceremony) RunAdmin(
 	// Then proceed onto enrollment.
 	enrolled, err := c.Run(ctx, devicesClient, debug, token)
 	if err != nil {
-		return enrolled, outcome, trace.Wrap(err)
+		return currentDev, outcome, trace.Wrap(err)
 	}
 
 	outcome++ // "0" becomes "Enrolled", "Registered" becomes "RegisteredAndEnrolled".
