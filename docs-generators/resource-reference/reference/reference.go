@@ -31,7 +31,22 @@ const referenceTemplate string = `{{ range . }}
 {{ .YAMLExample }}
 {{ end }}`
 
-func Generate(out io.Writer, srcpath string) error {
+type TypeInfo struct {
+	// Go package path (not a file path)
+	Package string `json:"package"`
+	// Name of the type, e.g., Metadata
+	Name string `json:"name"`
+}
+
+type GeneratorConfig struct {
+	RequiredTypes []TypeInfo `json:"required_types"`
+	// Path to the root of the Go project directory
+	SourcePath string `json:"source"`
+	// Path of the resource reference
+	DestinationPath string `json:"destination"`
+}
+
+func Generate(out io.Writer, conf GeneratorConfig) error {
 	allDecls := make(map[resource.PackageInfo]resource.DeclarationInfo)
 	result := make(map[resource.PackageInfo]resource.ReferenceEntry)
 
@@ -39,7 +54,7 @@ func Generate(out io.Writer, srcpath string) error {
 	// packages.Load here since the resulting []*Package does not expose
 	// individual file names, which we need so contributors who want to edit
 	// the resulting docs page know which files to modify.
-	err := filepath.Walk(srcpath, func(path string, info fs.FileInfo, err error) error {
+	err := filepath.Walk(conf.SourcePath, func(path string, info fs.FileInfo, err error) error {
 		// There is an error with the path, so we can't load Go source
 		if err != nil {
 			return err
