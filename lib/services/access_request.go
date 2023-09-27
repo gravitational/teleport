@@ -432,7 +432,7 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author t
 	if req.GetPromotedAccessListTitle() == "" {
 		// Set the title only if it's not set yet. This is to prevent
 		// overwriting the title by another promotion review.
-		req.SetPromotedAccessListTitle(rev.PromotedAccessListTitle)
+		req.SetPromotedAccessListTitle(rev.GetAccessListTitle())
 	}
 	req.SetExpiry(req.GetAccessExpiry())
 	return nil
