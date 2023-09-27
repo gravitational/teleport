@@ -470,6 +470,11 @@ func TestCheckAndSplitValidityKey(t *testing.T) {
 			shouldError: true,
 		},
 		{
+			name:        "Should fail with negation character around hostname",
+			input:       "*.example.com || lol.example.com || !test.teleport.com",
+			shouldError: true,
+		},
+		{
 			name:        "Should fail with a non-hostname",
 			input:       "*.example.com || lol.example.com || test.teleport.com || \"\"",
 			shouldError: true,
