@@ -938,14 +938,14 @@ integration-test-setup:
 %-integration-test: RUN_ARGS = --rm
 %-integration-test: RUN_ARGS += -w "$(PWD)"
 %-integration-test: RUN_ARGS += --platform $(PLATFORM)
-%-integration-test: RUN_ARGS += $(addprefix -e ,"$(strip $(ENV_VARS))")
+%-integration-test: RUN_ARGS += $(addprefix -e ,$(strip $(ENV_VARS)))
 %-integration-test: RUN_ARGS += $(addprefix -v ,$(strip $(VOLUME_MOUNTS)))
 %-integration-test: IMAGE_TAG = $(shell $(MAKE) -C build.assets print-go-version | sed "s/go//")
 %-integration-test: IMAGE = golang:$(IMAGE_TAG)
 %-integration-test: LOG_PATH = $(TEST_LOG_DIR)/$*-integration.json
 %-integration-test: ensure-gotestsum integration-test-setup
 	@mkdir -p $(dir $(LOG_PATH))
-	docker run $(RUN_ARGS) $(IMAGE) \
+	@docker run $(RUN_ARGS) $(IMAGE) \
 		go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $* $(FLAGS) \
 		| tee $(LOG_PATH) \
 		| gotestsum --raw-command --format=testname -- cat
