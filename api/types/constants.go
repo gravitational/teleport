@@ -528,23 +528,23 @@ const (
 	// SubscriptionIDLabel is used to identify virtual machines by Azure
 	// subscription ID found via automatic discovery, to avoid re-running
 	// installation commands on the node.
-	SubscriptionIDLabel = TeleportNamespace + "/subscription-id"
+	SubscriptionIDLabel = TeleportInternalLabelPrefix + "subscription-id"
 	// VMIDLabel is used to identify virtual machines by ID found
 	// via automatic discovery, to avoid re-running installation commands
 	// on the node.
-	VMIDLabel = TeleportNamespace + "/vm-id"
+	VMIDLabel = TeleportInternalLabelPrefix + "vm-id"
 	// ProjectIDLabel is used to identify virtual machines by GCP project
 	// id found via automatic discovery, to avoid re-running
 	// installation commands on the node.
-	ProjectIDLabel = TeleportNamespace + "/project-id"
+	ProjectIDLabel = TeleportInternalLabelPrefix + "project-id"
 	// ZoneLabek is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
-	ZoneLabel = TeleportNamespace + "/zone"
+	ZoneLabel = TeleportInternalLabelPrefix + "zone"
 	// NameLabel is used to identify virtual machines by GCP VM name
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
-	NameLabel = TeleportNamespace + "/name"
+	NameLabel = TeleportInternalLabelPrefix + "name"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
