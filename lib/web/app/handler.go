@@ -522,9 +522,16 @@ func HasClientCert(r *http.Request) bool {
 // HasName checks if the client is attempting to connect to a
 // host that is different than the public address of the proxy. If it is, it
 // redirects back to the application launcher in the Web UI.
-func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
+func HasName(logger logrus.FieldLogger, r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 	raddr, err := utils.ParseAddr(r.Host)
 	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"proxy_public_addr": proxyPublicAddrs,
+			"request_host":      r.Host,
+			"request_path":      r.URL.Path,
+			"debug_session":     "true",
+		},
+		).Warnf("Failed to parse request host %q: %v.", r.Host, err)
 		return "", false
 	}
 	for _, paddr := range proxyPublicAddrs {
@@ -534,22 +541,57 @@ func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 		//  * The request is for an IP address.
 		//  * The request is for the public address of the proxy.
 		if utils.IsLocalhost(raddr.Host()) {
+			logger.WithFields(logrus.Fields{
+				"proxy_public_addr": proxyPublicAddrs,
+				"request_host":      r.Host,
+				"request_path":      r.URL.Path,
+				"debug_session":     "true",
+			},
+			).Warnf("Is Localhost %q.", raddr.Host())
 			return "", false
 		}
 		if net.ParseIP(raddr.Host()) != nil {
+			logger.WithFields(logrus.Fields{
+				"proxy_public_addr": proxyPublicAddrs,
+				"request_host":      r.Host,
+				"request_path":      r.URL.Path,
+				"debug_session":     "true",
+			},
+			).Warnf("Is IP %q.", raddr.Host())
 			return "", false
 		}
 		if raddr.Host() == paddr.Host() {
+			logger.WithFields(logrus.Fields{
+				"proxy_public_addr": proxyPublicAddrs,
+				"request_host":      r.Host,
+				"request_path":      r.URL.Path,
+				"debug_session":     "true",
+			},
+			).Warnf("matches proxy addr proxy: %q host: %q.", raddr.Host(), paddr.Host())
 			return "", false
 		}
 	}
 	if len(proxyPublicAddrs) == 0 {
+		logger.WithFields(logrus.Fields{
+			"proxy_public_addr": proxyPublicAddrs,
+			"request_host":      r.Host,
+			"request_path":      r.URL.Path,
+			"debug_session":     "true",
+		},
+		).Warnf("no proxy addrs %q", raddr.Host())
 		return "", false
 	}
 	// At this point, it is assumed the caller is requesting an application and
 	// not the proxy, redirect the caller to the application launcher.
 
 	urlString := makeAppRedirectURL(r, proxyPublicAddrs[0].String(), raddr.Host())
+	logger.WithFields(logrus.Fields{
+		"proxy_public_addr": proxyPublicAddrs,
+		"request_host":      r.Host,
+		"request_path":      r.URL.Path,
+		"debug_session":     "true",
+	},
+	).Warnf("all clear redirect url %q", urlString)
 	return urlString, true
 }
 

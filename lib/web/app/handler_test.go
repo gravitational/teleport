@@ -36,6 +36,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -76,7 +77,7 @@ func TestAuthPOST(t *testing.T) {
 		cookieValue = "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b" // random value we set in the header and expect to get back as a cookie
 	)
 
-	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
+	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 0o5, 10, 18, 53, 0, 0, time.UTC))
 	clusterName := "test-cluster"
 	publicAddr := "proxy.goteleport.com:443"
 
@@ -311,7 +312,7 @@ func TestHasName(t *testing.T) {
 			require.NoError(t, err)
 
 			addrs := utils.MustParseAddrList(test.addrs...)
-			u, ok := HasName(req, addrs)
+			u, ok := HasName(logrus.New(), req, addrs)
 			require.Equal(t, test.expectedURL, u)
 			require.Equal(t, test.hasName, ok)
 		})
@@ -449,7 +450,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
+			fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 0o5, 10, 18, 53, 0, 0, time.UTC))
 			appSession := createAppSession(t, fakeClock, key, cert, clusterName, tc.publicAddr)
 			authClient := &mockAuthClient{
 				clusterName: clusterName,
@@ -665,7 +666,6 @@ func (r *fakeRemoteListener) Accept() (net.Conn, error) {
 	}
 
 	return conn, nil
-
 }
 
 func (r *fakeRemoteListener) Close() error {
