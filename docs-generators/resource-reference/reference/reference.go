@@ -54,14 +54,17 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 	// packages.Load here since the resulting []*Package does not expose
 	// individual file names, which we need so contributors who want to edit
 	// the resulting docs page know which files to modify.
-	err := filepath.Walk(conf.SourcePath, func(path string, info fs.FileInfo, err error) error {
+	err := filepath.WalkDir(conf.SourcePath, func(path string, info fs.DirEntry, err error) error {
+		if info.IsDir() {
+			return nil
+		}
 		// There is an error with the path, so we can't load Go source
 		if err != nil {
 			return err
 		}
 
 		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, info.Name(), nil, parser.ParseComments)
+		file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 		if err != nil {
 			return err
 		}
