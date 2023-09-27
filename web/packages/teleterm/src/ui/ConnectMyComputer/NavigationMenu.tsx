@@ -129,9 +129,8 @@ function getIndicatorStatus(
   const isAgentConfigured =
     isAgentConfiguredAttempt.status === 'success' &&
     isAgentConfiguredAttempt.data;
-  const isAgentCompatibilityUnkown = agentCompatibility === 'unknown';
 
-  if (!isAgentConfigured || isAgentCompatibilityUnkown) {
+  if (!isAgentConfigured) {
     return '';
   }
 
