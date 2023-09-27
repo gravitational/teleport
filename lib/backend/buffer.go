@@ -305,7 +305,7 @@ type BufferWatcher struct {
 // String returns user-friendly representation
 // of the buffer watcher
 func (w *BufferWatcher) String() string {
-	return fmt.Sprintf("Watcher(name=%v, prefixes=%v, capacity=%v, size=%v)", w.Name, string(bytes.Join(w.Prefixes, []byte(", "))), w.capacity, len(w.eventsC))
+	return fmt.Sprintf("Watcher(name=%v, prefixes=%v, capacity=%v, size=%v)", w.Name, string(bytes.Join(w.Watch.Prefixes, []byte(", "))), w.capacity, len(w.eventsC))
 }
 
 // Events returns events channel.  This method performs internal work and should be re-called after each event
@@ -324,6 +324,13 @@ func (w *BufferWatcher) Events() <-chan Event {
 // Done channel is closed when watcher is closed
 func (w *BufferWatcher) Done() <-chan struct{} {
 	return w.ctx.Done()
+}
+
+// Prefixes returns the prefixes that the watcher is monitoring.
+func (w *BufferWatcher) Prefixes() [][]byte {
+	prefixes := make([][]byte, len(w.Watch.Prefixes))
+	copy(prefixes, w.Watch.Prefixes)
+	return prefixes
 }
 
 // flushBacklog attempts to push any backlogged events into the
@@ -431,7 +438,7 @@ type watcherTree struct {
 
 // add adds buffer watcher to the tree
 func (t *watcherTree) add(w *BufferWatcher) {
-	for _, p := range w.Prefixes {
+	for _, p := range w.Watch.Prefixes {
 		prefix := string(p)
 		val, ok := t.Tree.Get(prefix)
 		var watchers []*BufferWatcher
@@ -449,7 +456,7 @@ func (t *watcherTree) rm(w *BufferWatcher) bool {
 		return false
 	}
 	var found bool
-	for _, p := range w.Prefixes {
+	for _, p := range w.Watch.Prefixes {
 		prefix := string(p)
 		val, ok := t.Tree.Get(prefix)
 		if !ok {

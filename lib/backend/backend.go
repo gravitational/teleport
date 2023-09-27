@@ -202,6 +202,9 @@ type Watcher interface {
 	// Close closes the watcher and releases
 	// all associated resources
 	Close() error
+
+	// Prefixes returns the prefixes that the watcher is monitoring.
+	Prefixes() [][]byte
 }
 
 // GetResult provides the result of GetRange request
