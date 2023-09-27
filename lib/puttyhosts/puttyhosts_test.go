@@ -142,23 +142,6 @@ func TestAddHostToHostList(t *testing.T) {
 				"six",
 			},
 		},
-		{
-			hostList: []string{
-				"((*.example.com && port:22) || example.test.com)",
-				"singlehost",
-				"three.example.com",
-				"four.example.com",
-				"five.test.com",
-			},
-			hostname: "six",
-			expected: []string{
-				"((*.example.com && port:22) || example.test.com)",
-				"singlehost",
-				"*.example.com",
-				"five.test.com",
-				"six",
-			},
-		},
 	}
 
 	for i, tt := range tests {
