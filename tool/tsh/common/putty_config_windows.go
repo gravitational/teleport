@@ -253,10 +253,10 @@ func onPuttyConfig(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// validate hostname against a naive regex to make sure it doesn't contain obviously illegal characters due
-	// to typos or similar. setting an "invalid" key in the registry makes it impossible to delete via the PuTTY
-	// UI and requires registry edits, so it's much better to error out early here.
-	hostname := tc.Config.Host
+	// remove any spaces from provided hostname and validate it against a naive regex to make sure it doesn't contain
+	// obviously illegal characters due to typos or similar. setting an "invalid" key in the registry makes it impossible
+	// to delete via the PuTTY UI and requires registry edits, so it's much better to error out early here.
+	hostname := strings.ReplaceAll(tc.Config.Host, " ", "")
 	if !puttyhosts.NaivelyValidateHostname(hostname) {
 		return trace.BadParameter("provided hostname %v does not look like a valid hostname. Make sure it doesn't contain illegal characters.", hostname)
 	}
@@ -265,7 +265,7 @@ func onPuttyConfig(cf *CLIConf) error {
 	userHostString := hostname
 	login := ""
 	if tc.Config.HostLogin != "" {
-		login = tc.Config.HostLogin
+		login = strings.ReplaceAll(tc.Config.HostLogin, " ", "")
 		userHostString = fmt.Sprintf("%v@%v", login, userHostString)
 	}
 
@@ -329,7 +329,7 @@ func onPuttyConfig(cf *CLIConf) error {
 	}
 
 	// add session to registry
-	if err := addPuTTYSession(proxyHost, tc.Config.Host, port, login, ppkFilePath, certificateFilePath, localCommandString, cf.LeafClusterName); err != nil {
+	if err := addPuTTYSession(proxyHost, hostname, port, login, ppkFilePath, certificateFilePath, localCommandString, cf.LeafClusterName); err != nil {
 		log.Errorf("Failed to add PuTTY session for %v: %T\n", userHostString, err)
 		return trace.Wrap(err)
 	}
