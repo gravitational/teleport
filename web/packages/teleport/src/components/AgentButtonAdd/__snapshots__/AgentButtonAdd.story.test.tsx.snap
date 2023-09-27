@@ -26,6 +26,7 @@ exports[`can create 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
 .c0:active {
@@ -90,6 +91,7 @@ exports[`cannot create 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
 .c0:active {
@@ -155,6 +157,7 @@ exports[`cannot create when resource starts with vowel 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
 .c0:active {
@@ -220,6 +223,7 @@ exports[`on leaf cluster 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
 .c0:active {
@@ -285,6 +289,7 @@ exports[`on leaf cluster when resource starts with vowel 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
 .c0:active {

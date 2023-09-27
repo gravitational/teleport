@@ -47,6 +47,7 @@ export default function AgentButtonAdd(props: Props) {
       style={{ textDecoration: 'none' }}
     >
       <ButtonPrimary
+        textTransform="none"
         title={title}
         disabled={disabled}
         width="240px"

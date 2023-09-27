@@ -1059,6 +1059,7 @@ exports[`open source loaded 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
 .c3:active {
