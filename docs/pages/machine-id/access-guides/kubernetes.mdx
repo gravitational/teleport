@@ -112,27 +112,25 @@ spec:
 
 Be sure to configure the `allow` fields to match your environment:
 
- - `kubernetes_labels` must be specified to allow access to a matching
-   Kubernetes cluster in your Teleport environment.
+- `kubernetes_labels` must be specified to allow access to a matching
+  Kubernetes cluster in your Teleport environment.
 
- - Each item in `kubernetes_resources` must match the namespace and name of a
-   Kubernetes resource that you would like users with `machine-id-kube-role` to
-   access. Currently, Teleport only supports the `pod` kind. In the
-   configuration above, this role can access all pods in all namespaces.
+- Each item in `kubernetes_resources` must match the namespace and name of a
+  Kubernetes resource that you would like users with `machine-id-kube-role` to
+  access. Currently, Teleport only supports the `pod` kind. In the
+  configuration above, this role can access all pods in all namespaces.
 
- - One (or both) of `kubernetes_groups` and `kubernetes_users` must be specified
-   to so that the bot user may be mapped to a Kubernetes user and/or group.
+- One (or both) of `kubernetes_groups` and `kubernetes_users` must be specified
+  to so that the bot user may be mapped to a Kubernetes user and/or group.
 
-   If only `kubernetes_groups` is set, `kubernetes_users` will be set to the
-   bot's username by default.
+  If only `kubernetes_groups` is set, `kubernetes_users` will be set to the
+  bot's username by default.
 
-   The user and group values entered here are relayed directly to the Kubernetes
-   cluster as incoming user and group names. Kubernetes users and groups do not
-   need to be created in advance, but do need to match one or more
-   `RoleBindings` for the bot user to have any permissions on the target
-   Kubernetes cluster.
-
-
+  The user and group values entered here are relayed directly to the Kubernetes
+  cluster as incoming user and group names. Kubernetes users and groups do not
+  need to be created in advance, but do need to match one or more
+  `RoleBindings` for the bot user to have any permissions on the target
+  Kubernetes cluster.
 
 ## Step 2/3. Configure the `tbot` output
 
