@@ -18,9 +18,11 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/teambition/rrule-go"
 
 	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -276,4 +278,14 @@ func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires
 
 	// The user meets all requirements.
 	return true
+}
+
+// SelectNextAccessListReviewDate will return the next access review date for the access list.
+func SelectNextAccessListReviewDate(accessList *accesslist.AccessList) (time.Time, error) {
+	rule, err := rrule.StrToRRule(accessList.Spec.Audit.Recurrence)
+	if err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+
+	return rule.After(accessList.Spec.Audit.NextAuditDate, false), nil
 }

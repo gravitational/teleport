@@ -18,12 +18,14 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"github.com/teambition/rrule-go"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -415,6 +417,116 @@ func TestIsAccessListMember(t *testing.T) {
 	}
 }
 
+func TestSelectNextAccessListReviewDate(t *testing.T) {
+	t.Parallel()
+
+	// Test over 20 years, which includes several leap years
+	for year := 2023; year < 2053; year++ {
+		year := year
+		t.Run(fmt.Sprintf("select review date year %d", year), func(t *testing.T) {
+			t.Parallel()
+
+			// January dates, 1 month ahead
+			februaryMaxDay := time.Date(year, time.March, 0, 0, 0, 0, 0, time.UTC).Day()
+			for i := 1; i <= 31; i++ {
+				startDate := time.Date(year, time.January, i, 0, 0, 0, 0, time.UTC)
+				februaryDay := i
+				if i >= februaryMaxDay {
+					februaryDay = februaryMaxDay
+				}
+				recurrence := fmt.Sprintf("FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=%d;DTSTART=%s", februaryDay, startDate.Format(rrule.DateFormat))
+				nextDate, err := SelectNextAccessListReviewDate(newAccessListWithRecurrenceAndAuditDate(t, recurrence, startDate))
+				require.NoError(t, err)
+				expectedDate := time.Date(year, time.February, februaryDay, 0, 0, 0, 0, time.UTC)
+				require.Equal(t, expectedDate, nextDate, "expected next review date of %s for starting date %s, got %s instead", expectedDate, startDate, nextDate)
+			}
+
+			// Recurrences starting from January.
+			threeMonths := fmt.Sprintf("FREQ=MONTHLY;INTERVAL=3;DTSTART=%s", time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC).Format(rrule.DateFormat))
+			// 3 months from first days
+			nextDate, err := SelectNextAccessListReviewDate(newAccessListWithRecurrenceAndAuditDate(t, threeMonths, time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)))
+			require.NoError(t, err)
+			require.Equal(t, time.Date(year, time.April, 1, 0, 0, 0, 0, time.UTC), nextDate)
+			nextDate, err = SelectNextAccessListReviewDate(newAccessListWithRecurrenceAndAuditDate(t, threeMonths, time.Date(year, time.February, 1, 0, 0, 0, 0, time.UTC)))
+			require.NoError(t, err)
+			require.Equal(t, time.Date(year, time.April, 1, 0, 0, 0, 0, time.UTC), nextDate)
+			nextDate, err = SelectNextAccessListReviewDate(newAccessListWithRecurrenceAndAuditDate(t, threeMonths, time.Date(year, time.March, 1, 0, 0, 0, 0, time.UTC)))
+			require.NoError(t, err)
+			require.Equal(t, time.Date(year, time.April, 1, 0, 0, 0, 0, time.UTC), nextDate)
+			nextDate, err = SelectNextAccessListReviewDate(newAccessListWithRecurrenceAndAuditDate(t, threeMonths, time.Date(year, time.April, 1, 0, 0, 0, 0, time.UTC)))
+			require.NoError(t, err)
+			require.Equal(t, time.Date(year, time.July, 1, 0, 0, 0, 0, time.UTC), nextDate)
+			nextDate, err = SelectNextAccessListReviewDate(newAccessListWithRecurrenceAndAuditDate(t, threeMonths, time.Date(year, time.May, 1, 0, 0, 0, 0, time.UTC)))
+			require.NoError(t, err)
+			require.Equal(t, time.Date(year, time.July, 1, 0, 0, 0, 0, time.UTC), nextDate)
+			nextDate, err = SelectNextAccessListReviewDate(newAccessListWithRecurrenceAndAuditDate(t, threeMonths, time.Date(year, time.June, 1, 0, 0, 0, 0, time.UTC)))
+			require.NoError(t, err)
+			require.Equal(t, time.Date(year, time.July, 1, 0, 0, 0, 0, time.UTC), nextDate)
+			nextDate, err = SelectNextAccessListReviewDate(newAccessListWithRecurrenceAndAuditDate(t, threeMonths, time.Date(year, time.July, 1, 0, 0, 0, 0, time.UTC)))
+			require.NoError(t, err)
+			require.Equal(t, time.Date(year, time.October, 1, 0, 0, 0, 0, time.UTC), nextDate)
+			nextDate, err = SelectNextAccessListReviewDate(newAccessListWithRecurrenceAndAuditDate(t, threeMonths, time.Date(year, time.August, 1, 0, 0, 0, 0, time.UTC)))
+			require.NoError(t, err)
+			require.Equal(t, time.Date(year, time.October, 1, 0, 0, 0, 0, time.UTC), nextDate)
+			nextDate, err = SelectNextAccessListReviewDate(newAccessListWithRecurrenceAndAuditDate(t, threeMonths, time.Date(year, time.September, 1, 0, 0, 0, 0, time.UTC)))
+			require.NoError(t, err)
+			require.Equal(t, time.Date(year, time.October, 1, 0, 0, 0, 0, time.UTC), nextDate)
+			nextDate, err = SelectNextAccessListReviewDate(newAccessListWithRecurrenceAndAuditDate(t, threeMonths, time.Date(year, time.October, 1, 0, 0, 0, 0, time.UTC)))
+			require.NoError(t, err)
+			require.Equal(t, time.Date(year+1, time.January, 1, 0, 0, 0, 0, time.UTC), nextDate)
+			nextDate, err = SelectNextAccessListReviewDate(newAccessListWithRecurrenceAndAuditDate(t, threeMonths, time.Date(year, time.November, 1, 0, 0, 0, 0, time.UTC)))
+			require.NoError(t, err)
+			require.Equal(t, time.Date(year+1, time.January, 1, 0, 0, 0, 0, time.UTC), nextDate)
+			nextDate, err = SelectNextAccessListReviewDate(newAccessListWithRecurrenceAndAuditDate(t, threeMonths, time.Date(year, time.December, 1, 0, 0, 0, 0, time.UTC)))
+			require.NoError(t, err)
+			require.Equal(t, time.Date(year+1, time.January, 1, 0, 0, 0, 0, time.UTC), nextDate)
+
+			// 200 years in the future
+			years200 := fmt.Sprintf("FREQ=YEARLY;INTERVAL=200;DTSTART=%s", time.Date(year, time.July, 15, 0, 0, 0, 0, time.UTC).Format(rrule.DateFormat))
+			nextDate, err = SelectNextAccessListReviewDate(newAccessListWithRecurrenceAndAuditDate(t, years200, time.Date(year, time.July, 15, 0, 0, 0, 0, time.UTC)))
+			require.NoError(t, err)
+			require.Equal(t, time.Date(year+200, time.July, 15, 0, 0, 0, 0, time.UTC), nextDate)
+		})
+	}
+}
+
+// Verify defaults of the access list. We test these so that the API doesn't need the rrule dependency.
+func TestAccessListRecurrenceDefaults(t *testing.T) {
+	t.Parallel()
+
+	// Frequency set, next audit date is zero, recurrence not set. This will trigger a frequency conversion.
+	accessList := newAccessList(t)
+	accessList.Spec.Audit.Frequency = time.Minute
+	accessList.Spec.Audit.NextAuditDate = time.Time{}
+	accessList.Spec.Audit.Recurrence = ""
+	require.NoError(t, accessList.CheckAndSetDefaults())
+
+	nextDate, err := SelectNextAccessListReviewDate(accessList)
+	require.NoError(t, err)
+	require.Equal(t, time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC), nextDate)
+
+	// Frequency not set, next audit date is set, recurrence not set. This will trigger a default recurrence.
+	accessList = newAccessList(t)
+	accessList.Spec.Audit.NextAuditDate = time.Date(2023, 01, 01, 0, 0, 0, 0, time.UTC)
+	accessList.Spec.Audit.Recurrence = ""
+	require.NoError(t, accessList.CheckAndSetDefaults())
+
+	nextDate, err = SelectNextAccessListReviewDate(accessList)
+	require.NoError(t, err)
+	require.Equal(t, time.Date(2023, 7, 1, 0, 0, 0, 0, time.UTC), nextDate)
+
+	// Frequency not set, next audit date is set to a last day of the month, recurrence not set. This will trigger a default recurrence with
+	// special handling for the last day of the month.
+	accessList = newAccessList(t)
+	accessList.Spec.Audit.NextAuditDate = time.Date(2023, 02, 28, 0, 0, 0, 0, time.UTC)
+	accessList.Spec.Audit.Recurrence = ""
+	require.NoError(t, accessList.CheckAndSetDefaults())
+
+	nextDate, err = SelectNextAccessListReviewDate(accessList)
+	require.NoError(t, err)
+	require.Equal(t, time.Date(2023, 8, 31, 0, 0, 0, 0, time.UTC), nextDate)
+}
+
 func newAccessList(t *testing.T) *accesslist.AccessList {
 	t.Helper()
 
@@ -436,7 +548,6 @@ func newAccessList(t *testing.T) *accesslist.AccessList {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency:     time.Hour,
 				NextAuditDate: time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
 			},
 			MembershipRequires: accesslist.Requires{
@@ -463,6 +574,16 @@ func newAccessList(t *testing.T) *accesslist.AccessList {
 		},
 	)
 	require.NoError(t, err)
+
+	return accessList
+}
+
+func newAccessListWithRecurrenceAndAuditDate(t *testing.T, recurrence string, nextAuditDate time.Time) *accesslist.AccessList {
+	t.Helper()
+
+	accessList := newAccessList(t)
+	accessList.Spec.Audit.Recurrence = recurrence
+	accessList.Spec.Audit.NextAuditDate = nextAuditDate
 
 	return accessList
 }

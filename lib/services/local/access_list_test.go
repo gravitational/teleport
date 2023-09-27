@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"github.com/teambition/rrule-go"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -59,6 +60,14 @@ func TestAccessListCRUD(t *testing.T) {
 	cmpOpts := []cmp.Option{
 		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 	}
+
+	oldRecurrence := accessList1.Spec.Audit.Recurrence
+	accessList1.Spec.Audit.Recurrence = "bad string"
+
+	// Upsert access list with bad recurrence.
+	_, err = service.UpsertAccessList(ctx, accessList1)
+	require.Error(t, err)
+	accessList1.Spec.Audit.Recurrence = oldRecurrence
 
 	// Create both access lists.
 	accessList, err := service.UpsertAccessList(ctx, accessList1)
@@ -162,6 +171,38 @@ func TestAccessListDedupeOwnersBackwardsCompat(t *testing.T) {
 	require.Len(t, accessList.Spec.Owners, 2)
 }
 
+func TestAccessListRecurrenceBackwardsCompat(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	// Put access list with only the frequency set in the backend.
+	accessListRecurrence := newAccessList(t, "frequency")
+	accessListRecurrence.Spec.Audit.Frequency = time.Minute
+	accessListRecurrence.Spec.Audit.NextAuditDate = time.Time{}
+	accessListRecurrence.Spec.Audit.Recurrence = ""
+
+	item, err := service.service.MakeBackendItem(accessListRecurrence, accessListRecurrence.GetName())
+	require.NoError(t, err)
+	_, err = mem.Put(ctx, item)
+	require.NoError(t, err)
+
+	accessList, err := service.GetAccessList(ctx, accessListRecurrence.GetName())
+	require.NoError(t, err)
+
+	require.NotZero(t, accessList.Spec.Audit.NextAuditDate)
+	_, err = rrule.StrToRRule(accessList.Spec.Audit.Recurrence)
+	require.NoError(t, err)
+}
+
 func TestAccessListUpsertWithMembers(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
@@ -181,6 +222,14 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 	cmpOpts := []cmp.Option{
 		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 	}
+
+	t.Run("create access list with bad recurrence rule", func(t *testing.T) {
+		badAccessList := newAccessList(t, "bad-access-list")
+		badAccessList.Spec.Audit.Recurrence = "bad string"
+		// Create both access lists.
+		_, _, err := service.UpsertAccessListWithMembers(ctx, badAccessList, []*accesslist.AccessListMember{})
+		require.Error(t, err)
+	})
 
 	t.Run("create access list", func(t *testing.T) {
 		// Create both access lists.
@@ -424,7 +473,8 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency: time.Hour,
+				Frequency:     time.Hour,
+				NextAuditDate: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},

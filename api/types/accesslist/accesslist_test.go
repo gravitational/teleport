@@ -83,27 +83,98 @@ func TestDeduplicateOwners(t *testing.T) {
 	require.Equal(t, "test user 2", accessList.Spec.Owners[1].Description)
 }
 
+func TestRecurrenceConfiguration(t *testing.T) {
+	t.Parallel()
+
+	// This is a barebones access list that we'll use to modify and test lter.
+	sourceAccessList := AccessList{
+		ResourceHeader: header.ResourceHeaderFromMetadata(
+			header.Metadata{
+				Name: "recurrence-test",
+			},
+		),
+		Spec: Spec{
+			Title:       "title",
+			Description: "test access list",
+			Owners: []Owner{
+				{
+					Name:        "test-user1",
+					Description: "test user 1",
+				},
+			},
+			MembershipRequires: Requires{},
+			OwnershipRequires:  Requires{},
+			Grants: Grants{
+				Roles: []string{"grole1", "grole2"},
+				Traits: map[string][]string{
+					"gtrait1": {"gvalue1", "gvalue2"},
+					"gtrait2": {"gvalue3", "gvalue4"},
+				},
+			},
+		},
+	}
+
+	// Recurrence is set.
+	accessListDoesNotNeedConversion := sourceAccessList
+	accessListDoesNotNeedConversion.Spec.Audit.NextAuditDate = time.Date(2023, 1, 12, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, accessListDoesNotNeedConversion.CheckAndSetDefaults())
+	require.Zero(t, accessListDoesNotNeedConversion.Spec.Audit.Frequency)
+	require.Equal(t, "FREQ=MONTHLY;INTERVAL=6;BYMONTHDAY=12;DTSTART=20230112", accessListDoesNotNeedConversion.Spec.Audit.Recurrence)
+
+	// Frequency of 1 minute is set and next audit date is not.
+	accessList1MinuteConversion := sourceAccessList
+	accessList1MinuteConversion.Spec.Audit.Frequency = time.Minute
+	require.NoError(t, accessList1MinuteConversion.CheckAndSetDefaults())
+	require.Zero(t, accessList1MinuteConversion.Spec.Audit.Frequency)
+	require.Equal(t, "FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=1;DTSTART=20240101", accessList1MinuteConversion.Spec.Audit.Recurrence)
+
+	// Frequency of 1 month is set and next audit date is not.
+	accessList1MonthConversion := sourceAccessList
+	accessList1MonthConversion.Spec.Audit.Frequency = estimatedHoursInAMonth * 1
+	require.NoError(t, accessList1MonthConversion.CheckAndSetDefaults())
+	require.Zero(t, accessList1MonthConversion.Spec.Audit.Frequency)
+	require.Equal(t, "FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=1;DTSTART=20240101", accessList1MonthConversion.Spec.Audit.Recurrence)
+
+	// Frequency of 12 months is set and next audit date is set.
+	accessList12MonthConversion := sourceAccessList
+	accessList12MonthConversion.Spec.Audit.Frequency = estimatedHoursInAMonth * 12
+	accessList12MonthConversion.Spec.Audit.NextAuditDate = time.Date(2023, 1, 15, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, accessList12MonthConversion.CheckAndSetDefaults())
+	require.Zero(t, accessList12MonthConversion.Spec.Audit.Frequency)
+	require.Equal(t, "FREQ=MONTHLY;INTERVAL=12;BYMONTHDAY=15;DTSTART=20230115", accessList12MonthConversion.Spec.Audit.Recurrence)
+
+	// Frequency of greater than 12 months is set and next audit date is set. This should max out at 12 months.
+	accessListGT12MonthConversion := sourceAccessList
+	accessListGT12MonthConversion.Spec.Audit.Frequency = estimatedHoursInAMonth * 24
+	accessListGT12MonthConversion.Spec.Audit.NextAuditDate = time.Date(2023, 1, 15, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, accessListGT12MonthConversion.CheckAndSetDefaults())
+	require.Zero(t, accessListGT12MonthConversion.Spec.Audit.Frequency)
+	require.Equal(t, "FREQ=MONTHLY;INTERVAL=12;BYMONTHDAY=15;DTSTART=20230115", accessListGT12MonthConversion.Spec.Audit.Recurrence)
+}
+
 func TestAuditMarshaling(t *testing.T) {
 	audit := Audit{
 		Frequency:     time.Hour,
 		NextAuditDate: time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC),
+		Recurrence:    "recurrence string",
 	}
 
 	data, err := json.Marshal(&audit)
 	require.NoError(t, err)
 
-	require.Equal(t, `{"frequency":"1h0m0s","next_audit_date":"2023-02-02T00:00:00Z"}`, string(data))
+	// Frequency is no longer being used, so it won't show up in the marshaled string.
+	require.Equal(t, `{"next_audit_date":"2023-02-02T00:00:00Z","recurrence":"recurrence string"}`, string(data))
 
 	raw := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal(data, &raw))
 
-	require.Equal(t, "1h0m0s", raw["frequency"])
 	require.Equal(t, "2023-02-02T00:00:00Z", raw["next_audit_date"])
 }
 
 func TestAuditUnmarshaling(t *testing.T) {
+	t.Parallel()
+
 	raw := map[string]interface{}{
-		"frequency":       "1h",
 		"next_audit_date": "2023-02-02T00:00:00Z",
 	}
 
@@ -111,6 +182,19 @@ func TestAuditUnmarshaling(t *testing.T) {
 	require.NoError(t, err)
 
 	var audit Audit
+	require.NoError(t, json.Unmarshal(data, &audit))
+
+	require.Equal(t, time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC), audit.NextAuditDate)
+
+	raw = map[string]interface{}{
+		"frequency":       "1h",
+		"next_audit_date": "2023-02-02T00:00:00Z",
+	}
+
+	data, err = json.Marshal(&raw)
+	require.NoError(t, err)
+
+	audit = Audit{}
 	require.NoError(t, json.Unmarshal(data, &audit))
 
 	require.Equal(t, time.Hour, audit.Frequency)

@@ -18,6 +18,7 @@ package accesslist
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -27,6 +28,14 @@ import (
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/utils"
+)
+
+const (
+	// the date format for the recurrence string, copied from https://github.com/teambition/rrule-go.
+	recurrenceDateFormat = "20060102"
+
+	// estimatedHoursInAMonth are the number of hours in a month as estimated by Google.
+	estimatedHoursInAMonth = 730 * time.Hour
 )
 
 // AccessList describes the basic building block of access grants, which are
@@ -83,10 +92,15 @@ type Owner struct {
 // Audit describes the audit configuration for an access list.
 type Audit struct {
 	// Frequency is a duration that describes how often an access list must be audited.
-	Frequency time.Duration `json:"frequency" yaml:"frequency"`
+	// Deprecated.
+	Frequency time.Duration `json:"frequency,omitempty" yaml:"frequency,omitempty"`
 
 	// NextAuditDate is the date that the next audit should be performed.
 	NextAuditDate time.Time `json:"next_audit_date" yaml:"next_audit_date"`
+
+	// Recurrence is a valid iCalendar recurrence definition as defined in
+	// https://datatracker.ietf.org/doc/html/rfc5545.
+	Recurrence string `json:"recurrence" yaml:"recurrence"`
 }
 
 // Requires describes a requirement section for an access list. A user must
@@ -157,11 +171,48 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("owners are missing")
 	}
 
-	if a.Spec.Audit.Frequency == 0 {
-		return trace.BadParameter("audit frequency must be greater than 0")
+	// This interval is the number of months in between reviews. This will only be used if the
+	// recurrence string is not set.
+	recurrenceInterval := 6
+
+	// We know that the audit field needs a recurrence conversion if the frequency is set.
+	if a.Spec.Audit.Frequency != 0 {
+		// We'll modify the recurrence interval based on the value of the frequency. We'll take the assumptions made in the
+		// UI and max out at a yearly recurrence cycle
+		recurrenceInterval = int(a.Spec.Audit.Frequency / estimatedHoursInAMonth)
+		if recurrenceInterval > 12 {
+			recurrenceInterval = 12
+		} else if recurrenceInterval < 1 {
+			recurrenceInterval = 1
+		}
+
+		// Unset the frequency.
+		a.Spec.Audit.Frequency = 0
+
+		// If the audit field needs a conversion to the new recurrence format, we know that that the next audit date may not
+		// be populated. This will not happen going forward, as we now check for the zero value of the next audit date.
+		// We'll ensure that the next audit date is set to a sane default before proceeding.
+		if a.Spec.Audit.NextAuditDate.IsZero() {
+			a.Spec.Audit.NextAuditDate = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		}
 	}
 
-	// TODO(mdwn): Next audit date must not be zero.
+	if a.Spec.Audit.NextAuditDate.IsZero() {
+		return trace.BadParameter("next audit date is missing")
+	}
+
+	if a.Spec.Audit.Recurrence == "" {
+		// When we're setting a default recurrence, well make sure that we won't inadvertently skip a month by choosing a day that
+		// doesn't exist in certain months, i.e. any day after 29.
+		dayOfMonth := a.Spec.Audit.NextAuditDate.Day()
+		if dayOfMonth >= 28 {
+			// We'll assume that we want this to be the last day of the month.
+			dayOfMonth = -1
+		}
+
+		// By default, we'll assume a 6 month review cycle.
+		a.Spec.Audit.Recurrence = fmt.Sprintf("FREQ=MONTHLY;INTERVAL=%d;BYMONTHDAY=%d;DTSTART=%s", recurrenceInterval, dayOfMonth, a.Spec.Audit.NextAuditDate.Format(recurrenceDateFormat))
+	}
 
 	if len(a.Spec.Grants.Roles) == 0 && len(a.Spec.Grants.Traits) == 0 {
 		return trace.BadParameter("grants must specify at least one role or trait")
@@ -253,9 +304,13 @@ func (a *Audit) UnmarshalJSON(data []byte) error {
 	}
 
 	var err error
-	a.Frequency, err = time.ParseDuration(audit.Frequency)
-	if err != nil {
-		return trace.Wrap(err)
+
+	// Frequency is now optional, so we don't necessarily need to parse this.
+	if audit.Frequency != "" {
+		a.Frequency, err = time.ParseDuration(audit.Frequency)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	a.NextAuditDate, err = time.Parse(time.RFC3339Nano, audit.NextAuditDate)
 	if err != nil {
@@ -267,12 +322,12 @@ func (a *Audit) UnmarshalJSON(data []byte) error {
 func (a Audit) MarshalJSON() ([]byte, error) {
 	type Alias Audit
 	return json.Marshal(&struct {
-		Frequency     string `json:"frequency"`
+		Frequency     string `json:"frequency,omitempty"`
 		NextAuditDate string `json:"next_audit_date"`
 		Alias
 	}{
 		Alias:         (Alias)(a),
-		Frequency:     a.Frequency.String(),
+		Frequency:     "", // This is intentionally empty, as we're no longer using this field.
 		NextAuditDate: a.NextAuditDate.Format(time.RFC3339Nano),
 	})
 }

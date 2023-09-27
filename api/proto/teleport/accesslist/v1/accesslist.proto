@@ -81,10 +81,15 @@ message AccessListOwner {
 // AccessListAudit describes the audit configuration for an access list.
 message AccessListAudit {
   // frequency is a duration that describes how often an access list must be audited.
+  // Deprecated.
   google.protobuf.Duration frequency = 1;
 
   // next_audit_date is when the next audit date should be done by.
   google.protobuf.Timestamp next_audit_date = 2;
+
+  // Recurrence is a valid iCalendar recurrence definition as defined in
+  // https://datatracker.ietf.org/doc/html/rfc5545.
+  string recurrence = 3;
 }
 
 // AccessListRequires describes a requirement section for an access list. A user must

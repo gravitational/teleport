@@ -148,6 +148,7 @@ require (
 	github.com/snowflakedb/gosnowflake v1.6.24
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
+	github.com/teambition/rrule-go v1.8.2
 	github.com/tiktoken-go/tokenizer v0.1.0
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/vulcand/predicate v1.2.0 // replaced

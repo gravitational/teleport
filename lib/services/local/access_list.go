@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"github.com/teambition/rrule-go"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -112,20 +113,48 @@ func (a *AccessListService) GetAccessList(ctx context.Context, name string) (*ac
 
 // UpsertAccessList creates or updates an access list resource.
 func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
-	err := a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		ownerMap := make(map[string]struct{}, len(accessList.Spec.Owners))
-		for _, owner := range accessList.Spec.Owners {
-			if _, ok := ownerMap[owner.Name]; ok {
-				return trace.AlreadyExists("owner %s already exists in the owner list", owner.Name)
-			}
-			ownerMap[owner.Name] = struct{}{}
+	ownerMap := make(map[string]struct{}, len(accessList.Spec.Owners))
+	for _, owner := range accessList.Spec.Owners {
+		if _, ok := ownerMap[owner.Name]; ok {
+			return nil, trace.AlreadyExists("owner %s already exists in the owner list", owner.Name)
 		}
+		ownerMap[owner.Name] = struct{}{}
+	}
+
+	if err := verifyRecurrenceRule(accessList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err := a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		return trace.Wrap(a.service.UpsertResource(ctx, accessList))
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return accessList, nil
+}
+
+// verifyRecurrenceRule will verify that the recurrence rule is defined in a way that we support.
+func verifyRecurrenceRule(accessList *accesslist.AccessList) error {
+	// Parse the rule
+	rule, err := rrule.StrToRRule(accessList.Spec.Audit.Recurrence)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// We only allow monthly or yearly rules.
+	switch rule.Options.Freq {
+	case rrule.MONTHLY, rrule.YEARLY:
+		// Do nothing
+	default:
+		return trace.BadParameter("unsupported frequency %s, must be MONTHLY or YEARLY", rule.Options.Freq)
+	}
+
+	if !rule.OrigOptions.Until.IsZero() || rule.Options.Count > 0 {
+		return trace.BadParameter("recurrence definitions must not end and must be perpetual")
+	}
+
+	return nil
 }
 
 // DeleteAccessList removes the specified access list resource.
@@ -234,8 +263,13 @@ func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) erro
 
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
 func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	if err := verifyRecurrenceRule(accessList); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	// Double the lock TTL to account for the time it takes to upsert the members.
 	err := a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+
 		// Create a map of the members from the request for easier lookup.
 		membersMap := make(map[string]*accesslist.AccessListMember)
 
