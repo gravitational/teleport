@@ -68,8 +68,26 @@ type MyStruct struct{
 			},
 			expected: true,
 		},
-		// TODO: package with multiple path segments: same package
-		// TODO: package with multiple path segments: another package
+		{
+			description: "one required type with long path from a separate package",
+			input: []TypeInfo{
+				{
+					Package: "long/package/path/types",
+					Name:    "Metadata",
+				},
+			},
+			expected: true,
+		},
+		{
+			description: "one required type with long path from the current  package",
+			input: []TypeInfo{
+				{
+					Package: "long/package/path/testpkg",
+					Name:    "Metadata",
+				},
+			},
+			expected: true,
+		},
 	}
 
 	fset := token.NewFileSet()
