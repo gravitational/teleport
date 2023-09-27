@@ -64,10 +64,11 @@ Now, `tbot` needs to be configured with an output that will produce the
 credentials and SSH configuration that is needed by Ansible. For SSH,
 we use the `identity` output type.
 
-For this guide, the `directory` destination will be used. This will write these
-credentials to a specified directory on disk. Ensure that this directory can
-be written to by the Linux user that `tbot` runs as, and that it can be read by
-the Linux user that Ansible will run as.
+Outputs must be configured with a destination. In this example, the `directory`
+destination will be used. This will write these credentials to a specified
+directory on disk. Ensure that this directory can be written to by the Linux
+user that `tbot` runs as, and that it can be read by the Linux user that Ansible
+will run as.
 
 Modify your `tbot` configuration to add an `identity` output:
 
@@ -84,7 +85,7 @@ outputs:
 
 If operating `tbot` as a background service, restart it. If running `tbot` in
 one-shot mode, it must be executed before you attempt to execute the Ansible
-playbook later.
+playbook.
 
 You should now see several files under `/opt/machine-id`:
 

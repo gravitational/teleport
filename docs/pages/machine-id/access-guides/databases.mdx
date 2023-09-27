@@ -106,9 +106,6 @@ outputs:
   # format: mongo
 ```
 
-The `outputs` field controls the what certificates `tbot` will produce when it
-runs and where these certificates should be written.
-
 The `format` field in the database output controls the format of the generated
 credentials. This setting allows the credentials to work with database clients
 that require a specific format. When this field is not specified, a sensible
@@ -122,62 +119,13 @@ supported `format` options is below:
 | CockroachDB   | `cockroach`   | Provides `cockroach/node.key`, `cockroach/node.crt`, and `cockroach/ca.crt`. |
 | Generic TLS   | `tls`         | Provides `tls.key`, `tls.crt`, and `tls.cas` for generic clients that require specific file extensions. |
 
-Be sure to configure the `token` and `ca_pins` fields to match the output from
-`tctl bots add ...`.
+If operating `tbot` as a background service, restart it. If running `tbot` in
+one-shot mode, it must be executed before you attempt to execute the Ansible
+playbook.
 
-Machine ID also allows you to use Linux ACLs to control access to certificates
-on disk. You will use this to ensure only your application has access to the
-short-lived certificates Machine ID uses.
+## Step 3/4 Configure the database access tunnel
 
-We'll work with the assumption you will be running Machine ID as the Linux user
-`teleport` and your application as the Linux user `app`. Create and initialize
-the output destination by running this `tbot init` command either as `root`
-or as the `teleport` user:
-
-```code
-$ tbot init \
-    -c /etc/tbot.yaml \
-    --init-dir=/opt/machine-id \
-    --bot-user=teleport \
-    --owner=teleport:teleport \
-    --reader-user=app
-```
-
-(!docs/pages/includes/machine-id/machine-id-init-bot-data.mdx!)
-
-<Notice type="note">
-Be sure to re-run `tbot init ...` as shown here if config templates are added
-or removed from `tbot.yaml`. You may run into permissions errors if `tbot init`
-is not run for new files.
-</Notice>
-
-Next, you will use systemd to run Machine ID in the background on your
-application node. Create a systemd.unit file at
-`/etc/systemd/system/machine-id.service`:
-
-```systemd
-[Unit]
-Description=Teleport Machine ID Service
-After=network.target
-
-[Service]
-Type=simple
-User=teleport
-Group=teleport
-Restart=on-failure
-Environment="TELEPORT_ANONYMOUS_TELEMETRY=1"
-ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
-ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/run/machine-id.pid
-LimitNOFILE=524288
-
-[Install]
-WantedBy=multi-user.target
-```
-
-`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
-telemetry. This helps us shape the future development of `tbot`. You can disable
-this by omitting this.
+TODO
 
 Additionally, we'll need to create a secondary service to manage the database
 proxy. Create another unit file at `/etc/systemd/system/machine-id-proxy.service`:
@@ -209,17 +157,10 @@ parameters as necessary for your local setup.
 Finally, run the following commands to start Machine ID:
 
 ```code
-$ sudo systemctl enable machine-id machine-id-proxy
-$ sudo systemctl start machine-id machine-id-proxy
-$ sudo systemctl status machine-id machine-id-proxy
+$ sudo systemctl enable machine-id-proxy
+$ sudo systemctl start machine-id-proxy
+$ sudo systemctl status machine-id-proxy
 ```
-
-## Step 3/3. Update and run your application
-
-In the default proxy mode, database clients must also be configured to use
-`tbot`'s generated TLS certificates. This ensures no other users of the system
-can access the database via the local proxy, and ensures the connection between
-your database client and server is never unencrypted, even over localhost.
 
 <Admonition type="note" title="TLS Configuration Note">
 If desired, you can add the `--tunnel` flag to the `tbot proxy db ...` command in the `machine-id-proxy.service` systemd unit file to
@@ -227,6 +168,13 @@ authenticate automatically at the proxy level, however this will decrease
 security as all users of the system will be able to connect to the database
 without any additional authentication.
 </Admonition>
+
+## Step 3/4. Update and run your application
+
+In the default proxy mode, database clients must also be configured to use
+`tbot`'s generated TLS certificates. This ensures no other users of the system
+can access the database via the local proxy, and ensures the connection between
+your database client and server is never unencrypted, even over localhost.
 
 Once the necessary credentials for your database are ready to use, refer to
 these sample Go programs to test connectivity to your database.
