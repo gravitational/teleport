@@ -136,9 +136,8 @@ one-shot mode, it must be executed before you attempt to use the credentials.
 Once `tbot` has been run with the new output configured, `kubeconfig.yaml`
 should have been generated in the destination directory you specified.
 
-The `kubeconfig.yaml` can be passed to `kubectl`. The `kubeconfig.yaml` contains
-all the information necessary to automatically configure `kubectl` to connect
-to the Kubernetes cluster through the Teleport Proxy. As well as being
+The `kubeconfig.yaml` contains all the information necessary for `kubectl` to
+connect to the Kubernetes cluster through the Teleport Proxy. As well as being
 compatible with `kubectl`, it is also compatible with most other tools that
 connect to Kubernetes clusters (e.g Helm).
 
@@ -147,6 +146,7 @@ environment variable can be provided to `kubectl`:
 
 ```code
 $ kubectl --kubeconfig /opt/machine-id/kubeconfig.yaml get pods -A
+# Or, set the KUBECONFIG environment variable:
 $ export KUBECONFIG=/opt/machine-id/kubeconfig.yaml
 $ kubectl get pods -A
 ```
