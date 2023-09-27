@@ -341,6 +341,50 @@ exports[`failed state 1`] = `
   cursor: auto;
 }
 
+.c34 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #FFFFFF;
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 90px;
+  text-transform: none;
+}
+
+.c34:hover,
+.c34:focus {
+  background: rgba(255,255,255,0.07);
+}
+
+.c34:active {
+  background: rgba(255,255,255,0.13);
+}
+
+.c34:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
 .c21 {
   display: inline-block;
   transition: color 0.3s;
@@ -354,7 +398,7 @@ exports[`failed state 1`] = `
   font-size: 22px;
 }
 
-.c34 {
+.c35 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -363,14 +407,14 @@ exports[`failed state 1`] = `
   font-size: 14px;
 }
 
-.c40 {
+.c41 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c38 {
+.c39 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -392,29 +436,29 @@ exports[`failed state 1`] = `
   margin-right: 0px;
 }
 
-.c38 .c20 {
+.c39 .c20 {
   color: inherit;
 }
 
-.c38:disabled {
+.c39:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c38:disabled {
+.c39:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c38:hover:enabled,
-.c38:focus:enabled {
+.c39:hover:enabled,
+.c39:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c38:active:enabled {
+.c39:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c41 {
+.c42 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -435,25 +479,25 @@ exports[`failed state 1`] = `
   margin-left: 0px;
 }
 
-.c41 .c20 {
+.c42 .c20 {
   color: inherit;
 }
 
-.c41:disabled {
+.c42:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c41:disabled {
+.c42:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c41:hover:enabled,
-.c41:focus:enabled {
+.c42:hover:enabled,
+.c42:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c41:active:enabled {
+.c42:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -545,7 +589,7 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c35 {
+.c36 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -556,7 +600,7 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c37 {
+.c38 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -689,7 +733,7 @@ exports[`failed state 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c36 {
+.c37 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -726,11 +770,11 @@ exports[`failed state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c39 .c20 {
+.c40 .c20 {
   font-size: 20px;
 }
 
-.c39 .c20:before {
+.c40 .c20:before {
   padding-left: 1px;
 }
 
@@ -1299,13 +1343,13 @@ exports[`failed state 1`] = `
               align="right"
             >
               <button
-                class="c30"
+                class="c34"
                 kind="border"
-                width="88px"
+                width="90px"
               >
                 LAUNCH
                 <span
-                  class="c20 c34 icon icon-caret-down "
+                  class="c20 c35 icon icon-caret-down "
                   color="text.slightlyMuted"
                   font-size="2"
                 />
@@ -1317,7 +1361,7 @@ exports[`failed state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c35"
+                class="c36"
                 height="32px"
                 width="32px"
               >
@@ -1374,30 +1418,30 @@ exports[`failed state 1`] = `
         </tbody>
       </table>
       <nav
-        class="c36"
+        class="c37"
       >
         <div
-          class="c37"
+          class="c38"
           width="100%"
         >
           <div
             class="c22"
           >
             <button
-              class="c38 c39"
+              class="c39 c40"
               title="Previous page"
             >
               <span
-                class="c20 c40 icon icon-arrow-left-circle "
+                class="c20 c41 icon icon-arrow-left-circle "
                 font-size="3"
               />
             </button>
             <button
-              class="c41 c39"
+              class="c42 c40"
               title="Next page"
             >
               <span
-                class="c20 c40 icon icon-arrow-right-circle "
+                class="c20 c41 icon icon-arrow-right-circle "
                 font-size="3"
               />
             </button>
@@ -1441,6 +1485,7 @@ exports[`loaded state 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
 .c3:hover,
@@ -1501,6 +1546,50 @@ exports[`loaded state 1`] = `
   cursor: auto;
 }
 
+.c34 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #FFFFFF;
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 90px;
+  text-transform: none;
+}
+
+.c34:hover,
+.c34:focus {
+  background: rgba(255,255,255,0.07);
+}
+
+.c34:active {
+  background: rgba(255,255,255,0.13);
+}
+
+.c34:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
 .c21 {
   display: inline-block;
   transition: color 0.3s;
@@ -1514,7 +1603,7 @@ exports[`loaded state 1`] = `
   font-size: 22px;
 }
 
-.c34 {
+.c35 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -1523,14 +1612,14 @@ exports[`loaded state 1`] = `
   font-size: 14px;
 }
 
-.c40 {
+.c41 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c38 {
+.c39 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1552,29 +1641,29 @@ exports[`loaded state 1`] = `
   margin-right: 0px;
 }
 
-.c38 .c20 {
+.c39 .c20 {
   color: inherit;
 }
 
-.c38:disabled {
+.c39:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c38:disabled {
+.c39:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c38:hover:enabled,
-.c38:focus:enabled {
+.c39:hover:enabled,
+.c39:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c38:active:enabled {
+.c39:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c41 {
+.c42 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1595,25 +1684,25 @@ exports[`loaded state 1`] = `
   margin-left: 0px;
 }
 
-.c41 .c20 {
+.c42 .c20 {
   color: inherit;
 }
 
-.c41:disabled {
+.c42:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c41:disabled {
+.c42:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c41:hover:enabled,
-.c41:focus:enabled {
+.c42:hover:enabled,
+.c42:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c41:active:enabled {
+.c42:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
@@ -1705,7 +1794,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c35 {
+.c36 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -1716,7 +1805,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c37 {
+.c38 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -1849,7 +1938,7 @@ exports[`loaded state 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c36 {
+.c37 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -1886,11 +1975,11 @@ exports[`loaded state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c39 .c20 {
+.c40 .c20 {
   font-size: 20px;
 }
 
-.c39 .c20:before {
+.c40 .c20:before {
   padding-left: 1px;
 }
 
@@ -2465,13 +2554,13 @@ exports[`loaded state 1`] = `
               align="right"
             >
               <button
-                class="c30"
+                class="c34"
                 kind="border"
-                width="88px"
+                width="90px"
               >
                 LAUNCH
                 <span
-                  class="c20 c34 icon icon-caret-down "
+                  class="c20 c35 icon icon-caret-down "
                   color="text.slightlyMuted"
                   font-size="2"
                 />
@@ -2483,7 +2572,7 @@ exports[`loaded state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c35"
+                class="c36"
                 height="32px"
                 width="32px"
               >
@@ -2540,30 +2629,30 @@ exports[`loaded state 1`] = `
         </tbody>
       </table>
       <nav
-        class="c36"
+        class="c37"
       >
         <div
-          class="c37"
+          class="c38"
           width="100%"
         >
           <div
             class="c22"
           >
             <button
-              class="c38 c39"
+              class="c39 c40"
               title="Previous page"
             >
               <span
-                class="c20 c40 icon icon-arrow-left-circle "
+                class="c20 c41 icon icon-arrow-left-circle "
                 font-size="3"
               />
             </button>
             <button
-              class="c41 c39"
+              class="c42 c40"
               title="Next page"
             >
               <span
-                class="c20 c40 icon icon-arrow-right-circle "
+                class="c20 c41 icon icon-arrow-right-circle "
                 font-size="3"
               />
             </button>
