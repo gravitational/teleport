@@ -588,8 +588,8 @@ func (c *Client) handlePNG(cb *C.CGOPNG) C.CGOErrCode {
 	return C.ErrCodeSuccess
 }
 
-//export handle_remote_fx_frame
-func handle_remote_fx_frame(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
+//export handle_fastpath_pdu
+func handle_fastpath_pdu(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
 	goData := asRustBackedSlice(data, int(length))
 	return cgo.Handle(handle).Value().(*Client).handleRDPFastPathPDU(goData)
 }
@@ -602,6 +602,24 @@ func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
 
 	if err := c.cfg.Conn.WriteMessage(tdp.RDPFastPathPDU(data)); err != nil {
 		c.cfg.Log.Errorf("failed handling RDPFastPathPDU: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export handle_rdp_channel_ids
+func handle_rdp_channel_ids(handle C.uintptr_t, io_channel_id C.uint16_t, user_channel_id C.uint16_t) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).handleRDPChannelIDs(io_channel_id, user_channel_id)
+}
+
+func (c *Client) handleRDPChannelIDs(ioChannelID, userChannelID C.uint16_t) C.CGOErrCode {
+	c.cfg.Log.Debugf("Received RDP channel IDs: io_channel_id=%d, user_channel_id=%d", ioChannelID, userChannelID)
+
+	if err := c.cfg.Conn.WriteMessage(tdp.RDPChannelIDs{
+		IOChannelID:   uint16(ioChannelID),
+		UserChannelID: uint16(userChannelID),
+	}); err != nil {
+		c.cfg.Log.Errorf("failed handling RDPChannelIDs: %v", err)
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess

@@ -174,11 +174,11 @@ pub struct FastPathProcessor {
 #[wasm_bindgen]
 impl FastPathProcessor {
     #[wasm_bindgen(constructor)]
-    pub fn new(width: u16, height: u16) -> Self {
+    pub fn new(width: u16, height: u16, io_channel_id: u16, user_channel_id: u16) -> Self {
         Self {
             fast_path_processor: IronRdpFastPathProcessorBuilder {
-                io_channel_id: 1003,   // todo(isaiah)
-                user_channel_id: 1004, // todo(isaiah)
+                io_channel_id,
+                user_channel_id,
                 no_server_pointer: true,
             }
             .build(),

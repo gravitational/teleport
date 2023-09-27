@@ -58,8 +58,9 @@ export enum MessageType {
   SHARED_DIRECTORY_LIST_RESPONSE = 26,
   PNG2_FRAME = 27,
   NOTIFICATION = 28,
-  REMOTE_FX_FRAME = 29,
-  RESPONSE_FRAME = 30,
+  RDP_FASTPATH_PDU = 29,
+  RDP_RESPONSE_PDU = 30,
+  RDP_CHANNEL_IDS = 31,
   __LAST, // utility value
 }
 
@@ -99,6 +100,12 @@ export type ClipboardData = {
   // TODO(isaiah): store this as a byte array
   // https://github.com/gravitational/webapps/issues/610
   data: string;
+};
+
+// | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
+export type RDPChannelIDs = {
+  ioChannelId: number;
+  userChannelId: number;
 };
 
 export enum Severity {
@@ -808,7 +815,7 @@ export default class Codec {
     const view = new DataView(buffer);
     let offset = 0;
 
-    view.setUint8(offset, MessageType.RESPONSE_FRAME);
+    view.setUint8(offset, MessageType.RDP_RESPONSE_PDU);
     offset += byteLength;
     view.setUint32(offset, responseFrame.byteLength);
     offset += uint32Length;
@@ -947,6 +954,17 @@ export default class Codec {
     offset += uint32Length; // eat data_length
     const data = buffer.slice(offset);
     return new RDPFastPathPDU(new Uint8Array(data));
+  }
+
+  // | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
+  decodeRDPChannelIDs(buffer: ArrayBuffer): RDPChannelIDs {
+    const dv = new DataView(buffer);
+    let offset = 0;
+    offset += byteLength; // eat message type
+    const ioChannelId = dv.getUint16(offset);
+    offset += uint16Length; // eat io_channel_id
+    const userChannelId = dv.getUint16(offset);
+    return { ioChannelId, userChannelId };
   }
 
   // | message type (12) | err_code error | directory_id uint32 |
@@ -1143,5 +1161,6 @@ export default class Codec {
 }
 
 const byteLength = 1;
+const uint16Length = 2;
 const uint32Length = 4;
 const uint64Length = uint32Length * 2;

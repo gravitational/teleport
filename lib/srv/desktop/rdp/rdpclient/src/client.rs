@@ -1,7 +1,7 @@
 pub mod global;
 use crate::{
-    handle_remote_fx_frame, CGOErrCode, CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton,
-    CGOPointerWheel, CgoHandle,
+    handle_fastpath_pdu, handle_rdp_channel_ids, CGOErrCode, CGOKeyboardEvent,
+    CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
 };
 use ironrdp_connector::{Config, ConnectorError};
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
@@ -92,6 +92,15 @@ impl Client {
             ironrdp_tokio::connect_finalize(upgraded, &mut rdp_stream, connector).await?;
 
         debug!("connection_result: {:?}", connection_result);
+
+        // Register the RDP channels with the browser client.
+        unsafe {
+            ClientResult::from(handle_rdp_channel_ids(
+                cgo_handle,
+                connection_result.io_channel_id,
+                connection_result.user_channel_id,
+            ))
+        }?;
 
         // Take the stream back out of the framed object for splitting.
         let rdp_stream = rdp_stream.into_inner_no_leftover();
@@ -200,7 +209,7 @@ impl Client {
                     ironrdp_pdu::Action::FastPath => {
                         global::TOKIO_RT
                             .spawn_blocking(move || unsafe {
-                                let err_code = handle_remote_fx_frame(
+                                let err_code = handle_fastpath_pdu(
                                     cgo_handle,
                                     frame.as_mut_ptr(),
                                     frame.len() as u32,
