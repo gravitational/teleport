@@ -20,10 +20,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
 func TestVerifyEventWatcherPrefxies(t *testing.T) {
