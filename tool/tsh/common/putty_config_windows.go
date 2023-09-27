@@ -198,17 +198,20 @@ func addHostCAPublicKey(registryHostCAStruct puttyhosts.HostCAPublicKeyForRegist
 	}
 
 	// split the Validity key out into a list of individual hostnames (hostList)
-	hostList := puttyhosts.SplitValidityKey(validity)
+	hostList, err := puttyhosts.CheckAndSplitValidityKey(validity, registryHostCAStruct.KeyName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// if matchHosts has any entries, we do a one-time migration of all the values from the "old" MatchHosts
-	//  multistring to the new Validity string, then delete the "MatchHosts" key.
+	// multistring to the new Validity string, then delete the "MatchHosts" key.
 	if len(matchHosts) > 0 {
 		log.Debugf("Found %v legacy MatchHosts value(s) in registry key %v, migrating to new Validity format and deleting", len(matchHosts), registryKeyName)
 		hostList = append(hostList, matchHosts...)
 		err := registry.DeleteValueFromRegistryKey(registryKey, "MatchHosts")
 		// failure to delete this value isn't a fatal error, so we should continue regardless
 		if err != nil {
-			log.Debugf("Failed to delete old MatchHosts value: %v", err)
+			log.Debugf("Failed to delete old MatchHosts value for %v: %v", registryHostCAStruct.KeyName, err)
 		}
 	}
 
