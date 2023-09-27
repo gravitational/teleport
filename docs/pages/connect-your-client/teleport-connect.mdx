@@ -263,12 +263,22 @@ The changes will take effect at the next launch.
 
 ## Troubleshooting
 
-If you encounter a bug which renders the UI partially unusable, resetting app state related to a
-particular cluster might help. To do this, log out of the cluster, close the app and log in again.
+Resetting the app state might help with UI crashes caused by Teleport Connect getting into an
+abnormal state. This might happen after downgrading Teleport Connect or performing substantial
+server-side changes. Those UI crashes typically manifest as a blank window or an Internal Error
+alert.
 
-To completely wipe all app state, close the app and remove the internal `tsh` folder and the
-`app_state.json` file. This will log you out of all clusters and clear all remembered tabs and
-connections.
+To reset the state related to a particular cluster:
+
+1. Log out of the cluster.
+1. Close Teleport Connect.
+1. Open Teleport Connect, then log back in to the cluster.
+
+To completely wipe all app state:
+
+1. Close Teleport Connect.
+1. Remove the internal `tsh` folder and the `app_state.json` file to log out of all clusters and
+   clear all remembered tabs and connections.
 
 <Tabs>
 <TabItem label="macOS">
