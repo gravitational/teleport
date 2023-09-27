@@ -146,10 +146,11 @@ func (c *remoteConn) Close() error {
 
 // OpenChannel will open a SSH channel to the remote side.
 func (c *remoteConn) OpenChannel(name string, data []byte) (ssh.Channel, error) {
-	channel, _, err := c.sconn.OpenChannel(name, data)
+	channel, reqC, err := c.sconn.OpenChannel(name, data)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	go ssh.DiscardRequests(reqC)
 
 	return channel, nil
 }
@@ -233,11 +234,13 @@ func (c *remoteConn) openDiscoveryChannel() (ssh.Channel, error) {
 		return c.discoveryCh, nil
 	}
 
-	c.discoveryCh, _, err = c.sconn.OpenChannel(chanDiscovery, nil)
+	discoveryCh, reqC, err := c.sconn.OpenChannel(chanDiscovery, nil)
 	if err != nil {
 		c.markInvalid(err)
 		return nil, trace.Wrap(err)
 	}
+	go ssh.DiscardRequests(reqC)
+	c.discoveryCh = discoveryCh
 	return c.discoveryCh, nil
 }
 

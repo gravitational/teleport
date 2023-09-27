@@ -125,6 +125,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Linkedin} text="Linkedin" />
     <IconBox IconCmpt={Icon.Linux} text="Linux" />
     <IconBox IconCmpt={Icon.ListAddCheck} text="ListAddCheck" />
+    <IconBox IconCmpt={Icon.ListMagnifyingGlass} text="ListMagnifyingGlass" />
     <IconBox IconCmpt={Icon.ListThin} text="ListThin" />
     <IconBox IconCmpt={Icon.ListView} text="ListView" />
     <IconBox IconCmpt={Icon.Lock} text="Lock" />
@@ -137,6 +138,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Mute} text="Mute" />
     <IconBox IconCmpt={Icon.NewTab} text="NewTab" />
     <IconBox IconCmpt={Icon.NoteAdded} text="NoteAdded" />
+    <IconBox IconCmpt={Icon.Notification} text="Notification" />
     <IconBox IconCmpt={Icon.NotificationsActive} text="NotificationsActive" />
     <IconBox IconCmpt={Icon.PaperPlane} text="PaperPlane" />
     <IconBox IconCmpt={Icon.Pencil} text="Pencil" />

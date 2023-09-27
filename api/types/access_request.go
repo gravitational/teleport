@@ -90,6 +90,12 @@ type AccessRequest interface {
 	GetReviews() []AccessReview
 	// SetReviews sets the list of currently applied access reviews (internal use only).
 	SetReviews([]AccessReview)
+	// GetPromotedAccessListName returns the access list name that this access request
+	// was promoted to.
+	GetPromotedAccessListName() string
+	// SetPromotedAccessListName sets the access list name that this access request
+	// was promoted to.
+	SetPromotedAccessListName(name string)
 	// GetPromotedAccessListTitle returns the access list title that this access request
 	// was promoted to.
 	GetPromotedAccessListTitle() string
@@ -310,14 +316,36 @@ func (r *AccessRequestV3) SetSuggestedReviewers(reviewers []string) {
 	r.Spec.SuggestedReviewers = reviewers
 }
 
+// GetPromotedAccessListName returns PromotedAccessListName.
+func (r *AccessRequestV3) GetPromotedAccessListName() string {
+	if r.Spec.AccessList == nil {
+		return ""
+	}
+	return r.Spec.AccessList.Name
+}
+
+// SetPromotedAccessListName sets PromotedAccessListName.
+func (r *AccessRequestV3) SetPromotedAccessListName(name string) {
+	if r.Spec.AccessList == nil {
+		r.Spec.AccessList = &PromotedAccessList{}
+	}
+	r.Spec.AccessList.Name = name
+}
+
 // GetPromotedAccessListTitle returns PromotedAccessListTitle.
 func (r *AccessRequestV3) GetPromotedAccessListTitle() string {
-	return r.Spec.PromotedAccessListTitle
+	if r.Spec.AccessList == nil {
+		return ""
+	}
+	return r.Spec.AccessList.Title
 }
 
 // SetPromotedAccessListTitle sets PromotedAccessListTitle.
 func (r *AccessRequestV3) SetPromotedAccessListTitle(title string) {
-	r.Spec.PromotedAccessListTitle = title
+	if r.Spec.AccessList == nil {
+		r.Spec.AccessList = &PromotedAccessList{}
+	}
+	r.Spec.AccessList.Title = title
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -540,6 +568,22 @@ func (s AccessReview) Check() error {
 	}
 
 	return nil
+}
+
+// GetAccessListName returns the access list name used for the promotion.
+func (s AccessReview) GetAccessListName() string {
+	if s.AccessList == nil {
+		return ""
+	}
+	return s.AccessList.Name
+}
+
+// GetAccessListTitle returns the access list title used for the promotion.
+func (s AccessReview) GetAccessListTitle() string {
+	if s.AccessList == nil {
+		return ""
+	}
+	return s.AccessList.Title
 }
 
 // AccessRequestUpdate encompasses the parameters of a
