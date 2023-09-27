@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Intended to be executed with a []ReferenceEntry
@@ -44,6 +45,46 @@ type GeneratorConfig struct {
 	SourcePath string `json:"source"`
 	// Path of the resource reference
 	DestinationPath string `json:"destination"`
+}
+
+// shouldProcess indicates whether we should generate reference entries from s,
+// that is, whether s has any field types in
+func shouldProcess(s *ast.StructType, types []TypeInfo) bool {
+	// Only process types with a types.Metadata field, indicating a
+	// dynamic resource.
+	var m bool
+	for _, fld := range s.Fields.List {
+		if len(fld.Names) != 1 {
+			continue
+		}
+		i, ok := fld.Type.(*ast.SelectorExpr)
+		if !ok {
+			continue
+		}
+
+		g, ok := i.X.(*ast.Ident)
+		if !ok {
+			continue
+		}
+
+		// TODO: What if the package name is empty because we're in the
+		// desired package already?
+
+		for _, ti := range types {
+			// Use only the final segment of each desired package path
+			// in the comparison, since that is what is preserved in the
+			// AST.
+			segs := strings.Split(ti.Package, "/")
+			pkg := segs[len(segs)-1]
+
+			if g.Name == pkg && i.Sel.Name == ti.Name {
+				m = true
+				break
+			}
+		}
+	}
+
+	return m
 }
 
 func Generate(out io.Writer, conf GeneratorConfig) error {
@@ -136,41 +177,9 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 			continue
 		}
 
-		// Only process types with a types.Metadata field, indicating a
-		// dynamic resource.
-		var m bool
-		for _, fld := range str.Fields.List {
-			if len(fld.Names) != 1 {
-				continue
-			}
-			i, ok := fld.Type.(*ast.SelectorExpr)
-			if !ok {
-				continue
-			}
-
-			g, ok := i.X.(*ast.Ident)
-			if !ok {
-				continue
-			}
-
-			for _, ti := range conf.RequiredTypes {
-				// TODO:
-				// - Package includes the ful package path while
-				//   g.Name only includes the leaf segment
-				// - The package name will be missing if the package
-				// is the same as the target package
-				if g.Name == ti.Package && i.Sel.Name == ti.Name {
-					m = true
-					break
-				}
-
-			}
-		}
-
-		if !m {
+		if !shouldProcess(str, conf.RequiredTypes) {
 			continue
 		}
-
 		entries, err := resource.NewFromDecl(decl, allDecls)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "issue creating a reference entry for declaration %v.%v in file %v", k.PackageName, k.TypeName, decl.FilePath)
