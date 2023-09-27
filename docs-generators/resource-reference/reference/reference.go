@@ -138,8 +138,6 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 
 		// Only process types with a types.Metadata field, indicating a
 		// dynamic resource.
-		// TODO: This is too brittle, since it's easy to add a Metadata
-		// field with the types.Metadata type by embedding a struct.
 		var m bool
 		for _, fld := range str.Fields.List {
 			if len(fld.Names) != 1 {
@@ -154,11 +152,18 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 			if !ok {
 				continue
 			}
-			// TODO: Define constants for the desired
-			// package/type name for the required field.
-			if g.Name == "types" && i.Sel.Name == "Metadata" {
-				m = true
-				break
+
+			for _, ti := range conf.RequiredTypes {
+				// TODO:
+				// - Package includes the ful package path while
+				//   g.Name only includes the leaf segment
+				// - The package name will be missing if the package
+				// is the same as the target package
+				if g.Name == ti.Package && i.Sel.Name == ti.Name {
+					m = true
+					break
+				}
+
 			}
 		}
 
