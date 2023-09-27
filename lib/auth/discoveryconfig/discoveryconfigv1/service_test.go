@@ -381,8 +381,8 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 	require.NoError(t, err)
 
 	resourceSvc, err := NewService(ServiceConfig{
-		BackendDiscoveryConfig: localResourceService,
-		Authorizer:             authorizer,
+		Backend:    localResourceService,
+		Authorizer: authorizer,
 	})
 	require.NoError(t, err)
 
