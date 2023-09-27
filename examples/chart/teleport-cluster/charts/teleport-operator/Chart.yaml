@@ -1,4 +1,4 @@
-.version: &version "14.0.1-dev-tiago.2"
+.version: &version "14.0.1-dev.tiago.3"
 
 name: teleport-operator
 apiVersion: v2
