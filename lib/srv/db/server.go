@@ -980,6 +980,14 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 			}
 		}()
 	}()
+
+	// Wrap a client connection into monitor that auto-terminates
+	// idle connection and connection with expired cert.
+	ctx, clientConn, err = s.cfg.ConnectionMonitor.MonitorConn(cancelCtx, sessionCtx.AuthContext, clientConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	engine, err := s.dispatch(sessionCtx, rec, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -994,13 +1002,6 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 			engine.SendError(err)
 		}
 	}()
-
-	// Wrap a client connection into monitor that auto-terminates
-	// idle connection and connection with expired cert.
-	ctx, clientConn, err = s.cfg.ConnectionMonitor.MonitorConn(cancelCtx, sessionCtx.AuthContext, clientConn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	// TODO(jakule): LoginIP should be required starting from 10.0.
 	clientIP := sessionCtx.Identity.LoginIP

@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  minReadySeconds: {{ .Values.minReadySeconds }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Release.Name }}
+    spec:
+      containers:
+        - image: "{{ $.Values.image.repository }}:{{ default $.Chart.AppVersion $.Values.image.tag }}"
+          name: tc
+          args:
+            - -d
+            - --diag-addr=0.0.0.0:3434
+          volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+          resources: {{- toYaml $.Values.resources | nindent 12 }}
+      volumes:
+        - configMap:
+            name: {{ .Release.Name }}
+            defaultMode: 0766
+          name: config
+      {{- if .Values.affinity }}
+      affinity: {{ toYaml .Values.affinity | nindent 8}}
+      {{- end }}
