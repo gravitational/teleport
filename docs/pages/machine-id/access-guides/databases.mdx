@@ -162,19 +162,25 @@ $ sudo systemctl start machine-id-proxy
 $ sudo systemctl status machine-id-proxy
 ```
 
-<Admonition type="note" title="TLS Configuration Note">
-If desired, you can add the `--tunnel` flag to the `tbot proxy db ...` command in the `machine-id-proxy.service` systemd unit file to
-authenticate automatically at the proxy level, however this will decrease
-security as all users of the system will be able to connect to the database
-without any additional authentication.
-</Admonition>
 
-## Step 3/4. Update and run your application
+
+### Authenticated Tunnel
 
 In the default proxy mode, database clients must also be configured to use
 `tbot`'s generated TLS certificates. This ensures no other users of the system
 can access the database via the local proxy, and ensures the connection between
 your database client and server is never unencrypted, even over localhost.
+
+However, it is possible to instead create an "authenticated tunnel". This will
+automatically attach authentication to any incoming connection to the
+tunnel. Whilst this is less secure, it can be necessary if the client you
+wish to use with Database Access does not support client certificate
+authentication.
+
+To configure a authenticated tunnel, add the `--tunnel` flag to the
+`tbot proxy db ...` command in the `machine-id-proxy.service` systemd unit file.
+
+## Step 4/4. Update and run your application
 
 Once the necessary credentials for your database are ready to use, refer to
 these sample Go programs to test connectivity to your database.
