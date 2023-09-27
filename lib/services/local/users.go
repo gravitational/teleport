@@ -89,7 +89,7 @@ func (s *IdentityService) GetUsers(withSecrets bool) ([]types.User, error) {
 			continue
 		}
 		u, err := services.UnmarshalUser(
-			item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+			item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -334,7 +334,7 @@ func (s *IdentityService) getUser(ctx context.Context, user string, withSecrets 
 	}
 
 	u, err := services.UnmarshalUser(
-		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

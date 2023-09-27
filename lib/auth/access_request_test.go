@@ -727,3 +727,101 @@ func checkCerts(t *testing.T,
 	assert.ElementsMatch(t, resourceIDs, sshCertAllowedResources)
 	assert.ElementsMatch(t, resourceIDs, tlsIdentity.AllowedResourceIDs)
 }
+
+func TestCreateSuggestions(t *testing.T) {
+	t.Parallel()
+
+	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+	const username = "admin"
+
+	// Create the access request, so we can attach the promotions to it.
+	adminRequest, err := services.NewAccessRequest(username, "admins")
+	require.NoError(t, err)
+
+	authSrvClient := testAuthServer.AuthServer
+	err = authSrvClient.UpsertAccessRequest(context.Background(), adminRequest)
+	require.NoError(t, err)
+
+	// Create the promotions.
+	err = authSrvClient.CreateAccessRequestAllowedPromotions(context.Background(), adminRequest, &types.AccessRequestAllowedPromotions{
+		Promotions: []*types.AccessRequestAllowedPromotion{
+			{AccessListName: "a"},
+			{AccessListName: "b"},
+			{AccessListName: "c"}},
+	})
+	require.NoError(t, err)
+
+	// Get the promotions and verify them.
+	promotions, err := authSrvClient.GetAccessRequestAllowedPromotions(context.Background(), adminRequest)
+	require.NoError(t, err)
+	require.Len(t, promotions.Promotions, 3)
+	require.Equal(t, []string{"a", "b", "c"},
+		[]string{
+			promotions.Promotions[0].AccessListName,
+			promotions.Promotions[1].AccessListName,
+			promotions.Promotions[2].AccessListName,
+		})
+}
+
+func TestPromotedRequest(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	testPack := newAccessRequestTestPack(ctx, t)
+
+	const requesterUserName = "requester"
+	requester := TestUser(requesterUserName)
+	requesterClient, err := testPack.tlsServer.NewClient(requester)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { require.NoError(t, requesterClient.Close()) })
+
+	// create the access request object
+	req, err := services.NewAccessRequest(requesterUserName, "admins")
+	require.NoError(t, err)
+
+	// send the request to the auth server
+	createdReq, err := requesterClient.CreateAccessRequestV2(ctx, req)
+	require.NoError(t, err)
+
+	approveAs := func(reviewerName string, newState types.RequestState) (types.AccessRequest, error) {
+		reviewer := TestUser(reviewerName)
+		reviewerClient, err := testPack.tlsServer.NewClient(reviewer)
+		require.NoError(t, err)
+
+		t.Cleanup(func() { require.NoError(t, reviewerClient.Close()) })
+
+		// try to promote the request
+		return reviewerClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+			RequestID: req.GetName(),
+			Review: types.AccessReview{
+				ProposedState: newState,
+			},
+		})
+	}
+
+	// Access request promotion is prohibited for everyone, including admins.
+	// An access request can be only approved by using Ent AccessRequestPromote API
+	// operator can't promote the request
+	_, err = approveAs("operator", types.RequestState_PROMOTED)
+	require.Error(t, err)
+
+	// admin can't promote the request
+	_, err = approveAs("admin", types.RequestState_PROMOTED)
+	require.Error(t, err)
+
+	req2, err := requesterClient.GetAccessRequests(ctx, types.AccessRequestFilter{
+		ID: createdReq.GetMetadata().Name,
+	})
+	require.NoError(t, err)
+	require.Len(t, req2, 1)
+
+	// the state should be still pending
+	require.Equal(t, types.RequestState_PENDING, req2[0].GetState())
+}

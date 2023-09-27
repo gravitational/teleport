@@ -47,7 +47,7 @@ func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter t
 	var desktops []types.WindowsDesktop
 	for _, item := range result.Items {
 		desktop, err := services.UnmarshalWindowsDesktop(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -184,7 +184,7 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 			}
 
 			desktop, err := services.UnmarshalWindowsDesktop(item.Value,
-				services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+				services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 			if err != nil {
 				return false, trace.Wrap(err)
 			}
@@ -249,7 +249,7 @@ func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, 
 			}
 
 			desktop, err := services.UnmarshalWindowsDesktopService(item.Value,
-				services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+				services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 			if err != nil {
 				return false, trace.Wrap(err)
 			}

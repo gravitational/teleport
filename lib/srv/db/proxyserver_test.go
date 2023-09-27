@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/srv/db/mysql"
 )
 
 func TestProxyConnectionLimiting(t *testing.T) {
@@ -247,7 +246,7 @@ func TestProxyRateLimiting(t *testing.T) {
 func TestProxyMySQLVersion(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t,
-		withSelfHostedMySQL("mysql", mysql.WithServerVersion("8.0.12")),
+		withSelfHostedMySQL("mysql", withMySQLServerVersion("8.0.12")),
 	)
 
 	go testCtx.startHandlingConnections()

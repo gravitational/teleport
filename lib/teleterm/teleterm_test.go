@@ -114,6 +114,7 @@ func TestStart(t *testing.T) {
 				PrehogAddr:     "https://prehog:9999",
 				ListeningC:     listeningC,
 				KubeconfigsDir: t.TempDir(),
+				AgentsDir:      t.TempDir(),
 			}
 
 			ctx, cancel := context.WithCancel(context.Background())

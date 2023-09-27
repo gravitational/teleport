@@ -94,6 +94,7 @@ func MarshalOktaImportRule(importRule types.OktaImportRule, opts ...MarshalOptio
 		if !cfg.PreserveResourceID {
 			copy := *i
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			i = &copy
 		}
 		return utils.FastMarshal(i)
@@ -127,6 +128,9 @@ func UnmarshalOktaImportRule(data []byte, opts ...MarshalOption) (types.OktaImpo
 		if cfg.ID != 0 {
 			i.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			i.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			i.SetExpiry(cfg.Expires)
 		}
@@ -151,6 +155,7 @@ func MarshalOktaAssignment(assignment types.OktaAssignment, opts ...MarshalOptio
 		if !cfg.PreserveResourceID {
 			copy := *a
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			a = &copy
 		}
 		return utils.FastMarshal(a)
@@ -183,6 +188,9 @@ func UnmarshalOktaAssignment(data []byte, opts ...MarshalOption) (types.OktaAssi
 		}
 		if cfg.ID != 0 {
 			a.SetResourceID(cfg.ID)
+		}
+		if cfg.Revision != "" {
+			a.SetRevision(cfg.Revision)
 		}
 		if !cfg.Expires.IsZero() {
 			a.SetExpiry(cfg.Expires)

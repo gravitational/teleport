@@ -26,6 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/backend"
@@ -112,6 +113,13 @@ func (a *AccessListService) GetAccessList(ctx context.Context, name string) (*ac
 // UpsertAccessList creates or updates an access list resource.
 func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
 	err := a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		ownerMap := make(map[string]struct{}, len(accessList.Spec.Owners))
+		for _, owner := range accessList.Spec.Owners {
+			if _, ok := ownerMap[owner.Name]; ok {
+				return trace.AlreadyExists("owner %s already exists in the owner list", owner.Name)
+			}
+			ownerMap[owner.Name] = struct{}{}
+		}
 		return trace.Wrap(a.service.UpsertResource(ctx, accessList))
 	})
 	if err != nil {
@@ -288,6 +296,10 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	})
 
 	return accessList, membersIn, trace.Wrap(err)
+}
+
+func (a *AccessListService) AccessRequestPromote(_ context.Context, _ *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
+	return nil, trace.NotImplemented("AccessRequestPromote should not be called")
 }
 
 func lockName(accessListName string) string {

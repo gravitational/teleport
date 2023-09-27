@@ -82,9 +82,16 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				process.Shutdown(ctx)
 				process.log.Infof("All services stopped, exiting.")
 				return nil
-			case syscall.SIGTERM, syscall.SIGKILL, syscall.SIGINT:
-				process.log.Infof("Got signal %q, exiting immediately.", signal)
-				process.Close()
+			case syscall.SIGTERM, syscall.SIGINT:
+				timeout := getShutdownTimeout(process.log)
+				cancelCtx, cancelFunc := context.WithTimeout(ctx, timeout)
+				process.log.Infof("Got signal %q, exiting within %vs.", signal, timeout.Seconds())
+				go func() {
+					defer cancelFunc()
+					process.Shutdown(cancelCtx)
+				}()
+				<-cancelCtx.Done()
+				process.log.Infof("All services stopped or timeout passed, exiting immediately.")
 				return nil
 			case syscall.SIGUSR1:
 				// All programs placed diagnostics on the standard output.
@@ -149,6 +156,31 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 			process.log.Warningf("Non-critical service %v has exited with error %v, continuing to operate.", se.Service, se.Error)
 		}
 	}
+}
+
+const defaultShutdownTimeout = time.Second * 3
+const maxShutdownTimeout = time.Minute * 10
+
+func getShutdownTimeout(log logrus.FieldLogger) time.Duration {
+	timeout := defaultShutdownTimeout
+
+	// read undocumented env var TELEPORT_UNSTABLE_SHUTDOWN_TIMEOUT.
+	// TODO(Tener): DELETE IN 15.0. after ironing out all possible shutdown bugs.
+	override := os.Getenv("TELEPORT_UNSTABLE_SHUTDOWN_TIMEOUT")
+	if override != "" {
+		t, err := time.ParseDuration(override)
+		if err != nil {
+			log.Warnf("Cannot parse timeout override %q, using default instead.", override)
+		}
+		if err == nil {
+			if t > maxShutdownTimeout {
+				log.Warnf("Timeout override %q exceeds maximum value, reducing.", override)
+				t = maxShutdownTimeout
+			}
+			timeout = t
+		}
+	}
+	return timeout
 }
 
 // ErrTeleportReloading is returned when signal waiter exits

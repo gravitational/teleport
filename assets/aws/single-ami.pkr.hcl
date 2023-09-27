@@ -134,6 +134,12 @@ source "amazon-ebs" "teleport-aws-linux" {
   instance_type                             = var.aws_instance_type
   region                                    = var.aws_region
   encrypt_boot                              = false
+  imds_support                              = "v2.0"
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
   run_tags = {
     Name    = local.ami_name
     purpose = local.resource_purpose_tag_value

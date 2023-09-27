@@ -90,6 +90,12 @@ type AccessRequest interface {
 	GetReviews() []AccessReview
 	// SetReviews sets the list of currently applied access reviews (internal use only).
 	SetReviews([]AccessReview)
+	// GetPromotedAccessListTitle returns the access list title that this access request
+	// was promoted to.
+	GetPromotedAccessListTitle() string
+	// SetPromotedAccessListTitle sets the access list title that this access request
+	// was promoted to.
+	SetPromotedAccessListTitle(string)
 	// GetSuggestedReviewers gets the suggested reviewer list.
 	GetSuggestedReviewers() []string
 	// SetSuggestedReviewers sets the suggested reviewer list.
@@ -302,6 +308,16 @@ func (r *AccessRequestV3) GetSuggestedReviewers() []string {
 // SetSuggestedReviewers sets the suggested reviewer list.
 func (r *AccessRequestV3) SetSuggestedReviewers(reviewers []string) {
 	r.Spec.SuggestedReviewers = reviewers
+}
+
+// GetPromotedAccessListTitle returns PromotedAccessListTitle.
+func (r *AccessRequestV3) GetPromotedAccessListTitle() string {
+	return r.Spec.PromotedAccessListTitle
+}
+
+// SetPromotedAccessListTitle sets PromotedAccessListTitle.
+func (r *AccessRequestV3) SetPromotedAccessListTitle(title string) {
+	r.Spec.PromotedAccessListTitle = title
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -603,11 +619,12 @@ func (s RequestStrategy) RequireReason() bool {
 
 // stateVariants allows iteration of the expected variants
 // of RequestState.
-var stateVariants = [4]RequestState{
+var stateVariants = [5]RequestState{
 	RequestState_NONE,
 	RequestState_PENDING,
 	RequestState_APPROVED,
 	RequestState_DENIED,
+	RequestState_PROMOTED,
 }
 
 // Parse attempts to interpret a value as a string representation
@@ -642,9 +659,14 @@ func (s RequestState) IsDenied() bool {
 	return s == RequestState_DENIED
 }
 
+// IsPromoted returns true is the request in the PROMOTED state.
+func (s RequestState) IsPromoted() bool {
+	return s == RequestState_PROMOTED
+}
+
 // IsResolved request state
 func (s RequestState) IsResolved() bool {
-	return s.IsApproved() || s.IsDenied()
+	return s.IsApproved() || s.IsDenied() || s.IsPromoted()
 }
 
 // key values for map encoding of request filter
@@ -730,3 +752,14 @@ func (a AccessRequests) Less(i, j int) bool { return a[i].GetName() < a[j].GetNa
 
 // Swap swaps two access requests.
 func (a AccessRequests) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+// NewAccessRequestAllowedPromotions returns a new AccessRequestAllowedPromotions resource.
+func NewAccessRequestAllowedPromotions(promotions []*AccessRequestAllowedPromotion) *AccessRequestAllowedPromotions {
+	if promotions == nil {
+		promotions = make([]*AccessRequestAllowedPromotion, 0)
+	}
+
+	return &AccessRequestAllowedPromotions{
+		Promotions: promotions,
+	}
+}

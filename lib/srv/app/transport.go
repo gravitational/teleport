@@ -177,7 +177,6 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 func rewriteHeaders(r *http.Request, c *transportConfig) {
 	// Add in JWT headers.
 	r.Header.Set(teleport.AppJWTHeader, c.jwt)
-	r.Header.Set(teleport.AppCFHeader, c.jwt)
 
 	if c.app.GetRewrite() == nil || len(c.app.GetRewrite().Headers) == 0 {
 		return
