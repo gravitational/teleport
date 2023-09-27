@@ -130,9 +130,14 @@ func TestIntegrations(t *testing.T) {
 	// TODO: break all of these subtests out into individual tests so that we get
 	//       better progress reporting, rather than have to wait for the entire
 	//       suite to complete
-	// suite := newSuite(t)
-	t.Parallel()
+	suite := newSuite(t)
 
+	t.Run("CustomReverseTunnel", suite.bind(testCustomReverseTunnel))
+	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
+}
+
+func TestIntegrationsParallel(t *testing.T) {
+	t.Parallel()
 	t.Run("AuditOff", newSuite(t).bind(testAuditOff))
 	t.Run("AuditOn", newSuite(t).bind(testAuditOn))
 	t.Run("BPFExec", newSuite(t).bind(testBPFExec))
@@ -141,7 +146,6 @@ func TestIntegrations(t *testing.T) {
 	t.Run("ClientIdleConnection", newSuite(t).bind(testClientIdleConnection))
 	t.Run("CmdLabels", newSuite(t).bind(testCmdLabels))
 	t.Run("ControlMaster", newSuite(t).bind(testControlMaster))
-	t.Run("CustomReverseTunnel", newSuite(t).bind(testCustomReverseTunnel))
 	t.Run("DataTransfer", newSuite(t).bind(testDataTransfer))
 	t.Run("Disconnection", newSuite(t).bind(testDisconnectScenarios))
 	t.Run("Discovery", newSuite(t).bind(testDiscovery))
@@ -179,7 +183,6 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TrustedClustersWithLabels", newSuite(t).bind(testTrustedClustersWithLabels))
 	t.Run("TrustedTunnelNode", newSuite(t).bind(testTrustedTunnelNode))
 	t.Run("TwoClustersProxy", newSuite(t).bind(testTwoClustersProxy))
-	t.Run("TwoClustersTunnel", newSuite(t).bind(testTwoClustersTunnel))
 	t.Run("UUIDBasedProxy", newSuite(t).bind(testUUIDBasedProxy))
 	t.Run("WindowChange", newSuite(t).bind(testWindowChange))
 	t.Run("SSHTracker", newSuite(t).bind(testSSHTracker))
