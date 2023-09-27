@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
@@ -481,6 +482,9 @@ func TestEC2Hostname(t *testing.T) {
 	proc, err := service.NewTeleport(tconf)
 	require.NoError(t, err)
 	require.NoError(t, proc.Start())
-	t.Cleanup(func() { require.NoError(t, proc.Close()) })
+	t.Cleanup(func() {
+		assert.NoError(t, proc.Close())
+		assert.NoError(t, proc.Wait())
+	})
 	require.Equal(t, teleportHostname, proc.Config.Hostname)
 }
