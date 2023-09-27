@@ -202,13 +202,22 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if len(prefixes) != len(w.Prefixes()) {
+	if err := verifyEventWatcherPrefixes(prefixes, w); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newWatcher(w, e.Entry, parsers, validKinds), nil
+}
+
+// verifyEventWatcherPrefixes will ensure that the expected prefixes are all found within the watcher.
+func verifyEventWatcherPrefixes(expectedPrefixes [][]byte, watcher backend.Watcher) error {
+	if len(expectedPrefixes) != len(watcher.Prefixes()) {
 		// If you've hit this error, the prefixes in two or more of your parsers probably overlap, meaning
 		// one prefix will also contain another as a subset. Look into using backend.ExactKey instead of
 		// backend.Key in your parser.
-		return nil, trace.BadParameter("redundant prefixes detected in events, which will result in event parsers not aligning with their intended prefix")
+		return trace.BadParameter("redundant prefixes detected in events, which will result in event parsers not aligning with their intended prefix")
 	}
-	return newWatcher(w, e.Entry, parsers, validKinds), nil
+	return nil
 }
 
 func newWatcher(backendWatcher backend.Watcher, l *logrus.Entry, parsers []resourceParser, kinds []types.WatchKind) *watcher {
