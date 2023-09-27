@@ -2,10 +2,102 @@ package reference
 
 import (
 	"bytes"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestShouldProcess(t *testing.T) {
+	src := `package testpkg
+type MyStruct struct{
+  Metadata       types.Metadata
+  AlsoMetadata   Metadata
+  Name           otherpkg.TypeName
+}
+`
+	cases := []struct {
+		description string
+		input       []TypeInfo
+		expected    bool
+	}{
+		{
+			description: "one required type from a separate package",
+			input: []TypeInfo{
+				{
+					Package: "types",
+					Name:    "Metadata",
+				},
+			},
+			expected: true,
+		},
+		{
+			description: "two required types from separate packages",
+			input: []TypeInfo{
+				{
+					Package: "types",
+					Name:    "Metadata",
+				},
+				{
+					Package: "otherpkg",
+					Name:    "TypeName",
+				},
+			},
+			expected: true,
+		},
+		{
+			description: "field from another package is not present",
+			input: []TypeInfo{
+				{
+					Package: "types",
+					Name:    "AbsentType",
+				},
+			},
+			expected: false,
+		},
+		{
+			description: "field from the same package",
+			input: []TypeInfo{
+				{
+					Package: "testpkg",
+					Name:    "Metadata",
+				},
+			},
+			expected: true,
+		},
+		// TODO: package with multiple path segments: same package
+		// TODO: package with multiple path segments: another package
+	}
+
+	fset := token.NewFileSet()
+	d, err := parser.ParseFile(fset,
+		"myfile.go",
+		src,
+		parser.ParseComments,
+	)
+	if err != nil {
+		t.Fatalf("test fixture contains invalid Go source: %v\n", err)
+	}
+
+	if len(d.Decls) != 1 {
+		t.Fatal("the source fixture must contain a single *ast.GenDec (this is a problem with the test)")
+
+	}
+
+	l, ok := d.Decls[0].(*ast.GenDecl)
+	if !ok {
+		t.Fatal("the source fixture must contain a single *ast.GenDec (this is a problem with the test)")
+
+	}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			assert.Equal(t, c.expected, shouldProcess(l, c.input))
+		})
+	}
+}
 
 func TestGenerate(t *testing.T) {
 	// TODO: Read a golden file instead to get the expected value

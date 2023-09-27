@@ -47,13 +47,45 @@ type GeneratorConfig struct {
 	DestinationPath string `json:"destination"`
 }
 
-// shouldProcess indicates whether we should generate reference entries from s,
+// shouldProcess indicates whether we should generate reference entries from d,
 // that is, whether s has any field types in
-func shouldProcess(s *ast.StructType, types []TypeInfo) bool {
+func shouldProcess(d *ast.GenDecl, types []TypeInfo) bool {
+	if len(d.Specs) == 0 {
+		return false
+	}
+
+	var err error
+	// Name the section after the first type declaration found. We expect
+	// there to be one type spec.
+	var t *ast.TypeSpec
+	for _, s := range d.Specs {
+		ts, ok := s.(*ast.TypeSpec)
+		if !ok {
+			continue
+		}
+		if t != nil {
+			err = errors.New("declaration contains more than one type spec")
+			continue
+		}
+		t = ts
+	}
+	if err != nil {
+		return false
+	}
+
+	if t == nil {
+		return false
+	}
+
+	str, ok := t.Type.(*ast.StructType)
+	if !ok {
+		return false
+	}
+
 	// Only process types with a types.Metadata field, indicating a
 	// dynamic resource.
 	var m bool
-	for _, fld := range s.Fields.List {
+	for _, fld := range str.Fields.List {
 		if len(fld.Names) != 1 {
 			continue
 		}
@@ -140,44 +172,7 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 	}
 
 	for k, decl := range allDecls {
-		// TODO: The code that checks whether a decl is a struct comes
-		// from resource.getRawTypes. Refactor so we don't repeat the
-		// struct-processing logic.
-		if len(decl.Decl.Specs) == 0 {
-			continue
-		}
-
-		var err error
-		// Name the section after the first type declaration found. We expect
-		// there to be one type spec.
-		var t *ast.TypeSpec
-		for _, s := range decl.Decl.Specs {
-			ts, ok := s.(*ast.TypeSpec)
-			if !ok {
-				continue
-			}
-			if t != nil {
-				err = errors.New("declaration contains more than one type spec")
-				continue
-			}
-			t = ts
-		}
-		// TODO: consider skipping instead of exiting with an error.
-		if err != nil {
-			return fmt.Errorf("type %v.%v in %v has more than one type spec", k.PackageName, k.TypeName, decl.FilePath)
-		}
-
-		// TODO: consider skipping instead of exiting with an error.
-		if t == nil {
-			return fmt.Errorf("type %v.%v in %v has no type spec", k.PackageName, k.TypeName, decl.FilePath)
-		}
-
-		str, ok := t.Type.(*ast.StructType)
-		if !ok {
-			continue
-		}
-
-		if !shouldProcess(str, conf.RequiredTypes) {
+		if !shouldProcess(decl.Decl, conf.RequiredTypes) {
 			continue
 		}
 		entries, err := resource.NewFromDecl(decl, allDecls)
