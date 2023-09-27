@@ -282,6 +282,10 @@ func TestNaivelyValidateHostname(t *testing.T) {
 			shouldPass: true,
 		},
 		{
+			hostname:   "test",
+			shouldPass: true,
+		},
+		{
 			hostname:   "testhost-withdashes.example.com",
 			shouldPass: true,
 		},
@@ -323,77 +327,126 @@ func TestNaivelyValidateHostname(t *testing.T) {
 	}
 }
 
-func TestSplitValidityKey(t *testing.T) {
+func TestCheckAndSplitValidityKey(t *testing.T) {
 	t.Parallel()
 
 	var tests = []struct {
-		validity      string
+		input         string
 		desiredOutput []string
+		shouldError   bool
 	}{
 		{
-			validity: "*.foo.example.com || *.bar.example.com",
+			input: "*.foo.example.com || *.bar.example.com",
 			desiredOutput: []string{
 				"*.foo.example.com",
 				"*.bar.example.com",
 			},
+			shouldError: false,
 		},
 		{
-			validity:      "test",
+			input:         "test",
 			desiredOutput: []string{"test"},
+			shouldError:   false,
 		},
 		{
-			validity: "*.example.com || test || teleport.test.com",
+			input: "*.example.com || test || teleport.test.com",
 			desiredOutput: []string{
 				"*.example.com",
 				"test",
 				"teleport.test.com",
 			},
+			shouldError: false,
 		},
 		{
-			validity: "*.example.com && port:22",
+			input: "*.example.com || test || teleport.test.com || longstring || *.wow.com",
 			desiredOutput: []string{
-				"*.example.com && port:22",
-			},
-		},
-		{
-			validity: "*.example.com && ! *.extrasecure.example.com",
-			desiredOutput: []string{
-				"*.example.com && ! *.extrasecure.example.com",
-			},
-		},
-		{
-			validity: "(*.foo.example.com || *.bar.example.com) && port:0-1023",
-			desiredOutput: []string{
-				"(*.foo.example.com || *.bar.example.com) && port:0-1023",
-			},
-		},
-		{
-			validity: "(*.foo.example.com || *.bar.example.com || *.qux.example.com) && port:0-1023",
-			desiredOutput: []string{
-				"(*.foo.example.com || *.bar.example.com || *.qux.example.com) && port:0-1023",
-			},
-		},
-		{
-			validity: "((*.foo.example.com || *.bar.example.com || *.qux.example.com) && port:0-1023) || teleport.example.com",
-			desiredOutput: []string{
-				"((*.foo.example.com || *.bar.example.com || *.qux.example.com) && port:0-1023)",
-				"teleport.example.com",
-			},
-		},
-		{
-			validity: "((*.example.com || lol.example.com && port:22) && port:1024) || test.teleport.com || teleport.test.com",
-			desiredOutput: []string{
-				"((*.example.com || lol.example.com && port:22) && port:1024)",
-				"test.teleport.com",
+				"*.example.com",
+				"test",
 				"teleport.test.com",
+				"longstring",
+				"*.wow.com",
 			},
+			shouldError: false,
+		},
+		{
+			input:         "*.example.com && port:22",
+			desiredOutput: []string(nil),
+			shouldError:   true,
+		},
+		{
+			input:         "*.example.com && ! *.extrasecure.example.com",
+			desiredOutput: []string(nil),
+			shouldError:   true,
+		},
+		{
+			input:         "(*.foo.example.com || *.bar.example.com) && port:0-1023",
+			desiredOutput: []string(nil),
+			shouldError:   true,
+		},
+		{
+			input:         "(*.foo.example.com || *.bar.example.com || *.qux.example.com) && port:0-1023",
+			desiredOutput: []string(nil),
+			shouldError:   true,
+		},
+		{
+			input:         "((*.foo.example.com || *.bar.example.com || *.qux.example.com) && port:0-1023) || teleport.example.com",
+			desiredOutput: []string(nil),
+			shouldError:   true,
+		},
+		{
+			input:         "((*.example.com || lol.example.com && port:22) && port:1024) || test.teleport.com || teleport.test.com",
+			desiredOutput: []string(nil),
+			shouldError:   true,
+		},
+		{
+			input:         "*.example.com || lol.example.com | test.teleport.com",
+			desiredOutput: []string(nil),
+			shouldError:   true,
+		},
+		{
+			input:         "*.example.com && lol.example.com || test.teleport.com",
+			desiredOutput: []string(nil),
+			shouldError:   true,
+		},
+		{
+			input:         "*.example.com || lol.example.com || | test.teleport.com",
+			desiredOutput: []string(nil),
+			shouldError:   true,
+		},
+		{
+			input:         "*.example.com || lol.example.com || | test.teleport.com || ",
+			desiredOutput: []string(nil),
+			shouldError:   true,
+		},
+		{
+			input:         "*.example.com || lol.example.com || test.teleport.com ",
+			desiredOutput: []string(nil),
+			shouldError:   true,
+		},
+		{
+			input:         "*.example.com || lol.example.com || test.teleport.com || \"\"",
+			desiredOutput: []string(nil),
+			shouldError:   true,
+		},
+		{
+			input:         "*.example.com || lol.example.com || .",
+			desiredOutput: []string(nil),
+			shouldError:   true,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.validity, func(t *testing.T) {
-			testResult := SplitValidityKey(tt.validity)
+		t.Run(tt.input, func(t *testing.T) {
+			testResult, err := CheckAndSplitValidityKey(tt.input, "TeleportHostCA-testcluster.example.com")
+			if err != nil {
+				t.Log(err)
+			}
 			require.Equal(t, tt.desiredOutput, testResult)
+			if tt.shouldError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }
