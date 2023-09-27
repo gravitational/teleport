@@ -158,6 +158,11 @@ func TestParseShortcut(t *testing.T) {
 		"oktaassignment":   {expectedOutput: types.KindOktaAssignment},
 		"oktaassignments":  {expectedOutput: types.KindOktaAssignment},
 
+		"access_list":  {expectedOutput: types.KindAccessList},
+		"access_lists": {expectedOutput: types.KindAccessList},
+		"accesslist":   {expectedOutput: types.KindAccessList},
+		"accesslists":  {expectedOutput: types.KindAccessList},
+
 		"SamL_IDP_sERVICe_proVidER": {expectedOutput: types.KindSAMLIdPServiceProvider},
 
 		"unknown_type": {expectedErr: true},
@@ -173,6 +178,62 @@ func TestParseShortcut(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, test.expectedOutput, output)
 			}
+		})
+	}
+}
+
+func Test_setResourceName(t *testing.T) {
+	tests := []struct {
+		name           string
+		meta           types.Metadata
+		overrideLabels []string
+		firstNamePart  string
+		extraNameParts []string
+		want           types.Metadata
+	}{
+		{
+			name:           "no override, one part name",
+			meta:           types.Metadata{},
+			firstNamePart:  "foo",
+			extraNameParts: nil,
+			want:           types.Metadata{Name: "foo"},
+		},
+		{
+			name:           "no override, multi part name",
+			meta:           types.Metadata{},
+			firstNamePart:  "foo",
+			extraNameParts: []string{"bar", "baz"},
+			want:           types.Metadata{Name: "foo-bar-baz"},
+		},
+		{
+			name:           "override by generic cloud label, one part name",
+			meta:           types.Metadata{Labels: map[string]string{types.AWSDatabaseNameOverrideLabels[0]: "gizmo"}},
+			overrideLabels: types.AWSDatabaseNameOverrideLabels,
+			firstNamePart:  "foo",
+			extraNameParts: nil,
+			want:           types.Metadata{Name: "gizmo", Labels: map[string]string{types.AWSDatabaseNameOverrideLabels[0]: "gizmo"}},
+		},
+		{
+			name:           "override by original AWS label, one part name",
+			meta:           types.Metadata{Labels: map[string]string{types.AWSDatabaseNameOverrideLabels[1]: "gizmo"}},
+			overrideLabels: types.AWSDatabaseNameOverrideLabels,
+			firstNamePart:  "foo",
+			extraNameParts: nil,
+			want:           types.Metadata{Name: "gizmo", Labels: map[string]string{types.AWSDatabaseNameOverrideLabels[1]: "gizmo"}},
+		},
+		{
+			name:           "override, multi part name",
+			meta:           types.Metadata{Labels: map[string]string{types.AzureDatabaseNameOverrideLabel: "gizmo"}},
+			overrideLabels: []string{types.AzureDatabaseNameOverrideLabel},
+			firstNamePart:  "foo",
+			extraNameParts: []string{"bar", "baz"},
+			want:           types.Metadata{Name: "gizmo-bar-baz", Labels: map[string]string{types.AzureDatabaseNameOverrideLabel: "gizmo"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := setResourceName(tt.overrideLabels, tt.meta, tt.firstNamePart, tt.extraNameParts...)
+			require.Equal(t, tt.want, result)
 		})
 	}
 }

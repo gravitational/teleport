@@ -45,7 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -349,9 +349,9 @@ func TestMatchApplicationServers(t *testing.T) {
 	}
 
 	// Create a fake remote site and tunnel.
-	fakeRemoteSite := reversetunnel.NewFakeRemoteSite(clusterName, authClient)
-	tunnel := &reversetunnel.FakeServer{
-		Sites: []reversetunnel.RemoteSite{
+	fakeRemoteSite := reversetunnelclient.NewFakeRemoteSite(clusterName, authClient)
+	tunnel := &reversetunnelclient.FakeServer{
+		Sites: []reversetunnelclient.RemoteSite{
 			fakeRemoteSite,
 		},
 	}
@@ -405,14 +405,14 @@ func TestHealthCheckAppServer(t *testing.T) {
 	for _, tc := range []struct {
 		desc                string
 		publicAddr          string
-		appServersFunc      func(t *testing.T, remoteSite *reversetunnel.FakeRemoteSite) []types.AppServer
+		appServersFunc      func(t *testing.T, remoteSite *reversetunnelclient.FakeRemoteSite) []types.AppServer
 		expectedTunnelCalls int
 		expectErr           require.ErrorAssertionFunc
 	}{
 		{
 			desc:       "match and online services",
 			publicAddr: "valid.example.com",
-			appServersFunc: func(t *testing.T, _ *reversetunnel.FakeRemoteSite) []types.AppServer {
+			appServersFunc: func(t *testing.T, _ *reversetunnelclient.FakeRemoteSite) []types.AppServer {
 				return []types.AppServer{createAppServer(t, "valid.example.com")}
 			},
 			expectedTunnelCalls: 1,
@@ -421,7 +421,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 		{
 			desc:       "match and but no online services",
 			publicAddr: "valid.example.com",
-			appServersFunc: func(t *testing.T, tunnel *reversetunnel.FakeRemoteSite) []types.AppServer {
+			appServersFunc: func(t *testing.T, tunnel *reversetunnelclient.FakeRemoteSite) []types.AppServer {
 				appServer := createAppServer(t, "valid.example.com")
 				tunnel.OfflineTunnels = map[string]struct{}{
 					fmt.Sprintf("%s.%s", appServer.GetHostID(), clusterName): {},
@@ -434,7 +434,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 		{
 			desc:       "no match",
 			publicAddr: "valid.example.com",
-			appServersFunc: func(t *testing.T, tunnel *reversetunnel.FakeRemoteSite) []types.AppServer {
+			appServersFunc: func(t *testing.T, tunnel *reversetunnelclient.FakeRemoteSite) []types.AppServer {
 				return []types.AppServer{}
 			},
 			expectedTunnelCalls: 0,
@@ -458,7 +458,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 				caCert:      cert,
 			}
 
-			fakeRemoteSite := reversetunnel.NewFakeRemoteSite(clusterName, authClient)
+			fakeRemoteSite := reversetunnelclient.NewFakeRemoteSite(clusterName, authClient)
 			authClient.appServers = tc.appServersFunc(t, fakeRemoteSite)
 
 			// Create a httptest server to serve the application requests. It must serve
@@ -476,8 +476,8 @@ func TestHealthCheckAppServer(t *testing.T) {
 			}
 			server.StartTLS()
 
-			tunnel := &reversetunnel.FakeServer{
-				Sites: []reversetunnel.RemoteSite{fakeRemoteSite},
+			tunnel := &reversetunnelclient.FakeServer{
+				Sites: []reversetunnelclient.RemoteSite{fakeRemoteSite},
 			}
 
 			appHandler, err := NewHandler(ctx, &HandlerConfig{
@@ -500,7 +500,7 @@ type testServer struct {
 	serverURL *url.URL
 }
 
-func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, proxyClient reversetunnel.Tunnel, proxyPublicAddrs []utils.NetAddr) *testServer {
+func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, proxyClient reversetunnelclient.Tunnel, proxyPublicAddrs []utils.NetAddr) *testServer {
 	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
 		Clock:            clock,
 		AuthClient:       authClient,
@@ -655,7 +655,7 @@ func (c *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuth
 // fakeRemoteListener Implements a `net.Listener` that return `net.Conn` from
 // the `FakeRemoteSite`.
 type fakeRemoteListener struct {
-	fakeRemote *reversetunnel.FakeRemoteSite
+	fakeRemote *reversetunnelclient.FakeRemoteSite
 }
 
 func (r *fakeRemoteListener) Accept() (net.Conn, error) {

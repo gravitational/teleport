@@ -19,17 +19,15 @@ import { ButtonPrimary, Card, Flex, Image, Text } from 'design';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
+import { RegisterSuccessProps } from './types';
 import shieldCheck from './shield-check.png';
 
 export function RegisterSuccess({
   redirect,
   resetMode = false,
   username = '',
-}: {
-  redirect(): void;
-  resetMode: boolean;
-  username?: string;
-}) {
+  isDashboard,
+}: RegisterSuccessProps) {
   const actionTxt = resetMode ? 'reset' : 'registration';
 
   const handleRedirect = () => {
@@ -69,7 +67,7 @@ export function RegisterSuccess({
         Proceed to access your account.
       </Text>
       <ButtonPrimary width="100%" size="large" onClick={handleRedirect}>
-        Go to Dashboard
+        Go to {isDashboard ? 'Dashboard' : 'Cluster'}
       </ButtonPrimary>
     </Card>
   );

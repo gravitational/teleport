@@ -8,6 +8,13 @@ VERSION ?= 0.0.1
 # Image URL to use all building/pushing image targets
 IMG ?= teleport-operator:latest
 
+# Include build.assets/versions.mk to get the latest same versions of tooling
+# across all builds.
+include ../../build.assets/versions.mk
+
+GO_ENV_ARCH := $(shell go env GOARCH)
+ARCH ?= $(GO_ENV_ARCH)
+
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # This is a requirement for 'setup-envtest.sh' in the test target.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
@@ -125,7 +132,10 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	docker buildx build --platform="$(OS)/$(ARCH)" --build-arg BUILDBOX=$(PLATFORM_BUILDBOX) \
+	docker buildx build --platform="$(OS)/$(ARCH)" \
+		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg PROTOC_VER=$(PROTOC_VER) \
+		--build-arg BUILDARCH=$(ARCH) \
 		--build-arg COMPILER_NAME=$(COMPILER) -t ${IMG} --load ../.. -f ./Dockerfile
 
 .PHONY: docker-push

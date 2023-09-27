@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -75,6 +76,18 @@ func TestAccessRequestSearch(t *testing.T) {
 			return len(rootClusters) >= 1 && len(leafClusters) >= 1
 		}),
 	)
+
+	// We create another kube_server in the leaf cluster to test that we can
+	// deduplicate the results when multiple replicas of the same resource
+	// exist.
+	kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: leafKubeCluster,
+	}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = s.leaf.GetAuthServer().UpsertKubernetesServer(ctx, kubeServer)
+	require.NoError(t, err)
 
 	type args struct {
 		teleportCluster string
@@ -178,8 +191,10 @@ func TestAccessRequestSearch(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			mustLoginSetEnv(t, s, tc.args.teleportCluster)
+			t.Parallel()
+			homePath, _ := mustLogin(t, s, tc.args.teleportCluster)
 			captureStdout := new(bytes.Buffer)
 			err := Run(
 				context.Background(),
@@ -192,9 +207,12 @@ func TestAccessRequestSearch(t *testing.T) {
 					tc.args.extraArgs...,
 				),
 				setCopyStdout(captureStdout),
+				setHomePath(homePath),
 			)
 			require.NoError(t, err)
-			require.Contains(t, captureStdout.String(), tc.wantTable())
+			// We append a newline to the expected output to esnure that the table
+			// does not contain any more rows than expected.
+			require.Contains(t, captureStdout.String(), tc.wantTable()+"\n")
 		})
 	}
 }

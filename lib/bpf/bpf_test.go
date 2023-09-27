@@ -77,7 +77,7 @@ func TestRootWatch(t *testing.T) {
 	})
 
 	// Create a fake audit log that can be used to capture the events emitted.
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
 
 	// Create and start a program that does nothing. Since sleep will run longer
 	// than we wait below, nothing should be emitted to the Audit Log.
@@ -303,7 +303,7 @@ func TestRootPrograms(t *testing.T) {
 
 	// Loop over all three programs and make sure events are received off the
 	// perf buffer.
-	var tests = []struct {
+	tests := []struct {
 		inName    string
 		inEventCh <-chan []byte
 		genEvents func(t *testing.T, ctx context.Context)

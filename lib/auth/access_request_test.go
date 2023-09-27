@@ -179,6 +179,7 @@ func TestAccessRequest(t *testing.T) {
 	testPack := newAccessRequestTestPack(ctx, t)
 	t.Run("single", func(t *testing.T) { testSingleAccessRequests(t, testPack) })
 	t.Run("multi", func(t *testing.T) { testMultiAccessRequests(t, testPack) })
+	t.Run("role refresh with bogus request ID", func(t *testing.T) { testRoleRefreshWithBogusRequestID(t, testPack) })
 }
 
 func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
@@ -627,6 +628,48 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			checkCerts(t, certs, tc.expectRoles, tc.expectLogins, tc.expectAccessRequests, tc.expectResources)
 		})
 	}
+}
+
+// testRoleRefreshWithBogusRequestID verifies that GenerateUserCerts refreshes the role list based
+// on the server state, even when supplied an ID for a nonexistent access request.
+//
+// Teleport Connect depends on this behavior when setting up roles for Connect My Computer.
+// See [teleterm.connectmycomputer.RoleSetup].
+func testRoleRefreshWithBogusRequestID(t *testing.T, testPack *accessRequestTestPack) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	username := "user-for-role-refresh"
+	auth := testPack.tlsServer.Auth()
+
+	// Create a user.
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+	user.AddRole("requesters")
+	err = auth.UpsertUser(user)
+	require.NoError(t, err)
+
+	// Create a client with the old set of roles.
+	clt, err := testPack.tlsServer.NewClient(TestUser(username))
+	require.NoError(t, err)
+
+	// Add a new role to the user on the server.
+	user.AddRole("operators")
+	err = auth.UpdateUser(ctx, user)
+	require.NoError(t, err)
+
+	certs, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		PublicKey:          testPack.pubKey,
+		Username:           username,
+		Expires:            time.Now().Add(time.Hour).UTC(),
+		DropAccessRequests: []string{"bogus-request-id"},
+	})
+	require.NoError(t, err)
+
+	// Verify that the new certs issued for the old client have the new role.
+	checkCerts(t, certs, []string{"requesters", "operators"}, nil, nil, nil)
 }
 
 // checkCerts checks that the ssh and tls certs include the given roles, logins,

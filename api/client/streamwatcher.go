@@ -87,7 +87,7 @@ func (w *streamWatcher) receiveEvents() {
 			w.closeWithError(trail.FromGRPC(err))
 			return
 		}
-		out, err := EventFromGRPC(*event)
+		out, err := EventFromGRPC(event)
 		if err != nil {
 			w.closeWithError(trail.FromGRPC(err))
 			return

@@ -15,6 +15,8 @@
 package servicecfg
 
 import (
+	"time"
+
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -26,6 +28,8 @@ type DiscoveryConfig struct {
 	AzureMatchers []types.AzureMatcher
 	// GCPMatchers are used to match GCP resources for auto discovery.
 	GCPMatchers []types.GCPMatcher
+	// KubernetesMatchers are used to match services inside Kubernetes cluster for auto discovery
+	KubernetesMatchers []types.KubernetesMatcher
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another
@@ -34,10 +38,13 @@ type DiscoveryConfig struct {
 	// for all discovery services. If different agents are used to discover different
 	// sets of cloud resources, this field must be different for each set of agents.
 	DiscoveryGroup string
+	// PollInterval is the cadence at which the discovery server will run each of its
+	// discovery cycles.
+	PollInterval time.Duration
 }
 
 // IsEmpty validates if the Discovery Service config has no cloud matchers.
 func (d DiscoveryConfig) IsEmpty() bool {
-	return len(d.AWSMatchers) == 0 &&
-		len(d.AzureMatchers) == 0 && len(d.GCPMatchers) == 0
+	return len(d.AWSMatchers) == 0 && len(d.AzureMatchers) == 0 &&
+		len(d.GCPMatchers) == 0 && len(d.KubernetesMatchers) == 0
 }

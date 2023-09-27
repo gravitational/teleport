@@ -46,20 +46,27 @@ func NewNetworkRestrictions() NetworkRestrictions {
 	}
 }
 
+func (r *NetworkRestrictionsV4) setStaticFields() {
+	if r.Version == "" {
+		r.Version = V4
+	}
+	if r.Kind == "" {
+		r.Kind = KindNetworkRestrictions
+	}
+	if r.Metadata.Name == "" {
+		r.Metadata.Name = MetaNameNetworkRestrictions
+	}
+}
+
 // CheckAndSetDefaults validates NetworkRestrictions fields and populates empty fields
 // with default values.
 func (r *NetworkRestrictionsV4) CheckAndSetDefaults() error {
-	r.Metadata.Name = MetaNameNetworkRestrictions
+	r.setStaticFields()
 
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if r.Kind == "" {
-		return trace.BadParameter("NetworkRestrictions missing Kind field")
-	}
-	if r.Version == "" {
-		r.Version = V1
-	}
+
 	return nil
 }
 

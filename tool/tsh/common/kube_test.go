@@ -19,13 +19,16 @@ package common
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"path/filepath"
-	"sort"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -33,8 +36,10 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
 	kubeserver "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 func TestKube(t *testing.T) {
@@ -54,8 +59,6 @@ type kubeTestPack struct {
 	rootKubeCluster1 string
 	rootKubeCluster2 string
 	leafKubeCluster  string
-	serviceLabels    map[string]string
-	formatedLabels   string
 }
 
 func setupKubeTestPack(t *testing.T) *kubeTestPack {
@@ -64,12 +67,18 @@ func setupKubeTestPack(t *testing.T) *kubeTestPack {
 	ctx := context.Background()
 	rootKubeCluster1 := "root-cluster"
 	rootKubeCluster2 := "first-cluster"
-	leafKubeCluster := "leaf-cluster"
-	serviceLabels := map[string]string{
+	// mock a discovered kube cluster name in the leaf Teleport cluster.
+	leafKubeCluster := "leaf-cluster-some-suffix-added-by-discovery-service"
+	rootLabels := map[string]string{
 		"label1": "val1",
 		"ultra_long_label_for_teleport_kubernetes_service_list_kube_clusters_method": "ultra_long_label_value_for_teleport_kubernetes_service_list_kube_clusters_method",
 	}
-	formatedLabels := formatServiceLabels(serviceLabels)
+	leafLabels := map[string]string{
+		"label1": "val1",
+		"ultra_long_label_for_teleport_kubernetes_service_list_kube_clusters_method": "ultra_long_label_value_for_teleport_kubernetes_service_list_kube_clusters_method",
+		// mock a discovered kube cluster in the leaf Teleport cluster.
+		types.DiscoveredNameLabel: "leaf-cluster",
+	}
 
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
@@ -77,7 +86,7 @@ func setupKubeTestPack(t *testing.T) *kubeTestPack {
 			cfg.Kube.Enabled = true
 			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster1, rootKubeCluster2)
-			cfg.Kube.StaticLabels = serviceLabels
+			cfg.Kube.StaticLabels = rootLabels
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(
@@ -86,6 +95,7 @@ func setupKubeTestPack(t *testing.T) *kubeTestPack {
 				cfg.Kube.Enabled = true
 				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
+				cfg.Kube.StaticLabels = leafLabels
 			},
 		),
 		withValidationFunc(func(s *suite) bool {
@@ -105,12 +115,18 @@ func setupKubeTestPack(t *testing.T) *kubeTestPack {
 		rootKubeCluster1: rootKubeCluster1,
 		rootKubeCluster2: rootKubeCluster2,
 		leafKubeCluster:  leafKubeCluster,
-		serviceLabels:    serviceLabels,
-		formatedLabels:   formatedLabels,
 	}
 }
 
 func (p *kubeTestPack) testListKube(t *testing.T) {
+	staticRootLabels := p.suite.root.Config.Kube.StaticLabels
+	formattedRootLabels := common.FormatLabels(staticRootLabels, false)
+	formattedRootLabelsVerbose := common.FormatLabels(staticRootLabels, true)
+
+	staticLeafLabels := p.suite.leaf.Config.Kube.StaticLabels
+	formattedLeafLabels := common.FormatLabels(staticLeafLabels, false)
+	formattedLeafLabelsVerbose := common.FormatLabels(staticLeafLabels, true)
+
 	tests := []struct {
 		name      string
 		args      []string
@@ -124,7 +140,10 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 				// p.rootKubeCluster1 ("root-cluster") after sorting.
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Kube Cluster Name", "Labels", "Selected"},
-					[][]string{{p.rootKubeCluster2, p.formatedLabels, ""}, {p.rootKubeCluster1, p.formatedLabels, ""}},
+					[][]string{
+						{p.rootKubeCluster2, formattedRootLabels, ""},
+						{p.rootKubeCluster1, formattedRootLabels, ""},
+					},
 					"Labels")
 				return table.AsBuffer().String()
 			},
@@ -135,8 +154,8 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			wantTable: func() string {
 				table := asciitable.MakeTable(
 					[]string{"Kube Cluster Name", "Labels", "Selected"},
-					[]string{p.rootKubeCluster2, p.formatedLabels, ""},
-					[]string{p.rootKubeCluster1, p.formatedLabels, ""})
+					[]string{p.rootKubeCluster2, formattedRootLabelsVerbose, ""},
+					[]string{p.rootKubeCluster1, formattedRootLabelsVerbose, ""})
 				return table.AsBuffer().String()
 			},
 		},
@@ -145,8 +164,8 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			args: []string{"--quiet"},
 			wantTable: func() string {
 				table := asciitable.MakeHeadlessTable(2)
-				table.AddRow([]string{p.rootKubeCluster2, p.formatedLabels, ""})
-				table.AddRow([]string{p.rootKubeCluster1, p.formatedLabels, ""})
+				table.AddRow([]string{p.rootKubeCluster2, formattedRootLabels, ""})
+				table.AddRow([]string{p.rootKubeCluster1, formattedRootLabels, ""})
 
 				return table.AsBuffer().String()
 			},
@@ -155,13 +174,43 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			name: "list all clusters including leaf clusters",
 			args: []string{"--all"},
 			wantTable: func() string {
+				table := asciitable.MakeTableWithTruncatedColumn(
+					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
+					[][]string{
+						// "leaf-cluster" should be displayed instead of the
+						// full leaf cluster name, since it is mocked as a
+						// discovered resource and the discovered resource name
+						// is displayed in non-verbose mode.
+						{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels},
+						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels},
+						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels},
+					},
+					"Labels",
+				)
+				return table.AsBuffer().String()
+			},
+		},
+		{
+			name: "list all clusters including leaf clusters with complete list of labels",
+			args: []string{"--all", "--verbose"},
+			wantTable: func() string {
 				table := asciitable.MakeTable(
 					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
-
-					[]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", p.leafKubeCluster, ""},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, p.formatedLabels},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, p.formatedLabels},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", p.leafKubeCluster, formattedLeafLabelsVerbose},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabelsVerbose},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabelsVerbose},
 				)
+				return table.AsBuffer().String()
+			},
+		},
+		{
+			name: "list all clusters including leaf clusters in headless table",
+			args: []string{"--all", "--quiet"},
+			wantTable: func() string {
+				table := asciitable.MakeHeadlessTable(4)
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels})
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels})
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels})
 				return table.AsBuffer().String()
 			},
 		},
@@ -183,11 +232,131 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 					tc.args...,
 				),
 				setCopyStdout(captureStdout),
+
+				// set a custom empty kube config for each test, as we do
+				// not want parallel (or even shuffled sequential) tests
+				// potentially racing on the same config
+				setKubeConfigPath(filepath.Join(t.TempDir(), "kubeconfig")),
 			)
 			require.NoError(t, err)
-			require.Contains(t, captureStdout.String(), tc.wantTable())
+			got := strings.TrimSpace(captureStdout.String())
+			want := strings.TrimSpace(tc.wantTable())
+			diff := cmp.Diff(want, got)
+			require.Empty(t, diff)
 		})
 	}
+}
+
+func TestKubeLoginAccessRequest(t *testing.T) {
+	modules.SetTestModules(t,
+		&modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Kubernetes: true,
+			},
+		},
+	)
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+
+	const (
+		roleName    = "requester"
+		kubeCluster = "root-cluster"
+	)
+	// Create a role that allows the user to request access to the cluster but
+	// not to access it directly.
+	role, err := types.NewRole(
+		roleName,
+		types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"access"},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			// reconfig the user to use the new role instead of the default ones
+			// User is the second bootstrap resource.
+			user, ok := cfg.Auth.BootstrapResources[1].(types.User)
+			require.True(t, ok)
+			user.SetRoles([]string{roleName})
+			// Add the role to the list of bootstrap resources.
+			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, role)
+
+			// Enable kube and set the kubeconfig path.
+			cfg.Kube.Enabled = true
+			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, kubeCluster)
+		}),
+		withValidationFunc(func(s *suite) bool {
+			// Check if the kube cluster was added.
+			rootClusters, err := s.root.GetAuthServer().GetKubernetesServers(context.Background())
+			require.NoError(t, err)
+			return len(rootClusters) == 1
+		}),
+	)
+	// login as the user.
+	tshHome, kubeConfig := mustLoginSetEnv(t, s)
+
+	// Run the login command in a goroutine so we can check if the access
+	// request was created and approved.
+	// The goroutine will exit when the access request is approved.
+	wg := &errgroup.Group{}
+	wg.Go(func() error {
+		err := Run(
+			context.Background(),
+			[]string{
+				"--insecure",
+				"kube",
+				"login",
+				kubeCluster,
+				"--request-reason",
+				"test",
+			},
+			setHomePath(tshHome),
+			setKubeConfigPath(kubeConfig),
+		)
+		return trace.Wrap(err)
+	})
+	// Wait for the access request to be created and finally approve it.
+	var accessRequestID string
+	require.Eventually(t, func() bool {
+		accessRequests, err := s.root.GetAuthServer().
+			GetAccessRequests(
+				context.Background(),
+				types.AccessRequestFilter{State: types.RequestState_PENDING},
+			)
+		if err != nil || len(accessRequests) != 1 {
+			return false
+		}
+
+		equal := reflect.DeepEqual(
+			accessRequests[0].GetRequestedResourceIDs(),
+			[]types.ResourceID{
+				{
+					ClusterName: s.root.Config.Auth.ClusterName.GetClusterName(),
+					Kind:        types.KindKubernetesCluster,
+					Name:        kubeCluster,
+				},
+			},
+		)
+		accessRequestID = accessRequests[0].GetName()
+
+		return equal
+	}, 10*time.Second, 1*time.Second)
+	// Approve the access request to release the login command lock.
+	err = s.root.GetAuthServer().SetAccessRequestState(context.Background(), types.AccessRequestUpdate{
+		RequestID: accessRequestID,
+		State:     types.RequestState_APPROVED,
+	})
+	require.NoError(t, err)
+	// Wait for the login command to exit after the request is approved
+	require.NoError(t, wg.Wait())
 }
 
 func newKubeConfigFile(t *testing.T, clusterNames ...string) string {
@@ -210,16 +379,6 @@ func newKubeConfigFile(t *testing.T, clusterNames ...string) string {
 	err := clientcmd.WriteToFile(*kubeConf, kubeConfigLocation)
 	require.NoError(t, err)
 	return kubeConfigLocation
-}
-
-func formatServiceLabels(labels map[string]string) string {
-	labelSlice := make([]string, 0, len(labels))
-	for key, value := range labels {
-		labelSlice = append(labelSlice, fmt.Sprintf("%s=%s", key, value))
-	}
-
-	sort.Strings(labelSlice)
-	return strings.Join(labelSlice, " ")
 }
 
 func newKubeSelfSubjectServer(t *testing.T) string {

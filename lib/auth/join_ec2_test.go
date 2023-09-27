@@ -97,9 +97,11 @@ VUP+3jgenPrd7OyCWPSwOoOBMhSlAAAAAAAA`),
 	}
 )
 
-type ec2ClientNoInstance struct{}
-type ec2ClientNotRunning struct{}
-type ec2ClientRunning struct{}
+type (
+	ec2ClientNoInstance struct{}
+	ec2ClientNotRunning struct{}
+	ec2ClientRunning    struct{}
+)
 
 func (c ec2ClientNoInstance) DescribeInstances(ctx context.Context, params *ec2.DescribeInstancesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
 	return &ec2.DescribeInstancesOutput{}, nil
@@ -650,7 +652,6 @@ func TestHostUniqueCheck(t *testing.T) {
 		{
 			role: types.RoleKube,
 			upserter: func(name string) {
-
 				kube, err := types.NewKubernetesServerV3(
 					types.Metadata{
 						Name:      name,
@@ -669,7 +670,6 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 				_, err = a.UpsertKubernetesServer(context.Background(), kube)
 				require.NoError(t, err)
-
 			},
 		},
 		{
@@ -683,6 +683,16 @@ func TestHostUniqueCheck(t *testing.T) {
 					types.DatabaseServerSpecV3{
 						HostID:   name,
 						Hostname: "test-db",
+						Database: &types.DatabaseV3{
+							Metadata: types.Metadata{
+								Name:      "test-db",
+								Namespace: defaults.Namespace,
+							},
+							Spec: types.DatabaseSpecV3{
+								Protocol: types.DatabaseProtocolPostgreSQL,
+								URI:      "https://db.localhost",
+							},
+						},
 					})
 				require.NoError(t, err)
 				_, err = a.UpsertDatabaseServer(context.Background(), db)

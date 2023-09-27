@@ -18,9 +18,9 @@ RUN apt-get update && \
 
 # Install libudev-zero.
 # libudev-zero replaces systemd's libudev
-RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.2 && \
+RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.3 && \
     cd libudev-zero && \
-    [ "$(git rev-parse HEAD)" = '04a727df50fde3f69127aed4bc48e6cff5430175' ] && \
+    [ "$(git rev-parse HEAD)" = 'ee32ac5f6494047b9ece26e7a5920650cdf46655' ] && \
     make install-static && \
     make clean
 
@@ -40,9 +40,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 # Install openssl.
 # install_sw install only binaries, skips docs.
 # Keep the version below synced with devbox.json
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.9 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.10 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = 'de90e54bbe82e5be4fb9608b6f5c308bb837d355' ] && \
+    [ "$(git rev-parse HEAD)" = '245cb0291e0db99d9ccf3692fa76f440b2b054c2' ] && \
     ./config --release --libdir=/usr/local/lib && \
     make -j"$(nproc)" && \
     make install_sw
@@ -114,7 +114,7 @@ ARG BUILDARCH
 
 # Install packages.
 # Java JRE is required by gcloud firestore emulator.
-# Latest git 2.18+ is required for GitHub actions
+# Latest git 2.18+ is required for GitHub actions.
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
 RUN apt-get -y update && \
     apt-get -y install software-properties-common && \
@@ -144,11 +144,12 @@ RUN apt-get -y update && \
         mingw-w64-x86-64-dev \
         net-tools \
         openssh-client \
-        osslsigncode \
         python3-pip \
         python3-setuptools \
         python3-wheel \
         pkg-config \
+        # rsync is required for some integration tests
+        rsync \
         softhsm2 \
         sudo \
         tree \
@@ -172,6 +173,18 @@ RUN apt-get -y update && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Install osslsigncode for Windows Code Signing. The format of our
+# Code Signing Certificate needs us to use osslsigncode >= 2.6, which
+# allows the use of legacy OpenSSL algorithms. This is not yet provided
+# by Ubuntu, so we will have to fetch it ourselves.
+RUN --mount=type=bind,target=/context \
+    curl -L https://github.com/mtrojnar/osslsigncode/releases/download/2.6/osslsigncode-2.6-ubuntu-22.04.zip -o osslsigncode.zip \
+    && sha256sum --strict -c /context/download-hashes/osslsigncode.sha256 \
+    && unzip -d /tmp/osslsigncode osslsigncode.zip \
+    && install -m 0755 /tmp/osslsigncode/bin/osslsigncode /usr/bin \
+    && rm -rf /tmp/osslsigncode \
+    && rm osslsigncode.zip
 
 # Install gcloud SDK and Firestore emulator.
 ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
@@ -260,7 +273,7 @@ RUN scversion='v0.9.0' && \
 # Install helm.
 # Keep the version below synced with devbox.json
 RUN mkdir -p helm-tarball && \
-    curl -fsSL https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
+    curl -fsSL https://get.helm.sh/helm-v3.12.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
     rm -r helm-tarball*
 # TODO(hugoShaka): remove this backward compatible hack with teleportv13 buildbox
@@ -300,11 +313,15 @@ RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
 # Keep the version below synced with devbox.json
-RUN go install github.com/daixiang0/gci@v0.9.1
+RUN go install github.com/daixiang0/gci@v0.11.0
+
+# Install gotestsum.
+# Keep the version below synced with devbox.json
+RUN go install gotest.tools/gotestsum@v1.10.1
 
 # Install golangci-lint.
 # Keep the version below synced with devbox.json
-RUN TAG='v1.53.3' && \
+RUN TAG='v1.54.0' && \
     curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$TAG/install.sh" | \
     sh -s -- -b "$(go env GOPATH)/bin" "$TAG"
 

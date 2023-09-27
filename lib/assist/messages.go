@@ -19,11 +19,28 @@
 
 package assist
 
-import "github.com/gravitational/teleport/lib/ai/model"
+import (
+	"fmt"
+
+	"github.com/gravitational/teleport/lib/ai/model"
+)
 
 // commandPayload is a payload for a command message.
 type commandPayload struct {
 	Command string        `json:"command,omitempty"`
 	Nodes   []string      `json:"nodes,omitempty"`
 	Labels  []model.Label `json:"labels,omitempty"`
+}
+
+// CommandExecSummary is a payload for the COMMAND_RESULT_SUMMARY message.
+type CommandExecSummary struct {
+	ExecutionID string `json:"execution_id"`
+	Summary     string `json:"summary"`
+	Command     string `json:"command"`
+}
+
+// String implements the Stringer interface and formats the message for AI
+// model consumption.
+func (s CommandExecSummary) String() string {
+	return fmt.Sprintf("Command: `%s` executed. The command output summary is: %s", s.Command, s.Summary)
 }

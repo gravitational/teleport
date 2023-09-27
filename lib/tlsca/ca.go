@@ -486,6 +486,9 @@ var (
 
 	// CreateWindowsUserOID
 	CreateWindowsUserOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 16}
+
+	// DesktopsLimitExceededOID is an extension OID used indicate if number of non-AD desktops exceeds the limit for OSS distribution.
+	DesktopsLimitExceededOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 17}
 )
 
 // Device Trust OIDs.

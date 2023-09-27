@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { setupWorker, rest } from 'msw';
+import { rest, setupWorker } from 'msw';
 import { addDecorator, addParameters } from '@storybook/react';
 import { darkTheme, lightTheme } from './../packages/design/src/theme';
 import DefaultThemeProvider from '../packages/design/src/ThemeProvider';
@@ -27,6 +27,7 @@ import {
   lightTheme as teletermLightTheme,
 } from './../packages/teleterm/src/ui/ThemeProvider/theme';
 import { handlersTeleport } from './../packages/teleport/src/mocks/handlers';
+import { UserContextProvider } from 'teleport/User';
 
 // Checks we are running non-node environment (browser)
 if (typeof global.process === 'undefined') {
@@ -60,6 +61,21 @@ const ThemeDecorator = (storyFn, meta) => {
   );
 };
 
+// wrap stories with an argument of {userContext: true} with user context provider
+const UserDecorator = (storyFn, meta) => {
+  if (meta.args.userContext) {
+    const UserProvider = UserContextProvider;
+    return (
+      <UserProvider>
+        <Box p={3}>{storyFn()}</Box>
+      </UserProvider>
+    );
+  }
+
+  return <Box p={3}>{storyFn()}</Box>;
+};
+
+addDecorator(UserDecorator);
 addDecorator(ThemeDecorator);
 addParameters({
   options: {

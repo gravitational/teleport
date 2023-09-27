@@ -14,7 +14,7 @@
 
 import { base64ToArrayBuffer } from 'shared/utils/base64';
 
-import Client, { TdpClientEvent } from './client';
+import Client from './client';
 
 enum Action {
   TOGGLE_PLAY_PAUSE = 'play/pause',
@@ -66,23 +66,27 @@ export class PlayerClient extends Client {
 
   // Overrides Client implementation.
   handleClientScreenSpec(buffer: ArrayBuffer) {
-    this.emit(
-      TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
-      this.codec.decodeClientScreenSpec(buffer)
-    );
+    const spec = this.codec.decodeClientScreenSpec(buffer);
+    this.setClientScreenSpec(spec);
+  }
+
+  // Overrides Client implementation. This prevents the Client from sending
+  // RDP response PDUs to the server during playback, which is unnecessary
+  // and breaks the playback system.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  sendRDPResponsePDU(responseFrame: ArrayBuffer) {
+    return;
   }
 
   // Overrides Client implementation.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   handleMouseButton(buffer: ArrayBuffer) {
-    // TODO
     return;
   }
 
   // Overrides Client implementation.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   handleMouseMove(buffer: ArrayBuffer) {
-    // TODO
     return;
   }
 }

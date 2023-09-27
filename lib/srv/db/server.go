@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -43,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
+	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -69,6 +71,8 @@ func init() {
 	common.RegisterEngine(snowflake.NewEngine, defaults.ProtocolSnowflake)
 	common.RegisterEngine(sqlserver.NewEngine, defaults.ProtocolSQLServer)
 	common.RegisterEngine(dynamodb.NewEngine, defaults.ProtocolDynamoDB)
+	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouse)
+	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouseHTTP)
 }
 
 // Config is the configuration for a database proxy server.
@@ -83,8 +87,6 @@ type Config struct {
 	AccessPoint auth.DatabaseAccessPoint
 	// Emitter is used to emit audit events.
 	Emitter apievents.Emitter
-	// StreamEmitter is a non-blocking audit events emitter.
-	StreamEmitter events.StreamEmitter
 	// NewAudit allows to override audit logger in tests.
 	NewAudit NewAuditFn
 	// TLSConfig is the *tls.Config for this server.
@@ -133,10 +135,12 @@ type Config struct {
 	// ConnectionMonitor monitors and closes connections if session controls
 	// prevent the connections.
 	ConnectionMonitor ConnMonitor
+	// ShutdownPollPeriod defines the shutdown poll period.
+	ShutdownPollPeriod time.Duration
 
 	// discoveryResourceChecker performs some pre-checks when creating databases
 	// discovered by the discovery service.
-	discoveryResourceChecker discoveryResourceChecker
+	discoveryResourceChecker cloud.DiscoveryResourceChecker
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -156,9 +160,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
-	}
-	if c.StreamEmitter == nil {
-		return trace.BadParameter("missing StreamEmitter")
 	}
 	if c.Emitter == nil {
 		c.Emitter = c.AuthClient
@@ -243,11 +244,20 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 
 	if c.discoveryResourceChecker == nil {
-		c.discoveryResourceChecker, err = newCloudCrednentialsChecker(ctx, c.CloudClients, c.ResourceMatchers)
+		c.discoveryResourceChecker, err = cloud.NewDiscoveryResourceChecker(cloud.DiscoveryResourceCheckerConfig{
+			ResourceMatchers: c.ResourceMatchers,
+			Clients:          c.CloudClients,
+			Context:          ctx,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
+
+	if c.ShutdownPollPeriod == 0 {
+		c.ShutdownPollPeriod = defaults.ShutdownPollPeriod
+	}
+
 	return nil
 }
 
@@ -280,6 +290,13 @@ type Server struct {
 	mu sync.RWMutex
 	// log is used for logging.
 	log *logrus.Entry
+	// activeConnections counts the number of database active connections.
+	activeConnections atomic.Int32
+	// connContext context used by connection resources. Canceling will cause
+	// active connections to drop.
+	connContext context.Context
+	// closeConnFunc is the cancel function of the connContext context.
+	closeConnFunc context.CancelFunc
 }
 
 // monitoredDatabases is a collection of databases from different sources
@@ -358,12 +375,13 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	closeCtx, closeCancelFunc := context.WithCancel(ctx)
+	connCtx, connCancelFunc := context.WithCancel(ctx)
 	server := &Server{
 		cfg:              config,
 		log:              logrus.WithField(trace.Component, teleport.ComponentDatabase),
-		closeContext:     ctx,
-		closeFunc:        cancel,
+		closeContext:     closeCtx,
+		closeFunc:        closeCancelFunc,
 		dynamicLabels:    make(map[string]*labels.Dynamic),
 		heartbeats:       make(map[string]*srv.Heartbeat),
 		proxiedDatabases: config.Databases.ToMap(),
@@ -375,6 +393,8 @@ func New(ctx context.Context, config Config) (*Server, error) {
 			ClusterName:   clustername.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
+		connContext:   connCtx,
+		closeConnFunc: connCancelFunc,
 	}
 
 	// Update TLS config to require client certificate.
@@ -585,6 +605,42 @@ func (s *Server) getProxiedDatabases() (databases types.Databases) {
 	return databases
 }
 
+// getProxiedDatabase returns a proxied database by name with updated dynamic
+// and cloud labels.
+func (s *Server) getProxiedDatabase(name string) (types.Database, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	// don't call s.getProxiedDatabases() as this will call RLock and
+	// potentially deadlock.
+	for _, db := range s.proxiedDatabases {
+		if db.GetName() == name {
+			return s.copyDatabaseWithUpdatedLabelsLocked(db), nil
+		}
+	}
+	return nil, trace.NotFound("%q not found among registered databases: %v",
+		name, s.proxiedDatabases)
+}
+
+// copyDatabaseWithUpdatedLabelsLocked will inject updated dynamic and cloud labels into
+// a database object.
+// The caller must invoke an RLock on `s.mu` before calling this function.
+func (s *Server) copyDatabaseWithUpdatedLabelsLocked(database types.Database) *types.DatabaseV3 {
+	// create a copy of the database to modify.
+	copy := database.Copy()
+
+	// Update dynamic labels if the database has them.
+	labels, ok := s.dynamicLabels[copy.GetName()]
+	if ok && labels != nil {
+		copy.SetDynamicLabels(labels.Get())
+	}
+
+	// Add in the cloud labels if the db has them.
+	if s.cfg.CloudLabels != nil {
+		s.cfg.CloudLabels.Apply(copy)
+	}
+	return copy
+}
+
 // startHeartbeat starts the registration heartbeat to the auth server.
 func (s *Server) startHeartbeat(ctx context.Context, database types.Database) error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
@@ -640,15 +696,10 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
-	copy := database.Copy()
+	copy := s.copyDatabaseWithUpdatedLabelsLocked(database)
 	s.mu.RUnlock()
-	// Update dynamic labels if the database has them.
-	labels := s.getDynamicLabels(copy.GetName())
-	if labels != nil {
-		copy.SetDynamicLabels(labels.Get())
-	}
-	if s.cfg.CloudLabels != nil {
-		s.cfg.CloudLabels.Apply(copy)
+	if s.cfg.CloudIAM != nil {
+		s.cfg.CloudIAM.UpdateIAMStatus(copy)
 	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewDatabaseServerV3(types.Metadata{
@@ -769,15 +820,45 @@ func (s *Server) startServiceHeartbeat() error {
 	return nil
 }
 
-// Close stops proxying all server's databases and frees up other resources.
+// Close stops proxying all server's databases, drops active connections, and
+// frees up other resources.
 func (s *Server) Close() error {
+	s.closeConnFunc()
 	return trace.Wrap(s.close(s.closeContext))
 }
 
 // Shutdown performs a graceful shutdown.
-func (s *Server) Shutdown(ctx context.Context) error {
-	// TODO wait active connections.
-	return trace.Wrap(s.close(ctx))
+func (s *Server) Shutdown(ctx context.Context) (err error) {
+	err = s.close(ctx)
+	defer s.closeConnFunc()
+
+	activeConnections := s.activeConnections.Load()
+	if activeConnections == 0 {
+		return
+	}
+
+	s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
+	lastReport := time.Time{}
+	ticker := time.NewTicker(s.cfg.ShutdownPollPeriod)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			activeConnections = s.activeConnections.Load()
+			if activeConnections == 0 {
+				return
+			}
+
+			if time.Since(lastReport) > 10*s.cfg.ShutdownPollPeriod {
+				s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
+				lastReport = time.Now()
+			}
+		case <-ctx.Done():
+			s.log.Infof("Context canceled wait, returning.")
+			return
+		}
+	}
 }
 
 func (s *Server) close(ctx context.Context) error {
@@ -803,11 +884,16 @@ func (s *Server) close(ctx context.Context) error {
 
 // Wait will block while the server is running.
 func (s *Server) Wait() error {
-	<-s.closeContext.Done()
-	if err := s.closeContext.Err(); err != nil && err != context.Canceled {
-		return trace.Wrap(err)
+	var errors []error
+	for _, ctx := range []context.Context{s.closeContext, s.connContext} {
+		<-ctx.Done()
+
+		if err := ctx.Err(); err != nil && err != context.Canceled {
+			errors = append(errors, err)
+		}
 	}
-	return nil
+
+	return trace.NewAggregate(errors...)
 }
 
 // ForceHeartbeat is used by tests to force-heartbeat all registered databases.
@@ -827,6 +913,10 @@ func (s *Server) ForceHeartbeat() error {
 // upgrades it to TLS, extracts identity information from it, performs
 // authorization and dispatches to the appropriate database engine.
 func (s *Server) HandleConnection(conn net.Conn) {
+	// Track active connections.
+	s.activeConnections.Add(1)
+	defer s.activeConnections.Add(-1)
+
 	log := s.log.WithField("addr", conn.RemoteAddr())
 	log.Debug("Accepted connection.")
 	// Upgrade the connection to TLS since the other side of the reverse
@@ -845,7 +935,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	}
 	// Now that the handshake has completed and the client has sent us a
 	// certificate, extract identity information from it.
-	ctx, err := s.middleware.WrapContextWithUser(s.closeContext, tlsConn)
+	ctx, err := s.middleware.WrapContextWithUser(s.connContext, tlsConn)
 	if err != nil {
 		log.WithError(err).Error("Failed to extract identity from connection.")
 		return
@@ -870,13 +960,11 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Create a session tracker so that other services, such as
-	// the session upload completer, can track the session's lifetime.
 	if err := s.trackSession(cancelCtx, sessionCtx); err != nil {
 		return trace.Wrap(err)
 	}
 
-	streamWriter, err := s.newStreamWriter(sessionCtx)
+	rec, err := s.newSessionRecorder(sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -886,13 +974,13 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		go func() {
 			// Use the server closing context to make sure that upload
 			// continues beyond the session lifetime.
-			err := streamWriter.Close(s.closeContext)
+			err := rec.Close(s.closeContext)
 			if err != nil {
 				sessionCtx.Log.WithError(err).Warn("Failed to close stream writer.")
 			}
 		}()
 	}()
-	engine, err := s.dispatch(sessionCtx, streamWriter, clientConn)
+	engine, err := s.dispatch(sessionCtx, rec, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -954,9 +1042,11 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 }
 
 // dispatch creates and initializes an appropriate database engine for the session.
-func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter, clientConn net.Conn) (common.Engine, error) {
+func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparerRecorder, clientConn net.Conn) (common.Engine, error) {
 	audit, err := s.cfg.NewAudit(common.AuditConfig{
-		Emitter: streamWriter,
+		Emitter:  s.cfg.Emitter,
+		Recorder: rec,
+		Database: sessionCtx.Database,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -976,12 +1066,12 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 // createEngine creates a new database engine based on the database protocol.
 // An error is returned when a protocol is not supported.
 func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (common.Engine, error) {
-	return common.GetEngine(sessionCtx.Database.GetProtocol(), common.EngineConfig{
+	return common.GetEngine(sessionCtx.Database, common.EngineConfig{
 		Auth:         s.cfg.Auth,
 		Audit:        audit,
 		AuthClient:   s.cfg.AuthClient,
 		CloudClients: s.cfg.CloudClients,
-		Context:      s.closeContext,
+		Context:      s.connContext,
 		Clock:        s.cfg.Clock,
 		Log:          sessionCtx.Log,
 		Users:        s.cfg.CloudUsers,
@@ -1018,17 +1108,9 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	s.log.Debugf("Client identity: %#v.", identity)
 
 	// Fetch the requested database server.
-	var database types.Database
-	registeredDatabases := s.getProxiedDatabases()
-	for _, db := range registeredDatabases {
-		if db.GetName() == identity.RouteToDatabase.ServiceName {
-			database = db
-			break
-		}
-	}
-	if database == nil {
-		return nil, trace.NotFound("%q not found among registered databases: %v",
-			identity.RouteToDatabase.ServiceName, registeredDatabases)
+	database, err := s.getProxiedDatabase(identity.RouteToDatabase.ServiceName)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	autoCreate, databaseRoles, err := authContext.Checker.CheckDatabaseRoles(database)
@@ -1128,7 +1210,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 
 	go func() {
 		<-ctx.Done()
-		if err := tracker.Close(s.closeContext); err != nil {
+		if err := tracker.Close(s.connContext); err != nil {
 			s.log.WithError(err).Debugf("Failed to close session tracker for session %v", sessionCtx.ID)
 		}
 	}()

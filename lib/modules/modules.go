@@ -70,6 +70,21 @@ type Features struct {
 	IsUsageBasedBilling bool
 	// Assist enables Assistant feature
 	Assist bool
+	// DeviceTrust holds its namesake feature settings.
+	DeviceTrust DeviceTrustFeature
+}
+
+// DeviceTrustFeature holds the Device Trust feature general and usage-based
+// settings.
+// Requires Teleport Enterprise.
+type DeviceTrustFeature struct {
+	// Enabled is true if the Device Trust feature is enabled.
+	Enabled bool
+	// DevicesUsageLimit is the usage-based limit for the number of
+	// registered/enrolled devices, at the implementation's discretion.
+	// Meant for usage-based accounts, like Teleport Team. Has no effect if
+	// [Features.IsUsageBasedBilling] is `false`.
+	DevicesUsageLimit int
 }
 
 // ToProto converts Features into proto.Features
@@ -90,6 +105,10 @@ func (f Features) ToProto() *proto.Features {
 		AutomaticUpgrades:       f.AutomaticUpgrades,
 		IsUsageBased:            f.IsUsageBasedBilling,
 		Assist:                  f.Assist,
+		DeviceTrust: &proto.DeviceTrustFeature{
+			Enabled:           f.DeviceTrust.Enabled,
+			DevicesUsageLimit: int32(f.DeviceTrust.DevicesUsageLimit),
+		},
 	}
 }
 

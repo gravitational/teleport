@@ -22,7 +22,6 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
-	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -34,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
@@ -66,20 +66,24 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 	}
 
 	tests := []struct {
-		name   string
-		packet []byte
-		checks []check
+		name    string
+		packets [][]byte
+		checks  []check
 	}{
 		{
-			name:   "rpc request procedure",
-			packet: fixtures.RPCClientRequest,
+			name:    "rpc request procedure",
+			packets: [][]byte{fixtures.GenerateCustomRPCCallPacket("foo3")},
 			checks: []check{
 				hasNoErr(),
 				hasAuditEventCode(libevents.DatabaseSessionStartCode),
 				hasAuditEventCode(libevents.DatabaseSessionEndCode),
 				hasAuditEvent(1, &events.SQLServerRPCRequest{
 					DatabaseMetadata: events.DatabaseMetadata{
-						DatabaseUser: "sa",
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -90,15 +94,19 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 			},
 		},
 		{
-			name:   "rpc request param",
-			packet: fixtures.RPCClientRequestParam,
+			name:    "rpc request param",
+			packets: [][]byte{fixtures.GenerateExecuteSQLRPCPacket("select @@version")},
 			checks: []check{
 				hasNoErr(),
 				hasAuditEventCode(libevents.DatabaseSessionStartCode),
 				hasAuditEventCode(libevents.DatabaseSessionEndCode),
 				hasAuditEvent(1, &events.SQLServerRPCRequest{
 					DatabaseMetadata: events.DatabaseMetadata{
-						DatabaseUser: "sa",
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -110,15 +118,19 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 			},
 		},
 		{
-			name:   "sql batch",
-			packet: fixtures.SQLBatch,
+			name:    "sql batch",
+			packets: [][]byte{fixtures.GenerateBatchQueryPacket("\nselect 'foo' as 'bar'\n        ")},
 			checks: []check{
 				hasNoErr(),
 				hasAuditEventCode(libevents.DatabaseSessionStartCode),
 				hasAuditEventCode(libevents.DatabaseSessionEndCode),
 				hasAuditEvent(1, &events.DatabaseSessionQuery{
 					DatabaseMetadata: events.DatabaseMetadata{
-						DatabaseUser: "sa",
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionQueryEvent,
@@ -132,13 +144,136 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 			},
 		},
 		{
-			name:   "malformed packet",
-			packet: fixtures.MalformedPacketTest,
+			name:    "malformed packet",
+			packets: [][]byte{fixtures.MalformedPacketTest},
 			checks: []check{
 				hasNoErr(),
 				hasAuditEventCode(libevents.DatabaseSessionStartCode),
 				hasAuditEventCode(libevents.DatabaseSessionEndCode),
 				hasAuditEventCode(libevents.DatabaseSessionMalformedPacketCode),
+			},
+		},
+		{
+			name:    "sql batch chunked packets",
+			packets: fixtures.GenerateBatchQueryChunkedPacket(5, "select 'foo' as 'bar'"),
+			checks: []check{
+				hasNoErr(),
+				hasAuditEventCode(libevents.DatabaseSessionStartCode),
+				hasAuditEventCode(libevents.DatabaseSessionEndCode),
+				hasAuditEvent(1, &events.DatabaseSessionQuery{
+					DatabaseMetadata: events.DatabaseMetadata{
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
+					},
+					Metadata: events.Metadata{
+						Type: libevents.DatabaseSessionQueryEvent,
+						Code: libevents.DatabaseSessionQueryCode,
+					},
+					DatabaseQuery: "select 'foo' as 'bar'",
+					Status: events.Status{
+						Success: true,
+					},
+				}),
+			},
+		},
+		{
+			name:    "rpc request param chunked",
+			packets: fixtures.GenerateExecuteSQLRPCChunkedPacket(5, "select @@version"),
+			checks: []check{
+				hasNoErr(),
+				hasAuditEventCode(libevents.DatabaseSessionStartCode),
+				hasAuditEventCode(libevents.DatabaseSessionEndCode),
+				hasAuditEvent(1, &events.SQLServerRPCRequest{
+					DatabaseMetadata: events.DatabaseMetadata{
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
+					},
+					Metadata: events.Metadata{
+						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
+						Code: libevents.SQLServerRPCRequestCode,
+					},
+					Parameters: []string{"select @@version"},
+					Procname:   "Sp_ExecuteSql",
+				}),
+			},
+		},
+		{
+			name: "intercalated chunked messages",
+			packets: intercalateChunkedPacketMessages(
+				fixtures.GenerateExecuteSQLRPCChunkedPacket(5, "select @@version"),
+				fixtures.GenerateExecuteSQLRPCPacket("select 1"),
+				2,
+			),
+			checks: []check{
+				hasNoErr(),
+				hasAuditEventCode(libevents.DatabaseSessionStartCode),
+				hasAuditEventCode(libevents.DatabaseSessionEndCode),
+				hasAuditEvent(1, &events.SQLServerRPCRequest{
+					DatabaseMetadata: events.DatabaseMetadata{
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
+					},
+					Metadata: events.Metadata{
+						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
+						Code: libevents.SQLServerRPCRequestCode,
+					},
+					Parameters: []string{"select @@version"},
+					Procname:   "Sp_ExecuteSql",
+				}),
+				hasAuditEvent(2, &events.SQLServerRPCRequest{
+					DatabaseMetadata: events.DatabaseMetadata{
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
+					},
+					Metadata: events.Metadata{
+						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
+						Code: libevents.SQLServerRPCRequestCode,
+					},
+					Parameters: []string{"select 1"},
+					Procname:   "Sp_ExecuteSql",
+				}),
+				hasAuditEvent(3, &events.SQLServerRPCRequest{
+					DatabaseMetadata: events.DatabaseMetadata{
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
+					},
+					Metadata: events.Metadata{
+						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
+						Code: libevents.SQLServerRPCRequestCode,
+					},
+					Parameters: []string{"select @@version"},
+					Procname:   "Sp_ExecuteSql",
+				}),
+				hasAuditEvent(4, &events.SQLServerRPCRequest{
+					DatabaseMetadata: events.DatabaseMetadata{
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
+					},
+					Metadata: events.Metadata{
+						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
+						Code: libevents.SQLServerRPCRequestCode,
+					},
+					Parameters: []string{"select 1"},
+					Procname:   "Sp_ExecuteSql",
+				}),
 			},
 		},
 	}
@@ -149,10 +284,26 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 			_, err := b.Write(fixtures.Login7)
 			require.NoError(t, err)
 
-			_, err = b.Write(tc.packet)
+			db, err := types.NewDatabaseV3(types.Metadata{
+				Name:   "dummy",
+				Labels: map[string]string{"env": "prod"},
+			}, types.DatabaseSpecV3{
+				Protocol: "test",
+				URI:      "uri",
+			})
 			require.NoError(t, err)
-			emitterMock := &mockEmitter{}
-			audit, err := common.NewAudit(common.AuditConfig{Emitter: emitterMock})
+
+			for _, packet := range tc.packets {
+				_, err = b.Write(packet)
+				require.NoError(t, err)
+			}
+
+			emitterMock := &eventstest.MockRecorderEmitter{}
+			audit, err := common.NewAudit(common.AuditConfig{
+				Emitter:  emitterMock,
+				Recorder: libevents.WithNoOpPreparer(libevents.NewDiscardRecorder()),
+				Database: db,
+			})
 			require.NoError(t, err)
 
 			e := Engine{
@@ -174,13 +325,24 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 
 			err = e.HandleConnection(context.Background(), &common.Session{
 				Checker:  &mockChecker{},
-				Database: &types.DatabaseV3{},
+				Database: db,
 			})
 			for _, ch := range tc.checks {
-				ch(t, err, emitterMock.emittedEvents)
+				ch(t, err, emitterMock.Events())
 			}
 		})
 	}
+}
+
+// intercalateChunkedPacketMessages intercalates a chunked packet with a regular packet a specified number of times.
+func intercalateChunkedPacketMessages(chunkedPacket [][]byte, regularPacket []byte, repeat int) [][]byte {
+	var result [][]byte
+	for i := 0; i < repeat; i++ {
+		result = append(result, chunkedPacket...)
+		result = append(result, regularPacket)
+	}
+
+	return result
 }
 
 type mockConn struct {
@@ -191,23 +353,12 @@ type mockConn struct {
 func (o *mockConn) Read(p []byte) (n int, err error) {
 	return o.buff.Read(p)
 }
+
 func (o *mockConn) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
+
 func (o *mockConn) Close() error {
-	return nil
-}
-
-type mockEmitter struct {
-	Emitter       events.Emitter
-	emittedEvents []events.AuditEvent
-	mtx           sync.Mutex
-}
-
-func (m *mockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-	m.emittedEvents = append(m.emittedEvents, event)
 	return nil
 }
 

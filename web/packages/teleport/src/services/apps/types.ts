@@ -33,7 +33,11 @@ export interface App {
   // if public address wasn't defined, fallback to uri
   addrWithProtocol?: string;
   friendlyName?: string;
-  userGroups?: UserGroupAndDescription[];
+  userGroups: UserGroupAndDescription[];
+  // samlApp is whether the application is a SAML Application (Service Provider).
+  samlApp: boolean;
+  // samlAppSsoUrl is the URL that triggers IdP-initiated SSO for SAML Application;
+  samlAppSsoUrl?: string;
 }
 
 export type AwsRole = {

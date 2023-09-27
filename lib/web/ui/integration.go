@@ -132,6 +132,10 @@ type AWSOIDCDeployServiceRequest struct {
 	// Region is the AWS Region for the Service.
 	Region string `json:"region"`
 
+	// AccountID is the AWS Account ID.
+	// Optional. sts.GetCallerIdentity is used if the value is not provided.
+	AccountID string `json:"accountId"`
+
 	// SubnetIDs associated with the Service.
 	// If deploying a Database Service, you should use the SubnetIDs returned by the List Database API call.
 	SubnetIDs []string `json:"subnetIds"`
@@ -178,4 +182,23 @@ type AWSOIDCDeployServiceResponse struct {
 
 	// ServiceDashboardURL is a link to the service's Dashboard URL in Amazon Console.
 	ServiceDashboardURL string `json:"serviceDashboardUrl"`
+}
+
+// AWSOIDCListEC2Request is a request to ListEC2s using the AWS OIDC Integration.
+type AWSOIDCListEC2Request struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// AWSOIDCListEC2Response contains a list of Servers and a next token if more pages are available.
+type AWSOIDCListEC2Response struct {
+	// Servers contains the page of Servers
+	Servers []Server `json:"servers"`
+
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string `json:"nextToken,omitempty"`
 }

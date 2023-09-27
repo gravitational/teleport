@@ -53,10 +53,7 @@ func (b *Bot) renewBotIdentityLoop(
 
 	// Determine where the bot should write its internal data (renewable cert
 	// etc)
-	botDestination, err := b.cfg.Storage.GetDestination()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	storageDestination := b.cfg.Storage.Destination
 
 	ticker := time.NewTicker(b.cfg.RenewalInterval)
 	jitter := retryutils.NewJitter()
@@ -77,7 +74,7 @@ func (b *Bot) renewBotIdentityLoop(
 				botIdentityRenewalRetryLimit,
 			)
 			err = b.renewBotIdentity(
-				ctx, botDestination,
+				ctx, storageDestination,
 			)
 			if err == nil {
 				break
@@ -114,7 +111,7 @@ func (b *Bot) renewBotIdentity(
 ) error {
 	currentIdentity := b.ident()
 	// Make sure we can still write to the bot's destination.
-	if err := identity.VerifyWrite(botDestination); err != nil {
+	if err := identity.VerifyWrite(ctx, botDestination); err != nil {
 		return trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
 	}
 
@@ -127,6 +124,7 @@ func (b *Bot) renewBotIdentity(
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer authClient.Close()
 		newIdentity, err = botIdentityFromAuth(
 			ctx, b.log, currentIdentity, authClient, b.cfg.CertificateTTL,
 		)
@@ -145,7 +143,7 @@ func (b *Bot) renewBotIdentity(
 	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Info("Fetched new bot identity.")
 	b.setIdent(newIdentity)
 
-	if err := identity.SaveIdentity(newIdentity, botDestination, identity.BotKinds()...); err != nil {
+	if err := identity.SaveIdentity(ctx, newIdentity, botDestination, identity.BotKinds()...); err != nil {
 		return trace.Wrap(err)
 	}
 	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Debug("Bot identity persisted.")

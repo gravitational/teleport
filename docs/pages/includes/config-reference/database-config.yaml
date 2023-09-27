@@ -4,15 +4,16 @@ db_service:
 
   # Matchers for database resources created with "tctl create" command or by the
   # discovery service.
-  #
-  # All database resources have a predefined "teleport.dev/origin" label with
-  # one of the following values:
-  # "dynamic": database resources created with "tctl create" command
-  # "cloud": database resources created by the discovery service
-  # "config": database resources defined in the "databases" array below
   resources:
+    # See "Database labels reference" (https://goteleport.com/docs/database-access/reference/labels/)
+    # to learn more on database labels.
   - labels:
       "*": "*"
+    # Optional AWS role that the Database Service will assume to access the
+    # databases.
+    aws:
+      assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+      external_id: "example-external-id"
 
   # Matchers for registering AWS-hosted databases.
   aws:

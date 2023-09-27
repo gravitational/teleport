@@ -53,7 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -218,7 +218,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			AuthClient: &fakeClient{ClientI: client, closeC: testCtx.closeSessionTrackers},
 			// StreamEmitter is required although not used because we are using
 			// "node-sync" as session recording mode.
-			StreamEmitter:     testCtx.Emitter,
+			Emitter:           testCtx.Emitter,
 			DataDir:           t.TempDir(),
 			CachingAuthClient: client,
 			HostID:            testCtx.HostID,
@@ -290,10 +290,10 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	// Create kubernetes service server.
 	testCtx.KubeProxy, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
-			ReverseTunnelSrv: &reversetunnel.FakeServer{
-				Sites: []reversetunnel.RemoteSite{
+			ReverseTunnelSrv: &reversetunnelclient.FakeServer{
+				Sites: []reversetunnelclient.RemoteSite{
 					&fakeRemoteSite{
-						FakeRemoteSite: reversetunnel.NewFakeRemoteSite(testCtx.ClusterName, client),
+						FakeRemoteSite: reversetunnelclient.NewFakeRemoteSite(testCtx.ClusterName, client),
 						idToAddr: map[string]string{
 							testCtx.HostID: testCtx.kubeServerListener.Addr().String(),
 						},
@@ -313,7 +313,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			AuthClient: &fakeClient{ClientI: client, closeC: testCtx.closeSessionTrackers},
 			// StreamEmitter is required although not used because we are using
 			// "node-sync" as session recording mode.
-			StreamEmitter:     testCtx.Emitter,
+			Emitter:           testCtx.Emitter,
 			DataDir:           t.TempDir(),
 			CachingAuthClient: client,
 			HostID:            testCtx.HostID,
@@ -416,7 +416,7 @@ func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, usern
 	role.SetSessionRequirePolicies(roleSpec.SessionRequire)
 	role.SetSessionJoinPolicies(roleSpec.SessionJoin)
 	if roleSpec.SetupRoleFunc == nil {
-		role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard}})
+		role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}}})
 	} else {
 		roleSpec.SetupRoleFunc(role)
 	}
@@ -554,12 +554,12 @@ func (c *TestContext) NewJoiningSession(cfg *rest.Config, sessionID string, mode
 // even when recording mode is *-sync.
 type authClientWithStreamer struct {
 	*auth.Client
-	streamer *events.TeeStreamer
+	streamer events.Streamer
 }
 
 // newAuthClientWithStreamer creates a new authClient wrapper.
 func newAuthClientWithStreamer(testCtx *TestContext) *authClientWithStreamer {
-	return &authClientWithStreamer{Client: testCtx.AuthClient, streamer: events.NewTeeStreamer(testCtx.AuthClient, testCtx.Emitter)}
+	return &authClientWithStreamer{Client: testCtx.AuthClient, streamer: testCtx.AuthClient}
 }
 
 func (a *authClientWithStreamer) CreateAuditStream(ctx context.Context, sID sessPkg.ID) (apievents.Stream, error) {
@@ -587,11 +587,11 @@ func (f *fakeClient) CreateSessionTracker(ctx context.Context, st types.SessionT
 // fakeRemoteSite is a fake remote site that uses a map to map server IDs to
 // addresses to simulate reverse tunneling.
 type fakeRemoteSite struct {
-	*reversetunnel.FakeRemoteSite
+	*reversetunnelclient.FakeRemoteSite
 	idToAddr map[string]string
 }
 
-func (f *fakeRemoteSite) DialTCP(p reversetunnel.DialParams) (conn net.Conn, err error) {
+func (f *fakeRemoteSite) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, err error) {
 	// The server ID is the first part of the address.
 	addr, ok := f.idToAddr[strings.Split(p.ServerID, ".")[0]]
 	if !ok {

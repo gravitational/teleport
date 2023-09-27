@@ -75,22 +75,22 @@ func FIDO2Diag(ctx context.Context, promptOut io.Writer) (*FIDO2DiagResult, erro
 	// Attempt registration.
 	const origin = "localhost"
 	cc := &wanlib.CredentialCreation{
-		Response: protocol.PublicKeyCredentialCreationOptions{
+		Response: wanlib.PublicKeyCredentialCreationOptions{
 			Challenge: make([]byte, 32),
-			RelyingParty: protocol.RelyingPartyEntity{
-				CredentialEntity: protocol.CredentialEntity{
+			RelyingParty: wanlib.RelyingPartyEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "localhost",
 				},
 				ID: "localhost",
 			},
-			User: protocol.UserEntity{
-				CredentialEntity: protocol.CredentialEntity{
+			User: wanlib.UserEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "test",
 				},
 				DisplayName: "test",
 				ID:          []byte("test"),
 			},
-			Parameters: []protocol.CredentialParameter{
+			Parameters: []wanlib.CredentialParameter{
 				{
 					Type:      protocol.PublicKeyCredentialType,
 					Algorithm: webauthncose.AlgES256,
@@ -108,10 +108,10 @@ func FIDO2Diag(ctx context.Context, promptOut io.Writer) (*FIDO2DiagResult, erro
 
 	// Attempt login.
 	assertion := &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+		Response: wanlib.PublicKeyCredentialRequestOptions{
 			Challenge:      make([]byte, 32),
 			RelyingPartyID: cc.Response.RelyingParty.ID,
-			AllowedCredentials: []protocol.CredentialDescriptor{
+			AllowedCredentials: []wanlib.CredentialDescriptor{
 				{
 					Type:         protocol.PublicKeyCredentialType,
 					CredentialID: ccr.GetWebauthn().GetRawId(),

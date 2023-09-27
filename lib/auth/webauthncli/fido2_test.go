@@ -243,14 +243,14 @@ func TestFIDO2Login(t *testing.T) {
 	legacy1 := mustNewFIDO2Device("/legacy1", "" /* pin */, &libfido2.DeviceInfo{Options: authOpts})
 	legacy1.wantRPID = appID
 
-	challenge, err := protocol.CreateChallenge()
+	challenge, err := wanlib.CreateChallenge()
 	require.NoError(t, err, "CreateChallenge failed")
 
 	baseAssertion := &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+		Response: wanlib.PublicKeyCredentialRequestOptions{
 			Challenge:          challenge,
 			RelyingPartyID:     rpID,
-			AllowedCredentials: []protocol.CredentialDescriptor{},
+			AllowedCredentials: []wanlib.CredentialDescriptor{},
 			UserVerification:   protocol.VerificationDiscouraged,
 			Extensions:         map[string]interface{}{},
 		},
@@ -281,7 +281,7 @@ func TestFIDO2Login(t *testing.T) {
 			},
 			createAssertion: func() *wanlib.CredentialAssertion {
 				cp := *baseAssertion
-				cp.Response.AllowedCredentials = []protocol.CredentialDescriptor{
+				cp.Response.AllowedCredentials = []wanlib.CredentialDescriptor{
 					{CredentialID: auth1.credentialID()},
 				}
 				return &cp
@@ -296,7 +296,7 @@ func TestFIDO2Login(t *testing.T) {
 			setUP: pin1.setUP,
 			createAssertion: func() *wanlib.CredentialAssertion {
 				cp := *baseAssertion
-				cp.Response.AllowedCredentials = []protocol.CredentialDescriptor{
+				cp.Response.AllowedCredentials = []wanlib.CredentialDescriptor{
 					{CredentialID: pin1.credentialID()},
 				}
 				return &cp
@@ -308,7 +308,7 @@ func TestFIDO2Login(t *testing.T) {
 			setUP: bio1.setUP,
 			createAssertion: func() *wanlib.CredentialAssertion {
 				cp := *baseAssertion
-				cp.Response.AllowedCredentials = []protocol.CredentialDescriptor{
+				cp.Response.AllowedCredentials = []wanlib.CredentialDescriptor{
 					{CredentialID: bio1.credentialID()},
 				}
 				return &cp
@@ -320,10 +320,10 @@ func TestFIDO2Login(t *testing.T) {
 			setUP: legacy1.setUP,
 			createAssertion: func() *wanlib.CredentialAssertion {
 				cp := *baseAssertion
-				cp.Response.AllowedCredentials = []protocol.CredentialDescriptor{
+				cp.Response.AllowedCredentials = []wanlib.CredentialDescriptor{
 					{CredentialID: legacy1.credentialID()},
 				}
-				cp.Response.Extensions = protocol.AuthenticationExtensions{
+				cp.Response.Extensions = wanlib.AuthenticationExtensions{
 					wanlib.AppIDExtension: appID,
 				}
 				return &cp
@@ -343,13 +343,13 @@ func TestFIDO2Login(t *testing.T) {
 			setUP: bio1.setUP,
 			createAssertion: func() *wanlib.CredentialAssertion {
 				cp := *baseAssertion
-				cp.Response.AllowedCredentials = []protocol.CredentialDescriptor{
+				cp.Response.AllowedCredentials = []wanlib.CredentialDescriptor{
 					{CredentialID: auth1.credentialID()},
 					{CredentialID: pin1.credentialID()},
 					{CredentialID: bio1.credentialID()},
 					{CredentialID: legacy1.credentialID()},
 				}
-				cp.Response.Extensions = protocol.AuthenticationExtensions{
+				cp.Response.Extensions = wanlib.AuthenticationExtensions{
 					wanlib.AppIDExtension: appID,
 				}
 				return &cp
@@ -369,12 +369,12 @@ func TestFIDO2Login(t *testing.T) {
 			setUP: auth1.setUP,
 			createAssertion: func() *wanlib.CredentialAssertion {
 				cp := *baseAssertion
-				cp.Response.AllowedCredentials = []protocol.CredentialDescriptor{
+				cp.Response.AllowedCredentials = []wanlib.CredentialDescriptor{
 					{CredentialID: auth1.credentialID()},
 					{CredentialID: bio1.credentialID()},
 					{CredentialID: legacy1.credentialID()},
 				}
-				cp.Response.Extensions = protocol.AuthenticationExtensions{
+				cp.Response.Extensions = wanlib.AuthenticationExtensions{
 					wanlib.AppIDExtension: "https://badexample.com",
 				}
 				return &cp
@@ -393,7 +393,7 @@ func TestFIDO2Login(t *testing.T) {
 			setUP: pin2.setUP,
 			createAssertion: func() *wanlib.CredentialAssertion {
 				cp := *baseAssertion
-				cp.Response.AllowedCredentials = []protocol.CredentialDescriptor{
+				cp.Response.AllowedCredentials = []wanlib.CredentialDescriptor{
 					{CredentialID: auth1.credentialID()},
 					{CredentialID: pin1.credentialID()},
 					{CredentialID: pin2.credentialID()},
@@ -412,7 +412,7 @@ func TestFIDO2Login(t *testing.T) {
 			setUP:   func() {},
 			createAssertion: func() *wanlib.CredentialAssertion {
 				cp := *baseAssertion
-				cp.Response.AllowedCredentials = []protocol.CredentialDescriptor{
+				cp.Response.AllowedCredentials = []wanlib.CredentialDescriptor{
 					{CredentialID: auth1.credentialID()},
 				}
 				return &cp
@@ -426,7 +426,7 @@ func TestFIDO2Login(t *testing.T) {
 			setUP:   func() {}, // no interaction
 			createAssertion: func() *wanlib.CredentialAssertion {
 				cp := *baseAssertion
-				cp.Response.AllowedCredentials = []protocol.CredentialDescriptor{
+				cp.Response.AllowedCredentials = []wanlib.CredentialDescriptor{
 					{CredentialID: auth1.credentialID()},
 					{CredentialID: pin1.credentialID()},
 					{CredentialID: bio1.credentialID()},
@@ -442,7 +442,7 @@ func TestFIDO2Login(t *testing.T) {
 			setUP:   func() {}, // no interaction
 			createAssertion: func() *wanlib.CredentialAssertion {
 				cp := *baseAssertion
-				cp.Response.AllowedCredentials = []protocol.CredentialDescriptor{
+				cp.Response.AllowedCredentials = []wanlib.CredentialDescriptor{
 					{CredentialID: auth1.credentialID()},
 				}
 				return &cp
@@ -692,7 +692,7 @@ func TestFIDO2Login_retryUVFailures(t *testing.T) {
 	const origin = "https://example.com"
 	ctx := context.Background()
 	assertion := &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+		Response: wanlib.PublicKeyCredentialRequestOptions{
 			Challenge:        []byte{1, 2, 3, 4, 5}, // arbitrary
 			RelyingPartyID:   rpID,
 			UserVerification: protocol.VerificationRequired,
@@ -746,7 +746,7 @@ func TestFIDO2Login_singleResidentCredential(t *testing.T) {
 	const origin = "https://example.com"
 	ctx := context.Background()
 	assertion := &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+		Response: wanlib.PublicKeyCredentialRequestOptions{
 			Challenge:        []byte{1, 2, 3, 4, 5}, // arbitrary
 			RelyingPartyID:   rpID,
 			UserVerification: protocol.VerificationRequired,
@@ -863,10 +863,10 @@ func TestFIDO2Login_PromptTouch(t *testing.T) {
 	})
 
 	mfaAssertion := &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+		Response: wanlib.PublicKeyCredentialRequestOptions{
 			Challenge:      make([]byte, 32),
 			RelyingPartyID: rpID,
-			AllowedCredentials: []protocol.CredentialDescriptor{
+			AllowedCredentials: []wanlib.CredentialDescriptor{
 				{
 					Type:         protocol.PublicKeyCredentialType,
 					CredentialID: auth1.credentialID(),
@@ -883,7 +883,7 @@ func TestFIDO2Login_PromptTouch(t *testing.T) {
 		},
 	}
 	pwdlessAssertion := &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+		Response: wanlib.PublicKeyCredentialRequestOptions{
 			Challenge:        make([]byte, 32),
 			RelyingPartyID:   rpID,
 			UserVerification: protocol.VerificationRequired,
@@ -972,28 +972,28 @@ func TestFIDO2Login_u2fDevice(t *testing.T) {
 	defer cancel()
 
 	cc := &wanlib.CredentialCreation{
-		Response: protocol.PublicKeyCredentialCreationOptions{
+		Response: wanlib.PublicKeyCredentialCreationOptions{
 			Challenge: []byte{1, 2, 3, 4, 5}, // arbitrary
-			RelyingParty: protocol.RelyingPartyEntity{
+			RelyingParty: wanlib.RelyingPartyEntity{
 				ID: rpID,
-				CredentialEntity: protocol.CredentialEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "rp name",
 				},
 			},
-			Parameters: []protocol.CredentialParameter{
+			Parameters: []wanlib.CredentialParameter{
 				{
 					Type:      protocol.PublicKeyCredentialType,
 					Algorithm: webauthncose.AlgES256,
 				},
 			},
-			User: protocol.UserEntity{
+			User: wanlib.UserEntity{
 				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
-				CredentialEntity: protocol.CredentialEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "user name",
 				},
 				DisplayName: "user display name",
 			},
-			AuthenticatorSelection: protocol.AuthenticatorSelection{
+			AuthenticatorSelection: wanlib.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
 			},
 			Attestation: protocol.PreferNoAttestation,
@@ -1005,10 +1005,10 @@ func TestFIDO2Login_u2fDevice(t *testing.T) {
 	require.NoError(t, err, "FIDO2Register errored")
 
 	assertion := &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+		Response: wanlib.PublicKeyCredentialRequestOptions{
 			Challenge:      []byte{1, 2, 3, 4, 5}, // arbitrary
 			RelyingPartyID: rpID,
-			AllowedCredentials: []protocol.CredentialDescriptor{
+			AllowedCredentials: []wanlib.CredentialDescriptor{
 				{
 					Type:         protocol.PublicKeyCredentialType,
 					CredentialID: ccr.GetWebauthn().GetRawId(),
@@ -1043,7 +1043,7 @@ func TestFIDO2Login_bioErrorHandling(t *testing.T) {
 	// MFA would do as well; both are realistic here.
 	const origin = "https://example.com"
 	assertion := &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+		Response: wanlib.PublicKeyCredentialRequestOptions{
 			Challenge:          []byte{1, 2, 3, 4, 5},
 			RelyingPartyID:     "example.com",
 			AllowedCredentials: nil,                           // passwordless
@@ -1129,10 +1129,10 @@ func TestFIDO2Login_errors(t *testing.T) {
 
 	const origin = "https://example.com"
 	okAssertion := &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+		Response: wanlib.PublicKeyCredentialRequestOptions{
 			Challenge:      make([]byte, 32),
 			RelyingPartyID: "example.com",
-			AllowedCredentials: []protocol.CredentialDescriptor{
+			AllowedCredentials: []wanlib.CredentialDescriptor{
 				{Type: protocol.PublicKeyCredentialType, CredentialID: []byte{1, 2, 3, 4, 5}},
 			},
 		},
@@ -1223,28 +1223,28 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 	const rpID = "goteleport.com"
 	const origin = "https://goteleport.com"
 	mfaCC := &wanlib.CredentialCreation{
-		Response: protocol.PublicKeyCredentialCreationOptions{
+		Response: wanlib.PublicKeyCredentialCreationOptions{
 			Challenge: []byte{1, 2, 3, 4, 5}, // arbitrary
-			RelyingParty: protocol.RelyingPartyEntity{
-				CredentialEntity: protocol.CredentialEntity{
+			RelyingParty: wanlib.RelyingPartyEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "Teleport",
 				},
 				ID: rpID,
 			},
-			User: protocol.UserEntity{
-				CredentialEntity: protocol.CredentialEntity{
+			User: wanlib.UserEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "llama",
 				},
 				DisplayName: "Llama",
 				ID:          []byte{1, 1, 1, 1, 1}, // arbitrary
 			},
-			Parameters: []protocol.CredentialParameter{
+			Parameters: []wanlib.CredentialParameter{
 				{
 					Type:      protocol.PublicKeyCredentialType,
 					Algorithm: webauthncose.AlgES256,
 				},
 			},
-			AuthenticatorSelection: protocol.AuthenticatorSelection{
+			AuthenticatorSelection: wanlib.AuthenticatorSelection{
 				RequireResidentKey: protocol.ResidentKeyNotRequired(),
 				ResidentKey:        protocol.ResidentKeyRequirementDiscouraged,
 				UserVerification:   protocol.VerificationDiscouraged,
@@ -1266,14 +1266,14 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 	}
 
 	mfaAssertion := &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+		Response: wanlib.PublicKeyCredentialRequestOptions{
 			Challenge:        []byte{1, 2, 3, 4, 5}, // arbitrary
 			RelyingPartyID:   rpID,
 			UserVerification: protocol.VerificationDiscouraged,
 		},
 	}
 	for _, cred := range registeredCreds {
-		mfaAssertion.Response.AllowedCredentials = append(mfaAssertion.Response.AllowedCredentials, protocol.CredentialDescriptor{
+		mfaAssertion.Response.AllowedCredentials = append(mfaAssertion.Response.AllowedCredentials, wanlib.CredentialDescriptor{
 			Type:         protocol.PublicKeyCredentialType,
 			CredentialID: cred,
 		})
@@ -1338,7 +1338,7 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 
 	excludeCC := *mfaCC
 	for _, cred := range registeredCreds {
-		excludeCC.Response.CredentialExcludeList = append(excludeCC.Response.CredentialExcludeList, protocol.CredentialDescriptor{
+		excludeCC.Response.CredentialExcludeList = append(excludeCC.Response.CredentialExcludeList, wanlib.CredentialDescriptor{
 			Type:         protocol.PublicKeyCredentialType,
 			CredentialID: cred,
 		})
@@ -1435,25 +1435,25 @@ func TestFIDO2Register(t *testing.T) {
 	none1 := mustNewFIDO2Device("/none1", "" /* pin */, &libfido2.DeviceInfo{Options: authOpts})
 	none1.format = "none"
 
-	challenge, err := protocol.CreateChallenge()
+	challenge, err := wanlib.CreateChallenge()
 	require.NoError(t, err, "CreateChallenge failed")
 
 	baseCC := &wanlib.CredentialCreation{
-		Response: protocol.PublicKeyCredentialCreationOptions{
+		Response: wanlib.PublicKeyCredentialCreationOptions{
 			Challenge: challenge,
-			RelyingParty: protocol.RelyingPartyEntity{
+			RelyingParty: wanlib.RelyingPartyEntity{
 				ID: rpID,
-				CredentialEntity: protocol.CredentialEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "rp name",
 				},
 			},
-			Parameters: []protocol.CredentialParameter{
+			Parameters: []wanlib.CredentialParameter{
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
 			},
-			AuthenticatorSelection: protocol.AuthenticatorSelection{
+			AuthenticatorSelection: wanlib.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
 			},
-			User: protocol.UserEntity{
+			User: wanlib.UserEntity{
 				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
 				CredentialEntity: protocol.CredentialEntity{
 					Name: "user name",
@@ -1465,8 +1465,8 @@ func TestFIDO2Register(t *testing.T) {
 	}
 	pwdlessCC := *baseCC
 	pwdlessCC.Response.RelyingParty.Name = "Teleport"
-	pwdlessCC.Response.User = protocol.UserEntity{
-		CredentialEntity: protocol.CredentialEntity{
+	pwdlessCC.Response.User = wanlib.UserEntity{
+		CredentialEntity: wanlib.CredentialEntity{
 			Name: "llama",
 		},
 		DisplayName: "Llama",
@@ -1584,7 +1584,7 @@ func TestFIDO2Register(t *testing.T) {
 			setUP: bio1.setUP,
 			createCredential: func() *wanlib.CredentialCreation {
 				cp := *baseCC
-				cp.Response.CredentialExcludeList = []protocol.CredentialDescriptor{
+				cp.Response.CredentialExcludeList = []wanlib.CredentialDescriptor{
 					{
 						Type:         protocol.PublicKeyCredentialType,
 						CredentialID: auth1.credentialID(),
@@ -1602,7 +1602,7 @@ func TestFIDO2Register(t *testing.T) {
 			setUP: bio1.setUP,
 			createCredential: func() *wanlib.CredentialCreation {
 				cp := *baseCC
-				cp.Response.CredentialExcludeList = []protocol.CredentialDescriptor{
+				cp.Response.CredentialExcludeList = []wanlib.CredentialDescriptor{
 					{
 						Type:         protocol.PublicKeyCredentialType,
 						CredentialID: pin1.credentialID(),
@@ -1744,23 +1744,23 @@ func TestFIDO2Register_errors(t *testing.T) {
 
 	const origin = "https://example.com"
 	okCC := &wanlib.CredentialCreation{
-		Response: protocol.PublicKeyCredentialCreationOptions{
+		Response: wanlib.PublicKeyCredentialCreationOptions{
 			Challenge: make([]byte, 32),
-			RelyingParty: protocol.RelyingPartyEntity{
+			RelyingParty: wanlib.RelyingPartyEntity{
 				ID: "example.com",
-				CredentialEntity: protocol.CredentialEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "rp name",
 				},
 			},
-			Parameters: []protocol.CredentialParameter{
+			Parameters: []wanlib.CredentialParameter{
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
 			},
-			AuthenticatorSelection: protocol.AuthenticatorSelection{
+			AuthenticatorSelection: wanlib.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
 			},
-			User: protocol.UserEntity{
+			User: wanlib.UserEntity{
 				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
-				CredentialEntity: protocol.CredentialEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "user name",
 				},
 				DisplayName: "user display name",
@@ -1771,8 +1771,8 @@ func TestFIDO2Register_errors(t *testing.T) {
 
 	pwdlessOK := *okCC
 	pwdlessOK.Response.RelyingParty.Name = "Teleport"
-	pwdlessOK.Response.User = protocol.UserEntity{
-		CredentialEntity: protocol.CredentialEntity{
+	pwdlessOK.Response.User = wanlib.UserEntity{
+		CredentialEntity: wanlib.CredentialEntity{
 			Name: "llama",
 		},
 		DisplayName: "Llama",
@@ -1820,7 +1820,7 @@ func TestFIDO2Register_errors(t *testing.T) {
 			origin: origin,
 			createCC: func() *wanlib.CredentialCreation {
 				cp := *okCC
-				cp.Response.Parameters = []protocol.CredentialParameter{
+				cp.Response.Parameters = []wanlib.CredentialParameter{
 					{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgEdDSA},
 				}
 				return &cp
@@ -1863,21 +1863,21 @@ func TestFIDO2Register_u2fExcludedCredentials(t *testing.T) {
 
 	const origin = "https://example.com"
 	cc := &wanlib.CredentialCreation{
-		Response: protocol.PublicKeyCredentialCreationOptions{
+		Response: wanlib.PublicKeyCredentialCreationOptions{
 			Challenge: make([]byte, 32),
-			RelyingParty: protocol.RelyingPartyEntity{
+			RelyingParty: wanlib.RelyingPartyEntity{
 				ID: "example.com",
-				CredentialEntity: protocol.CredentialEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "rp name",
 				},
 			},
-			Parameters: []protocol.CredentialParameter{
+			Parameters: []wanlib.CredentialParameter{
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
 			},
-			AuthenticatorSelection: protocol.AuthenticatorSelection{
+			AuthenticatorSelection: wanlib.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
 			},
-			User: protocol.UserEntity{
+			User: wanlib.UserEntity{
 				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
 				CredentialEntity: protocol.CredentialEntity{
 					Name: "user name",
@@ -1895,7 +1895,7 @@ func TestFIDO2Register_u2fExcludedCredentials(t *testing.T) {
 	require.NoError(t, err, "FIDO2Register errored")
 
 	// Setup: mark the registered credential as excluded.
-	cc.Response.CredentialExcludeList = append(cc.Response.CredentialExcludeList, protocol.CredentialDescriptor{
+	cc.Response.CredentialExcludeList = append(cc.Response.CredentialExcludeList, wanlib.CredentialDescriptor{
 		Type:         protocol.PublicKeyCredentialType,
 		CredentialID: resp.GetWebauthn().GetRawId(),
 	})

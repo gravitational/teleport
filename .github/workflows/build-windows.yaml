@@ -39,7 +39,7 @@ jobs:
           go-version: ${{ steps.go-version.outputs.go-version }}
 
       - name: Build
+        shell: bash
         run: |
-          $Env:OS="windows"
-          make build/tsh
-          make build/tctl
+          export OS="windows"
+          make build/tsh build/tctl

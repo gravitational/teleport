@@ -20,7 +20,7 @@ import { Indicator, Box, Alert } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
-import { PlayerClient, PlayerClientEvent } from 'teleport/lib/tdp';
+import { PlayerClient, PlayerClientEvent, TdpClient } from 'teleport/lib/tdp';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 
@@ -40,11 +40,11 @@ export const DesktopPlayer = ({
 }) => {
   const {
     playerClient,
-    tdpCliOnPngFrame,
-    tdpCliOnBitmapFrame,
-    tdpCliOnClientScreenSpec,
-    tdpCliOnWsClose,
-    tdpCliOnTdpError,
+    clientOnPngFrame,
+    clientOnBitmapFrame,
+    clientOnClientScreenSpec,
+    clientOnWsClose,
+    clientOnTdpError,
     attempt,
   } = useDesktopPlayer({
     sid,
@@ -67,14 +67,14 @@ export const DesktopPlayer = ({
       )}
 
       <TdpClientCanvas
-        tdpCli={playerClient}
-        tdpCliInit={true}
-        tdpCliOnPngFrame={tdpCliOnPngFrame}
-        tdpCliOnBmpFrame={tdpCliOnBitmapFrame}
-        tdpCliOnClientScreenSpec={tdpCliOnClientScreenSpec}
-        tdpCliOnWsClose={tdpCliOnWsClose}
-        tdpCliOnTdpError={tdpCliOnTdpError}
-        onContextMenu={() => true}
+        client={playerClient}
+        clientShouldConnect={true}
+        clientOnPngFrame={clientOnPngFrame}
+        clientOnBmpFrame={clientOnBitmapFrame}
+        clientOnClientScreenSpec={clientOnClientScreenSpec}
+        clientOnWsClose={clientOnWsClose}
+        clientOnTdpError={clientOnTdpError}
+        canvasOnContextMenu={() => true}
         // overflow: 'hidden' is needed to prevent the canvas from outgrowing the container due to some weird css flex idiosyncracy.
         // See https://gaurav5430.medium.com/css-flex-positioning-gotchas-child-expands-to-more-than-the-width-allowed-by-the-parent-799c37428dd6.
         style={{
@@ -118,42 +118,45 @@ const useDesktopPlayer = ({
     );
   }, [clusterId, sid]);
 
-  const tdpCliOnPngFrame = (
+  const clientOnPngFrame = (
     ctx: CanvasRenderingContext2D,
     pngFrame: PngFrame
   ) => {
     ctx.drawImage(pngFrame.data, pngFrame.left, pngFrame.top);
   };
 
-  const tdpCliOnBitmapFrame = (
+  const clientOnBitmapFrame = (
     ctx: CanvasRenderingContext2D,
     bmpFrame: BitmapFrame
   ) => {
     ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
   };
 
-  const tdpCliOnClientScreenSpec = (
+  const clientOnClientScreenSpec = (
+    cli: TdpClient,
     canvas: HTMLCanvasElement,
     spec: ClientScreenSpec
   ) => {
+    const { width, height } = spec;
+
     const styledPlayer = canvas.parentElement;
     const progressBar = styledPlayer.children.namedItem('progressBarDesktop');
 
     const fullWidth = styledPlayer.clientWidth;
     const fullHeight = styledPlayer.clientHeight - progressBar.clientHeight;
-    const originalAspectRatio = spec.width / spec.height;
+    const originalAspectRatio = width / height;
     const currentAspectRatio = fullWidth / fullHeight;
 
     if (originalAspectRatio > currentAspectRatio) {
       // Use the full width of the screen and scale the height.
-      canvas.style.height = `${(fullWidth * spec.height) / spec.width}px`;
+      canvas.style.height = `${(fullWidth * height) / width}px`;
     } else if (originalAspectRatio < currentAspectRatio) {
       // Use the full height of the screen and scale the width.
-      canvas.style.width = `${(fullHeight * spec.width) / spec.height}px`;
+      canvas.style.width = `${(fullHeight * width) / height}px`;
     }
 
-    canvas.width = spec.width;
-    canvas.height = spec.height;
+    canvas.width = width;
+    canvas.height = height;
 
     setAttempt({ status: 'success' });
   };
@@ -184,7 +187,7 @@ const useDesktopPlayer = ({
   // as signaled by the server (which sets prevAttempt.status = '' in
   // the PlayerClientEvent.SESSION_END event handler), or a TDP message from the server
   // signalling an error, assume some sort of network or playback error and alert the user.
-  const tdpCliOnWsClose = () => {
+  const clientOnWsClose = () => {
     setAttempt(prevAttempt => {
       if (prevAttempt.status !== '' && prevAttempt.status !== 'failed') {
         return {
@@ -196,7 +199,7 @@ const useDesktopPlayer = ({
     });
   };
 
-  const tdpCliOnTdpError = (error: Error) => {
+  const clientOnTdpError = (error: Error) => {
     setAttempt({
       status: 'failed',
       statusText: error.message,
@@ -205,11 +208,11 @@ const useDesktopPlayer = ({
 
   return {
     playerClient,
-    tdpCliOnPngFrame,
-    tdpCliOnBitmapFrame,
-    tdpCliOnClientScreenSpec,
-    tdpCliOnWsClose,
-    tdpCliOnTdpError,
+    clientOnPngFrame,
+    clientOnBitmapFrame,
+    clientOnClientScreenSpec,
+    clientOnWsClose,
+    clientOnTdpError,
     attempt,
   };
 };

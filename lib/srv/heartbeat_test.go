@@ -83,11 +83,10 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 					Version: types.V3,
 					Metadata: types.Metadata{
 						Namespace: apidefaults.Namespace,
-						Name:      "1",
+						Name:      "db-1",
 					},
 					Spec: types.DatabaseServerSpecV3{
-						Protocol: defaults.ProtocolPostgres,
-						URI:      "127.0.0.1:1234",
+						Database: mustCreateDatabase(t, "db-1", defaults.ProtocolPostgres, "127.0.0.1:1234"),
 						Hostname: "2",
 					},
 				}
@@ -209,6 +208,20 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 			require.Equal(t, 3, announcer.upsertCalls[hb.Mode])
 		})
 	}
+}
+
+func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: protocol,
+			URI:      uri,
+		},
+	)
+	require.NoError(t, err)
+	return database
 }
 
 // TestHeartbeatAnnounce tests announce cycles used for proxies and auth servers

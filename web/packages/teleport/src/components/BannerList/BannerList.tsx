@@ -21,6 +21,8 @@ import { Box } from 'design';
 
 import { MainContainer } from 'teleport/Main/MainContainer';
 
+import { useLayout } from 'teleport/Main/LayoutContext';
+
 import { Banner } from './Banner';
 
 import type { Severity } from './Banner';
@@ -33,6 +35,8 @@ export const BannerList = ({
   billingBanners = [],
   onBannerDismiss = () => {},
 }: Props) => {
+  const { hasDockedElement } = useLayout();
+
   const [bannerData, setBannerData] = useState<{ [id: string]: BannerType }>(
     {}
   );
@@ -58,6 +62,7 @@ export const BannerList = ({
 
   return (
     <Wrapper
+      hasDockedElement={hasDockedElement}
       bannerCount={
         shownBanners.length + customBanners.length + billingBanners.length
       }
@@ -79,10 +84,11 @@ export const BannerList = ({
   );
 };
 
-const Wrapper = styled(Box)`
+const Wrapper = styled(Box)<{ bannerCount: number; hasDockedElement: boolean }>`
   display: flex;
   height: 100vh;
   flex-direction: column;
+  width: ${p => (p.hasDockedElement ? 'calc(100vw - 520px)' : '100vw')};
 
   ${MainContainer} {
     flex: 1;

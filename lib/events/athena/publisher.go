@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	snsTypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -99,13 +100,14 @@ func newPublisherFromAthenaConfig(cfg Config) *publisher {
 // For large events, payload is publihsed to S3, and on SNS there is only passed
 // location on S3.
 func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
-	// Just double check that audit event has minimum necessary fields for athena
-	// to works. Teleport emitter layer above makes sure that they are filled.
+	// Teleport emitter layer above makes sure that they are filled.
+	// We fill it just to be sure in case some problems with layer above, it's
+	// better to generate it, then skip event.
 	if in.GetID() == "" {
-		return trace.BadParameter("missing uid of audit event %s", in.GetType())
+		in.SetID(uuid.NewString())
 	}
 	if in.GetTime().IsZero() {
-		return trace.BadParameter("missing time of audit event %s", in.GetType())
+		in.SetTime(time.Now().UTC().Round(time.Millisecond))
 	}
 
 	oneOf, err := apievents.ToOneOf(in)

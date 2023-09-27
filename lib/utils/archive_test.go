@@ -114,7 +114,6 @@ func TestCompressAsTarGzArchive(t *testing.T) {
 
 			gotBytes, err := io.ReadAll(tarReader)
 			require.NoError(t, err)
-			t.Log(string(gotBytes))
 
 			require.Equal(t, tt.fsContents[header.Name].content, gotBytes)
 			require.Equal(t, tt.fsContents[header.Name].mode, fs.FileMode(header.Mode))

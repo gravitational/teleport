@@ -35,6 +35,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -68,7 +70,7 @@ type TestAuthServerConfig struct {
 	// ClusterNetworkingConfig allows a test to change the default
 	// networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
-	// Streamer allows a test to set its own audit events streamer.
+	// Streamer allows a test to set its own session recording streamer.
 	Streamer events.Streamer
 	// AuditLog allows a test to configure its own audit log.
 	AuditLog events.AuditLogSessionStreamer
@@ -76,6 +78,8 @@ type TestAuthServerConfig struct {
 	TraceClient otlptrace.Client
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
 	AuthPreferenceSpec *types.AuthPreferenceSpecV2
+	// Embedder is required to enable the assist in the auth server.
+	Embedder embedding.Embedder
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -97,6 +101,9 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOff,
 		}
+	}
+	if cfg.Embedder == nil {
+		cfg.Embedder = &noopEmbedder{}
 	}
 	return nil
 }
@@ -187,6 +194,14 @@ func WithClock(clock clockwork.Clock) ServerOption {
 	}
 }
 
+// WithEmbedder is a functional server option that sets the server's embedder.
+func WithEmbedder(embedder embedding.Embedder) ServerOption {
+	return func(s *Server) error {
+		s.embedder = embedder
+		return nil
+	}
+}
+
 // TestAuthServer is auth server using local filesystem backend
 // and test certificate authority key generation that speeds up
 // keygen by using the same private key
@@ -268,7 +283,11 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 				RSAKeyPairSource: authority.New().GenerateKeyPair,
 			},
 		},
-	}, WithClock(cfg.Clock))
+		EmbeddingRetriever: ai.NewSimpleRetriever(),
+	},
+		WithClock(cfg.Clock),
+		WithEmbedder(cfg.Embedder),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -355,7 +374,22 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
 
-	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(ctx, local.HeadlessAuthenticationWatcherConfig{
+	unifiedResourcesCache, err := services.NewUnifiedResourceCache(srv.AuthServer.CloseContext(), services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			QueueSize:    defaults.UnifiedResourcesQueueSize,
+			Component:    teleport.ComponentUnifiedResource,
+			Client:       srv.AuthServer,
+			MaxStaleness: time.Minute,
+		},
+		ResourceGetter: srv.AuthServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	srv.AuthServer.SetUnifiedResourcesCache(unifiedResourcesCache)
+
+	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(srv.AuthServer.CloseContext(), local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,
 	})
 	if err != nil {
@@ -489,6 +523,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKey,
 				PublicSSHKey: pub,
+				SystemRoles:  id.AdditionalSystemRoles,
 			})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -699,6 +734,10 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 	}
 	tlsConfig.Time = cfg.AuthServer.Clock().Now
 
+	// Go 1.21 changed the default behavior of TLS servers.
+	// See https://go.dev/doc/go1.21#crypto/tls.
+	tlsConfig.SessionTicketsDisabled = true
+
 	accessPoint, err := NewAdminAuthServer(srv.AuthServer.AuthServer, srv.AuthServer.AuditLog)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -803,6 +842,9 @@ func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 		I: authz.BuiltinRole{
 			Role:     role,
 			Username: serverID,
+			Identity: tlsca.Identity{
+				Username: serverID,
+			},
 		},
 	}
 }
@@ -1162,4 +1204,11 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	}
 
 	return user, role, nil
+}
+
+// noopEmbedder is a no op implementation of the Embedder interface.
+type noopEmbedder struct{}
+
+func (n noopEmbedder) ComputeEmbeddings(_ context.Context, _ []string) ([]embedding.Vector64, error) {
+	return []embedding.Vector64{}, nil
 }

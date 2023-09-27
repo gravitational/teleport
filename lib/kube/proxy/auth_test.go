@@ -18,13 +18,18 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -33,6 +38,7 @@ import (
 	"k8s.io/client-go/transport"
 
 	"github.com/gravitational/teleport/api/types"
+	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -65,7 +71,6 @@ func TestCheckImpersonationPermissions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Log(tt.desc)
 		mock := &mockSARClient{
 			err:              tt.sarErr,
 			allowedVerbs:     tt.allowedVerbs,
@@ -122,6 +127,16 @@ func failsForCluster(clusterName string) servicecfg.ImpersonationPermissionsChec
 
 func TestGetKubeCreds(t *testing.T) {
 	t.Parallel()
+	// kubeMock is a Kubernetes API mock for the session tests.
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+	targetAddr := kubeMock.Address
+
+	rbacSupportedTypes := maps.Clone(defaultRBACResources)
+	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles"}] = utils.KubeCustomResource
+	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles/status"}] = utils.KubeCustomResource
+
 	logger := utils.NewLoggerForTests()
 	ctx := context.TODO()
 	const teleClusterName = "teleport-cluster"
@@ -132,7 +147,8 @@ apiVersion: v1
 kind: Config
 clusters:
 - cluster:
-    server: https://example.com:3026
+    server: ` + kubeMock.URL + `
+    insecure-skip-tls-verify: true
   name: example
 contexts:
 - context:
@@ -151,7 +167,7 @@ users:
 - name: creds
 current-context: foo
 `)
-	err := os.WriteFile(kubeconfigPath, data, 0o600)
+	err = os.WriteFile(kubeconfigPath, data, 0o600)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -189,30 +205,33 @@ current-context: foo
 			want: map[string]*kubeDetails{
 				"foo": {
 					kubeCreds: &staticKubeCreds{
-						targetAddr:      "example.com:3026",
+						targetAddr:      targetAddr,
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
-					kubeCluster: mustCreateKubernetesClusterV3(t, "foo"),
+					kubeCluster:        mustCreateKubernetesClusterV3(t, "foo"),
+					rbacSupportedTypes: rbacSupportedTypes,
 				},
 				"bar": {
 					kubeCreds: &staticKubeCreds{
-						targetAddr:      "example.com:3026",
+						targetAddr:      targetAddr,
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
-					kubeCluster: mustCreateKubernetesClusterV3(t, "bar"),
+					kubeCluster:        mustCreateKubernetesClusterV3(t, "bar"),
+					rbacSupportedTypes: rbacSupportedTypes,
 				},
 				"baz": {
 					kubeCreds: &staticKubeCreds{
-						targetAddr:      "example.com:3026",
+						targetAddr:      targetAddr,
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
-					kubeCluster: mustCreateKubernetesClusterV3(t, "baz"),
+					kubeCluster:        mustCreateKubernetesClusterV3(t, "baz"),
+					rbacSupportedTypes: rbacSupportedTypes,
 				},
 			},
 			assertErr: require.NoError,
@@ -231,12 +250,13 @@ current-context: foo
 			want: map[string]*kubeDetails{
 				teleClusterName: {
 					kubeCreds: &staticKubeCreds{
-						targetAddr:      "example.com:3026",
+						targetAddr:      targetAddr,
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
-					kubeCluster: mustCreateKubernetesClusterV3(t, teleClusterName),
+					kubeCluster:        mustCreateKubernetesClusterV3(t, teleClusterName),
+					rbacSupportedTypes: rbacSupportedTypes,
 				},
 			},
 			assertErr: require.NoError,
@@ -248,30 +268,33 @@ current-context: foo
 			want: map[string]*kubeDetails{
 				"foo": {
 					kubeCreds: &staticKubeCreds{
-						targetAddr:      "example.com:3026",
+						targetAddr:      targetAddr,
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
-					kubeCluster: mustCreateKubernetesClusterV3(t, "foo"),
+					kubeCluster:        mustCreateKubernetesClusterV3(t, "foo"),
+					rbacSupportedTypes: rbacSupportedTypes,
 				},
 				"bar": {
 					kubeCreds: &staticKubeCreds{
-						targetAddr:      "example.com:3026",
+						targetAddr:      targetAddr,
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
-					kubeCluster: mustCreateKubernetesClusterV3(t, "bar"),
+					kubeCluster:        mustCreateKubernetesClusterV3(t, "bar"),
+					rbacSupportedTypes: rbacSupportedTypes,
 				},
 				"baz": {
 					kubeCreds: &staticKubeCreds{
-						targetAddr:      "example.com:3026",
+						targetAddr:      targetAddr,
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
-					kubeCluster: mustCreateKubernetesClusterV3(t, "baz"),
+					kubeCluster:        mustCreateKubernetesClusterV3(t, "baz"),
+					rbacSupportedTypes: rbacSupportedTypes,
 				},
 			},
 			assertErr: require.NoError,
@@ -281,19 +304,31 @@ current-context: foo
 		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
-			got, err := getKubeDetails(ctx, logger, teleClusterName, "", tt.kubeconfigPath, tt.serviceType, tt.impersonationCheck)
+			fwd := &Forwarder{
+				clusterDetails: map[string]*kubeDetails{},
+				cfg: ForwarderConfig{
+					ClusterName:                   teleClusterName,
+					KubeServiceType:               tt.serviceType,
+					KubeconfigPath:                tt.kubeconfigPath,
+					CheckImpersonationPermissions: tt.impersonationCheck,
+					Clock:                         clockwork.NewFakeClock(),
+				},
+				log: logger,
+			}
+			err := fwd.getKubeDetails(ctx)
 			tt.assertErr(t, err)
 			if err != nil {
 				return
 			}
-			require.Empty(t, cmp.Diff(got, tt.want,
+			require.Empty(t, cmp.Diff(fwd.clusterDetails, tt.want,
 				cmp.AllowUnexported(staticKubeCreds{}),
 				cmp.AllowUnexported(kubeDetails{}),
-				cmp.AllowUnexported(httpTransport{}),
+				cmpopts.IgnoreFields(kubeDetails{}, "rwMu", "kubeCodecs", "wg", "cancelFunc"),
 				cmp.Comparer(func(a, b *transport.Config) bool { return (a == nil) == (b == nil) }),
+				cmp.Comparer(func(a, b *tls.Config) bool { return true }),
 				cmp.Comparer(func(a, b *kubernetes.Clientset) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b *rest.Config) bool { return (a == nil) == (b == nil) }),
-				cmp.Comparer(func(a, b httpTransport) bool { return true }),
+				cmp.Comparer(func(a, b http.RoundTripper) bool { return true }),
 			))
 		})
 	}

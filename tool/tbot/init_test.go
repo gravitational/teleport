@@ -112,7 +112,7 @@ func testConfigFromCLI(t *testing.T, cf *config.CLIConf) *config.BotConfig {
 
 // testConfigFromString parses a YAML config file from a string.
 func testConfigFromString(t *testing.T, yaml string) *config.BotConfig {
-	cfg, err := config.ReadConfig(strings.NewReader(yaml))
+	cfg, err := config.ReadConfig(strings.NewReader(yaml), false)
 	require.NoError(t, err)
 
 	return cfg
@@ -120,9 +120,8 @@ func testConfigFromString(t *testing.T, yaml string) *config.BotConfig {
 
 // validateFileDestinations ensures all files in a destination exist on disk as
 // expected, and returns the destination.
-func validateFileDestination(t *testing.T, dest *config.DestinationConfig) *config.DestinationDirectory {
-	destImpl, err := dest.GetDestination()
-	require.NoError(t, err)
+func validateFileDestination(t *testing.T, output config.Output) *config.DestinationDirectory {
+	destImpl := output.GetDestination()
 
 	destDir, ok := destImpl.(*config.DestinationDirectory)
 	require.True(t, ok)
@@ -152,7 +151,7 @@ func TestInit(t *testing.T) {
 	require.NoError(t, onInit(cfg, cf))
 
 	// Make sure everything was created.
-	_ = validateFileDestination(t, cfg.Destinations[0])
+	_ = validateFileDestination(t, cfg.Outputs[0])
 }
 
 // TestInitMaybeACLs tests defaults with ACLs possibly enabled, by supplying
@@ -202,7 +201,7 @@ func TestInitMaybeACLs(t *testing.T) {
 	require.NoError(t, onInit(cfg, cf))
 
 	// Make sure everything was created.
-	destDir := validateFileDestination(t, cfg.Destinations[0])
+	destDir := validateFileDestination(t, cfg.Outputs[0])
 
 	// If we expect ACLs, verify them.
 	if expectACLs {
@@ -215,12 +214,15 @@ func TestInitMaybeACLs(t *testing.T) {
 // testInitSymlinksTemplate is a config template with a configurable symlinks
 // mode and ACLs disabled.
 const testInitSymlinksTemplate = `
+version: v2
 auth_server: example.com
-destinations:
-  - directory:
-      path: %s
-      acls: off
-      symlinks: %s
+outputs:
+- type: identity
+  destination:
+    type: directory
+    path: %s
+    acls: off
+    symlinks: %s
 `
 
 // TestInitSymlink tests tbot init with a symlink in the path.
@@ -246,7 +248,7 @@ func TestInitSymlink(t *testing.T) {
 	require.NoError(t, onInit(cfg, &config.CLIConf{}))
 
 	// Make sure everything was created.
-	_ = validateFileDestination(t, cfg.Destinations[0])
+	_ = validateFileDestination(t, cfg.Outputs[0])
 }
 
 // TestInitSymlinksInsecure should work on all platforms.

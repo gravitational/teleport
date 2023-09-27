@@ -162,7 +162,7 @@ func TestRegister_errors(t *testing.T) {
 			origin: origin,
 			makeCC: func() *wanlib.CredentialCreation {
 				cp := *okCC
-				var params []protocol.CredentialParameter
+				var params []wanlib.CredentialParameter
 				for _, p := range cp.Response.Parameters {
 					if p.Algorithm == webauthncose.AlgES256 {
 						continue

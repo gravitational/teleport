@@ -138,7 +138,7 @@ func TestAzureWatcher(t *testing.T) {
 			for len(vmIDs) < len(tc.wantVMs) {
 				select {
 				case results := <-watcher.InstancesC:
-					for _, vm := range results.AzureInstances.Instances {
+					for _, vm := range results.Azure.Instances {
 						vmIDs = append(vmIDs, *vm.ID)
 					}
 				case <-ctx.Done():

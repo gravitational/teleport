@@ -32,23 +32,27 @@ type gcpIDTokenValidator interface {
 	Validate(ctx context.Context, token string) (*gcp.IDTokenClaims, error)
 }
 
-func (a *Server) checkGCPJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
+func (a *Server) checkGCPJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*gcp.IDTokenClaims, error) {
 	if req.IDToken == "" {
-		return trace.BadParameter("IDToken not provided for GCP join request")
+		return nil, trace.BadParameter("IDToken not provided for GCP join request")
 	}
 	pt, err := a.GetToken(ctx, req.Token)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
-		return trace.BadParameter("gcp join method only supports ProvisionTokenV2, '%T' was provided", pt)
+		return nil, trace.BadParameter("gcp join method only supports ProvisionTokenV2, '%T' was provided", pt)
 	}
 
 	claims, err := a.gcpIDTokenValidator.Validate(ctx, req.IDToken)
 	if err != nil {
-		return trace.Wrap(err)
+		log.WithFields(logrus.Fields{
+			"claims": claims,
+			"token":  pt.GetName(),
+		}).WithError(err).Warn("Unable to validate GCP IDToken")
+		return nil, trace.Wrap(err)
 	}
 
 	log.WithFields(logrus.Fields{
@@ -56,22 +60,32 @@ func (a *Server) checkGCPJoinRequest(ctx context.Context, req *types.RegisterUsi
 		"token":  pt.GetName(),
 	}).Info("GCP VM trying to join cluster")
 
-	return trace.Wrap(checkGCPAllowRules(token, claims))
+	if err := checkGCPAllowRules(token, claims); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return claims, nil
 }
 
 func checkGCPAllowRules(token *types.ProvisionTokenV2, claims *gcp.IDTokenClaims) error {
 	compute := claims.Google.ComputeEngine
+	// unmatchedLocation is true if the location restriction is set and the "google.compute_engine.zone"
+	// claim is not present in the IDToken. This happens when the joining node is not a GCE VM.
+	unmatchedLocation := false
 	// If a single rule passes, accept the IDToken.
 	for _, rule := range token.Spec.GCP.Allow {
 		if !slices.Contains(rule.ProjectIDs, compute.ProjectID) {
 			continue
 		}
+
+		if len(rule.ServiceAccounts) > 0 && !slices.Contains(rule.ServiceAccounts, claims.Email) {
+			continue
+		}
+
 		if len(rule.Locations) > 0 && !slices.ContainsFunc(rule.Locations, func(location string) bool {
 			return isGCPZoneInLocation(location, compute.Zone)
 		}) {
-			continue
-		}
-		if len(rule.ServiceAccounts) > 0 && !slices.Contains(rule.ServiceAccounts, claims.Email) {
+			unmatchedLocation = true
 			continue
 		}
 
@@ -79,6 +93,12 @@ func checkGCPAllowRules(token *types.ProvisionTokenV2, claims *gcp.IDTokenClaims
 		return nil
 	}
 
+	// If the location restriction is set and the "google.compute_engine.zone" claim is not present in the IDToken,
+	// return a more specific error message.
+	if unmatchedLocation && compute.Zone == "" {
+		return trace.CompareFailed("id token %q claim is empty and didn't match the %q. "+
+			"Services running outside of GCE VM instances are incompatible with %q restriction.", "google.compute_engine.zone", "locations", "location")
+	}
 	return trace.AccessDenied("id token claims did not match any allow rules")
 }
 

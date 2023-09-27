@@ -31,6 +31,7 @@ type Chat struct {
 	client    *Client
 	messages  []openai.ChatCompletionMessage
 	tokenizer tokenizer.Codec
+	agent     *model.Agent
 }
 
 // Insert inserts a message into the conversation. Returns the index of the message.
@@ -56,24 +57,33 @@ func (chat *Chat) GetMessages() []openai.ChatCompletionMessage {
 // Message types:
 // - CompletionCommand: a command from the assistant
 // - Message: a text message from the assistant
-func (chat *Chat) Complete(ctx context.Context, userInput string) (any, error) {
+func (chat *Chat) Complete(ctx context.Context, userInput string, progressUpdates func(*model.AgentAction)) (any, *model.TokenCount, error) {
 	// if the chat is empty, return the initial response we predefine instead of querying GPT-4
 	if len(chat.messages) == 1 {
 		return &model.Message{
-			Content:    model.InitialAIResponse,
-			TokensUsed: &model.TokensUsed{},
-		}, nil
+			Content: model.InitialAIResponse,
+		}, model.NewTokenCount(), nil
 	}
 
+	return chat.Reply(ctx, userInput, progressUpdates)
+}
+
+// Reply replies to the user input with a message from the assistant based on the current context.
+func (chat *Chat) Reply(ctx context.Context, userInput string, progressUpdates func(*model.AgentAction)) (any, *model.TokenCount, error) {
 	userMessage := openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleUser,
 		Content: userInput,
 	}
 
-	response, err := model.AssistAgent.PlanAndExecute(ctx, chat.client.svc, chat.messages, userMessage)
+	response, tokenCount, err := chat.agent.PlanAndExecute(ctx, chat.client.svc, chat.messages, userMessage, progressUpdates)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return response, nil
+	return response, tokenCount, nil
+}
+
+// Clear clears the conversation.
+func (chat *Chat) Clear() {
+	chat.messages = []openai.ChatCompletionMessage{}
 }

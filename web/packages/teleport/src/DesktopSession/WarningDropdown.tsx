@@ -18,7 +18,7 @@ import React, { useRef, useState } from 'react';
 import { Text, Flex, Button, Card, ButtonIcon } from 'design';
 import styled from 'styled-components';
 import { Notification } from 'shared/components/Notification';
-import { Warning, Close } from 'design/Icon';
+import { Warning, Cross } from 'design/Icon';
 import { useClickOutside } from 'shared/hooks/useClickOutside';
 
 import type { NotificationItem } from 'shared/components/Notification';
@@ -46,7 +46,7 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
   });
 
   return (
-    <StyledRelative ref={ref}>
+    <>
       <StyledButton
         title={'Warnings'}
         hasWarnings={warnings.length > 0}
@@ -54,7 +54,7 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
         onClick={toggleDropdown}
       >
         <Flex alignItems="center" justifyContent="space-between">
-          <StyledWarningIcon mr={2} /> {warnings.length}
+          <Warning size={20} mr={2} /> {warnings.length}
         </Flex>
       </StyledButton>
       {showDropdown && (
@@ -70,7 +70,7 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
               {warnings.length} {warnings.length > 1 ? 'Warnings' : 'Warning'}
             </Text>
             <ButtonIcon size={1} ml={1} mr={2} onClick={toggleDropdown}>
-              <Close />
+              <Cross size="medium" />
             </ButtonIcon>
           </Flex>
           <StyledOverflow flexWrap="wrap" gap={2}>
@@ -87,17 +87,9 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
           </StyledOverflow>
         </StyledCard>
       )}
-    </StyledRelative>
+    </>
   );
 }
-
-const StyledWarningIcon = styled(Warning)`
-  font-weight: ${({ theme }) => theme.fontWeights.bold};
-  font-size: ${({ theme }) => theme.fontSizes[2] + 'px'};
-  color: inherit;
-  transition: none;
-  align-self: 'center';
-`;
 
 const StyledButton = styled(Button)`
   color: ${({ theme }) => theme.colors.light};
@@ -130,10 +122,6 @@ const StyledNotification = styled(Notification)`
   ${({ theme }) =>
     theme.name === 'light' && `border: 1px solid ${theme.colors.text.muted};`}
   box-shadow: none;
-`;
-
-const StyledRelative = styled.div`
-  position: relative;
 `;
 
 const StyledOverflow = styled(Flex)`

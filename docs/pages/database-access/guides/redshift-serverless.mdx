@@ -3,6 +3,8 @@ title: Database Access with Redshift Serverless on AWS
 description: How to configure Teleport database access with AWS Redshift Serverless.
 ---
 
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS Redshift Serverless" dbConfigure="AWS Redshift Serverless database with IAM authentication" dbName="AWS Redshift Serverless" !)
+
 This guide will help you to:
 
 - Set up Teleport to access your AWS Redshift Serverless workgroups.
@@ -300,7 +302,7 @@ my-redshift Redshift cluster in us-east-1  ...
 
 <Admonition type="note" title="Note">
 
-You can override the database name by applying the `teleport.dev/database_name`
+You can override the database name by applying the `TeleportDatabaseName`
 AWS tag to the resource. The value of the tag will be used as the database name.
 
 </Admonition>
@@ -340,7 +342,7 @@ prior to logging in as this new IAM role to avoid or resolve user permission iss
    CREATE USER "IAMR:teleport-redshift-serverless-access" WITH PASSWORD DISABLE;
    ```
 
-2. Grant this user appropriate in-database permissions. For example:
+1. Grant this user appropriate in-database permissions. For example:
 
    ```sql
    GRANT SELECT ON TABLE users  TO "IAMR:teleport-redshift-serverless-access";

@@ -4,21 +4,17 @@ description: How to configure Teleport deployment for high-availability using st
 ---
 
 A Teleport cluster stores different types of data in different locations. By
-default everything is stored in a local directory at the Auth server.
-Integration with other storage types is implemented based on the nature of the
-stored data (size, read/write ratio, mutability, etc.).
+default everything is stored in a local directory on the Auth Service host.
 
-<ScopedBlock scope={["cloud"]}>
-
-Teleport Cloud manages Auth Service and Proxy Service data for you, so there is
-no need to configure a backend.
-</ScopedBlock>
+For self-hosted Teleport deployments, you can configure Teleport to integrate
+with other storage types based on the nature of the stored data (size,
+read/write ratio, mutability, etc.).
 
 | Data type | Description | Supported storage backends |
 | - | - | - |
-| core cluster state | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, AWS DynamoDB, GCP Firestore |
-| audit events | JSON-encoded events from the audit log (e.g. user logins, RBAC changes) | Local directory, AWS DynamoDB, GCP Firestore |
-| session recordings | Raw terminal recordings of interactive user sessions | Local directory, AWS S3 (and any S3-compatible product), GCP Cloud Storage |
+| core cluster state | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, PostgreSQL, AWS DynamoDB, GCP Firestore |
+| audit events | JSON-encoded events from the audit log (e.g. user logins, RBAC changes) | Local directory, PostgreSQL, AWS DynamoDB, GCP Firestore |
+| session recordings | Raw terminal recordings of interactive user sessions | Local directory, AWS S3 (and any S3-compatible product), GCP Cloud Storage, Azure Blob Storage |
 | teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy) | Local directory |
 
 <Admonition
@@ -88,8 +84,8 @@ machines running Teleport. This endpoint must be enabled by using the
 [http://127.0.0.1:3000/readyz](http://127.0.0.1:3000/readyz) endpoint will
 reply `{"status":"ok"}` if the Teleport service is running without problems.
 
-We'll cover how to use `etcd`, DynamoDB, and Firestore storage back-ends to
-make Teleport highly available below.
+We'll cover how to use `etcd`, PostgreSQL, DynamoDB, and Firestore storage
+back-ends to make Teleport highly available below.
 
 ## Etcd
 
@@ -176,6 +172,184 @@ teleport:
      etcd_max_client_msg_size_bytes: 15728640
 ```
 
+## PostgreSQL (Preview)
+
+<Details
+  title="Version warning"
+  opened={true}
+  min="13.3"
+>
+  The PostgreSQL cluster state and audit log storage is available starting from Teleport `13.3`.
+</Details>
+
+<Admonition type="warning" title="Preview">
+  The PostgreSQL cluster state and audit log storage is currently in Preview.
+</Admonition>
+
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  Before continuing, please make sure to take a look at the [Cluster State section](../architecture/nodes.mdx#cluster-state)
+  in Teleport Architecture documentation.
+</Admonition>
+
+Teleport can use [PostgreSQL](https://www.postgresql.org/) as a storage back-end
+to achieve high availability. You must take steps to protect access to
+PostgreSQL in this configuration because that is where Teleport secrets like
+keys and user records will be stored. The PostgreSQL backend supports two types
+of Teleport data:
+
+- Cluster state
+- Audit log events
+
+The PostgreSQL backend requires PostgreSQL 13 or later, and, for the cluster
+state only, the [`wal2json`](https://github.com/eulerto/wal2json) logical
+decoding plugin. The plugin is available in packages for all stable versions in
+the PostgreSQL [Apt](https://apt.postgresql.org/) and
+[Yum](https://yum.postgresql.org/) repositories for Debian- and RPM-based Linux
+distributions respectively, or it can be compiled following [the
+instructions](https://github.com/eulerto/wal2json#build-and-install) provided in
+its repository. The plugin is pre-installed with no extra steps to take in
+[Azure Database for
+PostgreSQL](https://azure.microsoft.com/en-us/products/postgresql).
+
+Teleport needs separate databases for the cluster state and the
+audit log, and it will attempt to create them if given permissions to do so; it
+will also set up the database schemas as needed, so we recommend giving the user
+ownership over the databases.
+
+The PostgreSQL backend for cluster state relies on the ability to use [logical
+decoding](https://www.postgresql.org/docs/current/logicaldecoding.html) to get a
+stream of changes from the database; because of that, the
+[`wal_level`](https://www.postgresql.org/docs/current/runtime-config-wal.html#GUC-WAL-LEVEL)
+parameter must be set to `logical` and
+[`max_replication_slots`](https://www.postgresql.org/docs/current/runtime-config-replication.html#GUC-MAX-REPLICATION-SLOTS)
+must be set to at least as many Teleport Auth Service instances as you'll be running (a
+higher number is recommended, to account for network conditions). `wal_level`
+can only be set at server start, so it should be set in `postgresql.conf`:
+```
+# the default value for wal_level is replica
+wal_level = logical
+
+# the default value for max_replication_slots is 10
+max_replication_slots = 10
+```
+
+In addition, the database user must have the `initiating replication` [role
+attribute](https://www.postgresql.org/docs/current/role-attributes.html). In the
+`psql` shell:
+
+```
+postgres=# CREATE USER new_user WITH REPLICATION;
+CREATE ROLE
+
+postgres=# ALTER ROLE existing_user WITH LOGIN REPLICATION;
+ALTER ROLE
+```
+
+Since replication permissions allow for essentially full read access over the
+entire cluster (with a physical replication connection) or to all databases that
+the user can connect to, it's recommended to prevent the user from opening
+replication connections, or from connecting to databases other than the ones
+used for Teleport, if the PostgreSQL cluster is shared between Teleport and
+other applications.
+
+For convenience, Teleport will attempt to grant itself the `initiating
+replication` role attribute, to accommodate the ability of some managed services
+(such as Azure Database for PostgreSQL) to create superuser accounts through
+their API; this should only be leveraged if the entire PostgreSQL cluster is
+dedicated to Teleport.
+
+To configure Teleport to use PostgreSQL:
+- Configure all Teleport Auth Service instances to use the PostgreSQL back-end in the
+  `storage` section of `teleport.yaml` as shown below.
+- Deploy several Auth Service instances connected to the PostgreSQL storage back-end.
+- Deploy several Proxy Service nodes.
+- Make sure that the Proxy Service instances and all Teleport agent services that
+  connect directly to the the Auth Service have the `auth_server` configuration
+  setting populated with the address of a load balancer for Auth Service
+  instances.
+
+```yaml
+teleport:
+  storage:
+    type: postgresql
+
+    # conn_string is a libpq-compatible connection string (see
+    # https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING);
+    # pool_max_conns is an additional parameter that determines the maximum
+    # number of connections in the connection pool used for the cluster state
+    # database (the change feed uses an additional connection), defaulting to
+    # a value that depends on the number of available CPUs.
+    conn_string: postgresql://user_name@database-address/teleport_backend?sslmode=verify-full&pool_max_conns=20
+
+    # An audit_events_uri with a scheme of postgresql:// will use the
+    # PostgreSQL backend for audit log storage; the URI is a libpq-compatible
+    # connection string just like the cluster state conn_string, but cannot be
+    # specified as key=value pairs. It's possible to specify completely
+    # different PostgreSQL clusters for cluster state and audit log.
+    audit_events_uri:
+      - postgresql://user_name@database-address/teleport_audit?sslmode=verify-full
+```
+
+Audit log events are periodically deleted after a default retention period of
+8766 hours (one year); it's possible to select a different retention period or
+to disable the cleanup entirely, by specifying the `retention_period` or the
+`disable_cleanup` parameters in the fragment of the URI:
+
+```yaml
+storage:
+  teleport:
+    audit_events_uri:
+      - postgresql://user_name@database-address/teleport_audit?sslmode=verify-full#disable_cleanup=false&retention_period=2160h
+```
+
+### Authentication
+
+We strongly recommend using [client
+certificates](https://www.postgresql.org/docs/current/ssl-tcp.html#SSL-CLIENT-CERTIFICATES)
+to authenticate Teleport to PostgreSQL, as well as enforcing the use of TLS and
+[verifying the server
+certificate](https://www.postgresql.org/docs/current/libpq-ssl.html#LIBQ-SSL-CERTIFICATES)
+on the client side. If the use of passwords is unavoidable, we recommend
+configuring them in [the `~/.pgpass`
+file](https://www.postgresql.org/docs/current/libpq-pgpass.html) rather than
+storing them in Teleport's configuration file.
+
+### Azure AD authentication
+
+If you are running Teleport on Azure, Teleport can make use of [Azure AD
+authentication](https://learn.microsoft.com/azure/postgresql/flexible-server/concepts-azure-ad-authentication)
+to connect to an Azure Database for PostgreSQL server without having to manage
+any secrets:
+
+```yaml
+teleport:
+  storage:
+    type: postgresql
+
+    conn_string: postgresql://user_name@database-name.postgres.database.azure.com/teleport_backend?sslmode=verify-full&pool_max_conns=20
+    auth_mode: azure
+
+    audit_events_uri:
+      - postgresql://user_name@database-name.postgres.database.azure.com/teleport_audit?sslmode=verify-full#auth_mode=azure
+```
+
+When `auth_mode` is set to `azure`, Teleport will automatically fetch
+short-lived tokens from the credentials available to it, to be used as database
+passwords. The database user must be [configured to allow connections using
+Azure
+AD](https://learn.microsoft.com/azure/postgresql/flexible-server/how-to-configure-sign-in-azure-ad-authentication).
+
+Teleport will make use of the Azure AD credentials specified by [environment
+variables](https://learn.microsoft.com/azure/developer/go/azure-sdk-authentication#2-authenticate-with-azure),
+[Azure AD Workload
+Identity](https://learn.microsoft.com/azure/aks/workload-identity-overview)
+credentials, or [managed
+identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
+credentials.
+
 ## S3
 
 <Admonition
@@ -225,12 +399,33 @@ Service reads these parameters to configure its interactions with S3:
 `s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false&acl=private&use_fips_endpoint=true`
 
 - `region=us-east-1` - set the Amazon region to use.
+
 - `endpoint=mys3.example.com` - connect to a custom S3 endpoint. Optional.
-- `insecure=true` - set to `true` or `false`. If `true`, TLS will be disabled. Default value is `false`.
-- `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time. Setting `insecure=true` implicitly sets `disablesse=true`.
-- `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID all objects uploaded to S3 will be encrypted with this key. Details can be found below.
-- `acl=private` - set the [canned ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl) to use. Must be one of the predefined ACL values.
-- `use_fips_endpoint=true` -  [Configure S3 FIPS endpoints](#configuring-aws-fips-endpoints)
+
+- `insecure=true` - set to `true` or `false`. If `true`, TLS will be disabled.
+  Default value is `false`.
+
+- `disablesse=true` - set to `true` or `false`. The Auth Service checks this
+  value before uploading an object to an S3 bucket.
+
+  If this is `false`, the Auth Service will set the server-side encryption
+  configuration of the upload to use AWS Key Management Service and, if
+  `sse_kms_key` is set, configure the upload to use this key.
+
+  If this value is `true`, the Auth Service will not set an explicit server-side
+  encryption configuration for the object upload, meaning that the upload will
+  use the bucket-level server-side encryption configuration.
+
+- `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID, all objects
+  uploaded to S3 will be encrypted with this key (as long as `disablesse` is
+  `false`). Details can be found below.
+
+- `acl=private` - set the [canned
+  ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl)
+  to use. Must be one of the predefined ACL values.
+
+- `use_fips_endpoint=true` -  [Configure S3 FIPS
+  endpoints](#configuring-aws-fips-endpoints)
 
 ### S3 IAM policy
 
@@ -465,6 +660,11 @@ teleport:
     # By default, Teleport stores audit events with an AWS TTL of 1 year.
     # This value can be configured as shown below. If set to 0 seconds, TTL is disabled.
     audit_retention_period: 365d
+
+    # Enables either Pay Per Request or Provisioned billing for the DynamoDB table. Set when Teleport creates the table.
+    # Possible values: "pay_per_request" and "provisioned"
+    # default: "pay_per_request"
+    billing_mode: "pay_per_request"
 ```
 
 - Replace `us-east-1` and `Example_TELEPORT_DYNAMO_TABLE_NAME`
@@ -527,6 +727,11 @@ teleport:
     # auto_scaling is used to optionally enable (and define settings for) auto scaling.
     # default: false
     auto_scaling:  [true|false]
+    # Enables either Pay-Per-Request or Provisioned billing for the DynamoDB table. Set when Teleport creates the table.
+    # If billing_mode is set to "pay_per_request", read/write capacity and auto_scaling settings will be ignored.
+    # Possible values: "pay_per_request" and "provisioned"
+    # default: "pay_per_request"
+    billing_mode: ["pay_per_request"|"provisioned"]
     # Minimum/maximum read capacity in units
     read_min_capacity: int
     read_max_capacity: int
@@ -563,6 +768,13 @@ To enable these options you will need to update the IAM Policy for Teleport.
     "Resource": "*"
 }
 ```
+
+<Admonition
+  type="warning"
+  title="pay_per_request with autoscaling"
+>
+  If billing mode is set to `pay_per_request`, the settings for read/write capacity and auto scaling will be ignored.
+</Admonition>
 
 ### Configuring AWS FIPS endpoints
 
@@ -694,6 +906,83 @@ teleport:
   and the session recordings **must** be stored in a GCS bucket, i.e. both `audit_xxx` settings must
   be present. If they are not set, Teleport will default to a local filesystem for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
+
+## Azure Blob Storage (Preview)
+
+<Details
+  title="Version warning"
+  opened={true}
+  min="13.3"
+>
+  Azure Blob Storage for session storage is available starting from Teleport `13.3`.
+</Details>
+
+<Admonition type="warning" title="Preview">
+  Azure Blob Storage for session storage is currently in Preview.
+</Admonition>
+
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  Before continuing, please make sure to take a look at the [Cluster State section](../architecture/nodes.mdx#cluster-state)
+  in Teleport Architecture documentation.
+</Admonition>
+
+Azure Blob Storage can be used as storage for recorded sessions. Azure Blob
+Storage cannot store the audit log or the cluster state. Below is an example of
+how to configure a Teleport auth server to store the recorded sessions in an
+Azure Blob Storage storage account.
+
+```yaml
+teleport:
+  storage:
+    audit_sessions_uri: azblob://account-name.core.blob.windows.net
+```
+
+Teleport makes use of two containers in the account, whose names default to
+`inprogress` and `session`, but they can be configured with parameters in the
+fragment of the URI.
+
+```yaml
+teleport:
+  storage:
+    audit_sessions_uri: azblob://account-name.core.blob.windows.net#session_container=session_container_name&inprogress_container=inprogress_container_name
+```
+
+### Permissions
+
+Teleport needs the following permissions on the `inprogress` container:
+- `Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read`
+- `Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write`
+- `Microsoft.Storage/storageAccounts/blobServices/containers/blobs/delete` (only on the `inprogress` container)
+
+In addition, Teleport will check if the containers exist at startup, and it will
+attempt to create them if they can't be confirmed to exist; giving Teleport
+`Microsoft.Storage/storageAccounts/blobServices/containers/read` will allow for
+checking and `Microsoft.Storage/storageAccounts/blobServices/containers/write`
+will allow for creating them.
+
+It's highly recommended to set up a [time-based retention
+policy](https://learn.microsoft.com/azure/storage/blobs/immutable-time-based-retention-policy-overview)
+for the `session` container, as well as a [lifecycle management
+policy](https://learn.microsoft.com/azure/storage/blobs/lifecycle-management-overview),
+so that recordings are kept in an immutable state for a given period, then
+deleted. Teleport will not delete recordings automatically.
+
+With a time-based retention policy in place, it's safe to give Teleport the
+"Blob Storage Data Contributor" role scoped to the containers, instead of having
+to define a custom role for it.
+
+### Authentication
+
+Teleport will make use of the Azure AD credentials specified by [environment
+variables](https://learn.microsoft.com/azure/developer/go/azure-sdk-authentication#2-authenticate-with-azure),
+[Azure AD Workload
+Identity](https://learn.microsoft.com/azure/aks/workload-identity-overview)
+credentials, or [managed
+identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
+credentials.
 
 ## SQLite
 

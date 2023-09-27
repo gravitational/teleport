@@ -143,7 +143,13 @@ const Info = ({ children }: { children: React.ReactNode }) => (
 );
 
 const ReadOnlyYamlEditor = ({ content }: { content: string }) => {
-  return <TextEditor readOnly={true} data={[{ content, type: 'yaml' }]} />;
+  return (
+    <TextEditor
+      readOnly={true}
+      data={[{ content, type: 'yaml' }]}
+      bg="levels.deep"
+    />
+  );
 };
 
 type AccessKind =

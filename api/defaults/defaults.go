@@ -77,6 +77,10 @@ const (
 	// BreakerRatioMinExecutions is the minimum number of requests before the ratio tripper
 	// will consider examining the request pass rate
 	BreakerRatioMinExecutions = 10
+
+	// AssistCommandExecutionWorkers is the number of workers that will
+	// execute arbitrary remote commands on servers in parallel
+	AssistCommandExecutionWorkers = 30
 )
 
 var (

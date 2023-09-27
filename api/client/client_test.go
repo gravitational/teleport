@@ -19,14 +19,17 @@ package client
 import (
 	"context"
 	"crypto/tls"
+	"flag"
 	"fmt"
 	"net"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
@@ -92,7 +95,7 @@ func (m *mockServer) NewClient(ctx context.Context, opts ...ConfigOpt) (*Client,
 
 // startMockServer starts a new mock server. Parallel tests cannot use the same addr.
 func startMockServer(t *testing.T) *mockServer {
-	l, err := net.Listen("tcp", "")
+	l, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	return startMockServerWithListener(t, l)
 }
@@ -180,8 +183,14 @@ func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
-		}
+		case types.KindAppOrSAMLIdPServiceProvider:
+			appServerOrSP, ok := resource.(*types.AppServerOrSAMLIdPServiceProviderV1)
+			if !ok {
+				return nil, trace.Errorf("AppServerOrSAMLIdPServiceProvider has invalid type %T", resource)
+			}
 
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{AppServerOrSAMLIdPServiceProvider: appServerOrSP}}
+		}
 		resp.Resources = append(resp.Resources, protoResource)
 		lastResourceName = resource.GetName()
 		if len(resp.Resources) == int(req.Limit) {
@@ -218,10 +227,17 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 					"label": string(make([]byte, labelSize)),
 				},
 			}, types.DatabaseServerSpecV3{
-				Protocol: "",
-				URI:      "localhost:5432",
 				Hostname: "localhost",
 				HostID:   fmt.Sprintf("host-%d", i),
+				Database: &types.DatabaseV3{
+					Metadata: types.Metadata{
+						Name: fmt.Sprintf("db-%d", i),
+					},
+					Spec: types.DatabaseSpecV3{
+						Protocol: types.DatabaseProtocolPostgreSQL,
+						URI:      "localhost",
+					},
+				},
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -249,7 +265,6 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 				HostID: fmt.Sprintf("host-%d", i),
 				App:    app,
 			})
-
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -324,6 +339,52 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 			}
 
 			resources = append(resources, any(resource).(T))
+		}
+	case types.KindAppOrSAMLIdPServiceProvider:
+		for i := 0; i < size; i++ {
+			// Alternate between adding Apps and SAMLIdPServiceProviders. If `i` is even, add an app.
+			if i%2 == 0 {
+				app, err := types.NewAppV3(types.Metadata{
+					Name: fmt.Sprintf("app-%d", i),
+				}, types.AppSpecV3{
+					URI: "localhost",
+				})
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				appServer, err := types.NewAppServerV3(types.Metadata{
+					Name: fmt.Sprintf("app-%d", i),
+					Labels: map[string]string{
+						"label": string(make([]byte, labelSize)),
+					},
+				}, types.AppServerSpecV3{
+					HostID: fmt.Sprintf("host-%d", i),
+					App:    app,
+				})
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				resource := &types.AppServerOrSAMLIdPServiceProviderV1{
+					Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+						AppServer: appServer,
+					},
+				}
+
+				resources = append(resources, any(resource).(T))
+			} else {
+				sp := &types.SAMLIdPServiceProviderV1{ResourceHeader: types.ResourceHeader{Metadata: types.Metadata{Name: fmt.Sprintf("saml-app-%d", i), Labels: map[string]string{
+					"label": string(make([]byte, labelSize)),
+				}}}}
+
+				resource := &types.AppServerOrSAMLIdPServiceProviderV1{
+					Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+						SAMLIdPServiceProvider: sp,
+					},
+				}
+				resources = append(resources, any(resource).(T))
+			}
 		}
 	default:
 		return nil, trace.Errorf("unsupported resource type %s", resourceType)
@@ -437,7 +498,7 @@ func TestNewDialBackground(t *testing.T) {
 	ctx := context.Background()
 
 	// get listener but don't serve it yet.
-	l, err := net.Listen("tcp", "")
+	l, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	addr := l.Addr().String()
 
@@ -474,7 +535,7 @@ func TestWaitForConnectionReady(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	l, err := net.Listen("tcp", "")
+	l, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	addr := l.Addr().String()
 
@@ -641,6 +702,11 @@ func TestGetResources(t *testing.T) {
 		t.Parallel()
 		testGetResources[types.WindowsDesktop](t, clt, types.KindWindowsDesktop)
 	})
+
+	t.Run("AppServerAndSAMLIdPServiceProvider", func(t *testing.T) {
+		t.Parallel()
+		testGetResources[types.AppServerOrSAMLIdPServiceProvider](t, clt, types.KindAppOrSAMLIdPServiceProvider)
+	})
 }
 
 func TestGetResourcesWithFilters(t *testing.T) {
@@ -670,6 +736,9 @@ func TestGetResourcesWithFilters(t *testing.T) {
 		"WindowsDesktop": {
 			resourceType: types.KindWindowsDesktop,
 		},
+		"AppAndIdPServiceProvider": {
+			resourceType: types.KindAppOrSAMLIdPServiceProvider,
+		},
 	}
 
 	for name, test := range testCases {
@@ -698,4 +767,12 @@ func TestGetResourcesWithFilters(t *testing.T) {
 			require.Empty(t, cmp.Diff(expectedResources, resources))
 		})
 	}
+}
+
+func TestMain(m *testing.M) {
+	flag.Parse()
+	if testing.Verbose() {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
+	os.Exit(m.Run())
 }

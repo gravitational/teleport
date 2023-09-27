@@ -76,6 +76,10 @@ type Exec interface {
 	// Wait will block while the command executes.
 	Wait() *ExecResult
 
+	// WaitForChild blocks until the child process has completed any required
+	// setup operations before proceeding with execution.
+	WaitForChild() error
+
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
 	Continue()
@@ -156,6 +160,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	e.Cmd.Stderr = channel.Stderr()
 
 	if e.Ctx.recordNonInteractiveSession {
+		e.Ctx.Tracef("Starting local exec and recording non-interactive session")
 		e.Cmd.Stdout = io.MultiWriter(e.Ctx.multiWriter, channel)
 	} else {
 		e.Cmd.Stdout = channel
@@ -180,6 +185,12 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 			Code:    exitCode(err),
 		}, trace.ConvertSystemError(err)
 	}
+	// Close our half of the write pipe since it is only to be used by the child process.
+	// Not closing prevents being signaled when the child closes its half.
+	if err := e.Ctx.readyw.Close(); err != nil {
+		e.Ctx.Logger.WithError(err).Warn("Failed to close parent process ready signal write fd")
+	}
+	e.Ctx.readyw = nil
 
 	go func() {
 		if _, err := io.Copy(inputWriter, channel); err != nil {
@@ -216,6 +227,14 @@ func (e *localExec) Wait() *ExecResult {
 	}
 
 	return execResult
+}
+
+func (e *localExec) WaitForChild() error {
+	err := waitForSignal(e.Ctx.readyr, 20*time.Second)
+	closeErr := e.Ctx.readyr.Close()
+	// Set to nil so the close in the context doesn't attempt to re-close.
+	e.Ctx.readyr = nil
+	return trace.NewAggregate(err, closeErr)
 }
 
 // Continue will resume execution of the process after it completes its
@@ -283,28 +302,26 @@ func checkSCPAllowed(scx *ServerContext, command string) (bool, error) {
 	return true, trace.Wrap(scx.CheckFileCopyingAllowed())
 }
 
-// waitForContinue will wait 10 seconds for the continue signal, if not
+// waitForSignal will wait 10 seconds for the other side of the pipe to signal, if not
 // received, it will stop waiting and exit.
-func waitForContinue(contfd *os.File) error {
+func waitForSignal(fd *os.File, timeout time.Duration) error {
 	waitCh := make(chan error, 1)
 	go func() {
-		// Reading from the continue file descriptor will block until it's closed. It
-		// won't be closed until the parent has placed it in a cgroup.
-		buf := make([]byte, 1)
-		_, err := contfd.Read(buf)
+		// Reading from the file descriptor will block until it's closed.
+		_, err := fd.Read(make([]byte, 1))
 		if errors.Is(err, io.EOF) {
 			err = nil
 		}
 		waitCh <- err
 	}()
 
-	// Wait for 10 seconds and then timeout if no continue signal has been sent.
-	timeout := time.NewTimer(10 * time.Second)
-	defer timeout.Stop()
+	// Timeout if no signal has been sent within the provided duration.
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 
 	select {
-	case <-timeout.C:
-		return trace.BadParameter("timed out waiting for continue signal")
+	case <-timer.C:
+		return trace.LimitExceeded("timed out waiting for continue signal")
 	case err := <-waitCh:
 		return err
 	}
@@ -340,7 +357,13 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 	}
 
 	// hook up stdout/err the channel so the user can interact with the command
-	e.session.Stdout = ch
+	if e.ctx.recordNonInteractiveSession {
+		e.ctx.Tracef("Starting remote exec and recording non-interactive session")
+		e.session.Stdout = io.MultiWriter(e.ctx.multiWriter, ch)
+	} else {
+		e.session.Stdout = ch
+	}
+
 	e.session.Stderr = ch.Stderr()
 	inputWriter, err := e.session.StdinPipe()
 	if err != nil {
@@ -381,6 +404,8 @@ func (e *remoteExec) Wait() *ExecResult {
 		Code:    exitCode(err),
 	}
 }
+
+func (e *remoteExec) WaitForChild() error { return nil }
 
 // Continue does nothing for remote command execution.
 func (e *remoteExec) Continue() {}

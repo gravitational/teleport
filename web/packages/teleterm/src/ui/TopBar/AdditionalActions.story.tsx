@@ -68,7 +68,7 @@ export const MenuItems = () => {
         <MenuItem
           closeMenu={noop}
           item={{
-            Icon: icons.List,
+            Icon: icons.ListThin,
             isVisible: true,
             title: 'With a separator',
             prependSeparator: true,

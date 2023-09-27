@@ -1,9 +1,6 @@
-# Copied from https://github.com/gravitational/teleport-plugins/blob/master/access/slack/example_config.toml
-
 # Example Slack plugin configuration TOML file
 
 [teleport]
-# This section 
 
 # Teleport Auth/Proxy Server address.
 # addr = "example.com:3025"

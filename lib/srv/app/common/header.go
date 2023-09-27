@@ -19,10 +19,10 @@ package common
 import (
 	"net/http"
 
-	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 )
 
 // SetTeleportAPIErrorHeader saves the provided error in X-Teleport-API-Error header of response.
@@ -64,7 +64,7 @@ var ReservedHeaders = append([]string{
 	TeleportAWSAssumedRole,
 	TeleportAWSAssumedRoleAuthorization,
 },
-	forward.XHeaders...,
+	reverseproxy.XHeaders...,
 )
 
 // IsReservedHeader returns true if the provided header is one of headers

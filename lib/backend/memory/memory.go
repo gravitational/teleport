@@ -134,6 +134,10 @@ type Memory struct {
 	buf *backend.CircularBuffer
 }
 
+func (m *Memory) GetName() string {
+	return GetName()
+}
+
 // Close closes memory backend
 func (m *Memory) Close() error {
 	m.cancel()

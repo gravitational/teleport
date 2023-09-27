@@ -88,6 +88,7 @@ const props: State = {
     status: 'success',
     statusText: '',
   },
+  agentMeta: {} as any,
   onProceed: () => null,
   onPrev: () => null,
   fetchUserTraits: () => null,

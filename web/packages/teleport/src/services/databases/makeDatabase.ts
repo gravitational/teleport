@@ -16,20 +16,25 @@ limitations under the License.
 
 import { formatDatabaseInfo } from 'shared/services/databases';
 
-import { Database, DatabaseService } from './types';
+import { Aws, Database, DatabaseService } from './types';
 
 export function makeDatabase(json: any): Database {
   const { name, desc, protocol, type, aws } = json;
 
   const labels = json.labels || [];
 
-  // Only setting RDS fields for now.
-  let rds;
-  if (aws && aws.rds) {
-    rds = {
+  // The backend will return the field `aws` as undefined
+  // if this database is not hosted by AWS.
+  // (Only setting RDS fields for now.)
+  let madeAws: Aws;
+  if (aws) {
+    madeAws = {
       rds: {
-        resourceId: aws.rds.resource_id,
+        resourceId: aws.rds?.resource_id,
+        region: aws.rds?.region,
+        subnets: aws.rds?.subnets || [],
       },
+      iamPolicyStatus: aws.iam_policy_status,
     };
   }
 
@@ -42,7 +47,7 @@ export function makeDatabase(json: any): Database {
     names: json.database_names || [],
     users: json.database_users || [],
     hostname: json.hostname,
-    aws: rds,
+    aws: madeAws,
   };
 }
 

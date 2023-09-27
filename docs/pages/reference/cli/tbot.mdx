@@ -1,0 +1,239 @@
+---
+title: tbot CLI reference
+description: Comprehensive reference of subcommands, flags, and arguments for the tbot CLI tool.
+---
+
+`tbot` is a CLI tool used with **Machine ID** that programatically issues and renews
+short-lived certificates to any service account (e.g, a CI/CD server).
+
+The primary commands for `tbot` are as follows:
+
+| Command | Description |
+| - | - |
+| `tbot help` | Outputs guidance for using commands with `tbot`. |
+| `tbot version` | Outputs the current version of the `tbot` binary. |
+| `tbot configure` | Outputs a basic Machine ID client configuration file to be adjusted as needed. |
+| `tbot start` | Starts the Machine ID client `tbot`, fetching and writing certificates to disk at a set interval. |
+| `tbot init` | Initialize a certificate destination directory for writes from a separate bot user, configuring either file or POSIX ACL permissions. |
+| `tbot db` | Connects to databases using native clients and queries database information. Functions as a wrapper for `tsh`, and requires `tsh` installation. |
+| `tbot proxy` | Allows for access to Teleport resources on a cluster using TLS Routing. Functions as a wrapper for `tsh`, and requires `tsh` installation. |
+
+## tbot start
+
+Starts the Machine ID client `tbot`, fetching and writing certificates to disk at a set interval.
+
+### Flags
+
+| Flag                 | Description                                                                                    |
+|----------------------|------------------------------------------------------------------------------------------------|
+| `-d/--debug`         | Enable verbose logging to stderr.                                                              |
+| `-c/--config`        | Path to a Machine ID configuration file.                                                                  |
+| `-a/--auth-server`   | Address of the Teleport Auth Server (on-prem installs) or Teleport Cloud tenant.               |
+| `--token`            | A bot join token, if attempting to onboard a new bot; used on first connect. Can also be an absolute path to a file containing the token. |
+| `--ca-pin`           | CA pin to validate the Teleport Auth Server; used on first connect.                            |
+| `--data-dir`         | Directory to store internal bot data. In production environments access to this directory should be limited only to an isolated linux user as an owner with `0600` permissions. |
+| `--destination-dir`  | Directory to write short-lived machine certificates.                                           |
+| `--certificate-ttl`  | TTL of short-lived machine certificates.                                                       |
+| `--renewal-interval` | Interval at which short-lived certificates are renewed; must be less than the certificate TTL. |
+| `--join-method`      | Method to use to join the cluster. Can be `token` or `iam`.                                    |
+| `--oneshot`          | If set, quit after the first renewal.                                                          |
+
+### Examples
+<Tabs>
+  <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
+
+```code
+$ tbot start \
+   --data-dir=/var/lib/teleport/bot \
+   --destination-dir=/opt/machine-id \
+   --token=00000000000000000000000000000000 \
+   --join-method=token \
+   --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+   --auth-server=example.teleport.sh:443
+```
+
+  </TabItem>
+  <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
+
+```code
+$ tbot start \
+   --data-dir=/var/lib/teleport/bot \
+   --destination-dir=/opt/machine-id \
+   --token=00000000000000000000000000000000 \
+   --join-method=token \
+   --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+   --auth-server=auth.example.com:3025
+```
+
+  </TabItem>
+</Tabs>
+
+## tbot init
+
+Initializes a certificate destination directory for access from a separate bot user. Allows for certificates to be written to disks other than a Machine ID client,
+configuring either file or POSIX ACL permissions.
+
+### Flags
+
+| Flag                | Description                                                                                                        |
+|---------------------|--------------------------------------------------------------------------------------------------------------------|
+| `-d/--debug`        | Enable verbose logging to stderr.                                                                                  |
+| `-c/--config`       | Path to a Machine ID configuration file.                                                                                      |
+| `--destination-dir` | Directory to write short-lived machine certificates to.                                                            |
+| `--owner`           | Defines the Linux `user:group` owner of `--destination-dir`. Defaults to the Linux user running `tbot` if unspecified. |
+| `--bot-user`        | Enables POSIX ACLs and defines the Linux user that can read/write short-lived certificates to `--destination-dir`. |
+| `--reader-user`     | Enables POSIX ACLs and defines the Linux user that will read short-lived certificates from `--destination-dir`.    |
+| `--init-dir`        | If using a config file and multiple destinations are configured, controls which destination dir to configure.      |
+| `--clean`           | If set, remove unexpected files and directories from the destination.                                              |
+
+### Examples
+
+**Example using file permissions.**
+
+The following command highlights how to set permissions with `tbot` through Linux groups, using the user and group `jenkins:jenkins`.
+If running `tbot` as the Linux user `root`, use the following invocation of
+`tbot init` to initialize the short-lived certificate directory
+`/opt/machine-id` with owner `jenkins:jenkins`.
+
+```code
+$ tbot init \
+    --destination-dir=/opt/machine-id \
+    --owner=jenkins:jenkins
+```
+
+**Example using POSIX ACLs.**
+
+If running `tbot` as the Linux user `teleport`, use the following invocation of
+`tbot init` to initialize the short-lived certificate directory
+`/opt/machine-id` with owner `teleport:teleport` but allow `jenkins` to read
+from `/opt/machine-id`.
+
+```code
+$ tbot init \
+    --destination-dir=/opt/machine-id \
+    --bot-user=teleport \
+    --reader-user=jenkins
+```
+
+## tbot db
+
+Connects to databases using native clients and queries database information. This is best used for testing and validation purposes;
+most users will likely prefer to connect their own databases to a local proxy using `tbot proxy db`.
+
+Note that `tsh` must be installed to make use of this command.
+
+### Flags
+
+| Flag                | Description                                                                                              |
+|---------------------|----------------------------------------------------------------------------------------------------------|
+| `-d/--debug`        | Enable verbose logging to stderr.                                                                        |
+| `-c/--config`       | Path to a Machine ID configuration file. Required if not using other required configuration flags.                  |
+| `--destination-dir` | Path to the Machine ID destination dir that should be used for authentication. Required.                 |
+| `--proxy`           | The `host:port` of the Teleport Proxy Service to use to access resources. Required.                      |
+| `--cluster`         | The name of the cluster on which resources should be accessed. Extracted from the bot identity if unset. |
+
+All other flags and arguments are passed directly to `tsh db ...`, along
+with authentication parameters to use the Machine ID identity to skip `tsh`'s
+login steps.
+
+Note that certain CLI parameters, for example `--help`, may be captured by
+`tbot` even if intended to be passed to the wrapped `tsh`. A `--` argument can
+be used to ensure all following arguments are passed to `tsh` and ignored by
+`tbot`.
+
+Additionally, be aware of the following limitations of `tbot db`:
+ - `tbot db connect` requires a `tbot db login` for certain database types,
+   like MySQL, so that additional connection parameters can be written to a
+   local configuration file.
+ - `tbot db env` is not fully supported.
+
+## tbot proxy
+
+Allows for access to Teleport resources via a local TLS proxy in TLS Routing mode.
+The `tbot proxy` command acts as a wrapper for `tsh proxy` to provide local proxy functionality for various protocols.
+
+Note that `tsh` must be installed to make use of this command.
+
+### Flags
+
+| Flag                | Description                                                                                              |
+|---------------------|----------------------------------------------------------------------------------------------------------|
+| `-d/--debug`        | Enable verbose logging to stderr.                                                                        |
+| `-c/--config`       | Path to a Machine ID configuration file. Required if not using other required configuration flags.       |
+| `--destination-dir` | Path to the Machine ID destination dir that should be used for authentication. Required.                 |
+| `--proxy`           | The `host:port` of the Teleport Proxy Service through which resources will be accessed. Required.        |
+| `--cluster`         | The name of the cluster on which resources should be accessed. Extracted from the bot identity if unset. |
+
+All other flags and arguments are passed directly to `tsh proxy ...`, along
+with authentication parameters to use the Machine ID identity to skip `tsh`'s
+login step.
+
+Additionally, the following should be noted:
+
+- Certain CLI parameters, for example `--help`, may be captured by
+`tbot` even if intended to be passed to the wrapped `tsh`. A `--` argument can
+be used to ensure all following arguments are passed to `tsh` and ignored by
+`tbot`
+- If no configuration file is provided, `tbot` will apply a sample configuration based on provided CLI flags.
+For this reason, it is recommended that settings are explicitly applied to a configuration file in production.
+
+### Examples
+
+**Example using OpenSSH**
+
+The following command forwards standard input and output over a proxy suitable for use as an OpenSSH `ProxyCommand` for SSH access:
+
+```code
+$ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:3080 ssh alice@node:3022
+```
+
+  In this case:
+   - `alice` is the remote username
+   - `node` is the Teleport Node name
+   - `3022` is the remote SSH port, which is `3022` for Nodes running the Teleport
+     SSH service.
+
+**Example using Database Access**
+
+The following example opens a local proxy server to the given database. Your database client
+must still be configured with client TLS certificates:
+
+```code
+$ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:3080 db --port=1234 example
+```
+
+In this case:
+ - `example` is the name of the database server as it exists in Teleport
+ - `1234` is an arbitrary port on which to run the proxy
+
+Though not recommended, to avoid the need for additional client authentication,
+the `--tunnel` flag may be used to perform authentication at the local proxy
+rather than within your client:
+
+```code
+$ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:3080 db --tunnel --port=1234 example
+```
+
+Note that this decreases security:
+ - It allows any user on the system to access the database via `localhost`.
+ - Your connection to the database will be unencrypted until it reaches the
+   `tbot` proxy running on `localhost`.
+
+Refer to the [database guide](../../machine-id/guides/databases.mdx) for more information on
+using database proxies.
+
+### Flags
+
+| Flag                 | Description                                                                                    |
+|----------------------|------------------------------------------------------------------------------------------------|
+| `-d/--debug`         | Enable verbose logging to stderr.                                                              |
+| `-c/--config`        | Path to a configuration file.                                                                  |
+| `-a/--auth-server`   | Address of the Teleport Auth Server (on-prem installs) or Teleport Cloud tenant.               |
+| `--token`            | A bot join token, if attempting to onboard a new bot; used on first connect. Can also be an absolute path to a file containing the token. |
+| `--ca-pin`           | CA pin to validate the Teleport Auth Server; used on first connect.                            |
+| `--data-dir`         | Directory to store internal bot data. In production environments access to this directory should be limited only to an isolated linux user as an owner with `0600` permissions. |
+| `--destination-dir`  | Directory to write short-lived machine certificates.                                           |
+| `--certificate-ttl`  | TTL of short-lived machine certificates.                                                       |
+| `--renewal-interval` | Interval at which short-lived certificates are renewed; must be less than the certificate TTL. |
+| `--join-method`      | Method to use to join the cluster. Can be `token` or `iam`.                                    |
+| `--oneshot`          | If set, quit after the first renewal.                                                          |

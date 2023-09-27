@@ -511,6 +511,20 @@ func (p *ProfileStatus) KubeConfigPath(name string) string {
 	return keypaths.KubeConfigPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 }
 
+// KubeCertPathForCluster returns path to the specified kube access certificate
+// for this profile, for the specified cluster name.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<username>-kube/<cluster>/<name>-x509.pem
+func (p *ProfileStatus) KubeCertPathForCluster(teleportCluster, kubeCluster string) string {
+	if teleportCluster == "" {
+		teleportCluster = p.Cluster
+	}
+	if path, ok := p.virtualPathFromEnv(VirtualPathKubernetes, VirtualPathKubernetesParams(kubeCluster)); ok {
+		return path
+	}
+	return keypaths.KubeCertPath(p.Dir, p.Name, p.Username, teleportCluster, kubeCluster)
+}
+
 // DatabaseServices returns a list of database service names for this profile.
 func (p *ProfileStatus) DatabaseServices() (result []string) {
 	for _, db := range p.Databases {

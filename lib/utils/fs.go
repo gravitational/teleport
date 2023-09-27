@@ -36,6 +36,11 @@ import (
 // (most probably it was already locked by someone else), another try might succeed.
 var ErrUnsuccessfulLockTry = errors.New("could not acquire lock on the file at this time")
 
+const (
+	// FSLockRetryDelay is a delay between attempts to acquire lock.
+	FSLockRetryDelay = 10 * time.Millisecond
+)
+
 // OpenFileWithFlagsFunc defines a function used to open files providing options.
 type OpenFileWithFlagsFunc func(name string, flag int, perm os.FileMode) (*os.File, error)
 
@@ -160,7 +165,7 @@ func FSTryWriteLockTimeout(ctx context.Context, filePath string, timeout time.Du
 	fileLock := flock.New(getPlatformLockFilePath(filePath))
 	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	if _, err := fileLock.TryLockContext(timedCtx, 10*time.Millisecond); err != nil {
+	if _, err := fileLock.TryLockContext(timedCtx, FSLockRetryDelay); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
@@ -188,7 +193,7 @@ func FSTryReadLockTimeout(ctx context.Context, filePath string, timeout time.Dur
 	fileLock := flock.New(getPlatformLockFilePath(filePath))
 	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	if _, err := fileLock.TryRLockContext(timedCtx, 10*time.Millisecond); err != nil {
+	if _, err := fileLock.TryRLockContext(timedCtx, FSLockRetryDelay); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
@@ -238,11 +243,12 @@ func overwriteFile(filePath string) (err error) {
 }
 
 // RemoveFileIfExist removes file if exits.
-func RemoveFileIfExist(filePath string) {
+func RemoveFileIfExist(filePath string) error {
 	if !FileExists(filePath) {
-		return
+		return nil
 	}
 	if err := os.Remove(filePath); err != nil {
-		log.WithError(err).Warnf("Failed to remove %v", filePath)
+		return trace.ConvertSystemError(err)
 	}
+	return nil
 }

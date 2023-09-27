@@ -15,9 +15,9 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Text, Flex, ButtonPrimary } from 'design';
-import * as Icons from 'design/Icon';
+import { Text, Flex, ButtonPrimary, Box } from 'design';
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
+import { GitHubIcon } from 'design/SVGIcon';
 
 import { State as ResourceState } from 'teleport/components/useResources';
 
@@ -81,13 +81,9 @@ function ConnectorListItem({ name, id, onEdit, onDelete }) {
         width="200px"
         style={{ textAlign: 'center' }}
       >
-        <Icons.Github
-          style={{ textAlign: 'center' }}
-          fontSize="50px"
-          color="text.main"
-          mb={3}
-          mt={3}
-        />
+        <Box mb={3} mt={3}>
+          <GitHubIcon style={{ textAlign: 'center' }} size={50} />
+        </Box>
         <Text style={{ width: '100%' }} typography="body2" bold caps>
           {name}
         </Text>

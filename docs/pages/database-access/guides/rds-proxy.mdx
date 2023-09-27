@@ -3,7 +3,7 @@ title: Database Access with AWS RDS Proxy
 description: How to configure Teleport database access with AWS RDS Proxy.
 ---
 
-This guide will help you to set up Teleport to access your AWS RDS proxies.
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS RDS proxy" dbConfigure="AWS RDS proxy with IAM authentication" dbName="AWS RDS proxy" !)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access RDS Proxy Self-Hosted](../../../img/database-access/guides/rds-proxy_selfhosted.png)
@@ -181,7 +181,7 @@ $ tsh db connect --db-user=alice --db-name=dev rds-proxy
 
 <Admonition type="note" title="Note">
 The appropriate database command-line client (`psql`, `mysql`, `mariadb`,
-`mssql-cli`) should be available in `PATH` in order to connect.
+`sqlcmd`) should be available in `PATH` in order to connect.
 </Admonition>
 
 To log out of the database and remove credentials:

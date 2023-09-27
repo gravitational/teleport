@@ -21,17 +21,50 @@ package httplib
 import (
 	"fmt"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/utils"
 )
+
+// Mutex protected cache for memoizing functions which construct the CSP header string.
+// This is necessary because the CSP header is constructed on every request to the web UI,
+// so caching here has a significant performance impact.
+type cspCache struct {
+	sync.RWMutex
+	entries map[string]string
+}
+
+func (c *cspCache) get(key string) (string, bool) {
+	c.RLock()
+	defer c.RUnlock()
+
+	val, ok := c.entries[key]
+	return val, ok
+}
+
+func (c *cspCache) set(key, value string) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.entries[key] = value
+}
+
+func newCSPCache() *cspCache {
+	return &cspCache{
+		entries: make(map[string]string),
+	}
+}
 
 type cspMap map[string][]string
 
 var defaultContentSecurityPolicy = cspMap{
 	"default-src": {"'self'"},
+	"script-src":  {"'self'"},
 	// specify CSP directives not covered by `default-src`
 	"base-uri":        {"'self'"},
 	"form-action":     {"'self'"},
@@ -43,11 +76,16 @@ var defaultContentSecurityPolicy = cspMap{
 }
 
 var defaultFontSrc = cspMap{"font-src": {"'self'", "data:"}}
+var defaultConnectSrc = cspMap{"connect-src": {"'self'", "wss:"}}
 
 var stripeSecurityPolicy = cspMap{
 	// auto-pay plans in Cloud use stripe.com to manage billing information
-	"script-src": {"'self'", "https://js.stripe.com"},
+	"script-src": {"https://js.stripe.com"},
 	"frame-src":  {"https://js.stripe.com"},
+}
+
+var wasmSecurityPolicy = cspMap{
+	"script-src": {"'wasm-unsafe-eval'"},
 }
 
 // combineCSPMaps combines multiple CSP maps into a single map.
@@ -59,6 +97,7 @@ func combineCSPMaps(cspMaps ...cspMap) cspMap {
 	for _, cspMap := range cspMaps {
 		for key, value := range cspMap {
 			combinedMap[key] = append(combinedMap[key], value...)
+			combinedMap[key] = utils.Deduplicate(combinedMap[key])
 		}
 	}
 
@@ -80,11 +119,12 @@ func getContentSecurityPolicyString(cspMaps ...cspMap) string {
 
 	var cspStringBuilder strings.Builder
 	for _, k := range keys {
-		fmt.Fprintf(&cspStringBuilder, "%s", k)
+		cspStringBuilder.WriteString(k)
 		for _, v := range combined[k] {
-			fmt.Fprintf(&cspStringBuilder, " %s", v)
+			cspStringBuilder.WriteString(" ")
+			cspStringBuilder.WriteString(v)
 		}
-		fmt.Fprintf(&cspStringBuilder, "; ")
+		cspStringBuilder.WriteString("; ")
 	}
 
 	return strings.TrimSpace(cspStringBuilder.String())
@@ -127,48 +167,61 @@ func SetDefaultSecurityHeaders(h http.Header) {
 }
 
 func getIndexContentSecurityPolicy(withStripe, withWasm bool) cspMap {
-	// todo(isaiah): withStripe, withWasm
-	return combineCSPMaps(
-		defaultContentSecurityPolicy,
-		defaultFontSrc,
-		cspMap{
-			"connect-src": {"'self'", "wss:"},
-		},
-	)
-}
+	cspMaps := []cspMap{defaultContentSecurityPolicy, defaultFontSrc, defaultConnectSrc}
 
-func SetIndexContentSecurityPolicyWithWasm(h http.Header) {
-	// todo(isaiah): everything in SetIndexContentSecurityPolicy, either adding to a non-existent script-src key, or appending to it.
-	cspString := getContentSecurityPolicyString(
-		getIndexContentSecurityPolicy(true, true),
-		cspMap{
-			"script-src": {"'wasm-unsafe-eval'"},
-		},
-	)
-
-	h.Set("Content-Security-Policy", cspString)
-}
-
-// SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
-func SetIndexContentSecurityPolicy(h http.Header, cfg proto.Features) {
-	// todo(isaiah): adds connect-src to the defaultContentSecurityPolicy and defaultFontSrc which doesn't contain it.
-	cspMaps := []cspMap{
-		defaultContentSecurityPolicy,
-		defaultFontSrc,
-		{"connect-src": {"'self'", "wss:"}},
-	}
-
-	// // todo(isaiah): if cloud/usage based add stripeSecurityPolicy
-	if cfg.GetCloud() && cfg.GetIsUsageBased() {
+	if withStripe {
 		cspMaps = append(cspMaps, stripeSecurityPolicy)
 	}
 
-	cspString := getContentSecurityPolicyString(cspMaps...)
+	if withWasm {
+		cspMaps = append(cspMaps, wasmSecurityPolicy)
+	}
+
+	return combineCSPMaps(cspMaps...)
+}
+
+// desktopSessionRe is a regex that matches /web/cluster/:clusterId/desktops/:desktopName/:username
+// which is a route to a desktop session that uses WASM.
+var desktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/desktops/[^/]+/[^/]+$`)
+
+// regex for the recordings endpoint /web/cluster/:clusterId/session/:sid
+// which is a route to a desktop recording that uses WASM.
+var recordingRe = regexp.MustCompile(`^/web/cluster/[^/]+/session/[^/]+$`)
+
+var indexCSPStringCache *cspCache = newCSPCache()
+
+func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) string {
+	// Check for result with this cfg and urlPath in cache
+	withStripe := cfg.GetCloud() && cfg.GetIsUsageBased()
+	key := fmt.Sprintf("%v-%v", withStripe, urlPath)
+	if cspString, ok := indexCSPStringCache.get(key); ok {
+		return cspString
+	}
+
+	// Nothing found in cache, calculate regex and result
+	withWasm := desktopSessionRe.MatchString(urlPath) || recordingRe.MatchString(urlPath)
+	cspString := getContentSecurityPolicyString(
+		getIndexContentSecurityPolicy(withStripe, withWasm),
+	)
+	// Add result to cache
+	indexCSPStringCache.set(key, cspString)
+
+	return cspString
+}
+
+// SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
+func SetIndexContentSecurityPolicy(h http.Header, cfg proto.Features, urlPath string) {
+	cspString := getIndexContentSecurityPolicyString(cfg, urlPath)
 	h.Set("Content-Security-Policy", cspString)
 }
 
-// SetAppLaunchContentSecurityPolicy sets the Content-Security-Policy header for /web/launch
-func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
+var appLaunchCSPStringCache *cspCache = newCSPCache()
+
+func getAppLaunchContentSecurityPolicyString(applicationURL string) string {
+	if cspString, ok := appLaunchCSPStringCache.get(applicationURL); ok {
+		return cspString
+	}
+
 	cspString := getContentSecurityPolicyString(
 		defaultContentSecurityPolicy,
 		defaultFontSrc,
@@ -176,19 +229,37 @@ func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
 			"connect-src": {"'self'", applicationURL},
 		},
 	)
+	appLaunchCSPStringCache.set(applicationURL, cspString)
 
+	return cspString
+}
+
+// SetAppLaunchContentSecurityPolicy sets the Content-Security-Policy header for /web/launch
+func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
+	cspString := getAppLaunchContentSecurityPolicyString(applicationURL)
 	h.Set("Content-Security-Policy", cspString)
 }
 
-func SetRedirectPageContentSecurityPolicy(h http.Header, scriptSrc string) {
+var redirectCSPStringCache *cspCache = newCSPCache()
+
+func getRedirectPageContentSecurityPolicyString(scriptSrc string) string {
+	if cspString, ok := redirectCSPStringCache.get(scriptSrc); ok {
+		return cspString
+	}
+
 	cspString := getContentSecurityPolicyString(
 		defaultContentSecurityPolicy,
-		// todo(isaiah): Doesn't need stripeSecurityPolicy, just adding script-src to the defaultContentSecurityPolicy which doesn't contain it.
 		cspMap{
 			"script-src": {"'" + scriptSrc + "'"},
 		},
 	)
+	redirectCSPStringCache.set(scriptSrc, cspString)
 
+	return cspString
+}
+
+func SetRedirectPageContentSecurityPolicy(h http.Header, scriptSrc string) {
+	cspString := getRedirectPageContentSecurityPolicyString(scriptSrc)
 	h.Set("Content-Security-Policy", cspString)
 }
 

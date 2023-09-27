@@ -48,7 +48,7 @@ import (
 type passwordSuite struct {
 	bk          backend.Backend
 	a           *Server
-	mockEmitter *eventstest.MockEmitter
+	mockEmitter *eventstest.MockRecorderEmitter
 }
 
 func setupPasswordSuite(t *testing.T) *passwordSuite {
@@ -95,7 +95,7 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 	err = s.a.SetStaticTokens(staticTokens)
 	require.NoError(t, err)
 
-	s.mockEmitter = &eventstest.MockEmitter{}
+	s.mockEmitter = &eventstest.MockRecorderEmitter{}
 	s.a.emitter = s.mockEmitter
 	return &s
 }

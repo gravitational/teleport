@@ -24,6 +24,34 @@ Prior versions of Teleport would return an error from `tsh db` commands if those
 flags were empty (the only exception is Redis, where it would choose the Redis
 username "default" for `--db-user`).
 
+#### Auto-Discovered Database Names
+
+In Teleport 14, database discovery via `db_service` config will enforce the same
+name validation that we enforce for databases created via `tctl`, static config,
+and `discovery_service`.
+
+The regex used to constrain database names is: `^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
+
+So databases in AWS and Azure must:
+1. start with a letter (uppercase and lowercase are both allowed).
+2. contain only letters, digits, and hyphens.
+3. end with a letter or digit (no trailing hyphens).
+
+#### MongoDB Server versions prior to 3.6 are no longer supported
+
+Teleport 14 includes an update to the MongoDB driver. Due to the MongoDB team
+dropping support for Servers prior to version 3.6, Teleport also will no longer
+be able to support these old server versions.
+
+#### DynamoDB Billing Mode
+
+In Teleport 14, when creating new DynamoDB tables,  Teleport will now
+create them with the billing mode set to `pay_per_request` instead of
+being set to `provisioned` mode.
+
+The old behavior can be restored by setting the the `billing_mode`
+option in the storage configuration.
+
 ## 13.0.1 (05/xx/23)
 
 * Helm Charts
@@ -213,7 +241,7 @@ image: "public.ecr.aws/gravitational/teleport"
 
 For debugging purposes, a "debug" image is available and contains BusyBox,
 which includes a shell and most common POSIX executables:
-`public.ecr.aws/gravitational/teleport-distroless`.
+`public.ecr.aws/gravitational/teleport-distroless-debug`.
 
 ## 12.3.0 (05/01/23)
 
@@ -3005,7 +3033,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 * Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [#2948](https://github.com/gravitational/teleport/issues/2948)
 * Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](./docs/pages/access-controls/access-requests.mdx). [#3006](https://github.com/gravitational/teleport/issues/3006)
 * Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](./docs/pages/deploy-a-cluster/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
-* Remote tctl execution is now possible. [Read the docs](./docs/pages/reference/cli.mdx#tctl). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
+* Remote tctl execution is now possible. [Read the docs](./docs/pages/reference/cli/tctl.mdx). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
 
 ### Fixes
 

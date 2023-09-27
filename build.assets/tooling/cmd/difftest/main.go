@@ -64,6 +64,10 @@ var (
 		// TestDiagnoseSSHConnection takes around 15s to run.
 		// When running 100x it exceeds the 600s defined to run the tests.
 		"TestDiagnoseSSHConnection",
+
+		// TestServer_Authenticate_headless takes about 4-5 seconds to run, so if other tests are changed
+		// in the same PR that take >1 second total, it may cause the flaky test detector to time out.
+		"TestServer_Authenticate_headless",
 	}
 )
 

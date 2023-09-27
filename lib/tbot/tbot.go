@@ -32,9 +32,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -113,12 +115,12 @@ func (b *Bot) Run(ctx context.Context) error {
 	// oneshot use-cases like CI-CD where backing off over several minutes on
 	// failure will just cost the customer money.
 	if b.cfg.Oneshot {
-		b.log.Info("One-shot mode enabled. Renewing destinations.")
-		if err := b.renewDestinations(ctx); err != nil {
+		b.log.Info("One-shot mode enabled. Generating outputs.")
+		if err := b.renewOutputs(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 
-		b.log.Info("Renewed destinations. One-shot mode enabled so exiting.")
+		b.log.Info("Generated outputs. One-shot mode is enabled so exiting.")
 		return nil
 	}
 
@@ -148,7 +150,7 @@ func (b *Bot) Run(ctx context.Context) error {
 	eg.Go(func() error {
 		reloadCh, unsubscribe := reloadBroadcast.subscribe()
 		defer unsubscribe()
-		return trace.Wrap(b.renewDestinationsLoop(egCtx, reloadCh))
+		return trace.Wrap(b.renewOutputsLoop(egCtx, reloadCh))
 	})
 	if b.cfg.ReloadCh != nil {
 		eg.Go(func() error {
@@ -185,8 +187,12 @@ func (b *Bot) Run(ctx context.Context) error {
 				_, _ = w.Write([]byte(msg))
 			}))
 			srv := http.Server{
-				Addr:    b.cfg.DiagAddr,
-				Handler: mux,
+				Addr:              b.cfg.DiagAddr,
+				Handler:           mux,
+				ReadTimeout:       apidefaults.DefaultIOTimeout,
+				ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+				WriteTimeout:      apidefaults.DefaultIOTimeout,
+				IdleTimeout:       apidefaults.DefaultIdleTimeout,
 			}
 			go func() {
 				<-egCtx.Done()
@@ -225,24 +231,17 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 	}
 
 	// First, try to make sure all destinations are usable.
-	if err := checkDestinations(b.cfg); err != nil {
+	if err := checkDestinations(ctx, b.cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Start by loading the bot's primary storage.
-	store, err := b.cfg.Storage.GetDestination()
-	if err != nil {
-		return nil, trace.Wrap(
-			err, "could not read bot storage destination from config",
-		)
-	}
-
-	if err := identity.VerifyWrite(store); err != nil {
+	store := b.cfg.Storage.Destination
+	if err := identity.VerifyWrite(ctx, store); err != nil {
 		return nil, trace.Wrap(
 			err, "Could not write to destination %s, aborting.", store,
 		)
 	}
-
 	// Now attempt to lock the destination so we have sole use of it
 	unlock, err := store.TryLock()
 	if err != nil {
@@ -257,7 +256,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 	if b.cfg.Onboarding.RenewableJoinMethod() {
 		// Nil, nil will be returned if no identity can be found in store or
 		// the identity in the store is no longer relevant.
-		loadedIdent, err = b.loadIdentityFromStore(store)
+		loadedIdent, err = b.loadIdentityFromStore(ctx, store)
 		if err != nil {
 			return unlock, trace.Wrap(err)
 		}
@@ -297,7 +296,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 	}
 
 	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Info("Fetched new bot identity.")
-	if err := identity.SaveIdentity(newIdentity, store, identity.BotKinds()...); err != nil {
+	if err := identity.SaveIdentity(ctx, newIdentity, store, identity.BotKinds()...); err != nil {
 		return unlock, trace.Wrap(err)
 	}
 
@@ -322,9 +321,9 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 // loadIdentityFromStore attempts to load a persisted identity from a store.
 // It checks this loaded identity against the configured onboarding profile
 // and ignores the loaded identity if there has been a configuration change.
-func (b *Bot) loadIdentityFromStore(store bot.Destination) (*identity.Identity, error) {
+func (b *Bot) loadIdentityFromStore(ctx context.Context, store bot.Destination) (*identity.Identity, error) {
 	b.log.WithField("store", store).Info("Loading existing bot identity from store.")
-	loadedIdent, err := identity.LoadIdentity(store, identity.BotKinds()...)
+	loadedIdent, err := identity.LoadIdentity(ctx, store, identity.BotKinds()...)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			b.log.Info("No existing bot identity found in store. Bot will join using configured token.")
@@ -370,36 +369,22 @@ func hasTokenChanged(configTokenBytes, identityBytes []byte) bool {
 
 // checkDestinations checks all destinations and tries to create any that
 // don't already exist.
-func checkDestinations(cfg *config.BotConfig) error {
+func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 	// Note: This is vaguely problematic as we don't recommend that users
 	// store renewable certs under the same user as end-user certs. That said,
 	//  - if the destination was properly created via tbot init this is a no-op
 	//  - if users intend to follow that advice but miss a step, it should fail
 	//    due to lack of permissions
-	storage, err := cfg.Storage.GetDestination()
-	if err != nil {
+	storageDest := cfg.Storage.Destination
+
+	// Note: no subdirs to init for bot's internal storage.
+	if err := storageDest.Init(ctx, []string{}); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// TODO: consider warning if ownership of all destintions is not expected.
-
-	// Note: no subdirs to init for bot's internal storage.
-	if err := storage.Init([]string{}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, dest := range cfg.Destinations {
-		destImpl, err := dest.GetDestination()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		subdirs, err := dest.ListSubdirectories()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := destImpl.Init(subdirs); err != nil {
+	for _, output := range cfg.Outputs {
+		if err := output.Init(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 	}

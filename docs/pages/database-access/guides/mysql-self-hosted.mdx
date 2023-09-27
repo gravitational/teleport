@@ -3,11 +3,7 @@ title: Database Access with Self-Hosted MySQL/MariaDB
 description: How to configure Teleport database access with self-hosted MySQL/MariaDB.
 ---
 
-This guide will help you to:
-
-- Install Teleport `(=teleport.version=)`.
-- Set up Teleport to access your MySQL or MariaDB database.
-- Connect to your databases through Teleport.
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="MySQL or MariaDB" dbConfigure="MySQL or MariaDB database with mutual TLS authentication" dbName="MySQL or MariaDB" !)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access MySQL Self-Hosted](../../../img/database-access/guides/mysql_selfhosted.png)
@@ -40,6 +36,9 @@ From your local workstation, create the secrets:
 # for host db.example.com with a 3-month validity period.
 $ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
 ```
+
+In this example, `db.example.com` is the hostname where the Teleport Database
+Service can reach the MySQL server.
 
 (!docs/pages/includes/database-access/ttl-note.mdx!)
 
@@ -164,7 +163,7 @@ databases:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-$ tsh login --proxy=teleport.example.com --user=testuser
+$ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
 # Name          Description   Labels
 # ------------- ------------- --------
@@ -175,7 +174,7 @@ $ tsh db ls
 <ScopedBlock scope={["cloud"]}>
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --user=testuser
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
 # Name          Description   Labels
 # ------------- ------------- --------

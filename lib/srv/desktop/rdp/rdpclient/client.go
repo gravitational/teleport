@@ -201,13 +201,13 @@ func (c *Client) Run(ctx context.Context) error {
 
 	// If startInputStreaming returned first, this will
 	// ensure the startRustRdp goroutine returns.
-	c.stopRustRdp()
+	stopErr := c.stopRustRdp()
 
 	// Catch the return value of whichever goroutine returned
 	// second.
 	err2 := <-returnCh
 
-	return trace.NewAggregate(err1, err2)
+	return trace.NewAggregate(err1, err2, stopErr)
 }
 
 func (c *Client) readClientUsername() error {
@@ -227,6 +227,12 @@ func (c *Client) readClientUsername() error {
 	}
 }
 
+const (
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/cbe1ed0a-d320-4ea5-be5a-f2eb6e032853#Appendix_A_45
+	maxRDPScreenWidth  = 8192
+	maxRDPScreenHeight = 8192
+)
+
 func (c *Client) readClientSize() error {
 	for {
 		msg, err := c.cfg.Conn.ReadMessage()
@@ -239,6 +245,16 @@ func (c *Client) readClientSize() error {
 			continue
 		}
 		c.cfg.Log.Debugf("Got RDP screen size %dx%d", s.Width, s.Height)
+
+		if s.Width > maxRDPScreenWidth || s.Height > maxRDPScreenHeight {
+			err := trace.BadParameter(
+				"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
+				s.Width, s.Height, maxRDPScreenWidth, maxRDPScreenHeight,
+			)
+			c.cfg.Log.Error(err)
+			c.cfg.Conn.WriteMessage(tdp.Notification{Message: err.Error(), Severity: tdp.SeverityError})
+		}
+
 		c.clientWidth = uint16(s.Width)
 		c.clientHeight = uint16(s.Height)
 		return nil
@@ -261,31 +277,50 @@ func (c *Client) startRustRdp(ctx context.Context) error {
 	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
 
+	cert_der, err := utils.UnsafeSliceData(userCertDER)
+	if err != nil {
+		return trace.Wrap(err)
+	} else if cert_der == nil {
+		return trace.BadParameter("user cert was nil")
+	}
+
+	key_der, err := utils.UnsafeSliceData(userKeyDER)
+	if err != nil {
+		return trace.Wrap(err)
+	} else if key_der == nil {
+		return trace.BadParameter("user key was nil")
+	}
+
 	// TODO(isaiah): better error handling here
-	C.client_run(
+	if errCode := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
 			go_addr:     addr,
 			go_username: username,
 			// cert length and bytes.
 			cert_der_len: C.uint32_t(len(userCertDER)),
-			cert_der:     (*C.uint8_t)(unsafe.Pointer(&userCertDER[0])),
+			cert_der:     (*C.uint8_t)(cert_der),
 			// key length and bytes.
 			key_der_len:             C.uint32_t(len(userKeyDER)),
-			key_der:                 (*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
+			key_der:                 (*C.uint8_t)(key_der),
 			screen_width:            C.uint16_t(c.clientWidth),
 			screen_height:           C.uint16_t(c.clientHeight),
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
 		},
-	)
+	); errCode != C.ErrCodeSuccess {
+		return trace.Errorf("client_run failed: %v", errCode)
+	}
 
 	return nil
 }
 
-func (c *Client) stopRustRdp() {
-	C.client_stop(C.uintptr_t(c.handle))
+func (c *Client) stopRustRdp() error {
+	if errCode := C.client_stop(C.uintptr_t(c.handle)); errCode != C.ErrCodeSuccess {
+		return trace.Errorf("client_stop failed: %v", errCode)
+	}
+	return nil
 }
 
 // start_input_streaming kicks off goroutines for input/output streaming and returns right
@@ -325,7 +360,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		switch m := msg.(type) {
 		case tdp.MouseMove:
 			mouseX, mouseY = m.X, m.Y
-			C.client_write_rdp_pointer(
+			if errCode := C.client_write_rdp_pointer(
 				C.ulong(c.handle),
 				C.CGOMousePointerEvent{
 					x:      C.uint16_t(m.X),
@@ -333,7 +368,9 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 					button: C.PointerButtonNone,
 					wheel:  C.PointerWheelNone,
 				},
-			)
+			); errCode != C.ErrCodeSuccess {
+				return trace.Errorf("MouseMove: client_write_rdp_pointer: %v", errCode)
+			}
 		case tdp.MouseButton:
 			// Map the button to a C enum value.
 			var button C.CGOPointerButton
@@ -347,7 +384,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			default:
 				button = C.PointerButtonNone
 			}
-			C.client_write_rdp_pointer(
+			if errCode := C.client_write_rdp_pointer(
 				C.ulong(c.handle),
 				C.CGOMousePointerEvent{
 					x:      C.uint16_t(mouseX),
@@ -356,7 +393,9 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 					down:   m.State == tdp.ButtonPressed,
 					wheel:  C.PointerWheelNone,
 				},
-			)
+			); errCode != C.ErrCodeSuccess {
+				return trace.Errorf("MouseButton: client_write_rdp_pointer: %v", errCode)
+			}
 		case tdp.MouseWheel:
 			var wheel C.CGOPointerWheel
 			switch m.Axis {
@@ -373,7 +412,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			default:
 				wheel = C.PointerWheelNone
 			}
-			C.client_write_rdp_pointer(
+			if errCode := C.client_write_rdp_pointer(
 				C.ulong(c.handle),
 				C.CGOMousePointerEvent{
 					x:           C.uint16_t(mouseX),
@@ -382,15 +421,19 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 					wheel:       uint32(wheel),
 					wheel_delta: C.int16_t(m.Delta),
 				},
-			)
+			); errCode != C.ErrCodeSuccess {
+				return trace.Errorf("MouseWheel: client_write_rdp_pointer: %v", errCode)
+			}
 		case tdp.KeyboardButton:
-			C.client_write_rdp_keyboard(
+			if errCode := C.client_write_rdp_keyboard(
 				C.ulong(c.handle),
 				C.CGOKeyboardEvent{
 					code: C.uint16_t(m.KeyCode),
 					down: m.State == tdp.ButtonPressed,
 				},
-			)
+			); errCode != C.ErrCodeSuccess {
+				return trace.Errorf("KeyboardButton: client_write_rdp_keyboard: %v", errCode)
+			}
 		case tdp.ClipboardData:
 			if len(m) > 0 {
 				if errCode := C.client_update_clipboard(
@@ -538,9 +581,11 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			}
 			rdpResponsePDU := (*C.uint8_t)(unsafe.SliceData(m))
 
-			C.client_handle_tdp_rdp_response_pdu(
+			if errCode := C.client_handle_tdp_rdp_response_pdu(
 				C.ulong(c.handle), rdpResponsePDU, C.uint32_t(pduLen),
-			)
+			); errCode != C.ErrCodeSuccess {
+				return trace.Errorf("RDPResponsePDU failed: %v", errCode)
+			}
 		default:
 			c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
 		}

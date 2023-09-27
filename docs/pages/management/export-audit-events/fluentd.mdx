@@ -131,7 +131,7 @@ connection to the Auth Service. The plugin uses this reverse tunnel, along with
 your TLS credentials, to connect to the Auth Service's gRPC endpoint.
 
 </TabItem>
-<TabItem label="Teleport Cloud" scope={["cloud"]}>
+<TabItem label="Cloud-Hosted" scope={["cloud","team"]}>
 ```code
 $ tctl auth sign --user=teleport-event-handler --out=identity
 ```
@@ -143,7 +143,7 @@ connection to the Auth Service. The plugin uses this reverse tunnel, along with
 your TLS credentials, to connect to the Auth Service's gRPC endpoint.
 
 </TabItem>
-<TabItem label="Helm Chart" scope={["cloud"]}>
+<TabItem label="Helm Chart" scope={["cloud","team","oss","enterprise"]}>
 
 If you are planning to use the Helm Chart, you'll need to generate the keys
 with the `file` format, then create a secret in Kubernetes.
@@ -235,7 +235,7 @@ Earlier, we generated a file called `teleport-event-handler.toml` to configure
 the Fluentd event handler. This file includes setting similar to the following:
 
 <Tabs>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
 
 ```toml
 storage = "./storage"

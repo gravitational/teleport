@@ -18,12 +18,14 @@ package db
 
 import (
 	"context"
+	"io"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/jackc/pgconn"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/mongo"
 
@@ -314,4 +316,178 @@ func TestShutdown(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTrackActiveConnections(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+	go testCtx.startHandlingConnections()
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"*"}, []string{"*"})
+
+	numActiveConnections := 5
+	closeFuncs := []func() error{}
+
+	// Create a few connections, increasing the active connections. Keep track
+	// of the closer functions, so we can close them later.
+	for i := 0; i < numActiveConnections; i++ {
+		expectedActiveConnections := int32(i + 1)
+		conn, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
+		require.NoError(t, err)
+		closeFuncs = append(closeFuncs, func() error { return conn.Close(ctx) })
+		// We're also adding them to the test cleanup to ensure connections are
+		// closed even when the test fails.
+		t.Cleanup(func() { conn.Close(ctx) })
+
+		require.Eventually(t, func() bool {
+			return expectedActiveConnections == testCtx.server.activeConnections.Load()
+		}, 2*time.Second, 100*time.Millisecond, "expected %d active connections, but got %d", expectedActiveConnections, testCtx.server.activeConnections.Load())
+	}
+
+	// For each connection we close, the active connections should drop too.
+	for i := 0; i < numActiveConnections; i++ {
+		expectedActiveConnections := int32(numActiveConnections - (i + 1))
+		require.NoError(t, closeFuncs[i]())
+
+		// Decreasing the active connection counter is one of the last things to
+		// happen when closing a connection. We might need to give it sometime
+		// to properly close the connection.
+		require.Eventually(t, func() bool {
+			return expectedActiveConnections == testCtx.server.activeConnections.Load()
+		}, 2*time.Second, 100*time.Millisecond, "expected %d active connections, but got %d", expectedActiveConnections, testCtx.server.activeConnections.Load())
+	}
+}
+
+// TestShutdownWithActiveConnections given that a running database server with
+// one active connection constantly sending queries, when the server is
+// gracefully shut down, it should keep running until the client closes the
+// connection.
+func TestShutdownWithActiveConnections(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	server, connErrCh, cancelConn := databaseServerWithActiveConnection(t, ctx)
+
+	shutdownCtx, cancelShutdown := context.WithTimeout(ctx, time.Second*5)
+	defer cancelShutdown()
+	shutdownErrCh := make(chan error)
+	go func() {
+		shutdownErrCh <- server.Shutdown(shutdownCtx)
+	}()
+
+	// Shutdown doesn't return immediately. We must wait for a short period to
+	// ensure it hasn't been completed.
+	require.Never(t, func() bool {
+		select {
+		case <-shutdownErrCh:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 100*time.Millisecond, "unexpected server shutdown")
+
+	select {
+	case err := <-connErrCh:
+		require.Fail(t, "unexpected connection close", err)
+	default:
+	}
+
+	cancelConn()
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		select {
+		case err := <-connErrCh:
+			assert.NoError(c, err, "unexpected connection error")
+		default:
+		}
+	}, time.Second, 100*time.Millisecond)
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		select {
+		case err := <-shutdownErrCh:
+			assert.NoError(c, err, "unexpected server shutdown error")
+		default:
+		}
+	}, time.Second, 100*time.Millisecond)
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.NoError(c, server.Wait(), "unexpected server Wait error")
+	}, time.Second, 100*time.Millisecond)
+}
+
+// TestShutdownWithActiveConnections given that a running database server with
+// one active connection constantly sending queries, when the server is
+// killed/stopped, it should drop connections and cleanup resources.
+func TestCloseWithActiveConnections(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	server, connErrCh, _ := databaseServerWithActiveConnection(t, ctx)
+
+	require.NoError(t, server.Close())
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		select {
+		case err := <-connErrCh:
+			assert.ErrorIs(c, err, io.ErrUnexpectedEOF)
+		default:
+		}
+	}, time.Second, 100*time.Millisecond)
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.NoError(t, server.Wait(), "unexpected error from server Wait")
+	}, time.Second, 100*time.Millisecond)
+}
+
+// serverWithActiveConnection starts a server with one active connection that
+// will actively make queries.
+func databaseServerWithActiveConnection(t *testing.T, ctx context.Context) (*Server, chan error, context.CancelFunc) {
+	t.Helper()
+
+	databaseName := "postgres"
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres(databaseName))
+	go testCtx.startHandlingConnections()
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"*"}, []string{"*"})
+	dbTestServer, ok := testCtx.postgres[databaseName]
+	require.True(t, ok)
+
+	connCtx, cancelConn := context.WithCancel(ctx)
+	t.Cleanup(func() { cancelConn() })
+	connErrCh := make(chan error)
+
+	go func() {
+		conn, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
+		if err != nil {
+			connErrCh <- err
+			return
+		}
+
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		defer conn.Close(ctx)
+
+		for {
+			select {
+			case <-ticker.C:
+				_, err := conn.Exec(ctx, "select 1").ReadAll()
+				if err != nil {
+					connErrCh <- err
+					return
+				}
+			case <-connCtx.Done():
+				connErrCh <- nil
+				return
+			}
+		}
+	}()
+
+	require.Eventually(t, func() bool {
+		return testCtx.server.activeConnections.Load() == int32(1)
+	}, time.Second, 100*time.Millisecond, "expected one active connection, but got none")
+
+	// Ensures the first query has been received.
+	require.Eventually(t, func() bool {
+		return dbTestServer.db.QueryCount() > uint32(1)
+	}, time.Second, 100*time.Millisecond, "database test server hasn't received queries")
+
+	return testCtx.server, connErrCh, cancelConn
 }

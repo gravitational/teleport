@@ -43,8 +43,10 @@ type OptionFile struct {
 	path string
 }
 
+// DefaultConfigPath returns the default config path, which is .my.cnf file in
+// the user's home directory. Home dir is determined by environment if not
+// supplied as an argument.
 func DefaultConfigPath() (string, error) {
-	// Default location is .my.cnf file in the user's home directory.
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		usr, err := utils.CurrentUser()

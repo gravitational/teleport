@@ -17,8 +17,11 @@ limitations under the License.
 package db
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -27,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
 )
@@ -212,6 +216,73 @@ func TestAuditSQLServer(t *testing.T) {
 		require.NoError(t, conn.Close())
 		requireEvent(t, testCtx, libevents.DatabaseSessionEndCode)
 	})
+}
+
+// TestAuditClickHouseHTTP verifies proper audit events are emitted for Clickhouse HTTP connections.
+func TestAuditClickHouseHTTP(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withClickhouseHTTP(defaults.ProtocolClickHouseHTTP))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "admin", "admin", []string{"admin"}, []string{types.Wildcard})
+
+	_, _, err := testCtx.clickHouseHTTPClient(ctx, "admin", defaults.ProtocolClickHouseHTTP, "invalid", "")
+	require.Error(t, err)
+	waitForEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
+
+	t.Run("successful flow", func(t *testing.T) {
+		conn, proxy, err := testCtx.clickHouseHTTPClient(ctx, "admin", defaults.ProtocolClickHouseHTTP, "admin", "")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, proxy.Close())
+		})
+
+		requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
+		// Select timezone.
+		event := waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+		assertDatabaseQueryFromAuditEvent(t, event, "SELECT timezone()")
+
+		event = waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+		assertDatabaseQueryFromAuditEvent(t, event, "SELECT 1")
+
+		require.NoError(t, conn.Close())
+		requireEvent(t, testCtx, libevents.DatabaseSessionEndCode)
+	})
+
+	t.Run("successful flow native http client", func(t *testing.T) {
+		proxy, _, err := testCtx.startLocalProxy(ctx, "admin", defaults.ProtocolClickHouseHTTP, "admin", "")
+		require.NoError(t, err)
+		defer proxy.Close()
+
+		r := bytes.NewBufferString("SELECT 1")
+		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s", proxy.GetAddr()), r)
+		require.NoError(t, err)
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+
+		requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
+		event := waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+		assertDatabaseQueryFromAuditEvent(t, event, "SELECT 1")
+		requireEvent(t, testCtx, libevents.DatabaseSessionEndCode)
+
+		req, err = http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s?query=SELECT", proxy.GetAddr()), bytes.NewBufferString("1"))
+		require.NoError(t, err)
+		resp, err = http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+
+		requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
+		event = waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+		assertDatabaseQueryFromAuditEvent(t, event, "SELECT 1")
+	})
+}
+
+func assertDatabaseQueryFromAuditEvent(t *testing.T, event events.AuditEvent, wantQuery string) {
+	query, ok := event.(*events.DatabaseSessionQuery)
+	require.True(t, ok)
+	require.Equal(t, wantQuery, query.DatabaseQuery)
 }
 
 func requireEvent(t *testing.T, testCtx *testContext, code string) {

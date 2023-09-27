@@ -21,12 +21,16 @@ due to expired certificates.
 
 The command used to generate a new certificate is `tctl auth sign`. For example,
 to create a certificate for PostgreSQL, the command looks like this:
+
 ```bash
 # Export Teleport's certificate authority and a generate certificate/key pair
 # for host db.example.com with a 1-year validity period.
 
 $ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
 ```
+
+In this example, `db.example.com` is the hostname where the Teleport Database
+Service can reach the PostgreSQL server.
 
 Each database uses a different format. You can check your database guide for more
 details and examples:

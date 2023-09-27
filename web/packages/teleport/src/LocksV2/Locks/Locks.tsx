@@ -144,7 +144,10 @@ export function Locks() {
               altKey: 'options-btn',
               render: lock => (
                 <Cell align="right">
-                  <TrashButton onClick={() => setLockToDelete(lock)} />
+                  <TrashButton
+                    size="medium"
+                    onClick={() => setLockToDelete(lock)}
+                  />
                 </Cell>
               ),
             },

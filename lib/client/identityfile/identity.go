@@ -370,7 +370,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			}
 		}
 
-		err = os.WriteFile(pubPath, caCerts, identityfile.FilePermissions)
+		err = writer.WriteFile(pubPath, caCerts, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -54,18 +54,14 @@ export default function useTdpClientCanvas(props: Props) {
   const latestClipboardDigest = useRef('');
 
   useEffect(() => {
-    const { width, height } = getDisplaySize();
-
     const addr = cfg.api.desktopWsAddr
       .replace(':fqdn', getHostName())
       .replace(':clusterId', clusterId)
       .replace(':desktopName', desktopName)
       .replace(':token', getAccessToken())
-      .replace(':username', username)
-      .replace(':width', width.toString())
-      .replace(':height', height.toString());
+      .replace(':username', username);
 
-    setTdpClient(new TdpClient(addr, width, height));
+    setTdpClient(new TdpClient(addr));
   }, [clusterId, username, desktopName]);
 
   const syncCanvasSizeToDisplaySize = (canvas: HTMLCanvasElement) => {
@@ -76,7 +72,10 @@ export default function useTdpClientCanvas(props: Props) {
   };
 
   // Default TdpClientEvent.TDP_PNG_FRAME handler (buffered)
-  const onPngFrame = (ctx: CanvasRenderingContext2D, pngFrame: PngFrame) => {
+  const clientOnPngFrame = (
+    ctx: CanvasRenderingContext2D,
+    pngFrame: PngFrame
+  ) => {
     // The first image fragment we see signals a successful TDP connection.
     if (!initialTdpConnectionSucceeded.current) {
       syncCanvasSizeToDisplaySize(ctx.canvas);
@@ -87,7 +86,7 @@ export default function useTdpClientCanvas(props: Props) {
   };
 
   // Default TdpClientEvent.TDP_BMP_FRAME handler (buffered)
-  const onBitmapFrame = (
+  const clientOnBitmapFrame = (
     ctx: CanvasRenderingContext2D,
     bmpFrame: BitmapFrame
   ) => {
@@ -101,7 +100,7 @@ export default function useTdpClientCanvas(props: Props) {
   };
 
   // Default TdpClientEvent.TDP_CLIPBOARD_DATA handler.
-  const onClipboardData = async (clipboardData: ClipboardData) => {
+  const clientOnClipboardData = async (clipboardData: ClipboardData) => {
     if (
       clipboardData.data &&
       (await shouldTryClipboardRW(clipboardSharingEnabled))
@@ -113,7 +112,7 @@ export default function useTdpClientCanvas(props: Props) {
   };
 
   // Default TdpClientEvent.TDP_ERROR and TdpClientEvent.CLIENT_ERROR handler
-  const onTdpError = (error: Error) => {
+  const clientOnTdpError = (error: Error) => {
     setDirectorySharingState(prevState => ({
       ...prevState,
       isSharing: false,
@@ -126,7 +125,7 @@ export default function useTdpClientCanvas(props: Props) {
   };
 
   // Default TdpClientEvent.TDP_WARNING and TdpClientEvent.CLIENT_WARNING handler
-  const onTdpWarning = (warning: string) => {
+  const clientOnTdpWarning = (warning: string) => {
     setWarnings(prevState => {
       return [
         ...prevState,
@@ -139,11 +138,11 @@ export default function useTdpClientCanvas(props: Props) {
     });
   };
 
-  const onWsClose = () => {
+  const clientOnWsClose = () => {
     setWsConnection('closed');
   };
 
-  const onWsOpen = () => {
+  const clientOnWsOpen = () => {
     setWsConnection('open');
   };
 
@@ -168,7 +167,7 @@ export default function useTdpClientCanvas(props: Props) {
     return false;
   };
 
-  const onKeyDown = (cli: TdpClient, e: KeyboardEvent) => {
+  const canvasOnKeyDown = (cli: TdpClient, e: KeyboardEvent) => {
     e.preventDefault();
     if (handleCapsLock(cli, e)) return;
     cli.sendKeyboardInput(e.code, ButtonState.DOWN);
@@ -190,14 +189,14 @@ export default function useTdpClientCanvas(props: Props) {
     }
   };
 
-  const onKeyUp = (cli: TdpClient, e: KeyboardEvent) => {
+  const canvasOnKeyUp = (cli: TdpClient, e: KeyboardEvent) => {
     e.preventDefault();
     if (handleCapsLock(cli, e)) return;
 
     cli.sendKeyboardInput(e.code, ButtonState.UP);
   };
 
-  const onMouseMove = (
+  const canvasOnMouseMove = (
     cli: TdpClient,
     canvas: HTMLCanvasElement,
     e: MouseEvent
@@ -208,7 +207,7 @@ export default function useTdpClientCanvas(props: Props) {
     cli.sendMouseMove(x, y);
   };
 
-  const onMouseDown = (cli: TdpClient, e: MouseEvent) => {
+  const canvasOnMouseDown = (cli: TdpClient, e: MouseEvent) => {
     if (e.button === 0 || e.button === 1 || e.button === 2) {
       cli.sendMouseButton(e.button, ButtonState.DOWN);
     }
@@ -219,13 +218,13 @@ export default function useTdpClientCanvas(props: Props) {
     sendLocalClipboardToRemote(cli);
   };
 
-  const onMouseUp = (cli: TdpClient, e: MouseEvent) => {
+  const canvasOnMouseUp = (cli: TdpClient, e: MouseEvent) => {
     if (e.button === 0 || e.button === 1 || e.button === 2) {
       cli.sendMouseButton(e.button, ButtonState.UP);
     }
   };
 
-  const onMouseWheelScroll = (cli: TdpClient, e: WheelEvent) => {
+  const canvasOnMouseWheelScroll = (cli: TdpClient, e: WheelEvent) => {
     e.preventDefault();
     // We only support pixel scroll events, not line or page events.
     // https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent/deltaMode
@@ -241,7 +240,7 @@ export default function useTdpClientCanvas(props: Props) {
 
   // Block browser context menu so as not to obscure the context menu
   // on the remote machine.
-  const onContextMenu = () => false;
+  const canvasOnContextMenu = () => false;
 
   const sendLocalClipboardToRemote = async (cli: TdpClient) => {
     if (await shouldTryClipboardRW(clipboardSharingEnabled)) {
@@ -260,20 +259,21 @@ export default function useTdpClientCanvas(props: Props) {
 
   return {
     tdpClient,
-    onPngFrame,
-    onBitmapFrame,
-    onTdpError,
-    onClipboardData,
-    onWsClose,
-    onWsOpen,
-    onKeyDown,
-    onKeyUp,
-    onMouseMove,
-    onMouseDown,
-    onMouseUp,
-    onMouseWheelScroll,
-    onContextMenu,
-    onTdpWarning,
+    clientScreenSpec: getDisplaySize(),
+    clientOnPngFrame,
+    clientOnBitmapFrame,
+    clientOnTdpError,
+    clientOnClipboardData,
+    clientOnWsClose,
+    clientOnWsOpen,
+    clientOnTdpWarning,
+    canvasOnKeyDown,
+    canvasOnKeyUp,
+    canvasOnMouseMove,
+    canvasOnMouseDown,
+    canvasOnMouseUp,
+    canvasOnMouseWheelScroll,
+    canvasOnContextMenu,
   };
 }
 

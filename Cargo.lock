@@ -1877,6 +1877,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-derive"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e6a0fd4f737c707bd9086cc16c925f294943eb62eb71499e9fd4cf71f8b9f4e"
+dependencies = [
+ "proc-macro2 1.0.66",
+ "quote 1.0.32",
+ "syn 2.0.28",
+]
+
+[[package]]
 name = "num-integer"
 version = "0.1.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2489,7 +2500,7 @@ dependencies = [
  "iso7816-tlv",
  "libc",
  "log",
- "num-derive 0.3.3",
+ "num-derive 0.4.0",
  "num-traits",
  "parking_lot 0.12.1",
  "png",

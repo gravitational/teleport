@@ -18,7 +18,7 @@ import React, { useState } from 'react';
 
 import Text from 'design/Text';
 import Box from 'design/Box';
-import { ButtonPrimary, ButtonSecondary } from 'design';
+import { ButtonPrimary, ButtonSecondary, Flex } from 'design';
 import * as Icons from 'design/Icon';
 
 import FieldInput from 'shared/components/FieldInput';
@@ -119,10 +119,10 @@ export function SecondStageInstructions(
               />
             </Box>
             {attempt.status === 'failed' && (
-              <Text color="error.main">
-                <Icons.Warning mr={2} color="error.main" />
-                Error: {attempt.statusText}
-              </Text>
+              <Flex>
+                <Icons.Warning mr={2} color="error.main" size="small" />
+                <Text color="error.main">Error: {attempt.statusText}</Text>
+              </Flex>
             )}
             <Box mt={4}>
               <ButtonPrimary

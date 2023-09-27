@@ -163,7 +163,6 @@ func (s *Sanitizer) CloseWatchers() {
 	s.backend.CloseWatchers()
 }
 
-// Inner returns the underlying backend, should be used with care.
-func (s *Sanitizer) Inner() Backend {
-	return s.backend
+func (s *Sanitizer) GetName() string {
+	return s.backend.GetName()
 }

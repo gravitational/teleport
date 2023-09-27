@@ -24,14 +24,12 @@ import { Connections } from './Connections';
 import { Clusters } from './Clusters';
 import { Identity } from './Identity';
 import { AdditionalActions } from './AdditionalActions';
-import { ConnectMyComputer } from './ConnectMyComputer';
 
 export function TopBar() {
   return (
     <Grid>
       <JustifyLeft>
         <Connections />
-        <ConnectMyComputer />
       </JustifyLeft>
       <CentralContainer>
         <Clusters />

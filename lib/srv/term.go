@@ -61,6 +61,10 @@ type Terminal interface {
 	// Wait will block until the terminal is complete.
 	Wait() (*ExecResult, error)
 
+	// WaitForChild blocks until the child process has completed any required
+	// setup operations before proceeding with execution.
+	WaitForChild() error
+
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
 	Continue()
@@ -208,6 +212,13 @@ func (t *terminal) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	// Close our half of the write pipe since it is only to be used by the child process.
+	// Not closing prevents being signaled when the child closes its half.
+	if err := t.serverContext.readyw.Close(); err != nil {
+		t.serverContext.Logger.WithError(err).Warn("Failed to close parent process ready signal write fd")
+	}
+	t.serverContext.readyw = nil
+
 	// Save off the PID of the Teleport process under which the shell is executing.
 	t.pid = t.cmd.Process.Pid
 
@@ -234,6 +245,14 @@ func (t *terminal) Wait() (*ExecResult, error) {
 		Code:    status.ExitStatus(),
 		Command: t.cmd.Path,
 	}, nil
+}
+
+func (t *terminal) WaitForChild() error {
+	err := waitForSignal(t.serverContext.readyr, 20*time.Second)
+	closeErr := t.serverContext.readyr.Close()
+	// Set to nil so the close in the context doesn't attempt to re-close.
+	t.serverContext.readyr = nil
+	return trace.NewAggregate(err, closeErr)
 }
 
 // Continue will resume execution of the process after it completes its
@@ -590,6 +609,10 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 		Code:    teleport.RemoteCommandSuccess,
 		Command: execRequest.GetCommand(),
 	}, nil
+}
+
+func (t *remoteTerminal) WaitForChild() error {
+	return nil
 }
 
 // Continue does nothing for remote command execution.

@@ -14,28 +14,42 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  ThemeProvider as StyledThemeProvider,
   StyleSheetManager,
+  ThemeProvider as StyledThemeProvider,
 } from 'styled-components';
 
 import storage, { KeysEnum } from 'teleport/services/localStorage';
+
+import { ThemePreference } from 'teleport/services/userPreferences/types';
 
 import { darkTheme, lightTheme } from '../theme';
 
 import { GlobalStyle } from './globals';
 
-import type { ThemeOption } from '../theme';
+function themePreferenceToTheme(themePreference: ThemePreference) {
+  return themePreference === ThemePreference.Light ? lightTheme : darkTheme;
+}
 
 const ThemeProvider = props => {
+  const [themePreference, setThemePreference] = useState<ThemePreference>(
+    storage.getThemePreference()
+  );
+
   useEffect(() => {
     storage.subscribe(receiveMessage);
 
     function receiveMessage(event) {
       const { key, newValue } = event;
-      if (key === KeysEnum.THEME && newValue) {
-        setThemeOption(newValue);
+
+      if (!newValue || key !== KeysEnum.USER_PREFERENCES) {
+        return;
+      }
+
+      const preferences = JSON.parse(newValue);
+      if (preferences.theme !== themePreference) {
+        setThemePreference(preferences.theme);
       }
     }
 
@@ -43,16 +57,12 @@ const ThemeProvider = props => {
     return function unsubscribe() {
       storage.unsubscribe(receiveMessage);
     };
-  }, []);
-
-  const [themeOption, setThemeOption] = useState<ThemeOption>(
-    storage.getThemeOption()
-  );
-
-  const theme = themeOption === 'dark' ? darkTheme : lightTheme;
+  }, [themePreference]);
 
   return (
-    <StyledThemeProvider theme={props.theme || theme}>
+    <StyledThemeProvider
+      theme={props.theme || themePreferenceToTheme(themePreference)}
+    >
       <StyleSheetManager disableVendorPrefixes>
         <React.Fragment>
           <GlobalStyle />

@@ -18,22 +18,24 @@ import React from 'react';
 import styled from 'styled-components';
 
 import {
-  ChevronRightIcon,
   CloseIcon,
-  ExpandIcon,
-  PopupIcon,
-  SidebarIcon,
+  ConversationListIcon,
+  PlusIcon,
+  SettingsIcon,
 } from 'design/SVGIcon';
 
-import { AssistViewMode } from 'teleport/Assist/Assist';
 import { useAssist } from 'teleport/Assist/context/AssistContext';
+import { Tooltip } from 'teleport/Assist/shared/Tooltip';
+import { ViewMode } from 'teleport/Assist/types';
+import { HeaderIcon } from 'teleport/Assist/shared';
 
 interface HeaderProps {
-  viewMode: AssistViewMode;
+  viewMode: ViewMode;
+  sidebarVisible: boolean;
   onClose: () => void;
-  onExpand: () => void;
-  onDocking: () => void;
-  onViewModeChange: (viewMode: AssistViewMode) => void;
+  onToggleSidebar: () => void;
+  onSettingsOpen: () => void;
+  onError: (message: string) => void;
 }
 
 const Container = styled.header`
@@ -45,25 +47,8 @@ const Container = styled.header`
   user-select: none;
   flex: 0 0 var(--assist-header-height);
   box-sizing: border-box;
-`;
-
-const Icon = styled.div`
-  border-radius: 7px;
-  width: 38px;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: 0.2s ease-in-out opacity;
-
-  svg {
-    transform: ${p => (p.rotated ? 'rotate(180deg)' : 'none')};
-  }
-
-  &:hover {
-    background: ${p => p.theme.colors.spotBackground[0]};
-  }
+  position: relative;
+  z-index: 9999;
 `;
 
 const Icons = styled.section`
@@ -75,96 +60,66 @@ const Icons = styled.section`
 const Title = styled.h2`
   margin: 0;
   font-size: 16px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
 `;
 
-function isExpanded(viewMode: AssistViewMode) {
-  return (
-    viewMode === AssistViewMode.Expanded ||
-    viewMode === AssistViewMode.ExpandedSidebarVisible
-  );
-}
-
-function toggleSidebarVisible(viewMode: AssistViewMode) {
-  switch (viewMode) {
-    case AssistViewMode.Expanded:
-      return AssistViewMode.ExpandedSidebarVisible;
-
-    case AssistViewMode.ExpandedSidebarVisible:
-      return AssistViewMode.Expanded;
-
-    case AssistViewMode.Docked:
-      return AssistViewMode.DockedSidebarVisible;
-
-    case AssistViewMode.DockedSidebarVisible:
-      return AssistViewMode.Docked;
-
-    case AssistViewMode.Collapsed:
-      return AssistViewMode.CollapsedSidebarVisible;
-
-    case AssistViewMode.CollapsedSidebarVisible:
-      return AssistViewMode.Collapsed;
-  }
-}
-
-function isDocked(viewMode: AssistViewMode) {
-  return (
-    viewMode === AssistViewMode.Docked ||
-    viewMode === AssistViewMode.DockedSidebarVisible
-  );
-}
+const ConversationListIconWrapper = styled.div`
+  position: relative;
+  top: 5.5px; // align with the plus icon
+`;
 
 export function Header(props: HeaderProps) {
   const {
     conversations: { selectedId, data },
+    createConversation,
   } = useAssist();
 
   const title = selectedId
     ? data.find(conversation => conversation.id === selectedId)?.title
     : 'Teleport Assist';
 
+  async function handleCreateNewConversation() {
+    try {
+      await createConversation();
+    } catch (err) {
+      props.onError('There was an error creating a new conversation.');
+    }
+  }
+
   return (
     <Container>
       <Icons>
-        {(props.viewMode === AssistViewMode.Collapsed ||
-          props.viewMode === AssistViewMode.Docked) && (
-          <Icon
-            rotated
-            onClick={() =>
-              props.onViewModeChange(toggleSidebarVisible(props.viewMode))
-            }
-          >
-            <ChevronRightIcon size={16} />
-          </Icon>
-        )}
-        {isExpanded(props.viewMode) && (
-          <Icon
-            onClick={() =>
-              props.onViewModeChange(toggleSidebarVisible(props.viewMode))
-            }
-          >
-            <SidebarIcon size={20} />
-          </Icon>
-        )}
+        <HeaderIcon onClick={props.onToggleSidebar}>
+          <ConversationListIconWrapper>
+            <ConversationListIcon size={22} />
+          </ConversationListIconWrapper>
+
+          <Tooltip>
+            {props.sidebarVisible ? 'Close' : 'Open'} conversation history
+          </Tooltip>
+        </HeaderIcon>
+        <HeaderIcon onClick={handleCreateNewConversation}>
+          <PlusIcon size={22} />
+
+          <Tooltip>Start a new conversation</Tooltip>
+        </HeaderIcon>
       </Icons>
 
       <Title>{title}</Title>
 
       <Icons style={{ justifyContent: 'flex-end' }}>
-        {!isDocked(props.viewMode) && (
-          <Icon onClick={props.onExpand}>
-            <ExpandIcon size={14} />
-          </Icon>
-        )}
-        <Icon rotated onClick={props.onDocking}>
-          {!isDocked(props.viewMode) ? (
-            <SidebarIcon size={20} />
-          ) : (
-            <PopupIcon size={20} />
-          )}
-        </Icon>
-        <Icon onClick={() => props.onClose()}>
+        <HeaderIcon onClick={props.onSettingsOpen}>
+          <SettingsIcon size={18} />
+
+          <Tooltip position="middle">Open settings</Tooltip>
+        </HeaderIcon>
+        <HeaderIcon onClick={() => props.onClose()}>
           <CloseIcon size={24} />
-        </Icon>
+
+          <Tooltip position="right">Hide Assist</Tooltip>
+        </HeaderIcon>
       </Icons>
     </Container>
   );

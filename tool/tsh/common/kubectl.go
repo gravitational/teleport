@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 )
 
 var (
@@ -151,14 +152,13 @@ func wrapConfigFn(cf *CLIConf) func(c *rest.Config) *rest.Config {
 // paths.
 func runKubectlCode(cf *CLIConf, args []string) {
 	closeTracer := func() {}
+	cf.TracingProvider = tracing.NoopProvider()
+	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
 	if cf.SampleTraces {
 		provider, err := newTraceProvider(cf, "", nil)
 		if err != nil {
 			log.WithError(err).Debug("Failed to set up span forwarding")
 		} else {
-			// only update the provider if we successfully set it up
-			cf.TracingProvider = provider
-
 			// ensure that the provider is shutdown on exit to flush any spans
 			// that haven't been forwarded yet.
 			closeTracer = func() {
@@ -379,7 +379,11 @@ func getKubeClusterName(args []string, teleportClusterName string) (string, erro
 		kubeName, err := kubeconfig.SelectedKubeCluster(kubeconfigLocation, teleportClusterName)
 		return kubeName, trace.Wrap(err)
 	}
-	kubeName := kubeconfig.KubeClusterFromContext(selectedContext, teleportClusterName)
+	kc, err := kubeconfig.Load(kubeconfigLocation)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	kubeName := kubeconfig.KubeClusterFromContext(selectedContext, kc.Contexts[selectedContext], teleportClusterName)
 	if kubeName == "" {
 		return "", trace.BadParameter("selected context %q does not belong to Teleport cluster %q", selectedContext, teleportClusterName)
 	}
@@ -497,7 +501,6 @@ func shouldUseKubeLocalProxy(cf *CLIConf, kubectlArgs []string) (*clientcmdapi.C
 		return nil, nil, false
 	}
 	return defaultConfig, kubeconfig.LocalProxyClusters{kubeCluster}, true
-
 }
 
 func isKubectlConfigCommand(kubectlCommand *cobra.Command, args []string) bool {

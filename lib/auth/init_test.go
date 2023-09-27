@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -163,7 +164,7 @@ type testDynamicallyConfigurableParams struct {
 
 func testDynamicallyConfigurable(t *testing.T, p testDynamicallyConfigurableParams) {
 	initAuthServer := func(t *testing.T, conf InitConfig) *Server {
-		authServer, err := Init(conf)
+		authServer, err := Init(context.Background(), conf)
 		require.NoError(t, err)
 		t.Cleanup(func() { authServer.Close() })
 		return authServer
@@ -402,7 +403,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 
 func TestClusterID(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(conf)
+	authServer, err := Init(context.Background(), conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -412,7 +413,7 @@ func TestClusterID(t *testing.T) {
 	require.NotEqual(t, clusterID, "")
 
 	// do it again and make sure cluster ID hasn't changed
-	authServer, err = Init(conf)
+	authServer, err = Init(context.Background(), conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -424,7 +425,7 @@ func TestClusterID(t *testing.T) {
 // TestClusterName ensures that a cluster can not be renamed.
 func TestClusterName(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(conf)
+	authServer, err := Init(context.Background(), conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -435,7 +436,7 @@ func TestClusterName(t *testing.T) {
 		ClusterName: "dev.localhost",
 	})
 	require.NoError(t, err)
-	authServer, err = Init(newConfig)
+	authServer, err = Init(context.Background(), newConfig)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -516,9 +517,9 @@ func TestPresets(t *testing.T) {
 		editorRole := services.NewPresetEditorRole()
 		rules := editorRole.GetRules(types.Allow)
 
-		// Create a new set of rules based on the Editor Role, excluding the ConnectioDiagnostic.
+		// Create a new set of rules based on the Editor Role, excluding the ConnectionDiagnostic.
 		// ConnectionDiagnostic is part of the default allow rules
-		outdatedRules := []types.Rule{}
+		var outdatedRules []types.Rule
 		for _, r := range rules {
 			if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
 				continue
@@ -627,20 +628,24 @@ func TestPresets(t *testing.T) {
 	upsertRoleTest := func(t *testing.T, expectedPresetRoles []string, expectedSystemRoles []string) {
 		// test state
 		ctx := context.Background()
+		// mu protects created resource maps
+		var mu sync.Mutex
 		createdSystemRoles := make(map[string]types.Role)
 		createdPresets := make(map[string]types.Role)
 
 		//
-		// Test #1 - popuulating an empty cluster
+		// Test #1 - populating an empty cluster
 		//
 		roleManager := newMockRoleManager(t)
 
 		// EXPECT that non-system resources will be created once
 		// and once only.
 		roleManager.
-			On("CreateRole", ctx, mock.Anything).
+			On("CreateRole", mock.Anything, mock.Anything).
 			Run(func(args mock.Arguments) {
 				r := args[1].(types.Role)
+				mu.Lock()
+				defer mu.Unlock()
 				require.Contains(t, expectedPresetRoles, r.GetName())
 				require.NotContains(t, createdPresets, r.GetName())
 				require.False(t, types.IsSystemResource(r))
@@ -650,9 +655,11 @@ func TestPresets(t *testing.T) {
 
 		// EXPECT that any (and ONLY) system resources will be upserted
 		roleManager.
-			On("UpsertRole", ctx, mock.Anything).
+			On("UpsertRole", mock.Anything, mock.Anything).
 			Run(func(args mock.Arguments) {
 				r := args[1].(types.Role)
+				mu.Lock()
+				defer mu.Unlock()
 				require.True(t, types.IsSystemResource(r))
 				require.Contains(t, expectedSystemRoles, r.GetName())
 				require.NotContains(t, keysIn(createdSystemRoles), r.GetName())
@@ -675,8 +682,10 @@ func TestPresets(t *testing.T) {
 		// EXPECT that createPresets will try to create all expected
 		// non-system roles
 		roleManager.
-			On("CreateRole", ctx, mock.Anything).
+			On("CreateRole", mock.Anything, mock.Anything).
 			Run(func(args mock.Arguments) {
+				mu.Lock()
+				defer mu.Unlock()
 				require.Contains(t, createdPresets, args[1].(types.Role).GetName())
 			}).
 			Return(trace.AlreadyExists("dupe"))
@@ -684,7 +693,7 @@ func TestPresets(t *testing.T) {
 		// EXPECT that any (and ONLY) expected system roles will be
 		// automatically upserted
 		roleManager.
-			On("UpsertRole", ctx, mock.Anything).
+			On("UpsertRole", mock.Anything, mock.Anything).
 			Run(requireSystemResource(t, 1)).
 			Maybe().
 			Return(nil)
@@ -709,7 +718,7 @@ func TestPresets(t *testing.T) {
 		// Removing a specific resource which is part of the Default Allow Rules
 		// should trigger an UpsertRole call
 		editorRole := createdPresets[teleport.PresetEditorRoleName]
-		allowRulesWithoutConnectionDiag := []types.Rule{}
+		var allowRulesWithoutConnectionDiag []types.Rule
 
 		for _, r := range editorRole.GetRules(types.Allow) {
 			if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
@@ -723,8 +732,10 @@ func TestPresets(t *testing.T) {
 		// non-system roles
 		remainingPresets := toSet(expectedPresetRoles)
 		roleManager.
-			On("CreateRole", ctx, mock.Anything).
+			On("CreateRole", mock.Anything, mock.Anything).
 			Run(func(args mock.Arguments) {
+				mu.Lock()
+				defer mu.Unlock()
 				r := args[1].(types.Role)
 				require.Contains(t, createdPresets, r.GetName())
 				delete(remainingPresets, r.GetName())
@@ -742,7 +753,7 @@ func TestPresets(t *testing.T) {
 		// EXPECT that any system roles will be automatically upserted
 		// AND our modified editor resource will be updated using an upsert
 		roleManager.
-			On("UpsertRole", ctx, mock.Anything).
+			On("UpsertRole", mock.Anything, mock.Anything).
 			Return(func(_ context.Context, r types.Role) error {
 				if types.IsSystemResource(r) {
 					require.Contains(t, expectedSystemRoles, r.GetName())
@@ -972,6 +983,7 @@ func setupConfig(t *testing.T) InitConfig {
 				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
 			},
 		},
+		Tracer: tracing.NoopTracer(teleport.ComponentAuth),
 	}
 }
 
@@ -1247,7 +1259,7 @@ func TestInit_bootstrap(t *testing.T) {
 			cfg := setupConfig(t)
 			test.modifyConfig(&cfg)
 
-			_, err := Init(cfg)
+			_, err := Init(context.Background(), cfg)
 			test.assertError(t, err)
 		})
 	}
@@ -1305,7 +1317,7 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			cfg := setupConfig(t)
 			test.modifyConfig(&cfg)
 
-			_, err := Init(cfg)
+			_, err := Init(context.Background(), cfg)
 			test.assertError(t, err)
 		})
 	}
@@ -1335,7 +1347,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	ctx := context.Background()
 
 	conf := setupConfig(t)
-	authServer, err := Init(conf)
+	authServer, err := Init(ctx, conf)
 	require.NoError(t, err)
 	t.Cleanup(func() { authServer.Close() })
 
@@ -1474,7 +1486,7 @@ func TestIdentityChecker(t *testing.T) {
 	ctx := context.Background()
 
 	conf := setupConfig(t)
-	authServer, err := Init(conf)
+	authServer, err := Init(ctx, conf)
 	require.NoError(t, err)
 	t.Cleanup(func() { authServer.Close() })
 
@@ -1565,15 +1577,15 @@ func TestIdentityChecker(t *testing.T) {
 }
 
 func TestInitCreatesCertsIfMissing(t *testing.T) {
+	ctx := context.Background()
 	conf := setupConfig(t)
-	auth, err := Init(conf)
+	auth, err := Init(ctx, conf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err = auth.Close()
 		require.NoError(t, err)
 	})
 
-	ctx := context.Background()
 	for _, caType := range types.CertAuthTypes {
 		cert, err := auth.GetCertAuthorities(ctx, caType, false)
 		require.NoError(t, err)
@@ -1582,6 +1594,7 @@ func TestInitCreatesCertsIfMissing(t *testing.T) {
 }
 
 func TestMigrateDatabaseCA(t *testing.T) {
+	ctx := context.Background()
 	conf := setupConfig(t)
 
 	// Create only HostCA and UserCA. DatabaseCA should be created on Init().
@@ -1591,14 +1604,14 @@ func TestMigrateDatabaseCA(t *testing.T) {
 	conf.Authorities = []types.CertAuthority{hostCA, userCA}
 
 	// Here is where migration happens.
-	auth, err := Init(conf)
+	auth, err := Init(ctx, conf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err = auth.Close()
 		require.NoError(t, err)
 	})
 
-	dbCAs, err := auth.GetCertAuthorities(context.Background(), types.DatabaseCA, true)
+	dbCAs, err := auth.GetCertAuthorities(ctx, types.DatabaseCA, true)
 	require.NoError(t, err)
 	require.Len(t, dbCAs, 1)
 	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Cert, dbCAs[0].GetActiveKeys().TLS[0].Cert)

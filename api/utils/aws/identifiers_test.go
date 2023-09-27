@@ -17,6 +17,7 @@ limitations under the License.
 package aws
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -24,7 +25,7 @@ import (
 )
 
 func TestIsValidAccountID(t *testing.T) {
-	isBadParamErrFn := func(tt require.TestingT, err error, i ...interface{}) {
+	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
 
@@ -71,6 +72,100 @@ func TestIsValidAccountID(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.errCheck(t, IsValidAccountID(tt.accountID))
+		})
+	}
+}
+
+func TestIsValidIAMRoleName(t *testing.T) {
+	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
+		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+	}
+
+	for _, tt := range []struct {
+		name     string
+		role     string
+		errCheck require.ErrorAssertionFunc
+	}{
+		{
+			name:     "valid",
+			role:     "valid",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "valid with numbers",
+			role:     "00VALID11",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "only one symbol",
+			role:     "_",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "all symbols",
+			role:     "Test+1=2,3.4@5-6_7",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "empty",
+			role:     "",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "too large",
+			role:     strings.Repeat("r", 65),
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "invalid symbols",
+			role:     "role/admin",
+			errCheck: isBadParamErrFn,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errCheck(t, IsValidIAMRoleName(tt.role))
+		})
+	}
+}
+
+func TestIsValidRegion(t *testing.T) {
+	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
+		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+	}
+
+	for _, tt := range []struct {
+		name     string
+		region   string
+		errCheck require.ErrorAssertionFunc
+	}{
+		{
+			name:     "us region",
+			region:   "us-east-1",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "eu region",
+			region:   "eu-west-1",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "us gov",
+			region:   "us-gov-east-1",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "empty",
+			region:   "",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "symbols",
+			region:   "us@east-1",
+			errCheck: isBadParamErrFn,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errCheck(t, IsValidRegion(tt.region))
 		})
 	}
 }

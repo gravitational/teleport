@@ -380,7 +380,6 @@ func fido2Register(
 		ID:          cc.Response.User.ID,
 		Name:        cc.Response.User.Name,
 		DisplayName: cc.Response.User.DisplayName,
-		Icon:        cc.Response.User.Icon,
 	}
 	plat := cc.Response.AuthenticatorSelection.AuthenticatorAttachment == protocol.Platform
 	uv := cc.Response.AuthenticatorSelection.UserVerification == protocol.VerificationRequired

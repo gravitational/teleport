@@ -18,6 +18,7 @@ package common
 
 import (
 	"fmt"
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -33,8 +34,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 var requestLoginHint = "use 'tsh login --request-id=<request-id>' to login with an approved request"
@@ -211,6 +214,10 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	}
 	table.AddRow([]string{"Reason:", reason})
 	table.AddRow([]string{"Reviewers:", reviewers + " (suggested)"})
+	if !req.GetAccessExpiry().IsZero() {
+		// Display the expiry time in the local timezone. UTC is confusing.
+		table.AddRow([]string{"Access Expires:", req.GetAccessExpiry().Local().Format(time.DateTime)})
+	}
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
 	_, err := table.AsBuffer().WriteTo(cf.Stdout())
@@ -380,9 +387,9 @@ func onRequestSearch(cf *CLIConf) error {
 
 	// If KubeCluster not provided try to read it from kubeconfig.
 	if cf.KubernetesCluster == "" {
-		cf.KubernetesCluster = selectedKubeCluster(tc.SiteName)
+		cf.KubernetesCluster, _ = kubeconfig.SelectedKubeCluster(getKubeConfigPath(cf, ""), tc.SiteName)
 	}
-	if cf.ResourceKind == types.KindKubePod && cf.KubernetesCluster == "" {
+	if slices.Contains(types.KubernetesResourcesKinds, cf.ResourceKind) && cf.KubernetesCluster == "" {
 		return trace.BadParameter("when searching for Pods, --kube-cluster cannot be empty")
 	}
 	// if --all-namespaces flag was provided we search in every namespace.
@@ -450,6 +457,7 @@ func onRequestSearch(cf *CLIConf) error {
 
 	var rows [][]string
 	var resourceIDs []string
+	deduplicateResourceIDs := map[string]struct{}{}
 	for _, resource := range resources {
 		var row []string
 		switch r := resource.(type) {
@@ -458,14 +466,17 @@ func onRequestSearch(cf *CLIConf) error {
 				ClusterName:     tc.SiteName,
 				Kind:            resource.GetKind(),
 				Name:            cf.KubernetesCluster,
-				SubResourceName: fmt.Sprintf("%s/%s", r.Spec.Namespace, resource.GetName()),
+				SubResourceName: path.Join(r.Spec.Namespace, resource.GetName()),
 			})
+			if ignoreDuplicateResourceId(deduplicateResourceIDs, resourceID) {
+				continue
+			}
 			resourceIDs = append(resourceIDs, resourceID)
 
 			row = []string{
-				resource.GetName(),
+				common.FormatResourceName(resource, cf.Verbose),
 				r.Spec.Namespace,
-				sortedLabels(resource.GetAllLabels()),
+				common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
 				resourceID,
 			}
 
@@ -475,21 +486,30 @@ func onRequestSearch(cf *CLIConf) error {
 				Kind:        resource.GetKind(),
 				Name:        resource.GetName(),
 			})
+			if ignoreDuplicateResourceId(deduplicateResourceIDs, resourceID) {
+				continue
+			}
+
 			resourceIDs = append(resourceIDs, resourceID)
 			hostName := ""
 			if r, ok := resource.(interface{ GetHostname() string }); ok {
 				hostName = r.GetHostname()
 			}
 			row = []string{
-				resource.GetName(),
+				common.FormatResourceName(resource, cf.Verbose),
 				hostName,
-				sortedLabels(resource.GetAllLabels()),
+				common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
 				resourceID,
 			}
 		}
 		rows = append(rows, row)
 	}
-	table := asciitable.MakeTableWithTruncatedColumn(tableColumns, rows, "Labels")
+	var table asciitable.Table
+	if cf.Verbose {
+		table = asciitable.MakeTable(tableColumns, rows...)
+	} else {
+		table = asciitable.MakeTableWithTruncatedColumn(tableColumns, rows, "Labels")
+	}
 	if _, err := table.AsBuffer().WriteTo(cf.Stdout()); err != nil {
 		return trace.Wrap(err)
 	}
@@ -505,6 +525,18 @@ To request access to these resources, run
 	}
 
 	return nil
+}
+
+// ignoreDuplicateResourceId returns true if the resource ID is a duplicate
+// and should be ignored. Otherwise, it returns false and adds the resource ID
+// to the deduplicateResourceIDs map.
+func ignoreDuplicateResourceId(deduplicateResourceIDs map[string]struct{}, resourceID string) bool {
+	// Ignore duplicate resource IDs.
+	if _, ok := deduplicateResourceIDs[resourceID]; ok {
+		return true
+	}
+	deduplicateResourceIDs[resourceID] = struct{}{}
+	return false
 }
 
 func onRequestDrop(cf *CLIConf) error {

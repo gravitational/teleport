@@ -19,7 +19,7 @@ import { ButtonBorder } from 'design';
 import Table, { Cell, TextCell } from 'design/DataTable';
 import { dateTimeMatcher } from 'design/utils/match';
 
-import Icon, * as Icons from 'design/Icon/Icon';
+import * as Icons from 'design/Icon';
 
 import cfg from 'teleport/config';
 import { Recording, RecordingType } from 'teleport/services/recordings';
@@ -102,16 +102,16 @@ export default function RecordingsList(props: Props) {
 }
 
 const renderIconCell = (type: RecordingType) => {
-  let icon = Icons.Cli;
+  let Icon = Icons.Cli;
   if (type === 'desktop') {
-    icon = Icons.Desktop;
+    Icon = Icons.Desktop;
   } else if (type === 'k8s') {
-    icon = Icons.Kubernetes;
+    Icon = Icons.Kubernetes;
   }
 
   return (
     <Cell>
-      <Icon p={1} mr={3} fontSize={3} as={icon} />
+      <Icon p={1} mr={3} size="large" />
     </Cell>
   );
 };

@@ -62,23 +62,23 @@ func TestCredentialAssertionResponse_json(t *testing.T) {
 
 func TestCredentialCreation_Validate(t *testing.T) {
 	okCC := &wanlib.CredentialCreation{
-		Response: protocol.PublicKeyCredentialCreationOptions{
+		Response: wanlib.PublicKeyCredentialCreationOptions{
 			Challenge: make([]byte, 32),
-			RelyingParty: protocol.RelyingPartyEntity{
+			RelyingParty: wanlib.RelyingPartyEntity{
 				ID: "example.com",
-				CredentialEntity: protocol.CredentialEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "Teleport",
 				},
 			},
-			Parameters: []protocol.CredentialParameter{
+			Parameters: []wanlib.CredentialParameter{
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
 			},
-			AuthenticatorSelection: protocol.AuthenticatorSelection{
+			AuthenticatorSelection: wanlib.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
 			},
 			Attestation: protocol.PreferNoAttestation,
-			User: protocol.UserEntity{
-				CredentialEntity: protocol.CredentialEntity{
+			User: wanlib.UserEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "llama",
 				},
 				DisplayName: "Llama",
@@ -172,10 +172,10 @@ func TestCredentialCreation_Validate(t *testing.T) {
 
 func TestCredentialAssertion_Validate(t *testing.T) {
 	okAssertion := &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+		Response: wanlib.PublicKeyCredentialRequestOptions{
 			Challenge:      make([]byte, 32),
 			RelyingPartyID: "example.com",
-			AllowedCredentials: []protocol.CredentialDescriptor{
+			AllowedCredentials: []wanlib.CredentialDescriptor{
 				{Type: protocol.PublicKeyCredentialType, CredentialID: []byte{1, 2, 3, 4, 5}},
 			},
 		},
@@ -226,18 +226,18 @@ func TestCredentialAssertion_Validate(t *testing.T) {
 func TestRequireResidentKey(t *testing.T) {
 	tests := []struct {
 		name    string
-		in      protocol.AuthenticatorSelection
+		in      wanlib.AuthenticatorSelection
 		want    bool
 		wantErr string
 	}{
 		{
 			name: "nothing set",
-			in:   protocol.AuthenticatorSelection{},
+			in:   wanlib.AuthenticatorSelection{},
 			want: false,
 		},
 		{
 			name: "discouraged and rrk=true",
-			in: protocol.AuthenticatorSelection{
+			in: wanlib.AuthenticatorSelection{
 				ResidentKey:        protocol.ResidentKeyRequirementDiscouraged,
 				RequireResidentKey: protocol.ResidentKeyRequired(),
 			},
@@ -245,7 +245,7 @@ func TestRequireResidentKey(t *testing.T) {
 		},
 		{
 			name: "required and rrk=false",
-			in: protocol.AuthenticatorSelection{
+			in: wanlib.AuthenticatorSelection{
 				ResidentKey:        protocol.ResidentKeyRequirementRequired,
 				RequireResidentKey: protocol.ResidentKeyNotRequired(),
 			},
@@ -253,7 +253,7 @@ func TestRequireResidentKey(t *testing.T) {
 		},
 		{
 			name: "support nil RequireResidentKey",
-			in: protocol.AuthenticatorSelection{
+			in: wanlib.AuthenticatorSelection{
 				ResidentKey:        "",
 				RequireResidentKey: nil,
 			},
@@ -261,7 +261,7 @@ func TestRequireResidentKey(t *testing.T) {
 		},
 		{
 			name: "ResidentKey preferred result in false",
-			in: protocol.AuthenticatorSelection{
+			in: wanlib.AuthenticatorSelection{
 				ResidentKey:        protocol.ResidentKeyRequirementPreferred,
 				RequireResidentKey: nil,
 			},
@@ -269,21 +269,21 @@ func TestRequireResidentKey(t *testing.T) {
 		},
 		{
 			name: "ResidentKey required",
-			in: protocol.AuthenticatorSelection{
+			in: wanlib.AuthenticatorSelection{
 				ResidentKey: protocol.ResidentKeyRequirementRequired,
 			},
 			want: true,
 		},
 		{
 			name: "ResidentKey discouraged",
-			in: protocol.AuthenticatorSelection{
+			in: wanlib.AuthenticatorSelection{
 				ResidentKey: protocol.ResidentKeyRequirementDiscouraged,
 			},
 			want: false,
 		},
 		{
 			name: "use RequireResidentKey required if ResidentKey empty",
-			in: protocol.AuthenticatorSelection{
+			in: wanlib.AuthenticatorSelection{
 				ResidentKey:        "",
 				RequireResidentKey: protocol.ResidentKeyRequired(),
 			},
@@ -293,7 +293,7 @@ func TestRequireResidentKey(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			req := &wanlib.CredentialCreation{
-				Response: protocol.PublicKeyCredentialCreationOptions{
+				Response: wanlib.PublicKeyCredentialCreationOptions{
 					AuthenticatorSelection: test.in,
 				},
 			}

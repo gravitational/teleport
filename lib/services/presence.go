@@ -36,6 +36,16 @@ type NodesGetter interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 }
 
+// DatabaseServersGetter is a service that gets database servers.
+type DatabaseServersGetter interface {
+	GetDatabaseServers(context.Context, string, ...MarshalOption) ([]types.DatabaseServer, error)
+}
+
+// AppServersGetter is a service that gets application servers.
+type AppServersGetter interface {
+	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
+}
+
 // NodesStreamGetter is a service that gets nodes.
 type NodesStreamGetter interface {
 	// GetNodeStream returns a list of registered servers.
@@ -70,6 +80,9 @@ type Presence interface {
 	// UpsertNode registers node presence, permanently if TTL is 0 or for the
 	// specified duration with second resolution if it's >= 1 second.
 	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
+
+	// StreamNodes streams a list of registered servers.
+	StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server]
 
 	// GetAuthServers returns a list of registered servers
 	GetAuthServers() ([]types.Server, error)

@@ -10,8 +10,8 @@ issuing commands through a CLI or programmatically to an API.
 This guide introduces some of these common scenarios and how to interact with
 Teleport to accomplish them:
 
-1. SSH into a cluster using Teleport.
-2. Introspect the cluster using Teleport features.
+- SSH into a cluster using Teleport.
+- Introspect the cluster using Teleport features.
 
 <Admonition type="tip" title="Tip">
 This guide also demonstrates how to configure Teleport Nodes using the **bastion
@@ -44,7 +44,7 @@ pattern** so that only a single Node can be accessed publicly.
    We'll configure and launch our instance, then demonstrate how to use the
    `tsh` tool and Teleport in SSH mode.
 
-2. On the host where you will run the Teleport SSH Service, follow the instructions
+1. On the host where you will run the Teleport SSH Service, follow the instructions
    for your environment to install Teleport.
 
    (!docs/pages/includes/install-linux.mdx!)
@@ -278,17 +278,22 @@ into a server using a third-party tool. Compare the two equivalent commands:
   </TabItem>
   <TabItem label="ssh">
 
+  To use the `ssh` client generate a SSH configuration file and postfix
+  the cluster name after the node name.
+
   <ScopedBlock scope={["oss", "enterprise"]}>
 
     ```code
-    $ ssh -J tele.example.com root@ip-172-31-41-144
+    $ tsh config > ssh_config_teleport
+    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.tele.example.com
     ```
 
    </ScopedBlock>
   <ScopedBlock scope={["cloud"]}>
 
     ```code
-    $ ssh -J mytenant.teleport.sh root@ip-172-31-41-144
+    $ tsh config > ssh_config_teleport
+    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.mytenant.teleport.sh
     ```
 
    </ScopedBlock>
@@ -370,15 +375,15 @@ pattern:
 
 To recap, this guide described:
 
-1. How to set up and add an SSH server to a cluster.
-2. Connect to the cluster using `tsh` to manage and introspect resources.
+- How to set up and add an SSH server to a cluster.
+- Connect to the cluster using `tsh` to manage and introspect resources.
 
 Feel free to shut down, clean up, and delete your resources, or use them in
 further Getting Started exercises.
 
 ## Next steps
 
-- Learn more about Teleport `tsh` through the [reference documentation](../reference/cli.mdx#tsh-ssh).
+- Learn more about Teleport `tsh` through the [reference documentation](../reference/cli/tsh.mdx#tsh-ssh).
 - Learn more about [Teleport servers](../architecture/nodes.mdx#connecting-to-nodes)
 - For a complete list of ports used by Teleport, read the [Networking Guide](../reference/networking.mdx).
 

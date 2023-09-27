@@ -213,6 +213,8 @@ func makeUserWithAzureRole(t *testing.T) (types.User, types.Role) {
 }
 
 func Test_getAzureIdentityFromFlags(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name              string
 		requestedIdentity string
@@ -441,6 +443,8 @@ func Test_getMSISecret(t *testing.T) {
 }
 
 func Test_formatAzureIdentities(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		identities []string

@@ -18,11 +18,15 @@ DynamoDB events table.
 > policy `AmazonDynamoDBReadOnlyAccess`
 The following information is required:
 
-| Environment Variable | Description                                                         |
-| ---------------------|---------------------------------------------------------------------|
-| `TABLE_NAME`         | DynamoDB Events Table Name                                          |
-| `AWS_REGION`         | AWS Region where the dynamoDB table is deployed                     |
-| `START_DATE`         | The date for when to start the query. The format must be YYYY-MM-DD |
+| Environment Variable    | Description                                                         |
+|-------------------------|---------------------------------------------------------------------|
+| `TABLE_NAME`            | DynamoDB Events Table Name                                          |
+| `AWS_REGION`            | AWS Region where the dynamoDB table is deployed                     |
+| `START_DATE`            | The date for when to start the query. The format must be YYYY-MM-DD |
+
+
+You may optionally specify the `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` environment variables
+to run the script from another location.
 
 ## Running Docker Container
 

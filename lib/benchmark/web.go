@@ -77,7 +77,7 @@ func (s WebSSHBenchmark) BenchBuilder(ctx context.Context, tc *client.TeleportCl
 			return nil, trace.BadParameter("random ssh bench commands must use the format <user>@all <command>")
 		}
 
-		servers, err := s.getServers(ctx, tc)
+		servers, err := getServers(ctx, tc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -92,10 +92,39 @@ func (s WebSSHBenchmark) BenchBuilder(ctx context.Context, tc *client.TeleportCl
 	}, nil
 }
 
+type webSession struct {
+	mu         sync.Mutex
+	webSession types.WebSession
+	clt        *client.WebClient
+}
+
+func (s *webSession) renew(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Until(s.expires().Add(-3 * time.Minute))):
+			resp, err := s.clt.PostJSON(ctx, s.clt.Endpoint("webapi", "sessions", "renew"), nil)
+			if err != nil {
+				continue
+			}
+
+			session, err := client.GetSessionFromResponse(resp)
+			if err != nil {
+				continue
+			}
+
+			s.mu.Lock()
+			s.webSession = session
+			s.mu.Unlock()
+		}
+	}
+}
+
 // runCommand starts a non-interactive SSH session and executes the provided
 // command before terminating the session.
 func (s WebSSHBenchmark) runCommand(ctx context.Context, tc *client.TeleportClient, webSess *webSession, host, command string) error {
-	stream, err := s.connectToHost(ctx, tc, webSess, host)
+	stream, err := connectToHost(ctx, tc, webSess, host)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -112,29 +141,8 @@ func (s WebSSHBenchmark) runCommand(ctx context.Context, tc *client.TeleportClie
 	return nil
 }
 
-// getServers returns all [types.Server] that the authenticated user has
-// access to.
-func (s WebSSHBenchmark) getServers(ctx context.Context, tc *client.TeleportClient) ([]types.Server, error) {
-	clt, err := tc.ConnectToCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer clt.Close()
-
-	resources, err := apiclient.GetAllResources[types.Server](ctx, clt.AuthClient, tc.ResourceFilter(types.KindNode))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(resources) == 0 {
-		return nil, trace.BadParameter("no target hosts available")
-	}
-
-	return resources, nil
-}
-
 // connectToHost opens an SSH session to the target host via the Proxy web api.
-func (s WebSSHBenchmark) connectToHost(ctx context.Context, tc *client.TeleportClient, webSession *webSession, host string) (*web.TerminalStream, error) {
+func connectToHost(ctx context.Context, tc *client.TeleportClient, webSession *webSession, host string) (io.ReadWriteCloser, error) {
 	req := web.TerminalRequest{
 		Server: host,
 		Login:  tc.HostLogin,
@@ -185,33 +193,25 @@ func (s WebSSHBenchmark) connectToHost(ctx context.Context, tc *client.TeleportC
 	return stream, trace.Wrap(err)
 }
 
-type webSession struct {
-	mu         sync.Mutex
-	webSession types.WebSession
-	clt        *client.WebClient
-}
-
-func (s *webSession) renew(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(time.Until(s.expires().Add(-3 * time.Minute))):
-			resp, err := s.clt.PostJSON(ctx, s.clt.Endpoint("webapi", "sessions", "renew"), nil)
-			if err != nil {
-				continue
-			}
-
-			session, err := client.GetSessionFromResponse(resp)
-			if err != nil {
-				continue
-			}
-
-			s.mu.Lock()
-			s.webSession = session
-			s.mu.Unlock()
-		}
+// getServers returns all [types.Server] that the authenticated user has
+// access to.
+func getServers(ctx context.Context, tc *client.TeleportClient) ([]types.Server, error) {
+	clt, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	defer clt.Close()
+
+	resources, err := apiclient.GetAllResources[types.Server](ctx, clt.AuthClient, tc.ResourceFilter(types.KindNode))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(resources) == 0 {
+		return nil, trace.BadParameter("no target hosts available")
+	}
+
+	return resources, nil
 }
 
 func (s *webSession) expires() time.Time {

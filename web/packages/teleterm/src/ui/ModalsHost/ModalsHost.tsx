@@ -21,6 +21,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ClusterConnect } from 'teleterm/ui/ClusterConnect';
 import { DocumentsReopen } from 'teleterm/ui/DocumentsReopen';
 import { Dialog } from 'teleterm/ui/services/modals';
+import { HeadlessAuthentication } from 'teleterm/ui/HeadlessAuthn';
 
 import { ClusterLogout } from '../ClusterLogout';
 import { ResourceSearchErrors } from '../Search/ResourceSearchErrors';
@@ -127,6 +128,25 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
           onCancel={() => {
             handleClose();
             dialog.onCancel();
+          }}
+        />
+      );
+    }
+
+    case 'headless-authn': {
+      return (
+        <HeadlessAuthentication
+          rootClusterUri={dialog.rootClusterUri}
+          headlessAuthenticationId={dialog.headlessAuthenticationId}
+          clientIp={dialog.headlessAuthenticationClientIp}
+          skipConfirm={dialog.skipConfirm}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
+          onSuccess={() => {
+            handleClose();
+            dialog.onSuccess();
           }}
         />
       );

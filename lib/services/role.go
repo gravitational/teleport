@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -169,6 +170,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindKubernetesCluster, RW()),
 				types.NewRule(types.KindSessionTracker, RO()),
 				types.NewRule(types.KindUserGroup, RW()),
+				types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 			},
 			JoinSessions: []*types.SessionJoinPolicy{
 				{
@@ -1974,6 +1976,13 @@ func matchDenyRoleImpersonateCondition(cond types.ImpersonateConditions, imperso
 	return false, nil
 }
 
+// RoleMatcherFunc is a convenience type for creating a role matcher from a function.
+type RoleMatcherFunc func(types.Role, types.RoleConditionType) (bool, error)
+
+func (f RoleMatcherFunc) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	return f(role, condition)
+}
+
 // RoleMatcher defines an interface for a generic role matcher.
 type RoleMatcher interface {
 	Match(types.Role, types.RoleConditionType) (bool, error)
@@ -2183,10 +2192,17 @@ func NewKubeResourcesMatcher(resources []types.KubernetesResource) *KubeResource
 		resources:     resources,
 		unmatchedReqs: map[string]struct{}{},
 	}
-	for _, name := range resources {
-		matcher.unmatchedReqs[name.ClusterResource()] = struct{}{}
+	for _, r := range resources {
+		matcher.unmatchedReqs[unmatchedKey(r)] = struct{}{}
 	}
 	return matcher
+}
+
+// unmatchedKey returns a unique key for a Kubernetes resource.
+// It is used to keep track of the resources that did not match any of user's roles.
+// Format: <kind>/<namespace>/<name>
+func unmatchedKey(r types.KubernetesResource) string {
+	return path.Join(r.Kind, r.ClusterResource())
 }
 
 // KubeResourcesMatcher matches a role against any Kubernetes Resource specified.
@@ -2201,14 +2217,20 @@ type KubeResourcesMatcher struct {
 // Match matches a Kubernetes resource against provided role and condition.
 func (m *KubeResourcesMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
 	var finalResult bool
-	for _, pod := range m.resources {
-		result, err := utils.KubeResourceMatchesRegex(pod, role.GetKubeResources(condition))
+	for _, resource := range m.resources {
+		// We use utils.KubeResourceMatchesRegexWithVerbsCollector instead of utils.KubeResourceMatchesRegex
+		// because KubeResourcesMatcher is used to match access request resources at creation time against
+		// the roles specified in the `search_as_roles` field. This means that we don't have the request verb
+		// at this point and we need to match the resource against all the verbs specified in the role.
+		// If the resource matches any of the verbs, we consider the resource as matched.
+		// Verbs are enforced at the request time when the user is trying to access the Kubernetes Pod.
+		result, _, err := utils.KubeResourceMatchesRegexWithVerbsCollector(resource, role.GetKubeResources(condition))
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 
 		if result {
-			delete(m.unmatchedReqs, pod.ClusterResource())
+			delete(m.unmatchedReqs, unmatchedKey(resource))
 			finalResult = true
 		}
 	}

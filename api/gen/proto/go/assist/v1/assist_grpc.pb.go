@@ -358,3 +358,96 @@ var AssistService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "teleport/assist/v1/assist.proto",
 }
+
+const (
+	AssistEmbeddingService_GetAssistantEmbeddings_FullMethodName = "/teleport.assist.v1.AssistEmbeddingService/GetAssistantEmbeddings"
+)
+
+// AssistEmbeddingServiceClient is the client API for AssistEmbeddingService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type AssistEmbeddingServiceClient interface {
+	// AssistantGetEmbeddings returns the embeddings for the given query.
+	GetAssistantEmbeddings(ctx context.Context, in *GetAssistantEmbeddingsRequest, opts ...grpc.CallOption) (*GetAssistantEmbeddingsResponse, error)
+}
+
+type assistEmbeddingServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewAssistEmbeddingServiceClient(cc grpc.ClientConnInterface) AssistEmbeddingServiceClient {
+	return &assistEmbeddingServiceClient{cc}
+}
+
+func (c *assistEmbeddingServiceClient) GetAssistantEmbeddings(ctx context.Context, in *GetAssistantEmbeddingsRequest, opts ...grpc.CallOption) (*GetAssistantEmbeddingsResponse, error) {
+	out := new(GetAssistantEmbeddingsResponse)
+	err := c.cc.Invoke(ctx, AssistEmbeddingService_GetAssistantEmbeddings_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// AssistEmbeddingServiceServer is the server API for AssistEmbeddingService service.
+// All implementations must embed UnimplementedAssistEmbeddingServiceServer
+// for forward compatibility
+type AssistEmbeddingServiceServer interface {
+	// AssistantGetEmbeddings returns the embeddings for the given query.
+	GetAssistantEmbeddings(context.Context, *GetAssistantEmbeddingsRequest) (*GetAssistantEmbeddingsResponse, error)
+	mustEmbedUnimplementedAssistEmbeddingServiceServer()
+}
+
+// UnimplementedAssistEmbeddingServiceServer must be embedded to have forward compatible implementations.
+type UnimplementedAssistEmbeddingServiceServer struct {
+}
+
+func (UnimplementedAssistEmbeddingServiceServer) GetAssistantEmbeddings(context.Context, *GetAssistantEmbeddingsRequest) (*GetAssistantEmbeddingsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAssistantEmbeddings not implemented")
+}
+func (UnimplementedAssistEmbeddingServiceServer) mustEmbedUnimplementedAssistEmbeddingServiceServer() {
+}
+
+// UnsafeAssistEmbeddingServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to AssistEmbeddingServiceServer will
+// result in compilation errors.
+type UnsafeAssistEmbeddingServiceServer interface {
+	mustEmbedUnimplementedAssistEmbeddingServiceServer()
+}
+
+func RegisterAssistEmbeddingServiceServer(s grpc.ServiceRegistrar, srv AssistEmbeddingServiceServer) {
+	s.RegisterService(&AssistEmbeddingService_ServiceDesc, srv)
+}
+
+func _AssistEmbeddingService_GetAssistantEmbeddings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAssistantEmbeddingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AssistEmbeddingServiceServer).GetAssistantEmbeddings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AssistEmbeddingService_GetAssistantEmbeddings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AssistEmbeddingServiceServer).GetAssistantEmbeddings(ctx, req.(*GetAssistantEmbeddingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// AssistEmbeddingService_ServiceDesc is the grpc.ServiceDesc for AssistEmbeddingService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var AssistEmbeddingService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "teleport.assist.v1.AssistEmbeddingService",
+	HandlerType: (*AssistEmbeddingServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetAssistantEmbeddings",
+			Handler:    _AssistEmbeddingService_GetAssistantEmbeddings_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "teleport/assist/v1/assist.proto",
+}

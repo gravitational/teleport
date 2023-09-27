@@ -19,26 +19,96 @@ package model
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
-	actionFinalAnswer = "Final Answer"
-	actionException   = "_Exception"
-	maxIterations     = 15
-	maxElapsedTime    = 5 * time.Minute
+	// The internal name used to create actions when the agent encounters an error, such as when parsing output.
+	actionException = "_Exception"
+
+	// The maximum amount of thought<-> observation iterations the agent is allowed to perform.
+	maxIterations = 15
+
+	// The maximum amount of time the agent is allowed to spend before yielding a final answer.
+	maxElapsedTime = 5 * time.Minute
+
+	// The special header the LLM has to respond with to indicate it's done.
+	finalResponseHeader = "<FINAL RESPONSE>"
 )
 
-// AssistAgent is a global instance of the Assist agent which defines the model responsible for the Assist feature.
-var AssistAgent = &Agent{
-	tools: []Tool{
-		&commandExecutionTool{},
-	},
+// NewExecutionTool creates a new execution tool. The execution tool is responsible for executing commands.
+func NewExecutionTool() Tool {
+	return &commandExecutionTool{}
+}
+
+// NewGenerateTool creates a new generation tool. The generation tool is responsible for generating Bash commands.
+func NewGenerateTool() Tool {
+	return &commandGenerationTool{}
+}
+
+// NewRetrievalTool creates a new retrieval tool. The retrieval tool is responsible for retrieving embeddings.
+func NewRetrievalTool(assistClient assist.AssistEmbeddingServiceClient,
+	nodeClient NodeGetter,
+	userAccessChecker services.AccessChecker,
+	currentUser string,
+) Tool {
+	return &embeddingRetrievalTool{
+		assistClient:      assistClient,
+		currentUser:       currentUser,
+		nodeClient:        nodeClient,
+		userAccessChecker: userAccessChecker,
+	}
+}
+
+// NewAgent creates a new agent. The Assist agent which defines the model responsible for the Assist feature.
+func NewAgent(tools ...Tool) (*Agent, error) {
+	if len(tools) == 0 {
+		return nil, trace.BadParameter("at least one tool is required")
+	}
+
+	return &Agent{
+		tools: tools,
+	}, nil
+}
+
+// ToolsConfig contains all the tool configuration and clients the tools
+// can potentially leverage to interact with Teleport. Such clients can be used
+// to list resources or check RBAC rules for example.
+type ToolsConfig struct {
+	// DisableEmbeddingsTool disables the embedding retrieval tool, useful in tests.
+	DisableEmbeddingsTool bool
+	// EmbeddingsClient is required when the embeddings tool is enabled.
+	EmbeddingsClient assist.AssistEmbeddingServiceClient
+	// AccessChecker is required when NodeClient is set
+	AccessChecker services.AccessChecker
+	// NodeClient is optional, when set, the tools might attempt to search for
+	// nodes directly from cache on small clusters.
+	NodeClient *services.NodeWatcher
+}
+
+// CheckAndSetDefaults checks if the ToolsConfig is valid and sets defaults
+// when needed.
+func (a *ToolsConfig) CheckAndSetDefaults() error {
+	if !a.DisableEmbeddingsTool {
+		if a.EmbeddingsClient == nil {
+			return trace.BadParameter("Embeddings client is mandatory when embedding tool is enabled")
+		}
+		if a.NodeClient != nil && a.AccessChecker == nil {
+			return trace.BadParameter("AccessChecker is required when NodeClient is set")
+		}
+	}
+	return nil
 }
 
 // Agent is a model storing static state which defines some properties of the chat model.
@@ -46,22 +116,25 @@ type Agent struct {
 	tools []Tool
 }
 
-// agentAction is an event type represetning the decision to take a single action, typically a tool invocation.
-type agentAction struct {
+// AgentAction is an event type representing the decision to take a single action, typically a tool invocation.
+type AgentAction struct {
 	// The action to take, typically a tool name.
-	action string
+	Action string `json:"action"`
 
 	// The input to the action, varies depending on the action.
-	input string
+	Input string `json:"input"`
 
 	// The log is either a direct tool response or a thought prompt correlated to the input.
-	log string
+	Log string `json:"log"`
+
+	// The reasoning is a string describing the reasoning behind the action.
+	Reasoning string `json:"reasoning"`
 }
 
 // agentFinish is an event type representing the decision to finish a thought
 // loop and return a final text answer to the user.
 type agentFinish struct {
-	// output must be Message or CompletionCommand
+	// output must be Message, StreamingMessage or CompletionCommand
 	output any
 }
 
@@ -69,26 +142,25 @@ type executionState struct {
 	llm               *openai.Client
 	chatHistory       []openai.ChatCompletionMessage
 	humanMessage      openai.ChatCompletionMessage
-	intermediateSteps []agentAction
+	intermediateSteps []AgentAction
 	observations      []string
-	tokensUsed        *TokensUsed
+	tokenCount        *TokenCount
 }
 
 // PlanAndExecute runs the agent with a given input until it arrives at a text answer it is satisfied
 // with or until it times out.
-func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHistory []openai.ChatCompletionMessage, humanMessage openai.ChatCompletionMessage) (any, error) {
+func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHistory []openai.ChatCompletionMessage, humanMessage openai.ChatCompletionMessage, progressUpdates func(*AgentAction)) (any, *TokenCount, error) {
 	log.Trace("entering agent think loop")
 	iterations := 0
 	start := time.Now()
 	tookTooLong := func() bool { return iterations > maxIterations || time.Since(start) > maxElapsedTime }
-	tokensUsed := newTokensUsed_Cl100kBase()
 	state := &executionState{
 		llm:               llm,
 		chatHistory:       chatHistory,
 		humanMessage:      humanMessage,
-		intermediateSteps: make([]agentAction, 0),
+		intermediateSteps: make([]AgentAction, 0),
 		observations:      make([]string, 0),
-		tokensUsed:        tokensUsed,
+		tokenCount:        NewTokenCount(),
 	}
 
 	for {
@@ -97,26 +169,18 @@ func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHist
 		// This is intentionally not context-based, as we want to finish the current step before exiting
 		// and the concern is not that we're stuck but that we're taking too long over multiple iterations.
 		if tookTooLong() {
-			return nil, trace.Errorf("timeout: agent took too long to finish")
+			return nil, nil, trace.Errorf("timeout: agent took too long to finish")
 		}
 
-		output, err := a.takeNextStep(ctx, state)
+		output, err := a.takeNextStep(ctx, state, progressUpdates)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 
 		if output.finish != nil {
-			log.Tracef("agent finished with output: %v", output.finish.output)
-			switch v := output.finish.output.(type) {
-			case *Message:
-				v.TokensUsed = tokensUsed
-				return v, nil
-			case *CompletionCommand:
-				v.TokensUsed = tokensUsed
-				return v, nil
-			default:
-				return nil, trace.Errorf("invalid output type %T", v)
-			}
+			log.Tracef("agent finished with output: %#v", output.finish.output)
+
+			return output.finish.output, state.tokenCount, nil
 		}
 
 		if output.action != nil {
@@ -134,27 +198,27 @@ type stepOutput struct {
 	finish *agentFinish
 
 	// if the agent is not done, action is set together with observation.
-	action      *agentAction
+	action      *AgentAction
 	observation string
 }
 
-func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOutput, error) {
+func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progressUpdates func(*AgentAction)) (stepOutput, error) {
 	log.Trace("agent entering takeNextStep")
 	defer log.Trace("agent exiting takeNextStep")
 
 	action, finish, err := a.plan(ctx, state)
 	if err, ok := trace.Unwrap(err).(*invalidOutputError); ok {
 		log.Tracef("agent encountered an invalid output error: %v, attempting to recover", err)
-		action := &agentAction{
-			action: actionException,
-			input:  observationPrefix + "Invalid or incomplete response",
-			log:    thoughtPrefix + err.Error(),
+		action := &AgentAction{
+			Action: actionException,
+			Input:  observationPrefix + "Invalid or incomplete response",
+			Log:    thoughtPrefix + err.Error(),
 		}
 
 		// The exception tool is currently a bit special, the observation is always equal to the input.
 		// We can expand on this in the future to make it handle errors better.
-		log.Tracef("agent decided on action %v and received observation %v", action.action, action.input)
-		return stepOutput{action: action, observation: action.input}, nil
+		log.Tracef("agent decided on action %v and received observation %v", action.Action, action.Input)
+		return stepOutput{action: action, observation: action.Input}, nil
 	}
 	if err != nil {
 		log.Tracef("agent encountered an error: %v", err)
@@ -167,35 +231,38 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 		return stepOutput{finish: finish}, nil
 	}
 
+	// If action is set, the agent is not done and called upon a tool.
+	progressUpdates(action)
+
 	var tool Tool
 	for _, candidate := range a.tools {
-		if candidate.Name() == action.action {
+		if candidate.Name() == action.Action {
 			tool = candidate
 			break
 		}
 	}
 
 	if tool == nil {
-		log.Tracef("agent picked an unknown tool %v", action.action)
-		action := &agentAction{
-			action: actionException,
-			input:  observationPrefix + "Unknown tool",
-			log:    thoughtPrefix + "No tool with name " + action.action + " exists.",
+		log.Tracef("agent picked an unknown tool %v", action.Action)
+		action := &AgentAction{
+			Action: actionException,
+			Input:  observationPrefix + "Unknown tool",
+			Log:    fmt.Sprintf("%s No tool with name %s exists.", thoughtPrefix, action.Action),
 		}
 
-		return stepOutput{action: action, observation: action.input}, nil
+		return stepOutput{action: action, observation: action.Input}, nil
 	}
 
 	if tool, ok := tool.(*commandExecutionTool); ok {
-		input, err := tool.parseInput(action.input)
+		input, err := tool.parseInput(action.Input)
 		if err != nil {
-			action := &agentAction{
-				action: actionException,
-				input:  observationPrefix + "Invalid or incomplete response",
-				log:    thoughtPrefix + err.Error(),
+			action := &AgentAction{
+				Action: actionException,
+				Input:  observationPrefix + "Invalid or incomplete response",
+				Log:    thoughtPrefix + err.Error(),
 			}
 
-			return stepOutput{action: action, observation: action.input}, nil
+			return stepOutput{action: action, observation: action.Input}, nil
 		}
 
 		completion := &CompletionCommand{
@@ -208,30 +275,74 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
 	}
 
-	return stepOutput{}, trace.NotImplemented("assist does not support non command execution tools yet")
+	if tool, ok := tool.(*commandGenerationTool); ok {
+		input, err := tool.parseInput(action.Input)
+		if err != nil {
+			action := &AgentAction{
+				Action: actionException,
+				Input:  observationPrefix + "Invalid or incomplete response",
+				Log:    thoughtPrefix + err.Error(),
+			}
+
+			return stepOutput{action: action, observation: action.Input}, nil
+		}
+		completion := &GeneratedCommand{
+			Command: input.Command,
+		}
+
+		log.Tracef("agent decided on command generation, let's translate to an agentFinish")
+		return stepOutput{finish: &agentFinish{output: completion}}, nil
+	}
+
+	runOut, err := tool.Run(ctx, action.Input)
+	if err != nil {
+		return stepOutput{}, trace.Wrap(err)
+	}
+	return stepOutput{action: action, observation: runOut}, nil
 }
 
-func (a *Agent) plan(ctx context.Context, state *executionState) (*agentAction, *agentFinish, error) {
+func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, *agentFinish, error) {
 	scratchpad := a.constructScratchpad(state.intermediateSteps, state.observations)
 	prompt := a.createPrompt(state.chatHistory, scratchpad, state.humanMessage)
-	resp, err := state.llm.CreateChatCompletion(
+	promptTokenCount, err := NewPromptTokenCounter(prompt)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	state.tokenCount.AddPromptCounter(promptTokenCount)
+
+	stream, err := state.llm.CreateChatCompletionStream(
 		ctx,
 		openai.ChatCompletionRequest{
-			Model:    openai.GPT4,
-			Messages: prompt,
+			Model:       openai.GPT4,
+			Messages:    prompt,
+			Temperature: 0.3,
+			Stream:      true,
 		},
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	llmOut := resp.Choices[0].Message.Content
-	err = state.tokensUsed.AddTokens(prompt, llmOut)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
+	deltas := make(chan string)
+	go func() {
+		defer close(deltas)
 
-	action, finish, err := parsePlanningOutput(llmOut)
+		for {
+			response, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				return
+			} else if err != nil {
+				log.Tracef("agent encountered an error while streaming: %v", err)
+				return
+			}
+
+			delta := response.Choices[0].Delta.Content
+			deltas <- delta
+		}
+	}()
+
+	action, finish, completionTokenCounter, err := parsePlanningOutput(deltas)
+	state.tokenCount.AddCompletionCounter(completionTokenCounter)
 	return action, finish, trace.Wrap(err)
 }
 
@@ -264,12 +375,12 @@ func (a *Agent) createPrompt(chatHistory, agentScratchpad []openai.ChatCompletio
 	return prompt
 }
 
-func (a *Agent) constructScratchpad(intermediateSteps []agentAction, observations []string) []openai.ChatCompletionMessage {
+func (a *Agent) constructScratchpad(intermediateSteps []AgentAction, observations []string) []openai.ChatCompletionMessage {
 	var thoughts []openai.ChatCompletionMessage
 	for i, action := range intermediateSteps {
 		thoughts = append(thoughts, openai.ChatCompletionMessage{
 			Role:    openai.ChatMessageRoleAssistant,
-			Content: action.log,
+			Content: action.Log,
 		}, openai.ChatCompletionMessage{
 			Role:    openai.ChatMessageRoleUser,
 			Content: conversationToolResponse(observations[i]),
@@ -281,8 +392,8 @@ func (a *Agent) constructScratchpad(intermediateSteps []agentAction, observation
 
 // parseJSONFromModel parses a JSON object from the model output and attempts to sanitize contaminant text
 // to avoid triggering self-correction due to some natural language being bundled with the JSON.
-// The output type is generic and thus the structure of the expected JSON varies depending on T.
-func parseJSONFromModel[T any](text string) (T, *invalidOutputError) {
+// The output type is generic, and thus the structure of the expected JSON varies depending on T.
+func parseJSONFromModel[T any](text string) (T, error) {
 	cleaned := strings.TrimSpace(text)
 	if strings.Contains(cleaned, "```json") {
 		cleaned = strings.Split(cleaned, "```json")[1]
@@ -303,38 +414,67 @@ func parseJSONFromModel[T any](text string) (T, *invalidOutputError) {
 	return output, nil
 }
 
-// planOutput describes the expected JSON output after asking it to plan it's next action.
-type planOutput struct {
-	Action       string `json:"action"`
-	Action_input any    `json:"action_input"`
+// PlanOutput describes the expected JSON output after asking it to plan its next action.
+type PlanOutput struct {
+	Action      string `json:"action"`
+	ActionInput any    `json:"action_input"`
+	Reasoning   string `json:"reasoning"`
 }
 
-// parsePlanningOutput parses the output of the model after asking it to plan it's next action
+// parsePlanningOutput parses the output of the model after asking it to plan its next action
 // and returns the appropriate event type or an error.
-func parsePlanningOutput(text string) (*agentAction, *agentFinish, error) {
-	log.Tracef("received planning output: \"%v\"", text)
-	response, err := parseJSONFromModel[planOutput](text)
+func parsePlanningOutput(deltas <-chan string) (*AgentAction, *agentFinish, TokenCounter, error) {
+	var text string
+	for delta := range deltas {
+		text += delta
+
+		if strings.HasPrefix(text, finalResponseHeader) {
+			parts := make(chan string)
+			streamingTokenCounter, err := NewAsynchronousTokenCounter(text)
+			if err != nil {
+				return nil, nil, nil, trace.Wrap(err)
+			}
+			go func() {
+				defer close(parts)
+
+				parts <- strings.TrimPrefix(text, finalResponseHeader)
+				for delta := range deltas {
+					parts <- delta
+					errCount := streamingTokenCounter.Add()
+					if errCount != nil {
+						log.WithError(errCount).Debug("Failed to add streamed completion text to the token counter")
+					}
+				}
+			}()
+
+			return nil, &agentFinish{output: &StreamingMessage{Parts: parts}}, streamingTokenCounter, nil
+		}
+	}
+
+	completionTokenCount, err := NewSynchronousTokenCounter(text)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	if response.Action == actionFinalAnswer {
-		outputString, ok := response.Action_input.(string)
-		if !ok {
-			return nil, nil, trace.Errorf("invalid final answer type %T", response.Action_input)
-		}
-
-		return nil, &agentFinish{output: &Message{Content: outputString}}, nil
+	log.Tracef("received planning output: \"%v\"", text)
+	if outputString, found := strings.CutPrefix(text, finalResponseHeader); found {
+		return nil, &agentFinish{output: &Message{Content: outputString}}, completionTokenCount, nil
 	}
 
-	if v, ok := response.Action_input.(string); ok {
-		return &agentAction{action: response.Action, input: v}, nil, nil
+	response, err := parseJSONFromModel[PlanOutput](text)
+	if err != nil {
+		log.WithError(err).Trace("failed to parse planning output")
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	if v, ok := response.ActionInput.(string); ok {
+		return &AgentAction{Action: response.Action, Input: v}, nil, completionTokenCount, nil
 	} else {
-		input, err := json.Marshal(response.Action_input)
+		input, err := json.Marshal(response.ActionInput)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, nil, trace.Wrap(err)
 		}
 
-		return &agentAction{action: response.Action, input: string(input)}, nil, nil
+		return &AgentAction{Action: response.Action, Input: string(input), Reasoning: response.Reasoning}, nil, completionTokenCount, nil
 	}
 }

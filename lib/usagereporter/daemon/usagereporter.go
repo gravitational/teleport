@@ -157,6 +157,14 @@ func GetAnonymizedPrehogEvent(req *teletermv1.ReportUsageEventRequest) (*prehogv
 		e.FileTransferRun.ClusterName = anonymizer.AnonymizeString(e.FileTransferRun.ClusterName)
 		e.FileTransferRun.UserName = anonymizer.AnonymizeString(e.FileTransferRun.UserName)
 		return prehogEvent, nil
+	case *prehogv1a.SubmitConnectEventRequest_ConnectMyComputerSetup:
+		e.ConnectMyComputerSetup.ClusterName = anonymizer.AnonymizeString(e.ConnectMyComputerSetup.ClusterName)
+		e.ConnectMyComputerSetup.UserName = anonymizer.AnonymizeString(e.ConnectMyComputerSetup.UserName)
+		return prehogEvent, nil
+	case *prehogv1a.SubmitConnectEventRequest_ConnectMyComputerAgentStart:
+		e.ConnectMyComputerAgentStart.ClusterName = anonymizer.AnonymizeString(e.ConnectMyComputerAgentStart.ClusterName)
+		e.ConnectMyComputerAgentStart.UserName = anonymizer.AnonymizeString(e.ConnectMyComputerAgentStart.UserName)
+		return prehogEvent, nil
 	}
 
 	return nil, trace.BadParameter("unexpected Event usage type %T", req)

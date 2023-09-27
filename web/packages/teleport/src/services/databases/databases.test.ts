@@ -17,7 +17,7 @@ limitations under the License.
 import api from 'teleport/services/api';
 
 import DatabaseService from './databases';
-import { Database } from './types';
+import { Database, IamPolicyStatus } from './types';
 
 test('correct formatting of database fetch response', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(mockResponse);
@@ -43,7 +43,10 @@ test('correct formatting of database fetch response', async () => {
         aws: {
           rds: {
             resourceId: 'resource-id',
+            region: 'us-west-1',
+            subnets: ['sn1', 'sn2'],
           },
+          iamPolicyStatus: IamPolicyStatus.Success,
         },
       },
       {
@@ -177,7 +180,10 @@ const mockResponse = {
       aws: {
         rds: {
           resource_id: 'resource-id',
+          region: 'us-west-1',
+          subnets: ['sn1', 'sn2'],
         },
+        iam_policy_status: 'IAM_POLICY_STATUS_SUCCESS',
       },
     },
     // non-aws self-hosted

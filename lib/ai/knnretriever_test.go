@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 )
 
 func TestKNNRetriever_GetRelevant(t *testing.T) {
@@ -35,11 +36,11 @@ func TestKNNRetriever_GetRelevant(t *testing.T) {
 	// Generate random vector. The seed is fixed, so the results are deterministic.
 	randGen := rand.New(rand.NewSource(42))
 
-	generateVector := func() Vector64 {
+	generateVector := func() embedding.Vector64 {
 		const testVectorDimension = 100
 		// generate random vector
 		// reduce the dimensionality to 100
-		vec := make(Vector64, testVectorDimension)
+		vec := make(embedding.Vector64, testVectorDimension)
 		for i := 0; i < testVectorDimension; i++ {
 			vec[i] = randGen.Float64()
 		}
@@ -49,13 +50,13 @@ func TestKNNRetriever_GetRelevant(t *testing.T) {
 	}
 
 	const testEmbeddingsSize = 100
-	points := make([]*Embedding, testEmbeddingsSize)
+	points := make([]*embedding.Embedding, testEmbeddingsSize)
 	for i := 0; i < testEmbeddingsSize; i++ {
-		points[i] = NewEmbedding(types.KindNode, strconv.Itoa(i), generateVector(), sha256.Sum256([]byte{byte(i)}))
+		points[i] = embedding.NewEmbedding(types.KindNode, strconv.Itoa(i), generateVector(), sha256.Sum256([]byte{byte(i)}))
 	}
 
 	// Create a query.
-	query := NewEmbedding(types.KindNode, "1", generateVector(), sha256.Sum256([]byte("1")))
+	query := embedding.NewEmbedding(types.KindNode, "1", generateVector(), sha256.Sum256([]byte("1")))
 
 	retriever, err := NewKNNRetriever(points)
 	require.NoError(t, err)
@@ -79,15 +80,15 @@ func TestKNNRetriever_GetRelevant(t *testing.T) {
 func TestKNNRetriever_Insert(t *testing.T) {
 	t.Parallel()
 
-	points := []*Embedding{
-		NewEmbedding(types.KindNode, "1", Vector64{1, 2, 3}, sha256.Sum256([]byte("1"))),
-		NewEmbedding(types.KindNode, "2", Vector64{4, 5, 6}, sha256.Sum256([]byte("2"))),
+	points := []*embedding.Embedding{
+		embedding.NewEmbedding(types.KindNode, "1", embedding.Vector64{1, 2, 3}, sha256.Sum256([]byte("1"))),
+		embedding.NewEmbedding(types.KindNode, "2", embedding.Vector64{4, 5, 6}, sha256.Sum256([]byte("2"))),
 	}
 
 	retriever, err := NewKNNRetriever(points)
 	require.NoError(t, err)
 
-	newEmbedding := NewEmbedding(types.KindNode, "3", Vector64{7, 8, 9}, sha256.Sum256([]byte("3")))
+	newEmbedding := embedding.NewEmbedding(types.KindNode, "3", embedding.Vector64{7, 8, 9}, sha256.Sum256([]byte("3")))
 	docs1 := retriever.GetRelevant(newEmbedding, 10)
 	require.Len(t, docs1, 2)
 
@@ -101,16 +102,16 @@ func TestKNNRetriever_Insert(t *testing.T) {
 func TestKNNRetriever_Remove(t *testing.T) {
 	t.Parallel()
 
-	points := []*Embedding{
-		NewEmbedding(types.KindNode, "1", Vector64{1, 2, 3}, sha256.Sum256([]byte("1"))),
-		NewEmbedding(types.KindNode, "2", Vector64{4, 5, 6}, sha256.Sum256([]byte("2"))),
-		NewEmbedding(types.KindNode, "3", Vector64{7, 8, 9}, sha256.Sum256([]byte("3"))),
+	points := []*embedding.Embedding{
+		embedding.NewEmbedding(types.KindNode, "1", embedding.Vector64{1, 2, 3}, sha256.Sum256([]byte("1"))),
+		embedding.NewEmbedding(types.KindNode, "2", embedding.Vector64{4, 5, 6}, sha256.Sum256([]byte("2"))),
+		embedding.NewEmbedding(types.KindNode, "3", embedding.Vector64{7, 8, 9}, sha256.Sum256([]byte("3"))),
 	}
 
 	retriever, err := NewKNNRetriever(points)
 	require.NoError(t, err)
 
-	query := NewEmbedding(types.KindNode, "3", Vector64{7, 8, 9}, sha256.Sum256([]byte("3")))
+	query := embedding.NewEmbedding(types.KindNode, "3", embedding.Vector64{7, 8, 9}, sha256.Sum256([]byte("3")))
 	docs1 := retriever.GetRelevant(query, 10)
 
 	require.Len(t, docs1, 3)
@@ -132,9 +133,9 @@ func L2norm(v []float64) float64 {
 }
 
 // Function to normalize vector using L2 norm
-func normalize(v Vector64) Vector64 {
+func normalize(v embedding.Vector64) embedding.Vector64 {
 	norm := L2norm(v)
-	result := make(Vector64, len(v))
+	result := make(embedding.Vector64, len(v))
 	for i, value := range v {
 		result[i] = value / norm
 	}

@@ -28,6 +28,7 @@ export default function makeApp(json: any): App {
     clusterId = '',
     fqdn = '',
     awsConsole = false,
+    samlApp = false,
     friendlyName = '',
   } = json;
 
@@ -54,6 +55,11 @@ export default function makeApp(json: any): App {
     }
   }
 
+  let samlAppSsoUrl = '';
+  if (samlApp) {
+    samlAppSsoUrl = `${cfg.baseUrl}/enterprise/saml-idp/login/${name}`;
+  }
+
   return {
     id,
     name,
@@ -70,5 +76,7 @@ export default function makeApp(json: any): App {
     addrWithProtocol,
     friendlyName,
     userGroups,
+    samlApp,
+    samlAppSsoUrl,
   };
 }

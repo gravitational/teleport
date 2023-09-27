@@ -51,16 +51,17 @@ func TestDefaultConfig(t *testing.T) {
 
 	// crypto settings
 	require.Equal(t, config.CipherSuites, utils.DefaultCipherSuites())
-	// Unfortunately the below algos don't have exported constants in
+	// Unfortunately, the below algos don't have exported constants in
 	// golang.org/x/crypto/ssh for us to use.
-	require.Equal(t, config.Ciphers, []string{
+	require.ElementsMatch(t, config.Ciphers, []string{
 		"aes128-gcm@openssh.com",
+		"aes256-gcm@openssh.com",
 		"chacha20-poly1305@openssh.com",
 		"aes128-ctr",
 		"aes192-ctr",
 		"aes256-ctr",
 	})
-	require.Equal(t, config.KEXAlgorithms, []string{
+	require.ElementsMatch(t, config.KEXAlgorithms, []string{
 		"curve25519-sha256",
 		"curve25519-sha256@libssh.org",
 		"ecdh-sha2-nistp256",
@@ -68,9 +69,11 @@ func TestDefaultConfig(t *testing.T) {
 		"ecdh-sha2-nistp521",
 		"diffie-hellman-group14-sha256",
 	})
-	require.Equal(t, config.MACAlgorithms, []string{
+	require.ElementsMatch(t, config.MACAlgorithms, []string{
 		"hmac-sha2-256-etm@openssh.com",
+		"hmac-sha2-512-etm@openssh.com",
 		"hmac-sha2-256",
+		"hmac-sha2-512",
 	})
 
 	// auth section

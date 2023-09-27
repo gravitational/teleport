@@ -16,7 +16,7 @@ limitations under the License.
 
 import { Store } from 'shared/libs/stores';
 
-import { NavGroup } from 'teleport/types';
+import { NavGroup, NavTitle } from 'teleport/types';
 
 export const defaultNavState = {
   sideNav: [] as NavItem[],
@@ -64,7 +64,7 @@ export default class StoreNav extends Store<typeof defaultNavState> {
 }
 
 export type NavItem = {
-  title: string;
+  title: NavTitle;
   Icon: any;
   exact?: boolean;
   getLink(clusterId?: string): string;

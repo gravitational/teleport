@@ -172,7 +172,7 @@ const Passwordless = ({
       >
         <Flex alignItems="center" justifyContent="space-between">
           <Flex alignItems="center">
-            <Key mr={3} fontSize={16} />
+            <Key mr={3} size="medium" />
             <Box>
               <Text typography="h6">Passwordless</Text>
               <Text
@@ -185,7 +185,7 @@ const Passwordless = ({
               </Text>
             </Box>
           </Flex>
-          <ArrowForward fontSize={16} />
+          <ArrowForward size="medium" />
         </Flex>
       </StyledPaswordlessBtn>
     </Box>

@@ -4,11 +4,7 @@ description: How to configure Teleport database access with MongoDB Atlas.
 videoBanner: mu_ZKTjnFJ8
 ---
 
-In this guide you will:
-
-1. Configure Teleport for accessing your MongoDB Atlas cluster.
-2. Configure MongoDB Atlas authentication.
-3. Connect to your Atlas cluster via Teleport.
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="MongoDB Atlas cluster" dbConfigure="MongoDB Atlas with mutual TLS authentication or AWS IAM" dbName="MongoDB Atlas" !)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access MongoDB Self-Hosted](../../../img/database-access/guides/mongodbatlas_selfhosted.png)
@@ -183,6 +179,8 @@ You can then use `/tmp/isrgrootx1.pem` as the value of the `db_service.databases
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
+(!docs/pages/includes/database-access/mongodb-required-database-access.mdx!)
+
 ## Step 3/4. Configure Atlas
 
 Teleport MongoDB Atlas integration supports two methods of authentication:
@@ -297,7 +295,7 @@ $ tsh db ls
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Cloud">
+<TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls

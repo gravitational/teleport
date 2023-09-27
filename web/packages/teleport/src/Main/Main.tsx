@@ -29,6 +29,8 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { matchPath, useHistory } from 'react-router';
 
+import Dialog from 'design/Dialog';
+
 import { Redirect, Route, Switch } from 'teleport/components/Router';
 import { CatchError } from 'teleport/components/CatchError';
 import cfg from 'teleport/config';
@@ -49,7 +51,7 @@ import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 
 import { NavigationCategory } from 'teleport/Navigation/categories';
 
-import { useLayout } from 'teleport/Main/LayoutContext';
+import { QuestionnaireProps } from 'teleport/Welcome/NewCredentials';
 
 import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
@@ -57,18 +59,17 @@ import { OnboardDiscover } from './OnboardDiscover';
 import type { BannerType } from 'teleport/components/BannerList/BannerList';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 
-interface MainProps {
+export interface MainProps {
   initialAlerts?: ClusterAlert[];
   customBanners?: ReactNode[];
   features: TeleportFeature[];
   billingBanners?: ReactNode[];
+  Questionnaire?: (props: QuestionnaireProps) => React.ReactElement;
 }
 
 export function Main(props: MainProps) {
   const ctx = useTeleport();
   const history = useHistory();
-
-  const { hasDockedElement } = useLayout();
 
   const { attempt, setAttempt, run } = useAttempt('processing');
 
@@ -91,6 +92,9 @@ export function Main(props: MainProps) {
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
 
   const [showOnboardDiscover, setShowOnboardDiscover] = useState(true);
+  const [showOnboardSurvey, setShowOnboardSurvey] = useState<boolean>(
+    !!props.Questionnaire
+  );
 
   if (attempt.status === 'failed') {
     return <Failed message={attempt.statusText} />;
@@ -162,7 +166,7 @@ export function Main(props: MainProps) {
         billingBanners={featureFlags.billing && props.billingBanners}
         onBannerDismiss={dismissAlert}
       >
-        <MainContainer hasDockedElement={hasDockedElement}>
+        <MainContainer>
           <Navigation />
           <HorizontalSplit>
             <ContentMinWidth>
@@ -176,6 +180,14 @@ export function Main(props: MainProps) {
       </BannerList>
       {requiresOnboarding && showOnboardDiscover && (
         <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
+      )}
+      {showOnboardSurvey && (
+        <Dialog open={showOnboardSurvey}>
+          <props.Questionnaire
+            onSubmit={() => setShowOnboardSurvey(false)}
+            onboard={false}
+          />
+        </Dialog>
       )}
     </FeaturesContextProvider>
   );

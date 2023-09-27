@@ -35,7 +35,9 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/pingconn"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	commonApp "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -161,6 +163,14 @@ func NewLocalProxy(cfg LocalProxyConfig, opts ...LocalProxyConfigOpt) (*LocalPro
 
 // Start starts the LocalProxy.
 func (l *LocalProxy) Start(ctx context.Context) error {
+	if l.cfg.HTTPMiddleware != nil {
+		return trace.Wrap(l.StartHTTPAccessProxy(ctx))
+	}
+	return trace.Wrap(l.start(ctx))
+}
+
+// start starts the LocalProxy for raw TCP or raw TLS (non-HTTP) connections.
+func (l *LocalProxy) start(ctx context.Context) error {
 	if l.cfg.Middleware != nil {
 		err := l.cfg.Middleware.OnStart(ctx, l)
 		if err != nil {
@@ -238,7 +248,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 func (l *LocalProxy) Close() error {
 	l.cancel()
 	if l.cfg.Listener != nil {
-		if err := l.cfg.Listener.Close(); err != nil {
+		if err := l.cfg.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
 			return trace.Wrap(err)
 		}
 	}
@@ -265,6 +275,9 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs []tls.Certificate) *httputil.Rev
 			outReq.URL.Host = l.cfg.RemoteProxyAddr
 		},
 		ModifyResponse: func(response *http.Response) error {
+			// Ask the client to close the connection to avoid re-use.
+			response.Header.Add("Connection", "close")
+
 			errHeader := response.Header.Get(commonApp.TeleportAPIErrorHeader)
 			if errHeader != "" {
 				// TODO: find a cleaner way of formatting the error.
@@ -305,27 +318,43 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 	l.cfg.Log.Info("Starting HTTP access proxy")
 	defer l.cfg.Log.Info("HTTP access proxy stopped")
 	defaultProxy := l.makeHTTPReverseProxy(l.getCerts())
-	err := http.Serve(l.cfg.Listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		if l.cfg.HTTPMiddleware.HandleRequest(rw, req) {
-			return
-		}
 
-		// Requests from forward proxy have original hostnames instead of
-		// localhost. Set appropriate header to keep this information.
-		if addr, err := utils.ParseAddr(req.Host); err == nil && !addr.IsLocal() {
-			req.Header.Set("X-Forwarded-Host", req.Host)
-		}
+	server := &http.Server{
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
+		Handler: http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if l.cfg.HTTPMiddleware.HandleRequest(rw, req) {
+				return
+			}
 
-		proxy, err := l.getHTTPReverseProxyForReq(req, defaultProxy)
-		if err != nil {
-			l.cfg.Log.Warnf("Failed to get reverse proxy: %v.", err)
-			trace.WriteError(rw, trace.Wrap(err))
-			return
-		}
+			// Requests from forward proxy have original hostnames instead of
+			// localhost. Set appropriate header to keep this information.
+			if addr, err := utils.ParseAddr(req.Host); err == nil && !addr.IsLocal() {
+				req.Header.Set("X-Forwarded-Host", req.Host)
+			}
 
-		proxy.ServeHTTP(rw, req)
-	}))
-	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
+			proxy, err := l.getHTTPReverseProxyForReq(req, defaultProxy)
+			if err != nil {
+				l.cfg.Log.Warnf("Failed to get reverse proxy: %v.", err)
+				trace.WriteError(rw, trace.Wrap(err))
+				return
+			}
+
+			proxy.ServeHTTP(rw, req)
+		}),
+	}
+
+	// Shut down the server when the context is done
+	go func() {
+		<-ctx.Done()
+		server.Shutdown(context.Background())
+	}()
+
+	// Use the custom server to listen and serve
+	err := server.Serve(l.cfg.Listener)
+	if err != nil && err != http.ErrServerClosed && !utils.IsUseOfClosedNetworkError(err) {
 		return trace.Wrap(err)
 	}
 	return nil

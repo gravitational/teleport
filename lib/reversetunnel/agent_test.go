@@ -150,17 +150,15 @@ func (m *mockAgentInjection) getVersion(context.Context) (string, error) {
 }
 
 func testAgent(t *testing.T) (*agent, *mockSSHClient) {
-	tracker, err := track.New(context.Background(), track.Config{
+	tracker, err := track.New(track.Config{
 		ClusterName: "test",
 	})
 	require.NoError(t, err)
 
 	addr := utils.NetAddr{Addr: "test-proxy-addr"}
 
-	tracker.Start()
-	t.Cleanup(tracker.StopAll)
-
-	lease := <-tracker.Acquire()
+	lease := tracker.TryAcquire()
+	require.NotNil(t, lease)
 
 	client := &mockSSHClient{
 		MockPrincipals:        []string{"default"},
@@ -237,7 +235,11 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 
 	callback := newCallback()
 	agent.stateCallback = callback.callback
-	agent.tracker.Claim(claimedProxy)
+
+	agent.tracker.TrackExpected(track.Proxy{Name: claimedProxy}, track.Proxy{Name: "other-proxy"})
+	lease := agent.tracker.TryAcquire()
+	require.NotNil(t, lease)
+	lease.Claim(claimedProxy)
 
 	client.MockPrincipals = []string{claimedProxy}
 
@@ -323,14 +325,9 @@ func TestAgentStart(t *testing.T) {
 	require.Equal(t, 2, callback.calls, "Unexpected number of state changes.")
 	require.Equal(t, AgentConnected, agent.GetState())
 
-	unclaimed := false
-	agent.unclaim = func() {
-		unclaimed = true
-	}
-
 	err = agent.Stop()
 	require.NoError(t, err)
-	require.True(t, unclaimed, "Expected unclaim to be called.")
+	require.True(t, agent.lease.IsReleased(), "Expected lease to be released.")
 
 	callback.waitForCount(t, 3)
 	require.Contains(t, callback.states, AgentClosed)

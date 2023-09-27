@@ -257,6 +257,7 @@ func TestRoleParse(t *testing.T) {
 								Kind:      types.KindKubePod,
 								Namespace: types.Wildcard,
 								Name:      types.Wildcard,
+								Verbs:     []string{types.Wildcard},
 							},
 						},
 					},
@@ -500,6 +501,7 @@ func TestRoleParse(t *testing.T) {
 								Kind:      types.KindKubePod,
 								Namespace: types.Wildcard,
 								Name:      types.Wildcard,
+								Verbs:     []string{types.Wildcard},
 							},
 						},
 						Namespaces: []string{"default"},
@@ -608,6 +610,7 @@ func TestRoleParse(t *testing.T) {
 								Kind:      types.KindKubePod,
 								Namespace: types.Wildcard,
 								Name:      types.Wildcard,
+								Verbs:     []string{types.Wildcard},
 							},
 						},
 						Rules: []types.Rule{
@@ -697,6 +700,7 @@ func TestRoleParse(t *testing.T) {
 								Kind:      types.KindKubePod,
 								Namespace: types.Wildcard,
 								Name:      types.Wildcard,
+								Verbs:     []string{types.Wildcard},
 							},
 						},
 						NodeLabels: types.Labels{
@@ -8093,7 +8097,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			// because unmatchedResources is not empty.
 			wantMatch:          boolsToSlice(true),
 			assertErr:          require.NoError,
-			unmatchedResources: []string{"default/nginx*"},
+			unmatchedResources: []string{"pod/default/nginx*"},
 		},
 		{
 			name: "user requests a valid subset of pods but distributed across two roles",
@@ -8132,7 +8136,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			},
 			wantMatch:          boolsToSlice(false, false),
 			assertErr:          require.NoError,
-			unmatchedResources: []string{"default/pod"},
+			unmatchedResources: []string{"pod/default/pod"},
 		},
 		{
 			name: "user requests a denied pod",
@@ -8166,7 +8170,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			},
 			wantMatch:          boolsToSlice(false),
 			assertErr:          require.Error,
-			unmatchedResources: []string{"default/restricted"},
+			unmatchedResources: []string{"pod/default/restricted"},
 		},
 	}
 	for _, tt := range tests {

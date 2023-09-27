@@ -21,7 +21,7 @@ import Menu, { MenuItem } from 'design/Menu';
 import { space } from 'design/system';
 
 import { ButtonBorder, Flex, Indicator } from 'design';
-import { CarrotDown } from 'design/Icon';
+import { ChevronDown } from 'design/Icon';
 
 import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
@@ -81,7 +81,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
           onClick={onOpen}
         >
           CONNECT
-          <CarrotDown ml={2} mr={-2} fontSize="2" color="text.slightlyMuted" />
+          <ChevronDown ml={1} mr={-2} size="small" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           anchorOrigin={anchorOrigin}

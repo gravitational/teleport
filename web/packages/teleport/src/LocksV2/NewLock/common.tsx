@@ -118,7 +118,7 @@ export const baseResourceKindOpts: LockResourceOption[] = [
     listKind: 'logins',
   },
   {
-    value: 'server_id',
+    value: 'node',
     label: 'Servers',
     listKind: 'server-side',
   },

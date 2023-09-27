@@ -7,8 +7,8 @@ tests:
     template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
-    elease:
-      isupgrade: true
+    release:
+      upgrade: true
     asserts:
       - isKind:
           of: StatefulSet
@@ -372,7 +372,7 @@ tests:
   - it: should not add emptyDir for data when using StatefulSet
     template: statefulset.yaml
     release:
-      isupgrade: true
+      upgrade: true
     set:
       unitTestUpgrade: true
     values:
@@ -408,7 +408,7 @@ tests:
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     release:
-      isupgrade: true
+      upgrade: true
     asserts:
       - isNotNull:
           path: spec.volumeClaimTemplates[0].spec
@@ -435,7 +435,7 @@ tests:
     values:
       - ../.lint/stateful.yaml
     release:
-      isupgrade: true
+      upgrade: true
     set:
       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
       # https://github.com/helm/helm/issues/8137
@@ -455,7 +455,7 @@ tests:
     values:
       - ../.lint/stateful.yaml
     release:
-      isupgrade: true
+      upgrade: true
     set:
       storage:
         requests: 256Mi
@@ -624,11 +624,11 @@ tests:
   - it: should generate Statefulset when storage is disabled and mode is a Upgrade
     template: statefulset.yaml
     release:
-      isupgrade: true
+      upgrade: true
     values:
       - ../.lint/stateful.yaml
     set:
-      unitTestUpgrade: false
+      unitTestUpgrade: true
       storage: 
         enabled: false
     asserts:

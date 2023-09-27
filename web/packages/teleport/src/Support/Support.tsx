@@ -63,7 +63,7 @@ export const Support = ({
       <Card px={5} pt={1} pb={6}>
         <Flex justifyContent="space-between" flexWrap="wrap">
           <Box>
-            <Header title="Support" icon={<Icons.LocalPlay />} />
+            <Header title="Support" icon={<Icons.Headset />} />
             {isEnterprise && !showPremiumSupportCTA && (
               <SupportLink
                 title="Create a Support Ticket"
@@ -89,7 +89,7 @@ export const Support = ({
             )}
           </Box>
           <Box>
-            <Header title="Resources" icon={<Icons.ListCheck />} />
+            <Header title="Resources" icon={<Icons.BookOpenText />} />
             <SupportLink title="Quickstart Guide" url={docs.quickstart} />
             <SupportLink title="tsh User Guide" url={docs.userManual} />
             <SupportLink title="Admin Guide" url={docs.adminGuide} />
@@ -228,10 +228,8 @@ export const DataItem = ({ title = '', data = null }) => (
 
 const Header = ({ title = '', icon = null }) => (
   <StyledHeader alignItems="center" mb={3} width={210} mt={4} pb={2}>
-    <Text pr={2} fontSize={18}>
-      {icon}
-    </Text>
-    <Text as="h5" caps>
+    {icon}
+    <Text as="h5" ml={2} caps>
       {title}
     </Text>
   </StyledHeader>

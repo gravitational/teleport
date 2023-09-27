@@ -285,7 +285,7 @@ func TestBot_Run_CARotation(t *testing.T) {
 
 	// Make and join a new bot instance.
 	botParams := testhelpers.MakeBot(t, client, "test", "access")
-	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams, nil)
+	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, nil)
 	b := New(botConfig, log)
 
 	wg.Add(1)

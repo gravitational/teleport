@@ -612,6 +612,34 @@
             "$id": "#/properties/probeTimeoutSeconds",
             "type": "integer",
             "default": 1
+        },
+        "kubernetesDiscovery": {
+            "$id": "#/properties/kubernetesDiscovery",
+            "type": "array",
+            "default": [],
+            "properties": {
+                "types": {
+                    "$id": "#/properties/kubernetesDiscovery/types",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": []
+                },
+                "namespaces": {
+                    "$id": "#/properties/kubernetesDiscovery/namespaces",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": []
+                },
+                "labels": {
+                    "$id": "#/properties/kubernetesDiscovery/labels",
+                    "type": "object"
+                },
+                "additionalProperties": false
+            }
         }
     }
 }

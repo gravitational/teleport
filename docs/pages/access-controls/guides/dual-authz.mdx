@@ -10,20 +10,19 @@ Here are the most common scenarios:
 - Improve the security of your system and prevent one successful phishing attack from compromising your system.
 - Satisfy FedRAMP AC-3 Dual authorization control that requires approval of two authorized individuals.
 
-In this guide, we will set up Teleport's Just-in-Time Access Requests to require the approval
-of two team members for a privileged role `dbadmin`.
+In this guide, we will set up Teleport's Just-in-Time Access Requests to require
+the approval of two team members for a privileged role `dbadmin`.
 
-<ScopedBlock scope="oss">
+The steps below describe how to use Teleport with Mattermost. You can also
+[integrate with many other providers](../access-requests.mdx).
 
-  This guide requires a commercial edition of Teleport. The open source
-  edition of Teleport only supports [GitHub](../../access-controls/sso/github-sso.mdx) as
-  an SSO provider.
+<Notice type="warning">
 
-</ScopedBlock>
+This guide requires a commercial edition of Teleport. The open source edition of
+Teleport only supports [GitHub](../../access-controls/sso/github-sso.mdx) as an
+SSO provider.
 
-<Admonition title="Note" type="tip">
-  The steps below describe how to use Teleport with Mattermost. You can also [integrate with many other providers](../access-requests.mdx).
-</Admonition>
+</Notice>
 
 ## Prerequisites
 
@@ -211,7 +210,7 @@ Bob can also assume granted Access Request roles using Web UI:
 
 {/* TODO: This H2 will show up in the table of contents when this section is invisible.
 We need a way to hide invisible H2s from the TOC. */}
-<ScopedBlock scope={["oss", "enterprise"]}>
+<ScopedBlock scope={["enterprise"]}>
 
 ## Troubleshooting
 

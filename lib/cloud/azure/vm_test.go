@@ -22,6 +22,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestGetVirtualMachine(t *testing.T) {
@@ -168,6 +170,11 @@ func TestListVirtualMachines(t *testing.T) {
 			name:          "nonexistant resource group",
 			resourceGroup: "rgfake",
 			wantIDs:       []string{},
+		},
+		{
+			name:          "all resource groups",
+			resourceGroup: types.Wildcard,
+			wantIDs:       []string{"vm1", "vm2", "vm3", "vm4"},
 		},
 	}
 

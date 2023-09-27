@@ -111,6 +111,8 @@ func TestLoadAllConfigs(t *testing.T) {
 }
 
 func TestTshConfigMerge(t *testing.T) {
+	t.Parallel()
+
 	sampleConfig := TshConfig{
 		ExtraHeaders: []ExtraProxyHeaders{{
 			Proxy: "foo",
@@ -254,6 +256,8 @@ func TestTshConfigMerge(t *testing.T) {
 
 // TestProxyTemplatesApply verifies proxy templates matching functionality.
 func TestProxyTemplatesApply(t *testing.T) {
+	t.Parallel()
+
 	tshConfig := TshConfig{
 		ProxyTemplates: ProxyTemplates{
 			{
@@ -331,6 +335,8 @@ func TestProxyTemplatesApply(t *testing.T) {
 
 // TestProxyTemplates verifies proxy templates apply properly to client config.
 func TestProxyTemplatesMakeClient(t *testing.T) {
+	t.Parallel()
+
 	tshConfig := TshConfig{
 		ProxyTemplates: ProxyTemplates{
 			{

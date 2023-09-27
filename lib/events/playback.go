@@ -124,8 +124,8 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 	}
 }
 
-// WriteForSSHPlayback reads events from an AuditReader and writes them to disk in a format optimized for playback.
-func WriteForSSHPlayback(ctx context.Context, sid session.ID, reader AuditReader, dir string) (*SSHPlaybackWriter, error) {
+// WriteForSSHPlayback reads events from an SessionReader and writes them to disk in a format optimized for playback.
+func WriteForSSHPlayback(ctx context.Context, sid session.ID, reader SessionReader, dir string) (*SSHPlaybackWriter, error) {
 	w := &SSHPlaybackWriter{
 		sid:        sid,
 		reader:     reader,
@@ -143,7 +143,7 @@ func WriteForSSHPlayback(ctx context.Context, sid session.ID, reader AuditReader
 // SessionEvents returns slice of event fields from gzipped events file.
 func (w *SSHPlaybackWriter) SessionEvents() ([]EventFields, error) {
 	var sessionEvents []EventFields
-	//events
+	// events
 	eventFile, err := os.Open(w.EventsPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -196,12 +196,12 @@ func (w *SSHPlaybackWriter) SessionChunks() ([]byte, error) {
 	return stream, nil
 }
 
-// SSHPlaybackWriter reads messages from an AuditReader and writes them
+// SSHPlaybackWriter reads messages from an SessionReader and writes them
 // to disk in a format suitable for SSH session playback.
 type SSHPlaybackWriter struct {
 	sid        session.ID
 	dir        string
-	reader     AuditReader
+	reader     SessionReader
 	indexFile  *os.File
 	eventsFile *gzipWriter
 	chunksFile *gzipWriter
@@ -242,7 +242,7 @@ func (w *SSHPlaybackWriter) Close() error {
 	return nil
 }
 
-// Write writes all events from the AuditReader and writes
+// Write writes all events from the SessionReader and writes
 // files to disk in the format optimized for playback.
 func (w *SSHPlaybackWriter) Write(ctx context.Context) error {
 	if err := w.openIndexFile(); err != nil {
@@ -340,7 +340,7 @@ func (w *SSHPlaybackWriter) openIndexFile() error {
 	}
 	var err error
 	w.indexFile, err = os.OpenFile(
-		filepath.Join(w.dir, fmt.Sprintf("%v.index", w.sid.String())), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+		filepath.Join(w.dir, fmt.Sprintf("%v.index", w.sid.String())), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o640)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -369,7 +369,7 @@ func (w *SSHPlaybackWriter) openEventsFile(eventIndex int64) error {
 	}
 
 	// open new events file for writing
-	file, err := os.OpenFile(w.EventsPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	file, err := os.OpenFile(w.EventsPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o640)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -401,7 +401,7 @@ func (w *SSHPlaybackWriter) openChunksFile(offset int64) error {
 
 	// open the chunks file for writing, but because the file is written without
 	// compression, remove the .gz
-	file, err := os.OpenFile(w.ChunksPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	file, err := os.OpenFile(w.ChunksPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o640)
 	if err != nil {
 		return trace.Wrap(err)
 	}

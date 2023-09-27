@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type * as tsh from './types';
+import * as tsh from './types';
 
 export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
   uri: '/clusters/teleport-local/servers/178ef081-259b-4aa5-a018-449b5ea7e694',
@@ -27,6 +27,7 @@ export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
 });
 
 export const databaseUri = '/clusters/teleport-local/dbs/foo';
+export const kubeUri = '/clusters/teleport-local/kubes/foo';
 
 export const makeDatabase = (
   props: Partial<tsh.Database> = {}
@@ -61,20 +62,28 @@ export const makeRootCluster = (
   leaf: false,
   proxyHost: 'teleport-local:3080',
   authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-  loggedInUser: {
-    activeRequestsList: [],
-    assumedRequests: {},
-    name: 'admin',
-    acl: {},
-    sshLoginsList: [],
-    rolesList: [],
-    requestableRolesList: [],
-    suggestedReviewersList: [],
-  },
+  loggedInUser: makeLoggedInUser(),
   ...props,
 });
 
-export const makeGateway = (props: Partial<tsh.Gateway> = {}): tsh.Gateway => ({
+export const makeLoggedInUser = (
+  props: Partial<tsh.LoggedInUser> = {}
+): tsh.LoggedInUser => ({
+  activeRequestsList: [],
+  assumedRequests: {},
+  name: 'alice',
+  acl: {},
+  sshLoginsList: [],
+  rolesList: [],
+  requestableRolesList: [],
+  suggestedReviewersList: [],
+  userType: tsh.UserType.USER_TYPE_LOCAL,
+  ...props,
+});
+
+export const makeDatabaseGateway = (
+  props: Partial<tsh.Gateway> = {}
+): tsh.Gateway => ({
   uri: '/gateways/foo',
   targetName: 'sales-production',
   targetUri: databaseUri,
@@ -89,5 +98,25 @@ export const makeGateway = (props: Partial<tsh.Gateway> = {}): tsh.Gateway => ({
     preview: 'psql localhost:1337',
   },
   targetSubresourceName: 'bar',
+  ...props,
+});
+
+export const makeKubeGateway = (
+  props: Partial<tsh.Gateway> = {}
+): tsh.Gateway => ({
+  uri: '/gateways/foo',
+  targetName: 'foo',
+  targetUri: kubeUri,
+  targetUser: '',
+  localAddress: 'localhost',
+  localPort: '1337',
+  protocol: '',
+  gatewayCliCommand: {
+    path: '/bin/kubectl',
+    argsList: ['version'],
+    envList: ['KUBECONFIG=/path/to/kubeconfig'],
+    preview: 'KUBECONFIG=/path/to/kubeconfig /bin/kubectl version',
+  },
+  targetSubresourceName: '',
   ...props,
 });

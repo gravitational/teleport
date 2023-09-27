@@ -14,17 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { DeprecatedThemeOption } from 'design/theme/types';
+
 import { BearerToken } from 'teleport/services/websession';
 import { OnboardDiscover } from 'teleport/services/user';
 
-import { KeysEnum } from './types';
+import {
+  OnboardUserPreferences,
+  ThemePreference,
+  UserPreferences,
+} from 'teleport/services/userPreferences/types';
 
-import type { ThemeOption } from 'design/theme';
+import { KeysEnum, LocalStorageSurvey } from './types';
+
+import type { RecommendFeature } from 'teleport/types';
 
 // This is an array of local storage `KeysEnum` that are kept when a user logs out
 const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.THEME,
   KeysEnum.SHOW_ASSIST_POPUP,
+  KeysEnum.USER_PREFERENCES,
+  KeysEnum.RECOMMEND_FEATURE,
 ];
 
 const storage = {
@@ -92,25 +102,96 @@ const storage = {
     return null;
   },
 
-  setThemeOption(theme: ThemeOption) {
-    window.localStorage.setItem(KeysEnum.THEME, theme);
-    // This is to trigger the event listener in the current tab
+  getUserPreferences(): UserPreferences {
+    const preferences = window.localStorage.getItem(KeysEnum.USER_PREFERENCES);
+    if (preferences) {
+      return JSON.parse(preferences);
+    }
+    return null;
+  },
+
+  setUserPreferences(preferences: UserPreferences) {
+    const json = JSON.stringify(preferences);
+
+    window.localStorage.setItem(KeysEnum.USER_PREFERENCES, json);
+
     window.dispatchEvent(
       new StorageEvent('storage', {
-        key: KeysEnum.THEME,
-        newValue: theme,
+        key: KeysEnum.USER_PREFERENCES,
+        newValue: json,
       })
     );
   },
 
-  getThemeOption(): ThemeOption {
-    const theme = window.localStorage.getItem(KeysEnum.THEME) as ThemeOption;
-    return theme || 'light';
+  getOnboardSurvey(): LocalStorageSurvey {
+    const survey = window.localStorage.getItem(KeysEnum.ONBOARD_SURVEY);
+    if (survey) {
+      return JSON.parse(survey);
+    }
+    return null;
+  },
+
+  setOnboardSurvey(survey: LocalStorageSurvey) {
+    const json = JSON.stringify(survey);
+
+    window.localStorage.setItem(KeysEnum.ONBOARD_SURVEY, json);
+  },
+
+  clearOnboardSurvey() {
+    window.localStorage.removeItem(KeysEnum.ONBOARD_SURVEY);
+  },
+
+  getThemePreference(): ThemePreference {
+    const userPreferences = storage.getUserPreferences();
+    if (userPreferences) {
+      return userPreferences.theme;
+    }
+
+    const theme = this.getDeprecatedThemePreference();
+    if (theme) {
+      return theme === 'light' ? ThemePreference.Light : ThemePreference.Dark;
+    }
+
+    return ThemePreference.Light;
+  },
+
+  getOnboardUserPreference(): OnboardUserPreferences {
+    const userPreferences = storage.getUserPreferences();
+    if (userPreferences) {
+      return userPreferences.onboard;
+    }
+
+    return { preferredResources: [] };
+  },
+
+  // DELETE IN 15 (ryan)
+  getDeprecatedThemePreference(): DeprecatedThemeOption {
+    return window.localStorage.getItem(KeysEnum.THEME) as DeprecatedThemeOption;
+  },
+
+  // TODO(ryan): remove in v15
+  clearDeprecatedThemePreference() {
+    window.localStorage.removeItem(KeysEnum.THEME);
   },
 
   broadcast(messageType, messageBody) {
     window.localStorage.setItem(messageType, messageBody);
     window.localStorage.removeItem(messageType);
+  },
+
+  // setRecommendFeature persists states used to determine if
+  // given feature needs to be recommended to the user.
+  // Currently, it only shows a red dot in the side navigation menu.
+  setRecommendFeature(d: RecommendFeature) {
+    window.localStorage.setItem(KeysEnum.RECOMMEND_FEATURE, JSON.stringify(d));
+  },
+
+  getFeatureRecommendationStatus(): RecommendFeature {
+    const item = window.localStorage.getItem(KeysEnum.RECOMMEND_FEATURE);
+    if (item) {
+      return JSON.parse(item);
+    }
+    return null;
   },
 };
 

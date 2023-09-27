@@ -193,13 +193,14 @@ func TestEmitsRecordingEventsOnSend(t *testing.T) {
 			Clock: clock,
 		},
 	}
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
+	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	// a fake PNG Frame message
 	encoded := []byte{byte(tdp.TypePNGFrame), 0x01, 0x02}
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPSendHandler(context.Background(), emitter, delay,
+	handler := s.makeTDPSendHandler(context.Background(), emitterPreparer, delay,
 		nil, "session-1", "windows.example.com", &tdp.Conn{})
 
 	// the handler accepts both the message structure and its encoded form,
@@ -222,7 +223,8 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 			Log:   &logrus.Logger{Out: io.Discard},
 		},
 	}
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
+	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	// a fake PNG Frame message, which is way too big to be legitimate
 	maliciousPNG := make([]byte, libevents.MaxProtoMessageSizeBytes+1)
@@ -230,7 +232,7 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 	maliciousPNG[0] = byte(tdp.TypePNGFrame)
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPSendHandler(context.Background(), emitter, delay,
+	handler := s.makeTDPSendHandler(context.Background(), emitterPreparer, delay,
 		nil, "session-1", "windows.example.com", &tdp.Conn{})
 
 	// the handler accepts both the message structure and its encoded form,
@@ -248,10 +250,11 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 			Clock: clock,
 		},
 	}
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
+	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPReceiveHandler(context.Background(), emitter, delay,
+	handler := s.makeTDPReceiveHandler(context.Background(), emitterPreparer, delay,
 		nil, "session-1", "windows.example.com", &tdp.Conn{})
 
 	msg := tdp.MouseButton{
@@ -271,8 +274,9 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 
 func TestEmitsClipboardSendEvents(t *testing.T) {
 	s, id, emitter := setup()
+	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 	handler := s.makeTDPReceiveHandler(context.Background(),
-		emitter, func() int64 { return 0 },
+		emitterPreparer, func() int64 { return 0 },
 		id, "session-0", "windows.example.com", &tdp.Conn{})
 
 	fakeClipboardData := make([]byte, 1024)
@@ -295,8 +299,9 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 
 func TestEmitsClipboardReceiveEvents(t *testing.T) {
 	s, id, emitter := setup()
+	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 	handler := s.makeTDPSendHandler(context.Background(),
-		emitter, func() int64 { return 0 },
+		emitterPreparer, func() int64 { return 0 },
 		id, "session-0", "windows.example.com", &tdp.Conn{})
 
 	fakeClipboardData := make([]byte, 512)
@@ -324,6 +329,7 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 // and properly cleaned up upon session end.
 func TestAuditCacheLifecycle(t *testing.T) {
 	s, id, emitter := setup()
+	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 	sid := "session-0"
 	desktopAddr := "windows.example.com"
 	testDirName := "test-dir"
@@ -333,10 +339,10 @@ func TestAuditCacheLifecycle(t *testing.T) {
 	var offset uint64 = 500
 	var length uint32 = 1000
 	recvHandler := s.makeTDPReceiveHandler(context.Background(),
-		emitter, func() int64 { return 0 },
+		emitterPreparer, func() int64 { return 0 },
 		id, sid, desktopAddr, &tdp.Conn{})
 	sendHandler := s.makeTDPSendHandler(context.Background(),
-		emitter, func() int64 { return 0 },
+		emitterPreparer, func() int64 { return 0 },
 		id, sid, desktopAddr, &tdp.Conn{})
 
 	// SharedDirectoryAnnounce initializes the nameCache.
@@ -425,7 +431,7 @@ func TestAuditCacheLifecycle(t *testing.T) {
 	// Simulate a session end event, which should clean up the cache for sessionID(sid) entirely.
 	s.onSessionEnd(
 		context.Background(),
-		s.cfg.Emitter,
+		emitterPreparer,
 		id,
 		s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 		true,

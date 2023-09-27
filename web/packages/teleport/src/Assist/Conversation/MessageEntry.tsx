@@ -17,25 +17,33 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-
 import { markdownCSS } from 'teleport/Assist/markdown';
+import { Markdown } from 'teleport/Assist/Conversation/Markdown';
 
 interface MessageEntryProps {
   content: string;
+  markdown: boolean;
 }
 
 const Container = styled.div`
   padding: 10px 15px 0 17px;
+  word-break: break-word;
 
   ${markdownCSS}
 `;
 
 export function MessageEntry(props: MessageEntryProps) {
+  if (!props.markdown) {
+    return (
+      <Container>
+        <p>{props.content}</p>
+      </Container>
+    );
+  }
+
   return (
     <Container>
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{props.content}</ReactMarkdown>
+      <Markdown content={props.content} />
     </Container>
   );
 }

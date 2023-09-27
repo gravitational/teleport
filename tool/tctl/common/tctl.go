@@ -23,6 +23,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -199,8 +200,9 @@ func TryRun(commands []CLICommand, args []string) error {
 		if utils.IsUntrustedCertErr(err) {
 			err = trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
 		}
-		log.Errorf("Cannot connect to the auth server. Is the auth server running on %q? %v",
-			cfg.AuthServerAddresses()[0].Addr, err)
+		fmt.Fprintf(os.Stderr,
+			"ERROR: Cannot connect to the auth server. Is the auth server running on %q?\n",
+			cfg.AuthServerAddresses()[0].Addr)
 		return trace.NewAggregate(&common.ExitCodeError{Code: 1}, err)
 	}
 
@@ -219,7 +221,7 @@ func TryRun(commands []CLICommand, args []string) error {
 	ctx, cancel := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
 	defer cancel()
 	if err := common.ShowClusterAlerts(ctx, client, os.Stderr, nil,
-		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+		types.AlertSeverity_HIGH); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
@@ -289,6 +291,12 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 		}
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
+		} else if runtime.GOOS == constants.WindowsOS {
+			// On macOS/Linux, a not found error here is okay, as we can attempt
+			// to use the local auth identity. The auth server itself doesn't run
+			// on Windows though, so exit early with a clear error.
+			return nil, trace.BadParameter("tctl requires a tsh profile on Windows. " +
+				"Try logging in with tsh first.")
 		}
 	}
 

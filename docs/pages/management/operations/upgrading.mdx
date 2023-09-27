@@ -3,8 +3,7 @@ title: Upgrading a Teleport Cluster
 description: This guide shows you the correct order in which to upgrade Teleport components when rolling out a new Teleport release in your cluster.
 ---
 
-In this guide, we will show you how to upgrade all of the components in your
-Teleport cluster.
+This guide demonstrates how to upgrade all of the components in your Teleport cluster.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
@@ -28,13 +27,14 @@ title="Auth Service and Proxy Service versions">
 
 In Teleport Cloud, we manage the Auth and Proxy Services for you. You can
 determine the current version of these services by running the following
-command, where `mytenant` is the name of your Teleport Cloud tenant:
+command, where `mytenant` is the name of your Teleport Team or Teleport 
+Enterprise Cloud tenant:
 
 ```code
 $ curl -s https://mytenant.teleport.sh/webapi/ping | jq '.server_version'
 ```
 
-Read the following rules to ensure that your Teleport resource services (e.g.,
+Read the following rules to ensure that your Teleport resource services (for example,
 the SSH Service and Database Service) are compatible with the Teleport Auth and
 Proxy Services. You should check the version of the Auth and Proxy Services
 regularly to make sure that your Teleport resource services are compatible.
@@ -47,28 +47,30 @@ regularly to make sure that your Teleport resource services are compatible.
 
 Back up before upgrading. We have more instructions in [Backing up Teleport](./backup-restore.mdx).
 
-## Upgrade Sequence
+## Upgrade sequence
 
 <Tabs>
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
+
+Teleport requires upgrading the Teleport Cluster from one major version to another in sequence.
+If you are currently on version 11.x, you must upgrade to the latest version 12.x before
+going to version 13.x. To upgrade in sequence, upgrade the Teleport cluster and confirm
+a healthy start before continuing to the next version.
+
 When upgrading a single Teleport cluster:
 
-<Notice type="tip">
-Teleport requires upgrading the Teleport Cluster from one major version to another in sequence.
-That means if you are currently on version 8.X you must upgrade to the latest version 9 before
-going to version 10. To upgrade in sequence repeat upgrading the Teleport Cluster, confirming
-a healthy start before continuing to the next version.
-</Notice>
-
-1. **Upgrade the Auth Service first to the next Major version**. The Auth Service keeps the cluster state
-   and, if there are data format changes introduced in the new version, will
-   perform necessary migrations.  Confirm the start of the Auth Service and a healthy state.
-2. Upgrade Proxy Service instances to the same version number. These are stateless and can be upgraded in
-   any sequence or at the same time.
-3. Finally, upgrade your Teleport resource services in any sequence or at the
-   same time to the same version number.
-4. If you are upgrading more then one version number then repeat Step 1 to 3 until you have reached your target
-   major version.
+- Upgrade the **Auth Service** to the next **major version first**. 
+   The Auth Service keeps the cluster state. If there are data format 
+   changes introduced in the new version, the Auth Service performs the necessary migrations.  
+   After the upgrade, start the Auth Service and CONFIRM that it's in a healthy state before
+   continuing.
+- Upgrade Proxy Service instances to the same version number as the Auth Service. 
+   Proxy Service instances are stateless and can be upgraded in any sequence or at the same time.
+- Upgrade your Teleport resource services to the same version number as the Auth Service.
+   You can upgrade resource agents in any sequence or at the same time.
+   
+If you are upgrading more then one version number, repeat these steps until 
+you reach your target major version number.
 
 <Admonition
   type="warning"
@@ -85,11 +87,12 @@ precaution. This allows for a safe rollback in case the migration itself fails.
 
 When upgrading multiple clusters:
 
-1. First, upgrade the root cluster, i.e. the one that other clusters trust.
-2. Upgrade the Trusted Clusters.
+- Upgrade the root cluster—that is, the cluster that other clusters trust—first.
+- Verify the upgrade was successful.
+- Upgrade the Trusted Clusters.
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
 
 The Teleport Auth Service and Proxy Service are upgraded automatically. When
 upgrading resource services, you may upgrade in any sequence or at the same
@@ -97,8 +100,9 @@ time.
 
 When upgrading multiple clusters:
 
-1. First, upgrade the root cluster, i.e. the one that other clusters trust.
-2. Upgrade the Trusted Clusters.
+- Upgrade the root cluster—that is, the cluster that other clusters trust—first.
+- Verify the upgrade was successful.
+- Upgrade the Trusted Clusters.
 
 </TabItem>
 </Tabs>

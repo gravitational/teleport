@@ -35,11 +35,26 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/services \
     FuzzParseRefs fuzz_parse_refs
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/cassandra/protocol \
+    FuzzReadPacket fuzz_cassandra_read_packet
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/elasticsearch \
+    FuzzGetQueryFromRequestBody fuzz_elasticsearch_query_from_request_body
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/elasticsearch \
+    FuzzPathToMatcher fuzz_elasticsearch_path_to_matcher
+
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/redis \
     FuzzParseRedisAddress fuzz_parse_redis_address
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/sshutils/sftp \
+    FuzzParseDestination fuzz_sshutil_parse_destination
+
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/sshutils/x11 \
     FuzzParseDisplay fuzz_parse_display
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/sshutils/x11 \
+    FuzzReadAndRewriteXAuthPacket fuzz_read_xauth_packet
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/utils/aws \
     FuzzParseSigV4 fuzz_parse_sig_v4
@@ -83,9 +98,8 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/sqlserver/protocol \
     FuzzMSSQLLogin fuzz_mssql_login
 
-# Disabled until we can update the mongoDB driver
-#  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/mongodb/protocol \
-#   FuzzMongoRead fuzz_mongo_read
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/sqlserver/protocol \
+    FuzzMSSQLRPCClientPartialLength fuzz_mssql_rpc_client_partial_length
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/opensearch \
     FuzzPathToMatcher fuzz_opensearch_path_to_matcher

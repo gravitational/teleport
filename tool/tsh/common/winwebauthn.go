@@ -58,7 +58,12 @@ func (w *webauthnwinDiagCommand) run(cf *CLIConf) error {
 	if !diag.IsAvailable {
 		return nil
 	}
-	resp, err := webauthnwin.Diag(cf.Context, os.Stdout)
+
+	promptBefore := webauthnwin.PromptWriter
+	defer func() { webauthnwin.PromptWriter = promptBefore }()
+	webauthnwin.PromptWriter = os.Stderr
+
+	resp, err := webauthnwin.Diag(cf.Context)
 	// Abort if we got a nil diagnostic, otherwise print as much as we can.
 	if resp == nil {
 		return trace.Wrap(err)

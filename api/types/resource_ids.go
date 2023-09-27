@@ -52,13 +52,17 @@ func (id *ResourceID) validateK8sSubResource() error {
 	if id.SubResourceName == "" {
 		return trace.BadParameter("resource of kind %q must include a subresource name", id.Kind)
 	}
-
+	isResourceNamespaceScoped := slices.Contains(KubernetesClusterWideResourceKinds, id.Kind)
 	switch split := strings.Split(id.SubResourceName, "/"); {
-	case len(split) != 2:
+	case isResourceNamespaceScoped && len(split) != 1:
+		return trace.BadParameter("subresource %q must follow the following format: <name>", id.SubResourceName)
+	case isResourceNamespaceScoped && split[0] == "":
+		return trace.BadParameter("subresource %q must include a non-empty name: <name>", id.SubResourceName)
+	case !isResourceNamespaceScoped && len(split) != 2:
 		return trace.BadParameter("subresource %q must follow the following format: <namespace>/<name>", id.SubResourceName)
-	case split[0] == "":
+	case !isResourceNamespaceScoped && split[0] == "":
 		return trace.BadParameter("subresource %q must include a non-empty namespace: <namespace>/<name>", id.SubResourceName)
-	case split[1] == "":
+	case !isResourceNamespaceScoped && split[1] == "":
 		return trace.BadParameter("subresource %q must include a non-empty name: <namespace>/<name>", id.SubResourceName)
 	}
 
@@ -93,6 +97,7 @@ func ResourceIDFromString(raw string) (ResourceID, error) {
 	}
 	switch {
 	case slices.Contains(KubernetesResourcesKinds, resourceID.Kind):
+		isResourceNamespaceScoped := slices.Contains(KubernetesClusterWideResourceKinds, resourceID.Kind)
 		// Kubernetes forbids slashes "/" in Namespaces and Pod names, so it's safe to
 		// explode the resourceID.Name and extract the last two entries as namespace
 		// and name.
@@ -102,13 +107,30 @@ func ResourceIDFromString(raw string) (ResourceID, error) {
 		// will fail because, for kind=pod, it's mandatory to present a non-empty
 		// namespace and name.
 		splits := strings.Split(resourceID.Name, "/")
-		if len(splits) >= 3 {
+		if !isResourceNamespaceScoped && len(splits) >= 3 {
 			resourceID.Name = strings.Join(splits[:len(splits)-2], "/")
 			resourceID.SubResourceName = strings.Join(splits[len(splits)-2:], "/")
+		} else if isResourceNamespaceScoped && len(splits) >= 2 {
+			resourceID.Name = strings.Join(splits[:len(splits)-1], "/")
+			resourceID.SubResourceName = strings.Join(splits[len(splits)-1:], "/")
 		}
 	}
 
 	return resourceID, trace.Wrap(resourceID.CheckAndSetDefaults())
+}
+
+// ResourceIDsFromStrings parses a list of ResourceIDs from a list of strings.
+// Each string should have been obtained from ResourceIDToString.
+func ResourceIDsFromStrings(resourceIDStrs []string) ([]ResourceID, error) {
+	resourceIDs := make([]ResourceID, len(resourceIDStrs))
+	var err error
+	for i, resourceIDStr := range resourceIDStrs {
+		resourceIDs[i], err = ResourceIDFromString(resourceIDStr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return resourceIDs, nil
 }
 
 // ResourceIDsToString marshals a list of ResourceIDs to a string.
@@ -130,8 +152,8 @@ func ResourceIDsToString(ids []ResourceID) (string, error) {
 	return string(bytes), nil
 }
 
-// ResourceIDsFromString parses a list for resource IDs from a string. The string
-// should have been obtained from ResourceIDsToString.
+// ResourceIDsFromString parses a list of resource IDs from a single string.
+// The string should have been obtained from ResourceIDsToString.
 func ResourceIDsFromString(raw string) ([]ResourceID, error) {
 	if raw == "" {
 		return nil, nil

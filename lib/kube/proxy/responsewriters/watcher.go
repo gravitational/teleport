@@ -235,7 +235,7 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 			if filter != nil {
 				// check if the event object matches the filtering criteria.
 				// If it does not match, ignore the event.
-				publish, err := filter.FilterObj(obj)
+				publish, _, err := filter.FilterObj(obj)
 				if err != nil {
 					return trace.Wrap(err)
 				}

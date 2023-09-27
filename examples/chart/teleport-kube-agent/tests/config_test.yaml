@@ -289,3 +289,13 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot: {}
+
+  - it: matches snapshot when app discovery is enabled
+    values:
+      - ../.lint/app-discovery.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}

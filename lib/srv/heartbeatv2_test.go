@@ -52,7 +52,7 @@ type fakeHeartbeatDriver struct {
 	disableFallback bool
 }
 
-func (h *fakeHeartbeatDriver) Poll() (changed bool) {
+func (h *fakeHeartbeatDriver) Poll(ctx context.Context) (changed bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.pollCount++

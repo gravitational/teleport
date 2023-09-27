@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -115,12 +116,12 @@ type ClusterAlertGetter interface {
 	GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
 }
 
-// ShowClusterAlerts shows cluster alerts with the given labels and severity.
-func ShowClusterAlerts(ctx context.Context, client ClusterAlertGetter, w io.Writer, labels map[string]string, minSeverity, maxSeverity types.AlertSeverity) error {
+// ShowClusterAlerts shows cluster alerts matching the given labels and minimum severity.
+func ShowClusterAlerts(ctx context.Context, client ClusterAlertGetter, w io.Writer, labels map[string]string, severity types.AlertSeverity) error {
 	// get any "on login" alerts
 	alerts, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 		Labels:   labels,
-		Severity: minSeverity,
+		Severity: severity,
 	})
 	if err != nil && !trace.IsNotImplemented(err) {
 		return trace.Wrap(err)
@@ -133,9 +134,56 @@ func ShowClusterAlerts(ctx context.Context, client ClusterAlertGetter, w io.Writ
 			errs = append(errs, trace.Errorf("invalid alert %q: %w", alert.Metadata.Name, err))
 			continue
 		}
-		if alert.Spec.Severity <= maxSeverity {
-			fmt.Fprintf(w, "%s\n\n", utils.FormatAlert(alert))
-		}
+		fmt.Fprintf(w, "%s\n\n", utils.FormatAlert(alert))
 	}
 	return trace.NewAggregate(errs...)
+}
+
+// FormatLabels filters out Teleport namespaced (teleport.[dev|hidden|internal])
+// labels in non-verbose mode, groups the labels by namespace, sorts each
+// group, then re-combines the groups and returns the result as a comma
+// separated string.
+func FormatLabels(labels map[string]string, verbose bool) string {
+	var (
+		teleportNamespaced []string
+		namespaced         []string
+		result             []string
+	)
+	for key, val := range labels {
+		if strings.HasPrefix(key, types.TeleportNamespace+"/") ||
+			strings.HasPrefix(key, types.TeleportHiddenLabelPrefix) ||
+			strings.HasPrefix(key, types.TeleportInternalLabelPrefix) {
+			// remove teleport.[dev|hidden|internal] labels in non-verbose mode.
+			if verbose {
+				teleportNamespaced = append(teleportNamespaced, fmt.Sprintf("%s=%s", key, val))
+			}
+			continue
+		}
+		if strings.Contains(key, "/") {
+			namespaced = append(namespaced, fmt.Sprintf("%s=%s", key, val))
+			continue
+		}
+		result = append(result, fmt.Sprintf("%s=%s", key, val))
+	}
+	sort.Strings(result)
+	sort.Strings(namespaced)
+	sort.Strings(teleportNamespaced)
+	namespaced = append(namespaced, teleportNamespaced...)
+	return strings.Join(append(result, namespaced...), ",")
+}
+
+// FormatResourceName returns the resource's name or its name as originally
+// discovered in the cloud by the Teleport Discovery Service.
+// In verbose mode, it always returns the resource name.
+// In non-verbose mode, if the resource came from discovery and has the
+// discovered name label, it returns the discovered name.
+func FormatResourceName(r types.ResourceWithLabels, verbose bool) string {
+	if !verbose {
+		// return the (shorter) discovered name in non-verbose mode.
+		discoveredName, ok := r.GetAllLabels()[types.DiscoveredNameLabel]
+		if ok && discoveredName != "" {
+			return discoveredName
+		}
+	}
+	return r.GetName()
 }

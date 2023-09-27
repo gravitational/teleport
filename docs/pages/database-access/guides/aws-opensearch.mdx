@@ -3,15 +3,7 @@ title: Database Access with AWS OpenSearch
 description: How to access AWS OpenSearch with Teleport database access
 ---
 
-Access to AWS OpenSearch can be provided by [Teleport Database
-Access](../introduction.mdx). This allows for
-fine-grain access control through [Teleport's RBAC](../../database-access/rbac.mdx).
-
-This guide will help you to:
-
-- Install the Teleport Database Service.
-- Set up the Teleport Database Service to access AWS OpenSearch Service via REST API.
-- Connect to your AWS OpenSearch Service through the Teleport Database Service.
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS OpenSearch" dbConfigure="AWS OpenSearch Service via REST API with IAM Authentication" dbName="AWS OpenSearch" !)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![OpenSearch Self-Hosted](../../../img/database-access/guides/aws-opensearch/opensearch_selfhosted.png)
@@ -64,7 +56,7 @@ does not require any permissions. In this guide, we will use the example name
 `TeleportDatabaseService` for this role. Once you have chosen a name, click
 **Create Role** to complete the process.
 
-### OpenSearch Mange Cluster access role
+### OpenSearch Service cluster access role
 
 Navigate back to the Roles page and create a new role. Select the "AWS account"
 option, which creates a default trust policy to allow other entities in this
@@ -177,8 +169,8 @@ Teleport:
 
 - [Configure Teleport to Automatically Enroll EC2 instances (Preview)](../../server-access/guides/ec2-discovery.mdx)
 - [Joining Nodes via AWS IAM
-  Role](../../management/join-services-to-your-cluster/aws-iam.mdx)
-- [Joining Nodes via AWS EC2 Identity Document](../../management/join-services-to-your-cluster/aws-ec2.mdx)
+  Role](../../agents/join-services-to-your-cluster/aws-iam.mdx)
+- [Joining Nodes via AWS EC2 Identity Document](../../agents/join-services-to-your-cluster/aws-ec2.mdx)
 
 </Details>
 
