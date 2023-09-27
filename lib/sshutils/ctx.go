@@ -135,10 +135,11 @@ func (c *ConnectionContext) StartAgentChannel() (teleagent.Agent, error) {
 		return nil, trace.AccessDenied("agent forwarding required in proxy recording mode")
 	}
 	// open a agent channel to client
-	ch, _, err := c.ServerConn.OpenChannel(AuthAgentRequest, nil)
+	ch, reqC, err := c.ServerConn.OpenChannel(AuthAgentRequest, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	go ssh.DiscardRequests(reqC)
 	return &agentChannel{
 		ExtendedAgent: agent.NewClient(ch),
 		ch:            ch,

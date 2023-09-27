@@ -251,3 +251,19 @@ var sshCertTypeRegex = regexp.MustCompile(`^[a-z0-9\-]+-cert-v[0-9]{2}@openssh\.
 func IsSSHCertType(val string) bool {
 	return sshCertTypeRegex.MatchString(val)
 }
+
+// ChannelReadWriter represents the data streams of an ssh.Channel-like object.
+type ChannelReadWriter interface {
+	io.ReadWriter
+	Stderr() io.ReadWriter
+}
+
+// DiscardChannelData discards all data received from an ssh channel in the
+// background.
+func DiscardChannelData(ch ChannelReadWriter) {
+	if ch == nil {
+		return
+	}
+	go io.Copy(io.Discard, ch)
+	go io.Copy(io.Discard, ch.Stderr())
+}

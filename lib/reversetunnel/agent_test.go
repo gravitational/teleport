@@ -104,16 +104,19 @@ func (m *mockSSHClient) GlobalRequests() <-chan *ssh.Request {
 	return m.MockGlobalRequests
 }
 
+type fakeReaderWriter struct{}
+
+func (n fakeReaderWriter) Read(_ []byte) (int, error) {
+	return 0, io.EOF
+}
+
+func (n fakeReaderWriter) Write(b []byte) (int, error) {
+	return len(b), nil
+}
+
 type mockSSHChannel struct {
+	fakeReaderWriter
 	MockSendRequest func(name string, wantReply bool, payload []byte) (bool, error)
-}
-
-func (m *mockSSHChannel) Read(data []byte) (int, error) {
-	return 0, trace.NotImplemented("")
-}
-
-func (m *mockSSHChannel) Write(data []byte) (int, error) {
-	return 0, trace.NotImplemented("")
 }
 
 func (m *mockSSHChannel) Close() error { return nil }
@@ -129,7 +132,7 @@ func (m *mockSSHChannel) SendRequest(name string, wantReply bool, payload []byte
 }
 
 func (m *mockSSHChannel) Stderr() io.ReadWriter {
-	return nil
+	return fakeReaderWriter{}
 }
 
 // mockAgentInjection implements several interfaces for injecting into an agent.
