@@ -30,9 +30,8 @@ sessions to be observed or moderated.
 
 ## Require and allow policies
 
-Moderated sessions make use of role-based access control policies to allow for 
-fine grained control over who can join a session and who is required to be present 
-to start one.
+Moderated sessions use roles to provide fine grained control over who can join a session 
+and who is required to be present to start one.
 
 There are two types of policies you can use to control moderated sessions:
 
@@ -80,7 +79,7 @@ spec:
       verbs: ['*']
 ```
 
-Because this sample policy requires that at least one user with the `auditor` role is present
+Because this sample policy requires that at least one user with the `auditor` role to be present
 as a moderator to start SSH or Kubernetes sessions, a user assigned this `prod-access` role 
 won't be able to start any sessions on matching resources until the policy requirements are fulfilled.
 
@@ -92,8 +91,8 @@ The following are required fields for `require_session_join`:
 |---|---|---|
 |`name`|String|The name of the require policy|
 |`filter`|Filter|An expression that, if it evaluates to true for a given user, enables the user to be present in a moderated session.|
-|`kinds`|List|The kind of session—SSH, Kubernetes, or both—that the policy applies to.|
-|`modes`|List|The participant mode—observer, moderator, or peer—that the user joining the moderated session must match to satisfy the policy.|
+|`kinds`|List|The kind of session—SSH, Kubernetes, or both—that the policy applies to. The valid options are `ssh` and `k8s`.|
+|`modes`|List|The participant mode—`observer`, `moderator`, or `peer`—that the user joining the moderated session must match to satisfy the policy.|
 |`count`|Integer|The minimum number of users that must match the filter expression to satisfy the policy.|
 
 #### Filter expressions
@@ -116,9 +115,9 @@ Filter expressions support the following functions and operators:
   false. The set can be a string or an array.
 - `equals(a, b)`: Returns true if the two values are equal, otherwise returns
   false.
-- `![expr]`: Negates a boolean expression.
-- `[expr] && [expr]`: Performs a logical AND on two boolean expressions.
-- `[expr] || [expr]`: Performs a logical OR on two boolean expressions.
+- `![expr]`: Negates a Boolean expression.
+- `[expr] && [expr]`: Performs a logical AND on two Boolean expressions.
+- `[expr] || [expr]`: Performs a logical OR on two Boolean expressions.
 
 #### Matching user count
 
@@ -199,8 +198,8 @@ The following are required fields for `join_sessions`:
 |---|---|---|
 |`name`|String|The name of the allow policy.|
 |`roles`|List|A list of Teleport role names that the allow policy applies to. Active sessions created by users with these roles can be joined under this policy.|
-|`kinds`|List|The kind of sessions—SSH, Kubernetes, or both—that the allow policy applies to.|
-|`modes`|List|The participant mode—observer, moderator, or peer—that the user joining the session can use to join the session. The default mode is `observer`.|
+|`kinds`|List|The kind of sessions—SSH, Kubernetes, or both—that the allow policy applies to. The valid options are `ssh` and `k8s`.|
+|`modes`|List|The participant mode—`observer`, `moderator`, or `peer`—that the user joining the session can use to join the session. The default mode is `observer`.|
 
 ### Joining a session from the command line
 
@@ -266,9 +265,9 @@ multifactor authentication checks when starting new sessions. This requirement i
 also enforced for session moderators. Therefore, moderators who want to join a session
 must have configured a device for multifactor authentication.
 
-Every 30 seconds, Teleport moderating users who have joined the terminal session to 
-authenticate in the next 15 seconds. This behavior continues throughout the session 
-to ensure that moderators are always present and watching a given session.
+Every 30 seconds, Teleport prompts session moderators to re-authenticate within the 
+next 15 seconds. This behavior continues throughout the session to ensure that 
+moderators are always present and watching a given session.
 
 If no MFA input is received within 60 seconds, the user is disconnected from the
 session, which might cause the session to terminate or pause because a require policy
