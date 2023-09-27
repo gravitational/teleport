@@ -1,7 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { Flex, Text, Box } from 'design';
-import { pluralize } from 'teleport/lib/util';
+import { pluralize } from 'shared/utils/text';
 import { getDurationText } from 'shared/utils/getDurationText';
 
 import useTeleport from 'e-teleport/useTeleportE';

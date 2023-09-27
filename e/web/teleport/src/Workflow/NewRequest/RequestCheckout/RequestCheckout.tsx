@@ -24,7 +24,7 @@ import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import Select, { Option } from 'shared/components/Select';
 import { Attempt } from 'shared/hooks/useAttemptNext';
-import { pluralize } from 'teleport/lib/util';
+import { pluralize } from 'shared/utils/text';
 
 import cfg from 'e-teleport/config';
 import useTeleportE from 'e-teleport/useTeleportE';

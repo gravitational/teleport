@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { compareSemVers } from 'teleport/lib/util';
+import { compareSemVers } from 'shared/utils/semVer';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
 

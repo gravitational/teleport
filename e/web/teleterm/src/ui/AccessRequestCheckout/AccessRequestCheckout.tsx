@@ -4,7 +4,7 @@ import { Transition } from 'react-transition-group';
 import { Box, Flex, ButtonPrimary, ButtonText, Text, ButtonIcon } from 'design';
 import { ChevronDown } from 'design/Icon';
 
-import { pluralize } from 'teleport/lib/util';
+import { pluralize } from 'shared/utils/text';
 
 import { RequestCheckout } from 'e-teleport/Workflow/NewRequest/RequestCheckout/RequestCheckout';
 
