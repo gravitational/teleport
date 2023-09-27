@@ -2423,7 +2423,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	mockEmitter := &eventstest.MockRecorderEmitter{}
-	authServer.emitter = mockEmitter
+	authServer.SetEmitter(mockEmitter)
 	clock := authServer.GetClock()
 	ctx := context.Background()
 
