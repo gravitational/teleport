@@ -8,6 +8,8 @@ export function Roles(props: ListProps & { roles: string[] }) {
   return (
     <StyledTable
       data={roles.map(role => ({ role }))}
+      pagination={{ pagerPosition: 'top', pageSize: 10 }}
+      isSearchable={true}
       columns={[
         {
           key: 'role',

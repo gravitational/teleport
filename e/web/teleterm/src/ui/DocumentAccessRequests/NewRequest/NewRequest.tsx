@@ -81,6 +81,8 @@ export function NewRequest() {
     [isLeafCluster]
   );
 
+  const isRoleList = selectedResource === 'role';
+
   return (
     <Layout mx="auto" px={5} pt={3} height="100%" flexDirection="column">
       {attempt.status === 'failed' && (
@@ -106,14 +108,17 @@ export function NewRequest() {
           ))}
         </Flex>
         <StyledTableWrapper borderRadius={3}>
-          <SearchPanel
-            updateQuery={updateQuery}
-            updateSearch={updateSearch}
-            pageIndicators={pageCount}
-            filter={agentFilter}
-            showSearchBar={true}
-            disableSearch={fetchStatus === 'loading'}
-          />
+          {/* roles use client-side search */}
+          {!isRoleList && (
+            <SearchPanel
+              updateQuery={updateQuery}
+              updateSearch={updateSearch}
+              pageIndicators={pageCount}
+              filter={agentFilter}
+              showSearchBar={true}
+              disableSearch={fetchStatus === 'loading'}
+            />
+          )}
           <ResourceList
             agents={agents}
             selectedResource={selectedResource}
@@ -124,10 +129,12 @@ export function NewRequest() {
             requestableRoles={requestableRoles}
             disableRows={fetchStatus === 'loading'}
           />
-          <SearchPagination
-            nextPage={fetchStatus === 'loading' ? null : nextPage}
-            prevPage={fetchStatus === 'loading' ? null : prevPage}
-          />
+          {!isRoleList && (
+            <SearchPagination
+              nextPage={fetchStatus === 'loading' ? null : nextPage}
+              prevPage={fetchStatus === 'loading' ? null : prevPage}
+            />
+          )}
         </StyledTableWrapper>
       </StyledMain>
     </Layout>

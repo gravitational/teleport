@@ -150,15 +150,14 @@ export function NewRequest(props: State) {
     Object.keys(addedResources.windows_desktop).length;
 
   const isResourceRequest = numAddedResources > 0;
+  const isRoleList = currResourceOpt.value === 'role';
 
   const numAddedRoles = Object.keys(addedResources.role).length;
 
   const numTotalSelections = numAddedResources + numAddedRoles;
 
   const showAddAllPagesPanel =
-    numAddedOnPage === agents.length &&
-    numOfPages > 1 &&
-    currResourceOpt.value !== 'role';
+    numAddedOnPage === agents.length && numOfPages > 1 && !isRoleList;
 
   // 'confirmed' parameter is only true when user agrees to the warning dialogue.
   function handleOnChangeResourceOption(o: ResourceOption, confirmed = false) {
@@ -242,51 +241,54 @@ export function NewRequest(props: State) {
         {!nonRecoverableError && attempt.status !== 'processing' && (
           <>
             <StyledWrapper>
-              <SearchPanel
-                updateQuery={updateQuery}
-                updateSearch={updateSearch}
-                pageIndicators={pageCount}
-                filter={agentFilter}
-                showSearchBar={currResourceOpt.value !== 'role'}
-                disableSearch={fetchStatus === 'loading'}
-                extraChildren={
-                  currResourceOpt.value !== 'role' && (
-                    <AddPageButton
-                      toggleAddCurrentPage={toggleAddCurrentPage}
-                      toggleAddAllPages={toggleAddAllPages}
-                      agentOption={currResourceOpt}
-                      areAllPagesAdded={addedAll[currResourceOpt.value]}
-                      numAdded={
-                        addedAll[currResourceOpt.value]
-                          ? Object.keys(addedResources[currResourceOpt.value])
-                              .length
-                          : numAddedOnPage
-                      }
-                    />
-                  )
-                }
-              />
-              <Transition
-                in={showAddAllPagesPanel}
-                timeout={50}
-                mountOnEnter
-                unmountOnExit
-                enter
-                exit
-              >
-                {transitionState => (
-                  <AddAllPagesPanel
-                    toggleAddAllPages={toggleAddAllPages}
-                    totalCount={pageCount.total}
-                    pageCount={numOfPages}
-                    areAllPagesAdded={addedAll[currResourceOpt.value]}
-                    numAddedOnPage={numAddedOnPage}
-                    agentOption={currResourceOpt}
-                    attempt={addAllFetchAttempt}
-                    transitionState={transitionState}
+              {/*roles use client-side search */}
+              {!isRoleList && (
+                <>
+                  <SearchPanel
+                    updateQuery={updateQuery}
+                    updateSearch={updateSearch}
+                    pageIndicators={pageCount}
+                    filter={agentFilter}
+                    showSearchBar={true}
+                    disableSearch={fetchStatus === 'loading'}
+                    extraChildren={
+                      <AddPageButton
+                        toggleAddCurrentPage={toggleAddCurrentPage}
+                        toggleAddAllPages={toggleAddAllPages}
+                        agentOption={currResourceOpt}
+                        areAllPagesAdded={addedAll[currResourceOpt.value]}
+                        numAdded={
+                          addedAll[currResourceOpt.value]
+                            ? Object.keys(addedResources[currResourceOpt.value])
+                                .length
+                            : numAddedOnPage
+                        }
+                      />
+                    }
                   />
-                )}
-              </Transition>
+                  <Transition
+                    in={showAddAllPagesPanel}
+                    timeout={50}
+                    mountOnEnter
+                    unmountOnExit
+                    enter
+                    exit
+                  >
+                    {transitionState => (
+                      <AddAllPagesPanel
+                        toggleAddAllPages={toggleAddAllPages}
+                        totalCount={pageCount.total}
+                        pageCount={numOfPages}
+                        areAllPagesAdded={addedAll[currResourceOpt.value]}
+                        numAddedOnPage={numAddedOnPage}
+                        agentOption={currResourceOpt}
+                        attempt={addAllFetchAttempt}
+                        transitionState={transitionState}
+                      />
+                    )}
+                  </Transition>
+                </>
+              )}
               <ResourceList
                 agents={agents}
                 selectedResource={selectedResource}
@@ -297,33 +299,35 @@ export function NewRequest(props: State) {
                 requestableRoles={requestableRoles}
                 disableRows={fetchStatus === 'loading'}
               />
-              <StyledPanel
-                borderBottomLeftRadius={3}
-                borderBottomRightRadius={3}
-                showTopBorder={true}
-              >
-                <Flex justifyContent="flex-end" width="100%">
-                  <Flex alignItems="center" mr={2}></Flex>
-                  <Flex>
-                    <StyledArrowBtn
-                      onClick={prevPage}
-                      title="Previous page"
-                      disabled={!prevPage || fetchStatus === 'loading'}
-                      mx={0}
-                    >
-                      <CircleArrowLeft />
-                    </StyledArrowBtn>
-                    <StyledArrowBtn
-                      ml={0}
-                      onClick={nextPage}
-                      title="Next page"
-                      disabled={!nextPage || fetchStatus === 'loading'}
-                    >
-                      <CircleArrowRight />
-                    </StyledArrowBtn>
+              {!isRoleList && (
+                <StyledPanel
+                  borderBottomLeftRadius={3}
+                  borderBottomRightRadius={3}
+                  showTopBorder={true}
+                >
+                  <Flex justifyContent="flex-end" width="100%">
+                    <Flex alignItems="center" mr={2}></Flex>
+                    <Flex>
+                      <StyledArrowBtn
+                        onClick={prevPage}
+                        title="Previous page"
+                        disabled={!prevPage || fetchStatus === 'loading'}
+                        mx={0}
+                      >
+                        <CircleArrowLeft />
+                      </StyledArrowBtn>
+                      <StyledArrowBtn
+                        ml={0}
+                        onClick={nextPage}
+                        title="Next page"
+                        disabled={!nextPage || fetchStatus === 'loading'}
+                      >
+                        <CircleArrowRight />
+                      </StyledArrowBtn>
+                    </Flex>
                   </Flex>
-                </Flex>
-              </StyledPanel>
+                </StyledPanel>
+              )}
             </StyledWrapper>
             <Flex
               data-testid="checkout-footer"
