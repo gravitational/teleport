@@ -247,6 +247,11 @@ func CheckAndSplitValidityKey(input string, caName string) ([]string, error) {
 	var output []string
 	docsURL := "https://goteleport.com/docs/connect-your-client/putty/#troubleshooting"
 
+	// if the input string has no content (because the Validity key has no value yet), return the empty list
+	if len(input) == 0 {
+		return output, nil
+	}
+
 	// split the input string on spaces
 	splitTokens := strings.Fields(input)
 

@@ -320,6 +320,12 @@ func TestCheckAndSplitValidityKey(t *testing.T) {
 		shouldError   bool
 	}{
 		{
+			name:          "Should pass with an empty input string",
+			input:         "",
+			desiredOutput: []string(nil),
+			shouldError:   false,
+		},
+		{
 			name:  "Should pass with two wildcards",
 			input: "*.foo.example.com || *.bar.example.com",
 			desiredOutput: []string{
@@ -482,6 +488,16 @@ func TestCheckAndSplitValidityKey(t *testing.T) {
 		{
 			name:        "Should fail with a single trailing dot",
 			input:       "*.example.com || lol.example.com || .",
+			shouldError: true,
+		},
+		{
+			name:        "Should error with single wildcard symbol",
+			input:       "*",
+			shouldError: true,
+		},
+		{
+			name:        "Should error if multiple single wildcard symbols are present",
+			input:       "* || *",
 			shouldError: true,
 		},
 	}
