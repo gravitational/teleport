@@ -1568,7 +1568,7 @@ func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
 
 func newAccessListParser() *accessListParser {
 	return &accessListParser{
-		baseParser: newBaseParser(backend.Key(accessListPrefix)),
+		baseParser: newBaseParser(backend.ExactKey(accessListPrefix)),
 	}
 }
 
@@ -1651,7 +1651,7 @@ func (p *userLoginStateParser) parse(event backend.Event) (types.Resource, error
 
 func newAccessListMemberParser() *accessListMemberParser {
 	return &accessListMemberParser{
-		baseParser: newBaseParser(backend.Key(accessListMemberPrefix)),
+		baseParser: newBaseParser(backend.ExactKey(accessListMemberPrefix)),
 	}
 }
 
