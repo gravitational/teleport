@@ -1,7 +1,6 @@
 package reference
 
 import (
-	"errors"
 	"fmt"
 	"gen-resource-ref/resource"
 	"go/ast"
@@ -54,7 +53,6 @@ func shouldProcess(d resource.DeclarationInfo, types []TypeInfo) bool {
 		return false
 	}
 
-	var err error
 	// Name the section after the first type declaration found. We expect
 	// there to be one type spec.
 	var t *ast.TypeSpec
@@ -63,16 +61,12 @@ func shouldProcess(d resource.DeclarationInfo, types []TypeInfo) bool {
 		if !ok {
 			continue
 		}
+		// There is more than one TypeSpec
 		if t != nil {
-			err = errors.New("declaration contains more than one type spec")
-			continue
+			return false
 		}
 		t = ts
 	}
-	if err != nil {
-		return false
-	}
-
 	if t == nil {
 		return false
 	}
@@ -82,6 +76,18 @@ func shouldProcess(d resource.DeclarationInfo, types []TypeInfo) bool {
 		return false
 	}
 
+	// Use only the final segment of each desired package path
+	// in the comparison, since that is what is preserved in the
+	// AST.
+	finalTypes := make([]TypeInfo, len(types))
+	for i, t := range types {
+		segs := strings.Split(t.Package, "/")
+		finalTypes[i] = TypeInfo{
+			Package: segs[len(segs)-1],
+			Name:    t.Name,
+		}
+	}
+
 	// Only process types with a types.Metadata field, indicating a
 	// dynamic resource.
 	var m bool
@@ -89,29 +95,29 @@ func shouldProcess(d resource.DeclarationInfo, types []TypeInfo) bool {
 		if len(fld.Names) != 1 {
 			continue
 		}
-		i, ok := fld.Type.(*ast.SelectorExpr)
-		if !ok {
-			continue
-		}
 
-		g, ok := i.X.(*ast.Ident)
-		if !ok {
-			continue
-		}
-
-		for _, ti := range types {
-			// Use only the final segment of each desired package path
-			// in the comparison, since that is what is preserved in the
-			// AST.
-			segs := strings.Split(ti.Package, "/")
-			pkg := segs[len(segs)-1]
-
-			// This type was declared in the current package
-			if pkg == "" {
-				pkg = d.PackageName
+		// If the field type does not have a package name, it
+		// must come from the package where d was declared. This is the
+		// initial assumption.
+		gotpkg := d.PackageName
+		var fldname string
+		switch t := fld.Type.(type) {
+		case *ast.SelectorExpr:
+			// If the type of the field is an *ast.SelectorExpr,
+			// it's of the form <package>.<type name>.
+			g, ok := t.X.(*ast.Ident)
+			if ok {
+				gotpkg = g.Name
 			}
+			fldname = t.Sel.Name
 
-			if g.Name == pkg && i.Sel.Name == ti.Name {
+		// There's no package, so only assign a name.
+		case *ast.Ident:
+			fldname = t.Name
+		}
+
+		for _, ti := range finalTypes {
+			if gotpkg == ti.Package && fldname == ti.Name {
 				m = true
 				break
 			}
@@ -179,7 +185,7 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		}
 		entries, err := resource.NewFromDecl(decl, allDecls)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "issue creating a reference entry for declaration %v.%v in file %v", k.PackageName, k.TypeName, decl.FilePath)
+			fmt.Fprintf(os.Stderr, "issue creating a reference entry for declaration %v.%v in file %v: %v", k.PackageName, k.TypeName, decl.FilePath, err)
 			os.Exit(1)
 		}
 
