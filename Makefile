@@ -916,10 +916,10 @@ run-etcd:
 # each integration package
 .PHONY: integration-test-setup
 integration-test-setup:
-	@mkdir -p $(GOMODCACHE) $(GOCACHE)
-	@docker pull --platform $(PLATFORM) $(IMAGE)
-	@go mod download -x
-	@cd api; go mod download -x
+	mkdir -p $(GOMODCACHE) $(GOCACHE)
+	docker pull --platform $(PLATFORM) $(IMAGE)
+	go mod download -x
+	cd api; go mod download -x
 
 # Run each integration test package inside a docker container,
 # allowing them to run in parallel without a risk of interference between tests
@@ -946,8 +946,8 @@ integration-test-setup:
 %-integration-test: IMAGE = golang:$(IMAGE_TAG)
 %-integration-test: LOG_PATH = $(TEST_LOG_DIR)/$*-integration.json
 %-integration-test: ensure-gotestsum integration-test-setup
-	@mkdir -p $(dir $(LOG_PATH))
-	@docker run $(RUN_ARGS) $(IMAGE) \
+	mkdir -p $(dir $(LOG_PATH))
+	docker run $(RUN_ARGS) $(IMAGE) \
 		go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $* $(FLAGS) \
 		| tee $(LOG_PATH) \
 		| gotestsum --raw-command --format=testname -- cat
