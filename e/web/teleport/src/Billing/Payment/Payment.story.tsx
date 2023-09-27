@@ -7,8 +7,8 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 import { MemoryRouter } from 'react-router';
 
 import { Elements } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
 
-import { loadStripe } from '@stripe/stripe-js/pure';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { PaymentDeleteDialog } from 'e-teleport/Billing/Payment/PaymentDeleteDialog';
@@ -26,7 +26,7 @@ const ctx = createTeleportContext();
 // Intentionally not loading Stripe
 // Impact: The credit card form in PaymentAddDialogView will not render
 // If you want to view the Stripe element, you can find a dev key in the Dev instance of Stripe
-const stripePromise = loadStripe('');
+const stripePromise = loadStripe('some-stripePublicKey');
 
 export function PaymentAddDialogView() {
   const props: PaymentAddDialogProps = {

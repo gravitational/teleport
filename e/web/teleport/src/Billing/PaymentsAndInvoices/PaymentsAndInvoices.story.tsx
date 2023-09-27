@@ -7,8 +7,7 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 import { MemoryRouter } from 'react-router';
 
 import { Elements } from '@stripe/react-stripe-js';
-
-import { loadStripe } from '@stripe/stripe-js/pure';
+import { loadStripe } from '@stripe/stripe-js';
 
 import { PaymentsAndInvoicesProps } from 'e-teleport/Billing/types';
 import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
@@ -22,7 +21,7 @@ const ctx = createTeleportContext();
 // Intentionally not loading Stripe
 // Impact: The credit card form in NoPaymentsAndNoInvoicesView will not render if you click "Add a payment method" from the banner
 // If you want to view the Stripe element, you can find a dev key in the Dev instance of Stripe
-const stripePromise = loadStripe('');
+const stripePromise = loadStripe('some-stripePublicKey');
 
 export function PaymentsAndInvoicesView() {
   const props: PaymentsAndInvoicesProps = {
