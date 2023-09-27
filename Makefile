@@ -927,8 +927,8 @@ integration-test-setup:
 
 # Run a specific integration test. Should only be ran from inside an integration test container.
 .PHONY: %-run-integration-test
-%-run-integration-test: FLAGS ?= -v -race
-%-run-integration-test:
+%-run-test: FLAGS ?= -v -race
+%-run-test:
 	go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $* $(FLAGS)
 
 # Run each integration test package inside a docker container,
@@ -950,7 +950,7 @@ integration-test-setup:
 %-integration-test: LOG_PATH = $(TEST_LOG_DIR)/$@.json
 %-integration-test: ensure-gotestsum integration-test-setup
 	@mkdir -p $(dir $(LOG_PATH))
-	docker run $(RUN_ARGS) $(IMAGE) make $*-run-integration-test \
+	docker run $(RUN_ARGS) $(IMAGE) make $*-run-test \
 		| tee $(LOG_PATH) \
 		| gotestsum --raw-command --format=testname -- cat
 
