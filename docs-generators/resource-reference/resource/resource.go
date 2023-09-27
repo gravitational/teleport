@@ -391,7 +391,7 @@ func getYAMLTypeForExpr(exp ast.Expr) (yamlKindNode, error) {
 			},
 		}, nil
 	default:
-		return nil, fmt.Errorf("unexpected type: %v", t)
+		return nil, fmt.Errorf("unexpected type: %+v", t)
 	}
 
 }

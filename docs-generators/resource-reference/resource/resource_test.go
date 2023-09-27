@@ -674,6 +674,42 @@ active: true
 				},
 			},
 		},
+		{
+			description: "ignored fields with non-YAML-comptabible types",
+			source: `
+package mypkg
+
+// Metadata describes information about a dynamic resource. Every dynamic
+// resource in Teleport has a metadata object.
+type Metadata struct {
+    // Name is the name of the resource.
+    Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
+    XXX_NoUnkeyedLiteral struct{} BACKTICKjson:"-"BACKTICK
+    XXX_unrecognized     []byte   BACKTICKjson:"-"BACKTICK
+
+}
+`,
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					TypeName:    "Metadata",
+					PackageName: "mypkg",
+				}: {
+					SectionName: "Metadata",
+					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
+					SourcePath:  "myfile.go",
+					YAMLExample: `name: "string"
+name: "string"
+`,
+					Fields: []Field{
+						Field{
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
