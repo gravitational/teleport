@@ -946,7 +946,8 @@ integration-test-setup:
 	docker run $(RUN_ARGS) $(IMAGE) \
 		env $(CGOFLAG) GOMODCACHE=$(GOMODCACHE) GOCACHE=$(GOCACHE) \
 			bash -c \
-				'go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $* $(FLAGS)' \
+				'pwd; ls -la; go env; cd $(PWD); ls -l go.mod go.sum; \
+				go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $* $(FLAGS)' \
 	| tee $(LOG_PATH) \
 	| gotestsum --raw-command --format=testname -- cat
 
