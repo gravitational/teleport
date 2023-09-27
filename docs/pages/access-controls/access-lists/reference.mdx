@@ -95,7 +95,8 @@ spec:
     roles:
     - access
     traits:
-      trait1: value1
+      trait1: 
+      - value1
   # membership_requires defines roles and traits that are required for a member
   # to be granted the above roles and traits. Even if a user has been added as a
   # member of an Access List, if they do not meet these requirements, the membership
@@ -104,7 +105,8 @@ spec:
     roles:
     - required_role1
     traits:
-      required_trait1: required_value1
+      required_trait1: 
+      - required_value1
 ```
 
 ## Managing Access Lists from the CLI

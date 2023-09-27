@@ -415,7 +415,7 @@ func TestStart(t *testing.T) {
 
 	sort.Sort(types.AppServers(servers))
 	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverFoo}, servers,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Expires")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Expires")))
 
 	// Check the expiry time is correct.
 	for _, server := range servers {
@@ -753,6 +753,15 @@ func TestRewriteJWT(t *testing.T) {
 			expectedRoles:  []string{"foo"},
 			expectedTraits: wrappers.Traits{},
 			jwtRewrite:     types.JWTClaimsRewriteRoles,
+		},
+
+		{
+			name:          "test traits behavior",
+			expectedRoles: nil,
+			expectedTraits: wrappers.Traits{
+				"logins": []string{login},
+			},
+			jwtRewrite: types.JWTClaimsRewriteTraits,
 		},
 		{
 			name:           "test none behavior",

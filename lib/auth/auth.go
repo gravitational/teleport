@@ -419,6 +419,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Log:         log,
 		AccessLists: services,
 		Access:      services,
+		UsageEvents: &as,
 		Clock:       cfg.Clock,
 	})
 	if err != nil {
@@ -1331,9 +1332,6 @@ func (a *Server) updateVersionMetrics() {
 	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
 		versionCount[handle.Hello().Version]++
 	})
-
-	// record version for **THIS** auth server
-	versionCount[teleport.Version]++
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics
 	registeredAgents.Reset()
@@ -2843,32 +2841,81 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 
 // CreateRegisterChallenge implements AuthService.CreateRegisterChallenge.
 func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
-	token, err := a.GetUserToken(ctx, req.GetTokenID())
-	if err != nil {
-		log.Error(trace.DebugReport(err))
-		return nil, trace.AccessDenied("invalid token")
-	}
+	var token types.UserToken
+	var username string
+	switch {
+	case req.TokenID != "": // Web UI or account recovery flows.
+		var err error
+		token, err = a.GetUserToken(ctx, req.GetTokenID())
+		if err != nil {
+			log.Error(trace.DebugReport(err))
+			return nil, trace.AccessDenied("invalid token")
+		}
 
-	allowedTokenTypes := []string{
-		UserTokenTypePrivilege,
-		UserTokenTypePrivilegeException,
-		UserTokenTypeResetPassword,
-		UserTokenTypeResetPasswordInvite,
-		UserTokenTypeRecoveryApproved,
-	}
+		allowedTokenTypes := []string{
+			UserTokenTypePrivilege,
+			UserTokenTypePrivilegeException,
+			UserTokenTypeResetPassword,
+			UserTokenTypeResetPasswordInvite,
+			UserTokenTypeRecoveryApproved,
+		}
+		if err := a.verifyUserToken(token, allowedTokenTypes...); err != nil {
+			return nil, trace.AccessDenied("invalid token")
+		}
+		username = token.GetUser()
 
-	if err := a.verifyUserToken(token, allowedTokenTypes...); err != nil {
-		return nil, trace.AccessDenied("invalid token")
+	case req.ExistingMFAResponse != nil: // Authenticated user without token, tsh.
+		var err error
+		username, err = authz.GetClientUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if _, err := a.validateMFAAuthResponseForRegister(ctx, req.ExistingMFAResponse, username, false /* passwordless */); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Create a special token for OTP registrations. The token doubles as
+		// temporary storage for the OTP secret, like in the branch above.
+		// This is OK because the user just did an MFA check.
+		if req.GetDeviceType() != proto.DeviceType_DEVICE_TYPE_TOTP {
+			break // break from switch
+		}
+
+		token, err = a.createTOTPPrivilegeToken(ctx, username)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	default:
+		return nil, trace.BadParameter("either a token or an MFA response are required")
 	}
 
 	regChal, err := a.createRegisterChallenge(ctx, &newRegisterChallengeRequest{
-		username:    token.GetUser(),
+		username:    username,
 		token:       token,
 		deviceType:  req.GetDeviceType(),
 		deviceUsage: req.GetDeviceUsage(),
 	})
-
 	return regChal, trace.Wrap(err)
+}
+
+func (a *Server) createTOTPPrivilegeToken(ctx context.Context, username string) (types.UserToken, error) {
+	tokenReq := CreateUserTokenRequest{
+		Name: username,
+		Type: userTokenTypePrivilegeOTP,
+	}
+	if err := tokenReq.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := a.newUserToken(tokenReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err = a.CreateUserToken(ctx, token)
+	return token, trace.Wrap(err)
 }
 
 type newRegisterChallengeRequest struct {
@@ -2902,25 +2949,34 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 			return nil, trace.Wrap(err)
 		}
 
-		challenge := &proto.TOTPRegisterChallenge{
-			Secret:        otpKey.Secret(),
-			Issuer:        otpKey.Issuer(),
-			PeriodSeconds: uint32(otpOpts.Period),
-			Algorithm:     otpOpts.Algorithm.String(),
-			Digits:        uint32(otpOpts.Digits.Length()),
-			Account:       otpKey.AccountName(),
-		}
-
-		if req.token != nil {
-			secrets, err := a.createTOTPUserTokenSecrets(ctx, req.token, otpKey)
+		// TODO(codingllama): Once AddMFADeviceSync is no more all requests should
+		//  have a token. If they don't, then the secret is "lost" to the server.
+		var qrCode []byte
+		var challengeID string
+		if token := req.token; token != nil {
+			secrets, err := a.createTOTPUserTokenSecrets(ctx, token, otpKey)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			challenge.QRCode = secrets.GetQRCode()
+			qrCode = secrets.GetQRCode()
+			challengeID = token.GetName()
 		}
 
-		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_TOTP{TOTP: challenge}}, nil
+		return &proto.MFARegisterChallenge{
+			Request: &proto.MFARegisterChallenge_TOTP{
+				TOTP: &proto.TOTPRegisterChallenge{
+					Secret:        otpKey.Secret(),
+					Issuer:        otpKey.Issuer(),
+					PeriodSeconds: uint32(otpOpts.Period),
+					Algorithm:     otpOpts.Algorithm.String(),
+					Digits:        uint32(otpOpts.Digits.Length()),
+					Account:       otpKey.AccountName(),
+					QRCode:        qrCode,
+					ID:            challengeID,
+				},
+			},
+		}, nil
 
 	case proto.DeviceType_DEVICE_TYPE_WEBAUTHN:
 		cap, err := a.GetAuthPreference(ctx)
@@ -3098,43 +3154,62 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 // AddMFADeviceSync implements AuthService.AddMFADeviceSync.
 func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
-	privilegeToken, err := a.GetUserToken(ctx, req.GetTokenID())
-	if err != nil {
-		log.Error(trace.DebugReport(err))
-		return nil, trace.AccessDenied("invalid token")
+	// Use either the explicitly provided token or the TOTP token created by
+	// CreateRegisterChallenge.
+	token := req.GetTokenID()
+	if token == "" {
+		token = req.GetNewMFAResponse().GetTOTP().GetID()
 	}
 
-	if err := a.verifyUserToken(privilegeToken, UserTokenTypePrivilege, UserTokenTypePrivilegeException); err != nil {
-		return nil, trace.Wrap(err)
+	var username string
+	switch {
+	case token != "":
+		privilegeToken, err := a.GetUserToken(ctx, token)
+		if err != nil {
+			log.Error(trace.DebugReport(err))
+			return nil, trace.AccessDenied("invalid token")
+		}
+
+		if err := a.verifyUserToken(
+			privilegeToken,
+			UserTokenTypePrivilege,
+			UserTokenTypePrivilegeException,
+			userTokenTypePrivilegeOTP,
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		username = privilegeToken.GetUser()
+
+	default: // ContextUser
+		var err error
+		username, err = authz.GetClientUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	dev, err := a.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
-		username:      privilegeToken.GetUser(),
+		username:      username,
 		newDeviceName: req.GetNewDeviceName(),
-		tokenID:       privilegeToken.GetName(),
+		tokenID:       token,
 		deviceResp:    req.GetNewMFAResponse(),
 		deviceUsage:   req.DeviceUsage,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return &proto.AddMFADeviceSyncResponse{Device: dev}, nil
 }
 
 type newMFADeviceFields struct {
 	username      string
 	newDeviceName string
-	// tokenID is the ID of a reset/invite/recovery token.
-	// It is used as following:
-	//  - TOTP:
-	//    - look up TOTP secret stored by token ID
-	//  - MFA:
-	//    - look up challenge stored by token ID
-	// This field can be empty to use storage overrides.
+	// tokenID is the ID of a reset/invite/recovery/privilege token.
+	// It is generally used to recover the TOTP secret stored in the token.
 	tokenID string
 	// totpSecret is a secret shared by client and server to generate totp codes.
 	// Field can be empty to get secret by "tokenID".
+	// DELETE IN 16. Only used by the streaming AddMFADevice RPC. (codingllama)
 	totpSecret string
 
 	// webIdentityOverride is an optional RegistrationIdentity override to be used
@@ -3319,7 +3394,10 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Updating traits is needed for guided SSH flow in Discover.
 		traits = user.GetTraits()
+		// Updating roles is needed for guided Connect My Computer flow in Discover.
+		roles = user.GetRoles()
 
 	} else if req.AccessRequestID != "" {
 		accessRequest, err := a.getValidatedAccessRequest(ctx, identity, req.User, req.AccessRequestID)
@@ -3442,6 +3520,9 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 	if !req.GetState().IsApproved() {
 		if req.GetState().IsDenied() {
 			return nil, trace.AccessDenied("access request %q has been denied", accessRequestID)
+		}
+		if req.GetState().IsPromoted() {
+			return nil, trace.AccessDenied("access request %q has been promoted. Use access list to access resources.", accessRequestID)
 		}
 		return nil, trace.AccessDenied("access request %q is awaiting approval", accessRequestID)
 	}
@@ -4177,6 +4258,20 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
+	// calculate the promotions
+	reqCopy := req.Copy()
+	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
+	if err != nil {
+		// Do not fail the request if the promotions failed to generate.
+		// The request promotion will be blocked, but the request can still be approved.
+		log.WithError(err).Warn("Failed to generate access list promotions.")
+	} else if promotions != nil {
+		// Create the promotion entry even if the allowed promotion is empty. Otherwise, we won't
+		// be able to distinguish between an allowed empty set and generation failure.
+		if err := a.Services.CreateAccessRequestAllowedPromotions(ctx, reqCopy, promotions); err != nil {
+			log.WithError(err).Warn("Failed to update access request with promotions.")
+		}
+	}
 
 	accessRequestsCreatedMetric.WithLabelValues(
 		strconv.Itoa(len(req.GetRoles())),
@@ -4241,6 +4336,11 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 }
 
 func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error) {
+	// When promoting a request, the access list title must be set.
+	if !params.Review.ProposedState.IsPromoted() && params.Review.PromotedAccessListTitle != "" {
+		return nil, trace.BadParameter("promoted access list can be only set when promoting access requests")
+	}
+
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4273,12 +4373,13 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 		ResourceMetadata: apievents.ResourceMetadata{
 			Expires: req.GetAccessExpiry(),
 		},
-		RequestID:     params.RequestID,
-		RequestState:  req.GetState().String(),
-		ProposedState: params.Review.ProposedState.String(),
-		Reason:        params.Review.Reason,
-		Reviewer:      params.Review.Author,
-		MaxDuration:   req.GetMaxDuration(),
+		RequestID:               params.RequestID,
+		RequestState:            req.GetState().String(),
+		ProposedState:           params.Review.ProposedState.String(),
+		Reason:                  params.Review.Reason,
+		Reviewer:                params.Review.Author,
+		MaxDuration:             req.GetMaxDuration(),
+		PromotedAccessListTitle: req.GetPromotedAccessListTitle(),
 	}
 
 	if len(params.Review.Annotations) > 0 {
@@ -5319,6 +5420,54 @@ func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByTyp
 		}
 	}
 	return res
+}
+
+// validateMFAAuthResponseForRegister is akin to [validateMFAAuthResponse], but
+// it allows users with no devices to supply a nil/empty response.
+//
+// The hasDevices response value can only be trusted in the absence of errors.
+//
+// Use only for registration purposes.
+func (a *Server) validateMFAAuthResponseForRegister(
+	ctx context.Context,
+	resp *proto.MFAAuthenticateResponse, username string, passwordless bool,
+) (hasDevices bool, err error) {
+	// Let users without a useable device go through registration.
+	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil) {
+		devices, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if len(devices) == 0 {
+			// Allowed, no devices registered.
+			return false, nil
+		}
+
+		authPref, err := a.GetAuthPreference(ctx)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		totpEnabled := authPref.IsSecondFactorTOTPAllowed()
+		webauthnEnabled := authPref.IsSecondFactorWebauthnAllowed()
+
+		devsByType := groupByDeviceType(devices, webauthnEnabled)
+		if (totpEnabled && devsByType.TOTP) || (webauthnEnabled && len(devsByType.Webauthn) > 0) {
+			return false, trace.BadParameter("second factor authentication required")
+		}
+
+		// Allowed, no useable devices registered.
+		return false, nil
+	}
+
+	if err := a.WithUserLock(username, func() error {
+		_, _, err := a.validateMFAAuthResponse(
+			ctx, resp, username, false /* passwordless */)
+		return err
+	}); err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return true, nil
 }
 
 // validateMFAAuthResponse validates an MFA or passwordless challenge.

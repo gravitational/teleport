@@ -698,6 +698,15 @@ func (s *localSite) fanOutProxies(proxies []types.Server) {
 // if the agent has missed several heartbeats in a row, Proxy marks
 // the connection as invalid.
 func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
+	sshutils.DiscardChannelData(ch)
+	if ch != nil {
+		defer func() {
+			if err := ch.Close(); err != nil {
+				s.log.Warnf("Failed to close heartbeat channel: %v", err)
+			}
+		}()
+	}
+
 	logger := s.log.WithFields(log.Fields{
 		"serverID": rconn.nodeID,
 		"addr":     rconn.conn.RemoteAddr().String(),

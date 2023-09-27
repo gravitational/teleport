@@ -245,7 +245,7 @@ func (c *Context) GetAccessState(authPref types.AuthPreference) services.AccessS
 	// Builtin services (like proxy_service and kube_service) are not gated
 	// on MFA and only need to pass normal RBAC action checks.
 	_, isService := c.Identity.(BuiltinRole)
-	state.MFAVerified = isService || identity.MFAVerified != ""
+	state.MFAVerified = isService || identity.IsMFAVerified()
 
 	state.EnableDeviceVerification = !c.disableDeviceAuthorization
 	state.DeviceVerified = isService || dtauthz.IsTLSDeviceVerified(&identity.DeviceExtensions)
@@ -1392,7 +1392,23 @@ func IsLocalUser(authContext Context) bool {
 	return ok
 }
 
+// IsLocalOrRemoteUser checks if the identity is either a local or remote user.
+func IsLocalOrRemoteUser(authContext Context) bool {
+	switch authContext.Identity.(type) {
+	case LocalUser, RemoteUser:
+		return true
+	default:
+		return false
+	}
+}
+
 // IsCurrentUser checks if the identity is a local user matching the given username
 func IsCurrentUser(authContext Context, username string) bool {
 	return IsLocalUser(authContext) && authContext.User.GetName() == username
+}
+
+// IsRemoteUser checks if the identity is a remote user.
+func IsRemoteUser(authContext Context) bool {
+	_, ok := authContext.Identity.(RemoteUser)
+	return ok
 }

@@ -2,39 +2,41 @@ name: Unit Tests (Integrations)
 run-name: Unit Tests (Integrations) - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
-  push:
-    branches:
-      - master
-      - branch/*
   pull_request:
-    paths:
-      - '/go.mod'
-      - '/go.sum'
-      - 'integrations/**'
-      - 'api/types/**'
-      - 'gen/**'
-      - 'lib/tbot/**'
-      - 'Makefile'
-      - '.github/workflows/unit-tests-integrations.yaml'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
+
   merge_group:
-    paths:
-      - '/go.mod'
-      - '/go.sum'
-      - 'integrations/**'
-      - 'api/types/**'
-      - 'gen/**'
-      - 'lib/tbot/**'
-      - 'Makefile'
-      - '.github/workflows/unit-tests-integrations.yaml'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
 
 jobs:
+  changes:
+     name: Check for relevant changes
+     runs-on: ubuntu-latest
+     permissions:
+       pull-requests: read
+     outputs:
+       changed: ${{ steps.changes.outputs.changed }}
+     steps:
+       - uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
+         id: changes
+         with:
+           base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+           ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+           filters: |
+             changed:
+               - '/go.mod'
+               - '/go.sum'
+               - 'integrations/**'
+               - 'api/types/**'
+               - 'gen/**'
+               - 'lib/tbot/**'
+               - 'Makefile'
+               - '.github/workflows/unit-tests-integrations.yaml'
+               - 'build.assets/Makefile'
+               - 'build.assets/Dockerfile*'
+
   test:
     name: Unit Tests (Integrations)
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-22.04-16core
 
     permissions:

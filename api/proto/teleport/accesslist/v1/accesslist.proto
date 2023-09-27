@@ -72,6 +72,10 @@ message AccessListOwner {
 
   // description is the plaintext description of the owner and why they are an owner.
   string description = 2;
+
+  // ineligible_status describes if this owner is eligible or not
+  // and if not, describes how they're lacking eligibility.
+  IneligibleStatus ineligible_status = 3;
 }
 
 // AccessListAudit describes the audit configuration for an access list.
@@ -130,4 +134,65 @@ message MemberSpec {
 
   // added_by is the user that added this user to the access list.
   string added_by = 6;
+
+  // ineligible_status describes if this member is eligible or not
+  // and if not, describes how they're lacking eligibility.
+  IneligibleStatus ineligible_status = 7;
+}
+
+// IneligibleStatus describes how the user is ineligible.
+enum IneligibleStatus {
+  // INELIGIBLE_STATUS_UNSPECIFIED means eligiblity is unknown.
+  INELIGIBLE_STATUS_UNSPECIFIED = 0;
+  // INELIGIBLE_STATUS_ELIGIBLE means checks were done and user met all requirements.
+  INELIGIBLE_STATUS_ELIGIBLE = 1;
+  // INELIGIBLE_STATUS_USER_NOT_EXIST means user was not found in backend.
+  INELIGIBLE_STATUS_USER_NOT_EXIST = 2;
+  // INELIGIBLE_STATUS_MISSING_REQUIREMENTS means user is missing some requirements
+  // defined by AccessListRequires (fields can be either ownership_requires
+  // or membership_requires)
+  INELIGIBLE_STATUS_MISSING_REQUIREMENTS = 3;
+  // INELIGIBLE_STATUS_EXPIRED means user is expired.
+  // Only applicable to members.
+  INELIGIBLE_STATUS_EXPIRED = 4;
+}
+
+// Review is a review of an access list.
+message Review {
+  // header is the header for the resource.
+  teleport.header.v1.ResourceHeader header = 1;
+
+  // spec is the specification for the access list review.
+  ReviewSpec spec = 2;
+}
+
+// ReviewSpec is the specification for an access list review.
+message ReviewSpec {
+  // access_list is the name of the access list that this review is for.
+  string access_list = 1;
+
+  // reviewers are the users who performed the review.
+  repeated string reviewers = 2;
+
+  // review_date is the date that this review was created.
+  google.protobuf.Timestamp review_date = 3;
+
+  // notes is an optional plaintext attached to the review that can be used by the review for arbitrary
+  // note taking on the review.
+  string notes = 4;
+
+  // changes are the changes made as part of the review.
+  ReviewChanges changes = 5;
+}
+
+// ReviewChanges are the changes that were made as part of the review.
+message ReviewChanges {
+  // audit_frequency_changed is populated if the audit frequency was changed.
+  google.protobuf.Duration frequency_changed = 1;
+
+  // membership_requirements_changed is populated if the requirements were changed as part of this review.
+  AccessListRequires membership_requirements_changed = 2;
+
+  // removed_members contains the members that were removed as part of this review.
+  repeated string removed_members = 3;
 }

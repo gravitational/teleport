@@ -2,28 +2,9 @@ name: AWS E2E Tests (Non-root)
 run-name: AWS E2E Tests (Non-root) - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
-  push:
-    branches:
-      - master
-      - branch/*
   pull_request:
-    paths:
-      - '.github/workflows/aws-e2e-tests-non-root.yaml'
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
-      - 'Makefile'
+
   merge_group:
-    paths:
-      - '.github/workflows/aws-e2e-tests-non-root.yaml'
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
-      - 'Makefile'
 
 env:
   TEST_KUBE: true
@@ -40,9 +21,33 @@ env:
   RDS_MYSQL_INSTANCE_NAME: ci-database-e2e-tests-rds-mysql-instance-us-west-2-307493967395
   DISCOVERY_MATCHER_LABELS: "*=*"
 jobs:
+  changes:
+     name: Check for relevant changes
+     runs-on: ubuntu-latest
+     permissions:
+       pull-requests: read
+     outputs:
+       changed: ${{ steps.changes.outputs.changed }}
+     steps:
+       - uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
+         id: changes
+         with:
+           base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+           ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+           filters: |
+             changed:
+               - '.github/workflows/aws-e2e-tests-non-root.yaml'
+               - '**.go'
+               - 'go.mod'
+               - 'go.sum'
+               - 'build.assets/Makefile'
+               - 'build.assets/Dockerfile*'
+               - 'Makefile'
+
   test:
     name: AWS E2E Tests (Non-root)
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true'}}
     runs-on: ubuntu-22.04-16core
 
     permissions:
@@ -71,7 +76,7 @@ jobs:
         continue-on-error: true
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@04b98b3f9e85f563fb061be8751a0352327246b0 # v3.0.1
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.GHA_ASSUME_ROLE }}

@@ -84,6 +84,7 @@ type ResourceCommand struct {
 	verbose bool
 
 	CreateHandlers map[ResourceKind]ResourceCreateHandler
+	UpdateHandlers map[ResourceKind]ResourceCreateHandler
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
 	stdout io.Writer
@@ -130,6 +131,9 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindIntegration:              rc.createIntegration,
 		types.KindWindowsDesktop:           rc.createWindowsDesktop,
 		types.KindAccessList:               rc.createAccessList,
+	}
+	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
+		types.KindUser: rc.updateUser,
 	}
 	rc.config = config
 
@@ -186,7 +190,7 @@ func (rc *ResourceCommand) TryRun(ctx context.Context, cmd string, client auth.C
 		err = rc.Delete(ctx, client)
 		// tctl update
 	case rc.updateCmd.FullCommand():
-		err = rc.Update(ctx, client)
+		err = rc.UpdateFields(ctx, client)
 	default:
 		return false, nil
 	}
@@ -471,6 +475,21 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client auth.ClientI, 
 		}
 		fmt.Printf("user %q has been created\n", userName)
 	}
+
+	return nil
+}
+
+// updateUser implements `tctl create user.yaml` command.
+func (rc *ResourceCommand) updateUser(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	user, err := services.UnmarshalUser(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.UpdateUser(ctx, user); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("user %q has been updated\n", user.GetName())
 
 	return nil
 }
@@ -1099,7 +1118,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		resDesc := "database server"
-		servers = filterByNameOrPrefix(servers, rc.ref.Name)
+		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
 		name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1127,7 +1146,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		resDesc := "database"
-		databases = filterByNameOrPrefix(databases, rc.ref.Name)
+		databases = filterByNameOrDiscoveredName(databases, rc.ref.Name)
 		name, err := getOneResourceNameToDelete(databases, rc.ref, resDesc)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1142,7 +1161,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		resDesc := "kubernetes cluster"
-		clusters = filterByNameOrPrefix(clusters, rc.ref.Name)
+		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
 		name, err := getOneResourceNameToDelete(clusters, rc.ref, resDesc)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1208,7 +1227,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		resDesc := "kubernetes server"
-		servers = filterByNameOrPrefix(servers, rc.ref.Name)
+		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
 		name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1360,8 +1379,8 @@ func resetNetworkRestrictions(ctx context.Context, client auth.ClientI) error {
 	return trace.Wrap(client.DeleteNetworkRestrictions(ctx))
 }
 
-// Update updates select resource fields: expiry and labels
-func (rc *ResourceCommand) Update(ctx context.Context, clt auth.ClientI) error {
+// UpdateFields updates select resource fields: expiry and labels
+func (rc *ResourceCommand) UpdateFields(ctx context.Context, clt auth.ClientI) error {
 	if rc.ref.Kind == "" || rc.ref.Name == "" {
 		return trace.BadParameter("provide a full resource name to update, for example:\n$ tctl update rc/remote --set-labels=env=prod\n")
 	}
@@ -1679,7 +1698,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return &databaseServerCollection{servers: servers}, nil
 		}
 
-		servers = filterByNameOrPrefix(servers, rc.ref.Name)
+		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
 		if len(servers) == 0 {
 			return nil, trace.NotFound("database server %q not found", rc.ref.Name)
 		}
@@ -1695,7 +1714,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		altNameFn := func(r types.KubeServer) string {
 			return r.GetHostname()
 		}
-		servers = filterByNameOrPrefix(servers, rc.ref.Name, altNameFn)
+		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name, altNameFn)
 		if len(servers) == 0 {
 			return nil, trace.NotFound("kubernetes server %q not found", rc.ref.Name)
 		}
@@ -1747,7 +1766,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		if rc.ref.Name == "" {
 			return &databaseCollection{databases: databases}, nil
 		}
-		databases = filterByNameOrPrefix(databases, rc.ref.Name)
+		databases = filterByNameOrDiscoveredName(databases, rc.ref.Name)
 		if len(databases) == 0 {
 			return nil, trace.NotFound("database %q not found", rc.ref.Name)
 		}
@@ -1760,7 +1779,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		if rc.ref.Name == "" {
 			return &kubeClusterCollection{clusters: clusters}, nil
 		}
-		clusters = filterByNameOrPrefix(clusters, rc.ref.Name)
+		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
 		if len(clusters) == 0 {
 			return nil, trace.NotFound("kubernetes cluster %q not found", rc.ref.Name)
 		}
@@ -2163,20 +2182,17 @@ func filterResources[T types.ResourceWithLabels](resources []T, keep keepFn[T]) 
 // altNameFn is a func that returns an alternative name for a resource.
 type altNameFn[T types.ResourceWithLabels] func(T) string
 
-// filterByNameOrPrefix filters resources by name or a prefix of the name.
+// filterByNameOrDiscoveredName filters resources by name or "discovered name".
 // It prefers exact name filtering first - if none of the resource names match
 // exactly (i.e. all of the resources are filtered out), then it retries and
-// filters the resources by prefix of resource name instead.
-// This is to avoid an annoying UX, for example:
-// resources: [foo, foobar]
-// $ tctl rm foo <- should select foo by exact name instead of matching both by
-// prefix "foo".
-func filterByNameOrPrefix[T types.ResourceWithLabels](resources []T, prefixOrName string, extra ...altNameFn[T]) []T {
+// filters the resources by "discovered name" of resource name instead, which
+// comes from an auto-discovery label.
+func filterByNameOrDiscoveredName[T types.ResourceWithLabels](resources []T, prefixOrName string, extra ...altNameFn[T]) []T {
 	// prefer exact names
 	out := filterByName(resources, prefixOrName, extra...)
 	if len(out) == 0 {
-		// fallback to looking for prefixes
-		out = filterByPrefix(resources, prefixOrName, extra...)
+		// fallback to looking for discovered name label matches.
+		out = filterByDiscoveredName(resources, prefixOrName)
 	}
 	return out
 }
@@ -2196,18 +2212,12 @@ func filterByName[T types.ResourceWithLabels](resources []T, name string, altNam
 	})
 }
 
-// filterByPrefix filters resources by a prefix of the resource name.
-func filterByPrefix[T types.ResourceWithLabels](resources []T, prefix string, altNameFns ...altNameFn[T]) []T {
+// filterByDiscoveredName filters resources that have a "discovered name" label
+// that matches the given name.
+func filterByDiscoveredName[T types.ResourceWithLabels](resources []T, name string) []T {
 	return filterResources(resources, func(r T) bool {
-		if strings.HasPrefix(r.GetName(), prefix) {
-			return true
-		}
-		for _, altName := range altNameFns {
-			if strings.HasPrefix(altName(r), prefix) {
-				return true
-			}
-		}
-		return false
+		discoveredName, ok := r.GetLabel(types.DiscoveredNameLabel)
+		return ok && discoveredName == name
 	})
 }
 
@@ -2244,10 +2254,10 @@ func formatAmbiguousDeleteMessage(ref services.Ref, resDesc string, names []stri
 	// choose an actual resource for the example in the error.
 	exampleRef := ref
 	exampleRef.Name = names[0]
-	return fmt.Sprintf(`%s matches multiple %vs as a name prefix:
+	return fmt.Sprintf(`%s matches multiple auto-discovered %vs:
 %v
 
-Use either a full resource name or an unambiguous prefix, for example:
+Use the full resource name that was generated by the Teleport Discovery service, for example:
 $ tctl rm %s`,
 		ref.String(), resDesc, strings.Join(names, "\n"), exampleRef.String())
 }

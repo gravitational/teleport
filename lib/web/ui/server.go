@@ -57,7 +57,18 @@ type Server struct {
 	// SSHLogins is the list of logins this user can use on this server
 	SSHLogins []string `json:"sshLogins"`
 	// AWS contains metadata for instances hosted in AWS.
-	AWS *types.AWSInfo `json:"aws,omitempty"`
+	AWS *AWSMetadata `json:"aws,omitempty"`
+}
+
+// AWSMetadata describes the AWS metadata for instances hosted in AWS.
+// This type is the same as types.AWSInfo but has json fields in camelCase form for the WebUI.
+type AWSMetadata struct {
+	AccountID   string `json:"accountId"`
+	InstanceID  string `json:"instanceId"`
+	Region      string `json:"region"`
+	VPCID       string `json:"vpcId"`
+	Integration string `json:"integration"`
+	SubnetID    string `json:"subnetId"`
 }
 
 // sortedLabels is a sort wrapper that sorts labels by name
@@ -68,7 +79,24 @@ func (s sortedLabels) Len() int {
 }
 
 func (s sortedLabels) Less(i, j int) bool {
-	return s[i].Name < s[j].Name
+	labelA := strings.ToLower(s[i].Name)
+	labelB := strings.ToLower(s[j].Name)
+
+	// types.CloudLabelPrefixes are label names that we want to always be at the end of
+	// the sorted labels list to reduce visual clutter. This will generally be automatically
+	// discovered cloud provider labels such as azure/aks-managed-createOperationID=123123123123
+	for _, sortName := range types.CloudLabelPrefixes {
+		name := strings.ToLower(sortName)
+		if strings.Contains(labelA, name) && !strings.Contains(labelB, name) {
+			return false // labelA should be at the end
+		}
+		if !strings.Contains(labelA, name) && strings.Contains(labelB, name) {
+			return true // labelB should be at the end
+		}
+	}
+
+	// If neither label contains any of the sendToBackOfSortNames, sort them as usual
+	return labelA < labelB
 }
 
 func (s sortedLabels) Swap(i, j int) {
@@ -96,6 +124,17 @@ func MakeServer(clusterName string, server types.Server, accessChecker services.
 		Tunnel:      server.GetUseTunnel(),
 		SubKind:     server.GetSubKind(),
 		SSHLogins:   serverLogins,
+	}
+
+	if server.GetSubKind() == types.SubKindOpenSSHEICENode {
+		awsMetadata := server.GetAWSInfo()
+		uiServer.AWS = &AWSMetadata{
+			AccountID:   awsMetadata.AccountID,
+			InstanceID:  awsMetadata.InstanceID,
+			Region:      awsMetadata.Region,
+			Integration: awsMetadata.Integration,
+			SubnetID:    awsMetadata.SubnetID,
+		}
 	}
 
 	return uiServer, nil

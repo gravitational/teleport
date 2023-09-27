@@ -75,3 +75,56 @@ func TestAutoUsersPostgres(t *testing.T) {
 		t.Fatal("user not deactivated after 5s")
 	}
 }
+
+func TestAutoUsersMySQL(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql", withMySQLAdminUser("admin")))
+	go testCtx.startHandlingConnections()
+
+	// Use a long name to test hashed name is used in database.
+	teleportUser := "a.very.long.name@teleport.example.com"
+	wantDatabaseUser := "tp-ZLhdP1FgxXsUvcVpG8ucVm/PCHg"
+
+	// Create user with role that allows user provisioning.
+	_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), teleportUser, []string{"auto"}, nil)
+	require.NoError(t, err)
+	options := role.GetOptions()
+	options.CreateDatabaseUser = types.NewBoolOption(true)
+	role.SetOptions(options)
+	role.SetDatabaseRoles(types.Allow, []string{"reader", "writer"})
+	role.SetDatabaseNames(types.Allow, []string{"*"})
+	err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// DatabaseUser must match identity.
+	_, err = testCtx.mysqlClient(teleportUser, "mysql", "user1")
+	require.Error(t, err)
+
+	// Try to connect to the database as this user.
+	mysqlConn, err := testCtx.mysqlClient(teleportUser, "mysql", teleportUser)
+	require.NoError(t, err)
+
+	select {
+	case e := <-testCtx.mysql["mysql"].db.UserEventsCh():
+		require.Equal(t, teleportUser, e.TeleportUser)
+		require.Equal(t, wantDatabaseUser, e.DatabaseUser)
+		require.Equal(t, []string{"reader", "writer"}, e.Roles)
+		require.True(t, e.Active)
+	case <-time.After(5 * time.Second):
+		t.Fatal("user not activated after 5s")
+	}
+
+	// Disconnect.
+	err = mysqlConn.Close()
+	require.NoError(t, err)
+
+	// Verify user was deactivated.
+	select {
+	case e := <-testCtx.mysql["mysql"].db.UserEventsCh():
+		require.Equal(t, teleportUser, e.TeleportUser)
+		require.Equal(t, wantDatabaseUser, e.DatabaseUser)
+		require.False(t, e.Active)
+	case <-time.After(5 * time.Second):
+		t.Fatal("user not deactivated after 5s")
+	}
+}

@@ -54,6 +54,7 @@ import {
 import { Database } from 'teleport/services/databases';
 
 import { ResourceActionButton } from './ResourceActionButton';
+import { resourceName } from './Resources';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -260,9 +261,34 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
   );
 }
 
-export function LoadingCard() {
-  function randomNum(min: number, max: number) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+type LoadingCardProps = {
+  delay?: 'none' | 'short' | 'long';
+};
+
+const DelayValueMap = {
+  none: 0,
+  short: 400, // 0.4s;
+  long: 600, // 0.6s;
+};
+
+function randomNum(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+export function LoadingCard({ delay = 'none' }: LoadingCardProps) {
+  const [canDisplay, setCanDisplay] = useState(false);
+
+  useEffect(() => {
+    const displayTimeout = setTimeout(() => {
+      setCanDisplay(true);
+    }, DelayValueMap[delay]);
+    return () => {
+      clearTimeout(displayTimeout);
+    };
+  }, []);
+
+  if (!canDisplay) {
+    return null;
   }
 
   return (
@@ -321,13 +347,6 @@ function CopyButton({ name }: { name: string }) {
       </ButtonIcon>
     </HoverTooltip>
   );
-}
-
-function resourceName(resource: UnifiedResource) {
-  if (resource.kind === 'app' && resource.friendlyName) {
-    return resource.friendlyName;
-  }
-  return resource.kind === 'node' ? resource.hostname : resource.name;
 }
 
 function resourceDescription(resource: UnifiedResource) {

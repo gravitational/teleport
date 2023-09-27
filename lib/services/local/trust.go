@@ -177,7 +177,7 @@ func (s *CA) ActivateCertAuthority(id types.CertAuthID) error {
 	}
 
 	certAuthority, err := services.UnmarshalCertAuthority(
-		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -240,7 +240,7 @@ func (s *CA) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSign
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := services.UnmarshalCertAuthority(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	ca, err := services.UnmarshalCertAuthority(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -275,7 +275,7 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 	// Marshal values into a []types.CertAuthority slice.
 	cas := make([]types.CertAuthority, len(result.Items))
 	for i, item := range result.Items {
-		ca, err := services.UnmarshalCertAuthority(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		ca, err := services.UnmarshalCertAuthority(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

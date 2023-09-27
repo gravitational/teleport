@@ -942,6 +942,47 @@ func TestAccessMongoDB(t *testing.T) {
 	}
 }
 
+func TestMongoDBMaxMessageSize(t *testing.T) {
+	ctx := context.Background()
+
+	for name, tt := range map[string]struct {
+		maxMessageSize     uint32
+		messageSize        int
+		expectedQueryError bool
+	}{
+		"default message size": {
+			messageSize: 256,
+		},
+		"message size exceeded": {
+			// Set a value that will enable handshake message to complete
+			// successfully.
+			maxMessageSize:     256,
+			messageSize:        512,
+			expectedQueryError: true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tt := tt
+			t.Parallel()
+
+			testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo", mongodb.TestServerMaxMessageSize(tt.maxMessageSize)))
+			testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{"admin"})
+			go testCtx.startHandlingConnections()
+
+			mongoClient, err := testCtx.mongoClient(ctx, "alice", "mongo", "admin")
+			require.NoError(t, err)
+			defer mongoClient.Disconnect(ctx)
+
+			_, err = mongoClient.Database("admin").Collection("test").Find(ctx, bson.M{"largevalue": make([]byte, tt.messageSize)})
+			if tt.expectedQueryError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 // TestAccessDisabled makes sure database access can be disabled via modules.
 func TestAccessDisabled(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
@@ -1975,6 +2016,14 @@ func withDeniedDBLabels(labels types.Labels) roleOptFn {
 	}
 }
 
+func withClientIdleTimeout(clientIdleTimeout time.Duration) roleOptFn {
+	return func(role types.Role) {
+		opts := role.GetOptions()
+		opts.ClientIdleTimeout = types.NewDuration(clientIdleTimeout)
+		role.SetOptions(opts)
+	}
+}
+
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
 func (c *testContext) createUserAndRole(ctx context.Context, t testing.TB, userName, roleName string, dbUsers, dbNames []string, roleOpts ...roleOptFn) (types.User, types.Role) {
@@ -2601,13 +2650,41 @@ func withAzurePostgres(name, authToken string) withDatabaseOption {
 	}
 }
 
-func withSelfHostedMySQL(name string, opts ...mysql.TestServerOption) withDatabaseOption {
+type selfHostedMySQLOptions struct {
+	serverOptions   []mysql.TestServerOption
+	databaseOptions []databaseOption
+}
+
+type selfHostedMySQLOption func(*selfHostedMySQLOptions)
+
+func withMySQLServerVersion(version string) selfHostedMySQLOption {
+	return func(opts *selfHostedMySQLOptions) {
+		opts.serverOptions = append(opts.serverOptions, mysql.WithServerVersion(version))
+	}
+}
+
+func withMySQLAdminUser(username string) selfHostedMySQLOption {
+	return func(opts *selfHostedMySQLOptions) {
+		opts.databaseOptions = append(opts.databaseOptions, func(db *types.DatabaseV3) {
+			db.Spec.AdminUser = &types.DatabaseAdminUser{
+				Name: username,
+			}
+		})
+	}
+}
+
+func withSelfHostedMySQL(name string, applyOpts ...selfHostedMySQLOption) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
+		opts := selfHostedMySQLOptions{}
+		for _, applyOpt := range applyOpts {
+			applyOpt(&opts)
+		}
+
 		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
 			ClientAuth: tls.RequireAndVerifyClientCert,
-		}, opts...)
+		}, opts.serverOptions...)
 		require.NoError(t, err)
 		go mysqlServer.Serve()
 		t.Cleanup(func() {
@@ -2621,6 +2698,11 @@ func withSelfHostedMySQL(name string, opts ...mysql.TestServerOption) withDataba
 			DynamicLabels: dynamicLabels,
 		})
 		require.NoError(t, err)
+
+		for _, applyDatabaseOpt := range opts.databaseOptions {
+			applyDatabaseOpt(database)
+		}
+
 		testCtx.mysql[name] = testMySQL{
 			db:       mysqlServer,
 			resource: database,

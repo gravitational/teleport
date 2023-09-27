@@ -15,7 +15,7 @@ on_azure() {
 }
 
 on_gcp() {
-  GCP_STATUS=$(curl -o /dev/null -w "%{http_code}" -m5 -sS -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1")
+  GCP_STATUS=$(curl -o /dev/null -w "%{http_code}" -m5 -sS -H "Metadata-Flavor: Google" "http://metadata.google.internal/")
   [ "$GCP_STATUS" = "200" ]
 }
 
@@ -91,10 +91,10 @@ on_gcp() {
     JOIN_METHOD=iam
     LABELS="teleport.dev/instance-id=${INSTANCE_ID},teleport.dev/account-id=${ACCOUNT_ID}"
   elif on_gcp; then
-    INSTANCE_INFO=$(curl -m5 -sS -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/?recursive=true")
-
-    NAME="$(echo "$INSTANCE_INFO" | jq -r .name)"
-    ZONE="$(echo "$INSTANCE_INFO" | jq -r .zone | awk -F "/" '{print $9}')"
+    NAME="$(curl -m5 -sS -H "Metadata-Flavor:Google" "http://metadata.google.internal/computeMetadata/v1/instance/name")"
+    # GCP metadata returns fully qualified zone ("projects/<project-id>/zones/<zone>"), so we need to parse the zone name.
+    FULL_ZONE="$(curl -m5 -sS -H "Metadata-Flavor:Google" "http://metadata.google.internal/computeMetadata/v1/instance/zone")"
+    ZONE="$(basename $FULL_ZONE)"
     PROJECT_ID=$(curl -m5 -sS -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
 
     JOIN_METHOD=gcp

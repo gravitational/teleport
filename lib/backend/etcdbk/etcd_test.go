@@ -216,13 +216,15 @@ func TestLeaseBucketing(t *testing.T) {
 	require.NoError(t, err)
 	defer bk.Close()
 
+	leases := make(map[int64]struct{})
 	for i := 0; i < count; i++ {
-		_, err := bk.Put(ctx, backend.Item{
+		lease, err := bk.Put(ctx, backend.Item{
 			Key:     backend.Key(pfx, fmt.Sprintf("%d", i)),
 			Value:   []byte(fmt.Sprintf("val-%d", i)),
 			Expires: time.Now().Add(time.Minute),
 		})
 		require.NoError(t, err)
+		leases[lease.ID] = struct{}{}
 		time.Sleep(time.Millisecond * 200)
 	}
 
@@ -231,11 +233,6 @@ func TestLeaseBucketing(t *testing.T) {
 	rslt, err := bk.GetRange(ctx, start, backend.RangeEnd(start), backend.NoLimit)
 	require.NoError(t, err)
 	require.Len(t, rslt.Items, count)
-
-	leases := make(map[int64]struct{})
-	for _, item := range rslt.Items {
-		leases[item.LeaseID] = struct{}{}
-	}
 
 	// ensure that we averaged more than 1 item per lease, but
 	// also spanned more than one bucket.

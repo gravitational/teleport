@@ -248,6 +248,9 @@ type Role interface {
 // NewRole constructs new standard V7 role.
 // This creates a V7 role with V4+ RBAC semantics.
 func NewRole(name string, spec RoleSpecV6) (Role, error) {
+	// When incrementing the role version, make sure to update the
+	// role version in the asset file used by the UI.
+	// See: web/packages/teleport/src/Roles/templates/role.yaml
 	role, err := NewRoleWithVersion(name, V7, spec)
 	return role, trace.Wrap(err)
 }
@@ -895,6 +898,9 @@ func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 func (r *RoleV6) setStaticFields() {
 	r.Kind = KindRole
 	if r.Version != V3 && r.Version != V4 && r.Version != V5 && r.Version != V6 {
+		// When incrementing the role version, make sure to update the
+		// role version in the asset file used by the UI.
+		// See: web/packages/teleport/src/Roles/templates/role.yaml
 		r.Version = V7
 	}
 }
@@ -1822,6 +1828,16 @@ func (h CreateHostUserMode) encode() (string, error) {
 func (h *CreateHostUserMode) decode(val any) error {
 	var valS string
 	switch val := val.(type) {
+	case int32:
+		return trace.Wrap(h.setFromEnum(val))
+	case int64:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case int:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case float64:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case float32:
+		return trace.Wrap(h.setFromEnum(int32(val)))
 	case string:
 		valS = val
 	case bool:
@@ -1830,7 +1846,7 @@ func (h *CreateHostUserMode) decode(val any) error {
 		}
 		valS = createHostUserModeOffString
 	default:
-		return trace.BadParameter("bad value type %T, expected string", val)
+		return trace.BadParameter("bad value type %T, expected string or int", val)
 	}
 
 	switch valS {
@@ -1845,6 +1861,15 @@ func (h *CreateHostUserMode) decode(val any) error {
 	default:
 		return trace.BadParameter("invalid host user mode %v", val)
 	}
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (h *CreateHostUserMode) setFromEnum(val int32) error {
+	if _, ok := CreateHostUserMode_name[val]; !ok {
+		return trace.BadParameter("invalid host user mode %v", val)
+	}
+	*h = CreateHostUserMode(val)
 	return nil
 }
 

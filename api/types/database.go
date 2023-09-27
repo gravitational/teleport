@@ -314,6 +314,11 @@ func (d *DatabaseV3) SupportsAutoUsers() bool {
 		case DatabaseTypeSelfHosted, DatabaseTypeRDS:
 			return true
 		}
+	case DatabaseProtocolMySQL:
+		switch d.GetType() {
+		case DatabaseTypeSelfHosted, DatabaseTypeRDS:
+			return true
+		}
 	}
 	return false
 }

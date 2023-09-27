@@ -784,13 +784,13 @@ func TestMux(t *testing.T) {
 		// If listener for IPv6 will fail to be created we'll skip IPv6 portion of test.
 		listener6, _ := net.Listen("tcp6", "[::1]:0")
 
-		startServing := func(muxListener net.Listener) (*Mux, *httptest.Server) {
+		startServing := func(muxListener net.Listener, cluster string) (*Mux, *httptest.Server) {
 			mux, err := New(Config{
 				Listener:            muxListener,
 				PROXYProtocolMode:   PROXYProtocolUnspecified,
 				CertAuthorityGetter: casGetter,
 				Clock:               clockwork.NewFakeClockAt(time.Now()),
-				LocalClusterName:    clusterName,
+				LocalClusterName:    cluster,
 			})
 			require.NoError(t, err)
 
@@ -812,14 +812,14 @@ func TestMux(t *testing.T) {
 			return mux, backend
 		}
 
-		mux4, backend4 := startServing(listener4)
+		mux4, backend4 := startServing(listener4, clusterName)
 		defer mux4.Close()
 		defer backend4.Close()
 
 		var backend6 *httptest.Server
 		var mux6 *Mux
 		if listener6 != nil {
-			mux6, backend6 = startServing(listener6)
+			mux6, backend6 = startServing(listener6, clusterName)
 			defer mux6.Close()
 			defer backend6.Close()
 		}
@@ -1012,6 +1012,32 @@ func TestMux(t *testing.T) {
 			out, err := utils.RoundtripWithConn(clt)
 			require.NoError(t, err)
 			require.Equal(t, addr1.IP.String()+":0", out)
+		})
+		t.Run("PROXY header signed by non local cluster get an error", func(t *testing.T) {
+			listener, err := net.Listen("tcp", "127.0.0.1:")
+			require.NoError(t, err)
+
+			// start multiplexer with wrong cluster name specified
+			mux, backend := startServing(listener, "different-cluster")
+			t.Cleanup(func() {
+				require.NoError(t, mux.Close())
+				backend.Close()
+			})
+
+			conn, err := net.Dial("tcp", listener.Addr().String())
+			require.NoError(t, err)
+			defer conn.Close()
+
+			signedHeader, err := signPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
+			require.NoError(t, err)
+
+			_, err = conn.Write(signedHeader)
+			require.NoError(t, err)
+
+			clt := tls.Client(conn, clientConfig(backend))
+
+			_, err = utils.RoundtripWithConn(clt)
+			require.Error(t, err)
 		})
 	})
 }
