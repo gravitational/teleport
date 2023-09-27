@@ -267,10 +267,6 @@ CGOFLAG_TSH ?= $(CGOFLAG)
 ELECTRON_BUILDER_ARCH_amd64 = x64
 ELECTRON_BUILDER_ARCH = $(or $(ELECTRON_BUILDER_ARCH_$(ARCH)),$(ARCH))
 
-# Used for caching when on a build system that frequently switches namespaces (i.e. running in containers)
-GOMODCACHE ?= /tmp/gomodcache
-GOCACHE ?= /tmp/gocache
-
 #
 # 'make all' builds all 4 executables and places them in the current directory.
 #
@@ -916,33 +912,18 @@ run-etcd:
 	docker build -f .github/services/Dockerfile.etcd -t etcdbox --build-arg=ETCD_VERSION=3.3.9 .
 	docker run -it --rm -p'2379:2379' etcdbox
 
-# Do tasks that should run before any integration package test is run, rather than before
-# each integration package
-.PHONY: integration-test-setup
-integration-test-setup:
-	@mkdir -p $(GOMODCACHE) $(GOCACHE)
-	@go mod download
-	@cd api; go mod download
-
-# Run each integration test package inside a docker container,
-# allowing them to run in parallel without a risk of interference between tests
-.PHONY: %-integration-test
-%-integration-test: FLAGS ?= -v -race
-%-integration-test: LOG_PATH = $(TEST_LOG_DIR)/$@.json
-%-integration-test: ensure-gotestsum integration-test-setup
-	@mkdir -p $(dir $(LOG_PATH))
-	@go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $* $(FLAGS) \
-		| tee $(LOG_PATH) \
-		| gotestsum --raw-command --format=testname -- cat
-
 #
 # Integration tests. Need a TTY to work.
 # Any tests which need to run as root must be skipped during regular integration testing.
 #
-# The prerequisite generation should be split up to be more readable but I don't know how
-# without evaluating the shell command on every single makefile run, regardless of target
 .PHONY: integration
-integration: $(addsuffix -integration-test,$(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration ))
+integration: FLAGS ?= -v -race
+integration: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
+integration:  $(TEST_LOG_DIR) ensure-gotestsum
+	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
+	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
+		| tee $(TEST_LOG_DIR)/integration.json \
+		| gotestsum --raw-command --format=testname -- cat
 
 #
 # Integration tests that run Kubernetes tests in order to complete successfully
@@ -951,7 +932,7 @@ integration: $(addsuffix -integration-test,$(shell go list ./... | grep 'integra
 INTEGRATION_KUBE_REGEX := TestKube.*
 .PHONY: integration-kube
 integration-kube: FLAGS ?= -v -race
-integration-kube: PACKAGES = github.com/gravitational/teleport/integration
+integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
 integration-kube: $(TEST_LOG_DIR) ensure-gotestsum
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) \
