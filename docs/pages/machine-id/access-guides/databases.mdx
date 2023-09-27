@@ -74,39 +74,36 @@ In production, consider restricting the bot's access using a more specific
 label selector; see the
 [Database Access RBAC guide](../../database-access/rbac.mdx) for more info.
 
+## Step 2/3. Configure a database `tbot` output
 
-## Step 2/3. Configure and start Machine ID
+Now, `tbot` needs to be configured with an output that will produce the
+credentials needed for Database Access. To do this, the `database` output
+type is used.
 
-Next, we'll run Machine ID alongside our database client app to begin fetching
-credentials.
+The database you///TODO///
 
-Start by creating a configuration file for Machine ID at `/etc/tbot.yaml`:
+Outputs must be configured with a destination. In this example, the `directory`
+destination will be used. This will write artifacts to a specified directory on
+disk. Ensure that this directory can be written to by the Linux user that
+`tbot` runs as, and that it can be read by the Linux user that will be accessing
+applications.
+
+Modify your `tbot` configuration to add a `database` output:
 
 ```yaml
-version: v2
-auth_server: "example.teleport.sh:443"
-onboarding:
-  join_method: "token"
-  token: "00000000000000000000000000000000"
-  ca_pins:
-  - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
-storage:
-  type: directory
-  path: /var/lib/teleport/bot
 outputs:
-  - type: database
-    destination:
-      type: directory
-      path: /opt/machine-id
-    # Specify the details of the database you wish to connect to.
-    service: example-server
-    username: alice
-    database: example
-    # Specify a format to use for the output credentials. For most databases,
-    # this configuration field can be omitted. See the table below for the
-    # databases that require a value to be specified here.
-    # format: mongo
-
+- type: database
+  destination:
+    type: directory
+    path: /opt/machine-id
+  # Specify the details of the database you wish to connect to.
+  service: example-server
+  username: alice
+  database: example
+  # Specify a format to use for the output credentials. For most databases,
+  # this configuration field can be omitted. See the table below for the
+  # databases that require a value to be specified here.
+  # format: mongo
 ```
 
 The `outputs` field controls the what certificates `tbot` will produce when it

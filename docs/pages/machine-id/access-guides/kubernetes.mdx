@@ -98,16 +98,27 @@ Adjust the `allow` field for your environment:
 - `editor` must match the name of the group you specified in the
   RoleBinding or ClusterRoleBinding.
 
-## Step 2/3. Configure the `tbot` output
+## Step 2/3. Configure a Kubernetes `tbot` output
 
 Now, `tbot` needs to be configured with an output to produce the Kubernetes
 credentials and client configuration file. This is done using the `kubernetes`
 output type.
 
-The `kubernetes` output type will generate a `kubeconfig.yaml` artifact which
-can be used with `kubectl` and other Kubernetes clients to access the cluster.
+The Kubernetes cluster you want the credentials to have access to must
+be specified using the `kubernetes_cluster` field. In this example,
+`example-k8s-cluster` will be used.
+
 The output must be configured with a destination and the name of the
 Kubernetes cluster that should be encoded in the credentials produced by `tbot`.
+At this time, each output can only contain credentials for a single Kubernetes
+cluster. If your bot needs to connect to multiple Kubernetes clusters,
+create an output for each cluster.
+
+Outputs must also be configured with a destination. In this example, the
+`directory` type will be used. This will write artifacts to a specified
+directory on disk. Ensure that this directory can be written to by the Linux
+user that `tbot` runs as, and that it can be read by the Linux user that will
+be accessing the Kubernetes cluster.
 
 Modify your `tbot` configuration to add a `kubernetes` output:
 
