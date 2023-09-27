@@ -615,7 +615,7 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				return nil, trace.BadParameter("missing parameter AccessLists")
 			}
 			collections.accessListMembers = &genericCollection[*accesslist.AccessListMember, services.AccessListMembersGetter, accessListMembersExecutor]{cache: c, watch: watch}
-			collections.byKind[resourceKind] = collections.accessLists
+			collections.byKind[resourceKind] = collections.accessListMembers
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
