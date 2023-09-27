@@ -136,95 +136,39 @@ Be sure to configure the `allow` fields to match your environment:
 
 ## Step 2/3. Configure the `tbot` output
 
-On a node with `tctl` access, such as your local machine, create a new Machine ID bot using the
-Teleport role created in the previous step:
+Now, `tbot` needs to be configured with an output that will produce the
+credentials and configuration files needed for Kubernetes Access. To do this,
+the `kubernetes` output type is used.
 
-```code
-$ tctl bots add example --roles=machine-id-kube-role
-```
+The specific Kubernetes cluster you want the credentials to have access to must
+be specified using the `kubernetes_cluster` field.
 
-The creates a bot named `example` with the necessary Kubernetes role. Be sure to
-note the bot join token and CA PIN.
-
-Next, on the bot node, create a Machine ID configuration file at
-`/etc/tbot.yaml`:
+Modify your `tbot` configuration to add a `kubernetes` output:
 
 ```yaml
-version: v2
-auth_server: "example.teleport.sh:443"
-onboarding:
-  join_method: "token"
-  token: "00000000000000000000000000000000"
-  ca_pins:
-  - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
-storage:
-  type: directory
-  path: /var/lib/teleport/bot
 outputs:
   - type: kubernetes
+    # specify the name of the kubernetes cluster you wish the credentials to
+    # grant access to.
+    kubernetes_cluster: example-k8s-cluster
     destination:
       type: directory
+          # For this guide, /opt/machine-id is used as the destination directory.
+          # You may wish to customize this. Multiple outputs cannot share the same
+          # destination.
       path: /opt/machine-id
-    kubernetes_cluster: example-k8s-cluster
 ```
 
-Be sure to configure the `token` and `ca_pins` fields to match the output from
-`tctl bots add ...`, and set `kubernetes_cluster` to match the cluster name as
-shown in `tsh kube ls`. For this example, we'll be connecting to the
-`example-k8s-cluster` cluster.
+Ensure you replace `example-k8s-cluster` with the name of the Kubernetes cluster
+as registered in Teleport.
 
-Machine ID also allows you to use Linux ACLs to control access to certificates
-on disk. You will use this to ensure only your application has access to the
-short-lived certificates Machine ID uses.
-
-We'll work with the assumption you will be running Machine ID as the Linux user
-`teleport` and your automated service as the Linux user `app`. Create and
-initialize the destination directory by running this `tbot init` command either
-as `root` or as the `teleport` user:
-
-```code
-$ tbot init \
-    -c /etc/tbot.yaml \
-    --init-dir=/opt/machine-id \
-    --bot-user=teleport \
-    --owner=teleport:teleport \
-    --reader-user=app
-```
-
-(!docs/pages/includes/machine-id/machine-id-init-bot-data.mdx!)
-
-Next, you will use systemd to run Machine ID in the background on your
-bot node. Create a systemd.unit file at
-`/etc/systemd/system/machine-id.service`:
-
-```systemd
-[Unit]
-Description=Teleport Machine ID Service
-After=network.target
-
-[Service]
-Type=simple
-User=teleport
-Group=teleport
-Restart=on-failure
-Environment="TELEPORT_ANONYMOUS_TELEMETRY=1"
-ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
-ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/run/machine-id.pid
-LimitNOFILE=524288
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Finally, run the following commands to start Machine ID:
-
-(!docs/pages/includes/machine-id/machine-id-service.mdx!)
+If operating `tbot` as a background service, restart it. If running `tbot` in
+one-shot mode, it must be executed before you attempt to use the credentials.
 
 ## Step 3/3. Connect to your Kubernetes cluster with the Machine ID identity
 
-With Machine ID up and running, you should now have Kubernetes certificates
-written to `/opt/machine-id`. This can be verified in a few ways:
+Once `tbot` has been run, credentials will be output to the directory specified
+in the destination. Using the example of `/opt/machine-id`:
 
 ```code
 ## A `kubeconfig.yaml` should exist in the destination directory:
