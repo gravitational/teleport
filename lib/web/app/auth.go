@@ -18,6 +18,7 @@ package app
 
 import (
 	"crypto/subtle"
+	"fmt"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -91,6 +92,15 @@ func (h *Handler) handleAuth(w http.ResponseWriter, r *http.Request, p httproute
 	http.SetCookie(w, &http.Cookie{
 		Name:     SubjectCookieName,
 		Value:    subjectCookieValue,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+	})
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "__Host-grv_app_last_active",
+		Value:    fmt.Sprintf("%v", h.c.Clock.Now().UnixMilli()),
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,

@@ -17,6 +17,7 @@ limitations under the License.
 package app
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -24,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -49,11 +51,74 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 		// If the caller fails to authenticate, redirect the caller to Teleport.
 		session, err := h.authenticate(r.Context(), r)
 		if err != nil {
+			// Clear cookies here too?
 			if redirectErr := h.redirectToLauncher(w, r); redirectErr == nil {
 				return nil
 			}
 			return trace.Wrap(err)
 		}
+
+		lastActiveMsStr, err := extractCookie(r, "__Host-grv_app_last_active")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		lastActiveMs, err := strconv.ParseInt(lastActiveMsStr, 10, 64)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		timeoutMs := session.ws.GetIdleTimeout().Milliseconds()
+		if timeoutMs > 0 {
+			rightNowMs := h.c.Clock.Now().UnixMilli()
+
+			if (rightNowMs - lastActiveMs) > timeoutMs {
+				// inactive
+				if err := h.c.AuthClient.DeleteUserAppSessions(r.Context(), &proto.DeleteUserAppSessionsRequest{
+					Username: session.ws.GetUser(),
+				}); err != nil {
+					return trace.Wrap(err)
+				}
+
+				// clear cookies
+				http.SetCookie(w, &http.Cookie{
+					Name:     CookieName,
+					Value:    "",
+					Path:     "/",
+					HttpOnly: true,
+					Secure:   true,
+				})
+				http.SetCookie(w, &http.Cookie{
+					Name:     SubjectCookieName,
+					Value:    "",
+					Path:     "/",
+					HttpOnly: true,
+					Secure:   true,
+				})
+				http.SetCookie(w, &http.Cookie{
+					Name:     "__Host-grv_app_last_active",
+					Value:    "",
+					Path:     "/",
+					HttpOnly: true,
+					Secure:   true,
+				})
+
+				fmt.Println("---- SESSION EXPIRED!!!!!!")
+
+				return trace.AccessDenied("session EXPIRED")
+			} else {
+				// refersh last active
+				http.SetCookie(w, &http.Cookie{
+					Name:     "__Host-grv_app_last_active",
+					Value:    fmt.Sprintf("%v", h.c.Clock.Now().UnixMilli()),
+					Path:     "/",
+					HttpOnly: true,
+					Secure:   true,
+					SameSite: http.SameSiteNoneMode,
+				})
+			}
+		}
+
 		if err := handler(w, r, session); err != nil {
 			return trace.Wrap(err)
 		}

@@ -103,6 +103,12 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	netCfg, err := s.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
 		User:        req.Username,
 		Priv:        privateKey,
@@ -110,6 +116,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		TLSCert:     certs.TLS,
 		Expires:     s.clock.Now().Add(ttl),
 		BearerToken: bearer,
+		IdleTimeout: types.Duration(netCfg.GetWebIdleTimeout()),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
