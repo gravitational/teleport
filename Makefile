@@ -925,13 +925,15 @@ integration-test-setup:
 # allowing them to run in parallel without a risk of interference between tests
 .PHONY: %-integration-test
 %-integration-test: FLAGS ?= -v -race
+%-integration-test: GOMODCACHE ?= /tmp/gomodcache
+%-integration-test: GOCACHE ?= /tmp/gocache
 %-integration-test: ENV_VARS = $(CGOFLAG)
-%-integration-test: ENV_VARS += $(if $(GOMODCACHE),GOMODCACHE=$(GOMODCACHE))
-%-integration-test: ENV_VARS += $(if $(GOCACHE),GOCACHE=$(GOCACHE))
+%-integration-test: ENV_VARS += GOMODCACHE=$(GOMODCACHE)
+%-integration-test: ENV_VARS += GOCACHE=$(GOCACHE)
 %-integration-test: VOLUME_MOUNTS = $(TEST_LOG_DIR):$(TEST_LOG_DIR)
 %-integration-test: VOLUME_MOUNTS += $(PWD):$(PWD)
-%-integration-test: VOLUME_MOUNTS += $(if $(GOMODCACHE),$(GOMODCACHE):$(GOMODCACHE))
-%-integration-test: VOLUME_MOUNTS += $(if $(GOCACHE),$(GOCACHE):$(GOCACHE))
+%-integration-test: VOLUME_MOUNTS += $(GOMODCACHE):$(GOMODCACHE)
+%-integration-test: VOLUME_MOUNTS += $(GOCACHE):$(GOCACHE)
 %-integration-test: GOOS = linux
 %-integration-test: GOARCH = $(shell uname -m)
 %-integration-test: PLATFORM = $(GOOS)/$(GOARCH)
