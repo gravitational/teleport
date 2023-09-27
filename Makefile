@@ -927,9 +927,6 @@ integration-test-setup:
 %-integration-test: FLAGS ?= -v -race
 %-integration-test: GOMODCACHE ?= /tmp/gomodcache
 %-integration-test: GOCACHE ?= /tmp/gocache
-%-integration-test: ENV_VARS = -e $(CGOFLAG)
-%-integration-test: ENV_VARS += -e GOMODCACHE=$(GOMODCACHE)
-%-integration-test: ENV_VARS += -e GOCACHE=$(GOCACHE)
 %-integration-test: VOLUME_MOUNTS = -v $(TEST_LOG_DIR):$(TEST_LOG_DIR)
 %-integration-test: VOLUME_MOUNTS += -v $(PWD):$(PWD)
 %-integration-test: VOLUME_MOUNTS += -v $(GOMODCACHE):$(GOMODCACHE)
@@ -940,7 +937,6 @@ integration-test-setup:
 %-integration-test: RUN_ARGS = --rm
 %-integration-test: RUN_ARGS += -w "$(PWD)"
 %-integration-test: RUN_ARGS += --platform $(PLATFORM)
-%-integration-test: RUN_ARGS += $(ENV_VARS)
 %-integration-test: RUN_ARGS += $(VOLUME_MOUNTS)
 %-integration-test: IMAGE_TAG = $(shell $(MAKE) --no-print-directory -C build.assets print-go-version | sed "s/go//")
 %-integration-test: IMAGE = golang:$(IMAGE_TAG)
@@ -948,7 +944,8 @@ integration-test-setup:
 %-integration-test: ensure-gotestsum integration-test-setup
 	@mkdir -p $(dir $(LOG_PATH))
 	docker run $(RUN_ARGS) $(IMAGE) \
-		go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $* $(FLAGS) \
+		env run $(CGOFLAG) GOMODCACHE=$(GOMODCACHE) GOCACHE=$(GOCACHE) \
+			go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $* $(FLAGS) \
 		| tee $(LOG_PATH) \
 		| gotestsum --raw-command --format=testname -- cat
 
