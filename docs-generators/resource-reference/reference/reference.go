@@ -49,8 +49,8 @@ type GeneratorConfig struct {
 
 // shouldProcess indicates whether we should generate reference entries from d,
 // that is, whether s has any field types in
-func shouldProcess(d *ast.GenDecl, types []TypeInfo) bool {
-	if len(d.Specs) == 0 {
+func shouldProcess(d resource.DeclarationInfo, types []TypeInfo) bool {
+	if len(d.Decl.Specs) == 0 {
 		return false
 	}
 
@@ -58,7 +58,7 @@ func shouldProcess(d *ast.GenDecl, types []TypeInfo) bool {
 	// Name the section after the first type declaration found. We expect
 	// there to be one type spec.
 	var t *ast.TypeSpec
-	for _, s := range d.Specs {
+	for _, s := range d.Decl.Specs {
 		ts, ok := s.(*ast.TypeSpec)
 		if !ok {
 			continue
@@ -99,15 +99,17 @@ func shouldProcess(d *ast.GenDecl, types []TypeInfo) bool {
 			continue
 		}
 
-		// TODO: What if the package name is empty because we're in the
-		// desired package already?
-
 		for _, ti := range types {
 			// Use only the final segment of each desired package path
 			// in the comparison, since that is what is preserved in the
 			// AST.
 			segs := strings.Split(ti.Package, "/")
 			pkg := segs[len(segs)-1]
+
+			// This type was declared in the current package
+			if pkg == "" {
+				pkg = d.PackageName
+			}
 
 			if g.Name == pkg && i.Sel.Name == ti.Name {
 				m = true
@@ -172,7 +174,7 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 	}
 
 	for k, decl := range allDecls {
-		if !shouldProcess(decl.Decl, conf.RequiredTypes) {
+		if !shouldProcess(decl, conf.RequiredTypes) {
 			continue
 		}
 		entries, err := resource.NewFromDecl(decl, allDecls)
