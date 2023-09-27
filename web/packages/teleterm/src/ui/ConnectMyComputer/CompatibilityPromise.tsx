@@ -32,6 +32,9 @@ export function checkAgentCompatibility(
   proxyVersion: string,
   runtimeSettings: Pick<RuntimeSettings, 'appVersion' | 'isLocalBuild'>
 ): AgentCompatibility {
+  // The proxy version is not immediately available
+  // (it requires fetching a cluster with details).
+  // Because of that, we have to return 'unknown' when we do not yet know it.
   if (!proxyVersion) {
     return 'unknown';
   }
