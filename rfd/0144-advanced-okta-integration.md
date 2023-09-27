@@ -246,7 +246,7 @@ spec:
       - 00gb3j5tpspkQdnWa5d7
     okta/groups:
       - Everyone
-      - okta-dev
+      - Deliverators
     okta/login:
       - hiro@example.com
 ```
