@@ -11,6 +11,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/accessrequest"
 	"github.com/gravitational/teleport/e/lib/web/ui"
@@ -320,8 +321,8 @@ func reviewAccessRequest(ctx context.Context, clt accessReviewSubmitter, review 
 		return nil, trace.Wrap(err)
 	}
 
-	if !reviewState.IsApproved() && !reviewState.IsDenied() {
-		return nil, trace.BadParameter("access review state %q, is not a valid state", review.State)
+	if !reviewState.IsResolved() {
+		return nil, trace.BadParameter("access review state %q, is not a valid state. The request has already been processed.", review.State)
 	}
 
 	reviewSubmission := types.AccessReviewSubmission{
@@ -368,6 +369,63 @@ func (p *Plugin) deleteAccessRequestHandle(w http.ResponseWriter, r *http.Reques
 	return web.OK(), nil
 }
 
+type accessRequestPromoteParameters struct {
+	// AccessListName is the name of the access list to promote the request to.
+	AccessListName string `json:"accessListName"`
+	// Reason is the reason for promoting the request.
+	Reason string `json:"reason"`
+}
+
+func (a accessRequestPromoteParameters) CheckAndSetDefaults() error {
+	if a.AccessListName == "" {
+		return trace.BadParameter("missing access list name")
+	}
+
+	return nil
+}
+
+type accessRequestPromoteResponse struct {
+	// AccessRequest is the access request that was promoted.
+	AccessRequest *ui.AccessRequest `json:"accessRequest"`
+}
+
+func (p *Plugin) accessRequestPromoteHandle(_ http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext, _ web.ClusterClientProvider) (any, error) {
+	clt, err := sessCtx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	requestID := params.ByName("requestId")
+
+	var req accessRequestPromoteParameters
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.AccessListClient().AccessRequestPromote(r.Context(),
+		&accesslistv1.AccessRequestPromoteRequest{
+			RequestId:      requestID,
+			AccessListName: req.AccessListName,
+			Reason:         req.Reason,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ar, err := ui.NewAccessRequest(resp.AccessRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &accessRequestPromoteResponse{
+		AccessRequest: ar,
+	}, nil
+}
+
 type accessRequestParameters struct {
 	// Reason is the AccessRequest request reason.
 	// Used interchangeably between reason why request is made and resolved reason.
@@ -388,6 +446,10 @@ type accessRequestParameters struct {
 	// DryRun is a flag that indicates whether the request is a dry run to check and set defaults,
 	// and return before actually creating the request in the backend.
 	DryRun bool `json:"dryRun,omitempty"`
+	// PromotedAccessListTitle is the title of the access list that this request
+	// was promoted to. Used by WebUI to display the title of the access list.
+	// This field is only populated when the request is in the PROMOTED state.
+	PromotedAccessListTitle string `json:"promotedAccessListTitle,omitempty"`
 }
 
 func (p *Plugin) getSuggestedAccessListsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (any, error) {

@@ -673,3 +673,118 @@ func TestSuggestAccessLists(t *testing.T) {
 	require.Empty(t, cmp.Diff(accessListCloseMatch, accessListResp.AccessLists[0], ignoreFieldsFn))
 	require.Empty(t, cmp.Diff(accessListOverprivileged, accessListResp.AccessLists[1], ignoreFieldsFn))
 }
+
+func TestPromoteAccessRequest(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			AdvancedAccessWorkflows: true,
+		},
+	})
+
+	ctx := context.Background()
+	s := newWebSuite(t)
+
+	// Create users
+	s.createUser(t, "reviewer", "reviewer", s.testPassword(), s.testOtpSecret())
+	s.createUser(t, "requester", "requester", s.testPassword(), s.testOtpSecret())
+
+	authClient := s.newAdminAuthClient(s.ctx, t)
+
+	createAccessRequest := func() types.AccessRequest {
+		// create an access request for reviewer to request access to the "access" role
+		accessRequest, err := services.NewAccessRequest("requester", "access")
+		require.NoError(t, err)
+		accessRequest, err = authClient.CreateAccessRequestV2(ctx, accessRequest)
+		require.NoError(t, err)
+
+		return accessRequest
+	}
+
+	createAccessList := func() *accesslist.AccessList {
+		accessListClient := authClient.AccessListClient()
+
+		accessListCloseMatch, err := accesslist.NewAccessList(
+			header.Metadata{
+				Name: "close-match",
+			},
+			accesslist.Spec{
+				Title:              "close match title",
+				Audit:              accesslist.Audit{Frequency: time.Hour},
+				Owners:             []accesslist.Owner{{Name: "reviewer", Description: "reviewer desc"}},
+				MembershipRequires: accesslist.Requires{Roles: []string{"admin"}, Traits: trait.Traits{"preferred_drink": []string{"fanta"}}},
+				Grants:             accesslist.Grants{Roles: []string{"access"}},
+			})
+		require.NoError(t, err)
+		accessListCloseMatch, err = accessListClient.UpsertAccessList(ctx, accessListCloseMatch)
+		require.NoError(t, err)
+
+		// verify all access lists exist in the backend
+		existingLists, err := accessListClient.GetAccessLists(ctx)
+		require.NoError(t, err)
+		require.Len(t, existingLists, 1)
+
+		return accessListCloseMatch
+	}
+
+	upsertRole := func(roleName string, allow types.RoleConditions) {
+		role, err := types.NewRole(roleName, types.RoleSpecV6{
+			Allow: allow,
+		})
+		require.NoError(t, err)
+		err = authClient.UpsertRole(ctx, role)
+		require.NoError(t, err)
+	}
+	assignRole := func(userName string, role string) {
+		user, err := authClient.GetUser(userName, false)
+		require.NoError(t, err)
+		user.SetRoles([]string{role})
+		err = authClient.UpsertUser(user)
+		require.NoError(t, err)
+	}
+
+	// create a role that allows the reviewer to promote access requests
+	upsertRole("reviewerRole", types.RoleConditions{
+		ReviewRequests: &types.AccessReviewConditions{
+			Roles: []string{"access"},
+		},
+	})
+
+	// create a role that allows the requester to promote access requests
+	upsertRole("requesterRole", types.RoleConditions{
+		Request: &types.AccessRequestConditions{
+			Roles: []string{"access"},
+		},
+	})
+
+	// create a role that can be requested
+	upsertRole("access", types.RoleConditions{})
+
+	// assign roles to users
+	assignRole("reviewer", "reviewerRole")
+	assignRole("requester", "requesterRole")
+
+	accessRequest := createAccessRequest()
+	accessList := createAccessList()
+
+	// login user as reviewer
+	webPack := s.newAuthWebPack(t, "reviewer", skipUserCreation())
+
+	// fetch suggestions from web api
+	endpoint := webPack.clt.Endpoint("enterprise", "accessrequest", accessRequest.GetName(), "promote")
+	resp, err := webPack.clt.PostJSON(s.ctx, endpoint, &accessRequestPromoteParameters{
+		Reason:         "promotion reason",
+		AccessListName: accessList.GetName(),
+	})
+	require.NoError(t, err)
+
+	var promoteResp accessRequestPromoteResponse
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &promoteResp))
+
+	promotedAccessReq := promoteResp.AccessRequest
+
+	require.Equal(t, promotedAccessReq.User, accessRequest.GetUser())
+	require.Equal(t, promotedAccessReq.State, types.RequestState_PROMOTED.String())
+	require.Equal(t, promotedAccessReq.ResolveReason, "promotion reason")
+	require.Equal(t, promotedAccessReq.PromotedAccessListTitle, accessList.Spec.Title)
+}

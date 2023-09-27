@@ -222,6 +222,7 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 		UsageEvents:         p.authServer.AuthServer,
 		Clock:               p.authServer.AuthServer.GetClock(),
 		CachedUsersServices: p.authServer.AuthServer.Cache,
+		AuthServer:          p.authServer.AuthServer,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -41,6 +41,9 @@ type AccessRequest struct {
 	ThresholdNames []string `json:"thresholdNames"`
 	// Resources is the list of resources for a Resource Access Request
 	Resources []Resource `json:"resources"`
+	// PromotedAccessListTitle is the title of the access list that was promoted
+	// to a resource access request.
+	PromotedAccessListTitle string `json:"promotedAccessListTitle,omitempty"`
 }
 
 // AccessRequestReview defines fields of a review applied to a request.
@@ -55,8 +58,9 @@ type AccessRequestReview struct {
 	Reason string `json:"reason"`
 	// Created is the time review was submitted.
 	Created time.Time `json:"created"`
-	// MaxDuration is the duration for how long the access should be granted.
-	MaxDuration time.Time `json:"maxDuration"`
+	// PromotedAccessListTitle is the title of the access list that the access request
+	// was promoted to.
+	PromotedAccessListTitle string `json:"promotedAccessListTitle"`
 }
 
 type Resource struct {
@@ -143,30 +147,32 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 	}
 
 	return &AccessRequest{
-		ID:                 request.GetMetadata().Name,
-		State:              request.GetState().String(),
-		ResolveReason:      request.GetResolveReason(),
-		RequestReason:      request.GetRequestReason(),
-		User:               request.GetUser(),
-		Roles:              request.GetRoles(),
-		Created:            request.GetCreationTime(),
-		MaxDuration:        maxDuration,
-		SessionTTL:         request.GetSessionTLL(),
-		Expires:            request.GetAccessExpiry(),
-		Reviews:            reviews,
-		SuggestedReviewers: request.GetSuggestedReviewers(),
-		ThresholdNames:     thresholdNames,
-		Resources:          resources,
+		ID:                      request.GetMetadata().Name,
+		State:                   request.GetState().String(),
+		ResolveReason:           request.GetResolveReason(),
+		RequestReason:           request.GetRequestReason(),
+		User:                    request.GetUser(),
+		Roles:                   request.GetRoles(),
+		Created:                 request.GetCreationTime(),
+		MaxDuration:             maxDuration,
+		SessionTTL:              request.GetSessionTLL(),
+		Expires:                 request.GetAccessExpiry(),
+		Reviews:                 reviews,
+		SuggestedReviewers:      request.GetSuggestedReviewers(),
+		ThresholdNames:          thresholdNames,
+		Resources:               resources,
+		PromotedAccessListTitle: request.GetPromotedAccessListTitle(),
 	}, nil
 }
 
 func newAccessReview(review types.AccessReview) AccessRequestReview {
 	return AccessRequestReview{
-		Author:  review.Author,
-		Roles:   review.Roles,
-		State:   review.ProposedState.String(),
-		Reason:  review.Reason,
-		Created: review.Created,
+		Author:                  review.Author,
+		Roles:                   review.Roles,
+		State:                   review.ProposedState.String(),
+		Reason:                  review.Reason,
+		Created:                 review.Created,
+		PromotedAccessListTitle: review.GetAccessListTitle(),
 	}
 }
 

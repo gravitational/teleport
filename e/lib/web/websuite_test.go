@@ -229,22 +229,50 @@ type authWebPack struct {
 	csrfToken string
 }
 
+func (s *webSuite) testPassword() string {
+	return "abc123"
+}
+
+func (s *webSuite) testOtpSecret() string {
+	rawOTPSecret := "def456"
+	return base32.StdEncoding.EncodeToString([]byte(rawOTPSecret))
+}
+
+type webSuiteOpts func(*webSuiteOpt)
+
+type webSuiteOpt struct {
+	skipUserCreation bool
+}
+
+func skipUserCreation() webSuiteOpts {
+	return func(opts *webSuiteOpt) {
+		opts.skipUserCreation = true
+	}
+}
+
 // newAuthWebPack creates new user and returns authenticated http client for that user.
-func (s *webSuite) newAuthWebPack(t *testing.T, user string) *authWebPack {
+func (s *webSuite) newAuthWebPack(t *testing.T, user string, options ...webSuiteOpts) *authWebPack {
 	// login is the login principal for websuite (equivalent to OS user).
 	login := s.user
-	pass := "abc123"
-	rawOTPSecret := "def456"
-	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawOTPSecret))
+	pass := s.testPassword()
+	otpSecret := s.testOtpSecret()
 
-	s.createUser(t, user, login, pass, otpSecret)
+	opts := &webSuiteOpt{}
+
+	for _, opt := range options {
+		opt(opts)
+	}
+
+	if !opts.skipUserCreation {
+		s.createUser(t, user, login, pass, otpSecret)
+	}
 
 	validToken, err := totp.GenerateCode(otpSecret, s.clock.Now())
 	require.NoError(t, err)
 
 	clt := s.client(t)
 
-	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
+	const csrfToken = "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
 	rawSess, err := s.login(clt, csrfToken, web.CreateSessionReq{
 		User:              user,
 		Pass:              pass,

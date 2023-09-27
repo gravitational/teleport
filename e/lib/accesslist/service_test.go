@@ -527,6 +527,17 @@ func (u *usageEventsClient) SubmitUsageEvent(ctx context.Context, req *proto.Sub
 	return nil
 }
 
+type fakeAuth struct {
+}
+
+func (a *fakeAuth) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+	return []types.AccessRequest{}, nil
+}
+
+func (a *fakeAuth) SubmitAccessReview(ctx context.Context, req types.AccessReviewSubmission) (types.AccessRequest, error) {
+	return &types.AccessRequestV3{}, nil
+}
+
 func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Context, svc *Service, clock clockwork.Clock, emitter *eventstest.ChannelEmitter, usageEvents *usageEventsClient) {
 	ctx := context.Background()
 	clock = clockwork.NewFakeClock()
@@ -641,6 +652,7 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 		UsageEvents:         usageEvents,
 		Clock:               clock,
 		CachedUsersServices: userSvc,
+		AuthServer:          &fakeAuth{},
 	})
 	require.NoError(t, err)
 

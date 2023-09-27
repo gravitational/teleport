@@ -34,6 +34,7 @@ import (
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
@@ -63,6 +64,11 @@ type UsersService interface {
 	GetUsers(withSecrets bool) ([]types.User, error)
 }
 
+type AuthServer interface {
+	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
+	SubmitAccessReview(ctx context.Context, req types.AccessReviewSubmission) (types.AccessRequest, error)
+}
+
 // ServiceConfig is the service config for the Access Lists gRPC service.
 type ServiceConfig struct {
 	// Logger is the logger to use.
@@ -84,6 +90,9 @@ type ServiceConfig struct {
 	Clock clockwork.Clock
 
 	CachedUsersServices UsersService
+
+	// AuthServer implements the minimal auth server interface.
+	AuthServer AuthServer
 }
 
 // UsageEventsClient is an interface that allows for submitting usage events to Posthog.
@@ -117,6 +126,10 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 		c.UsageEvents = nil
 	}
 
+	if c.AuthServer == nil {
+		return trace.BadParameter("auth server is missing")
+	}
+
 	if c.Logger == nil {
 		c.Logger = logrus.New().WithField(trace.Component, "access_list_crud_service")
 	}
@@ -138,6 +151,7 @@ type Service struct {
 	emitter     apievents.Emitter
 	clock       clockwork.Clock
 	cachedUsers UsersService
+	authServer  AuthServer
 }
 
 // NewService creates a new Access List gRPC service.
@@ -154,6 +168,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		emitter:     cfg.Emitter,
 		clock:       cfg.Clock,
 		cachedUsers: cfg.CachedUsersServices,
+		authServer:  cfg.AuthServer,
 	}, nil
 }
 
@@ -627,13 +642,18 @@ func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
+	member, err := conv.FromMemberProto(req.Member)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	user, err := authz.UserFromContext(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	username := user.GetIdentity().Username
 
-	resp, accessListName, updated, upsertErr := s.upsertAccessListMember(ctx, username, req)
+	resp, accessListName, updated, upsertErr := s.upsertAccessListMember(ctx, username, member)
 
 	var joinTime time.Time
 	if resp != nil {
@@ -652,12 +672,8 @@ func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.
 
 // upsertAccessListMember is a helper for creating or updating access list members that returns the response, whether this was an update, and an error.
 func (s *Service) upsertAccessListMember(ctx context.Context, username string,
-	req *accesslistv1.UpsertAccessListMemberRequest) (resultProto *accesslistv1.Member, accessListName string, updated bool, err error) {
+	member *accesslist.AccessListMember) (resultProto *accesslistv1.Member, accessListName string, updated bool, err error) {
 	updated = false
-	member, err := conv.FromMemberProto(req.Member)
-	if err != nil {
-		return nil, "", updated, trace.Wrap(err)
-	}
 
 	// If the user didn't exist before, make sure the current user is recorded as the user that added it.
 	if oldMember, err := s.accessLists.GetAccessListMember(ctx, member.Spec.AccessList, member.GetName()); trace.IsNotFound(err) {
@@ -1113,6 +1129,93 @@ func (s *Service) isOwnerOfAccessList(ctx context.Context, authCtx *authz.Contex
 	}
 
 	return nil
+}
+
+// AccessRequestPromote promotes an access request to an access list.
+func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
+	accessList, err := s.authOrIsOwnerWithAccessList(ctx, req.AccessListName, types.VerbCreate, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		s.log.WithError(err).Debug("Failed to authorize user")
+		// Return an opaque error
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	accessReviewSubmission := types.AccessReviewSubmission{
+		RequestID: req.RequestId,
+		Review: types.AccessReview{
+			ProposedState: types.RequestState_PROMOTED,
+			AccessList: &types.PromotedAccessList{
+				Name:  req.AccessListName,
+				Title: accessList.Spec.Title,
+			},
+			Reason: req.Reason,
+		},
+	}
+
+	// review author defaults to username of caller.
+	if accessReviewSubmission.Review.Author == "" {
+		accessReviewSubmission.Review.Author = authCtx.User.GetName()
+	}
+
+	if err := auth.AuthorizeAccessReviewRequest(*authCtx, accessReviewSubmission); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessReq, err := s.authServer.GetAccessRequests(ctx, types.AccessRequestFilter{
+		ID: req.RequestId,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(accessReq) != 1 {
+		return nil, trace.NotFound("access request not found")
+	}
+
+	memberName := accessReq[0].GetUser()
+
+	user, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	username := user.GetIdentity().Username
+
+	_, _, _, err = s.upsertAccessListMember(ctx, username, &accesslist.AccessListMember{
+		ResourceHeader: header.ResourceHeader{
+			Kind:    types.KindAccessListMember,
+			Version: types.V3,
+			Metadata: header.Metadata{
+				Name: memberName,
+			},
+		},
+		Spec: accesslist.AccessListMemberSpec{
+			AccessList: req.AccessListName,
+			Name:       memberName,
+			AddedBy:    authCtx.User.GetName(),
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	promotedAccessReq, err := s.authServer.SubmitAccessReview(ctx, accessReviewSubmission)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessRequest, ok := promotedAccessReq.(*types.AccessRequestV3)
+	if !ok {
+		err = trace.BadParameter("unexpected access request type %T", req)
+		return nil, trace.Wrap(err)
+	}
+
+	return &accesslistv1.AccessRequestPromoteResponse{
+		AccessRequest: accessRequest,
+	}, nil
 }
 
 // Check if the user is either authorized for the access list or owns this access list.
