@@ -221,11 +221,14 @@ export const ConnectMyComputerContextProvider: FC<{
   );
 
   const downloadAndStartAgent = useCallback(async () => {
-    const [, error] = await downloadAgent();
+    let [, error] = await downloadAgent();
     if (error) {
-      return;
+      throw error;
     }
-    await startAgent();
+    [, error] = await startAgent();
+    if (error) {
+      throw error;
+    }
   }, [downloadAgent, startAgent]);
 
   const [killAgentAttempt, killAgent] = useAsync(
@@ -377,8 +380,20 @@ export const ConnectMyComputerContextProvider: FC<{
       isAgentCompatibilityKnown &&
       workspacesService.getConnectMyComputerAutoStart(rootClusterUri) &&
       agentIsNotStarted;
+
     if (shouldAutoStartAgent) {
-      downloadAndStartAgent();
+      (async () => {
+        try {
+          await downloadAndStartAgent();
+        } catch (error) {
+          // Turn off autostart if it fails, otherwise the user wouldn't be able to turn it off by
+          // themselves.
+          workspacesService.setConnectMyComputerAutoStart(
+            rootClusterUri,
+            false
+          );
+        }
+      })();
     }
   }, [
     canUse,
