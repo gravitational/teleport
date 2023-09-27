@@ -74,11 +74,14 @@ export function DocumentConnectMyComputerStatus(
     isAgentConfiguredAttempt,
     markAgentAsNotConfigured,
     removeAgent,
-    isAgentCompatible,
+    agentCompatibility,
   } = useConnectMyComputerContext();
   const { rootClusterUri } = useWorkspaceContext();
   const { roleName, systemUsername, hostname } = useAgentProperties();
   const { proxyVersion, appVersion, isLocalBuild } = useVersions();
+  const isAgentIncompatible = agentCompatibility === 'incompatible';
+  const isAgentIncompatibleOrUnknown =
+    agentCompatibility === 'incompatible' || agentCompatibility === 'unknown';
 
   const prettyCurrentAction = prettifyCurrentAction(currentAction);
 
@@ -135,7 +138,11 @@ export function DocumentConnectMyComputerStatus(
   const showConnectAndStopAgentButtons = isRunning || isKilling;
   const disableConnectAndStopAgentButtons = isKilling;
   const disableStartAgentButton =
-    isDownloading || isStarting || isRemoving || isRemoved;
+    isDownloading ||
+    isStarting ||
+    isRemoving ||
+    isRemoved ||
+    isAgentIncompatibleOrUnknown;
 
   return (
     <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">
@@ -240,8 +247,19 @@ export function DocumentConnectMyComputerStatus(
       )}
       {prettyCurrentAction.logs && <Logs logs={prettyCurrentAction.logs} />}
 
-      {!isAgentCompatible ? (
-        <CompatibilityError />
+      {isAgentIncompatible ? (
+        <CompatibilityError
+          // Hide the alert if the current action has failed. downloadAgent and startAgent already
+          // return an error message related to compatibility.
+          //
+          // Basically, we have to cover two use cases:
+          //
+          // * Auto start has failed due to compatibility promise, so the downloadAgent failed with
+          // an error.
+          // * Auto start wasn't enabled, so the current action has no errors, but the user should
+          // not be able to start the agent due to compatibility issues.
+          hideAlert={!!prettyCurrentAction.error}
+        />
       ) : (
         <>
           <Text mb={4} mt={1}>

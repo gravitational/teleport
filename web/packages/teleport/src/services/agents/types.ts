@@ -47,9 +47,9 @@ export type ResourceLabel = {
 };
 
 export type ResourceFilter = {
-  // query is query expression using the predicate language.
+  /** query is query expression using the predicate language. */
   query?: string;
-  // search contains search words/phrases separated by space.
+  /** search contains search words/phrases separated by space. */
   search?: string;
   sort?: SortType;
   limit?: number;

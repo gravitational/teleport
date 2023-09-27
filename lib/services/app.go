@@ -67,6 +67,7 @@ func MarshalApp(app types.Application, opts ...MarshalOption) ([]byte, error) {
 		if !cfg.PreserveResourceID {
 			copy := *app
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			app = &copy
 		}
 		return utils.FastMarshal(app)
@@ -100,6 +101,9 @@ func UnmarshalApp(data []byte, opts ...MarshalOption) (types.Application, error)
 		if cfg.ID != 0 {
 			app.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			app.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			app.SetExpiry(cfg.Expires)
 		}
@@ -124,6 +128,7 @@ func MarshalAppServer(appServer types.AppServer, opts ...MarshalOption) ([]byte,
 		if !cfg.PreserveResourceID {
 			copy := *appServer
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			appServer = &copy
 		}
 		return utils.FastMarshal(appServer)
@@ -156,6 +161,9 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 		}
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
+		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
 		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)

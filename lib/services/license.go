@@ -64,6 +64,7 @@ func MarshalLicense(license types.License, opts ...MarshalOption) ([]byte, error
 			// to prevent unexpected data races
 			copy := *license
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			license = &copy
 		}
 		return utils.FastMarshal(license)

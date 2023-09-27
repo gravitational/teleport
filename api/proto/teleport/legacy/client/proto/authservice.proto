@@ -1110,14 +1110,21 @@ message TOTPRegisterChallenge {
   // QRCode is an optional field for the QR code in PNG format. Used to display a QR code
   // image in the UI.
   bytes QRCode = 7;
+  // ID of the TOTP challenge.
+  // Send this back in the TOTPRegisterResponse.
+  string ID = 8;
 }
 
 // TOTPRegisterResponse is a response to TOTPRegisterChallenge.
 message TOTPRegisterResponse {
   string Code = 1;
+  // ID of the TOTP challenge, as informed by the TOTPRegisterChallenge.
+  string ID = 2;
 }
 
 // AddMFADeviceRequest is a message sent by the client during AddMFADevice RPC.
+//
+// Deprecated: Use [AuthService.AddMFADeviceSync] instead.
 message AddMFADeviceRequest {
   oneof Request {
     // Init describes the new device.
@@ -1133,6 +1140,8 @@ message AddMFADeviceRequest {
 
 // AddMFADeviceResponse is a message sent by the server during AddMFADevice
 // RPC.
+//
+// Deprecated: Use [AuthService.AddMFADeviceSync] instead.
 message AddMFADeviceResponse {
   oneof Response {
     // ExistingMFAChallenge is an auth challenge using an existing MFA
@@ -1147,6 +1156,8 @@ message AddMFADeviceResponse {
 }
 
 // AddMFADeviceRequestInit describes the new MFA device.
+//
+// Deprecated: Use [AuthService.AddMFADeviceSync] instead.
 message AddMFADeviceRequestInit {
   string DeviceName = 1;
   reserved 2; // LegacyDeviceType LegacyType
@@ -2320,6 +2331,18 @@ message ExportUpgradeWindowsResponse {
   string SystemdUnitSchedule = 3;
 }
 
+// AccessRequestAllowedPromotionRequest is the request to AccessRequestAllowedPromotion RPC call.
+message AccessRequestAllowedPromotionRequest {
+  // AccessRequest is the access request to get promotions for.
+  string accessRequestID = 1;
+}
+
+// AccessRequestAllowedPromotionResponse is the response to AccessRequestAllowedPromotion RPC call.
+message AccessRequestAllowedPromotionResponse {
+  // allowedPromotions is the list of allowed promotions for the access request.
+  types.AccessRequestAllowedPromotions allowedPromotions = 1;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2417,8 +2440,11 @@ service AuthService {
   rpc SetAccessRequestState(RequestStateSetter) returns (google.protobuf.Empty);
   // SubmitAccessReview applies a review to a request and returns the post-application state.
   rpc SubmitAccessReview(types.AccessReviewSubmission) returns (types.AccessRequestV3);
-  // GetAccessCapabilities requests the access capabilites of a user.
+  // GetAccessCapabilities requests the access capabilities of a user.
   rpc GetAccessCapabilities(types.AccessCapabilitiesRequest) returns (types.AccessCapabilities);
+
+  // GetAccessRequestAllowedPromotions returns a list of allowed promotions from an access request to an access list.
+  rpc GetAccessRequestAllowedPromotions(AccessRequestAllowedPromotionRequest) returns (AccessRequestAllowedPromotionResponse);
 
   // GetPluginData gets all plugin data matching the supplied filter.
   rpc GetPluginData(types.PluginDataFilter) returns (PluginDataSeq);
@@ -2597,7 +2623,11 @@ service AuthService {
   // <- NewMFARegisterChallenge
   // -> NewMFARegisterResponse
   // <- Ack
-  rpc AddMFADevice(stream AddMFADeviceRequest) returns (stream AddMFADeviceResponse);
+  //
+  // Deprecated: Use [AddMFADeviceSync] instead.
+  rpc AddMFADevice(stream AddMFADeviceRequest) returns (stream AddMFADeviceResponse) {
+    option deprecated = true;
+  }
   // DeleteMFADevice deletes an MFA device for the user calling this RPC.
   //
   // The RPC is streaming both ways and the message sequence is:
@@ -2607,7 +2637,14 @@ service AuthService {
   // -> MFAResponse
   // <- Ack
   rpc DeleteMFADevice(stream DeleteMFADeviceRequest) returns (stream DeleteMFADeviceResponse);
-  // AddMFADeviceSync adds a new MFA device (nonstream).
+  // AddMFADeviceSync adds a new MFA device.
+  //
+  // A typical MFA registration sequence calls the following RPCs:
+  //
+  // 1. CreateAuthenticateChallenge (necessary for registration challenge)
+  // 2. (optional) CreatePrivilegeToken
+  // 3. CreateRegisterChallenge (uses authn challenge and optionally a token)
+  // 4. AddMFADeviceSync
   rpc AddMFADeviceSync(AddMFADeviceSyncRequest) returns (AddMFADeviceSyncResponse);
   // DeleteMFADeviceSync deletes a users MFA device (nonstream).
   rpc DeleteMFADeviceSync(DeleteMFADeviceSyncRequest) returns (google.protobuf.Empty);

@@ -22,7 +22,7 @@ jobs:
       - name: Extract branch name
         run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
         id: extract_branch
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: 'gravitational/docs'
       - name: Configure Submodules
