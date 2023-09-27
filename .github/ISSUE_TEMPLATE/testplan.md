@@ -1198,11 +1198,31 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Installer in GUI mode successfully uninstalls Authentication Package (logging in is not possible)
   - [ ] Installer successfully uninstalls Authentication Package (logging in is not possible) when invoked from command line
 
-## Binaries compatibility
+## Binaries / OS compatibility
 
-- Verify `tsh` runs on:
-  - [ ] Windows 10
-  - [ ] MacOS
+Verify that our software runs on the minimum supported OS versions as per
+https://goteleport.com/docs/installation/#operating-system-support
+
+### Windows
+
+- [ ] `tsh` runs on the minimum supported Windows version
+- [ ] Teleport Connect runs on the minimum supported Windows version
+
+### macOS
+
+- [ ] `tsh` runs on the minimum supported macOS version
+- [ ] `tctl` runs on the minimum supported macOS version
+- [ ] `teleport` runs on the minimum supported macOS version
+- [ ] `tbot` runs on the minimum supported macOS version
+- [ ] Teleport Connect runs on the minimum supported macOS version
+
+### Linux
+
+- [ ] `tsh` runs on the minimum supported Linux version
+- [ ] `tctl` runs on the minimum supported Linux version
+- [ ] `teleport` runs on the minimum supported Linux version
+- [ ] `tbot` runs on the minimum supported Linux version
+- [ ] Teleport Connect runs on the minimum supported Linux version
 
 ## Machine ID
 
