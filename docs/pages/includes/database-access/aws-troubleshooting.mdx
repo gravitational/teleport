@@ -27,20 +27,9 @@ nc -zv postgres-instance-1.sadas.us-east-1.rds.amazonaws.com 5432
 
 ### Not authorized to perform `sts:AssumeRole`
 
-The Database Service assumes an IAM role in one of following situations:
-
-- An IAM role is used as `db_user` when accessing AWS services that require IAM
-  roles as database users, such as DynamoDB, Keyspaces, Opensearch, and
-  Redshift Serverless.
-- The `assume_role_arn` field is specified for the database resources or
-  dynamic resource matchers.
-
-<Details title="Role chaining">
-When both of the above conditions are true for a database connection, the
-Database Service performs a role chaining by assuming the IAM role specified
-`assume_role_arn` first then using that IAM role to assume the IAM role for
-`db_user`.
-</Details>
+The Database Service assumes an IAM role that is used as `db_user` when
+accessing AWS services that require IAM roles as database users, such as
+DynamoDB, Keyspaces, and Redshift Serverless.
 
 You may encounter the following error if the trust relationship is not
 configured properly between the IAM roles:
