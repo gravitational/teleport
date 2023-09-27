@@ -284,22 +284,7 @@ down. Let's create a local user who has access to Kubernetes group
 
 Save this role as `member.yaml`:
 
-```yaml
-kind: role
-version: v7
-metadata:
-  name: member
-spec:
-  allow:
-    kubernetes_groups: ["system:masters"]
-    kubernetes_labels:
-      '*': '*'
-    kubernetes_resources:
-      - kind: '*'
-        namespace: '*'
-        name: '*'
-        verbs: ['*']
-```
+(!docs/pages/includes/kubernetes-access/member-role.mdx!)
 
 Create the role:
 
@@ -312,13 +297,15 @@ Create the user and generate an invite link:
 
 ```code
 $ kubectl exec -ti deployment/teleport-cluster-auth -- tctl users add <Var name="username" /> --roles=member
+```
 
+```code
 # User "myuser" has been created but requires a password. Share this URL with the user to
 # complete user setup, link is valid for 1h:
 
-# https://<Var name="clusterName" />:443/web/invite/(=presets.tokens.first=)
+https://<Var name="clusterName" />:443/web/invite/(=presets.tokens.first=)
 
-# NOTE: Make sure <Var name="clusterName" />:443 points at a Teleport proxy which users can access.
+NOTE: Make sure <Var name="clusterName" />:443 points at a Teleport proxy which users can access.
 ```
 
 Try `tsh login` with your local user:
