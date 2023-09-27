@@ -26,9 +26,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
@@ -79,6 +81,18 @@ func (c *clientConn) executeAndCloseResult(command string, args ...any) error {
 	return trace.Wrap(err)
 }
 
+func (c *clientConn) isMariaDB() bool {
+	return strings.Contains(strings.ToLower(c.GetServerVersion()), "mariadb")
+}
+
+// maxUsernameLength returns the username/role character limit.
+func (c *clientConn) maxUsernameLength() int {
+	if c.isMariaDB() {
+		return mariadbMaxUsernameLength
+	}
+	return mysqlMaxUsernameLength
+}
+
 // ActivateUser creates or enables the database user.
 func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) error {
 	if sessionCtx.Database.GetAdminUser() == "" {
@@ -91,6 +105,11 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	}
 	defer conn.Close()
 
+	// Ensure version is supported.
+	if err := checkSupportedVersion(conn); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Ensure the roles meet spec.
 	if err := checkRoles(conn, sessionCtx.DatabaseRoles); err != nil {
 		return trace.Wrap(err)
@@ -102,7 +121,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	}
 
 	// Use "tp-<hash>" in case DatabaseUser is over max username length.
-	sessionCtx.DatabaseUser = maybeHashUsername(sessionCtx.DatabaseUser, maxUsernameLength(conn))
+	sessionCtx.DatabaseUser = maybeHashUsername(sessionCtx.DatabaseUser, conn.maxUsernameLength())
 	e.Log.Infof("Activating MySQL user %q with roles %v for %v.", sessionCtx.DatabaseUser, sessionCtx.DatabaseRoles, sessionCtx.Identity.Username)
 
 	// Prep JSON.
@@ -175,7 +194,7 @@ func (e *Engine) setupDatabaseForAutoUsers(conn *clientConn, sessionCtx *common.
 	//   be used to track User -> JSON attribute mapping (protected view with
 	//   row level security can be used in addition so each user can only read
 	//   their own attributes, if needed).
-	if isMariaDB(conn) {
+	if conn.isMariaDB() {
 		return trace.NotImplemented("auto user provisioning is not supported for MariaDB yet")
 	}
 
@@ -257,33 +276,54 @@ func convertActivateError(sessionCtx *common.Session, err error) error {
 // This also avoids "No database selected" errors if client doesn't provide
 // one.
 func defaultSchema(_ *common.Session) string {
-	// Use "mysql" as the default schema as both MySQL and Mariadb have it.
+	// Aurora MySQL does not allow procedures on built-in "mysql" database.
+	// Technically we can use another built-in database like "sys". However,
+	// AWS (or database admins for self-hosted) may restrict permissions on
+	// these built-in databases eventually. Well, each built-in database has
+	// its own purpose.
+	//
+	// Thus lets use a teleport-specific database. This database should be
+	// created when configuring the admin user. The admin user should be
+	// granted the following permissions for this database:
+	// GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON teleport.* TO '<admin-user>'
 	//
 	// TODO consider allowing user to specify the default database through database
-	// definition.
-	return "mysql"
-}
-
-func isMariaDB(conn *clientConn) bool {
-	return strings.Contains(strings.ToLower(conn.GetServerVersion()), "mariadb")
-}
-
-// maxUsernameLength returns the username/role character limit.
-func maxUsernameLength(conn *clientConn) int {
-	if isMariaDB(conn) {
-		return mariadbMaxUsernameLength
-	}
-	return mysqlMaxUsernameLength
+	// definition/labels.
+	return "teleport"
 }
 
 func checkRoles(conn *clientConn, roles []string) error {
-	maxRoleLength := maxUsernameLength(conn)
+	maxRoleLength := conn.maxUsernameLength()
 	for _, role := range roles {
 		if len(role) > maxRoleLength {
 			return trace.BadParameter("role %q exceeds maximum length limit of %d", role, maxRoleLength)
 		}
 	}
 	return nil
+}
+
+func checkSupportedVersion(conn *clientConn) error {
+	if conn.isMariaDB() {
+		return trace.NotImplemented("auto user provisioning is not supported for MariaDB yet")
+	}
+	return trace.Wrap(checkMySQLSupportedVersion(conn.GetServerVersion()))
+}
+
+func checkMySQLSupportedVersion(serverVersion string) error {
+	ver, err := semver.NewVersion(serverVersion)
+	switch {
+	case err != nil:
+		logrus.Debugf("Invalid MySQL server version %q. Assuming role management is supported.", serverVersion)
+		return nil
+
+	// Reference:
+	// https://dev.mysql.com/doc/relnotes/mysql/8.0/en/news-8-0-0.html#mysqld-8-0-0-account-management
+	case ver.Major < 8:
+		return trace.BadParameter("role management is not supproted for MySQL servers older than 8.0")
+
+	default:
+		return nil
+	}
 }
 
 func maybeHashUsername(teleportUser string, maxUsernameLength int) string {

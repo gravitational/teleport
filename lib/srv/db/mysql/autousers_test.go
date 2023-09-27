@@ -151,3 +151,32 @@ func Test_convertActivateError(t *testing.T) {
 		})
 	}
 }
+
+func Test_checkMySQLSupportedVersion(t *testing.T) {
+	tests := []struct {
+		input      string
+		checkError require.ErrorAssertionFunc
+	}{
+		{
+			input:      "invalid-server-version",
+			checkError: require.NoError,
+		},
+		{
+			input:      "8.0.28",
+			checkError: require.NoError,
+		},
+		{
+			input:      "9.0.0",
+			checkError: require.NoError,
+		},
+		{
+			input:      "5.7.42",
+			checkError: require.Error,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			test.checkError(t, checkMySQLSupportedVersion(test.input))
+		})
+	}
+}
