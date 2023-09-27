@@ -93,9 +93,10 @@ export function DocumentsRenderer(props: {
               )}
               {workspace.rootClusterUri ===
                 workspacesService.getRootClusterUri() &&
+                props.topBarContainerRef.current &&
                 createPortal(
                   <ConnectMyComputerNavigationMenu />,
-                  props.topBarContainerRef?.current
+                  props.topBarContainerRef.current
                 )}
             </ConnectMyComputerContextProvider>
           </WorkspaceContextProvider>
