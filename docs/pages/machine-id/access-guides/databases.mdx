@@ -125,7 +125,7 @@ playbook.
 
 ## Step 3/4 Configure the database access tunnel
 
-TODO
+TODO: Show non-systemd version :/
 
 Additionally, we'll need to create a secondary service to manage the database
 proxy. Create another unit file at `/etc/systemd/system/machine-id-proxy.service`:
@@ -161,8 +161,6 @@ $ sudo systemctl enable machine-id-proxy
 $ sudo systemctl start machine-id-proxy
 $ sudo systemctl status machine-id-proxy
 ```
-
-
 
 ### Authenticated Tunnel
 
