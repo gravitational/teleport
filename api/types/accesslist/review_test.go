@@ -21,8 +21,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/trait"
 )
 
 func TestReviewSpecMarshaling(t *testing.T) {
