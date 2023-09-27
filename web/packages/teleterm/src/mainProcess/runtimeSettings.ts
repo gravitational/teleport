@@ -47,6 +47,7 @@ const dev = env.NODE_ENV === 'development' || env.DEBUG_PROD === 'true';
 
 // Allows running tsh in insecure mode (development)
 const isInsecure = argv.includes('--insecure');
+const isDebug = argv.includes('--debug');
 
 export function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
@@ -102,8 +103,10 @@ export function getRuntimeSettings(): RuntimeSettings {
   const appVersion = dev ? process.env.npm_package_version : app.getVersion();
 
   if (isInsecure) {
-    tshd.flags.unshift('--debug');
     tshd.flags.unshift('--insecure');
+  }
+  if (dev || isDebug) {
+    tshd.flags.unshift('--debug');
   }
 
   return {
