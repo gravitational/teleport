@@ -1637,7 +1637,7 @@ func (p *headlessAuthenticationParser) parse(event backend.Event) (types.Resourc
 
 func newAccessListParser() *accessListParser {
 	return &accessListParser{
-		baseParser: newBaseParser(backend.Key(accessListPrefix)),
+		baseParser: newBaseParser(backend.Key(accessListPrefix, "")),
 	}
 }
 
