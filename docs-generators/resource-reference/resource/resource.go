@@ -90,6 +90,23 @@ type yamlKindNode interface {
 	customFieldData() []PackageInfo
 }
 
+// nonYAMLKind represents a field type that we cannot convert to YAML. Consumers
+// should treat this as unreliable and return an error if there is no way to
+// avoid creating a reference entry for this kind.
+type nonYAMLKind struct{}
+
+func (n nonYAMLKind) formatForTable() string {
+	return ""
+}
+
+func (n nonYAMLKind) formatForExampleYAML(indents int) string {
+	return ""
+}
+
+func (n nonYAMLKind) customFieldData() []PackageInfo {
+	return []PackageInfo{}
+}
+
 type yamlSequence struct {
 	elementKind yamlKindNode
 }
@@ -391,7 +408,7 @@ func getYAMLTypeForExpr(exp ast.Expr) (yamlKindNode, error) {
 			},
 		}, nil
 	default:
-		return nil, fmt.Errorf("unexpected type: %+v", t)
+		return nonYAMLKind{}, nil
 	}
 
 }
