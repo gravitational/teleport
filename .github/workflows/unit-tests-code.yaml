@@ -71,7 +71,7 @@ jobs:
       # Run Teleport Unit tests.
       - name: Run tests
         timeout-minutes: 40
-        run: make test-go test-sh test-api
+        run: make -j"$(nproc)" test-go test-sh test-api
 
       # Run tests for the script located under "examples/teleport-usage".
       - name: Run teleport-usage tests
