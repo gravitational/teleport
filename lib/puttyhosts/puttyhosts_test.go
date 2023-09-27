@@ -407,6 +407,11 @@ func TestCheckAndSplitValidityKey(t *testing.T) {
 			shouldError:   true,
 		},
 		{
+			input:         " *.example.com || lol.example.com",
+			desiredOutput: []string(nil),
+			shouldError:   true,
+		},
+		{
 			input:         "*.example.com || lol.example.com || test.teleport.com || \"\"",
 			desiredOutput: []string(nil),
 			shouldError:   true,
