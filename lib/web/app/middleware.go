@@ -164,8 +164,12 @@ func writeError(w http.ResponseWriter, err error) {
 	http.Error(w, http.StatusText(code), code)
 }
 
-type routerFunc func(http.ResponseWriter, *http.Request, httprouter.Params) error
-type routerAuthFunc func(http.ResponseWriter, *http.Request, httprouter.Params, *session) error
+type (
+	routerFunc     func(http.ResponseWriter, *http.Request, httprouter.Params) error
+	routerAuthFunc func(http.ResponseWriter, *http.Request, httprouter.Params, *session) error
+)
 
-type handlerAuthFunc func(http.ResponseWriter, *http.Request, *session) error
-type handlerFunc func(http.ResponseWriter, *http.Request) error
+type (
+	handlerAuthFunc func(http.ResponseWriter, *http.Request, *session) error
+	handlerFunc     func(http.ResponseWriter, *http.Request) error
+)

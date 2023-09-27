@@ -306,8 +306,22 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only try to redirect if the handler is serving the full Web API.
+	h.handler.log.WithFields(logrus.Fields{
+		"proxy_public_addr":              h.handler.cfg.ProxyPublicAddrs,
+		"request_host":                   r.Host,
+		"request_path":                   r.URL.Path,
+		"MinimalReverseTunnelRoutesOnly": h.handler.cfg.MinimalReverseTunnelRoutesOnly,
+	},
+	).Warnf("checking if we should redirect to launcher for %q", r.Host)
 	if !h.handler.cfg.MinimalReverseTunnelRoutesOnly {
-		if redir, ok := app.HasName(r, h.handler.cfg.ProxyPublicAddrs); ok {
+		if redir, ok := app.HasName(h.handler.log, r, h.handler.cfg.ProxyPublicAddrs); ok {
+			h.handler.log.WithFields(logrus.Fields{
+				"proxy_public_addr": h.handler.cfg.ProxyPublicAddrs,
+				"request_host":      r.Host,
+				"request_path":      r.URL.Path,
+				"debug_session":     "true",
+			},
+			).Warnf("Redirecting to launcher for %q", r.Host)
 			http.Redirect(w, r, redir, http.StatusFound)
 			return
 		}
@@ -2482,7 +2496,6 @@ func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ ht
 }
 
 func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesRequest, error) {
-
 	values := r.URL.Query()
 
 	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
@@ -3819,7 +3832,6 @@ func consumeTokenForAPICall(ctx context.Context, proxyClient auth.ClientI, token
 	}
 
 	return token, nil
-
 }
 
 // checkTokenTTL returns true if the token is still valid.
