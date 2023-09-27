@@ -183,7 +183,7 @@ func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, 
 		return resource, trace.Wrap(err)
 	}
 	resource, err = s.unmarshalFunc(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	return resource, trace.Wrap(err)
 }
 
@@ -257,7 +257,7 @@ func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, mod
 	}
 
 	resource, err := s.unmarshalFunc(existingItem.Value,
-		services.WithResourceID(existingItem.ID), services.WithExpires(existingItem.Expires))
+		services.WithResourceID(existingItem.ID), services.WithExpires(existingItem.Expires), services.WithRevision(existingItem.Revision))
 	if err != nil {
 		return trace.Wrap(err)
 	}

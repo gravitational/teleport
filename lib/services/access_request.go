@@ -411,6 +411,8 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author t
 		return trace.AccessDenied("the access request has been already approved")
 	case req.GetState().IsDenied():
 		return trace.AccessDenied("the access request has been already denied")
+	case req.GetState().IsPromoted():
+		return trace.AccessDenied("the access request has been already promoted")
 	}
 
 	req.SetReviews(append(req.GetReviews(), rev))
@@ -427,6 +429,12 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author t
 		return trace.Wrap(err)
 	}
 	req.SetResolveReason(res.reason)
+	if req.GetPromotedAccessListName() == "" {
+		// Set the title only if it's not set yet. This is to prevent
+		// overwriting the title by another promotion review.
+		req.SetPromotedAccessListName(rev.GetAccessListName())
+		req.SetPromotedAccessListTitle(rev.GetAccessListTitle())
+	}
 	req.SetExpiry(req.GetAccessExpiry())
 	return nil
 }
@@ -595,6 +603,9 @@ ProcessReviews:
 				counts[idx].approval++
 			case rev.ProposedState.IsDenied():
 				counts[idx].denial++
+			case rev.ProposedState.IsPromoted():
+				// Promote skips the threshold check.
+				break ProcessReviews
 			default:
 				return nil, trace.BadParameter("cannot calculate state-transition, unexpected proposal: %s", rev.ProposedState)
 			}
@@ -666,6 +677,9 @@ ProcessReviews:
 			// their denial thresholds; no state-transition.
 			return nil, nil
 		}
+	case lastReview.ProposedState.IsPromoted():
+		// Let the state change. Promoted won't grant any access, meaning it is roughly equivalent to denial.
+		// But we want to be able to distinguish between promoted and denied in audit logs/UI.
 	default:
 		return nil, trace.BadParameter("cannot calculate state-transition, unexpected proposal: %s", lastReview.ProposedState)
 	}
@@ -1018,6 +1032,10 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 
 	if m.requireReason && req.GetRequestReason() == "" {
 		return trace.BadParameter("request reason must be specified (required by static role configuration)")
+	}
+
+	if !req.GetState().IsPromoted() && req.GetPromotedAccessListTitle() != "" {
+		return trace.BadParameter("only promoted requests can set the promoted access list title")
 	}
 
 	// check for "wildcard request" (`roles=*`).  wildcard requests
@@ -1577,6 +1595,9 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (types.AccessReq
 	if cfg.ID != 0 {
 		req.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		req.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		req.SetExpiry(cfg.Expires)
 	}
@@ -1601,6 +1622,7 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 			// to prevent unexpected data races
 			copy := *accessRequest
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			accessRequest = &copy
 		}
 		return utils.FastMarshal(accessRequest)

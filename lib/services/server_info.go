@@ -45,6 +45,9 @@ func UnmarshalServerInfo(bytes []byte, opts ...MarshalOption) (types.ServerInfo,
 	if cfg.ID != 0 {
 		si.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		si.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		si.SetExpiry(cfg.Expires)
 	}
@@ -73,6 +76,7 @@ func MarshalServerInfo(si types.ServerInfo, opts ...MarshalOption) ([]byte, erro
 			// to prevent unexpected data races
 			copy := *si
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			si = &copy
 		}
 		bytes, err := utils.FastMarshal(si)

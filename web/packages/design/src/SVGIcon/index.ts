@@ -64,6 +64,7 @@ export { SettingsIcon } from './Settings';
 export { ShieldAlertIcon } from './ShieldAlert';
 export { SidebarIcon } from './Sidebar';
 export { SupportIcon } from './Support';
+export { TeleportGearIcon } from './TeleportGearIcon';
 export { TerminalIcon } from './Terminal';
 export { TrustedClustersIcon } from './TrustedClusters';
 export { UpgradeIcon } from './Upgrade';
