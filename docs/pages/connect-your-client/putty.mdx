@@ -239,6 +239,21 @@ itself to be able to start a session against the leaf cluster.
 You do not have valid `tsh` credentials locally. Run `tsh login --proxy=<proxy hostname>` to log in first, or provide the `--proxy`
 parameter when running `tsh puttyconfig`.
 
+### `ERROR: validity string for TeleportHostCA-<cluster_name>...`
+
+Any errors related to the validity string are caused by invalid formatting in the PuTTY registry key which holds the list of hostnames
+that should be trusted for a given host CA. Invalid formatting is generally caused by manual editing of host CA records in the
+PuTTY GUI or Registry Editor - this should never be necessary and is strongly discouraged.
+
+To fix this error, load PuTTY and go to SSH -> Host Keys -> Configure Host CAs at the left hand side. Select the matching
+`TeleportHostCA-<cluster_name>` host CA record from the error and click **Load**. You can manually fix the entry under "Valid hosts this
+key is trusted to certify" - the format must follow `<hostname> || <hostname> || ...` - or you can click the **Delete** button.
+
+Note that deleting a host CA record will mean you then need to re-run `tsh puttyconfig` for every Teleport SSH service in that cluster
+that you want to be able to access via PuTTY, even if the saved sessions still exist.
+
+If this error appears during normal day-to-day operation, this is a bug and should be reported via Github.
+
 
 ## Uninstalling tsh
 
