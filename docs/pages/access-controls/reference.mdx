@@ -404,18 +404,18 @@ metadata:
 spec:
   allow:
     rules:
-    # Teleport allows shared session access by default, so for our restrictions
-    # to work we first allow access to ssh_sessions...
-    - resources: [ssh_session]
+    # Teleport allows session access to the user's sessions
+    # and sessions they can join by default. This allows seeing any sessions.
+    - resources: [session_tracker]
       verbs: ['*']
   deny:
     rules:
     # ... and then limit that access via a deny rule.
     # Deny rules take precedence over allow rules, so the resulting role allows
     # users to create SSH sessions but to only view their own sessions.
-    - resources: [ssh_session]
+    - resources: [session_tracker]
       verbs: [list, read, update, delete]
-      where: '!contains(ssh_session.participants, user.metadata.name)'
+      where: '!contains(session_tracker.participants, user.metadata.name)'
 ```
 
 ## Second Factor - U2F
@@ -431,7 +431,7 @@ Here is an explanation of the fields used in the `where` and `filter` conditions
 | -------------------------- | ------------------------------------------------- |
 | `user.spec.roles`          | The list of roles assigned to a user              |
 | `session.participants`     | The list of participants from a session recording |
-| `ssh_session.participants` | The list of participants from an SSH session      |
+| `session_tracker.participants` | The list of participants from an SSH session      |
 | `user.metadata.name`       | The user's name                                   |
 
 Check out our [predicate language](../reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources)
