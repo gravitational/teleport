@@ -2910,7 +2910,7 @@ Teleport 5.0 introduces two distinct features: Teleport application access and s
 
 Teleport can now be used to provide secure access to web applications. This new feature was built with the express intention of securing internal apps which might have once lived on a VPN or had a simple authorization and authentication mechanism with little to no audit trail. application access works with everything from dashboards to single page Javascript applications (SPA).
 
-application access uses mutually authenticated reverse tunnels to establish a secure connection with the Teleport unified Access Plane which can then becomes the single ingress point for all traffic to an internal application.
+Application access uses mutually authenticated reverse tunnels to establish a secure connection with the Teleport unified Access Platform which can then becomes the single ingress point for all traffic to an internal application.
 
 Adding an application follows the same UX as adding SSH servers or Kubernetes clusters, starting with creating a static or dynamic invite token.
 
@@ -2994,7 +2994,7 @@ You can learn more in the [Application Access introduction](./docs/pages/applica
 
 Teleport 5.0 also introduces two highly requested features for Kubernetes.
 
-* The ability to connect multiple Kubernetes Clusters to the Teleport Access Plane, greatly reducing operational complexity.
+* The ability to connect multiple Kubernetes Clusters to the Teleport Access Platform, greatly reducing operational complexity.
 * Complete Kubernetes audit log capture [#4526](https://github.com/gravitational/teleport/pull/4526), going beyond the existing `kubectl exec` capture.
 
 For a full overview please review the [Kubernetes RFD](https://github.com/gravitational/teleport/blob/master/rfd/0005-kubernetes-service.md).
