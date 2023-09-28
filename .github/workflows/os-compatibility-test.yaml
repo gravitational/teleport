@@ -38,7 +38,7 @@ jobs:
 
       - name: Run make
         run: |
-          make binaries
+          make -j"$(nproc)" binaries
 
       - name: Upload binaries
         uses: actions/upload-artifact@v3

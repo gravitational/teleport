@@ -73,29 +73,33 @@ function run_docker {
   distro=$1
   binary=$(basename $2)
 
-  container=$(docker create $distro /tmp/$binary "${@:3}")
+  container=$(docker create "$distro" "/tmp/$binary" "${@:3}")
   # I *want* the variable below expanded now, so disabling lint
   # shellcheck disable=SC2064
   trap "docker rm $container > /dev/null" RETURN
 
-  docker cp $2 $container:/tmp/$binary
-  docker start $container > /dev/null
-  test_result=$(docker wait $container)
+  docker cp $2 "$container":"/tmp/$binary"
+  docker start "$container" > /dev/null
+  test_result=$(docker wait "$container")
 
   EXIT_CODE=$((EXIT_CODE || test_result))
-  if [ $test_result -ne 0 ]
+  if [ "$test_result" -ne 0 ]
   then
     echo "$binary failed on $distro:"
-    docker logs $container
+    docker logs "$container"
   fi
 
-  return $test_result
+  return "$test_result"
 }
+
+echo "============ Pulling images ============"
+# Cache images in parallel to speed up the process.
+printf '%s\0' "${DISTROS[@]}" | xargs -0 -P 10 -I{} docker pull {}
+
 
 for DISTRO in "${DISTROS[@]}";
 do
   echo "============ Checking ${DISTRO} ============"
-  docker pull "${DISTRO}"
 
   run_docker "$DISTRO" $PWD/build/teleport version
   run_docker "$DISTRO" $PWD/build/tsh version
