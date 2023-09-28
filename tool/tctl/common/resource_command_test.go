@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -413,6 +415,119 @@ func TestIntegrationResource(t *testing.T) {
 	})
 }
 
+// TestDiscoveryConfigResource tests tctl discoveryConfig commands.
+func TestDiscoveryConfigResource(t *testing.T) {
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+
+	ctx := context.Background()
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+
+	t.Run("get", func(t *testing.T) {
+		// Add a lot of DiscoveryConfigs to test pagination
+		dc, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{
+				Name: "mydiscoveryconfig",
+			},
+			discoveryconfig.Spec{
+				DiscoveryGroup: "prod-resources",
+			},
+		)
+		require.NoError(t, err)
+
+		randomDiscoveryConfigName := ""
+		totalDiscoveryConfigs := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
+		for i := 0; i < totalDiscoveryConfigs; i++ {
+			dc.SetName(uuid.NewString())
+			if i == apidefaults.DefaultChunkSize { // A "random" discoveryConfig name
+				randomDiscoveryConfigName = dc.GetName()
+			}
+			_, err = auth.GetAuthServer().CreateDiscoveryConfig(ctx, dc)
+			require.NoError(t, err)
+		}
+
+		t.Run("test pagination of discovery configs ", func(t *testing.T) {
+			buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDiscoveryConfig, "--format=json"})
+			require.NoError(t, err)
+			out := mustDecodeJSON[[]discoveryconfig.DiscoveryConfig](t, buff)
+			require.Len(t, out, totalDiscoveryConfigs)
+		})
+
+		dcName := fmt.Sprintf("%v/%v", types.KindDiscoveryConfig, randomDiscoveryConfigName)
+
+		t.Run("get specific discovery config", func(t *testing.T) {
+			buff, err := runResourceCommand(t, fileConfig, []string{"get", dcName, "--format=json"})
+			require.NoError(t, err)
+			out := mustDecodeJSON[[]discoveryconfig.DiscoveryConfig](t, buff)
+			require.Len(t, out, 1)
+			require.Equal(t, randomDiscoveryConfigName, out[0].GetName())
+		})
+
+		t.Run("get unknown discovery config", func(t *testing.T) {
+			unknownDiscoveryConfig := fmt.Sprintf("%v/%v", types.KindDiscoveryConfig, "unknown")
+			_, err := runResourceCommand(t, fileConfig, []string{"get", unknownDiscoveryConfig, "--format=json"})
+			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+		})
+
+		t.Run("get specific discovery config with human output", func(t *testing.T) {
+			buff, err := runResourceCommand(t, fileConfig, []string{"get", dcName, "--format=text"})
+			require.NoError(t, err)
+			outputString := buff.String()
+			require.Contains(t, outputString, "prod-resources")
+			require.Contains(t, outputString, randomDiscoveryConfigName)
+		})
+	})
+
+	t.Run("create", func(t *testing.T) {
+		discoveryConfigYAMLPath := filepath.Join(t.TempDir(), "discoveryConfig.yaml")
+		require.NoError(t, os.WriteFile(discoveryConfigYAMLPath, []byte(discoveryConfigYAML), 0644))
+		_, err := runResourceCommand(t, fileConfig, []string{"create", discoveryConfigYAMLPath})
+		require.NoError(t, err)
+
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", "discovery_config/my-discovery-config", "--format=text"})
+		require.NoError(t, err)
+		outputString := buff.String()
+		require.Contains(t, outputString, "my-discovery-config")
+		require.Contains(t, outputString, "mydg1")
+
+		// Update the discovery group to another group
+		discoveryConfigYAMLV2 := strings.ReplaceAll(discoveryConfigYAML, "mydg1", "mydg2")
+		require.NoError(t, os.WriteFile(discoveryConfigYAMLPath, []byte(discoveryConfigYAMLV2), 0644))
+
+		// Trying to create it again should return an error
+		_, err = runResourceCommand(t, fileConfig, []string{"create", discoveryConfigYAMLPath})
+		require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
+
+		// Using the force should be ok and replace the current object
+		_, err = runResourceCommand(t, fileConfig, []string{"create", "--force", discoveryConfigYAMLPath})
+		require.NoError(t, err)
+
+		// The DiscoveryGroup must be updated
+		buff, err = runResourceCommand(t, fileConfig, []string{"get", "discovery_config/my-discovery-config", "--format=text"})
+		require.NoError(t, err)
+		outputString = buff.String()
+		require.Contains(t, outputString, "mydg2")
+	})
+}
+
 func TestCreateLock(t *testing.T) {
 	dynAddr := helpers.NewDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
@@ -620,6 +735,17 @@ metadata:
 spec:
   aws_oidc:
     role_arn: "arn:aws:iam::123456789012:role/OpsTeam"
+`
+
+	discoveryConfigYAML = `kind: discovery_config
+version: v1
+metadata:
+  name: my-discovery-config
+spec:
+  discovery_group: mydg1
+  aws:
+  - types: ["ec2"]
+    regions: ["eu-west-2"]
 `
 )
 
