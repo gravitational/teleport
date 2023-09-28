@@ -111,11 +111,12 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 	requestReviews := req.GetReviews()
 	for _, rev := range requestReviews {
 		reviews = append(reviews, &api.AccessRequestReview{
-			Author:  rev.Author,
-			Roles:   rev.Roles,
-			State:   rev.ProposedState.String(),
-			Reason:  rev.Reason,
-			Created: timestamppb.New(rev.Created),
+			Author:                  rev.Author,
+			Roles:                   rev.Roles,
+			State:                   rev.ProposedState.String(),
+			Reason:                  rev.Reason,
+			Created:                 timestamppb.New(rev.Created),
+			PromotedAccessListTitle: rev.GetAccessListTitle(),
 		})
 	}
 
@@ -153,19 +154,20 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 	}
 
 	return &api.AccessRequest{
-		Id:                 req.GetName(),
-		State:              req.GetState().String(),
-		ResolveReason:      req.GetResolveReason(),
-		RequestReason:      req.GetRequestReason(),
-		User:               req.GetUser(),
-		Roles:              req.GetRoles(),
-		Created:            timestamppb.New(req.GetCreationTime()),
-		Expires:            timestamppb.New(req.GetAccessExpiry()),
-		Reviews:            reviews,
-		SuggestedReviewers: req.GetSuggestedReviewers(),
-		ThresholdNames:     thresholdNames,
-		ResourceIds:        requestedResourceIDs,
-		Resources:          resources,
+		Id:                      req.GetName(),
+		State:                   req.GetState().String(),
+		ResolveReason:           req.GetResolveReason(),
+		RequestReason:           req.GetRequestReason(),
+		User:                    req.GetUser(),
+		Roles:                   req.GetRoles(),
+		Created:                 timestamppb.New(req.GetCreationTime()),
+		Expires:                 timestamppb.New(req.GetAccessExpiry()),
+		Reviews:                 reviews,
+		SuggestedReviewers:      req.GetSuggestedReviewers(),
+		ThresholdNames:          thresholdNames,
+		ResourceIds:             requestedResourceIDs,
+		Resources:               resources,
+		PromotedAccessListTitle: req.GetPromotedAccessListTitle(),
 	}
 }
 
