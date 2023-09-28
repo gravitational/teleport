@@ -40,6 +40,7 @@ export { EditIcon } from './Edit';
 export { ErrorIcon } from './Error';
 export { ExpandIcon } from './Expand';
 export { ExternalLinkIcon } from './ExternalLink';
+export { ArrowFatLinesUpIcon } from './ArrowFatLinesUp';
 export { GitHubIcon } from './GitHub';
 export { GitLabIcon } from './GitLab';
 export { IntegrationsIcon } from './Integrations';
