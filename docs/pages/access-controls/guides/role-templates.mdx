@@ -204,7 +204,7 @@ email: "alice@example.com"
 # Alice is a member of groups admins and devs
 groups: ["admins", "devs"]
 # She can access prod and staging environments
-access: {"env": ["prod", "staging"]}
+env: ["prod", "staging"]
 ```
 
 Let's create a role template called `sso-users` that expects external attribute
@@ -315,7 +315,7 @@ email: "alice@example.com"
 # Alice is a member of groups admins and devs
 groups: ["admins", "devs"]
 # She can access prod and staging environments
-access: {"env": ["prod", "staging"]}
+env: ["prod", "staging"]
 ```
 
 Let's see how these variables are used with role template `interpolation`:
@@ -339,11 +339,11 @@ spec:
     # Functions transform variables.
     database_users: ['{{email.local(external.email)}}']
     db_labels:
-      'env': '{{regexp.replace(external.access["env"], "^(staging)$", "$1")}}'
+      'env': '{{regexp.replace(external.env, "^(staging)$", "$1")}}'
 
     # Labels can mix template and hard-coded values.
     node_labels:
-      'env': '{{external.access["env"]}}'
+      'env': '{{external.env}}'
       'region': 'us-west-2'
 
     kubernetes_labels:
