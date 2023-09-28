@@ -186,13 +186,6 @@ export function NewRequest(props: State) {
     setWarningConfirm(null);
   }
 
-  // nonRecoverableError are errors where it wasn't a result from invalid query e.g: access denied
-  const nonRecoverableError =
-    !agentFilter.query &&
-    !agentFilter.search &&
-    attempt.status === 'failed' &&
-    agents.length === 0;
-
   const limitReached = usage && usageLimitReached(usage);
 
   return (
@@ -220,7 +213,7 @@ export function NewRequest(props: State) {
           <ErrorMessage message={addAllFetchAttempt.statusText} />
         )}
         {usage && <UsageInfo {...usage} />}
-        {!nonRecoverableError && attempt.status !== 'processing' && (
+        {attempt.status !== 'processing' && (
           <Box width="150px" mb={4} data-testid="resource-selector">
             <Select
               value={currResourceOpt}
@@ -238,7 +231,7 @@ export function NewRequest(props: State) {
             <Indicator />
           </Box>
         )}
-        {!nonRecoverableError && attempt.status !== 'processing' && (
+        {attempt.status !== 'processing' && (
           <>
             <StyledWrapper>
               {/*roles use client-side search */}

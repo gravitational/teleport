@@ -216,6 +216,7 @@ export function useNewRequest(ctx: Ctx) {
       })
       .catch((err: Error) => {
         setAttempt({ status: 'failed', statusText: err.message });
+        setFetchedData(getEmptyFetchedDataState());
         setFetchStatus('');
       });
   }
