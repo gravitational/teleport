@@ -15,8 +15,7 @@
  */
 
 import React from 'react';
-import { Text, ButtonPrimary, Alert } from 'design';
-
+import { Text, ButtonPrimary, Alert, Flex } from 'design';
 import Link from 'design/Link';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -92,9 +91,9 @@ export function CompatibilityError(props: {
   }
 
   return (
-    <>
+    <Flex flexDirection="column" gap={2}>
       {!props.hideAlert && (
-        <Alert>
+        <Alert mb={0}>
           The agent version is not compatible with the cluster version
         </Alert>
       )}
@@ -110,7 +109,6 @@ export function CompatibilityError(props: {
         {$content}
       </Text>
       <ButtonPrimary
-        mt={3}
         mx="auto"
         type="button"
         as="a"
@@ -120,7 +118,7 @@ export function CompatibilityError(props: {
       >
         Visit the downloads page
       </ButtonPrimary>
-    </>
+    </Flex>
   );
 }
 
