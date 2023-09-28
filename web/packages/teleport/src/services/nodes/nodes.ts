@@ -18,7 +18,7 @@ import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
 import { AgentResponse } from 'teleport/services/agents';
 
-import { Node } from './types';
+import { Node, CreateNodeRequest } from './types';
 import makeNode from './makeNode';
 
 class NodeService {
@@ -38,6 +38,13 @@ class NodeService {
           totalCount: json?.totalCount,
         };
       });
+  }
+
+  // Creates a Node.
+  createNode(clusterId: string, req: CreateNodeRequest): Promise<Node> {
+    return api
+      .post(cfg.getClusterNodesUrlNoParams(clusterId), req)
+      .then(makeNode);
   }
 }
 
