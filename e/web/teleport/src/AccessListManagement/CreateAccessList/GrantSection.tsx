@@ -26,9 +26,19 @@ export const GrantSection = ({
 }: Props) => {
   return (
     <>
-      <Text fontSize="18px" mb={2}>
-        Permissions Granted
+      <Text fontSize="18px" mb={4}>
+        Permissions Granted to List Members
       </Text>
+      <EligibilityOrGrantRolesFieldSelectAndCreate
+        options={roleOptions}
+        isDisabled={isDisabled}
+        onChange={(roles: Option[]) =>
+          setGrant({ ...grant, rolesToGrant: roles || [] })
+        }
+        selected={grant.rolesToGrant}
+        editKind="Grants"
+        optional={grant.traitsToGrant.length > 0}
+      />
       <Box mb={3} mt={3}>
         <TraitsCreator
           kind="Grants"
@@ -42,16 +52,6 @@ export const GrantSection = ({
           }
         />
       </Box>
-      <EligibilityOrGrantRolesFieldSelectAndCreate
-        options={roleOptions}
-        isDisabled={isDisabled}
-        onChange={(roles: Option[]) =>
-          setGrant({ ...grant, rolesToGrant: roles || [] })
-        }
-        selected={grant.rolesToGrant}
-        editKind="Grants"
-        optional={grant.traitsToGrant.length > 0}
-      />
     </>
   );
 };

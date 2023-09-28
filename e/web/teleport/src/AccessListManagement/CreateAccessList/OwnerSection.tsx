@@ -1,7 +1,8 @@
 import React from 'react';
-import { Text, Box } from 'design';
+import { Text, Box, Flex } from 'design';
 import { Option } from 'shared/components/Select';
 import { AllUserTraits } from 'teleport/services/user';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import { HybridUserOption, UserOption } from '../Shared';
 import {
@@ -40,10 +41,39 @@ export const OwnersSection = ({
 }: Props) => {
   return (
     <>
-      <Text fontSize="18px" mb={2}>
-        List Owners
+      <Flex alignItems="center" mb={2}>
+        <Text fontSize="18px" mr={2}>
+          List Owners
+        </Text>
+        <ToolTipInfo
+          children={
+            <>
+              List Owners are responsible for managing members and membership
+              requirements for this access list, and must conduct periodic
+              access reviews.
+            </>
+          }
+        />
+      </Flex>
+      <Text mb={5}>
+        If a Teleport user is assigned as an owner but does not have all
+        required roles and traits defined in this section, ownership will have
+        no effect.
       </Text>
-      <Box mb={3} mt={3}>
+      <EligibilityOrGrantRolesFieldSelectAndCreate
+        editKind="Owner"
+        options={roleOptions}
+        isDisabled={isDisabled}
+        onChange={(option: Option[]) =>
+          setOwners({
+            ...owners,
+            selectedRolesRequired: option || [],
+          })
+        }
+        selected={owners.selectedRolesRequired}
+        optional={true}
+      />
+      <Box mb={3}>
         <TraitsCreator
           kind="Owner"
           traitLabels={owners.traitLabels}
@@ -55,21 +85,6 @@ export const OwnersSection = ({
               traitLookup: convertTraitLabelsToAllUserTraits(traitLabels),
             })
           }
-        />
-      </Box>
-      <Box>
-        <EligibilityOrGrantRolesFieldSelectAndCreate
-          editKind="Owner"
-          options={roleOptions}
-          isDisabled={isDisabled}
-          onChange={(option: Option[]) =>
-            setOwners({
-              ...owners,
-              selectedRolesRequired: option || [],
-            })
-          }
-          selected={owners.selectedRolesRequired}
-          optional={true}
         />
       </Box>
       <EligibleUsersFieldSelectAndCreate

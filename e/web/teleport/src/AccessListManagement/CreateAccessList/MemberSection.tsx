@@ -1,7 +1,8 @@
 import React from 'react';
-import { Box, Text } from 'design';
+import { Box, Text, Flex } from 'design';
 import { Option } from 'shared/components/Select';
 import { AllUserTraits } from 'teleport/services/user';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import { HybridUserOption, UserOption } from '../Shared';
 import {
@@ -40,23 +41,25 @@ export const MembersSection = ({
 }: Props) => {
   return (
     <>
-      <Text fontSize="18px" mb={2}>
-        Members (Optional)
-      </Text>
-      <Box mb={3} mt={3}>
-        <TraitsCreator
-          kind="Member"
-          traitLabels={members.traitLabels}
-          isDisabled={isDisabled}
-          updateTraitLabels={(traitLabels: TraitLabel[]) =>
-            setMembers({
-              ...members,
-              traitLabels,
-              traitLookup: convertTraitLabelsToAllUserTraits(traitLabels),
-            })
+      <Flex alignItems="center" mb={2}>
+        <Text fontSize="18px" mr={2}>
+          Members (Optional)
+        </Text>
+        <ToolTipInfo
+          children={
+            <>
+              List members will receive long-term access to roles and traits
+              granted by this access list, and their membership will be reviewed
+              by list owners in periodic reviews.
+            </>
           }
         />
-      </Box>
+      </Flex>
+      <Text mb={5}>
+        If a member does not have all required roles and traits defined here,
+        membership will have no effect. They will not be granted any additional
+        roles or traits by the list.
+      </Text>
       <EligibilityOrGrantRolesFieldSelectAndCreate
         editKind="Member"
         optional={true}
@@ -70,6 +73,20 @@ export const MembersSection = ({
         }
         selected={members.selectedRolesRequired}
       />
+      <Box mb={3}>
+        <TraitsCreator
+          kind="Member"
+          traitLabels={members.traitLabels}
+          isDisabled={isDisabled}
+          updateTraitLabels={(traitLabels: TraitLabel[]) =>
+            setMembers({
+              ...members,
+              traitLabels,
+              traitLookup: convertTraitLabelsToAllUserTraits(traitLabels),
+            })
+          }
+        />
+      </Box>
       <EligibleUsersFieldSelectAndCreate
         selected={members.selectedMembers || []}
         isDisabled={isDisabled}
@@ -77,7 +94,7 @@ export const MembersSection = ({
           setMembers({ ...members, selectedMembers: vals || [] })
         }
         options={members.eligibleMembers}
-        label="Add Members"
+        label="Add Members (Optional)"
         noEligibleUsersFromNoAccess={noAccess}
       />
     </>

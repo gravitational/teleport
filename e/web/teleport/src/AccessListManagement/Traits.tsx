@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Flex, ButtonIcon, Text, ButtonBorder } from 'design';
+import { Box, Flex, ButtonIcon, Text, ButtonText } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -44,23 +44,22 @@ export function TraitsCreator({
 
   let addBtnTxt =
     traitLabels.length === 0
-      ? `Add ${kind} Required Trait (optional)`
+      ? `Add a Required Trait (Optional)`
       : `Add Another Required ${kind} Trait`;
 
   if (kind === 'Grants') {
     addBtnTxt =
       traitLabels.length === 0
-        ? `Add Trait to Grant`
+        ? `Add a Trait to Grant`
         : `Add Another Trait to Grant`;
   }
 
   return (
     <Box mb={4}>
-      <ButtonBorder
-        size="small"
+      <ButtonText
         onClick={addLabel}
         css={`
-          padding-right: 20px;
+          padding-left: 0px;
           &:disabled {
             .icon-add {
               opacity: 0.35;
@@ -79,7 +78,7 @@ export function TraitsCreator({
           `}
         />
         {addBtnTxt}
-      </ButtonBorder>
+      </ButtonText>
       {traitLabels.length > 0 && (
         <Flex mt={2}>
           <Box width="186px">
