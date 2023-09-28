@@ -121,31 +121,33 @@ func TestRecurrenceConfiguration(t *testing.T) {
 	require.Zero(t, accessListDoesNotNeedConversion.Spec.Audit.Frequency)
 	require.Equal(t, "FREQ=MONTHLY;INTERVAL=6;BYMONTHDAY=12;DTSTART=20230112", accessListDoesNotNeedConversion.Spec.Audit.Recurrence)
 
-	// Frequency of 1 minute is set and next audit date is not.
+	// Frequency of 1 minute is set.
 	accessList1MinuteConversion := sourceAccessList
 	accessList1MinuteConversion.Spec.Audit.Frequency = time.Minute
+	accessList1MinuteConversion.Spec.Audit.NextAuditDate = time.Date(2022, 2, 1, 0, 0, 0, 0, time.UTC)
 	require.NoError(t, accessList1MinuteConversion.CheckAndSetDefaults())
 	require.Zero(t, accessList1MinuteConversion.Spec.Audit.Frequency)
-	require.Equal(t, "FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=1;DTSTART=20240101", accessList1MinuteConversion.Spec.Audit.Recurrence)
+	require.Equal(t, "FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=1;DTSTART=20220201", accessList1MinuteConversion.Spec.Audit.Recurrence)
 
-	// Frequency of 1 month is set and next audit date is not.
+	// Frequency of 1 month is set.
 	accessList1MonthConversion := sourceAccessList
-	accessList1MonthConversion.Spec.Audit.Frequency = estimatedHoursInAMonth * 1
+	accessList1MonthConversion.Spec.Audit.Frequency = averageHoursInAMonth * 1
+	accessList1MonthConversion.Spec.Audit.NextAuditDate = time.Date(2022, 2, 1, 0, 0, 0, 0, time.UTC)
 	require.NoError(t, accessList1MonthConversion.CheckAndSetDefaults())
 	require.Zero(t, accessList1MonthConversion.Spec.Audit.Frequency)
-	require.Equal(t, "FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=1;DTSTART=20240101", accessList1MonthConversion.Spec.Audit.Recurrence)
+	require.Equal(t, "FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=1;DTSTART=20220201", accessList1MonthConversion.Spec.Audit.Recurrence)
 
-	// Frequency of 12 months is set and next audit date is set.
+	// Frequency of 12 months is set.
 	accessList12MonthConversion := sourceAccessList
-	accessList12MonthConversion.Spec.Audit.Frequency = estimatedHoursInAMonth * 12
+	accessList12MonthConversion.Spec.Audit.Frequency = averageHoursInAMonth * 12
 	accessList12MonthConversion.Spec.Audit.NextAuditDate = time.Date(2023, 1, 15, 0, 0, 0, 0, time.UTC)
 	require.NoError(t, accessList12MonthConversion.CheckAndSetDefaults())
 	require.Zero(t, accessList12MonthConversion.Spec.Audit.Frequency)
 	require.Equal(t, "FREQ=MONTHLY;INTERVAL=12;BYMONTHDAY=15;DTSTART=20230115", accessList12MonthConversion.Spec.Audit.Recurrence)
 
-	// Frequency of greater than 12 months is set and next audit date is set. This should max out at 12 months.
+	// Frequency of greater than 12 months is set. This should max out at 12 months.
 	accessListGT12MonthConversion := sourceAccessList
-	accessListGT12MonthConversion.Spec.Audit.Frequency = estimatedHoursInAMonth * 24
+	accessListGT12MonthConversion.Spec.Audit.Frequency = averageHoursInAMonth * 24
 	accessListGT12MonthConversion.Spec.Audit.NextAuditDate = time.Date(2023, 1, 15, 0, 0, 0, 0, time.UTC)
 	require.NoError(t, accessListGT12MonthConversion.CheckAndSetDefaults())
 	require.Zero(t, accessListGT12MonthConversion.Spec.Audit.Frequency)

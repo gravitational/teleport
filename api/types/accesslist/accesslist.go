@@ -34,8 +34,11 @@ const (
 	// the date format for the recurrence string, copied from https://github.com/teambition/rrule-go.
 	recurrenceDateFormat = "20060102"
 
-	// estimatedHoursInAMonth are the number of hours in a month as estimated by Google.
-	estimatedHoursInAMonth = 730 * time.Hour
+	// averageHoursInAMonth are the average number of hours in a month.
+	averageHoursInAMonth = 730 * time.Hour
+
+	// defaultRecurrenceIntervalInMonths describes the default number of months that reviews will be expected.
+	defaultRecurrenceIntervalInMonths = 6
 )
 
 // AccessList describes the basic building block of access grants, which are
@@ -93,6 +96,7 @@ type Owner struct {
 type Audit struct {
 	// Frequency is a duration that describes how often an access list must be audited.
 	// Deprecated.
+	// TODO(mdwn): DELETE in 16.0.0.
 	Frequency time.Duration `json:"frequency,omitempty" yaml:"frequency,omitempty"`
 
 	// NextAuditDate is the date that the next audit should be performed.
@@ -173,13 +177,13 @@ func (a *AccessList) CheckAndSetDefaults() error {
 
 	// This interval is the number of months in between reviews. This will only be used if the
 	// recurrence string is not set.
-	recurrenceInterval := 6
+	recurrenceInterval := defaultRecurrenceIntervalInMonths
 
 	// We know that the audit field needs a recurrence conversion if the frequency is set.
 	if a.Spec.Audit.Frequency != 0 {
 		// We'll modify the recurrence interval based on the value of the frequency. We'll take the assumptions made in the
 		// UI and max out at a yearly recurrence cycle
-		recurrenceInterval = int(a.Spec.Audit.Frequency / estimatedHoursInAMonth)
+		recurrenceInterval = int(a.Spec.Audit.Frequency / averageHoursInAMonth)
 		if recurrenceInterval > 12 {
 			recurrenceInterval = 12
 		} else if recurrenceInterval < 1 {
@@ -188,13 +192,6 @@ func (a *AccessList) CheckAndSetDefaults() error {
 
 		// Unset the frequency.
 		a.Spec.Audit.Frequency = 0
-
-		// If the audit field needs a conversion to the new recurrence format, we know that that the next audit date may not
-		// be populated. This will not happen going forward, as we now check for the zero value of the next audit date.
-		// We'll ensure that the next audit date is set to a sane default before proceeding.
-		if a.Spec.Audit.NextAuditDate.IsZero() {
-			a.Spec.Audit.NextAuditDate = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-		}
 	}
 
 	if a.Spec.Audit.NextAuditDate.IsZero() {
