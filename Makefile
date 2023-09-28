@@ -937,7 +937,7 @@ integration-test-setup: $(TEST_LOG_DIR)
 %-integration-test: ensure-gotestsum integration-test-setup
 	@mkdir -p $(dir $(LOG_PATH))
 	[ ! -f "$(TEST_BINARY)" ] || ( \
-		cd integration/$*;
+		cd integration/$(notdir $*);
 		go tool test2json -p $* \
 			../../$(TEST_BINARY) -test.timeout=30m $(FLAGS) \
 		| tee $(LOG_PATH) \
