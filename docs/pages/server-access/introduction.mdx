@@ -1,30 +1,62 @@
 ---
-title: Teleport Server Access Features and Introduction
-description: Teleport server access features and introduction.
+title: Manage Access to SSH Servers
+description: Explains how Teleport protects access to SSH servers and how to configure related features.
 videoBanner: EsEvO5ndNDI
 ---
 
-Teleport consolidates SSH access across all environments, decreases
-configuration complexity, supports industry best practices and compliance while
-giving complete visibility over all sessions and events.
+Teleport enables you to consolidate SSH access across your infrastructure, reduce configuration
+complexity, and implement best practices for security and compliance with full visibility of
+session activity and audit log events.
 
-Teleport server access is designed for the following kinds of scenarios:
+The most common reasons to use Teleport to protect access to SSH servers include the following scenarios:
 
-- When up to a vast number of clusters must be managed using the command-line (`tsh`) or programmatically (through the Teleport API) and you want to simplify your stack, security, and configuration complexity.
-- When security team members must track and audit every user session. 
-- When Teleport users require a complete, dedicated, and secure SSH option (Teleport Node running in SSH mode) and more than a certificate authority (Teleport Auth) with proxy (Teleport Proxy).
-- When resource and network security must be maximized: SSH certificates over secret keys, Two-Factor Authentication (2FA), Single Sign-On (SSO), and short-lived certificates.
+- You manage a large number of resources clusters from the command-line or programmatically and you want 
+  to simplify the stack you use to manage security and configuration requirements across the infrastructure.
+- You must track and audit user sessions to regulatory or compliance guidelines. 
+- You have users who require a complete, dedicated, and secure SSH option in addition to the certificate authority 
+  provided by the Teleport Auth Service and proxy provided by the Teleport Proxy Service.
+- You want to maximize resource and network security by using SSH certificates with two-factor authentication, 
+  single sign-on (SSO), and short-lived certificates.
 
-## Getting started
+The topics in this guide describe how to configure Teleport to provide secure access to 
+SSH servers and SSH-related services.
 
-- [Get started](getting-started.mdx): Get started using Teleport server access
-  in 10 minutes. Server access for most common SSH use-cases.
+The following diagram provides a simplified view of the architecture for managing
+access to SSH server through Teleport:
 
-## Guides
+## Start with the most common scenarios
 
-- [Using Teleport with PAM](./guides/ssh-pam.mdx): How to configure Teleport SSH with PAM (Pluggable Authentication Modules).
-- [Agentless OpenSSH Integration](./guides/openssh.mdx): How to use Teleport in agentless mode on systems with OpenSSH and `sshd`.
-- [Recording Proxy Mode](./guides/recording-proxy-mode.mdx): How to use Teleport Recording Proxy Mode to capture activity on OpenSSH servers.
-- [BPF Session Recording](./guides/bpf-session-recording.mdx): How to use BPF to record SSH session commands, modified files and network connections.
-- [Restricted Session](./guides/restricted-session.mdx): How to configure and use Restricted Session to apply security policies to SSH sessions.
-- [Visual Studio Code](./guides/vscode.mdx): How to remotely develop with Visual Studio Code and Teleport.
+You can configure Teleport SSH Service to control different aspects of access for 
+different scenarios. For example, you can configure Teleport SSH Service to provide
+agentless operation and to work with Pluggable Authentication Modules (PAM) to 
+manage privileges.
+
+- [Get started](./getting-started.mdx) demonstrates how to configure Teleport to protect access to SSH for the most common SSH use-cases.
+- [Using Teleport with PAM](./ssh-pam.mdx) describes how to configure Teleport SSH with PAM (Pluggable Authentication Modules).
+- [Agentless OpenSSH Integration](./openssh.mdx) describes how to use Teleport in agentless mode on systems with OpenSSH and `sshd`.
+- [Host User Creation](./host-user-creation.mdx): How to configure Teleport to automatically create transient host users.
+- [Linux Auditing System](./auditd.mdx): How to integrate Teleport with the Linux Auditing System (auditd).
+
+## Record session activity
+
+The following topics provide information about configuring Teleport SSH Service to record session activity:
+
+- [Recording Proxy Mode](./recording-proxy-mode.mdx): How to use Teleport Recording Proxy Mode to capture activity on OpenSSH servers.
+- [BPF Session Recording](./bpf-session-recording.mdx): How to use BPF to record SSH session commands, modified files and network connections.
+- [Restricted Sessions](./restricted-session.mdx): How to configure and use Restricted Session to apply security policies to SSH sessions.
+
+## Work with integrated development environments
+
+- [Visual Studio Code](./vscode.mdx): How to remotely develop with Visual Studio Code and Teleport.
+- [JetBrains SFTP](./jetbrains-sftp.mdx): How to use a JetBrains IDE to access SFTP with Teleport.
+
+## Discover resources automatically
+
+- [Discover Azure Instances](./azure-discovery.mdx): How to configure Teleport to automatically enroll Azure virtual machines.
+- [Discover EC2 Instances](./ec2-discovery.mdx): How to configure Teleport to automatically enroll EC2 instances.
+- [Discover GCP Instances](./gcp-discovery.mdx): How to configure Teleport to automatically enroll Google Cloud Platform (GCP) compute instances.
+- [Using Teleport with Ansible](./ansible.mdx): How to use Ansible with Teleport-issued SSH credentials.
+
+## Configure server roles and permissions
+
+- [Configure Access Controls for Servers](./rbac.mdx)
