@@ -77,12 +77,8 @@ func createBotRole(ctx context.Context, s *Server, botName string, resourceName 
 	meta.Labels[types.BotLabel] = botName
 	role.SetMetadata(meta)
 
-	err = s.CreateRole(ctx, role)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return role, nil
+	created, err := s.CreateRole(ctx, role)
+	return created, trace.Wrap(err)
 }
 
 // createBotUser creates a new backing User for bot use. A role with a

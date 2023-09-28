@@ -2272,6 +2272,54 @@ func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV6) (*empty
 	return &emptypb.Empty{}, nil
 }
 
+// CreateRole creates a new role.
+func (g *GRPCServer) CreateRole(ctx context.Context, req *authpb.CreateRoleRequest) (*types.RoleV6, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = services.ValidateRole(req.Role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := auth.ServerWithRoles.CreateRole(ctx, req.Role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	v6, ok := created.(*types.RoleV6)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", created)
+	}
+
+	g.Debugf("%q role created", v6.GetName())
+	return v6, nil
+}
+
+// UpdateRole updates an existing role.
+func (g *GRPCServer) UpdateRole(ctx context.Context, req *authpb.UpdateRoleRequest) (*types.RoleV6, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = services.ValidateRole(req.Role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := auth.ServerWithRoles.UpdateRole(ctx, req.Role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	v6, ok := updated.(*types.RoleV6)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", updated)
+	}
+
+	g.Debugf("%q role updated", v6.GetName())
+	return v6, nil
+}
+
 // DeleteRole deletes a role by name.
 func (g *GRPCServer) DeleteRole(ctx context.Context, req *authpb.DeleteRoleRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)

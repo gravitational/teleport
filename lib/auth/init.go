@@ -739,7 +739,7 @@ type PresetRoleManager interface {
 	// GetRole returns role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// CreateRole creates a role.
-	CreateRole(ctx context.Context, role types.Role) error
+	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
 	// UpsertRole creates or updates a role and emits a related audit event.
 	UpsertRole(ctx context.Context, role types.Role) error
 }
@@ -777,7 +777,7 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 				return nil
 			}
 
-			if err := rm.CreateRole(gctx, role); err != nil {
+			if _, err := rm.CreateRole(gctx, role); err != nil {
 				if !trace.IsAlreadyExists(err) {
 					return trace.WrapWithMessage(err, "failed to create preset role %v", role.GetName())
 				}

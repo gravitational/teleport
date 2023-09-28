@@ -35,7 +35,9 @@ type Access interface {
 	// GetRoles returns a list of roles.
 	GetRoles(ctx context.Context) ([]types.Role, error)
 	// CreateRole creates a role.
-	CreateRole(ctx context.Context, role types.Role) error
+	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
+	// UpdateRole updates a role.
+	UpdateRole(ctx context.Context, role types.Role) (types.Role, error)
 	// UpsertRole creates or updates role.
 	UpsertRole(ctx context.Context, role types.Role) error
 	// DeleteAllRoles deletes all roles.

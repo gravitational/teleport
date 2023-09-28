@@ -281,11 +281,6 @@ func (c *Client) SearchSessionEvents(ctx context.Context, req events.SearchSessi
 	return events, lastKey, nil
 }
 
-// CreateRole not implemented: can only be called locally.
-func (c *Client) CreateRole(ctx context.Context, role types.Role) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // UpsertClusterName not implemented: can only be called locally.
 func (c *Client) UpsertClusterName(cn types.ClusterName) error {
 	return trace.NotImplemented(notImplementedMessage)
