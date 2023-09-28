@@ -357,8 +357,29 @@ allow:
     - resources:
         - token
       verbs: [list, create, read, update, delete]
-
 ```
+
+### Allowing access to token resources
+
+You should note that if you configure a role that allows tokens to be created, a user assigned to the 
+role can create any type of token. 
+For example, assume you create a role with the following configuration:
+
+```yaml
+allow:
+  rules:
+    - resources:
+        - token
+      verbs: [list, create, read, update, delete]
+```
+
+With these permissions, usesr assigned this role can generate any type of tokens, including a token to join 
+a server to a cluster, establish a trust relationship between a root cluster and a new Teleport Poxy Service 
+or leaf cluster, or configure a device trust relationship for a managed device.
+Because the token resource isn't scoped to a specific context, such as a node or trusted cluster, you should 
+consider any role that provides token permissions to be an administrative role. In particular, you should 
+avoid configuring `allow` rules that grant `create` and `update` permissions on `token` resources to prevent 
+unexpected changes to the configuration or state of your cluster.
 
 ## RBAC for sessions
 
