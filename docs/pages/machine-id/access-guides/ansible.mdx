@@ -138,7 +138,7 @@ $ tsh ls --format=json | jq -r '.[].spec.hostname' > hosts
 
 </Details>
 
-## Step 3/4. Run a playbook
+## Step 4/4. Run a playbook
 
 Finally, let's create a simple Ansible playbook, `playbook.yaml`.
 
@@ -202,3 +202,8 @@ If `ssh` works, try running the playbook with verbose mode on:
 ```code
 $ ansible-playbook -vvv playbook.yaml
 ```
+
+## Next steps
+
+- Read the [configuration reference](../reference/configuration.mdx) to explore
+  all the available configuration options.
