@@ -293,15 +293,14 @@ func TestMFADeviceManagement(t *testing.T) {
 
 	// Delete several of the MFA devices.
 	deleteTests := []struct {
-		desc string
-		opts mfaDeleteTestOpts
+		desc       string
+		deviceName string
+		opts       mfaDeleteTestOpts
 	}{
 		{
 			desc: "fail to delete an unknown device",
 			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: "unknown-dev",
-				},
+				deviceName:  "unknown-dev",
 				authHandler: devs.totpAuthHandler,
 				checkErr:    require.Error,
 			},
@@ -309,9 +308,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		{
 			desc: "fail a TOTP auth challenge",
 			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: devs.TOTPName,
-				},
+				deviceName: devs.TOTPName,
 				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					require.NotNil(t, req.TOTP)
 
@@ -332,9 +329,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		{
 			desc: "fail a webauthn auth challenge",
 			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: devs.WebName,
-				},
+				deviceName: devs.WebName,
 				authHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					require.NotNil(t, challenge.WebauthnChallenge)
 
@@ -357,9 +352,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		{
 			desc: "delete TOTP device by name",
 			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: devs.TOTPName,
-				},
+				deviceName:  devs.TOTPName,
 				authHandler: devs.totpAuthHandler,
 				checkErr:    require.NoError,
 			},
@@ -367,9 +360,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		{
 			desc: "delete pwdless device by name",
 			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: pwdlessDevName,
-				},
+				deviceName:  pwdlessDevName,
 				authHandler: devs.webAuthHandler,
 				checkErr:    require.NoError,
 			},
@@ -377,9 +368,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		{
 			desc: "delete webauthn device by name",
 			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: devs.WebName,
-				},
+				deviceName:  devs.WebName,
 				authHandler: devs.webAuthHandler,
 				checkErr:    require.NoError,
 			},
@@ -387,9 +376,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		{
 			desc: "delete webauthn device by ID",
 			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: deviceIDs[webDev2Name],
-				},
+				deviceName: deviceIDs[webDev2Name],
 				authHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					resp, err := webKey2.SignAssertion(
 						webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
@@ -520,40 +507,27 @@ func testAddMFADevice(ctx context.Context, t *testing.T, authClient *Client, opt
 }
 
 type mfaDeleteTestOpts struct {
-	initReq     *proto.DeleteMFADeviceRequestInit
+	deviceName  string
 	authHandler func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
 	checkErr    require.ErrorAssertionFunc
 }
 
-func testDeleteMFADevice(ctx context.Context, t *testing.T, cl *Client, opts mfaDeleteTestOpts) {
-	deleteStream, err := cl.DeleteMFADevice(ctx)
-	require.NoError(t, err)
-	err = deleteStream.Send(&proto.DeleteMFADeviceRequest{Request: &proto.DeleteMFADeviceRequest_Init{Init: opts.initReq}})
-	require.NoError(t, err)
+func testDeleteMFADevice(ctx context.Context, t *testing.T, authClient *Client, opts mfaDeleteTestOpts) {
+	// Issue and solve authn challenge.
+	authnChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{},
+		},
+	})
+	require.NoError(t, err, "CreateAuthenticateChallenge")
+	authnSolved := opts.authHandler(t, authnChal)
 
-	authChallenge, err := deleteStream.Recv()
-	require.NoError(t, err)
-	authResp := opts.authHandler(t, authChallenge.GetMFAChallenge())
-	err = deleteStream.Send(&proto.DeleteMFADeviceRequest{Request: &proto.DeleteMFADeviceRequest_MFAResponse{MFAResponse: authResp}})
-	require.NoError(t, err)
-
-	deleteAck, err := deleteStream.Recv()
-	opts.checkErr(t, err)
-	if err != nil {
-		return
-	}
-	deleted := deleteAck.GetAck().GetDevice()
-	require.NotNil(t, deleted, "deleted device in ack message is nil")
-	require.NotEmpty(t, deleted.Id, "deleted device.Id in ack message is empty")
-	require.NotEmpty(t, deleted.GetName(), "deleted device.Name in ack message is empty")
-	// opts.initReq.DeviceName can be either the device name or ID, so check if
-	// either matches the deleted device.
-	wantName := []string{
-		deleted.Id,
-		deleted.GetName(),
-	}
-	require.Contains(t, wantName, opts.initReq.DeviceName)
-	require.NoError(t, deleteStream.CloseSend())
+	// Attempt deletion.
+	opts.checkErr(t,
+		authClient.DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
+			DeviceName:          opts.deviceName,
+			ExistingMFAResponse: authnSolved,
+		}))
 }
 
 func TestCreateAppSession_deviceExtensions(t *testing.T) {
