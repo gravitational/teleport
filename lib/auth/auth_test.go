@@ -2117,7 +2117,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOn,
+		SecondFactor: constants.SecondFactorOptional, // "optional" lets all user devices be deleted.
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -2133,52 +2133,19 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	webDev1, err := RegisterTestDevice(ctx, userClient, "web1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
 	require.NoError(t, err, "RegisterTestDevice(web1)")
 
-	// Insert a few devices.
-	// Devices with the "delete-" prefix are deleted by following tests.
-	totpOpts := []TestDeviceOpt{WithTestDeviceClock(testServer.Clock())}
-	var allDevs []*TestDevice
-	for _, spec := range []struct {
-		name       string
-		deviceType proto.DeviceType
-		opts       []TestDeviceOpt
-	}{
-		{
-			name:       "delete-web1",
-			deviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-		},
-		{
-			name:       "delete-web2",
-			deviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-		},
-		{
-			name:       "delete-totp1",
-			deviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
-			opts:       totpOpts,
-		},
-		{
-			name:       "delete-totp2",
-			deviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
-			opts:       totpOpts,
-		},
-		{
-			name:       "spare-web1",
-			deviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-		},
-		{
-			name:       "spare-totp1",
-			deviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
-			opts:       totpOpts,
-		},
-	} {
+	// Insert devices for deletion.
+	deviceOpts := []TestDeviceOpt{WithTestDeviceClock(testServer.Clock())}
+	registerDevice := func(t *testing.T, deviceName string, deviceType proto.DeviceType) *TestDevice {
+		t.Helper()
 		testDev, err := RegisterTestDevice(
-			ctx, userClient, spec.name, spec.deviceType, webDev1 /* authenticator */, spec.opts...)
-		require.NoError(t, err, "RegisterTestDevice(%v)", spec.name)
-		allDevs = append(allDevs, testDev)
+			ctx, userClient, deviceName, deviceType, webDev1 /* authenticator */, deviceOpts...)
+		require.NoError(t, err, "RegisterTestDevice(%v)", deviceName)
+		return testDev
 	}
-	deleteWeb1 := allDevs[0]
-	deleteWeb2 := allDevs[1]
-	deleteTOTP1 := allDevs[2]
-	deleteTOTP2 := allDevs[3]
+	deleteWeb1 := registerDevice(t, "delete-web1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN)
+	deleteWeb2 := registerDevice(t, "delete-web2", proto.DeviceType_DEVICE_TYPE_WEBAUTHN)
+	deleteTOTP1 := registerDevice(t, "delete-totp1", proto.DeviceType_DEVICE_TYPE_TOTP)
+	deleteTOTP2 := registerDevice(t, "delete-totp2", proto.DeviceType_DEVICE_TYPE_TOTP)
 
 	deleteReqUsingToken := func(tokenReq CreateUserTokenRequest) func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
 		return func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
