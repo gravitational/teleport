@@ -123,60 +123,94 @@ If operating `tbot` as a background service, restart it. If running `tbot` in
 one-shot mode, it must be executed before you attempt to execute the Ansible
 playbook.
 
-## Step 3/4 Configure the database access tunnel
+## Step 3/4 Configure the database access local proxy
 
-TODO: Show non-systemd version :/
+Now that `tbot` has produced the database access credentials, a local proxy
+should be set up to forward the database connections from your database client
+to the Teleport Proxy through a TLS connection. This is necessary as the TLS
+connection allows the Teleport Proxy to identify the protocol and intended
+recipient.
 
-Additionally, we'll need to create a secondary service to manage the database
-proxy. Create another unit file at `/etc/systemd/system/machine-id-proxy.service`:
+In addition, this local proxy needs to be running as long as the client needs to
+make connections to the database or as long as a connection is still open.
+
+The local proxy opens a specified port on the local loopback interface. Clients
+must then be configured to connect to this port on localhost. As the port is
+opened on the local loopback interface, it means that the local proxy must be
+running on the same host as the client which wants to connect to the database.
+
+By default, database clients must also be configured to use the credentials
+when connecting to the local port. This ensures no other users of the host can
+access the database via the local port, and ensures the connection between your
+database client and server is never unencrypted, even over localhost.
+
+One way to keep this local proxy running in the background is to use a systemd
+service. This is demonstrated in the remainder of this step, but a different
+service manager could be used or a number of other techniques could be used to
+run the local proxy whilst the client is running.
+
+To create a systemd service for this purpose, create a unit file at
+`/etc/systemd/system/tbot-db-proxy.service`:
 
 ```systemd
 [Unit]
 Description=Teleport Machine ID Proxy Service
 After=network.target
-Requires=machine-id.service
+# If you have followed a previous guide and configured tbot itself as a systemd
+# service, uncomment the following line to create a dependency between the two
+# services.
+# Requires=tbot.service
 
 [Service]
 Type=simple
+# Ensure that the teleport user/group exists and has read access to the
+# destination directory.
 User=teleport
 Group=teleport
 Restart=on-failure
+# Adjust `12345` to any port of your choosing that is free on the local loopback
+# interface. Adjust `example-server` to the name of the database service in
+# teleport.
 ExecStart=/usr/local/bin/tbot -c /etc/tbot.yaml proxy --proxy=proxy.example.com:3080 --destination-dir=/opt/machine-id db --port=12345 example-server
 ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/run/machine-id-proxy.pid
+PIDFile=/run/tbot-db-proxy.pid
 LimitNOFILE=8192
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-This will start a local proxy on port `12345` applications can use to connect
+This will start a local proxy on port `12345` that can be used to connect
 to the `example-server` database server. Be sure to customize the `tbot`
 parameters as necessary for your local setup.
 
-Finally, run the following commands to start Machine ID:
+Finally, run the following commands to enable and start the local proxy service:
 
 ```code
-$ sudo systemctl enable machine-id-proxy
-$ sudo systemctl start machine-id-proxy
-$ sudo systemctl status machine-id-proxy
+$ sudo systemctl enable tbot-db-proxy
+$ sudo systemctl start tbot-db-proxy
+$ sudo systemctl status tbot-db-proxy
 ```
 
 ### Authenticated Tunnel
 
-In the default proxy mode, database clients must also be configured to use
-`tbot`'s generated TLS certificates. This ensures no other users of the system
-can access the database via the local proxy, and ensures the connection between
-your database client and server is never unencrypted, even over localhost.
-
-However, it is possible to instead create an "authenticated tunnel". This will
-automatically attach authentication to any incoming connection to the
-tunnel. Whilst this is less secure, it can be necessary if the client you
+Whilst the default behaviour requires the client to use client certificate
+authentication, it is possible to configure an "authenticated tunnel". This will
+automatically attach credentials to any incoming connection to the local port.
+Whilst this is less secure, it can be necessary if the client you
 wish to use with Database Access does not support client certificate
 authentication.
 
-To configure a authenticated tunnel, add the `--tunnel` flag to the
-`tbot proxy db ...` command in the `machine-id-proxy.service` systemd unit file.
+If you wish to enable the authenticated tunnel mode, `--tunnel` flag is used
+with `tbot proxy db...`.
+
+If you are executing this in the foreground, simply
+provide the `--tunnel` flag. If you are using a systemd service, add `--tunnel`
+to the `ExecStart` in `machine-id-proxy.service` and then reload
+
+Once this has been enabled, you do not need to specify a password or TLS
+certificates and certificate authorities in the client when connecting to the
+configured port.
 
 ## Step 4/4. Update and run your application
 
