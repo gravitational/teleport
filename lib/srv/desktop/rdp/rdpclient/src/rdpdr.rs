@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod consts;
+pub mod consts;
 mod flags;
 pub(crate) mod path;
 mod scard;
@@ -33,6 +33,9 @@ use consts::{
     GENERAL_CAPABILITY_VERSION_02, I64_SIZE, I8_SIZE, NTSTATUS, SCARD_DEVICE_ID,
     SMARTCARD_CAPABILITY_VERSION_01, TDP_FALSE, U32_SIZE, U8_SIZE, VERSION_MAJOR, VERSION_MINOR,
 };
+use ironrdp_pdu::{other_err, PduResult};
+use ironrdp_rdpdr::pdu::efs::{NtStatus, ServerDeviceAnnounceResponse};
+use ironrdp_rdpdr::RdpdrBackend;
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::tpkt;
 use rdp::model::error::Error as RdpError;
@@ -50,6 +53,42 @@ use tdp::{
     SharedDirectoryReadRequest, SharedDirectoryReadResponse, SharedDirectoryWriteRequest,
     SharedDirectoryWriteResponse, TdpErrCode,
 };
+
+#[derive(Debug)]
+pub struct TeleportRdpdrBackend {
+    active_device_ids: Vec<u32>,
+}
+
+impl TeleportRdpdrBackend {
+    pub fn new(smartcard_device_id: u32) -> Self {
+        Self {
+            active_device_ids: vec![smartcard_device_id],
+        }
+    }
+}
+
+impl RdpdrBackend for TeleportRdpdrBackend {
+    fn handle_server_device_announce_response(
+        &self,
+        pdu: ServerDeviceAnnounceResponse,
+    ) -> PduResult<()> {
+        if !self.active_device_ids.contains(&pdu.device_id) {
+            return Err(other_err!(
+                "TeleportRdpdrBackend::handle_server_device_announce_response",
+                "got ServerDeviceAnnounceResponse for unknown device_id",
+            ));
+        }
+
+        if pdu.result_code != NtStatus::Success {
+            return Err(other_err!(
+                "TeleportRdpdrBackend::handle_server_device_announce_response",
+                "ServerDeviceAnnounceResponse for smartcard redirection failed"
+            ));
+        }
+
+        Ok(())
+    }
+}
 
 /// Client implements a device redirection (RDPDR) client, as defined in
 /// https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
@@ -228,7 +267,7 @@ impl Client {
     }
 
     fn handle_device_reply(&self, payload: &mut Payload) -> RdpResult<Messages> {
-        let req = ServerDeviceAnnounceResponse::decode(payload)?;
+        let req = ServerDeviceAnnounceResponseDeprecated::decode(payload)?;
         debug!("received RDP: {:?}", req);
 
         if !self.active_device_ids.contains(&req.device_id) {
@@ -2039,12 +2078,12 @@ impl DeviceAnnounceHeader {
 }
 
 #[derive(Debug)]
-struct ServerDeviceAnnounceResponse {
+struct ServerDeviceAnnounceResponseDeprecated {
     device_id: u32,
     result_code: NTSTATUS,
 }
 
-impl ServerDeviceAnnounceResponse {
+impl ServerDeviceAnnounceResponseDeprecated {
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let device_id = payload.read_u32::<LittleEndian>()?;
         let result_code = payload.read_u32::<LittleEndian>()?;
@@ -2060,7 +2099,7 @@ impl ServerDeviceAnnounceResponse {
     }
 }
 
-impl Encode for ServerDeviceAnnounceResponse {
+impl Encode for ServerDeviceAnnounceResponseDeprecated {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.device_id)?;

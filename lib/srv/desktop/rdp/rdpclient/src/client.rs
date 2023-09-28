@@ -1,4 +1,6 @@
 pub mod global;
+use crate::rdpdr::TeleportRdpdrBackend;
+use crate::rdpdr::consts::SCARD_DEVICE_ID;
 use crate::{
     handle_fastpath_pdu, handle_rdp_channel_ids, CGOErrCode, CGOKeyboardEvent,
     CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
@@ -11,6 +13,8 @@ use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::PduParsing;
+use ironrdp_rdpdr::{NoopRdpdrBackend, Rdpdr};
+use ironrdp_rdpsnd::Rdpsnd;
 use ironrdp_session::x224::Processor as X224Processor;
 use ironrdp_session::{reason_err, SessionError};
 use ironrdp_tls::TlsStream;
@@ -72,7 +76,15 @@ impl Client {
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
             .with_server_addr(server_socket_addr)
             .with_server_name(server_addr)
-            .with_credssp_network_client(RequestClientFactory);
+            .with_credssp_network_client(RequestClientFactory)
+            .with_static_channel(Rdpsnd::new())
+            .with_static_channel(
+                Rdpdr::new(
+                    TeleportRdpdrBackend::new(SCARD_DEVICE_ID),
+                    "IronRDP".to_string(),
+                )
+                .with_smartcard(SCARD_DEVICE_ID),
+            );
 
         let should_upgrade = ironrdp_tokio::connect_begin(&mut framed, &mut connector).await?;
 

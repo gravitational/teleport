@@ -339,7 +339,7 @@ fn test_handle_device_reply() {
                 component: Component::RDPDR_CTYP_CORE,
                 packet_id: PacketId::PAKID_CORE_DEVICE_REPLY,
             },
-            request: Box::new(ServerDeviceAnnounceResponse {
+            request: Box::new(ServerDeviceAnnounceResponseDeprecated {
                 device_id: 1,
                 result_code: NTSTATUS::STATUS_SUCCESS,
             }),
