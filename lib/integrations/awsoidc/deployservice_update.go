@@ -30,15 +30,42 @@ import (
 // waitDuration specifies the amount of time to wait for a service to become healthy after an update.
 const waitDuration = time.Minute * 5
 
+// UpdateServiceRequest contains the required fields to update a Teleport Service.
+type UpdateServiceRequest struct {
+	// TeleportClusterName specifies the teleport cluster name
+	TeleportClusterName string
+	// TeleportVersionTag specifies the desired teleport version in the format "13.4.0"
+	TeleportVersionTag string
+	// OwnershipTags specifies ownership tags
+	OwnershipTags AWSTags
+}
+
+// CheckAndSetDefaults checks and sets default config values.
+func (req *UpdateServiceRequest) CheckAndSetDefaults() error {
+	if req.TeleportClusterName == "" {
+		return trace.BadParameter("teleport cluster name required")
+	}
+
+	if req.TeleportVersionTag == "" {
+		return trace.BadParameter("teleport version tag required")
+	}
+
+	return nil
+}
+
 // UpdateDeployServiceAgent updates the deploy service agent with the specified teleportVersionTag.
-func UpdateDeployServiceAgent(ctx context.Context, clt DeployServiceClient, teleportClusterName, teleportVersionTag string, ownershipTags AWSTags) error {
-	teleportImage := getDistrolessTeleportImage(teleportVersionTag)
-	service, err := getManagedService(ctx, clt, teleportClusterName, ownershipTags)
+func UpdateDeployServiceAgent(ctx context.Context, clt DeployServiceClient, req UpdateServiceRequest) error {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	teleportImage := getDistrolessTeleportImage(req.TeleportVersionTag)
+	service, err := getManagedService(ctx, clt, req.TeleportClusterName, req.OwnershipTags)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	taskDefinition, err := getManagedTaskDefinition(ctx, clt, aws.ToString(service.TaskDefinition), ownershipTags)
+	taskDefinition, err := getManagedTaskDefinition(ctx, clt, aws.ToString(service.TaskDefinition), req.OwnershipTags)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -52,7 +79,7 @@ func UpdateDeployServiceAgent(ctx context.Context, clt DeployServiceClient, tele
 		return nil
 	}
 
-	registerTaskDefinitionIn, err := generateTaskDefinitionWithImage(taskDefinition, teleportImage, ownershipTags.ToECSTags())
+	registerTaskDefinitionIn, err := generateTaskDefinitionWithImage(taskDefinition, teleportImage, req.OwnershipTags.ToECSTags())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -95,6 +122,9 @@ func getManagedService(ctx context.Context, clt DeployServiceClient, teleportClu
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if len(describeServicesOut.Services) == 0 {
+		return nil, trace.NotFound("service not found")
 	}
 	if len(describeServicesOut.Services) != 1 {
 		return nil, trace.BadParameter("expected 1 service, but got %d", len(describeServicesOut.Services))

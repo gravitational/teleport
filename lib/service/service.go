@@ -1014,6 +1014,10 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		process.log.Infof("Configured upgrade window exporter for external upgrader. kind=%s", upgraderKind)
 	}
 
+	if process.Config.Proxy.Enabled {
+		process.RegisterFunc("update.aws-oidc.deploy.agents", process.initDeployServiceUpdater)
+	}
+
 	serviceStarted := false
 
 	if !cfg.DiagnosticAddr.IsEmpty() {
@@ -1193,8 +1197,6 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	// even in sync recording modes, since the recording mode can be changed
 	// at any time with dynamic configuration
 	process.RegisterFunc("common.upload.init", process.initUploaderService)
-
-	process.RegisterFunc("update.aws-oidc.deploy.agents", process.periodicUpdateDeployServiceAgents)
 
 	if !serviceStarted {
 		return nil, trace.BadParameter("all services failed to start")
