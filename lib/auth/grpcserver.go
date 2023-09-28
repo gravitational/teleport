@@ -2453,6 +2453,10 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream authpb.AuthService_
 	return dev, trace.Wrap(err)
 }
 
+// Deprecated: Use DeleteMFADeviceSync instead.
+//
+// DELETE IN v16, kept for compatibility with older tsh versions (codingllama).
+// (Don't actually delete it, but instead make it always error.)
 func (g *GRPCServer) DeleteMFADevice(stream authpb.AuthService_DeleteMFADeviceServer) error {
 	ctx := stream.Context()
 	actx, err := g.authenticate(ctx)
