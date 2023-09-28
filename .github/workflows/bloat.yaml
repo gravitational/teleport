@@ -1,17 +1,18 @@
 name: Bloat Check
 on:
   push:
-    paths:
-      - '.github/workflows/bloat.yaml'
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - '**.rs'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
+#    paths:
+#      - '.github/workflows/bloat.yaml'
+#      - '**.go'
+#      - 'go.mod'
+#      - 'go.sum'
+#      - '**.rs'
+#      - 'Cargo.toml'
+#      - 'Cargo.lock'
     branches:
       - master
       - branch/**
+      - jakule/parallel-bloat
 
 jobs:
   bloat_check:
@@ -58,7 +59,7 @@ jobs:
           app_id: ${{ secrets.REVIEWERS_APP_ID }}
           private_key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
 
-      - if: ${{ steps.cache-build-restore.outputs.cache-hit != 'true' }}
+      - if: ${{ steps.cache-build-restore.outputs.cache-hit == 'true' }}
         name: Build base
         id: build_base
         run: |
