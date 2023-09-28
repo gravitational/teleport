@@ -53,8 +53,13 @@ export enum DatabaseEngine {
   Doc,
 }
 
+export enum ServerLocation {
+  Aws,
+}
+
 export interface ResourceSpec {
   dbMeta?: { location: DatabaseLocation; engine: DatabaseEngine };
+  nodeMeta?: { location: ServerLocation };
   name: string;
   popular?: boolean;
   kind: ResourceKind;
