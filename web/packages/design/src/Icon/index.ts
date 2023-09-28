@@ -33,6 +33,7 @@ export { Application } from './Icons/Application';
 export { Archive } from './Icons/Archive';
 export { ArrowBack } from './Icons/ArrowBack';
 export { ArrowDown } from './Icons/ArrowDown';
+export { ArrowFatLinesUp } from './Icons/ArrowFatLinesUp';
 export { ArrowForward } from './Icons/ArrowForward';
 export { ArrowUp } from './Icons/ArrowUp';
 export { BookOpenText } from './Icons/BookOpenText';
