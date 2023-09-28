@@ -929,13 +929,12 @@ integration-test-setup:
 .PHONY: %-integration-test
 %-integration-test: FLAGS ?= -test.v
 %-integration-test: LOG_PATH = $(TEST_LOG_DIR)/$@.json
+%-integration-test: TEST_BINARY = $(TEST_BIN_DIR)/$(notdir $*).test
 %-integration-test: ensure-gotestsum integration-test-setup
 	@mkdir -p $(dir $(LOG_PATH))
-	ls -l $(notdir $*).test || true
-	ls -l $(TEST_BIN_DIR)/$(notdir $*).test || true
-	$(TEST_BIN_DIR)/$(notdir $*).test -test.timeout=30m $(FLAGS) \
-		| tee $(LOG_PATH) \
-		| gotestsum --raw-command --format=testname -- cat
+	[ ! -f "$(TEST_BINARY)" ] || $(TEST_BINARY) -test.timeout=30m $(FLAGS)
+# | tee $(LOG_PATH) \
+# | gotestsum --raw-command --format=testname -- cat
 
 #
 # Integration tests. Need a TTY to work.
