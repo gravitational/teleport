@@ -1610,7 +1610,7 @@ message ClusterNetworkingConfigSpecV2 {
   ];
 
   // ProxyListenerMode is proxy listener mode used by Teleport Proxies.
-  ProxyListenerMode ProxyListenerMode = 7 [(gogoproto.jsontag) = "proxy_listener_mode,omitempty"];
+  ProxyListenerMode ProxyListenerMode = 7 [(gogoproto.jsontag) = "proxy_listener_mode"];
 
   // RoutingStrategy determines the strategy used to route to nodes.
   RoutingStrategy RoutingStrategy = 8 [(gogoproto.jsontag) = "routing_strategy,omitempty"];
