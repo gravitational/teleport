@@ -12,8 +12,8 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --set labels.environment=demo \
   --version (=teleport.version=)
 ```
-<TabItem scope={["enterprise"]} label="Enterprise">
 </TabItem>
+<TabItem scope={["enterprise"]} label="Enterprise">
 ```code
 $ helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName={{ clusterName }} \
@@ -37,7 +37,7 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --create-namespace \
   --namespace=teleport-agent \
   --set "labels.environment=demo" \
-  --set "updater.enabled=true"
+  --set "updater.enabled=true" \
   --set enterprise=true \
   --version (=cloud.version=)
 ```
