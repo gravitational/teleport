@@ -2854,7 +2854,8 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency: time.Hour,
+				Frequency:     time.Hour,
+				NextAuditDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},

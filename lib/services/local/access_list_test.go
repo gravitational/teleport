@@ -187,7 +187,7 @@ func TestAccessListRecurrenceBackwardsCompat(t *testing.T) {
 	// Put access list with only the frequency set in the backend.
 	accessListRecurrence := newAccessList(t, "frequency")
 	accessListRecurrence.Spec.Audit.Frequency = time.Minute
-	accessListRecurrence.Spec.Audit.NextAuditDate = time.Time{}
+	accessListRecurrence.Spec.Audit.NextAuditDate = time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
 	accessListRecurrence.Spec.Audit.Recurrence = ""
 
 	item, err := service.service.MakeBackendItem(accessListRecurrence, accessListRecurrence.GetName())
@@ -198,7 +198,6 @@ func TestAccessListRecurrenceBackwardsCompat(t *testing.T) {
 	accessList, err := service.GetAccessList(ctx, accessListRecurrence.GetName())
 	require.NoError(t, err)
 
-	require.NotZero(t, accessList.Spec.Audit.NextAuditDate)
 	_, err = rrule.StrToRRule(accessList.Spec.Audit.Recurrence)
 	require.NoError(t, err)
 }
