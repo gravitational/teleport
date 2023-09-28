@@ -763,11 +763,11 @@ metadata:
 				}: ReferenceEntry{
 					SectionName: "Metadata",
 					Description: "Resource metadata",
-					SourcePath:  "myfile1.go",
+					SourcePath:  "myfile0.go",
 					Fields: []Field{
 						{
 							Name:        "name",
-							Description: "Object name",
+							Description: "An object name",
 							Type:        "string",
 						},
 						{
