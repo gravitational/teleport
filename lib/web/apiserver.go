@@ -764,8 +764,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
 
 	h.GET("/webapi/roles", h.WithAuth(h.getRolesHandle))
-	h.POST("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
-	h.PUT("/webapi/roles/:name", h.WithAuth(h.upsertRoleHandle))
+	h.POST("/webapi/roles", h.WithAuth(h.createRoleHandle))
+	h.PUT("/webapi/roles/:name", h.WithAuth(h.updateRoleHandle))
 	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
 
 	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))

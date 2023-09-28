@@ -75,6 +75,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -9582,6 +9583,107 @@ func Test_consumeTokenForAPICall(t *testing.T) {
 				// verify that token does not exist now, even if it did.
 				require.False(t, tokenExists(tokName))
 			}
+		})
+	}
+}
+
+func TestRoleCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "user1", nil /* roles */)
+
+	r, err := types.NewRole("test-role", types.RoleSpecV6{Allow: types.RoleConditions{Logins: []string{"testing"}}})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		create    bool
+		role      func(t *testing.T) types.Role
+		operation func(webClient TestWebClient, ctx context.Context, endpoint string, val interface{}) (*roundtrip.Response, error)
+		assertion func(t *testing.T, err error, ri ui.ResourceItem)
+	}{
+		{
+			name:      "creating a new role succeeds",
+			create:    true,
+			role:      func(t *testing.T) types.Role { return r },
+			operation: TestWebClient.PostJSON,
+			assertion: func(t *testing.T, err error, ri ui.ResourceItem) {
+				require.NoError(t, err)
+				var created types.RoleV6
+				require.NoError(t, yaml.Unmarshal([]byte(ri.Content), &created), "invalid resource item content")
+				assert.NotEmpty(t, created.GetRevision(), "missing the revision")
+				assert.NotEqual(t, r.GetRevision(), created.GetRevision(), "revision was not updated")
+			},
+		},
+		{
+			name:      "creating an existing role fails",
+			create:    true,
+			role:      func(t *testing.T) types.Role { return r },
+			operation: TestWebClient.PostJSON,
+			assertion: func(t *testing.T, err error, ri ui.ResourceItem) {
+				require.True(t, trace.IsAlreadyExists(err), "expected already exists error got %v", err)
+			},
+		},
+		{
+			name: "updating an existing role succeeds",
+			role: func(t *testing.T) types.Role {
+				r2, err := env.server.Auth().GetRole(ctx, r.GetName())
+				require.NoError(t, err)
+				r2.SetLogins(types.Allow, []string{"llama"})
+				return r2
+			},
+			operation: TestWebClient.PutJSON,
+			assertion: func(t *testing.T, err error, ri ui.ResourceItem) {
+				require.NoError(t, err)
+				var updated types.RoleV6
+				require.NoError(t, yaml.Unmarshal([]byte(ri.Content), &updated), "invalid resource item content")
+				assert.NotEmpty(t, updated.GetRevision(), "missing the revision")
+				assert.NotEqual(t, r.GetRevision(), updated.GetRevision(), "revision was not updated")
+				assert.Equal(t, []string{"llama"}, updated.GetLogins(types.Allow), "logins were not updated")
+			},
+		},
+		{
+			name: "updating a non-existing role fails",
+			role: func(t *testing.T) types.Role {
+				r2, err := types.NewRole("fake", types.RoleSpecV6{})
+				require.NoError(t, err)
+				return r2
+			},
+			operation: TestWebClient.PutJSON,
+			assertion: func(t *testing.T, err error, ri ui.ResourceItem) {
+				require.True(t, trace.IsCompareFailed(err), "expected compare failure error got %v", err)
+			},
+		},
+	}
+
+	// Note: test cases assume that they are run in the order they are defined.
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			role := tt.role(t)
+
+			content, err := services.MarshalRole(role, services.PreserveResourceID())
+			require.NoError(t, err)
+
+			params := []string{"webapi", "roles"}
+			if !tt.create {
+				params = append(params, role.GetName())
+			}
+			endpoint := pack.clt.Endpoint(params...)
+
+			resp, err := tt.operation(*pack.clt, context.Background(), endpoint, ui.ResourceItem{
+				Kind:    r.GetKind(),
+				Name:    r.GetName(),
+				Content: string(content),
+			})
+
+			var ri ui.ResourceItem
+			if err == nil {
+				require.NoError(t, json.Unmarshal(resp.Bytes(), &ri))
+			}
+
+			tt.assertion(t, err, ri)
 		})
 	}
 }

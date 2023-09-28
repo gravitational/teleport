@@ -106,26 +106,13 @@ func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params http
 	return OK(), nil
 }
 
-func (h *Handler) upsertRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func (h *Handler) createRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	var req ui.ResourceItem
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return upsertRole(r.Context(), clt, req.Content, r.Method, params)
-}
-
-func upsertRole(ctx context.Context, clt resourcesAPIGetter, content, httpMethod string, params httprouter.Params) (*ui.ResourceItem, error) {
-	get := func(ctx context.Context, name string) (types.Resource, error) {
-		return clt.GetRole(ctx, name)
-	}
-
-	extractedRes, err := ExtractResourceAndValidate(content)
+	extractedRes, err := ExtractResourceAndValidate(req.Content)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -134,8 +121,41 @@ func upsertRole(ctx context.Context, clt resourcesAPIGetter, content, httpMethod
 		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
 	}
 
-	if err := CheckResourceUpsert(ctx, httpMethod, params, extractedRes.Metadata.Name, get); err != nil {
+	role, err := services.UnmarshalRole(extractedRes.Raw)
+	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := clt.CreateRole(r.Context(), role)
+	if err != nil {
+		if trace.IsAlreadyExists(err) {
+			return nil, trace.AlreadyExists("resource with name %q already exists", role.GetName())
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.NewResourceItem(created)
+}
+
+func (h *Handler) updateRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	var req ui.ResourceItem
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	extractedRes, err := ExtractResourceAndValidate(req.Content)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if extractedRes.Kind != types.KindRole {
+		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
 	}
 
 	role, err := services.UnmarshalRole(extractedRes.Raw)
@@ -143,11 +163,26 @@ func upsertRole(ctx context.Context, clt resourcesAPIGetter, content, httpMethod
 		return nil, trace.Wrap(err)
 	}
 
-	if err := clt.UpsertRole(ctx, role); err != nil {
+	resourceName := params.ByName("name")
+	if resourceName == "" {
+		return nil, trace.BadParameter("missing resource name")
+	}
+
+	if role.GetName() != resourceName {
+		return nil, trace.BadParameter("resource renaming is not supported, please create a different resource and then delete this one")
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.NewResourceItem(role)
+	updated, err := clt.UpdateRole(r.Context(), role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.NewResourceItem(updated)
 }
 
 func (h *Handler) getGithubConnectorsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -458,8 +493,6 @@ type resourcesAPIGetter interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
-	// UpsertRole creates or updates role
-	UpsertRole(ctx context.Context, role types.Role) error
 	// UpsertGithubConnector creates or updates a Github connector
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
 	// GetGithubConnectors returns all configured Github connectors
