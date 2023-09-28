@@ -198,7 +198,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		// If you've hit this error, the prefixes in two or more of your parsers probably overlap, meaning
 		// one prefix will also contain another as a subset. Look into using backend.ExactKey instead of
 		// backend.Key in your parser.
-		return nil, trace.BadParameter("redundant prefixes detected in events, which will result in event parsers not aligning with their intended prefix")
+		return nil, trace.BadParameter("redundant prefixes detected in events, which will result in event parsers not aligning with their intended prefix (this is a bug)")
 	}
 
 	w, err := e.backend.NewWatcher(ctx, backend.Watch{
