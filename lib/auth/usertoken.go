@@ -463,27 +463,12 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 
 	tokenKind := UserTokenTypePrivilege
 
-	switch {
-	case req.GetExistingMFAResponse() == nil:
-		// Allows users with no devices to bypass second factor re-auth.
-		devices, err := s.Services.GetMFADevices(ctx, username, false /* withSecrets */)
-		switch {
-		case err != nil:
-			return nil, trace.Wrap(err)
-		case len(devices) > 0:
-			return nil, trace.BadParameter("second factor authentication required")
-		}
-
+	switch hasDevices, err := s.validateMFAAuthResponseForRegister(
+		ctx, req.GetExistingMFAResponse(), username, false /* passwordless */); {
+	case err != nil:
+		return nil, trace.Wrap(err)
+	case !hasDevices:
 		tokenKind = UserTokenTypePrivilegeException
-
-	default:
-		if err := s.WithUserLock(username, func() error {
-			_, _, err := s.validateMFAAuthResponse(
-				ctx, req.GetExistingMFAResponse(), username, false /* passwordless */)
-			return err
-		}); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	// Delete any existing user tokens for user before creating.
