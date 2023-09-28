@@ -352,7 +352,7 @@ func makeSectionName(original string) string {
 // getYAMLTypeForExpr takes an AST type expression and recursively
 // traverses it to populate a yamlKindNode. Each iteration converts a
 // single *ast.Expr into a single yamlKindNode, returning the new node.
-func getYAMLTypeForExpr(exp ast.Expr) (yamlKindNode, error) {
+func getYAMLTypeForExpr(exp ast.Expr, pkg string) (yamlKindNode, error) {
 	switch t := exp.(type) {
 	case *ast.Ident:
 		switch t.Name {
@@ -363,22 +363,20 @@ func getYAMLTypeForExpr(exp ast.Expr) (yamlKindNode, error) {
 		case "bool":
 			return yamlBool{}, nil
 		default:
-			// This may be an embedded struct declared within the
-			// same package as exp.
 			return yamlCustomType{
 				declarationInfo: PackageInfo{
 					TypeName:    t.Name,
-					PackageName: "",
+					PackageName: pkg,
 				},
 			}, nil
 		}
 	case *ast.MapType:
-		k, err := getYAMLTypeForExpr(t.Key)
+		k, err := getYAMLTypeForExpr(t.Key, pkg)
 		if err != nil {
 			return nil, err
 		}
 
-		v, err := getYAMLTypeForExpr(t.Value)
+		v, err := getYAMLTypeForExpr(t.Value, pkg)
 		if err != nil {
 			return nil, err
 		}
@@ -387,7 +385,7 @@ func getYAMLTypeForExpr(exp ast.Expr) (yamlKindNode, error) {
 			valueKind: v,
 		}, nil
 	case *ast.ArrayType:
-		e, err := getYAMLTypeForExpr(t.Elt)
+		e, err := getYAMLTypeForExpr(t.Elt, pkg)
 		if err != nil {
 			return nil, err
 		}
@@ -415,8 +413,8 @@ func getYAMLTypeForExpr(exp ast.Expr) (yamlKindNode, error) {
 
 // getYAMLType returns a name for field that is suitable for printing within the
 // resource reference.
-func getYAMLType(field *ast.Field) (yamlKindNode, error) {
-	return getYAMLTypeForExpr(field.Type)
+func getYAMLType(field *ast.Field, pkg string) (yamlKindNode, error) {
+	return getYAMLTypeForExpr(field.Type, pkg)
 }
 
 // makeRawField translates an *ast.Field into a rawField for downstream
@@ -434,7 +432,7 @@ func makeRawField(field *ast.Field, packageName string) (rawField, error) {
 		name = field.Names[0].Name
 	}
 
-	tn, err := getYAMLType(field)
+	tn, err := getYAMLType(field, packageName)
 	if err != nil {
 		return rawField{}, err
 	}
