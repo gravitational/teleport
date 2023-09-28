@@ -190,6 +190,33 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*usageeventsv1.Usage
 			},
 		}}, nil
 
+	case uiDiscoverEC2InstanceSelectionEvent:
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverEc2InstanceSelection{
+			UiDiscoverEc2InstanceSelection: &usageeventsv1.UIDiscoverEC2InstanceSelectionEvent{
+				Metadata: metadata,
+				Resource: resource,
+				Status:   status,
+			},
+		}}, nil
+
+	case uiDiscoverDeployEICEEvent:
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployEice{
+			UiDiscoverDeployEice: &usageeventsv1.UIDiscoverDeployEICEEvent{
+				Metadata: metadata,
+				Resource: resource,
+				Status:   status,
+			},
+		}}, nil
+
+	case uiDiscoverCreateNodeEvent:
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverCreateNode{
+			UiDiscoverCreateNode: &usageeventsv1.UIDiscoverCreateNodeEvent{
+				Metadata: metadata,
+				Resource: resource,
+				Status:   status,
+			},
+		}}, nil
+
 	case uiDiscoverDatabaseConfigureIAMPolicyEvent:
 		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseConfigureIamPolicyEvent{
 			UiDiscoverDatabaseConfigureIamPolicyEvent: &usageeventsv1.UIDiscoverDatabaseConfigureIAMPolicyEvent{

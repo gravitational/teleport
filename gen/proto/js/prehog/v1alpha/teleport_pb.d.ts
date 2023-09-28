@@ -958,6 +958,120 @@ export namespace UIDiscoverAutoDiscoveredResourcesEvent {
     }
 }
 
+export class UIDiscoverEC2InstanceSelectionEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverEC2InstanceSelectionEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverEC2InstanceSelectionEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverEC2InstanceSelectionEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverEC2InstanceSelectionEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverEC2InstanceSelectionEvent): UIDiscoverEC2InstanceSelectionEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverEC2InstanceSelectionEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverEC2InstanceSelectionEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverEC2InstanceSelectionEvent, reader: jspb.BinaryReader): UIDiscoverEC2InstanceSelectionEvent;
+}
+
+export namespace UIDiscoverEC2InstanceSelectionEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+    }
+}
+
+export class UIDiscoverDeployEICEEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverDeployEICEEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverDeployEICEEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverDeployEICEEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverDeployEICEEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverDeployEICEEvent): UIDiscoverDeployEICEEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverDeployEICEEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverDeployEICEEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverDeployEICEEvent, reader: jspb.BinaryReader): UIDiscoverDeployEICEEvent;
+}
+
+export namespace UIDiscoverDeployEICEEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+    }
+}
+
+export class UIDiscoverCreateNodeEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverCreateNodeEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverCreateNodeEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverCreateNodeEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverCreateNodeEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverCreateNodeEvent): UIDiscoverCreateNodeEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverCreateNodeEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverCreateNodeEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverCreateNodeEvent, reader: jspb.BinaryReader): UIDiscoverCreateNodeEvent;
+}
+
+export namespace UIDiscoverCreateNodeEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+    }
+}
+
 export class UIDiscoverDatabaseConfigureIAMPolicyEvent extends jspb.Message { 
 
     hasMetadata(): boolean;
@@ -2415,6 +2529,24 @@ export class SubmitEventRequest extends jspb.Message {
     setAccessListGrantsToUser(value?: AccessListGrantsToUserEvent): SubmitEventRequest;
 
 
+    hasUiDiscoverEc2InstanceSelection(): boolean;
+    clearUiDiscoverEc2InstanceSelection(): void;
+    getUiDiscoverEc2InstanceSelection(): UIDiscoverEC2InstanceSelectionEvent | undefined;
+    setUiDiscoverEc2InstanceSelection(value?: UIDiscoverEC2InstanceSelectionEvent): SubmitEventRequest;
+
+
+    hasUiDiscoverDeployEice(): boolean;
+    clearUiDiscoverDeployEice(): void;
+    getUiDiscoverDeployEice(): UIDiscoverDeployEICEEvent | undefined;
+    setUiDiscoverDeployEice(value?: UIDiscoverDeployEICEEvent): SubmitEventRequest;
+
+
+    hasUiDiscoverCreateNode(): boolean;
+    clearUiDiscoverCreateNode(): void;
+    getUiDiscoverCreateNode(): UIDiscoverCreateNodeEvent | undefined;
+    setUiDiscoverCreateNode(value?: UIDiscoverCreateNodeEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -2492,6 +2624,9 @@ export namespace SubmitEventRequest {
         accessListMemberUpdate?: AccessListMemberUpdateEvent.AsObject,
         accessListMemberDelete?: AccessListMemberDeleteEvent.AsObject,
         accessListGrantsToUser?: AccessListGrantsToUserEvent.AsObject,
+        uiDiscoverEc2InstanceSelection?: UIDiscoverEC2InstanceSelectionEvent.AsObject,
+        uiDiscoverDeployEice?: UIDiscoverDeployEICEEvent.AsObject,
+        uiDiscoverCreateNode?: UIDiscoverCreateNodeEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2618,6 +2753,12 @@ export namespace SubmitEventRequest {
     ACCESS_LIST_MEMBER_DELETE = 63,
 
     ACCESS_LIST_GRANTS_TO_USER = 64,
+
+    UI_DISCOVER_EC2_INSTANCE_SELECTION = 65,
+
+    UI_DISCOVER_DEPLOY_EICE = 66,
+
+    UI_DISCOVER_CREATE_NODE = 67,
 
     }
 
@@ -2764,6 +2905,7 @@ export enum DiscoverResource {
     DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35,
     DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36,
     DISCOVER_RESOURCE_SAML_APPLICATION = 37,
+    DISCOVER_RESOURCE_EC2_INSTANCE = 38,
 }
 
 export enum DiscoverStatus {

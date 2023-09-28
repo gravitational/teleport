@@ -40,6 +40,10 @@ import NodeService from 'teleport/services/nodes';
 import { TextIcon } from 'teleport/Discover/Shared';
 import { NodeMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
+import {
+  DiscoverEvent,
+  DiscoverEventStatus,
+} from 'teleport/services/userEvent';
 
 export function CreateEc2IceDialog({
   nextStep,
@@ -55,7 +59,8 @@ export function CreateEc2IceDialog({
     existingEice?.state !== 'create-complete'
   );
 
-  const { emitErrorEvent, updateAgentMeta, agentMeta } = useDiscover();
+  const { emitErrorEvent, updateAgentMeta, agentMeta, emitEvent } =
+    useDiscover();
   const typedAgentMeta = agentMeta as NodeMeta;
 
   const nodeService = new NodeService();
@@ -156,6 +161,14 @@ export function CreateEc2IceDialog({
         resourceName: node.id,
       });
       setCreateNodeAttempt({ status: 'success' });
+
+      // Capture event for creating the Node.
+      emitEvent(
+        { stepStatus: DiscoverEventStatus.Success },
+        {
+          eventName: DiscoverEvent.CreateNode,
+        }
+      );
     } catch (err) {
       const errMsg = getErrMessage(err);
       setCreateNodeAttempt({ status: 'failed', statusText: errMsg });
