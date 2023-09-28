@@ -32,8 +32,16 @@ export enum ClusterResource {
   RESOURCE_WEB_APPLICATIONS = 5,
 }
 
+export type MarketingParams = {
+  campaign: string;
+  source: string;
+  medium: string;
+  intent: string;
+};
+
 export type OnboardUserPreferences = {
   preferredResources: ClusterResource[];
+  marketingParams: MarketingParams;
 };
 
 export interface UserPreferences {
@@ -42,7 +50,6 @@ export interface UserPreferences {
   onboard: OnboardUserPreferences;
 }
 
-export type UserPreferencesSubset = Subset<UserPreferences>;
 export type GetUserPreferencesResponse = UserPreferences;
 
 export function deprecatedThemeToThemePreference(

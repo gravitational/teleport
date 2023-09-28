@@ -40,8 +40,8 @@ import (
 func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid string) HostUsers {
 	// newHostUsersBackend statically returns a valid backend or an error,
 	// resulting in a staticcheck linter error on darwin
-	backend, err := newHostUsersBackend(uuid) //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-	if err != nil {                           //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+	backend, err := newHostUsersBackend() //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+	if err != nil {                       //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
 		log.Warnf("Error making new HostUsersBackend: %s", err)
 		return nil
 	}
@@ -53,6 +53,28 @@ func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid stri
 		storage:   storage,
 		userGrace: time.Second * 30,
 	}
+}
+
+func NewHostSudoers(uuid string) HostSudoers {
+	// newHostSudoersBackend statically returns a valid backend or an error,
+	// resulting in a staticcheck linter error on darwin
+	backend, err := newHostSudoersBackend(uuid) //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+	if err != nil {                             //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+		log.Warnf("Error making new HostUsersBackend: %s", err)
+		return nil
+	}
+	return &HostSudoersManagement{
+		backend: backend,
+	}
+}
+
+type HostSudoersBackend interface {
+	// CheckSudoers ensures that a sudoers file to be written is valid
+	CheckSudoers(contents []byte) error
+	// WriteSudoersFile creates the user's sudoers file.
+	WriteSudoersFile(user string, entries []byte) error
+	// RemoveSudoersFile deletes a user's sudoers file.
+	RemoveSudoersFile(user string) error
 }
 
 type HostUsersBackend interface {
@@ -72,12 +94,8 @@ type HostUsersBackend interface {
 	CreateUser(name string, groups []string, uid, gid string) error
 	// DeleteUser deletes a user from a host.
 	DeleteUser(name string) error
-	// CheckSudoers ensures that a sudoers file to be written is valid
-	CheckSudoers(contents []byte) error
-	// WriteSudoersFile creates the user's sudoers file.
-	WriteSudoersFile(user string, entries []byte) error
-	// RemoveSudoersFile deletes a user's sudoers file.
-	RemoveSudoersFile(user string) error
+	// CreateHomeDirectory creates the users home directory and copies in /etc/skel
+	CreateHomeDirectory(user string, uid, gid string) error
 }
 
 type userCloser struct {
@@ -98,6 +116,25 @@ func (u *userCloser) Close() error {
 }
 
 var ErrUserLoggedIn = errors.New("User logged in error")
+
+type HostSudoers interface {
+	// WriteSudoers creates a temporary Teleport user in the TeleportServiceGroup
+	WriteSudoers(name string, sudoers []string) error
+	// RemoveSudoers removes the users sudoer file
+	RemoveSudoers(name string) error
+}
+
+type HostSudoersNotImplemented struct{}
+
+// WriteSudoers creates a temporary Teleport user in the TeleportServiceGroup
+func (*HostSudoersNotImplemented) WriteSudoers(string, []string) error {
+	return trace.NotImplemented("host sudoers functionality not implemented on this platform")
+}
+
+// RemoveSudoers removes the users sudoer file
+func (*HostSudoersNotImplemented) RemoveSudoers(name string) error {
+	return trace.NotImplemented("host sudoers functionality not implemented on this platform")
+}
 
 type HostUsers interface {
 	// CreateUser creates a temporary Teleport user in the TeleportServiceGroup
@@ -134,7 +171,14 @@ type HostUserManagement struct {
 	userGrace time.Duration
 }
 
-var _ HostUsers = &HostUserManagement{}
+type HostSudoersManagement struct {
+	backend HostSudoersBackend
+}
+
+var (
+	_ HostUsers   = &HostUserManagement{}
+	_ HostSudoers = &HostSudoersManagement{}
+)
 
 // Under the section "Including other files from within sudoers":
 //
@@ -150,6 +194,23 @@ var sudoersSanitizationMatcher = regexp.MustCompile(`[\.~\/]`)
 // characters
 func sanitizeSudoersName(username string) string {
 	return sudoersSanitizationMatcher.ReplaceAllString(username, "_")
+}
+
+// WriteSudoers creates a sudoers file for a user from a list of entries
+func (u *HostSudoersManagement) WriteSudoers(name string, sudoers []string) error {
+	var sudoersOut strings.Builder
+	for _, entry := range sudoers {
+		sudoersOut.WriteString(fmt.Sprintf("%s %s\n", name, entry))
+	}
+	err := u.backend.WriteSudoersFile(name, []byte(sudoersOut.String()))
+	return trace.Wrap(err)
+}
+
+func (u *HostSudoersManagement) RemoveSudoers(name string) error {
+	if err := u.backend.RemoveSudoersFile(name); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // CreateUser creates a temporary Teleport user in the TeleportServiceGroup
@@ -238,23 +299,21 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		if err != nil && !trace.IsAlreadyExists(err) {
 			return trace.WrapWithMessage(err, "error while creating user")
 		}
+
+		user, err := u.backend.Lookup(name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		err = u.backend.CreateHomeDirectory(name, user.Uid, user.Gid)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		return nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	_, err = u.backend.Lookup(name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(ui.Sudoers) != 0 {
-		var sudoers strings.Builder
-		for _, entry := range ui.Sudoers {
-			sudoers.WriteString(fmt.Sprintf("%s %s\n", name, entry))
-		}
-		err = u.backend.WriteSudoersFile(name, []byte(sudoers.String()))
 	}
 
 	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_KEEP {
@@ -377,9 +436,6 @@ func (u *HostUserManagement) DeleteUser(username string, gid string) error {
 				return trace.Wrap(err)
 			}
 
-			if err := u.backend.RemoveSudoersFile(username); err != nil {
-				return trace.Wrap(err)
-			}
 			return nil
 		}
 	}

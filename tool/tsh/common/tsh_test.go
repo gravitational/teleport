@@ -59,6 +59,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -80,7 +81,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -324,7 +324,7 @@ func TestAlias(t *testing.T) {
 			t.Setenv(tshBinMainTestEnv, "1")
 
 			// write config to use
-			config := &TshConfig{Aliases: tt.aliases}
+			config := &TSHConfig{Aliases: tt.aliases}
 			configBytes, err := yamlv2.Marshal(config)
 			require.NoError(t, err)
 			err = os.WriteFile(filepath.Join(tmpHomePath, "tsh_global.yaml"), configBytes, 0o777)
@@ -878,7 +878,7 @@ func TestMakeClient(t *testing.T) {
 	conf.NodePort = 46528
 	conf.LocalForwardPorts = []string{"80:remote:180"}
 	conf.DynamicForwardedPorts = []string{":8080"}
-	conf.TshConfig.ExtraHeaders = []ExtraProxyHeaders{
+	conf.TSHConfig.ExtraHeaders = []ExtraProxyHeaders{
 		{Proxy: "proxy:3080", Headers: map[string]string{"A": "B"}},
 		{Proxy: "*roxy:3080", Headers: map[string]string{"C": "D"}},
 		{Proxy: "*hello:3080", Headers: map[string]string{"E": "F"}}, // shouldn't get included

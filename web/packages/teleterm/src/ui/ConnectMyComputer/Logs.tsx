@@ -23,8 +23,8 @@ interface LogsProps {
 
 export function Logs(props: LogsProps): JSX.Element {
   return (
-    <>
-      <Text mb={2}>Last 10 lines of logs:</Text>
+    <Flex flexDirection="column" gap={1}>
+      <Text>Last 10 lines of logs:</Text>
       <Flex
         width="100%"
         color="light"
@@ -44,6 +44,6 @@ export function Logs(props: LogsProps): JSX.Element {
           {props.logs}
         </span>
       </Flex>
-    </>
+    </Flex>
   );
 }

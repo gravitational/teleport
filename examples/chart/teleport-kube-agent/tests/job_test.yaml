@@ -96,7 +96,7 @@ tests:
           apiVersion: v1
       - equal:
           path: metadata.name
-          value: lint-serviceaccount
+          value: lint-serviceaccount-delete-hook
 
   - it: should create Role for post-delete hook by default
     template: delete_hook.yaml

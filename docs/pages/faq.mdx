@@ -37,6 +37,9 @@ Yes, Teleport supports reverse SSH tunnels out of the box. To configure
 behind-firewall clusters refer to our
 [Trusted Clusters](./management/admin/trustedclusters.mdx) guide.
 
+## Should we use Enterprise or Open Source Teleport for connecting resources to our Teleport cluster?
+(!docs/pages/includes/ent-vs-community-faq.mdx!)
+
 ## Can individual agents create reverse tunnels to the Proxy Service without creating a new cluster?
 
 Yes. When running a Teleport agent, use the `--auth-server` flag to point to the
@@ -94,22 +97,20 @@ Here is a detailed breakdown of the differences between Teleport's editions.
 
 ## Which version of Teleport is supported?
 
-Teleport provides security-critical support for the current and two previous
-releases. With our typical release cadence, this means a release is usually
-supported for 9 months.
+Teleport releases a new major version approximately every 4 months, and provides
+security-critical support for the current and two previous major versions. With
+our typical release cadence, we usually support each major version for 12
+months.
 
 ### Supported versions
 
 Here are the major versions of Teleport and their support windows:
 
-| Release | Release Date     | EOL          | Minimum `tsh` version|
-|---------|------------------|--------------|----------------------|
-| v13.0   | May 8, 2023      | February 2024| v12.x.x              |
-| v12.0   | Feb 6, 2023      | November 2023| v11.x.x              |
-| v11.0   | October 24, 2022 | September 2023 | v10.x.x              |
-
-See our [Upgrading](./management/operations/upgrading.mdx) guide for more
-information.
+| Release | Release Date       | EOL            | Minimum `tsh` version |
+|---------|--------------------|----------------|-----------------------|
+| v14.0   | September 20, 2023 | September 2024 | v13.0.0               |
+| v13.0   | May 8, 2023        | May 2024       | v12.0.0               |
+| v12.0   | February 6, 2023   | February 2024  | v11.0.0               |
 
 ### Version compatibility
 

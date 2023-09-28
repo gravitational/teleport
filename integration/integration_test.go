@@ -72,6 +72,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
@@ -100,7 +101,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -1334,6 +1334,8 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
+	t.Setenv("TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING", "yes")
+
 	startNodes := func(t *testing.T, root, leaf *helpers.TeleInstance) {
 		rootNodes := []string{"root-one", "root-two"}
 		leafNodes := []string{"leaf-one", "leaf-two"}
@@ -1510,6 +1512,69 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		require.Equal(t, local.get().String(), pingResp.RemoteAddr, "client IP:port that auth server sees doesn't match the real one")
 	}
 
+	testSSHUnregisteredNodeConnection := func(t *testing.T, instance *helpers.TeleInstance, clusterName string) {
+		sshListener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, sshListener.Close())
+		})
+
+		resultChan := make(chan bool)
+		// Start listening, emulating unregistered node.
+		go func() {
+			conn, err := sshListener.Accept()
+			if err != nil {
+				assert.Fail(t, err.Error())
+				return
+			}
+
+			buf := make([]byte, 3)
+			_, err = conn.Read(buf)
+			assert.NoError(t, err)
+
+			// On the received connection first bytes should be SSH prefix, not PROXY protocol
+			resultChan <- slices.Equal(buf, []byte("SSH"))
+		}()
+
+		nodeAddr := sshListener.Addr().String()
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+		t.Cleanup(cancelFunc)
+
+		nodeHost, nodePortStr, err := net.SplitHostPort(nodeAddr)
+		require.NoError(t, err)
+
+		nodePort, err := strconv.Atoi(nodePortStr)
+		require.NoError(t, err)
+
+		tc, err := instance.NewClient(helpers.ClientConfig{
+			Login:   suite.Me.Username,
+			Cluster: clusterName,
+			Host:    nodeHost,
+			Port:    nodePort,
+		})
+		require.NoError(t, err)
+
+		clt, err := tc.ConnectToCluster(ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, clt.Close())
+		})
+
+		nodeDetails := client.NodeDetails{Addr: nodeAddr, Namespace: tc.Namespace, Cluster: tc.SiteName}
+		nodeClient, err := tc.ConnectToNode(ctx, clt, nodeDetails, tc.Config.HostLogin)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, nodeClient.Close())
+		})
+
+		select {
+		case res := <-resultChan:
+			require.True(t, res, "Didn't receive SSH prefix as first bytes on the connection")
+		case <-time.After(time.Second):
+			require.Fail(t, "Timed out waiting for connection to the node")
+		}
+	}
+
 	testSSHAuthConnection := func(t *testing.T, instance *helpers.TeleInstance, clusterName string) {
 		ctx := context.Background()
 
@@ -1588,6 +1653,16 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 				})
 			})
 		}
+	})
+
+	_, root2, _ := createTrustedClusterPair(t, suite, startNodes, withProxyRecordingMode)
+	t.Run("We don't propagate IP to non Teleport nodes", func(t *testing.T) {
+		t.Run("connecting through root cluster", func(t *testing.T) {
+			testSSHUnregisteredNodeConnection(t, root2, "root-test")
+		})
+		t.Run("connecting through leaf cluster", func(t *testing.T) {
+			testSSHUnregisteredNodeConnection(t, root2, "leaf-test")
+		})
 	})
 }
 
@@ -7304,7 +7379,15 @@ outer:
 	t.FailNow()
 }
 
-func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *helpers.TeleInstance, *helpers.TeleInstance)) (*client.TeleportClient, *helpers.TeleInstance, *helpers.TeleInstance) {
+type serviceCfgOpt func(*servicecfg.Config)
+
+func withProxyRecordingMode(cfg *servicecfg.Config) {
+	recCfg := types.DefaultSessionRecordingConfig()
+	recCfg.SetMode(types.RecordAtProxy)
+	cfg.Auth.SessionRecordingConfig = recCfg
+}
+
+func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *helpers.TeleInstance, *helpers.TeleInstance), cfgOpts ...serviceCfgOpt) (*client.TeleportClient, *helpers.TeleInstance, *helpers.TeleInstance) {
 	ctx := context.Background()
 	username := suite.Me.Username
 	name := "test"
@@ -7355,6 +7438,11 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 		tconf.Proxy.DisableWebInterface = true
 		tconf.SSH.Enabled = false
 		tconf.CachePolicy.MaxRetryPeriod = time.Millisecond * 500
+
+		for _, opt := range cfgOpts {
+			opt(tconf)
+		}
+
 		return t, nil, tconf
 	}
 
@@ -7618,7 +7706,8 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 
 func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 	for _, proxyProtocolMode := range []multiplexer.PROXYProtocolMode{
-		multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff, multiplexer.PROXYProtocolUnspecified} {
+		multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff, multiplexer.PROXYProtocolUnspecified,
+	} {
 		t.Run(fmt.Sprintf("proxy protocol mode: %v", proxyProtocolMode), func(t *testing.T) {
 			lib.SetInsecureDevMode(true)
 			t.Cleanup(func() { lib.SetInsecureDevMode(false) })

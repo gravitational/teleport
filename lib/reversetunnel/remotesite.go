@@ -383,6 +383,15 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 		"addr":     conn.conn.RemoteAddr().String(),
 	})
 
+	sshutils.DiscardChannelData(ch)
+	if ch != nil {
+		defer func() {
+			if err := ch.Close(); err != nil {
+				logger.Warnf("Failed to close heartbeat channel: %v", err)
+			}
+		}()
+	}
+
 	firstHeartbeat := true
 	proxyResyncTicker := s.clock.NewTicker(s.proxySyncInterval)
 	defer func() {
@@ -759,6 +768,9 @@ func (s *remoteSite) Dial(params reversetunnelclient.DialParams) (net.Conn, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := checkNodeAndRecConfig(params, recConfig); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// If the proxy is in recording mode and a SSH connection is being
 	// requested or the target server is a registered OpenSSH node, build
@@ -837,7 +849,7 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 	serverConfig := forward.ServerConfig{
 		AuthClient:      s.localClient,
 		UserAgent:       userAgent,
-		IsAgentlessNode: params.IsAgentlessNode,
+		IsAgentlessNode: isAgentlessNode(params),
 		AgentlessSigner: params.AgentlessSigner,
 		TargetConn:      targetConn,
 		SrcAddr:         params.From,

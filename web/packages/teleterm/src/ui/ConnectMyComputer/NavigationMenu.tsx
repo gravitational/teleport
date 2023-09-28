@@ -138,9 +138,15 @@ function getIndicatorStatus(
         assertUnreachable(currentAction.agentProcessState);
       }
     }
-  } else {
-    return currentAction.attempt.status;
   }
+  if (
+    currentAction.kind === 'remove' &&
+    (currentAction.attempt.status === 'processing' ||
+      currentAction.attempt.status === 'success')
+  ) {
+    return '';
+  }
+  return currentAction.attempt.status;
 }
 
 interface MenuIconProps {
@@ -159,14 +165,18 @@ export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
         title="Open Connect My Computer"
       >
         <Laptop size="medium" />
-        {indicatorStatusToStyledStatus(props.indicatorStatus)}
+        {props.indicatorStatus === 'error' ? (
+          <StyledWarning />
+        ) : (
+          indicatorStatusToStyledStatus(props.indicatorStatus)
+        )}
       </StyledButton>
     );
   }
 );
 
 const indicatorStatusToStyledStatus = (
-  indicatorStatus: IndicatorStatus
+  indicatorStatus: '' | 'processing' | 'success'
 ): JSX.Element => {
   return (
     <StyledStatus
@@ -197,13 +207,14 @@ const indicatorStatusToStyledStatus = (
   );
 };
 
-function getIndicatorColor(status: IndicatorStatus, theme: any): string {
+function getIndicatorColor(
+  status: 'processing' | 'success',
+  theme: any
+): string {
   switch (status) {
     case 'processing':
     case 'success':
       return theme.colors.success;
-    case 'error':
-      return theme.colors.error.main;
   }
 }
 
@@ -224,4 +235,19 @@ const StyledStatus = styled(Box)`
   height: 8px;
   border-radius: 50%;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+`;
+
+const StyledWarning = styled(Warning).attrs({
+  size: 'small',
+  color: 'error.main',
+})`
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 1;
+
+  > svg {
+    width: 14px;
+    height: 14px;
+  }
 `;

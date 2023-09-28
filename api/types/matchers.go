@@ -23,39 +23,3 @@ type Matcher interface {
 	// CopyWithTypes copies the matcher with new types.
 	CopyWithTypes(t []string) Matcher
 }
-
-// GetTypes gets the types that the matcher can match.
-func (m AWSMatcher) GetTypes() []string {
-	return m.Types
-}
-
-// CopyWithTypes copies the matcher with new types.
-func (m AWSMatcher) CopyWithTypes(t []string) Matcher {
-	newMatcher := m
-	newMatcher.Types = t
-	return newMatcher
-}
-
-// GetTypes gets the types that the matcher can match.
-func (m AzureMatcher) GetTypes() []string {
-	return m.Types
-}
-
-// CopyWithTypes copies the matcher with new types.
-func (m AzureMatcher) CopyWithTypes(t []string) Matcher {
-	newMatcher := m
-	newMatcher.Types = t
-	return newMatcher
-}
-
-// GetTypes gets the types that the matcher can match.
-func (m GCPMatcher) GetTypes() []string {
-	return m.Types
-}
-
-// CopyWithTypes copies the matcher with new types.
-func (m GCPMatcher) CopyWithTypes(t []string) Matcher {
-	newMatcher := m
-	newMatcher.Types = t
-	return newMatcher
-}

@@ -754,6 +754,15 @@ func TestRewriteJWT(t *testing.T) {
 			expectedTraits: wrappers.Traits{},
 			jwtRewrite:     types.JWTClaimsRewriteRoles,
 		},
+
+		{
+			name:          "test traits behavior",
+			expectedRoles: nil,
+			expectedTraits: wrappers.Traits{
+				"logins": []string{login},
+			},
+			jwtRewrite: types.JWTClaimsRewriteTraits,
+		},
 		{
 			name:           "test none behavior",
 			expectedRoles:  nil,

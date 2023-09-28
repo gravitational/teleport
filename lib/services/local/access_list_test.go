@@ -124,6 +124,42 @@ func TestAccessListCRUD(t *testing.T) {
 	out, err = service.GetAccessLists(ctx)
 	require.NoError(t, err)
 	require.Empty(t, out)
+
+	// Try to create an access list with duplicate owners.
+	accessListDuplicateOwners := newAccessList(t, "accessListDuplicateOwners")
+	accessListDuplicateOwners.Spec.Owners = append(accessListDuplicateOwners.Spec.Owners, accessListDuplicateOwners.Spec.Owners[0])
+
+	_, err = service.UpsertAccessList(ctx, accessListDuplicateOwners)
+	require.True(t, trace.IsAlreadyExists(err))
+}
+
+func TestAccessListDedupeOwnersBackwardsCompat(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	// Put an unduplicated owners access list in the backend.
+	accessListDuplicateOwners := newAccessList(t, "accessListDuplicateOwners")
+	accessListDuplicateOwners.Spec.Owners = append(accessListDuplicateOwners.Spec.Owners, accessListDuplicateOwners.Spec.Owners[0])
+	require.Len(t, accessListDuplicateOwners.Spec.Owners, 3)
+
+	item, err := service.service.MakeBackendItem(accessListDuplicateOwners, accessListDuplicateOwners.GetName())
+	require.NoError(t, err)
+	_, err = mem.Put(ctx, item)
+	require.NoError(t, err)
+
+	accessList, err := service.GetAccessList(ctx, accessListDuplicateOwners.GetName())
+	require.NoError(t, err)
+
+	require.Len(t, accessList.Spec.Owners, 2)
 }
 
 func TestAccessListUpsertWithMembers(t *testing.T) {

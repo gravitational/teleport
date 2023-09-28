@@ -44,13 +44,17 @@ type DialParams struct {
 	// forwarding proxy.
 	GetUserAgent teleagent.Getter
 
-	// IsAgentlessNode indicates whether the Node is an OpenSSH Node.
-	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEICE.
+	// IsAgentlessNode indicates whether the node is an OpenSSH node.
+	// This includes nodes whose sub kind is OpenSSH and OpenSSHEICE.
 	IsAgentlessNode bool
 
 	// AgentlessSigner is used for authenticating to the remote host when it is an
 	// agentless node.
 	AgentlessSigner ssh.Signer
+
+	// isNotInventoryNode indicates whether the node is not a known registered
+	// node that was directly dialed.
+	IsNotInventoryNode bool
 
 	// Address is used by the forwarding proxy to generate a host certificate for
 	// the target node. This is needed because while dialing occurs via IP

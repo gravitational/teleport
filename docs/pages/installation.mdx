@@ -31,7 +31,7 @@ running Teleport on UNIX variants other than Linux \[1].
 
 | Operating System | `teleport` Daemon | `tctl` Admin Tool | `tsh` and Teleport Connect User Clients [2] | Web UI (via the browser) | `tbot` Daemon |
 | - | - | - | - | - | - |
-| Linux v2.6.23+ (RHEL/CentOS 7+, Ubuntu 14.04+, and Debian 8+) \[3] | yes | yes | yes | yes | yes |
+| Linux v2.6.23+ (RHEL/CentOS 7+, Amazon Linux 2+, Amazon Linux 2023+, Ubuntu 16.04+, Debian 9+, SLES 12 SP 5+, and SLES 15 SP 5+) \[3] | yes | yes | yes | yes | yes |
 | macOS v10.13+  (High Sierra)| yes | yes | yes | yes | yes |
 | Windows 10+ (rev. 1607) \[4] | no | no | yes | yes | no |
 
@@ -54,23 +54,24 @@ All installations include `teleport`, `tsh`, `tctl`, and `tbot`.
 
 Some Teleport features have additional requirements:
 
-| Feature                                                                        | Requirement   | Debian                   | Ubuntu   | CentOS/RHEL | Amazon Linux            |
-|--------------------------------------------------------------------------------|---------------|--------------------------|----------|-------------|------------------------|
-| [Enhanced Session Recording](./server-access/guides/bpf-session-recording.mdx) | Kernel  v5.8+ | 11, or 10 with backports | 20.04.2+ | 9+          | 2 (post 11/2021), 2023 |
-| Automatic Updates                                                              | systemd-based | 8+                       | 16.04+   | 7+          | 2, 2023                |
-| Installation through apt/yum repos                                             | systemd-based | 8+                       | 16.04+   | 7+          | 2, 2023                |
+| Feature                                                                        | Requirement   | Debian                   | Ubuntu   | CentOS/RHEL | Amazon Linux           | SLES           |
+|--------------------------------------------------------------------------------|---------------|--------------------------|----------|-------------|------------------------|----------------|
+| [Enhanced Session Recording](./server-access/guides/bpf-session-recording.mdx) | Kernel  v5.8+ | 11, or 10 with backports | 20.04.2+ | 9+          | 2 (post 11/2021), 2023 | 12 SP5, 15 SP5 |
+| Automatic Updates                                                              | systemd-based | 9+                       | 16.04+   | 7+          | 2, 2023                | 12 SP5, 15 SP5 |
+| Installation through apt/yum/zypper repos                                      | systemd-based | 9+                       | 16.04+   | 7+          | 2, 2023                | 12 SP5, 15 SP5 |
 
 <Admonition type="note">
-`apt` and `yum` repos don't expose packages for all distribution variants.
+`apt`, `yum`, and `zypper` repos don't expose packages for all distribution variants.
 When following installation instructions, you might need to replace `ID` with
 `ID_LIKE` to install packages of the closest supported distribution.
 
 Currently supported distributions (and `ID`) are:
 - RHEL >= 7 (`rhel`)
 - CentOS >= 7 (`centos`)
-- Debian >= 8 (`debian`)
+- Debian >= 9 (`debian`)
 - Ubuntu >= 16.04 (`ubuntu`)
 - Amazon Linux 2 and 2023 (`amzn`)
+- SLES >= 12 SP5, >= 15 SP5 (`sles`)
 
 </Admonition>
 
@@ -407,7 +408,7 @@ chart.
 ## macOS
 
 <Tabs dropdownView dropdownCaption="Teleport Edition">
-<TabItem label="Teleport Team/Community Edition" scope={["oss","team"]}>
+<TabItem label="Community/Team" scope={["oss","team"]}>
   <Tabs>
   <TabItem label="Teleport package" >
   You can download one of the following .pkg installers for macOS:

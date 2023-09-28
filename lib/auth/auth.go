@@ -419,6 +419,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Log:         log,
 		AccessLists: services,
 		Access:      services,
+		UsageEvents: &as,
 		Clock:       cfg.Clock,
 	})
 	if err != nil {
@@ -1331,9 +1332,6 @@ func (a *Server) updateVersionMetrics() {
 	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
 		versionCount[handle.Hello().Version]++
 	})
-
-	// record version for **THIS** auth server
-	versionCount[teleport.Version]++
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics
 	registeredAgents.Reset()
@@ -3319,7 +3317,10 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Updating traits is needed for guided SSH flow in Discover.
 		traits = user.GetTraits()
+		// Updating roles is needed for guided Connect My Computer flow in Discover.
+		roles = user.GetRoles()
 
 	} else if req.AccessRequestID != "" {
 		accessRequest, err := a.getValidatedAccessRequest(ctx, identity, req.User, req.AccessRequestID)
@@ -5319,6 +5320,54 @@ func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByTyp
 		}
 	}
 	return res
+}
+
+// validateMFAAuthResponseForRegister is akin to [validateMFAAuthResponse], but
+// it allows users with no devices to supply a nil/empty response.
+//
+// The hasDevices response value can only be trusted in the absence of errors.
+//
+// Use only for registration purposes.
+func (a *Server) validateMFAAuthResponseForRegister(
+	ctx context.Context,
+	resp *proto.MFAAuthenticateResponse, username string, passwordless bool,
+) (hasDevices bool, err error) {
+	// Let users without a useable device go through registration.
+	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil) {
+		devices, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if len(devices) == 0 {
+			// Allowed, no devices registered.
+			return false, nil
+		}
+
+		authPref, err := a.GetAuthPreference(ctx)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		totpEnabled := authPref.IsSecondFactorTOTPAllowed()
+		webauthnEnabled := authPref.IsSecondFactorWebauthnAllowed()
+
+		devsByType := groupByDeviceType(devices, webauthnEnabled)
+		if (totpEnabled && devsByType.TOTP) || (webauthnEnabled && len(devsByType.Webauthn) > 0) {
+			return false, trace.BadParameter("second factor authentication required")
+		}
+
+		// Allowed, no useable devices registered.
+		return false, nil
+	}
+
+	if err := a.WithUserLock(username, func() error {
+		_, _, err := a.validateMFAAuthResponse(
+			ctx, resp, username, false /* passwordless */)
+		return err
+	}); err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return true, nil
 }
 
 // validateMFAAuthResponse validates an MFA or passwordless challenge.

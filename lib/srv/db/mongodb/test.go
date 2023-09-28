@@ -80,6 +80,7 @@ type TestServer struct {
 
 	wireVersion      int
 	activeConnection int32
+	maxMessageSize   uint32
 
 	// conversationIdx conversion ID control number. It is increased every time
 	// a SASL conversation is started.
@@ -97,6 +98,13 @@ type TestServerOption func(*TestServer)
 func TestServerWireVersion(wireVersion int) TestServerOption {
 	return func(ts *TestServer) {
 		ts.wireVersion = wireVersion
+	}
+}
+
+// TestServerMaxMessageSize sets the test MongoDB server max message size.
+func TestServerMaxMessageSize(maxMessageSize uint32) TestServerOption {
+	return func(ts *TestServer) {
+		ts.maxMessageSize = maxMessageSize
 	}
 }
 
@@ -168,7 +176,7 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 	// Read client messages and reply to them - test server supports a very
 	// basic set of commands: "isMaster", "authenticate", "ping" and "find".
 	for {
-		message, err := protocol.ReadMessage(conn)
+		message, err := protocol.ReadMessage(conn, s.getMaxMessageSize())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -235,7 +243,7 @@ func (s *TestServer) handleAuth(message protocol.Message) (protocol.Message, err
 // isMaster command is used as a handshake by the client to determine the
 // cluster topology.
 func (s *TestServer) handleIsMaster(message protocol.Message) (protocol.Message, error) {
-	isMasterReply, err := makeIsMasterReply(s.getWireVersion())
+	isMasterReply, err := makeIsMasterReply(s.getWireVersion(), s.getMaxMessageSize())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -381,6 +389,14 @@ func (s *TestServer) getWireVersion() int {
 	return 9 // Latest MongoDB server sends maxWireVersion=9.
 }
 
+// getMaxMessageSize returns the server's max message size.
+func (s *TestServer) getMaxMessageSize() uint32 {
+	if s.maxMessageSize != 0 {
+		return s.maxMessageSize
+	}
+	return protocol.DefaultMaxMessageSizeBytes
+}
+
 // Port returns the port server is listening on.
 func (s *TestServer) Port() string {
 	return s.port
@@ -416,12 +432,13 @@ func makeOKReply() ([]byte, error) {
 }
 
 // makeIsMasterReply builds a document used as a "isMaster" command reply.
-func makeIsMasterReply(wireVersion int) ([]byte, error) {
+func makeIsMasterReply(wireVersion int, maxMessageSize uint32) ([]byte, error) {
 	return bson.Marshal(bson.M{
-		"ok":             1,
-		"maxWireVersion": wireVersion,
-		"compression":    []string{"zlib"},
-		"serviceId":      primitive.NewObjectID(),
+		"ok":              1,
+		"maxWireVersion":  wireVersion,
+		"maxMessageBytes": maxMessageSize,
+		"compression":     []string{"zlib"},
+		"serviceId":       primitive.NewObjectID(),
 	})
 }
 

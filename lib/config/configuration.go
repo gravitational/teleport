@@ -208,6 +208,10 @@ type CommandLineFlags struct {
 	// IntegrationConfAWSOIDCIdPArguments contains the arguments of
 	// `teleport integration configure awsoidc-idp` command
 	IntegrationConfAWSOIDCIdPArguments IntegrationConfAWSOIDCIdP
+
+	// IntegrationConfListDatabasesIAMArguments contains the arguments of
+	// `teleport integration configure listdatabases-iam` command
+	IntegrationConfListDatabasesIAMArguments IntegrationConfListDatabasesIAM
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -248,6 +252,15 @@ type IntegrationConfAWSOIDCIdP struct {
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
 	// Eg, https://<tenant>.teleport.sh
 	ProxyPublicURL string
+}
+
+// IntegrationConfListDatabasesIAM contains the arguments of
+// `teleport integration configure listdatabases-iam` command
+type IntegrationConfListDatabasesIAM struct {
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// Role is the AWS Role associated with the Integration
+	Role string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -1402,6 +1415,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		m := types.GCPMatcher{
 			Types:           matcher.Types,
 			Locations:       matcher.Locations,
+			Labels:          matcher.Labels,
 			Tags:            matcher.Tags,
 			ProjectIDs:      matcher.ProjectIDs,
 			ServiceAccounts: matcher.ServiceAccounts,

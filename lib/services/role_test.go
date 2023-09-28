@@ -6875,9 +6875,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
@@ -6901,9 +6898,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Name: "a",
 				},
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"sudoers entry 1"},
@@ -6914,9 +6908,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Name: "b",
 				},
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 						HostSudoers: []string{"sudoers entry 2"},
@@ -6924,9 +6915,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 				},
 			}, &types.RoleV6{
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{"fail": []string{"abc"}},
 						HostSudoers: []string{"not present sudoers entry"},
@@ -6947,9 +6935,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 			sudoers: nil,
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
@@ -6957,9 +6942,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 				},
 			}, &types.RoleV6{
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Deny: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"*"},
@@ -6980,9 +6962,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{
@@ -6993,9 +6972,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 				},
 			}, &types.RoleV6{
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Deny: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"removed entry"},
@@ -7019,9 +6995,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Name: "a",
 				},
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"sudoers entry 1"},
@@ -7032,9 +7005,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Name: "c",
 				},
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 						HostSudoers: []string{"sudoers entry 4", "sudoers entry 1"},
@@ -7045,9 +7015,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Name: "b",
 				},
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 						HostSudoers: []string{"sudoers entry 2", "sudoers entry 3"},
@@ -7071,9 +7038,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Name: "a",
 				},
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"sudoers entry 1"},
@@ -7084,9 +7048,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Name: "d",
 				},
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Deny: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"sudoers entry 1"},
@@ -7097,9 +7058,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Name: "c",
 				},
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
-					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 						HostSudoers: []string{"sudoers entry 1", "sudoers entry 2"},
@@ -7118,9 +7076,9 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 	} {
 		t.Run(tc.test, func(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
-			info, err := accessChecker.HostUsers(tc.server)
+			info, err := accessChecker.HostSudoers(tc.server)
 			require.NoError(t, err)
-			require.Equal(t, tc.sudoers, info.Sudoers)
+			require.Equal(t, tc.sudoers, info)
 		})
 	}
 }

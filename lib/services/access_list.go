@@ -86,7 +86,7 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var accessList *accesslist.AccessList
+	var accessList accesslist.AccessList
 	if err := utils.FastUnmarshal(data, &accessList); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
@@ -99,7 +99,7 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 	if !cfg.Expires.IsZero() {
 		accessList.SetExpiry(cfg.Expires)
 	}
-	return accessList, nil
+	return &accessList, nil
 }
 
 // AccessListMembersGetter defines an interface for reading access list members.
@@ -152,7 +152,7 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var member *accesslist.AccessListMember
+	var member accesslist.AccessListMember
 	if err := utils.FastUnmarshal(data, &member); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
@@ -165,7 +165,7 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 	if !cfg.Expires.IsZero() {
 		member.SetExpiry(cfg.Expires)
 	}
-	return member, nil
+	return &member, nil
 }
 
 // IsAccessListOwner will return true if the user is an owner for the current list.
@@ -208,8 +208,8 @@ func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock cloc
 	}
 
 	expires := member.Spec.Expires
-	if expires.IsZero() || accessList.Spec.Audit.NextAuditDate.Before(expires) {
-		expires = accessList.Spec.Audit.NextAuditDate
+	if expires.IsZero() {
+		return nil
 	}
 
 	if !clock.Now().Before(expires) {

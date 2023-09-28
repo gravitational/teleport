@@ -38,8 +38,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
 func TestMigrateProcessDataObjects(t *testing.T) {
