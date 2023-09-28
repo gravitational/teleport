@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
 
-import { space, width, height } from 'design/system';
+import { space, width, height, alignSelf } from 'design/system';
 
 const Button = ({ children, setRef, ...props }) => {
   return (
@@ -84,6 +84,7 @@ const themedStyles = props => {
     ...width(props),
     ...block(props),
     ...height(props),
+    ...alignSelf(props),
   };
 };
 
@@ -203,6 +204,7 @@ Button.propTypes = {
    */
   ...space.propTypes,
   ...height.propTypes,
+  ...alignSelf.propTypes,
 };
 
 Button.defaultProps = {
