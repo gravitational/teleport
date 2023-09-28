@@ -33,6 +33,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       onSelect,
       anchorOrigin,
       transformOrigin,
+      alignButtonWidthToMenu = false,
       required = true,
       width,
     } = props;
@@ -75,12 +76,14 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
     return (
       <React.Fragment>
         <ButtonBorder
+          width={alignButtonWidthToMenu ? width : null}
+          textTransform={props.textTransform}
           height="24px"
           size="small"
           setRef={anchorRef}
           onClick={onOpen}
         >
-          CONNECT
+          Connect
           <CarrotDown ml={2} mr={-2} fontSize="2" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
