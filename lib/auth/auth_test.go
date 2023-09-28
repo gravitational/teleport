@@ -2889,6 +2889,7 @@ func TestDeleteMFADevice(t *testing.T) {
 	}
 }
 
+//nolint:staticcheck // SA1019. Kept for backward compatibility testing.
 func deleteMFADeviceStream(ctx context.Context, userClient *Client, testDev *TestDevice) error {
 	stream, err := userClient.DeleteMFADevice(ctx)
 	if err != nil {

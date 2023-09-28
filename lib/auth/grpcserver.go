@@ -2518,6 +2518,7 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_D
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	//nolint:staticcheck // SA1019. Kept for compatibility with older tsh versions.
 	if err := stream.Send(&authpb.DeleteMFADeviceResponse{
 		Response: &authpb.DeleteMFADeviceResponse_MFAChallenge{MFAChallenge: authChallenge},
 	}); err != nil {
