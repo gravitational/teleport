@@ -208,6 +208,42 @@ export const requestRoleApproved: AccessRequest = {
   resources: [],
 };
 
+export const requestRolePromoted: AccessRequest = {
+  id: '72de9b90-04fd-5621-a55d-432d9fe56ef2',
+  state: 'PROMOTED',
+  user: 'Sam',
+  expires: new Date(0),
+  expiresDuration: '24 hours',
+  created: new Date('12-1-2020'),
+  createdDuration: '2 hours ago',
+  maxDuration: null,
+  maxDurationText: '24 hours',
+  sessionTTL: new Date(0),
+  sessionTTLDuration: '',
+  roles: ['kaco', 'ziuzzow', 'admin'],
+  requestReason: '',
+  resolveReason: '',
+  reviews: [
+    {
+      author: 'george.washington.first.president@testing.com',
+      createdDuration: '1 minute ago',
+      reason: '',
+      promotedAccessListTitle: 'Design Team',
+      roles: ['admin'],
+      state: 'PROMOTED',
+    },
+  ],
+  reviewers: [
+    {
+      name: 'george.washington.first.president@testing.com',
+      state: 'PROMOTED',
+    },
+  ],
+  thresholdNames: ['Default'],
+  resources: [],
+  promotedAccessListTitle: 'Design Team',
+};
+
 export const requestRoleEmpty: AccessRequest = {
   ...requestRoleApproved,
   reviews: [],
@@ -236,6 +272,10 @@ export class MockedWorkflowService {
 
   fetchAccessRequest = () => {
     return Promise.resolve(requestRolePending);
+  };
+
+  promoteAccessRequest = () => {
+    return Promise.resolve(requestRolePromoted);
   };
 
   fetchResourceRequestRoles = () => {

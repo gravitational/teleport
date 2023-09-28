@@ -6,6 +6,7 @@ export type RequestState =
   | 'APPROVED'
   | 'DENIED'
   | 'APPLIED'
+  | 'PROMOTED'
   | '';
 
 export interface AccessRequest {
@@ -27,6 +28,7 @@ export interface AccessRequest {
   reviews: AccessRequestReview[];
   thresholdNames: string[];
   resources: Resource[];
+  promotedAccessListTitle?: string;
 }
 
 export interface AccessRequestReview {
@@ -35,6 +37,7 @@ export interface AccessRequestReview {
   state: RequestState;
   reason: string;
   createdDuration: string;
+  promotedAccessListTitle?: string;
 }
 
 export interface AccessRequestReviewer {
@@ -81,6 +84,12 @@ export interface UpdateAccessRequest {
   state: RequestState;
   reason?: string;
   roles?: string[];
+  id: string;
+}
+
+export interface PromoteAccessRequest {
+  accessListName: string;
+  reason: string;
 }
 
 export interface AccessRequestFilter {

@@ -9,9 +9,15 @@ import {
   AccessListMember,
   AccessListOwner,
   IneligibleStatus,
+  AddMembersToAccessListRequest,
 } from 'e-teleport/services/accessmanagement';
 
 export const accessManagementService = {
+  fetchAccessListSuggestions(accessRequestId: string): Promise<AccessList[]> {
+    return api
+      .get(cfg.getAccessListSuggestionsUrl(accessRequestId))
+      .then(resp => makeAccessLists(resp.accessLists));
+  },
   fetchAccessLists(): Promise<AccessList[]> {
     return api
       .get(cfg.getAccessManagementListUrl())
@@ -21,6 +27,12 @@ export const accessManagementService = {
     return api
       .get(cfg.getAccessManagementListUrl(accessListId))
       .then(resp => makeAccessList(resp.accessList));
+  },
+  addMembersToAccessList(
+    accessListId: string,
+    req: AddMembersToAccessListRequest
+  ): Promise<void> {
+    return api.post(cfg.getAccessListMembersUrl(accessListId), req);
   },
   createAccessList(req: UpsertAccessListRequest): Promise<AccessList> {
     return api

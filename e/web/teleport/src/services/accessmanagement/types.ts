@@ -106,3 +106,7 @@ export type UpsertAccessListRequest = {
   members?: MemberRequest[];
   audit: { frequency: string; next_audit_date: Date };
 };
+
+export type AddMembersToAccessListRequest = {
+  members: MemberRequest[];
+};

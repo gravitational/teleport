@@ -46,16 +46,15 @@ exports[`failed state 1`] = `
 
 .c5 {
   box-sizing: border-box;
-  margin-bottom: 24px;
-  width: 200px;
+  margin-bottom: 16px;
 }
 
-.c8 {
+.c14 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c10 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -81,16 +80,16 @@ exports[`failed state 1`] = `
   padding: 0px 24px;
 }
 
-.c10:hover,
-.c10:focus {
+.c17:hover,
+.c17:focus {
   background: #B29DFF;
 }
 
-.c10:active {
+.c17:active {
   background: #C5B6FF;
 }
 
-.c10:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -106,7 +105,13 @@ exports[`failed state 1`] = `
   margin-right: 16px;
 }
 
-.c6 {
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c15 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -114,171 +119,46 @@ exports[`failed state 1`] = `
   margin-bottom: 4px;
 }
 
-.c7 .react-select-container {
+.c6 {
   box-sizing: border-box;
-  display: block;
-  font-size: 14px;
-  outline: none;
-  width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
-  margin-bottom: 0px;
-  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.c7 .react-select__control {
-  outline: none;
-  min-height: 40px;
-  height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  background-color: transparent;
-  box-shadow: none;
+.c12 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
 }
 
-.c7 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
-}
-
-.c7 .react-select__control:hover,
-.c7 .react-select__control:focus,
-.c7 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
+.c7 {
+  display: flex;
+  align-items: center;
   cursor: pointer;
 }
 
-.c7 .react-select__control:hover .react-select__dropdown-indicator,
-.c7 .react-select__control:focus .react-select__dropdown-indicator,
-.c7 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
+.c10 {
+  display: flex;
+  align-items: center;
+  cursor: not-allowed;
 }
 
-.c7 .react-select__control .react-select__indicator:hover,
-.c7 .react-select__control .react-select__dropdown-indicator:hover,
-.c7 .react-select__control .react-select__indicator:focus,
-.c7 .react-select__control .react-select__dropdown-indicator:focus,
-.c7 .react-select__control .react-select__indicator:active,
-.c7 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c7 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c7 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c7 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c7 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
-}
-
-.c7 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c7 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c7 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c7 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
-}
-
-.c7 .react-select__option:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c7 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c7 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c7 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
-  color: inherit;
-  font-weight: 500;
-}
-
-.c7 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c7 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
-}
-
-.c7 .react-select__clear-indicator:hover,
-.c7 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c7 .react-select__clear-indicator:hover svg,
-.c7 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
-}
-
-.c7 .react-select__menu {
-  margin-top: 0px;
-  background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c7 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
-}
-
-.c7 .react-select__indicator-separator {
-  display: none;
-}
-
-.c7 .react-select__loading-indicator {
-  display: none;
-}
-
-.c7 .react-select--is-disabled,
-.c7 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
-}
-
-.c7 .react-select--is-disabled .react-select__single-value,
-.c7 .react-select__control--is-disabled .react-select__single-value,
-.c7 .react-select--is-disabled .react-select__placeholder,
-.c7 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
-}
-
-.c7 .react-select--is-disabled .react-select__indicator,
-.c7 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
-}
-
-.c7 .react-select__input {
-  color: #FFFFFF;
+.c8 {
+  margin: 0 8px 0 0;
+  accent-color: #9F85FF;
+  cursor: inherit;
 }
 
 .c9 {
+  opacity: 1;
+}
+
+.c11 {
+  opacity: 0.5;
+}
+
+.c16 {
   box-sizing: border-box;
   max-width: 500px;
   padding: 8px;
@@ -292,13 +172,13 @@ exports[`failed state 1`] = `
   background: transparent;
 }
 
-.c9::placeholder {
+.c16::placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c9:hover,
-.c9:focus,
-.c9:active {
+.c16:hover,
+.c16:focus,
+.c16:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
@@ -328,80 +208,82 @@ exports[`failed state 1`] = `
       </div>
       <div
         class="c5"
-        width="200px"
       >
-        <label
-          class="c6"
-          font-size="0"
-          for="select"
-        >
-          Request Status
-        </label>
         <div
-          class="c7"
+          class="c6"
         >
-          <div
-            class="react-select-container css-2b097c-container"
+          <label
+            class="c7"
           >
-            <div
-              class="react-select__control css-yk16xz-control"
+            <input
+              checked=""
+              class="c8"
+              name="requestState"
+              type="radio"
+              value="DENIED"
+            />
+            <span
+              class="c9"
             >
-              <div
-                class="react-select__value-container css-g1d714-ValueContainer"
-              >
+              Reject request
+            </span>
+          </label>
+          <label
+            class="c7"
+          >
+            <input
+              class="c8"
+              name="requestState"
+              type="radio"
+              value="APPROVED"
+            />
+            <span
+              class="c9"
+            >
+              Approve short-term access
+               (12 hours)
+            </span>
+          </label>
+          <label
+            class="c10"
+          >
+            <input
+              class="c8"
+              disabled=""
+              name="requestState"
+              type="radio"
+              value="PROMOTED"
+            />
+            <span
+              class="c11"
+            >
+              <span>
                 <div
-                  class="react-select__placeholder css-1wa3eu0-placeholder"
+                  class="c12"
                 >
-                  Choose status
-                </div>
-                <input
-                  aria-autocomplete="list"
-                  class="css-62g3xt-dummyInput"
-                  id="select"
-                  readonly=""
-                  tabindex="0"
-                  value=""
-                />
-              </div>
-              <div
-                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-              >
-                <span
-                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                />
-                <div
-                  aria-hidden="true"
-                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                >
-                  <svg
-                    aria-hidden="true"
-                    class="css-6q0nyr-Svg"
-                    focusable="false"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    width="20"
+                  <div
+                    class="c13"
                   >
-                    <path
-                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                    />
-                  </svg>
+                    Approve long-term access via Access List with the requested roles
+                  </div>
+                  
                 </div>
-              </div>
-            </div>
-          </div>
+              </span>
+            </span>
+          </label>
         </div>
       </div>
       <div
-        class="c8"
+        class="c14"
       >
         <label
-          class="c6"
+          class="c15"
           font-size="0"
         >
           Message
         </label>
         <textarea
-          class="c9"
+          class="c16"
           color="text.main"
           height="150px"
           placeholder="Optional message..."
@@ -409,7 +291,7 @@ exports[`failed state 1`] = `
         />
       </div>
       <button
-        class="c10"
+        class="c17"
         kind="primary"
       >
         Submit Review
@@ -444,16 +326,15 @@ exports[`loaded state 1`] = `
 
 .c4 {
   box-sizing: border-box;
-  margin-bottom: 24px;
-  width: 200px;
+  margin-bottom: 16px;
 }
 
-.c7 {
+.c13 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c9 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -479,16 +360,16 @@ exports[`loaded state 1`] = `
   padding: 0px 24px;
 }
 
-.c9:hover,
-.c9:focus {
+.c16:hover,
+.c16:focus {
   background: #B29DFF;
 }
 
-.c9:active {
+.c16:active {
   background: #C5B6FF;
 }
 
-.c9:disabled {
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -504,7 +385,13 @@ exports[`loaded state 1`] = `
   margin-right: 16px;
 }
 
-.c5 {
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c14 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -512,171 +399,46 @@ exports[`loaded state 1`] = `
   margin-bottom: 4px;
 }
 
-.c6 .react-select-container {
+.c5 {
   box-sizing: border-box;
-  display: block;
-  font-size: 14px;
-  outline: none;
-  width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
-  margin-bottom: 0px;
-  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.c6 .react-select__control {
-  outline: none;
-  min-height: 40px;
-  height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  background-color: transparent;
-  box-shadow: none;
+.c11 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
 }
 
-.c6 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
-}
-
-.c6 .react-select__control:hover,
-.c6 .react-select__control:focus,
-.c6 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
+.c6 {
+  display: flex;
+  align-items: center;
   cursor: pointer;
 }
 
-.c6 .react-select__control:hover .react-select__dropdown-indicator,
-.c6 .react-select__control:focus .react-select__dropdown-indicator,
-.c6 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
+.c9 {
+  display: flex;
+  align-items: center;
+  cursor: not-allowed;
 }
 
-.c6 .react-select__control .react-select__indicator:hover,
-.c6 .react-select__control .react-select__dropdown-indicator:hover,
-.c6 .react-select__control .react-select__indicator:focus,
-.c6 .react-select__control .react-select__dropdown-indicator:focus,
-.c6 .react-select__control .react-select__indicator:active,
-.c6 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c6 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c6 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c6 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c6 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
-}
-
-.c6 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c6 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c6 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c6 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
-}
-
-.c6 .react-select__option:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c6 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c6 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c6 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
-  color: inherit;
-  font-weight: 500;
-}
-
-.c6 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c6 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
-}
-
-.c6 .react-select__clear-indicator:hover,
-.c6 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c6 .react-select__clear-indicator:hover svg,
-.c6 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
-}
-
-.c6 .react-select__menu {
-  margin-top: 0px;
-  background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c6 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
-}
-
-.c6 .react-select__indicator-separator {
-  display: none;
-}
-
-.c6 .react-select__loading-indicator {
-  display: none;
-}
-
-.c6 .react-select--is-disabled,
-.c6 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
-}
-
-.c6 .react-select--is-disabled .react-select__single-value,
-.c6 .react-select__control--is-disabled .react-select__single-value,
-.c6 .react-select--is-disabled .react-select__placeholder,
-.c6 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
-}
-
-.c6 .react-select--is-disabled .react-select__indicator,
-.c6 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
-}
-
-.c6 .react-select__input {
-  color: #FFFFFF;
+.c7 {
+  margin: 0 8px 0 0;
+  accent-color: #9F85FF;
+  cursor: inherit;
 }
 
 .c8 {
+  opacity: 1;
+}
+
+.c10 {
+  opacity: 0.5;
+}
+
+.c15 {
   box-sizing: border-box;
   max-width: 500px;
   padding: 8px;
@@ -690,13 +452,13 @@ exports[`loaded state 1`] = `
   background: transparent;
 }
 
-.c8::placeholder {
+.c15::placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c8:hover,
-.c8:focus,
-.c8:active {
+.c15:hover,
+.c15:focus,
+.c15:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
@@ -720,80 +482,82 @@ exports[`loaded state 1`] = `
     >
       <div
         class="c4"
-        width="200px"
       >
-        <label
-          class="c5"
-          font-size="0"
-          for="select"
-        >
-          Request Status
-        </label>
         <div
-          class="c6"
+          class="c5"
         >
-          <div
-            class="react-select-container css-2b097c-container"
+          <label
+            class="c6"
           >
-            <div
-              class="react-select__control css-yk16xz-control"
+            <input
+              checked=""
+              class="c7"
+              name="requestState"
+              type="radio"
+              value="DENIED"
+            />
+            <span
+              class="c8"
             >
-              <div
-                class="react-select__value-container css-g1d714-ValueContainer"
-              >
+              Reject request
+            </span>
+          </label>
+          <label
+            class="c6"
+          >
+            <input
+              class="c7"
+              name="requestState"
+              type="radio"
+              value="APPROVED"
+            />
+            <span
+              class="c8"
+            >
+              Approve short-term access
+               (12 hours)
+            </span>
+          </label>
+          <label
+            class="c9"
+          >
+            <input
+              class="c7"
+              disabled=""
+              name="requestState"
+              type="radio"
+              value="PROMOTED"
+            />
+            <span
+              class="c10"
+            >
+              <span>
                 <div
-                  class="react-select__placeholder css-1wa3eu0-placeholder"
+                  class="c11"
                 >
-                  Choose status
-                </div>
-                <input
-                  aria-autocomplete="list"
-                  class="css-62g3xt-dummyInput"
-                  id="select"
-                  readonly=""
-                  tabindex="0"
-                  value=""
-                />
-              </div>
-              <div
-                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-              >
-                <span
-                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                />
-                <div
-                  aria-hidden="true"
-                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                >
-                  <svg
-                    aria-hidden="true"
-                    class="css-6q0nyr-Svg"
-                    focusable="false"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    width="20"
+                  <div
+                    class="c12"
                   >
-                    <path
-                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                    />
-                  </svg>
+                    Approve long-term access via Access List with the requested roles
+                  </div>
+                  
                 </div>
-              </div>
-            </div>
-          </div>
+              </span>
+            </span>
+          </label>
         </div>
       </div>
       <div
-        class="c7"
+        class="c13"
       >
         <label
-          class="c5"
+          class="c14"
           font-size="0"
         >
           Message
         </label>
         <textarea
-          class="c8"
+          class="c15"
           color="text.main"
           height="150px"
           placeholder="Optional message..."
@@ -801,7 +565,7 @@ exports[`loaded state 1`] = `
         />
       </div>
       <button
-        class="c9"
+        class="c16"
         kind="primary"
       >
         Submit Review

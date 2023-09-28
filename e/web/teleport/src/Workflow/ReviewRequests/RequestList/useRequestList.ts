@@ -5,6 +5,7 @@ import history from 'teleport/services/history';
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { AccessRequest } from 'e-teleport/services/workflow';
 import { usePrivateKeyAccessRequest } from 'e-teleport/hooks/usePrivateKeyRequirement';
+import { getBaseRequestFlags } from 'e-teleport/Workflow/Shared';
 
 export default function useRequestList(ctx: TeleportContextE) {
   const { attempt, run, setAttempt } = useAttempt('processing');
@@ -58,14 +59,11 @@ export default function useRequestList(ctx: TeleportContextE) {
 }
 
 function makeRow(request: AccessRequest, ctx: TeleportContextE) {
-  const ownRequest = request.user === ctx.storeUser.getUsername();
-  const canAssume = ownRequest && request.state === 'APPROVED';
-  const isAssumed = ownRequest && ctx.storeAccessRequests.isAssumed(request.id);
+  const flags = getBaseRequestFlags(request, ctx);
 
   return {
     ...request,
-    canAssume,
-    isAssumed,
+    ...flags,
   };
 }
 

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import styled from 'styled-components';
 import {
   Text,
   Label,
@@ -10,13 +9,16 @@ import {
   Box,
   Alert,
   Indicator,
+  Flex,
 } from 'design';
 import Table, { Cell } from 'design/DataTable';
+import { ArrowFatLinesUp } from 'design/Icon';
 import { PrivateKeyAccessRequestDialogue } from '@gravitational/teleport/src/components/PrivateKeyPolicy';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 import cfg from 'e-teleport/config';
 import { AccessRequest, Resource } from 'e-teleport/services/workflow';
+import { ButtonPromotedInfo } from 'e-teleport/Workflow/Shared';
 
 import { formattedName } from '../formattedName';
 
@@ -63,7 +65,7 @@ export function RequestList({
         <Alert kind="danger" children={attempt.statusText} />
       )}
       {renderTable && (
-        <StyledTable
+        <Table
           data={requests}
           columns={[
             {
@@ -199,6 +201,17 @@ export const renderReasonCell = ({ requestReason }: Row) => {
 };
 
 export const renderStatusCell = ({ state }: Row) => {
+  if (state === 'PROMOTED') {
+    return (
+      <Cell>
+        <Flex alignItems="center">
+          <ArrowFatLinesUp size={17} color="success" mr={1} ml="-3px" />
+          <Text typography="body2">{state}</Text>
+        </Flex>
+      </Cell>
+    );
+  }
+
   let kind = 'warning';
   if (state === 'APPROVED') {
     kind = 'success';
@@ -207,40 +220,51 @@ export const renderStatusCell = ({ state }: Row) => {
   }
 
   return (
-    <Cell style={{ display: 'flex', alignItems: 'center' }}>
-      <LabelState
-        kind={kind}
-        mr={2}
-        width="10px"
-        p={0}
-        style={{ minHeight: '10px' }}
-      />
-      <Text typography="body2">{state}</Text>
+    <Cell>
+      <Flex alignItems="center">
+        <LabelState
+          kind={kind}
+          mr={2}
+          width="10px"
+          p={0}
+          style={{ minHeight: '10px' }}
+        />
+        <Text typography="body2">{state}</Text>
+      </Flex>
     </Cell>
   );
 };
 
 const renderActionCell = (request: Row, assumeRole: (request: Row) => void) => {
   return (
-    <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
-      {request.canAssume && (
-        <ButtonPrimary
+    <Cell align="right">
+      <Flex alignItems="center" justifyContent="right" width="184px">
+        {request.canAssume && (
+          <ButtonPrimary
+            size="small"
+            disabled={request.isAssumed}
+            onClick={() => assumeRole(request)}
+            width="108px"
+          >
+            {request.isAssumed ? 'assumed' : 'assume roles'}
+          </ButtonPrimary>
+        )}
+        {request.isPromoted && (
+          <ButtonPromotedInfo
+            request={request}
+            ownRequest={request.ownRequest}
+            showWebReloginBtn={true}
+          />
+        )}
+        <ButtonBorder
+          as={Link}
           size="small"
-          disabled={request.isAssumed}
-          onClick={() => assumeRole(request)}
-          width="108px"
+          ml={3}
+          to={cfg.getAccessRequestRoute(request.id)}
         >
-          {request.isAssumed ? 'assumed' : 'assume roles'}
-        </ButtonPrimary>
-      )}
-      <ButtonBorder
-        as={Link}
-        size="small"
-        ml={3}
-        to={cfg.getAccessRequestRoute(request.id)}
-      >
-        View
-      </ButtonBorder>
+          View
+        </ButtonBorder>
+      </Flex>
     </Cell>
   );
 };
@@ -278,9 +302,3 @@ export const RequestedCell = ({
     </Cell>
   );
 };
-
-const StyledTable = styled(Table)`
-  tbody > tr > td {
-    vertical-align: baseline;
-  }
-` as typeof Table;

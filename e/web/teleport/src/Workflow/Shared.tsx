@@ -1,0 +1,147 @@
+/**
+ * Copyright 2023 Gravitational, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import React, { useState } from 'react';
+import { ButtonPrimary, Text, Box, ButtonIcon, Menu } from 'design';
+import { Info } from 'design/Icon';
+
+import session from 'teleport/services/websession/websession';
+
+import { AccessRequest } from 'e-teleport/services/workflow';
+import TeleportContextE from 'e-teleport/teleportContextE';
+
+export function PromotedMessage({
+  request,
+  px,
+  py,
+  self,
+  showWebReloginBtn = false,
+}: {
+  request: AccessRequest;
+  self: boolean;
+  px?: number;
+  py?: number;
+  showWebReloginBtn?: boolean;
+}) {
+  const { promotedAccessListTitle, user } = request;
+
+  let relogin;
+  if (self) {
+    if (showWebReloginBtn) {
+      relogin = (
+        <ButtonPrimary mt={3} onClick={() => session.logout()}>
+          Re-login to gain access
+        </ButtonPrimary>
+      );
+    } else {
+      // TODO(lisa): temp work around for teleterm.
+      relogin = <>Re-login to gain access.</>;
+    }
+  }
+
+  return (
+    <Box px={px} py={py}>
+      <Text>
+        This access request has been promoted to long-term access.
+        <br />
+        {self ? (
+          <>
+            You are now a member of Access List <b>{promotedAccessListTitle}</b>{' '}
+            which grants you the resources requested.
+          </>
+        ) : (
+          <>
+            {user} is now a member of Access List{' '}
+            <b>{promotedAccessListTitle}</b> which grants {user} the resources
+            requested.
+          </>
+        )}
+      </Text>
+      {relogin}
+    </Box>
+  );
+}
+
+export function getBaseRequestFlags(
+  request: AccessRequest,
+  ctx: TeleportContextE
+) {
+  const ownRequest = request.user === ctx.storeUser.getUsername();
+  const canAssume = ownRequest && request.state === 'APPROVED';
+  const isAssumed =
+    ownRequest && !!ctx.storeAccessRequests.isAssumed(request.id);
+
+  const isPromoted = request.state === 'PROMOTED';
+
+  return {
+    // canAssume is a flag to show the assume btn.
+    canAssume,
+    // isAssumed is a flag if the assume btn should be disabled or not,
+    // and determines the text that implies if user already has assumed or not.
+    isAssumed,
+    ownRequest,
+    isPromoted,
+  };
+}
+
+export const ButtonPromotedInfo = ({
+  request,
+  ownRequest,
+  showWebReloginBtn = false,
+}: {
+  request: AccessRequest;
+  ownRequest: boolean;
+  showWebReloginBtn?: boolean;
+}) => {
+  const [anchorEl, setAnchorEl] = useState(null);
+
+  const handleOpen = event => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  return (
+    <Box css={{ margin: '0 auto' }}>
+      <ButtonIcon onClick={handleOpen}>
+        <Info />
+      </ButtonIcon>
+      <Menu
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleClose}
+      >
+        <PromotedMessage
+          request={request}
+          self={ownRequest}
+          showWebReloginBtn={showWebReloginBtn}
+          px={4}
+          py={4}
+        />
+      </Menu>
+    </Box>
+  );
+};

@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { AccessRequest } from 'e-teleport/services/workflow';
+import { SubmitReview } from 'e-teleport/Workflow/ReviewRequests/RequestView/types';
 
 import { AssumedRequest, LoggedInUser } from 'teleterm/services/tshd/types';
-import { AccessRequest, RequestState } from 'e-teleport/services/workflow';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
-
-import useAttempt from 'shared/hooks/useAttemptNext';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
@@ -56,7 +56,7 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
     }
   }
 
-  async function submitReview(state: RequestState, reason: string) {
+  async function submitReview({ state, reason }: SubmitReview) {
     const req = {
       state,
       reason,
@@ -126,6 +126,8 @@ function getRequestFlags(
 
   const reviewed = request.reviews.find(r => r.author === user.name);
 
+  const isPromoted = request.state === 'PROMOTED';
+
   const isPendingState = reviewed
     ? reviewed.state === 'PENDING'
     : request.state === 'PENDING';
@@ -138,6 +140,8 @@ function getRequestFlags(
     isAssumed,
     canDelete,
     canReview: !ownRequest && isPendingState,
+    isPromoted,
+    ownRequest,
   };
 }
 

@@ -10,6 +10,7 @@ import {
   UpdateAccessRequest,
   AccessRequest,
   ResourceId,
+  PromoteAccessRequest,
 } from './types';
 
 class WorkflowService {
@@ -38,6 +39,12 @@ class WorkflowService {
 
   submitAccessRequestReview(request: UpdateAccessRequest) {
     return api.put(cfg.getAccessRequestUrl(), request).then(makeAccessRequest);
+  }
+
+  promoteAccessRequest(requestId: string, request: PromoteAccessRequest) {
+    return api
+      .post(cfg.getAccessRequestPromoteUrl(requestId), request)
+      .then(res => makeAccessRequest(res?.accessRequest));
   }
 
   deleteAccessRequest(requestId: string) {

@@ -61,6 +61,8 @@ export function ReviewAccessRequest(props: Props) {
         submitReview={submitReview}
         assumeRole={assumeRole}
         reviewAttempt={submitReviewAttempt}
+        // TODO(lisa): temporary hack to disable promoting for teleterm.
+        longTermAccess={null}
       />
       {request && deleteDialogOpen && (
         <RequestDelete

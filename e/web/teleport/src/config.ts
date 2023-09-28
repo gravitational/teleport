@@ -44,7 +44,11 @@ const cfg = {
 
   api: {
     accessListManagementPath: '/v1/enterprise/accesslist/:accessListId?',
+    accessListAddMembersPath: '/v1/enterprise/accesslist/:accessListId/members',
+    accessListSuggestionsPath:
+      '/v1/enterprise/accessrequest/:requestId/suggestions/accesslist',
 
+    accessRequestPromotePath: '/v1/enterprise/accessrequest/:requestId/promote',
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
     accessRequestFilterPath: '/v1/enterprise/accessrequest?user=:user?',
     resourceRequestRolesPath:
@@ -121,8 +125,20 @@ const cfg = {
     return generatePath(cfg.api.accessListManagementPath, { accessListId });
   },
 
+  getAccessListMembersUrl(accessListId: string) {
+    return generatePath(cfg.api.accessListAddMembersPath, { accessListId });
+  },
+
+  getAccessListSuggestionsUrl(requestId: string) {
+    return generatePath(cfg.api.accessListSuggestionsPath, { requestId });
+  },
+
   getAccessRequestUrl(requestId?: string) {
     return generatePath(cfg.api.accessRequestPath, { requestId });
+  },
+
+  getAccessRequestPromoteUrl(requestId: string) {
+    return generatePath(cfg.api.accessRequestPromotePath, { requestId });
   },
 
   getAccessRequestFilterUrl(filter: AccessRequestFilter) {

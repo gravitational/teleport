@@ -6,6 +6,7 @@ import {
   requestRoleDenied,
   requestRoleApproved,
   requestSearchPending,
+  requestRolePromoted,
 } from '../../fixtures';
 
 import { RequestList } from './RequestList';
@@ -76,6 +77,16 @@ const requestRows = [
     ...requestRoleApproved,
     canAssume: true,
     isAssumed: true,
+  },
+  {
+    ...requestRolePromoted,
+    isPromoted: true,
+  },
+  {
+    ...requestRolePromoted,
+    isPromoted: true,
+    ownRequest: true,
+    requestReason: 'own promoted request',
   },
 ];
 

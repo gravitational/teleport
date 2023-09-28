@@ -31,6 +31,7 @@ export default function makeAccessRequest(json?): AccessRequest {
     reviewers,
     thresholdNames: json.thresholdNames || [],
     resources: json.resources || [],
+    promotedAccessListTitle: json.promotedAccessListTitle,
   };
 }
 
@@ -43,6 +44,7 @@ function makeReviews(jsonReviews): AccessRequestReview[] {
     reason: review.reason,
     roles: review.roles || [],
     createdDuration: getDurationAgoText(review.created),
+    promotedAccessListTitle: review.promotedAccessListTitle,
   }));
 }
 

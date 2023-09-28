@@ -6,6 +6,7 @@ import makeUserContext from 'teleport/services/user/makeUserContext';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { requestRolePending } from 'e-teleport/Workflow/fixtures';
+import { accessManagementService } from 'e-teleport/services/accessmanagement';
 
 import useRequestView from './useRequestView';
 
@@ -15,6 +16,8 @@ test('flags for own request', async () => {
   ctx.storeAccessRequests.isAssumed = () => false;
   ctx.workflowService.fetchAccessRequest = () =>
     Promise.resolve(requestRolePending);
+  accessManagementService.fetchAccessListSuggestions = () =>
+    Promise.resolve([]);
   ctx.workflowService.submitAccessRequestReview = () =>
     Promise.resolve({ ...requestRolePending, state: 'APPROVED' });
 
@@ -35,10 +38,14 @@ test('flags for own request', async () => {
     isAssumed: false,
     canDelete: true,
     canReview: false,
+    ownRequest: true,
+    isPromoted: false,
   });
 
   // test setting of request and flags after request is approved
-  act(() => utils.current.submitReview('APPROVED', ''));
+  await act(() =>
+    utils.current.submitReview({ state: 'APPROVED', reason: '' })
+  );
   await waitFor(() => {
     expect(utils.current.request.state).toBe('APPROVED');
   });
@@ -47,11 +54,15 @@ test('flags for own request', async () => {
     isAssumed: false,
     canDelete: true,
     canReview: false,
+    ownRequest: true,
+    isPromoted: false,
   });
 
   // test review isAssumed flag
   ctx.storeAccessRequests.isAssumed = () => true;
-  act(() => utils.current.submitReview('APPROVED', ''));
+  await act(() =>
+    utils.current.submitReview({ state: 'APPROVED', reason: '' })
+  );
 
   await waitFor(() => {
     expect(utils.current.flags).toEqual({
@@ -59,6 +70,8 @@ test('flags for own request', async () => {
       isAssumed: true,
       canDelete: true,
       canReview: false,
+      ownRequest: true,
+      isPromoted: false,
     });
   });
 
@@ -66,7 +79,7 @@ test('flags for own request', async () => {
   ctx.storeAccessRequests.isAssumed = () => false;
   ctx.workflowService.submitAccessRequestReview = () =>
     Promise.resolve({ ...requestRolePending, state: 'DENIED' });
-  act(() => utils.current.submitReview('DENIED', ''));
+  await act(() => utils.current.submitReview({ state: 'DENIED', reason: '' }));
 
   await waitFor(() => {
     expect(utils.current.request.state).toBe('DENIED');
@@ -76,6 +89,8 @@ test('flags for own request', async () => {
     isAssumed: false,
     canDelete: true,
     canReview: false,
+    ownRequest: true,
+    isPromoted: false,
   });
 });
 
@@ -85,6 +100,8 @@ test('flags for reviewer', async () => {
   ctx.storeUser.setState({ ...userContext, username: 'alice' });
   ctx.workflowService.fetchAccessRequest = () =>
     Promise.resolve(requestRolePending);
+  accessManagementService.fetchAccessListSuggestions = () =>
+    Promise.resolve([]);
   ctx.workflowService.submitAccessRequestReview = () =>
     Promise.resolve({
       ...requestRolePending,
@@ -104,11 +121,15 @@ test('flags for reviewer', async () => {
       isAssumed: false,
       canDelete: true,
       canReview: true,
+      ownRequest: false,
+      isPromoted: false,
     });
   });
 
   // test once reviewed, can't review again
-  act(() => utils.current.submitReview('APPROVED', ''));
+  await act(() =>
+    utils.current.submitReview({ state: 'APPROVED', reason: '' })
+  );
 
   await waitFor(() => {
     expect(utils.current.flags).toEqual({
@@ -116,6 +137,8 @@ test('flags for reviewer', async () => {
       isAssumed: false,
       canDelete: true,
       canReview: false,
+      ownRequest: false,
+      isPromoted: false,
     });
   });
 });

@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`loaded state 1`] = `
-.c20 {
+.c21 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -29,22 +29,22 @@ exports[`loaded state 1`] = `
   margin-left: 16px;
 }
 
-.c20:hover,
-.c20:focus {
+.c21:hover,
+.c21:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c20:active {
+.c21:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c20:disabled {
+.c21:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c23 {
+.c27 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -71,16 +71,16 @@ exports[`loaded state 1`] = `
   width: 108px;
 }
 
-.c23:hover,
-.c23:focus {
+.c27:hover,
+.c27:focus {
   background: #B29DFF;
 }
 
-.c23:active {
+.c27:active {
   background: #C5B6FF;
 }
 
-.c23:disabled {
+.c27:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -165,6 +165,44 @@ exports[`loaded state 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c25 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+}
+
+.c25:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c25:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c25:hover:enabled,
+.c25:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c25:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
 .c9 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -189,6 +227,15 @@ exports[`loaded state 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.c23 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #00BFA5;
+  margin-left: -3px;
+  margin-right: 4px;
 }
 
 .c19 {
@@ -227,7 +274,7 @@ exports[`loaded state 1`] = `
   font-size: 10px;
 }
 
-.c21 {
+.c22 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -247,7 +294,7 @@ exports[`loaded state 1`] = `
   font-size: 10px;
 }
 
-.c22 {
+.c26 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -284,6 +331,20 @@ exports[`loaded state 1`] = `
 .c10 {
   box-sizing: border-box;
   display: flex;
+}
+
+.c16 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c20 {
+  box-sizing: border-box;
+  width: 184px;
+  display: flex;
+  align-items: center;
+  justify-content: right;
 }
 
 .c15 {
@@ -452,8 +513,9 @@ exports[`loaded state 1`] = `
   font-size: 12px;
 }
 
-.c16 tbody > tr > td {
-  vertical-align: baseline;
+.c24 {
+  box-sizing: border-box;
+  margin: 0 auto;
 }
 
 <div>
@@ -501,12 +563,12 @@ exports[`loaded state 1`] = `
             </strong>
              - 
             <strong>
-              5
+              7
             </strong>
              of
              
             <strong>
-              5
+              7
             </strong>
           </div>
         </div>
@@ -564,7 +626,7 @@ exports[`loaded state 1`] = `
       </div>
     </nav>
     <table
-      class="c15 c16"
+      class="c15"
     >
       <thead>
         <tr>
@@ -710,21 +772,23 @@ exports[`loaded state 1`] = `
           >
             61a12
           </td>
-          <td
-            style="display: flex; align-items: center;"
-          >
-            <span
-              class="c17"
-              font-size="0"
-              font-weight="bold"
-              kind="warning"
-              style="min-height: 10px;"
-              width="10px"
-            />
+          <td>
             <div
-              class="c18"
+              class="c16"
             >
-              PENDING
+              <span
+                class="c17"
+                font-size="0"
+                font-weight="bold"
+                kind="warning"
+                style="min-height: 10px;"
+                width="10px"
+              />
+              <div
+                class="c18"
+              >
+                PENDING
+              </div>
             </div>
           </td>
           <td
@@ -753,16 +817,20 @@ exports[`loaded state 1`] = `
           </td>
           <td
             align="right"
-            style="white-space: nowrap;"
           >
-            <a
+            <div
               class="c20"
-              href="/web/requests/461ff4bb-62f1-53b5-84ae-731022261a12"
-              kind="border"
-              ml="3"
+              width="184px"
             >
-              View
-            </a>
+              <a
+                class="c21"
+                href="/web/requests/461ff4bb-62f1-53b5-84ae-731022261a12"
+                kind="border"
+                ml="3"
+              >
+                View
+              </a>
+            </div>
           </td>
         </tr>
         <tr>
@@ -772,21 +840,23 @@ exports[`loaded state 1`] = `
           >
             61a12
           </td>
-          <td
-            style="display: flex; align-items: center;"
-          >
-            <span
-              class="c17"
-              font-size="0"
-              font-weight="bold"
-              kind="warning"
-              style="min-height: 10px;"
-              width="10px"
-            />
+          <td>
             <div
-              class="c18"
+              class="c16"
             >
-              PENDING
+              <span
+                class="c17"
+                font-size="0"
+                font-weight="bold"
+                kind="warning"
+                style="min-height: 10px;"
+                width="10px"
+              />
+              <div
+                class="c18"
+              >
+                PENDING
+              </div>
             </div>
           </td>
           <td
@@ -871,16 +941,20 @@ exports[`loaded state 1`] = `
           </td>
           <td
             align="right"
-            style="white-space: nowrap;"
           >
-            <a
+            <div
               class="c20"
-              href="/web/requests/461ff4bb-62f1-53b5-84ae-731022261a12"
-              kind="border"
-              ml="3"
+              width="184px"
             >
-              View
-            </a>
+              <a
+                class="c21"
+                href="/web/requests/461ff4bb-62f1-53b5-84ae-731022261a12"
+                kind="border"
+                ml="3"
+              >
+                View
+              </a>
+            </div>
           </td>
         </tr>
         <tr>
@@ -890,21 +964,23 @@ exports[`loaded state 1`] = `
           >
             20cb2
           </td>
-          <td
-            style="display: flex; align-items: center;"
-          >
-            <span
-              class="c21"
-              font-size="0"
-              font-weight="bold"
-              kind="danger"
-              style="min-height: 10px;"
-              width="10px"
-            />
+          <td>
             <div
-              class="c18"
+              class="c16"
             >
-              DENIED
+              <span
+                class="c22"
+                font-size="0"
+                font-weight="bold"
+                kind="danger"
+                style="min-height: 10px;"
+                width="10px"
+              />
+              <div
+                class="c18"
+              >
+                DENIED
+              </div>
             </div>
           </td>
           <td
@@ -940,16 +1016,20 @@ exports[`loaded state 1`] = `
           </td>
           <td
             align="right"
-            style="white-space: nowrap;"
           >
-            <a
+            <div
               class="c20"
-              href="/web/requests/3ce23da9-6b85-5fce-9bf3-5fb826120cb2"
-              kind="border"
-              ml="3"
+              width="184px"
             >
-              View
-            </a>
+              <a
+                class="c21"
+                href="/web/requests/3ce23da9-6b85-5fce-9bf3-5fb826120cb2"
+                kind="border"
+                ml="3"
+              >
+                View
+              </a>
+            </div>
           </td>
         </tr>
         <tr>
@@ -959,21 +1039,165 @@ exports[`loaded state 1`] = `
           >
             56ef2
           </td>
-          <td
-            style="display: flex; align-items: center;"
-          >
-            <span
-              class="c22"
-              font-size="0"
-              font-weight="bold"
-              kind="success"
-              style="min-height: 10px;"
-              width="10px"
-            />
+          <td>
             <div
-              class="c18"
+              class="c16"
             >
-              APPROVED
+              <span
+                class="c23 icon icon-arrowfatlinesup"
+                color="success"
+              >
+                <svg
+                  fill="currentColor"
+                  height="17"
+                  viewBox="0 0 24 24"
+                  width="17"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M11.4697 1.71967C11.7626 1.42678 12.2375 1.42678 12.5304 1.71967L21.5304 10.7197C21.7449 10.9342 21.809 11.2568 21.6929 11.537C21.5768 11.8173 21.3034 12 21 12H17.25V14.25C17.25 14.6642 16.9142 15 16.5 15H7.50002C7.08581 15 6.75002 14.6642 6.75002 14.25V12H3.00002C2.69668 12 2.4232 11.8173 2.30711 11.537C2.19103 11.2568 2.25519 10.9342 2.46969 10.7197L11.4697 1.71967ZM4.81068 10.5H7.50002C7.91424 10.5 8.25002 10.8358 8.25002 11.25V13.5H15.75V11.25C15.75 10.8358 16.0858 10.5 16.5 10.5H19.1894L12 3.31066L4.81068 10.5Z"
+                    fill-rule="evenodd"
+                  />
+                  <path
+                    d="M6.75 20.25C6.75 19.8358 7.08579 19.5 7.5 19.5H16.5C16.9142 19.5 17.25 19.8358 17.25 20.25C17.25 20.6642 16.9142 21 16.5 21H7.5C7.08579 21 6.75 20.6642 6.75 20.25Z"
+                  />
+                  <path
+                    d="M7.5 16.5C7.08579 16.5 6.75 16.8358 6.75 17.25C6.75 17.6642 7.08579 18 7.5 18H16.5C16.9142 18 17.25 17.6642 17.25 17.25C17.25 16.8358 16.9142 16.5 16.5 16.5H7.5Z"
+                  />
+                </svg>
+              </span>
+              <div
+                class="c18"
+              >
+                PROMOTED
+              </div>
+            </div>
+          </td>
+          <td
+            style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            title="Sam"
+          >
+            Sam
+          </td>
+          <td>
+            <div
+              class="c19"
+              kind="secondary"
+            >
+              role: 
+              admin
+            </div>
+            <div
+              class="c19"
+              kind="secondary"
+            >
+              role: 
+              kaco
+            </div>
+            <div
+              class="c19"
+              kind="secondary"
+            >
+              role: 
+              ziuzzow
+            </div>
+          </td>
+          <td
+            style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            title="own promoted request"
+          >
+            own promoted request
+          </td>
+          <td>
+            2 hours ago
+          </td>
+          <td
+            align="right"
+          >
+            <div
+              class="c20"
+              width="184px"
+            >
+              <div
+                class="c24"
+              >
+                <button
+                  class="c25"
+                >
+                  <span
+                    class="c13 icon icon-info"
+                  >
+                    <svg
+                      fill="currentColor"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      width="24"
+                    >
+                      <path
+                        d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                      />
+                      <path
+                        d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                      />
+                      <path
+                        clip-rule="evenodd"
+                        d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                        fill-rule="evenodd"
+                      />
+                    </svg>
+                  </span>
+                </button>
+              </div>
+              <a
+                class="c21"
+                href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
+                kind="border"
+                ml="3"
+              >
+                View
+              </a>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            title="72de9b90-04fd-5621-a55d-432d9fe56ef2"
+          >
+            56ef2
+          </td>
+          <td>
+            <div
+              class="c16"
+            >
+              <span
+                class="c23 icon icon-arrowfatlinesup"
+                color="success"
+              >
+                <svg
+                  fill="currentColor"
+                  height="17"
+                  viewBox="0 0 24 24"
+                  width="17"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M11.4697 1.71967C11.7626 1.42678 12.2375 1.42678 12.5304 1.71967L21.5304 10.7197C21.7449 10.9342 21.809 11.2568 21.6929 11.537C21.5768 11.8173 21.3034 12 21 12H17.25V14.25C17.25 14.6642 16.9142 15 16.5 15H7.50002C7.08581 15 6.75002 14.6642 6.75002 14.25V12H3.00002C2.69668 12 2.4232 11.8173 2.30711 11.537C2.19103 11.2568 2.25519 10.9342 2.46969 10.7197L11.4697 1.71967ZM4.81068 10.5H7.50002C7.91424 10.5 8.25002 10.8358 8.25002 11.25V13.5H15.75V11.25C15.75 10.8358 16.0858 10.5 16.5 10.5H19.1894L12 3.31066L4.81068 10.5Z"
+                    fill-rule="evenodd"
+                  />
+                  <path
+                    d="M6.75 20.25C6.75 19.8358 7.08579 19.5 7.5 19.5H16.5C16.9142 19.5 17.25 19.8358 17.25 20.25C17.25 20.6642 16.9142 21 16.5 21H7.5C7.08579 21 6.75 20.6642 6.75 20.25Z"
+                  />
+                  <path
+                    d="M7.5 16.5C7.08579 16.5 6.75 16.8358 6.75 17.25C6.75 17.6642 7.08579 18 7.5 18H16.5C16.9142 18 17.25 17.6642 17.25 17.25C17.25 16.8358 16.9142 16.5 16.5 16.5H7.5Z"
+                  />
+                </svg>
+              </span>
+              <div
+                class="c18"
+              >
+                PROMOTED
+              </div>
             </div>
           </td>
           <td
@@ -1014,24 +1238,50 @@ exports[`loaded state 1`] = `
           </td>
           <td
             align="right"
-            style="white-space: nowrap;"
           >
-            <button
-              class="c23"
-              disabled=""
-              kind="primary"
-              width="108px"
-            >
-              assumed
-            </button>
-            <a
+            <div
               class="c20"
-              href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
-              kind="border"
-              ml="3"
+              width="184px"
             >
-              View
-            </a>
+              <div
+                class="c24"
+              >
+                <button
+                  class="c25"
+                >
+                  <span
+                    class="c13 icon icon-info"
+                  >
+                    <svg
+                      fill="currentColor"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      width="24"
+                    >
+                      <path
+                        d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                      />
+                      <path
+                        d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                      />
+                      <path
+                        clip-rule="evenodd"
+                        d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                        fill-rule="evenodd"
+                      />
+                    </svg>
+                  </span>
+                </button>
+              </div>
+              <a
+                class="c21"
+                href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
+                kind="border"
+                ml="3"
+              >
+                View
+              </a>
+            </div>
           </td>
         </tr>
         <tr>
@@ -1041,21 +1291,23 @@ exports[`loaded state 1`] = `
           >
             56ef2
           </td>
-          <td
-            style="display: flex; align-items: center;"
-          >
-            <span
-              class="c22"
-              font-size="0"
-              font-weight="bold"
-              kind="success"
-              style="min-height: 10px;"
-              width="10px"
-            />
+          <td>
             <div
-              class="c18"
+              class="c16"
             >
-              APPROVED
+              <span
+                class="c26"
+                font-size="0"
+                font-weight="bold"
+                kind="success"
+                style="min-height: 10px;"
+                width="10px"
+              />
+              <div
+                class="c18"
+              >
+                APPROVED
+              </div>
             </div>
           </td>
           <td
@@ -1096,23 +1348,115 @@ exports[`loaded state 1`] = `
           </td>
           <td
             align="right"
-            style="white-space: nowrap;"
           >
-            <button
-              class="c23"
-              kind="primary"
-              width="108px"
-            >
-              assume roles
-            </button>
-            <a
+            <div
               class="c20"
-              href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
-              kind="border"
-              ml="3"
+              width="184px"
             >
-              View
-            </a>
+              <button
+                class="c27"
+                disabled=""
+                kind="primary"
+                width="108px"
+              >
+                assumed
+              </button>
+              <a
+                class="c21"
+                href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
+                kind="border"
+                ml="3"
+              >
+                View
+              </a>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            title="72de9b90-04fd-5621-a55d-432d9fe56ef2"
+          >
+            56ef2
+          </td>
+          <td>
+            <div
+              class="c16"
+            >
+              <span
+                class="c26"
+                font-size="0"
+                font-weight="bold"
+                kind="success"
+                style="min-height: 10px;"
+                width="10px"
+              />
+              <div
+                class="c18"
+              >
+                APPROVED
+              </div>
+            </div>
+          </td>
+          <td
+            style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            title="Sam"
+          >
+            Sam
+          </td>
+          <td>
+            <div
+              class="c19"
+              kind="secondary"
+            >
+              role: 
+              admin
+            </div>
+            <div
+              class="c19"
+              kind="secondary"
+            >
+              role: 
+              kaco
+            </div>
+            <div
+              class="c19"
+              kind="secondary"
+            >
+              role: 
+              ziuzzow
+            </div>
+          </td>
+          <td
+            style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            title=""
+          />
+          <td>
+            2 hours ago
+          </td>
+          <td
+            align="right"
+          >
+            <div
+              class="c20"
+              width="184px"
+            >
+              <button
+                class="c27"
+                kind="primary"
+                width="108px"
+              >
+                assume roles
+              </button>
+              <a
+                class="c21"
+                href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
+                kind="border"
+                ml="3"
+              >
+                View
+              </a>
+            </div>
           </td>
         </tr>
       </tbody>

@@ -34,4 +34,10 @@ const props = {
   user: 'loggedInUsername',
   attempt: { status: '' as any },
   submitReview: () => null,
+  shortTermDuration: '12 hours',
+  requestingUser: 'Sam',
+  longTermAccess: {
+    suggestedAccessLists: [],
+    error: '',
+  },
 };

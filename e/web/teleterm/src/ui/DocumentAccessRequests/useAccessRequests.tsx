@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 
 import * as types from 'teleterm/ui/services/workspacesService';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { AccessRequest as TshdAccessRequest } from 'teleterm/services/tshd/types';
+import {
+  AssumedRequest,
+  LoggedInUser,
+  AccessRequest as TshdAccessRequest,
+} from 'teleterm/services/tshd/types';
 import { makeAccessRequest, AccessRequest } from 'e-teleport/services/workflow';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -25,20 +29,6 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>();
   const { attempt, setAttempt } = useAttempt('');
   const { attempt: assumeRoleAttempt, run: runAssumeRole } = useAttempt('');
-
-  // transform tsdh Access Request type into the web's Access Request
-  // to promote code reuse
-  function makeRow(request: AccessRequest) {
-    const ownRequest = request.user === loggedInUser?.name;
-    const canAssume = ownRequest && request.state === 'APPROVED';
-    const isAssumed = assumed[request.id];
-
-    return {
-      ...request,
-      canAssume,
-      isAssumed,
-    };
-  }
 
   function goBack() {
     documentsService.update(doc.uri, {
@@ -63,7 +53,9 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
       );
       setAttempt({ status: 'success' });
       // transform tshd access request to the webui access request and add flags
-      const requests = response.map(r => makeRow(makeUiAccessRequest(r)));
+      const requests = response.map(r =>
+        makeRow(makeUiAccessRequest(r), assumed, loggedInUser)
+      );
       setAccessRequests(requests);
     } catch (err) {
       setAttempt({
@@ -133,4 +125,27 @@ export function makeUiAccessRequest(request: TshdAccessRequest) {
     thresholdNames: request.thresholdNamesList,
     resources: request.resourcesList,
   });
+}
+
+// transform tsdh Access Request type into the web's Access Request
+// to promote code reuse
+export function makeRow(
+  request: AccessRequest,
+  assumed: Record<string, AssumedRequest>,
+  loggedInUser: LoggedInUser
+) {
+  const ownRequest = request.user === loggedInUser?.name;
+  const canAssume = ownRequest && request.state === 'APPROVED';
+  const isAssumed = assumed[request.id];
+
+  const isPromoted =
+    request.state === 'PROMOTED' && !!request.promotedAccessListTitle;
+
+  return {
+    ...request,
+    canAssume,
+    isAssumed,
+    ownRequest,
+    isPromoted,
+  };
 }

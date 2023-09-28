@@ -6,6 +6,7 @@ import {
   requestRolePending,
   requestSearchPending,
   requestRoleEmpty,
+  requestRolePromoted,
 } from '../../fixtures';
 
 import { RequestView } from './RequestView';
@@ -50,6 +51,77 @@ export const LoadedRoleApproved = () => {
   };
   return (
     <RequestView {...sample} request={requestRoleApproved} flags={flags} />
+  );
+};
+
+export const AccessListPromoted = () => {
+  const flags = {
+    ...sample.flags,
+    isPromoted: true,
+  };
+  return (
+    <RequestView
+      {...sample}
+      request={requestRolePromoted}
+      flags={flags}
+      longTermAccess={{
+        suggestedAccessLists,
+        error: '',
+      }}
+    />
+  );
+};
+
+export const AccessListPromotedOwnRequest = () => {
+  const flags = {
+    ...sample.flags,
+    isPromoted: true,
+    ownRequest: true,
+  };
+  return (
+    <RequestView
+      {...sample}
+      request={requestRolePromoted}
+      flags={flags}
+      longTermAccess={{
+        suggestedAccessLists,
+        error: '',
+      }}
+    />
+  );
+};
+
+export const AccessListPending = () => {
+  const flags = {
+    ...sample.flags,
+    canReview: true,
+  };
+  return (
+    <RequestView
+      {...sample}
+      flags={flags}
+      longTermAccess={{
+        suggestedAccessLists,
+        error: '',
+      }}
+    />
+  );
+};
+
+export const AccessListPendingWithError = () => {
+  const flags = {
+    ...sample.flags,
+    canReview: true,
+  };
+  return (
+    <RequestView
+      {...sample}
+      flags={flags}
+      longTermAccess={{
+        suggestedAccessLists: [],
+        error: 'some kind of error came back from the backend',
+      }}
+    />
   );
 };
 
@@ -106,10 +178,108 @@ const sample = {
     isAssumed: false,
     canDelete: false,
     canReview: false,
+    ownRequest: false,
+    isPromoted: false,
   },
   confirmDelete: false,
   toggleConfirmDelete: () => null,
   submitReview: () => null,
   deleteRequest: () => null,
   assumeRole: () => null,
+  longTermAccess: {
+    suggestedAccessLists: [],
+    error: '',
+  },
 };
+
+const suggestedAccessLists = [
+  {
+    id: 'id-123456',
+    title: 'Design Team',
+    description: 'some description about this design team access list',
+    audit: {
+      frequency: '24h',
+      nextDate: new Date('2023-08-24T17:48:15.78579Z'),
+    },
+    grants: {
+      roles: ['access', 'editor'],
+      traits: { fruit: ['apple'], drink: ['mocha', 'latte', 'capppuccino'] },
+    },
+    membershipRequires: {
+      roles: ['intern'],
+      traits: { fruit: ['banana'] },
+    },
+    members: [
+      {
+        name: 'george',
+        joined: new Date(),
+        expires: new Date(),
+        reason: 'some reason',
+        addedBy: 'llama',
+        ineligibleReason: 'some member ineligible reason',
+      },
+    ],
+    ownershipRequires: {
+      roles: ['admin'],
+      traits: { fruit: ['carrot'] },
+    },
+    owners: [
+      {
+        name: 'lisa',
+        description: 'some description',
+        ineligibleReason: 'some owner ineligible reason',
+      },
+    ],
+  },
+  {
+    id: 'id-9876',
+    title: 'Managers',
+    description:
+      'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat',
+    audit: {
+      frequency: '24h',
+      nextDate: new Date('2023-08-24T17:48:15.78579Z'),
+    },
+    grants: {
+      roles: [
+        'access',
+        'devices',
+        'editor',
+        'devices',
+        'reviewer',
+        'auditor',
+        'some really long role name goerge washington',
+        'admin',
+        'intern',
+        'devices',
+        'devices',
+      ],
+      traits: { fruit: ['apple'] },
+    },
+    membershipRequires: {
+      roles: ['intern'],
+      traits: { fruit: ['banana'] },
+    },
+    members: [
+      {
+        name: 'george',
+        joined: new Date(),
+        expires: new Date(),
+        reason: 'some reason',
+        addedBy: 'llama',
+        ineligibleReason: 'some member ineligible reason',
+      },
+    ],
+    ownershipRequires: {
+      roles: ['admin'],
+      traits: { fruit: ['carrot'] },
+    },
+    owners: [
+      {
+        name: 'lisa',
+        description: 'some description',
+        ineligibleReason: 'some owner ineligible reason',
+      },
+    ],
+  },
+];

@@ -9,10 +9,17 @@ import {
   Indicator,
   LabelState,
   Text,
+  Label,
 } from 'design';
-import { ChevronCircleDown, CircleCheck, CircleCross } from 'design/Icon';
+import {
+  ChevronCircleDown,
+  CircleCheck,
+  CircleCross,
+  ArrowFatLinesUp,
+} from 'design/Icon';
+import { TeleportGearIcon } from 'design/SVGIcon';
 import Table from 'design/DataTable';
-import { PrivateKeyAccessRequestDialogue } from '@gravitational/teleport/src/components/PrivateKeyPolicy';
+import { PrivateKeyAccessRequestDialogue } from 'teleport/components/PrivateKeyPolicy';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 import {
@@ -21,6 +28,8 @@ import {
   RequestState,
   Resource,
 } from 'e-teleport/services/workflow';
+import { PromotedMessage } from 'e-teleport/Workflow/Shared';
+import { AccessList } from 'e-teleport/services/accessmanagement';
 
 import { formattedName } from '../formattedName';
 
@@ -47,6 +56,7 @@ export function RequestView({
   reviewAttempt,
   privateKeyRequirement,
   clearPrivateKeyRequirement,
+  longTermAccess,
 }: State) {
   // Show indicator as soon as user clicks assume button.
   const [delayIndicator, setDelayIndicator] = useState(true);
@@ -158,7 +168,7 @@ export function RequestView({
               </Flex>
             </Flex>
             {/* Second half of this box contains timestamp & comments*/}
-            <Box
+            <TimelineCommentAndReviewsContainer
               bg="levels.surface"
               p={4}
               pt={0}
@@ -176,14 +186,23 @@ export function RequestView({
               {request.reviews.length > 0 && (
                 <Reviews reviews={request.reviews} />
               )}
+              {request.state === 'PENDING' &&
+                longTermAccess?.suggestedAccessLists.length > 0 && (
+                  <SuggestedAccessListTimestamp
+                    accessLists={longTermAccess.suggestedAccessLists}
+                  />
+                )}
               {flags.canReview && (
                 <RequestReview
                   submitReview={submitReview}
                   user={user}
                   attempt={reviewAttempt}
+                  longTermAccess={longTermAccess}
+                  shortTermDuration={request.maxDurationText}
+                  requestingUser={request.user}
                 />
               )}
-            </Box>
+            </TimelineCommentAndReviewsContainer>
           </Box>
           {flags.canAssume && (
             <ButtonPrimary
@@ -193,6 +212,16 @@ export function RequestView({
             >
               {flags.isAssumed ? 'assumed' : 'assume roles'}
             </ButtonPrimary>
+          )}
+          {request.state === 'PROMOTED' && request.promotedAccessListTitle && (
+            <PromotedMessage
+              request={request}
+              self={flags.ownRequest}
+              py={4}
+              // TODO(lisa): temp hack to not render the re-login button for
+              // teleterm.
+              showWebReloginBtn={!!longTermAccess}
+            />
           )}
         </Box>
         {/* Right box contains reviewers and threshold list */}
@@ -215,16 +244,16 @@ export function RequestView({
   );
 }
 
-const Timeline = styled.div`
+export const Timeline = styled.div`
   position: absolute;
-  height: calc(100% - 24px);
+  height: calc(100% - 34px);
   width: 2px;
   top: 0;
   left: 55px;
   border-left: 2px solid ${props => props.theme.colors.spotBackground[0]};
 `;
 
-function RequestorTimestamp({
+export function RequestorTimestamp({
   user,
   reason,
   createdDuration,
@@ -250,15 +279,19 @@ function RequestorTimestamp({
   );
 }
 
-function Timestamp({
+export function Timestamp({
   author,
   state,
   createdDuration,
+  promotedAccessListTitle,
 }: {
   author: string;
   state?: RequestState;
   createdDuration: string;
+  promotedAccessListTitle?: string;
 }) {
+  const isPromoted = state === 'PROMOTED' && promotedAccessListTitle;
+
   let iconBgColor = 'levels.elevated';
   let $icon = <ChevronCircleDown size={26} color="text.muted" />;
   let verb = `submitted`;
@@ -267,6 +300,12 @@ function Timestamp({
     iconBgColor = 'success';
     $icon = <CircleCheck size={26} color="light" />;
     verb = 'approved';
+  }
+
+  if (isPromoted) {
+    iconBgColor = 'success';
+    $icon = <ArrowFatLinesUp size={26} color="light" />;
+    verb = 'promoted';
   }
 
   if (state === 'DENIED') {
@@ -287,14 +326,19 @@ function Timestamp({
       >
         {$icon}
       </Box>
-      <Flex alignItems="baseline">
-        <Text typography="body2" bold mr={2} style={{ flex: '1 1 0' }}>
-          {author}
-        </Text>
-        <Text typography="body2" alignSelf="end">
-          {verb} this request {createdDuration}
-        </Text>
-      </Flex>
+      <Box alignItems="baseline">
+        <b>{author}</b>{' '}
+        {!isPromoted ? (
+          <span>
+            {verb} this request {createdDuration}
+          </span>
+        ) : (
+          <span>
+            {verb} this request to long-term access with access list{' '}
+            <b>{promotedAccessListTitle}</b> {createdDuration}
+          </span>
+        )}
+      </Box>
     </Flex>
   );
 }
@@ -379,7 +423,7 @@ function Comment({
 function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
   const $reviewers = reviewers.map((reviewer, index) => {
     let kind = 'warning';
-    if (reviewer.state === 'APPROVED') {
+    if (reviewer.state === 'APPROVED' || reviewer.state === 'PROMOTED') {
       kind = 'success';
     } else if (reviewer.state === 'DENIED') {
       kind = 'danger';
@@ -468,6 +512,7 @@ function StateLabel(props: { state: RequestState; [key: string]: any }) {
   const { state, ...styles } = props;
   switch (state) {
     case 'APPROVED':
+    case 'PROMOTED':
       return (
         <LabelState kind="success" {...styles}>
           {state}
@@ -479,7 +524,7 @@ function StateLabel(props: { state: RequestState; [key: string]: any }) {
           {state}
         </LabelState>
       );
-    default:
+    case 'PENDING':
       return (
         <LabelState kind="warning" {...styles}>
           {state}
@@ -490,7 +535,8 @@ function StateLabel(props: { state: RequestState; [key: string]: any }) {
 
 function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
   const $reviews = reviews.map((review, index) => {
-    const { author, state, createdDuration, reason } = review;
+    const { author, state, createdDuration, reason, promotedAccessListTitle } =
+      review;
 
     return (
       <React.Fragment key={index}>
@@ -498,6 +544,7 @@ function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
           author={author}
           state={state}
           createdDuration={createdDuration}
+          promotedAccessListTitle={promotedAccessListTitle}
         />
         {reason && (
           <Comment
@@ -513,6 +560,33 @@ function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
   return <Box>{$reviews}</Box>;
 }
 
+export function SuggestedAccessListTimestamp({
+  accessLists,
+}: {
+  accessLists: AccessList[];
+}) {
+  return (
+    <Flex pt={3} style={{ position: 'relative' }}>
+      <Box ml={3} mr={2}>
+        <TeleportGearIcon size={32} />
+      </Box>
+      <Box>
+        <Text>
+          <BrandName>Teleport</BrandName> identified {accessLists.length}{' '}
+          long-term access lists which grants similar requested resources:
+        </Text>
+        <Flex gap={2} flexWrap="wrap">
+          {accessLists.map(acl => (
+            <Label key={acl.id} kind="secondary">
+              {acl.title}
+            </Label>
+          ))}
+        </Flex>
+      </Box>
+    </Flex>
+  );
+}
+
 const StyledTable = styled(Table)`
   width: 90%;
 
@@ -520,3 +594,17 @@ const StyledTable = styled(Table)`
     vertical-align: middle;
   }
 ` as typeof Table;
+
+const BrandName = styled.span`
+  font-weight: bold;
+  color: ${p => p.theme.colors.brand};
+`;
+
+export const TimelineCommentAndReviewsContainer = styled.div`
+  position: relative;
+  background-color: ${p => p.theme.colors.levels.surface};
+  padding: ${p => p.theme.space[4]}px;
+  padding-top: 0;
+  border-bottom-left-radius: ${p => p.theme.radii[4]}px;
+  border-bottom-right-radius: ${p => p.theme.radii[4]}px;
+`;

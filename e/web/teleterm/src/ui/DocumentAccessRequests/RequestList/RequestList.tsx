@@ -1,21 +1,23 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import {
-  Text,
-  Label,
-  LabelState,
-  Alert,
-  ButtonBorder,
-  Flex,
-  ButtonPrimary,
-  Box,
-} from 'design';
+import { Label, Alert, ButtonBorder, Flex, ButtonPrimary, Box } from 'design';
 import Table, { Cell } from 'design/DataTable';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { AccessRequest } from 'e-teleport/services/workflow';
 import { formattedName } from 'e-teleport/Workflow/ReviewRequests/formattedName';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+import { ButtonPromotedInfo } from 'e-teleport/Workflow/Shared';
+import {
+  renderIdCell,
+  renderReasonCell,
+  renderStatusCell,
+  renderUserCell,
+} from 'e-teleport/Workflow/ReviewRequests/RequestList/RequestList';
+
+import { makeRow } from '../useAccessRequests';
+
+type Row = ReturnType<typeof makeRow>;
 
 export function RequestList({
   attempt,
@@ -72,7 +74,7 @@ export function RequestList({
             ),
           },
           {
-            key: 'resourceIds',
+            key: 'resources',
             isNonRender: true,
           },
           {
@@ -91,7 +93,7 @@ export function RequestList({
             altKey: 'view-btn',
             render: request =>
               renderActionCell(
-                request,
+                request as Row,
                 assumeRole,
                 assumeRoleAttempt,
                 viewRequest
@@ -126,99 +128,41 @@ function requestMatcher(
   }
 }
 
-const renderUserCell = ({ user }: any) => {
-  return (
-    <Cell
-      style={{
-        maxWidth: '100px',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-      }}
-      title={user}
-    >
-      {user}
-    </Cell>
-  );
-};
-
-const renderIdCell = ({ id }: any) => {
-  return (
-    <Cell
-      style={{
-        maxWidth: '100px',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-      }}
-      title={id}
-    >
-      {id.slice(-5)}
-    </Cell>
-  );
-};
-
-const renderReasonCell = ({ requestReason }: any) => {
-  return (
-    <Cell
-      style={{
-        maxWidth: '150px',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-      }}
-      title={requestReason}
-    >
-      {requestReason}
-    </Cell>
-  );
-};
-
-const renderStatusCell = ({ state }: any) => {
-  let kind = 'warning';
-  if (state === 'APPROVED') {
-    kind = 'success';
-  } else if (state === 'DENIED') {
-    kind = 'danger';
-  }
-
-  return (
-    <Cell style={{ display: 'flex', alignItems: 'center' }}>
-      <LabelState
-        kind={kind}
-        mr={2}
-        width="10px"
-        p={0}
-        style={{ minHeight: '10px' }}
-      />
-      <Text typography="body2">{state}</Text>
-    </Cell>
-  );
-};
-
 const renderActionCell = (
-  request: any,
-  assumeRole: (request: any) => void,
+  request: Row,
+  assumeRole: (request: Row) => void,
   assumeRoleAttempt: Attempt,
   viewRequest: (id: string) => void
 ) => {
   return (
     <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
-      {request.canAssume && (
-        <ButtonPrimary
+      <Flex alignItems="center" justifyContent="right" width="184px">
+        {request.canAssume && (
+          <ButtonPrimary
+            size="small"
+            disabled={
+              request.isAssumed || assumeRoleAttempt.status === 'processing'
+            }
+            onClick={() => assumeRole(request)}
+            width="108px"
+          >
+            {request.isAssumed ? 'assumed' : 'assume roles'}
+          </ButtonPrimary>
+        )}
+        {request.isPromoted && (
+          <ButtonPromotedInfo
+            request={request}
+            ownRequest={request.ownRequest}
+          />
+        )}
+        <ButtonBorder
           size="small"
-          disabled={
-            request.isAssumed || assumeRoleAttempt.status === 'processing'
-          }
-          onClick={() => assumeRole(request)}
-          width="108px"
+          ml={3}
+          onClick={() => viewRequest(request.id)}
         >
-          {request.isAssumed ? 'assumed' : 'assume roles'}
-        </ButtonPrimary>
-      )}
-      <ButtonBorder size="small" ml={3} onClick={() => viewRequest(request.id)}>
-        View
-      </ButtonBorder>
+          View
+        </ButtonBorder>
+      </Flex>
     </Cell>
   );
 };
