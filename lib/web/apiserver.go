@@ -300,6 +300,17 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// request has a session cookie or a client cert, forward to
 	// application handlers. If the request is requesting a
 	// FQDN that is not of the proxy, redirect to application launcher.
+	// Only try to redirect if the handler is serving the full Web API.
+	h.handler.log.WithFields(logrus.Fields{
+		"proxy_public_addr":              h.handler.cfg.ProxyPublicAddrs,
+		"request_host":                   r.Host,
+		"request_path":                   r.URL.Path,
+		"MinimalReverseTunnelRoutesOnly": h.handler.cfg.MinimalReverseTunnelRoutesOnly,
+		"has_fragment":                   app.HasFragment(r),
+		"has_session":                    app.HasSession(r),
+		"has_client_cert":                app.HasClientCert(r),
+	},
+	).Warnf("checking if prev session exists for %q", r.Host)
 	if h.appHandler != nil && (app.HasFragment(r) || app.HasSession(r) || app.HasClientCert(r)) {
 		h.appHandler.ServeHTTP(w, r)
 		return

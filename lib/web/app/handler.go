@@ -368,10 +368,11 @@ func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error
 	if HasClientCert(r) {
 		ws, err = h.getAppSessionFromCert(r)
 	} else {
+		h.log.Warnf("get getAppSessionFromCookie: %q.", r.Host)
 		ws, err = h.getAppSessionFromCookie(r)
 	}
 	if err != nil {
-		h.log.Warnf("Failed to get session: %v.", err)
+		h.log.Warnf("Failed to get session: %v for %q.", err, r.Host)
 		return nil, trace.AccessDenied("invalid session")
 	}
 	return ws, nil
