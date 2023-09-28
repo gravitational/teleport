@@ -16,9 +16,9 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import PropTypes from 'prop-types';
+import { bool, string } from 'prop-types';
 
-import { space, width, height } from 'design/system';
+import { space, width, height, alignSelf } from 'design/system';
 
 const Button = ({ children, setRef, ...props }) => {
   return (
@@ -84,6 +84,8 @@ const themedStyles = props => {
     ...width(props),
     ...block(props),
     ...height(props),
+    ...textTransform(props),
+    ...alignSelf(props),
   };
 };
 
@@ -156,6 +158,9 @@ const block = props =>
       }
     : null;
 
+const textTransform = props =>
+  props.textTransform ? { textTransform: props.textTransform } : null;
+
 const StyledButton = styled.button`
   line-height: 1.5;
   margin: 0;
@@ -184,25 +189,36 @@ Button.propTypes = {
    * block specifies if an element's display is set to block or not.
    * Set to true to set display to block.
    */
-  block: PropTypes.bool,
+  block: bool,
 
   /**
    * kind specifies the styling a button takes.
    * Select from primary (default), secondary, warning.
    */
-  kind: PropTypes.string,
+  kind: string,
 
   /**
    * size specifies the size of button.
    * Select from small, medium (default), large
    */
-  size: PropTypes.string,
+  size: string,
+
+  /**
+   * textTransform specifies the case transform of the button text.
+   * default is UPPERCASE
+   *
+   * TODO (avatus): eventually, we will move away from every button being
+   * uppercase and this probably won't be needed anymore. This is a temporary
+   * fix before we audit the whole site and migrate
+   */
+  textTransform: string,
 
   /**
    * styled-system
    */
   ...space.propTypes,
   ...height.propTypes,
+  ...alignSelf.propTypes,
 };
 
 Button.defaultProps = {
