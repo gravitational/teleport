@@ -107,11 +107,6 @@ const y_Saml_NoAccess = makeResourceSpec({
   kind: ResourceKind.SamlApplication,
   hasAccess: false,
 });
-const z_Discovery_NoAccess = makeResourceSpec({
-  name: 'zulu',
-  kind: ResourceKind.Discovery,
-  hasAccess: false,
-});
 
 const NoAccessList: ResourceSpec[] = [
   t_Application_NoAccess,
@@ -120,7 +115,6 @@ const NoAccessList: ResourceSpec[] = [
   w_Kubernetes_NoAccess,
   x_Server_NoAccess,
   y_Saml_NoAccess,
-  z_Discovery_NoAccess,
 ];
 
 const c_Application = makeResourceSpec({
@@ -185,7 +179,6 @@ const kindBasedList: ResourceSpec[] = [
   x_Server_NoAccess,
   k_Database,
   i_Desktop,
-  z_Discovery_NoAccess,
   j_Kubernetes,
   h_Server,
   y_Saml_NoAccess,
