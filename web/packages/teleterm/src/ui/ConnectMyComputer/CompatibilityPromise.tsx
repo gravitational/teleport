@@ -26,25 +26,32 @@ import { RuntimeSettings } from 'teleterm/mainProcess/types';
 const CONNECT_MY_COMPUTER_RELEASE_VERSION = '14.1.0';
 const CONNECT_MY_COMPUTER_RELEASE_MAJOR_VERSION = 14;
 
-export function isAgentCompatible(
+export type AgentCompatibility = 'unknown' | 'compatible' | 'incompatible';
+
+export function checkAgentCompatibility(
   proxyVersion: string,
   runtimeSettings: Pick<RuntimeSettings, 'appVersion' | 'isLocalBuild'>
-): boolean {
-  if (proxyVersion === '') {
-    return false;
+): AgentCompatibility {
+  // The proxy version is not immediately available
+  // (it requires fetching a cluster with details).
+  // Because of that, we have to return 'unknown' when we do not yet know it.
+  if (!proxyVersion) {
+    return 'unknown';
   }
   if (runtimeSettings.isLocalBuild) {
-    return true;
+    return 'compatible';
   }
   const majorAppVersion = getMajorVersion(runtimeSettings.appVersion);
   const majorClusterVersion = getMajorVersion(proxyVersion);
-  return (
-    majorAppVersion === majorClusterVersion ||
+  return majorAppVersion === majorClusterVersion ||
     majorAppVersion === majorClusterVersion - 1 // app one major version behind the cluster
-  );
+    ? 'compatible'
+    : 'incompatible';
 }
 
-export function CompatibilityError(): JSX.Element {
+export function CompatibilityError(props: {
+  hideAlert?: boolean;
+}): JSX.Element {
   const { proxyVersion, appVersion } = useVersions();
 
   const clusterMajorVersion = getMajorVersion(proxyVersion);
@@ -86,7 +93,11 @@ export function CompatibilityError(): JSX.Element {
 
   return (
     <>
-      <Alert>Detected an incompatible agent version.</Alert>
+      {!props.hideAlert && (
+        <Alert>
+          The agent version is not compatible with the cluster version
+        </Alert>
+      )}
       <Text>
         The cluster is on version {proxyVersion} while Teleport Connect is on
         version {appVersion}. Per our{' '}
