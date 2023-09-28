@@ -142,15 +142,9 @@ In this step, we created a user **tadmin** with roles `access, edit`. These are 
 ### Create a new Kubernetes Role named "member"
 
 Create a file named `member.yaml` with the following spec:
-```yaml
-kind: role
-version: v4
-metadata:
-  name: member
-spec:
-  allow:
-    kubernetes_groups: ["system:masters"]
-```
+
+(!docs/pages/includes/kubernetes-access/member-role.mdx!)
+
 <Admonition
   type="warning"
   title="Warning"
