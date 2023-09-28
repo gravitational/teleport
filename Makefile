@@ -919,19 +919,21 @@ run-etcd:
 # Do tasks that should run before any integration package test is run, rather than before
 # each integration package
 .PHONY: integration-test-setup
+integration-test-setup: OUTPUT_FILES = $(addprefix ./,$(notdir $(PACKAGES)))
 integration-test-setup:
-	@mkdir -p $(GOMODCACHE) $(GOCACHE)
-	@go mod download
-	@cd api; go mod download
+	@mkdir -p $(TEST_BIN_DIR)
+	$(CGOFLAG) go test -c -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) -o $(TEST_BIN_DIR) $(OUTPUT_FILES)
 
 # Run each integration test package inside a docker container,
 # allowing them to run in parallel without a risk of interference between tests
 .PHONY: %-integration-test
-%-integration-test: FLAGS ?= -v -race
+%-integration-test: FLAGS ?= -test.v -test.race
 %-integration-test: LOG_PATH = $(TEST_LOG_DIR)/$@.json
 %-integration-test: ensure-gotestsum integration-test-setup
 	@mkdir -p $(dir $(LOG_PATH))
-	@$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $* $(FLAGS) \
+	ls -l $(notdir $*).test || true
+	ls -l $(TEST_BIN_DIR)/$(notdir $*).test || true
+	$(TEST_BIN_DIR)/$(notdir $*).test -test.timeout=30m -test.json $(FLAGS) \
 		| tee $(LOG_PATH) \
 		| gotestsum --raw-command --format=testname -- cat
 
@@ -942,7 +944,9 @@ integration-test-setup:
 # The prerequisite generation should be split up to be more readable but I don't know how
 # without evaluating the shell command on every single makefile run, regardless of target
 .PHONY: integration
-integration: $(addsuffix -integration-test,$(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration ))
+integration: PACKAGES := $(shell go list ./... | grep 'teleport/integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
+integration: TEST_BIN_DIR ?= /tmp/binaries
+integration: $(addsuffix -integration-test,$(shell go list ./... | grep 'teleport/integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration ))
 
 #
 # Integration tests that run Kubernetes tests in order to complete successfully
