@@ -916,63 +916,62 @@
           "slug": "/server-access/getting-started/"
         },
         {
-          "title": "Guides",
-          "slug": "/server-access/guides/",
+          "title": "Using Teleport with PAM",
+          "slug": "/server-access/ssh-pam/"
+        },
+        {
+          "title": "Agentless OpenSSH Integration",
+          "slug": "/server-access/openssh/"
+        },
+        {
+          "title": "Host User Creation",
+          "slug": "/server-access/host-user-creation/"
+        },
+        {
+          "title": "Restricted Sessions",
+          "slug": "/server-access/restricted-session/"
+        },
+        {
+          "title": "Linux Auditing System",
+          "slug": "/server-access/auditd/"
+        },
+        {
+          "title": "Record session activity",
+          "slug": "/server-access/record-session-activity/",
           "entries": [
             {
-              "title": "Using Teleport with PAM",
-              "slug": "/server-access/guides/ssh-pam/"
-            },
-            {
-              "title": "Agentless OpenSSH Integration",
-              "slug": "/server-access/guides/openssh/"
-            },
-            {
               "title": "Recording Proxy Mode",
-              "slug": "/server-access/guides/recording-proxy-mode/",
-              "forScopes": ["oss", "enterprise"]
+              "slug": "/server-access/recording-proxy-mode/"
             },
             {
               "title": "BPF Session Recording",
-              "slug": "/server-access/guides/bpf-session-recording/"
-            },
-            {
-              "title": "Restricted Session",
-              "slug": "/server-access/guides/restricted-session/"
-            },
-            {
-              "title": "Visual Studio Code",
-              "slug": "/server-access/guides/vscode/"
-            },
-            {
-              "title": "JetBrains SFTP",
-              "slug": "/server-access/guides/jetbrains-sftp/"
-            },
-            {
-              "title": "Host User Creation",
-              "slug": "/server-access/guides/host-user-creation/"
-            },
-            {
-              "title": "Linux Auditing System",
-              "slug": "/server-access/guides/auditd/"
-            },
-            {
-              "title": "EC2 Instance Discovery",
-              "slug": "/server-access/guides/ec2-discovery/"
-            },
-            {
-              "title": "Azure Instance Discovery",
-              "slug": "/server-access/guides/azure-discovery/"
-            },
-            {
-              "title": "GCP Instance Discovery",
-              "slug": "/server-access/guides/gcp-discovery/"
-            },
-            {
-              "title": "Using Teleport with Ansible",
-              "slug": "/server-access/guides/ansible/"
+              "slug": "/server-access/bpf-session-recording/"
             }
           ]
+        },
+        {
+          "title": "Visual Studio Code",
+          "slug": "/server-access/vscode/"
+        },
+        {
+          "title": "JetBrains SFTP",
+          "slug": "/server-access/jetbrains-sftp/"
+        },
+        {
+          "title": "Azure Instance Discovery",
+          "slug": "/server-access/azure-discovery/"
+        },
+        {
+          "title": "EC2 Instance Discovery",
+          "slug": "/server-access/ec2-discovery/"
+        },
+        {
+          "title": "GCP Instance Discovery",
+          "slug": "/server-access/gcp-discovery/"
+        },
+        {
+          "title": "Using Teleport with Ansible",
+          "slug": "/server-access/ansible/"
         },
         {
           "title": "Access Controls",
@@ -1869,17 +1868,17 @@
     },
     {
       "source": "/features/ssh-pam/",
-      "destination": "/server-access/guides/ssh-pam/",
+      "destination": "/server-access/ssh-pam/",
       "permanent": true
     },
     {
       "source": "/openssh-teleport/",
-      "destination": "/server-access/guides/openssh/",
+      "destination": "/server-access/openssh/",
       "permanent": true
     },
     {
       "source": "/features/enhanced-session-recording/",
-      "destination": "/server-access/guides/bpf-session-recording/",
+      "destination": "/server-access/bpf-session-recording/",
       "permanent": true
     },
     {
