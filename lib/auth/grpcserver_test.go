@@ -69,9 +69,10 @@ import (
 )
 
 func TestMFADeviceManagement(t *testing.T) {
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	clock := testServer.Clock().(clockwork.FakeClock)
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
-	clock := srv.Clock().(clockwork.FakeClock)
 
 	// Enable MFA support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -83,22 +84,22 @@ func TestMFADeviceManagement(t *testing.T) {
 	})
 	const webOrigin = "https://localhost" // matches RPID above
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPref)
+	err = authServer.SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Create a fake user.
-	user, _, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"}, nil)
+	user, _, err := CreateUserAndRole(authServer, "mfa-user", []string{"role"}, nil)
 	require.NoError(t, err)
-	cl, err := srv.NewClient(TestUser(user.GetName()))
+	userClient, err := testServer.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
 	// No MFA devices should exist for a new user.
-	resp, err := cl.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	resp, err := userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
 	require.Empty(t, resp.Devices)
 
 	// Add one device of each kind
-	devs := addOneOfEachMFADevice(t, cl, clock, webOrigin)
+	devs := addOneOfEachMFADevice(t, userClient, clock, webOrigin)
 
 	// Run scenarios beyond adding one of each device, both happy and failures.
 	webKey2, err := mocku2f.Create()
@@ -272,14 +273,14 @@ func TestMFADeviceManagement(t *testing.T) {
 			},
 		},
 	}
-	for _, tt := range addTests {
-		t.Run(tt.desc, func(t *testing.T) {
-			testAddMFADevice(ctx, t, cl, tt.opts)
+	for _, test := range addTests {
+		t.Run(test.desc, func(t *testing.T) {
+			testAddMFADevice(ctx, t, userClient, test.opts)
 		})
 	}
 
 	// Check that all new devices are registered.
-	resp, err = cl.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
 	deviceNames := make([]string, 0, len(resp.Devices))
 	deviceIDs := make(map[string]string)
@@ -403,14 +404,14 @@ func TestMFADeviceManagement(t *testing.T) {
 			},
 		},
 	}
-	for _, tt := range deleteTests {
-		t.Run(tt.desc, func(t *testing.T) {
-			testDeleteMFADevice(ctx, t, cl, tt.opts)
+	for _, test := range deleteTests {
+		t.Run(test.desc, func(t *testing.T) {
+			testDeleteMFADevice(ctx, t, userClient, test.opts)
 		})
 	}
 
-	// Check the remaining number of devices
-	resp, err = cl.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	// Check no remaining devices.
+	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
 	require.Empty(t, resp.Devices)
 }
