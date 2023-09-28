@@ -1,0 +1,44 @@
+name: Validate changelog entry
+on:
+  pull_request_target:
+    types: 
+      - opened
+      - ready_for_review
+      - labeled
+      - unlabeled
+      - synchronize
+
+# Limit the permissions on the GitHub token for this workflow to the subset
+# that is required. In this case, the assign workflow only needs to be able
+# write to the pull request, so it needs "pull-requests", and nothing else.
+permissions:
+    pull-requests: write
+    actions: none
+    checks: none
+    contents: none
+    deployments: none
+    issues: none
+    packages: none
+    repository-projects: none
+    security-events: none
+    statuses: none
+
+jobs:
+  validate-changelog:
+    name: Validate the changelog entry
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout main branch of shared-workflow repository.
+      - name: Checkout shared-workflow
+        uses: actions/checkout@v4
+        with:
+          repository: gravitational/shared-workflows
+          path: .github/shared-workflows
+          ref: main
+      - name: Installing Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: .github/shared-workflows/bot/go.mod
+      - name: Validate the changelog entry
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=changelog -token="${{ secrets.GITHUB_TOKEN }}"
