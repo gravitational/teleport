@@ -368,12 +368,20 @@ type Forwarder struct {
 	// use the heartbeat clusters.
 	getKubernetesServersForKubeCluster getKubeServersByNameFunc
 
-	// cachedTransport is a cache of http.Transport objects used to
+	// cachedTransport is a cache of cachedTransportEntry objects used to
 	// connect to Teleport services.
 	// TODO(tigrato): Implement a cache eviction policy using watchers.
 	cachedTransport *ttlmap.TTLMap
 	// cachedTransportMu is a mutex used to protect the cachedTransport.
 	cachedTransportMu sync.Mutex
+}
+
+// cachedTransportEntry is a cached transport entry used to connect to
+// Teleport services. It contains a cached http.RoundTripper and a cached
+// tls.Config.
+type cachedTransportEntry struct {
+	transport http.RoundTripper
+	tlsConfig *tls.Config
 }
 
 // getKubeServersByNameFunc is a function that returns a list of
