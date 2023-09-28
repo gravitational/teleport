@@ -1007,6 +1007,18 @@ message DeleteRoleRequest {
   string Name = 1;
 }
 
+// CreateRoleRequest is a request to create a role.
+message CreateRoleRequest {
+  // Role to be created.
+  types.RoleV6 Role = 1 [(gogoproto.jsontag) = "role"];
+}
+
+// UpdateRoleRequest is a request to update a role.
+message UpdateRoleRequest {
+  // Role to be updated.
+  types.RoleV6 Role = 1 [(gogoproto.jsontag) = "role"];
+}
+
 // DeviceType describes supported MFA device types.
 enum DeviceType {
   DEVICE_TYPE_UNSPECIFIED = 0;
@@ -2711,6 +2723,10 @@ service AuthService {
   rpc GetRole(GetRoleRequest) returns (types.RoleV6);
   // GetRole retrieves all roles.
   rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
+  // CreateRole creates a role in a backend.
+  rpc CreateRole(CreateRoleRequest) returns (types.RoleV6);
+  // UpdateRole updates a role in a backend.
+  rpc UpdateRole(UpdateRoleRequest) returns (types.RoleV6);
   // UpsertRole upserts a role in a backend.
   rpc UpsertRole(types.RoleV6) returns (google.protobuf.Empty);
   // DeleteRole deletes an existing role in a backend described by the given request.
