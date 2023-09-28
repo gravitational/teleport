@@ -925,7 +925,11 @@
             },
             {
               "title": "Agentless OpenSSH Integration",
-              "slug": "/server-access/guides/openssh/"
+              "slug": "/server-access/guides/openssh/openssh/"
+            },
+            {
+              "title": "Agentless OpenSSH Integration (Manual Install)",
+              "slug": "/server-access/guides/openssh/openssh-manual-install/"
             },
             {
               "title": "Recording Proxy Mode",
@@ -2810,6 +2814,11 @@
     {
       "source": "/management/guides/terraform-provider/",
       "destination": "/management/dynamic-resources/terraform-provider/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/openssh/",
+      "destination": "/server-access/guides/openssh/openssh/",
       "permanent": true
     }
   ]
