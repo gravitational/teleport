@@ -920,9 +920,13 @@ run-etcd:
 # each integration package
 .PHONY: integration-test-setup
 integration-test-setup: OUTPUT_FILES = $(addprefix ./,$(notdir $(PACKAGES)))
-integration-test-setup:
+integration-test-setup: LOG_PATH = $(TEST_LOG_DIR)/build.json
+integration-test-setup: $(TEST_LOG_DIR)
 	@mkdir -p $(TEST_BIN_DIR)
-	$(CGOFLAG) go test -c -json -race -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) -o $(TEST_BIN_DIR) $(OUTPUT_FILES)
+	$(CGOFLAG) go test -c -json -race -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" \
+		$(PACKAGES) -o $(TEST_BIN_DIR) $(OUTPUT_FILES) \
+	| tee $(LOG_PATH) \
+	| gotestsum --ignore-non-json-output-lines --raw-command --format=testname -- cat
 
 # Run each integration test package inside a docker container,
 # allowing them to run in parallel without a risk of interference between tests
@@ -932,9 +936,11 @@ integration-test-setup:
 %-integration-test: TEST_BINARY = $(TEST_BIN_DIR)/$(notdir $*).test
 %-integration-test: ensure-gotestsum integration-test-setup
 	@mkdir -p $(dir $(LOG_PATH))
-	[ ! -f "$(TEST_BINARY)" ] || $(TEST_BINARY) -test.timeout=30m $(FLAGS)
-# | tee $(LOG_PATH) \
-# | gotestsum --raw-command --format=testname -- cat
+	[ ! -f "$(TEST_BINARY)" ] || \
+		go tool test2json -p $* \
+			$(TEST_BINARY) -test.timeout=30m $(FLAGS) \
+		| tee $(LOG_PATH) \
+		| gotestsum --raw-command --format=testname -- cat
 
 #
 # Integration tests. Need a TTY to work.
@@ -943,9 +949,11 @@ integration-test-setup:
 # The prerequisite generation should be split up to be more readable but I don't know how
 # without evaluating the shell command on every single makefile run, regardless of target
 .PHONY: integration
-integration: PACKAGES := $(shell go list ./... | grep 'teleport/integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
+# integration: PACKAGES := $(shell go list ./... | grep 'teleport/integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
 integration: TEST_BIN_DIR ?= /tmp/binaries
-integration: $(addsuffix -integration-test,$(shell go list ./... | grep 'teleport/integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration ))
+integration: PACKAGES := github.com/gravitational/teleport/integration/kube github.com/gravitational/teleport/integration/appaccess
+integration: github.com/gravitational/teleport/integration/kube-integration-test github.com/gravitational/teleport/integration/hsm-integration-test
+# integration: $(addsuffix -integration-test,$(shell go list ./... | grep 'teleport/integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration ))
 
 #
 # Integration tests that run Kubernetes tests in order to complete successfully
