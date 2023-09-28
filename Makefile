@@ -933,14 +933,15 @@ integration-test-setup: $(TEST_LOG_DIR)
 .PHONY: %-integration-test
 %-integration-test: FLAGS ?= -test.v
 %-integration-test: LOG_PATH = $(TEST_LOG_DIR)/$@.json
-%-integration-test: TEST_BINARY = $(TEST_BIN_DIR)/$(notdir $*).test
+%-integration-test: BINARY_NAME = $(notdir $*).test
+%-integration-test: TEST_BINARY = $(TEST_BIN_DIR)/$(BINARY_NAME)
+%-integration-test: MOVED_TEST_BINARY = $(*:github.com/gravitational/teleport/%=%)/$(BINARY_NAME)
 %-integration-test: ensure-gotestsum integration-test-setup
 	@mkdir -p $(dir $(LOG_PATH))
 	[ ! -f "$(TEST_BINARY)" ] || ( \
-		mv $(TEST_BINARY) integration/$(notdir $*)/$(notdir $*).test; \
-		cd integration/$(notdir $*); \
-		go tool test2json -p $* \
-			integration/$(notdir $*)/$(notdir $*).test -test.timeout=30m $(FLAGS) \
+		mv $(TEST_BINARY) $(MOVED_TEST_BINARY); \
+		cd $(dir $(MOVED_TEST_BINARY)); \
+		go tool test2json -p $* $(BINARY_NAME) -test.timeout=30m $(FLAGS) \
 		| tee $(LOG_PATH) \
 		| gotestsum --raw-command --format=testname -- cat \
 	)
