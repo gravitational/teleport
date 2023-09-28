@@ -936,11 +936,13 @@ integration-test-setup: $(TEST_LOG_DIR)
 %-integration-test: TEST_BINARY = $(TEST_BIN_DIR)/$(notdir $*).test
 %-integration-test: ensure-gotestsum integration-test-setup
 	@mkdir -p $(dir $(LOG_PATH))
-	[ ! -f "$(TEST_BINARY)" ] || \
+	[ ! -f "$(TEST_BINARY)" ] || ( \
+		cd integration/$*;
 		go tool test2json -p $* \
-			$(TEST_BINARY) -test.timeout=30m $(FLAGS) \
+			../../$(TEST_BINARY) -test.timeout=30m $(FLAGS) \
 		| tee $(LOG_PATH) \
 		| gotestsum --raw-command --format=testname -- cat
+	)
 
 #
 # Integration tests. Need a TTY to work.
