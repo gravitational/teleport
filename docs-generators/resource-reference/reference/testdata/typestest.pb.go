@@ -29,6 +29,9 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 // DatabaseTLSMode represents the level of TLS verification performed by
 // DB agent when connecting to a database.
+// Example YAML:
+// ---
+// database_tls_mode: 00000
 type DatabaseTLSMode int32
 
 const (
@@ -65,6 +68,9 @@ func (DatabaseTLSMode) EnumDescriptor() ([]byte, []int) {
 // This enum is set in a Sync.Map during an IAM task that checks for the
 // validity of IAM policy, and the database gets updated with the value
 // from this map during a heartbeat.
+// Example YAML:
+// ---
+// iam_policy_status: 000000
 type IAMPolicyStatus int32
 
 const (
