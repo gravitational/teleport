@@ -77,7 +77,7 @@ or up to one major version back. You can set the version override with the overr
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
 <Tabs>
-<TabItem scope={["oss","team"]} label="Teleport Team/Community Edition">
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 Switch `kubectl` to the Kubernetes cluster `cookie` and run the following
 commands, assigning `PROXY_ADDR` to the address of your Auth Service or Proxy
@@ -134,7 +134,7 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+<TabItem scope={["cloud","team"]} label="Teleport Team/Cloud">
 
 Switch `kubectl` to the Kubernetes cluster `cookie` and run the following
 commands, assigning `PROXY_ADDR` to the address of your Teleport Cloud tenant.
@@ -154,6 +154,8 @@ joinParams:
   tokenName: "${TOKEN}"
 kubeClusterName: "${CLUSTER}"
 enterprise: true
+updater:
+  enabled: true
 EOF
 # Run the helm install specifying to match to the Teleport Cloud version of Teleport
 $ helm install teleport-agent teleport/teleport-kube-agent \
