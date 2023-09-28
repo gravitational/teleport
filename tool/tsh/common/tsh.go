@@ -1115,9 +1115,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		}
 	}
 
-	// Remove HTTPS:// in proxy parameter as this is automatically handled
-	var httpsRE = regexp.MustCompile(`(?mi)https://`)
-	cf.Proxy = httpsRE.ReplaceAllString(cf.Proxy, "")
+	// Remove HTTPS:// in proxy parameter as https is automatically added
+	cf.Proxy = strings.TrimPrefix(cf.Proxy, "https://")
+	cf.Proxy = strings.TrimPrefix(cf.Proxy, "HTTPS://")
 
 	// Identity files do not currently contain a proxy address. When loading an
 	// Identity file, a proxy must be passed on the command line as well.
