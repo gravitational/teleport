@@ -710,7 +710,7 @@ type Metadata struct {
 			},
 		},
 		{
-			description: "need a name for this one",
+			description: "non-embedded custom field type declared in the same package as the containing struct",
 			source: `package typestest
 
 // DatabaseServerV3 represents a database access server.
