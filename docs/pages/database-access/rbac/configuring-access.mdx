@@ -98,9 +98,12 @@ is not currently enforced on MySQL connection attempts.
 
 Similar to other role fields, `db_*` fields support templating variables.
 
-The `{{external.xyz}}` variables are replaced with values from external [SSO](../../access-controls/sso.mdx)
-providers. For OIDC, they will be expanded with a value of an "xyz" claim; for
-SAML — with an "xyz" assertion value.
+The `{{external.xyz}}` variables are replaced with values from external [single
+sign-on](../../access-controls/sso.mdx) providers. For OIDC, they will be
+expanded with a value of an "xyz" claim; for SAML — with an "xyz" assertion
+value. For full details on how variable expansion works in Teleport roles, see
+the  [Teleport Access Controls
+Reference](docs/pages/access-controls/reference.mdx#roles).
 
 For example, here is what a role may look like if you want to assign allowed
 database names from the user's Okta `databases` assertion:
