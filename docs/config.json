@@ -580,7 +580,7 @@
               ]
             },
             {
-              "title": "Role Requests in OSS Teleport",
+              "title": "Teleport Community Access Requests",
               "slug": "/access-controls/access-requests/oss-role-requests/",
               "forScopes": [
                 "oss"

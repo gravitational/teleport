@@ -140,7 +140,7 @@ auth_service:
 
     authentication:
         # default authentication type. possible values are 'local' and 'github'
-        # for OSS, plus 'oidc' and 'saml' for Enterprise.
+        # for Teleport Community Edition, plus 'oidc' and 'saml' for Enterprise.
         # Only local authentication (Teleport's own user DB) & GitHub is
         # supported in the open source version
         type: local
@@ -256,7 +256,7 @@ auth_service:
           # - 'required' - enables device authentication and device-aware audit.
           #   Additionally, it requires a trusted device for all SSH, Database
           #   and Kubernetes connections.
-          mode: optional # always "off" for OSS
+          mode: optional # always "off" for Teleport Community Edition
 
         # Determines the default time to live for user certificates
         # issued by this auth server, defaults to 12 hours.  Examples:
