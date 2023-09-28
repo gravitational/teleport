@@ -783,6 +783,10 @@ const (
 	DiscoveryLabelLDAPPrefix = "ldap/"
 )
 
+// CloudLabelPrefixes are prefixes used by cloud labels, generally added when
+// using automatic discovery
+var CloudLabelPrefixes = []string{CloudAWS, CloudAzure, CloudGCP, DiscoveryLabelLDAPPrefix}
+
 const (
 	// TeleportInternalLabelPrefix is the prefix used by all Teleport internal labels. Those labels
 	// are automatically populated by Teleport and are expected to be used by Teleport internal
