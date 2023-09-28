@@ -144,15 +144,12 @@ one-shot mode, it must be executed before you attempt to use the credentials.
 
 ## Step 3/3. Connect to your Kubernetes cluster with the Machine ID identity
 
-Once `tbot` has been run with the new output configured, `kubeconfig.yaml`
-should have been generated in the destination directory you specified.
+Once `tbot` has been run with the new output configured, a file called
+`kubeconfig.yaml` should have been generated in the destination directory
+you specified. This contains all the information necessary for `kubectl` to
+connect to the Kubernetes cluster through the Teleport Proxy.
 
-The `kubeconfig.yaml` contains all the information necessary for `kubectl` to
-connect to the Kubernetes cluster through the Teleport Proxy. As well as being
-compatible with `kubectl`, it is also compatible with most other tools that
-connect to Kubernetes clusters (e.g Helm).
-
-To use the `kubeconfig.yaml` file, the `--kubeconfig` flag or `KUBECONFIG`
+To use `kubeconfig.yaml` with `kubectl`, the `--kubeconfig` flag or `KUBECONFIG`
 environment variable can be provided to `kubectl`:
 
 ```code
@@ -161,6 +158,13 @@ $ kubectl --kubeconfig /opt/machine-id/kubeconfig.yaml get pods -A
 $ export KUBECONFIG=/opt/machine-id/kubeconfig.yaml
 $ kubectl get pods -A
 ```
+
+Whilst this guide has demonstrated `kubeconfig.yaml` being used with `kubectl`,
+this format is compatible with most Kubernetes tools including:
+
+- Helm
+- Lens
+- ArgoCD
 
 ## Next steps
 
