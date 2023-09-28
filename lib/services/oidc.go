@@ -123,6 +123,9 @@ func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (types.OIDCConn
 		if cfg.ID != 0 {
 			c.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			c.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			c.SetExpiry(cfg.Expires)
 		}
@@ -150,6 +153,7 @@ func MarshalOIDCConnector(oidcConnector types.OIDCConnector, opts ...MarshalOpti
 			// to prevent unexpected data races
 			copy := *oidcConnector
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			oidcConnector = &copy
 		}
 		return utils.FastMarshal(oidcConnector)

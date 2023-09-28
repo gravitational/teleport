@@ -3052,17 +3052,39 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 
 // DeleteMFADeviceSync implements AuthService.DeleteMFADeviceSync.
 func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error {
-	token, err := a.GetUserToken(ctx, req.GetTokenID())
-	if err != nil {
-		log.Error(trace.DebugReport(err))
-		return trace.AccessDenied("invalid token")
+	var user string
+	switch {
+	case req.TokenID != "":
+		token, err := a.GetUserToken(ctx, req.TokenID)
+		if err != nil {
+			log.Error(trace.DebugReport(err))
+			return trace.AccessDenied("invalid token")
+		}
+		user = token.GetUser()
+
+		if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
+			return trace.Wrap(err)
+		}
+
+	case req.ExistingMFAResponse != nil:
+		var err error
+		user, err = authz.GetClientUsername(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if _, _, err := a.validateMFAAuthResponse(
+			ctx, req.ExistingMFAResponse, user, false, /* passwordless */
+		); err != nil {
+			return trace.Wrap(err)
+		}
+
+	default:
+		return trace.BadParameter(
+			"deleting an MFA device requires either a privilege token or a solved authentication challenge")
 	}
 
-	if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = a.deleteMFADeviceSafely(ctx, token.GetUser(), req.GetDeviceName())
+	_, err := a.deleteMFADeviceSafely(ctx, user, req.DeviceName)
 	return trace.Wrap(err)
 }
 
@@ -3394,7 +3416,10 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Updating traits is needed for guided SSH flow in Discover.
 		traits = user.GetTraits()
+		// Updating roles is needed for guided Connect My Computer flow in Discover.
+		roles = user.GetRoles()
 
 	} else if req.AccessRequestID != "" {
 		accessRequest, err := a.getValidatedAccessRequest(ctx, identity, req.User, req.AccessRequestID)
@@ -3517,6 +3542,9 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 	if !req.GetState().IsApproved() {
 		if req.GetState().IsDenied() {
 			return nil, trace.AccessDenied("access request %q has been denied", accessRequestID)
+		}
+		if req.GetState().IsPromoted() {
+			return nil, trace.AccessDenied("access request %q has been promoted. Use access list to access resources.", accessRequestID)
 		}
 		return nil, trace.AccessDenied("access request %q is awaiting approval", accessRequestID)
 	}
@@ -4330,6 +4358,11 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 }
 
 func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error) {
+	// When promoting a request, the access list name must be set.
+	if params.Review.ProposedState.IsPromoted() && params.Review.GetAccessListName() == "" {
+		return nil, trace.BadParameter("promoted access list can be only set when promoting access requests")
+	}
+
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4362,12 +4395,13 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 		ResourceMetadata: apievents.ResourceMetadata{
 			Expires: req.GetAccessExpiry(),
 		},
-		RequestID:     params.RequestID,
-		RequestState:  req.GetState().String(),
-		ProposedState: params.Review.ProposedState.String(),
-		Reason:        params.Review.Reason,
-		Reviewer:      params.Review.Author,
-		MaxDuration:   req.GetMaxDuration(),
+		RequestID:              params.RequestID,
+		RequestState:           req.GetState().String(),
+		ProposedState:          params.Review.ProposedState.String(),
+		Reason:                 params.Review.Reason,
+		Reviewer:               params.Review.Author,
+		MaxDuration:            req.GetMaxDuration(),
+		PromotedAccessListName: req.GetPromotedAccessListName(),
 	}
 
 	if len(params.Review.Annotations) > 0 {
@@ -5420,16 +5454,30 @@ func (a *Server) validateMFAAuthResponseForRegister(
 	ctx context.Context,
 	resp *proto.MFAAuthenticateResponse, username string, passwordless bool,
 ) (hasDevices bool, err error) {
+	// Let users without a useable device go through registration.
 	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil) {
 		devices, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
-		switch {
-		case err != nil:
+		if err != nil {
 			return false, trace.Wrap(err)
-		case len(devices) > 0:
+		}
+		if len(devices) == 0 {
+			// Allowed, no devices registered.
+			return false, nil
+		}
+
+		authPref, err := a.GetAuthPreference(ctx)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		totpEnabled := authPref.IsSecondFactorTOTPAllowed()
+		webauthnEnabled := authPref.IsSecondFactorWebauthnAllowed()
+
+		devsByType := groupByDeviceType(devices, webauthnEnabled)
+		if (totpEnabled && devsByType.TOTP) || (webauthnEnabled && len(devsByType.Webauthn) > 0) {
 			return false, trace.BadParameter("second factor authentication required")
 		}
 
-		// Allowed, but no devices registered.
+		// Allowed, no useable devices registered.
 		return false, nil
 	}
 

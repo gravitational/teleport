@@ -39,7 +39,8 @@ process](#build-process) section.
 
 ## Development
 
-**Make sure to run `yarn build-native-deps-for-term` first** before attempting to launch the app in
+> [!IMPORTANT]
+> **Make sure to run `yarn build-native-deps-for-term` first** before attempting to launch the app in
 development mode. That's because Electron is running its own version of Node. That command will
 fetch or build native packages that were made for that specific version of Node.
 

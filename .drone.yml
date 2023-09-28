@@ -5680,7 +5680,7 @@ steps:
         path: /root/.aws
 
   - name: Build OSS AMIs
-    image: hashicorp/packer:1.7.6
+    image: hashicorp/packer:1.9.4
     volumes:
       - name: dockersock
         path: /var/run
@@ -5688,6 +5688,7 @@ steps:
         path: /root/.aws
     commands:
       - apk add --no-cache aws-cli jq make
+      - packer plugins install github.com/hashicorp/amazon
       - cd /go/src/github.com/gravitational/teleport/assets/aws
       - export TELEPORT_VERSION=$(cat /go/.version.txt)
       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-oss-$TELEPORT_VERSION
@@ -5855,7 +5856,7 @@ steps:
         path: /root/.aws
 
   - name: Build Enterprise AMIs
-    image: hashicorp/packer:1.7.6
+    image: hashicorp/packer:1.9.4
     volumes:
       - name: dockersock
         path: /var/run
@@ -5863,6 +5864,7 @@ steps:
         path: /root/.aws
     commands:
       - apk add --no-cache aws-cli jq make
+      - packer plugins install github.com/hashicorp/amazon
       - cd /go/src/github.com/gravitational/teleport/assets/aws
       - export TELEPORT_VERSION=$(cat /go/.version.txt)
       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION
@@ -8558,9 +8560,17 @@ steps:
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
     "/go/var/full-version")-amd64 public.ecr.aws/gravitational/teleport:$(cat "/go/var/full-version")-amd64
     && docker push public.ecr.aws/gravitational/teleport:$(cat "/go/var/full-version")-amd64)
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
     public.ecr.aws/gravitational/teleport:$(cat "/go/var/major-version")-amd64
   - docker push public.ecr.aws/gravitational/teleport:$(cat "/go/var/major-version")-amd64
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
     public.ecr.aws/gravitational/teleport:$(cat "/go/var/minor-version")-amd64
   - docker push public.ecr.aws/gravitational/teleport:$(cat "/go/var/minor-version")-amd64
@@ -8590,9 +8600,17 @@ steps:
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
     "/go/var/full-version")-arm public.ecr.aws/gravitational/teleport:$(cat "/go/var/full-version")-arm
     && docker push public.ecr.aws/gravitational/teleport:$(cat "/go/var/full-version")-arm)
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
     public.ecr.aws/gravitational/teleport:$(cat "/go/var/major-version")-arm
   - docker push public.ecr.aws/gravitational/teleport:$(cat "/go/var/major-version")-arm
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
     public.ecr.aws/gravitational/teleport:$(cat "/go/var/minor-version")-arm
   - docker push public.ecr.aws/gravitational/teleport:$(cat "/go/var/minor-version")-arm
@@ -8623,9 +8641,17 @@ steps:
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
     "/go/var/full-version")-arm64 public.ecr.aws/gravitational/teleport:$(cat "/go/var/full-version")-arm64
     && docker push public.ecr.aws/gravitational/teleport:$(cat "/go/var/full-version")-arm64)
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
     public.ecr.aws/gravitational/teleport:$(cat "/go/var/major-version")-arm64
   - docker push public.ecr.aws/gravitational/teleport:$(cat "/go/var/major-version")-arm64
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
     public.ecr.aws/gravitational/teleport:$(cat "/go/var/minor-version")-arm64
   - docker push public.ecr.aws/gravitational/teleport:$(cat "/go/var/minor-version")-arm64
@@ -8850,9 +8876,17 @@ steps:
     "/go/var/full-version")-amd64 public.ecr.aws/gravitational/teleport-ent:$(cat
     "/go/var/full-version")-amd64 && docker push public.ecr.aws/gravitational/teleport-ent:$(cat
     "/go/var/full-version")-amd64)
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
     public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/major-version")-amd64
   - docker push public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/major-version")-amd64
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
     public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/minor-version")-amd64
   - docker push public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/minor-version")-amd64
@@ -8883,9 +8917,17 @@ steps:
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
     "/go/var/full-version")-arm public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/full-version")-arm
     && docker push public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/full-version")-arm)
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
     public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/major-version")-arm
   - docker push public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/major-version")-arm
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
     public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/minor-version")-arm
   - docker push public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/minor-version")-arm
@@ -8917,9 +8959,17 @@ steps:
     "/go/var/full-version")-arm64 public.ecr.aws/gravitational/teleport-ent:$(cat
     "/go/var/full-version")-arm64 && docker push public.ecr.aws/gravitational/teleport-ent:$(cat
     "/go/var/full-version")-arm64)
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
     public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/major-version")-arm64
   - docker push public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/major-version")-arm64
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
     public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/minor-version")-arm64
   - docker push public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/minor-version")-arm64
@@ -9079,9 +9129,17 @@ steps:
     "/go/var/full-version")-fips-amd64 public.ecr.aws/gravitational/teleport-ent:$(cat
     "/go/var/full-version")-fips-amd64 && docker push public.ecr.aws/gravitational/teleport-ent:$(cat
     "/go/var/full-version")-fips-amd64)
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
   - docker push public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker push public.ecr.aws/gravitational/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
@@ -9297,9 +9355,17 @@ steps:
     "/go/var/full-version")-amd64 public.ecr.aws/gravitational/teleport-operator:$(cat
     "/go/var/full-version")-amd64 && docker push public.ecr.aws/gravitational/teleport-operator:$(cat
     "/go/var/full-version")-amd64)
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     public.ecr.aws/gravitational/teleport-operator:$(cat "/go/var/major-version")-amd64
   - docker push public.ecr.aws/gravitational/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     public.ecr.aws/gravitational/teleport-operator:$(cat "/go/var/minor-version")-amd64
   - docker push public.ecr.aws/gravitational/teleport-operator:$(cat "/go/var/minor-version")-amd64
@@ -9331,9 +9397,17 @@ steps:
     "/go/var/full-version")-arm public.ecr.aws/gravitational/teleport-operator:$(cat
     "/go/var/full-version")-arm && docker push public.ecr.aws/gravitational/teleport-operator:$(cat
     "/go/var/full-version")-arm)
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     public.ecr.aws/gravitational/teleport-operator:$(cat "/go/var/major-version")-arm
   - docker push public.ecr.aws/gravitational/teleport-operator:$(cat "/go/var/major-version")-arm
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     public.ecr.aws/gravitational/teleport-operator:$(cat "/go/var/minor-version")-arm
   - docker push public.ecr.aws/gravitational/teleport-operator:$(cat "/go/var/minor-version")-arm
@@ -9365,9 +9439,17 @@ steps:
     "/go/var/full-version")-arm64 public.ecr.aws/gravitational/teleport-operator:$(cat
     "/go/var/full-version")-arm64 && docker push public.ecr.aws/gravitational/teleport-operator:$(cat
     "/go/var/full-version")-arm64)
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     public.ecr.aws/gravitational/teleport-operator:$(cat "/go/var/major-version")-arm64
   - docker push public.ecr.aws/gravitational/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     public.ecr.aws/gravitational/teleport-operator:$(cat "/go/var/minor-version")-arm64
   - docker push public.ecr.aws/gravitational/teleport-operator:$(cat "/go/var/minor-version")-arm64
@@ -16894,6 +16976,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 313f7224af1b5aaaba377740d80b35ad8ffb8f9be21c48793df3c473b81f4818
+hmac: 463dcdf335d99bd282f6ddfa30f7a09c67f93d2359e3f4d3a213ce6c59b99a8a
 
 ...

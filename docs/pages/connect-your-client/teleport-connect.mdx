@@ -296,15 +296,32 @@ and follow the *Submit a Bug* link.
 <TabItem label="macOS">
 Be sure to attach logs, which can be found under `~/Library/Application Support/Teleport Connect/logs`.
 The version of the app can be found in the app menu under the About Teleport Connect menu item.
+
+To get more detailed logs, run Teleport Connect with the `--debug` flag:
+
+(!docs/pages/connect-your-client/includes/launch-connect-with-flags-macos.mdx flags="--debug"!)
 </TabItem>
 <TabItem label="Linux">
 Be sure to attach logs, which can be found under `~/.config/Teleport Connect/logs`. The app version
 can be found by pressing `Alt` to access the app menu, then -> Help -> About Teleport Connect.
+
+To get more detailed logs, run Teleport Connect with the `--debug` flag:
+
+```code
+$ teleport-connect --debug
+````
 </TabItem>
 <TabItem label="Windows">
 Be sure to attach logs, which can be found under `C:\Users\%UserName%\AppData\Roaming\Teleport Connect\logs`.
 You may need to adjust File Explorer to [view hidden files and folders](https://support.microsoft.com/en-us/search?query=how%20to%20view%20hidden%20files%20in%20windows%2010).
 The app version can be found by pressing `Alt` to access the app menu -> Help -> About Teleport Connect.
+
+
+To get more detailed logs, open Teleport Connect from the Command Prompt with the `--debug` flag:
+
+```code
+$ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --debug
+````
 </TabItem>
 </Tabs>
 
@@ -326,13 +343,8 @@ using this mode in production.
 To launch the app in insecure mode, open a terminal first. From there you can launch the app in one
 of two ways:
 
-```code
-# Using macOS open utility:
-$ open -a "Teleport Connect" --args --insecure
+(!docs/pages/connect-your-client/includes/launch-connect-with-flags-macos.mdx flags="--insecure"!)
 
-# Passing the flag to the executable directly:
-$ /Applications/Teleport\ Connect.app/Contents/MacOS/Teleport\ Connect --insecure
-```
 </TabItem>
 <TabItem label="Linux">
 From a terminal, open Teleport Connect with the `--insecure` flag:

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -53,9 +54,8 @@ func TestRemoteClusterStatus(t *testing.T) {
 	// Initially, no tunnels exist and status should be "offline".
 	wantRC.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	gotRC, err := a.GetRemoteCluster(rc.GetName())
-	gotRC.SetResourceID(0)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rc, gotRC))
+	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// Create several tunnel connections.
 	lastHeartbeat := a.clock.Now().UTC()
@@ -86,8 +86,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	wantRC.SetLastHeartbeat(tc2.GetLastHeartbeat())
 	gotRC, err = a.GetRemoteCluster(rc.GetName())
 	require.NoError(t, err)
-	gotRC.SetResourceID(0)
-	require.Empty(t, cmp.Diff(rc, gotRC))
+	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// Delete the latest connection.
 	require.NoError(t, a.DeleteTunnelConnection(tc2.GetClusterName(), tc2.GetName()))
@@ -99,9 +98,8 @@ func TestRemoteClusterStatus(t *testing.T) {
 	// heartbeat.
 	wantRC.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
 	gotRC, err = a.GetRemoteCluster(rc.GetName())
-	gotRC.SetResourceID(0)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rc, gotRC))
+	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// Delete the remaining connection
 	require.NoError(t, a.DeleteTunnelConnection(tc1.GetClusterName(), tc1.GetName()))
@@ -112,9 +110,8 @@ func TestRemoteClusterStatus(t *testing.T) {
 	// The last_heartbeat should remain the same.
 	wantRC.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	gotRC, err = a.GetRemoteCluster(rc.GetName())
-	gotRC.SetResourceID(0)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rc, gotRC))
+	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestRefreshRemoteClusters(t *testing.T) {
@@ -191,7 +188,7 @@ func TestRefreshRemoteClusters(t *testing.T) {
 			var updated int
 			for _, cluster := range clusters {
 				old := allClusters[cluster.GetName()]
-				if cmp.Diff(old, cluster) != "" {
+				if cmp.Diff(old, cluster, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")) != "" {
 					updated++
 				}
 			}

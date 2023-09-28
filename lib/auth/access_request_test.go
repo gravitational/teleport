@@ -767,3 +767,103 @@ func TestCreateSuggestions(t *testing.T) {
 			promotions.Promotions[2].AccessListName,
 		})
 }
+
+func TestPromotedRequest(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	testPack := newAccessRequestTestPack(ctx, t)
+
+	const requesterUserName = "requester"
+	requester := TestUser(requesterUserName)
+	requesterClient, err := testPack.tlsServer.NewClient(requester)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { require.NoError(t, requesterClient.Close()) })
+
+	// create the access request object
+	req, err := services.NewAccessRequest(requesterUserName, "admins")
+	require.NoError(t, err)
+
+	// send the request to the auth server
+	createdReq, err := requesterClient.CreateAccessRequestV2(ctx, req)
+	require.NoError(t, err)
+
+	const adminUser = "admin"
+	approveAs := func(reviewerName string) (types.AccessRequest, error) {
+		reviewer := TestUser(reviewerName)
+		reviewerClient, err := testPack.tlsServer.NewClient(reviewer)
+		require.NoError(t, err)
+
+		t.Cleanup(func() { require.NoError(t, reviewerClient.Close()) })
+
+		// try to promote the request
+		return reviewerClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+			RequestID: req.GetName(),
+			Review: types.AccessReview{
+				ProposedState: types.RequestState_PROMOTED,
+				Author:        adminUser,
+				AccessList: &types.PromotedAccessList{
+					Title: "ACL title",
+					Name:  "0000-00-00-0000",
+				},
+			},
+		})
+	}
+
+	t.Run("try promoting using access request API", func(t *testing.T) {
+		// Access request promotion is prohibited for everyone, including admins.
+		// An access request can be only approved by using Ent AccessRequestPromote API
+		// operator can't promote the request
+		_, err = approveAs("operator")
+		require.Error(t, err)
+
+		// admin can't promote the request
+		_, err = approveAs(adminUser)
+		require.Error(t, err)
+
+		req2, err := requesterClient.GetAccessRequests(ctx, types.AccessRequestFilter{
+			ID: createdReq.GetMetadata().Name,
+		})
+		require.NoError(t, err)
+		require.Len(t, req2, 1)
+
+		// the state should be still pending
+		require.Equal(t, types.RequestState_PENDING, req2[0].GetState())
+	})
+
+	t.Run("promote without access list data fails", func(t *testing.T) {
+		// The only way to promote the request is to use Ent AccessRequestPromote API
+		// which is not available in OSS. As a workaround, we can use the access request
+		// server API.
+		_, err := testPack.tlsServer.AuthServer.AuthServer.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+			RequestID: createdReq.GetName(),
+			Review: types.AccessReview{
+				ProposedState: types.RequestState_PROMOTED,
+			},
+		})
+		// Promoting without access list information is prohibited.
+		require.Error(t, err)
+	})
+
+	t.Run("promote", func(t *testing.T) {
+		promotedRequest, err := testPack.tlsServer.AuthServer.AuthServer.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+			RequestID: createdReq.GetName(),
+			Review: types.AccessReview{
+				ProposedState: types.RequestState_PROMOTED,
+				Author:        adminUser,
+				AccessList: &types.PromotedAccessList{
+					Title: "ACL title",
+					Name:  "0000-00-00-0000",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// verify promotion related fields
+		require.Equal(t, types.RequestState_PROMOTED, promotedRequest.GetState())
+		require.Equal(t, "0000-00-00-0000", promotedRequest.GetPromotedAccessListName())
+		require.Equal(t, "ACL title", promotedRequest.GetPromotedAccessListTitle())
+	})
+}

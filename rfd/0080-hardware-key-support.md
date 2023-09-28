@@ -305,13 +305,13 @@ If the key policy is `hardware_key` or `hardware_key_touch`, then a private key 
 
 PIV provides us with up to 24 different slots. Each slot has a different intended purpose, but functionally they are the same. We will use the first two slots (`9a` and `9c`) to store up to two keys at a time (the first with `TouchPolicy=never` and the second with `TouchPolicy=cached`).
 
-Each of these keys will be generated for the first time when a Teleport client is required to meet its respective private key policy. Once a key is generated, it will be reused by any other Teleport client required to meet the same private key policy. Reusable keys will be detectable by checking the slot's stored certificate, which will be given a self-signed metadata-containing certificate created by Teleport clients.
+Each of these keys will be generated for the first time when a Teleport client is required to meet its respective private key policy. Once a key is generated, it will be reused by any other Teleport client required to meet the same private key policy.
 
-If a Teleport Client notices that a slot is in use, but not by a Teleport client, then it should prompt the user before overwriting the slot. This will also be done by checking the certificate stored in the slot. We will share the certificate in the prompt, since it may contain identifying information. e.g:
+Teleport clients will also store a self-signed metadata-containing certificate. When this certificate is present, Teleport clients will reuse or regenerate keys in the slot as needed. If the certificate in the slot is unknown or missing, Teleport clients will prompt the user for confirmation before overwriting an existing key or cert in the slot:
 
 ```bash
 > tsh login
-Hardware key slot 9a appears to be in use by another program.
+Certificate in YubiKey PIV slot "9a" is not a Teleport client cert:
 Slot 9a:
   Algorithm:  ECCP256
   Subject DN: CN=SSH key
@@ -320,7 +320,7 @@ Slot 9a:
   Fingerprint:  1ce4faf8bdbfc9668a9f532c20b03ccf1dbadcd06b51f235aeb3fe388bb1703b
   Not before: 2022-08-19 01:10:14
   Not after:  2064-08-19 01:10:14
-Would you like to overwrite this slot? (y/N):
+Would you like to overwrite this slot's private key and certificate? (y/N):
 ```
 
 #### Private key interface
@@ -399,9 +399,9 @@ If a user has private key policy `hardware_key_touch`, then Teleport client requ
 
 ```bash
 > tsh login --user=dev
-Tap your YubiKey
 Enter password for Teleport user dev:
 Tap any security key
+Tap your YubiKey
 ```
 
 ### Additional considerations

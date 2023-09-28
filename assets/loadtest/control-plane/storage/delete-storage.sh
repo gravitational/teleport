@@ -4,15 +4,19 @@ set -euo pipefail
 
 source vars.env
 
+if [[ "$TELEPORT_BACKEND" != "dynamo" ]]; then
+    # non-dynamo backeds do not currently use external
+    # storage resources
+    exit 0
+fi
+
 # delete dynamo tables
 
-if [[ "$TELEPORT_BACKEND" == "dynamo" ]]; then
-    aws dynamodb delete-table \
-        --table-name "${CLUSTER_NAME}-backend"
+aws dynamodb delete-table \
+    --table-name "${CLUSTER_NAME}-backend"
 
-    aws dynamodb delete-table \
-        --table-name "${CLUSTER_NAME}-events"
-fi
+aws dynamodb delete-table \
+    --table-name "${CLUSTER_NAME}-events"
 
 # empty the session bucket
 

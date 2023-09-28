@@ -611,9 +611,13 @@
           ]
         },
         {
-          "title": "Security",
+          "title": "Secure Practices",
           "slug": "/management/security/",
           "entries": [
+            {
+              "title": "Privilege Elevation",
+              "slug": "/management/security/privilege-elevation/"
+            },
             {
               "title": "Reducing the Blast Radius of Attacks",
               "slug": "/management/security/reduce-blast-radius/"
