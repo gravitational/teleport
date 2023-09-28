@@ -364,6 +364,7 @@ func getYAMLTypeForExpr(exp ast.Expr, pkg string) (yamlKindNode, error) {
 			return yamlBool{}, nil
 		default:
 			return yamlCustomType{
+				name: makeSectionName(t.Name),
 				declarationInfo: PackageInfo{
 					TypeName:    t.Name,
 					PackageName: pkg,
