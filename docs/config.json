@@ -2795,11 +2795,6 @@
       "permanent": true
     },
     {
-      "source": "/machine-id/guides/host-certificate/",
-      "destination": "/machine-id/access-guides/host-certificate/",
-      "permanent": true
-    },
-    {
       "source": "/machine-id/guides/kubernetes/",
       "destination": "/machine-id/access-guides/kubernetes/",
       "permanent": true
