@@ -922,18 +922,18 @@ run-etcd:
 integration-test-setup: OUTPUT_FILES = $(addprefix ./,$(notdir $(PACKAGES)))
 integration-test-setup:
 	@mkdir -p $(TEST_BIN_DIR)
-	$(CGOFLAG) go test -c -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) -o $(TEST_BIN_DIR) $(OUTPUT_FILES)
+	$(CGOFLAG) go test -c -json -race -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) -o $(TEST_BIN_DIR) $(OUTPUT_FILES)
 
 # Run each integration test package inside a docker container,
 # allowing them to run in parallel without a risk of interference between tests
 .PHONY: %-integration-test
-%-integration-test: FLAGS ?= -test.v -test.race
+%-integration-test: FLAGS ?= -test.v
 %-integration-test: LOG_PATH = $(TEST_LOG_DIR)/$@.json
 %-integration-test: ensure-gotestsum integration-test-setup
 	@mkdir -p $(dir $(LOG_PATH))
 	ls -l $(notdir $*).test || true
 	ls -l $(TEST_BIN_DIR)/$(notdir $*).test || true
-	$(TEST_BIN_DIR)/$(notdir $*).test -test.timeout=30m -test.json $(FLAGS) \
+	$(TEST_BIN_DIR)/$(notdir $*).test -test.timeout=30m $(FLAGS) \
 		| tee $(LOG_PATH) \
 		| gotestsum --raw-command --format=testname -- cat
 
