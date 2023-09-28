@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
@@ -419,12 +418,11 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 	copyReader, copyWriter := io.Pipe()
 	defer copyWriter.Close()
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
+	closeChan := make(chan struct{})
 
 	go func() {
 		defer copyReader.Close()
-		defer wg.Done()
+		defer close(closeChan)
 
 		// server will never be used to write to server,
 		// which is why we pass io.Discard instead of e.rawServerConn
@@ -460,7 +458,7 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 		log.WithError(err).Warn("Server -> Client copy finished with unexpected error.")
 	}
 
-	wg.Wait()
+	<-closeChan
 
 	serverErrCh <- trace.Wrap(err)
 	log.Debugf("Stopped receiving from server. Transferred %v bytes.", total)
