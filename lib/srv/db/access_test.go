@@ -1900,6 +1900,14 @@ func withDeniedDBLabels(labels types.Labels) roleOptFn {
 	}
 }
 
+func withClientIdleTimeout(clientIdleTimeout time.Duration) roleOptFn {
+	return func(role types.Role) {
+		opts := role.GetOptions()
+		opts.ClientIdleTimeout = types.NewDuration(clientIdleTimeout)
+		role.SetOptions(opts)
+	}
+}
+
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
 func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userName, roleName string, dbUsers, dbNames []string, roleOpts ...roleOptFn) (types.User, types.Role) {
