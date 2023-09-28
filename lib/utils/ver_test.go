@@ -18,6 +18,21 @@ package utils
 
 import "testing"
 
+func TestMeetsVersion_emptyOrInvalid(t *testing.T) {
+	// See TestVersions for more comprehensive tests.
+
+	if !MeetsVersion("", "v1.2.3") {
+		t.Error("MeetsVersion with an empty gotVer should always succeed")
+	}
+
+	if !MeetsVersion("banana", "v1.2.3") {
+		t.Error("MeetsVersion with an invalid version should always succeed")
+	}
+	if !MeetsVersion("v1.2.3", "banana") {
+		t.Error("MeetsVersion with an invalid version should always succeed")
+	}
+}
+
 func TestMinVerWithoutPreRelease(t *testing.T) {
 	t.Parallel()
 
