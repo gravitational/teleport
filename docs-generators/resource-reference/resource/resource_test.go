@@ -709,6 +709,79 @@ type Metadata struct {
 				},
 			},
 		},
+		{
+			description: "need a name for this one",
+			source: `package typestest
+
+// DatabaseServerV3 represents a database access server.
+type DatabaseServerV3 struct {
+	// Kind is the database server resource kind.
+	Kind string BACKTICKprotobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"BACKTICK
+	// Metadata is the database server metadata.
+	Metadata Metadata BACKTICKprotobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"BACKTICK
+}
+`,
+			declSources: []string{
+				`package typestest
+
+// Metadata is resource metadata
+type Metadata struct {
+	// Name is an object name
+	Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
+	// Description is object description
+	Description string BACKTICKprotobuf:"bytes,3,opt,name=Description,proto3" json:"description,omitempty"BACKTICK
+}`,
+			},
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					TypeName:    "DatabaseServerV3",
+					PackageName: "typestest",
+				}: ReferenceEntry{
+					SectionName: "Database Server v3",
+					Description: "Represents a database access server.",
+					SourcePath:  "myfile.go",
+					Fields: []Field{
+						Field{
+							Name:        "kind",
+							Description: "The database server resource kind.",
+							Type:        "string",
+						},
+						Field{
+							Name:        "metadata",
+							Description: "The database server metadata.",
+							Type:        "[Metadata](#metadata)",
+						},
+					},
+					YAMLExample: `kind: "string"
+metadata: 
+# [...]
+`,
+				},
+				PackageInfo{
+					TypeName:    "Metadata",
+					PackageName: "typestest",
+				}: ReferenceEntry{
+					SectionName: "Metadata",
+					Description: "Resource metadata",
+					SourcePath:  "myfile1.go",
+					Fields: []Field{
+						{
+							Name:        "name",
+							Description: "Object name",
+							Type:        "string",
+						},
+						{
+							Name:        "description",
+							Description: "Object description",
+							Type:        "string",
+						},
+					},
+					YAMLExample: `name: "string"
+description: "string"
+`,
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
