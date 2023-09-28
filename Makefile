@@ -942,7 +942,7 @@ integration-test-setup: $(TEST_LOG_DIR)
 		go tool test2json -p $* \
 			$(TEST_BINARY) -test.timeout=30m $(FLAGS) \
 		| tee $(LOG_PATH) \
-		| gotestsum --raw-command --format=testname -- cat
+		| gotestsum --raw-command --format=testname -- cat \
 	)
 
 #
