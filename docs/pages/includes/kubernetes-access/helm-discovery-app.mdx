@@ -1,0 +1,45 @@
+{{ clusterName="minikube" }}
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
+```code
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  --set kubeClusterName={{ clusterName }} \
+  --set roles="kube\,app\,discovery" \
+  --set proxyAddr=<Var name="proxy-address" /> \
+  --set authToken=<Var name="token" /> \
+  --create-namespace \
+  --namespace=teleport-agent \
+  --set labels.environment=demo \
+  --version (=teleport.version=)
+```
+<TabItem scope={["enterprise"]} label="Enterprise">
+</TabItem>
+```code
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  --set kubeClusterName={{ clusterName }} \
+  --set roles="kube\,app\,discovery" \
+  --set proxyAddr=<Var name="proxy-address" /> \
+  --set authToken=<Var name="token" /> \
+  --create-namespace \
+  --namespace=teleport-agent \
+  --set labels.environment=demo \
+  --set enterprise=true \
+  --version (=teleport.version=)
+```
+</TabItem>
+<TabItem scope={["team","cloud"]} label="Team/Cloud">
+```code
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  --set kubeClusterName={{ clusterName }} \
+  --set roles="kube\,app\,discovery" \
+  --set proxyAddr=<Var name="proxy-address" /> \
+  --set authToken=<Var name="token" /> \
+  --create-namespace \
+  --namespace=teleport-agent \
+  --set "labels.environment=demo" \
+  --set "updater.enabled=true"
+  --set enterprise=true \
+  --version (=cloud.version=)
+```
+</TabItem>
+</Tabs>
