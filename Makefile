@@ -940,7 +940,7 @@ integration-test-setup: $(TEST_LOG_DIR)
 		mv $(TEST_BINARY) integration/$(notdir $*)/$(notdir $*).test; \
 		cd integration/$(notdir $*); \
 		go tool test2json -p $* \
-			$(TEST_BINARY) -test.timeout=30m $(FLAGS) \
+			integration/$(notdir $*)/$(notdir $*).test -test.timeout=30m $(FLAGS) \
 		| tee $(LOG_PATH) \
 		| gotestsum --raw-command --format=testname -- cat \
 	)
