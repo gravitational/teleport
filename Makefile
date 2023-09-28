@@ -949,11 +949,9 @@ integration-test-setup: $(TEST_LOG_DIR)
 # The prerequisite generation should be split up to be more readable but I don't know how
 # without evaluating the shell command on every single makefile run, regardless of target
 .PHONY: integration
-# integration: PACKAGES := $(shell go list ./... | grep 'teleport/integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
+integration: PACKAGES := $(shell go list ./... | grep 'teleport/integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
 integration: TEST_BIN_DIR ?= /tmp/binaries
-integration: PACKAGES := github.com/gravitational/teleport/integration/kube github.com/gravitational/teleport/integration/appaccess
-integration: github.com/gravitational/teleport/integration/kube-integration-test github.com/gravitational/teleport/integration/hsm-integration-test
-# integration: $(addsuffix -integration-test,$(shell go list ./... | grep 'teleport/integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration ))
+integration: $(addsuffix -integration-test,$(shell go list ./... | grep 'teleport/integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration ))
 
 #
 # Integration tests that run Kubernetes tests in order to complete successfully
