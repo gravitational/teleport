@@ -2425,48 +2425,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 	}
 
 	deleteStream := func(userClient *Client, testDev *TestDevice) error {
-		stream, err := userClient.DeleteMFADevice(ctx)
-		if err != nil {
-			return err
-		}
-
-		// Init.
-		if err := stream.Send(&proto.DeleteMFADeviceRequest{
-			Request: &proto.DeleteMFADeviceRequest_Init{
-				Init: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: testDev.MFA.GetName(),
-				},
-			},
-		}); err != nil {
-			return err
-		}
-		resp, err := stream.Recv()
-		if err != nil {
-			return err
-		}
-
-		// Solve authn challenge.
-		authnSolved, err := testDev.SolveAuthn(resp.GetMFAChallenge())
-		if err != nil {
-			return err
-		}
-		if err := stream.Send(&proto.DeleteMFADeviceRequest{
-			Request: &proto.DeleteMFADeviceRequest_MFAResponse{
-				MFAResponse: authnSolved,
-			},
-		}); err != nil {
-			return err
-		}
-		resp, err = stream.Recv()
-		if err != nil {
-			return err
-		}
-
-		// Verify Ack.
-		if resp.GetAck() == nil {
-			return fmt.Errorf("got %T, want deletion Ack", resp.GetResponse())
-		}
-		return nil
+		return deleteMFADeviceStream(ctx, userClient, testDev)
 	}
 
 	makeTest := func(sf constants.SecondFactorType, deviceToDelete *TestDevice) func(t *testing.T) {
@@ -2886,6 +2845,93 @@ func TestAddMFADevice(t *testing.T) {
 			}
 		})
 	}
+}
+
+// DELETE IN 16. Kept so we don't lose coverage on DeleteMFADevice (codingllama)
+func TestDeleteMFADevice(t *testing.T) {
+	t.Parallel()
+
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	ctx := context.Background()
+
+	// Create a user with TOTP and Webauthn.
+	userCreds, err := createUserWithSecondFactors(testServer)
+	require.NoError(t, err, "createUserWithSecondFactors")
+
+	userClient, err := testServer.NewClient(TestUser(userCreds.username))
+	require.NoError(t, err, "NewClient")
+	totpDev := userCreds.totpDev
+	webDev := userCreds.webDev
+
+	// Reuse Webauthn config from createUserWithSecondFactors.
+	authPref, err := authServer.GetAuthPreference(ctx)
+	require.NoError(t, err, "GetAuthPreference")
+	webConfig, _ := authPref.GetWebauthn()
+
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional, // optional allows deletion of all devices.
+		Webauthn:     webConfig,
+	})
+	require.NoError(t, err, "NewAuthPreference")
+	require.NoError(t,
+		authServer.SetAuthPreference(ctx, authPreference),
+		"SetAuthPreference")
+
+	for _, testDev := range []*TestDevice{totpDev, webDev} {
+		devName := testDev.MFA.GetName()
+		t.Run(devName, func(t *testing.T) {
+			assert.NoError(t,
+				deleteMFADeviceStream(ctx, userClient, testDev),
+				"Streaming device removal failed")
+		})
+	}
+}
+
+func deleteMFADeviceStream(ctx context.Context, userClient *Client, testDev *TestDevice) error {
+	stream, err := userClient.DeleteMFADevice(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Init.
+	if err := stream.Send(&proto.DeleteMFADeviceRequest{
+		Request: &proto.DeleteMFADeviceRequest_Init{
+			Init: &proto.DeleteMFADeviceRequestInit{
+				DeviceName: testDev.MFA.GetName(),
+			},
+		},
+	}); err != nil {
+		return err
+	}
+	resp, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+
+	// Solve authn challenge.
+	authnSolved, err := testDev.SolveAuthn(resp.GetMFAChallenge())
+	if err != nil {
+		return err
+	}
+	if err := stream.Send(&proto.DeleteMFADeviceRequest{
+		Request: &proto.DeleteMFADeviceRequest_MFAResponse{
+			MFAResponse: authnSolved,
+		},
+	}); err != nil {
+		return err
+	}
+	resp, err = stream.Recv()
+	if err != nil {
+		return err
+	}
+
+	// Verify Ack.
+	if resp.GetAck() == nil {
+		return fmt.Errorf("got %T, want deletion Ack", resp.GetResponse())
+	}
+	return nil
 }
 
 func TestGetMFADevices_WithToken(t *testing.T) {
