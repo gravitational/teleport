@@ -181,7 +181,8 @@ proto.teleport.lib.teleterm.v1.AccessRequest.toObject = function(includeInstance
     resourceIdsList: jspb.Message.toObjectList(msg.getResourceIdsList(),
     proto.teleport.lib.teleterm.v1.ResourceID.toObject, includeInstance),
     resourcesList: jspb.Message.toObjectList(msg.getResourcesList(),
-    proto.teleport.lib.teleterm.v1.Resource.toObject, includeInstance)
+    proto.teleport.lib.teleterm.v1.Resource.toObject, includeInstance),
+    promotedAccessListTitle: jspb.Message.getFieldWithDefault(msg, 14, "")
   };
 
   if (includeInstance) {
@@ -274,6 +275,10 @@ proto.teleport.lib.teleterm.v1.AccessRequest.deserializeBinaryFromReader = funct
       var value = new proto.teleport.lib.teleterm.v1.Resource;
       reader.readMessage(value,proto.teleport.lib.teleterm.v1.Resource.deserializeBinaryFromReader);
       msg.addResources(value);
+      break;
+    case 14:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPromotedAccessListTitle(value);
       break;
     default:
       reader.skipField();
@@ -398,6 +403,13 @@ proto.teleport.lib.teleterm.v1.AccessRequest.serializeBinaryToWriter = function(
       13,
       f,
       proto.teleport.lib.teleterm.v1.Resource.serializeBinaryToWriter
+    );
+  }
+  f = message.getPromotedAccessListTitle();
+  if (f.length > 0) {
+    writer.writeString(
+      14,
+      f
     );
   }
 };
@@ -792,6 +804,24 @@ proto.teleport.lib.teleterm.v1.AccessRequest.prototype.clearResourcesList = func
 };
 
 
+/**
+ * optional string promoted_access_list_title = 14;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.AccessRequest.prototype.getPromotedAccessListTitle = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 14, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.AccessRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.AccessRequest.prototype.setPromotedAccessListTitle = function(value) {
+  return jspb.Message.setProto3StringField(this, 14, value);
+};
+
+
 
 /**
  * List of repeated fields within this message type.
@@ -835,7 +865,8 @@ proto.teleport.lib.teleterm.v1.AccessRequestReview.toObject = function(includeIn
     rolesList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f,
     state: jspb.Message.getFieldWithDefault(msg, 3, ""),
     reason: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    created: (f = msg.getCreated()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f)
+    created: (f = msg.getCreated()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f),
+    promotedAccessListTitle: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -892,6 +923,10 @@ proto.teleport.lib.teleterm.v1.AccessRequestReview.deserializeBinaryFromReader =
       var value = new google_protobuf_timestamp_pb.Timestamp;
       reader.readMessage(value,google_protobuf_timestamp_pb.Timestamp.deserializeBinaryFromReader);
       msg.setCreated(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPromotedAccessListTitle(value);
       break;
     default:
       reader.skipField();
@@ -956,6 +991,13 @@ proto.teleport.lib.teleterm.v1.AccessRequestReview.serializeBinaryToWriter = fun
       5,
       f,
       google_protobuf_timestamp_pb.Timestamp.serializeBinaryToWriter
+    );
+  }
+  f = message.getPromotedAccessListTitle();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
     );
   }
 };
@@ -1086,6 +1128,24 @@ proto.teleport.lib.teleterm.v1.AccessRequestReview.prototype.clearCreated = func
  */
 proto.teleport.lib.teleterm.v1.AccessRequestReview.prototype.hasCreated = function() {
   return jspb.Message.getField(this, 5) != null;
+};
+
+
+/**
+ * optional string promoted_access_list_title = 6;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.AccessRequestReview.prototype.getPromotedAccessListTitle = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.AccessRequestReview} returns this
+ */
+proto.teleport.lib.teleterm.v1.AccessRequestReview.prototype.setPromotedAccessListTitle = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
 };
 
 
