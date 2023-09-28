@@ -82,7 +82,7 @@ export function Running() {
     <ShowState
       appContext={appContext}
       agentProcessState={{ status: 'not-started' }}
-      proxyVersion="17.0.0."
+      proxyVersion="17.0.0"
     />
   );
 }
