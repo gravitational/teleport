@@ -449,6 +449,8 @@ func (p *ProxyListenerMode) decode(val any) error {
 			*p = ProxyListenerMode(valI)
 			return nil
 		}
+	default:
+		return trace.BadParameter("invalid type for ProxyListenerMode: %t", val)
 	}
 	available := make([]string, 0, len(ProxyListenerMode_value))
 	for k := range ProxyListenerMode_value {
