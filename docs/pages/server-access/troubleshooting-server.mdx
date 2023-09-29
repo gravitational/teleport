@@ -49,7 +49,7 @@ To check the file system permissions on the `teleport` binary:
    you should update the permissions. For example:
 
    ```code
-   chmod go+rx teleport
+   sudo chmod go+rx $(which teleport)
    ```
    
 1. Restart the `teleport` service.
