@@ -162,7 +162,6 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindClusterAlert, RW()),
 					types.NewRule(types.KindAccessList, RW()),
 					types.NewRule(types.KindNode, RW()),
-					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
 		},
@@ -220,7 +219,6 @@ func NewPresetAccessRole() types.Role {
 					},
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
-					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
 		},
@@ -266,7 +264,6 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindSessionTracker, RO()),
 					types.NewRule(types.KindClusterAlert, RO()),
 					types.NewRule(types.KindInstance, RO()),
-					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
 		},
@@ -355,7 +352,6 @@ func NewPresetGroupAccessRole() types.Role {
 				},
 				Rules: []types.Rule{
 					types.NewRule(types.KindUserGroup, RO()),
-					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
 		},
@@ -493,42 +489,19 @@ func bootstrapRoleMetadataLabels() map[string]map[string]string {
 	}
 }
 
+var defaultAllowRulesMap = map[string][]types.Rule{
+	teleport.PresetAuditorRoleName: NewPresetAuditorRole().GetRules(types.Allow),
+	teleport.PresetEditorRoleName:  NewPresetEditorRole().GetRules(types.Allow),
+	teleport.PresetAccessRoleName:  NewPresetAccessRole().GetRules(types.Allow),
+}
+
 // defaultAllowRules has the Allow rules that should be set as default when
 // they were not explicitly defined. This is used to update the current cluster
 // roles when deploying a new resource. It will also update all existing roles
 // on auth server restart. Rules defined in preset template should be
 // exactly the same rule when added here.
 func defaultAllowRules() map[string][]types.Rule {
-	return map[string][]types.Rule{
-		teleport.PresetAuditorRoleName: {
-			types.NewRule(types.KindSessionTracker, RO()),
-			types.NewRule(types.KindInstance, RO()),
-		},
-		teleport.PresetEditorRoleName: {
-			types.NewRule(types.KindConnectionDiagnostic, RW()),
-			types.NewRule(types.KindDatabase, RW()),
-			types.NewRule(types.KindDatabaseService, RO()),
-			types.NewRule(types.KindLoginRule, RW()),
-			types.NewRule(types.KindPlugin, RW()),
-			types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
-			types.NewRule(types.KindOktaImportRule, RW()),
-			types.NewRule(types.KindOktaAssignment, RW()),
-			types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
-			types.NewRule(types.KindLock, RW()),
-			types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
-			types.NewRule(types.KindBilling, RW()),
-			types.NewRule(types.KindInstance, RO()),
-			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
-			types.NewRule(types.KindNode, RW()),
-			types.NewRule(types.KindAccessList, RW()),
-		},
-		teleport.PresetAccessRoleName: {
-			types.NewRule(types.KindInstance, RO()),
-			// Allow assist access to access role. This role only allow access
-			// to the assist console, not any other cluster resources.
-			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
-		},
-	}
+	return defaultAllowRulesMap
 }
 
 // defaultAllowLabels has the Allow labels that should be set as default when they were not explicitly defined.
