@@ -128,7 +128,9 @@ stages:
 
 deploy-job:
   stage: deploy
-  # id_tokens
+  # id_tokens configures ID Tokens that GitLab will automatically inject into
+  # the environment of your GitLab run.
+  #
   # See https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html
   # for further explanation of the id_tokens configuration in GitLab.
   id_tokens:
