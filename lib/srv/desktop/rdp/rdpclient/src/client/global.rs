@@ -34,12 +34,13 @@ pub fn call_function_on_handle(cgo_handle: CgoHandle, func: ClientFunction) -> C
         match handle.blocking_send(func) {
             Ok(_) => return CGOErrCode::ErrCodeSuccess,
             Err(e) => {
-                warn!("call_function_on_handle failed: {}", e);
+                error!("call_function_on_handle failed: {}", e);
                 return CGOErrCode::ErrCodeFailure;
             }
         }
     }
 
+    warn!("call_function_on_handle failed: handle not found");
     CGOErrCode::ErrCodeFailure
 }
 

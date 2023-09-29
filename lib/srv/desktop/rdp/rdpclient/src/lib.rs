@@ -95,7 +95,10 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
         },
     ) {
         Ok(_) => CGOErrCode::ErrCodeSuccess,
-        Err(_) => CGOErrCode::ErrCodeFailure,
+        Err(e) => {
+            error!("client_run failed: {:?}", e);
+            CGOErrCode::ErrCodeFailure
+        }
     }
 }
 

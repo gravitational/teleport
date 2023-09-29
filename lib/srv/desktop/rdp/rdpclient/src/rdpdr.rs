@@ -20,6 +20,7 @@ pub(crate) mod tdp;
 
 use self::path::{UnixPath, WindowsPath};
 use self::scard::IoctlCode;
+use crate::client::{ClientFunction, ClientHandle};
 use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error,
 };
@@ -28,14 +29,23 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 pub use consts::CHANNEL_NAME;
 use consts::{
     CapabilityType, Component, DeviceType, FileInformationClassLevel,
-    FileSystemInformationClassLevel, MajorFunction, MinorFunction, PacketId, BOOL_SIZE,
+    FileSystemInformationClassLevel, MajorFunctionDeprecated, MinorFunction, PacketId, BOOL_SIZE,
     DIRECTORY_SHARE_CLIENT_NAME, DRIVE_CAPABILITY_VERSION_02, FILE_ATTR_SIZE,
     GENERAL_CAPABILITY_VERSION_02, I64_SIZE, I8_SIZE, NTSTATUS, SCARD_DEVICE_ID,
     SMARTCARD_CAPABILITY_VERSION_01, TDP_FALSE, U32_SIZE, U8_SIZE, VERSION_MAJOR, VERSION_MINOR,
 };
 use ironrdp_pdu::{other_err, PduResult};
-use ironrdp_rdpdr::pdu::efs::{NtStatus, ServerDeviceAnnounceResponse};
-use ironrdp_rdpdr::RdpdrBackend;
+use ironrdp_rdpdr::pdu::RdpdrPdu;
+use ironrdp_rdpdr::{
+    pdu::{
+        efs::{
+            DeviceControlRequest, DeviceControlResponse, DeviceIoResponse, NtStatus,
+            ServerDeviceAnnounceResponse,
+        },
+        esc::{LongReturn, ReturnCode, ScardAccessStartedEventCall, ScardIoctlCode},
+    },
+    RdpdrBackend,
+};
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::tpkt;
 use rdp::model::error::Error as RdpError;
@@ -56,14 +66,30 @@ use tdp::{
 
 #[derive(Debug)]
 pub struct TeleportRdpdrBackend {
+    /// Active device ids for this session.
+    ///
+    /// The smartcard device id is always active, and always the first element in this vector.
     active_device_ids: Vec<u32>,
+    /// The client handle for this backend, used to send messages to the RDP server.
+    client_handle: ClientHandle,
 }
 
 impl TeleportRdpdrBackend {
-    pub fn new(smartcard_device_id: u32) -> Self {
+    pub fn new(smartcard_device_id: u32, client_handle: ClientHandle) -> Self {
         Self {
             active_device_ids: vec![smartcard_device_id],
+            client_handle,
         }
+    }
+
+    fn get_scard_device_id(&self) -> PduResult<u32> {
+        if self.active_device_ids.len() == 0 {
+            return Err(other_err!(
+                "TeleportRdpdrBackend::get_scard_device_id",
+                "no active devices",
+            ));
+        }
+        Ok(self.active_device_ids[0])
     }
 }
 
@@ -85,6 +111,44 @@ impl RdpdrBackend for TeleportRdpdrBackend {
                 "ServerDeviceAnnounceResponse for smartcard redirection failed"
             ));
         }
+
+        // Nothing to send back to the server
+        Ok(())
+    }
+
+    fn handle_scard_access_started_event_call(
+        &self,
+        req: DeviceControlRequest<ScardIoctlCode>,
+        _call: ScardAccessStartedEventCall,
+    ) -> PduResult<()> {
+        if req.header.device_id != self.get_scard_device_id()? {
+            return Err(other_err!(
+                "TeleportRdpdrBackend::handle_scard_access_started_event_call",
+                "got ScardAccessStartedEventCall for unknown device_id",
+            ));
+        }
+
+        let resp = DeviceControlResponse {
+            device_io_reply: DeviceIoResponse {
+                device_id: req.header.device_id,
+                completion_id: req.header.completion_id,
+                io_status: NtStatus::Success,
+            },
+            output_buffer: Box::new(LongReturn {
+                return_code: ReturnCode::Success,
+            }),
+        };
+
+        self.client_handle
+            .blocking_send(ClientFunction::WriteRdpdr(RdpdrPdu::DeviceControlResponse(
+                resp,
+            )))
+            .map_err(|_e| {
+                other_err!(
+                    "TeleportRdpdrBackend::handle_scard_access_started_event_call",
+                    "failed to send DeviceControlResponse to server",
+                )
+            })?;
 
         Ok(())
     }
@@ -307,14 +371,16 @@ impl Client {
     }
 
     fn handle_device_io_request(&mut self, payload: &mut Payload) -> RdpResult<Messages> {
-        let device_io_request = DeviceIoRequest::decode(payload)?;
+        let device_io_request = DeviceIoRequestDeprecated::decode(payload)?;
         let major_function = device_io_request.major_function;
 
         // Smartcard control only uses IRP_MJ_DEVICE_CONTROL; directory control uses IRP_MJ_DEVICE_CONTROL along with
         // all the other MajorFunctions supported by this Client. Therefore if we receive any major function when drive
         // redirection is not allowed, something has gone wrong. In such a case, we return an error as a security measure
         // to ensure directories are never shared when RBAC doesn't permit it.
-        if major_function != MajorFunction::IRP_MJ_DEVICE_CONTROL && !self.allow_directory_sharing {
+        if major_function != MajorFunctionDeprecated::IRP_MJ_DEVICE_CONTROL
+            && !self.allow_directory_sharing
+        {
             return Err(Error::TryError(
                 "received a drive redirection major function when drive redirection was not allowed"
                     .to_string(),
@@ -322,26 +388,32 @@ impl Client {
         }
 
         match major_function {
-            MajorFunction::IRP_MJ_DEVICE_CONTROL => {
+            MajorFunctionDeprecated::IRP_MJ_DEVICE_CONTROL => {
                 self.process_irp_device_control(device_io_request, payload)
             }
-            MajorFunction::IRP_MJ_CREATE => self.process_irp_create(device_io_request, payload),
-            MajorFunction::IRP_MJ_QUERY_INFORMATION => {
+            MajorFunctionDeprecated::IRP_MJ_CREATE => {
+                self.process_irp_create(device_io_request, payload)
+            }
+            MajorFunctionDeprecated::IRP_MJ_QUERY_INFORMATION => {
                 self.process_irp_query_information(device_io_request, payload)
             }
-            MajorFunction::IRP_MJ_CLOSE => self.process_irp_close(device_io_request),
-            MajorFunction::IRP_MJ_DIRECTORY_CONTROL => {
+            MajorFunctionDeprecated::IRP_MJ_CLOSE => self.process_irp_close(device_io_request),
+            MajorFunctionDeprecated::IRP_MJ_DIRECTORY_CONTROL => {
                 self.process_irp_directory_control(device_io_request, payload)
             }
-            MajorFunction::IRP_MJ_QUERY_VOLUME_INFORMATION => {
+            MajorFunctionDeprecated::IRP_MJ_QUERY_VOLUME_INFORMATION => {
                 self.process_irp_query_volume_information(device_io_request, payload)
             }
-            MajorFunction::IRP_MJ_READ => self.process_irp_read(device_io_request, payload),
-            MajorFunction::IRP_MJ_WRITE => self.process_irp_write(device_io_request, payload),
-            MajorFunction::IRP_MJ_SET_INFORMATION => {
+            MajorFunctionDeprecated::IRP_MJ_READ => {
+                self.process_irp_read(device_io_request, payload)
+            }
+            MajorFunctionDeprecated::IRP_MJ_WRITE => {
+                self.process_irp_write(device_io_request, payload)
+            }
+            MajorFunctionDeprecated::IRP_MJ_SET_INFORMATION => {
                 self.process_irp_set_information(device_io_request, payload)
             }
-            MajorFunction::IRP_MJ_LOCK_CONTROL => self.process_irp_lock_ctl(),
+            MajorFunctionDeprecated::IRP_MJ_LOCK_CONTROL => self.process_irp_lock_ctl(),
             _ => Err(invalid_data_error(&format!(
                 "got unsupported major_function in DeviceIoRequest: {:?}",
                 &major_function
@@ -351,10 +423,10 @@ impl Client {
 
     fn process_irp_device_control(
         &mut self,
-        device_io_request: DeviceIoRequest,
+        device_io_request: DeviceIoRequestDeprecated,
         payload: &mut Payload,
     ) -> RdpResult<Messages> {
-        let ioctl = DeviceControlRequest::decode(device_io_request, payload)?;
+        let ioctl = DeviceControlRequestDeprecated::decode(device_io_request, payload)?;
         let is_smart_card_op = ioctl.header.device_id == self.get_scard_device_id()?;
         debug!("received RDP: {:?}", ioctl);
 
@@ -371,7 +443,7 @@ impl Client {
         } else {
             // Drive redirection, mimic FreeRDP's "no-op"
             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L677-L684
-            vec![DeviceControlResponse::new(
+            vec![DeviceControlResponseDeprecated::new(
                 &ioctl,
                 NTSTATUS::STATUS_SUCCESS,
                 Box::new(NoOp::new()),
@@ -392,7 +464,7 @@ impl Client {
 
     fn process_irp_create(
         &mut self,
-        device_io_request: DeviceIoRequest,
+        device_io_request: DeviceIoRequestDeprecated,
         payload: &mut Payload,
     ) -> RdpResult<Messages> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L207
@@ -583,7 +655,7 @@ impl Client {
 
     fn process_irp_query_information(
         &mut self,
-        device_io_request: DeviceIoRequest,
+        device_io_request: DeviceIoRequestDeprecated,
         payload: &mut Payload,
     ) -> RdpResult<Messages> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L373
@@ -598,7 +670,10 @@ impl Client {
         self.prep_query_info_response(&rdp_req, f, code)
     }
 
-    fn process_irp_close(&mut self, device_io_request: DeviceIoRequest) -> RdpResult<Messages> {
+    fn process_irp_close(
+        &mut self,
+        device_io_request: DeviceIoRequestDeprecated,
+    ) -> RdpResult<Messages> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L236
         let rdp_req = DeviceCloseRequest::decode(device_io_request);
         debug!("received RDP: {:?}", rdp_req);
@@ -626,7 +701,7 @@ impl Client {
     /// by sending it back an NTSTATUS::STATUS_NO_MORE_FILES.
     fn process_irp_directory_control(
         &mut self,
-        device_io_request: DeviceIoRequest,
+        device_io_request: DeviceIoRequestDeprecated,
         payload: &mut Payload,
     ) -> RdpResult<Messages> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L650
@@ -722,7 +797,7 @@ impl Client {
     /// https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L442
     fn process_irp_query_volume_information(
         &mut self,
-        device_io_request: DeviceIoRequest,
+        device_io_request: DeviceIoRequestDeprecated,
         payload: &mut Payload,
     ) -> RdpResult<Messages> {
         let rdp_req = ServerDriveQueryVolumeInformationRequest::decode(device_io_request, payload)?;
@@ -777,7 +852,7 @@ impl Client {
 
     fn process_irp_read(
         &mut self,
-        device_io_request: DeviceIoRequest,
+        device_io_request: DeviceIoRequestDeprecated,
         payload: &mut Payload,
     ) -> RdpResult<Messages> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L268
@@ -788,7 +863,7 @@ impl Client {
 
     fn process_irp_write(
         &mut self,
-        device_io_request: DeviceIoRequest,
+        device_io_request: DeviceIoRequestDeprecated,
         payload: &mut Payload,
     ) -> RdpResult<Messages> {
         let rdp_req = DeviceWriteRequest::decode(device_io_request, payload)?;
@@ -798,7 +873,7 @@ impl Client {
 
     fn process_irp_set_information(
         &mut self,
-        device_io_request: DeviceIoRequest,
+        device_io_request: DeviceIoRequestDeprecated,
         payload: &mut Payload,
     ) -> RdpResult<Messages> {
         let rdp_req = ServerDriveSetInformationRequest::decode(device_io_request, payload)?;
@@ -1096,7 +1171,7 @@ impl Client {
 
     fn prep_drive_query_dir_response(
         &self,
-        device_io_request: &DeviceIoRequest,
+        device_io_request: &DeviceIoRequestDeprecated,
         io_status: NTSTATUS,
         buffer: Option<FileInformationClass>,
     ) -> RdpResult<Messages> {
@@ -1194,7 +1269,7 @@ impl Client {
 
     fn prep_query_vol_info_response(
         &self,
-        device_io_request: &DeviceIoRequest,
+        device_io_request: &DeviceIoRequestDeprecated,
         io_status: NTSTATUS,
         buffer: Option<FileSystemInformationClass>,
     ) -> RdpResult<Messages> {
@@ -1221,7 +1296,7 @@ impl Client {
 
     fn prep_write_response(
         &self,
-        req: DeviceIoRequest,
+        req: DeviceIoRequestDeprecated,
         io_status: NTSTATUS,
         length: u32,
     ) -> RdpResult<Messages> {
@@ -2161,21 +2236,21 @@ impl Encode for ClientNameRequest {
 /// 2.2.1.4 Device I/O Request (DR_DEVICE_IOREQUEST)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d
 #[derive(Debug, Clone)]
-pub struct DeviceIoRequest {
+pub struct DeviceIoRequestDeprecated {
     pub device_id: u32,
     file_id: u32,
     pub completion_id: u32,
-    major_function: MajorFunction,
+    major_function: MajorFunctionDeprecated,
     minor_function: MinorFunction,
 }
 
-impl DeviceIoRequest {
+impl DeviceIoRequestDeprecated {
     #[cfg(test)]
     fn new(
         device_id: u32,
         file_id: u32,
         completion_id: u32,
-        major_function: MajorFunction,
+        major_function: MajorFunctionDeprecated,
         minor_function: MinorFunction,
     ) -> Self {
         Self {
@@ -2192,11 +2267,12 @@ impl DeviceIoRequest {
         let file_id = payload.read_u32::<LittleEndian>()?;
         let completion_id = payload.read_u32::<LittleEndian>()?;
         let major_function = payload.read_u32::<LittleEndian>()?;
-        let major_function = MajorFunction::from_u32(major_function).ok_or_else(|| {
-            invalid_data_error(&format!(
-                "invalid major function value {major_function:#010x}"
-            ))
-        })?;
+        let major_function =
+            MajorFunctionDeprecated::from_u32(major_function).ok_or_else(|| {
+                invalid_data_error(&format!(
+                    "invalid major function value {major_function:#010x}"
+                ))
+            })?;
         let minor_function = payload.read_u32::<LittleEndian>()?;
         // From the spec (2.2.1.4 Device I/O Request (DR_DEVICE_IOREQUEST)):
         // "This field [MinorFunction] is valid only when the MajorFunction field
@@ -2205,7 +2281,8 @@ impl DeviceIoRequest {
         //
         // SHOULD means implementations are not guaranteed to give us 0x00000000,
         // so handle that possibility here.
-        let minor_function = if major_function == MajorFunction::IRP_MJ_DIRECTORY_CONTROL {
+        let minor_function = if major_function == MajorFunctionDeprecated::IRP_MJ_DIRECTORY_CONTROL
+        {
             minor_function
         } else {
             0x00000000
@@ -2226,7 +2303,7 @@ impl DeviceIoRequest {
     }
 }
 
-impl Encode for DeviceIoRequest {
+impl Encode for DeviceIoRequestDeprecated {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.device_id)?;
@@ -2242,17 +2319,17 @@ impl Encode for DeviceIoRequest {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/30662c80-ec6e-4ed1-9004-2e6e367bb59f
 #[derive(Debug)]
 #[allow(dead_code)]
-struct DeviceControlRequest {
-    header: DeviceIoRequest,
+struct DeviceControlRequestDeprecated {
+    header: DeviceIoRequestDeprecated,
     output_buffer_length: u32,
     input_buffer_length: u32,
     io_control_code: IoctlCode,
 }
 
-impl DeviceControlRequest {
+impl DeviceControlRequestDeprecated {
     #[cfg(test)]
     fn new(
-        header: DeviceIoRequest,
+        header: DeviceIoRequestDeprecated,
         output_buffer_length: u32,
         input_buffer_length: u32,
         io_control_code: IoctlCode,
@@ -2265,7 +2342,7 @@ impl DeviceControlRequest {
         }
     }
 
-    fn decode(header: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(header: DeviceIoRequestDeprecated, payload: &mut Payload) -> RdpResult<Self> {
         let output_buffer_length = payload.read_u32::<LittleEndian>()?;
         let input_buffer_length = payload.read_u32::<LittleEndian>()?;
         let io_control_code = payload.read_u32::<LittleEndian>()?;
@@ -2284,7 +2361,7 @@ impl DeviceControlRequest {
     }
 }
 
-impl Encode for DeviceControlRequest {
+impl Encode for DeviceControlRequestDeprecated {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = self.header.encode()?;
         w.write_u32::<LittleEndian>(self.output_buffer_length)?;
@@ -2300,14 +2377,14 @@ impl Encode for DeviceControlRequest {
 /// 2.2.1.5 Device I/O Response (DR_DEVICE_IOCOMPLETION)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/1c412a84-0776-4984-b35c-3f0445fcae65
 #[derive(Debug)]
-struct DeviceIoResponse {
+struct DeviceIoResponseDeprecated {
     device_id: u32,
     completion_id: u32,
     io_status: NTSTATUS,
 }
 
-impl DeviceIoResponse {
-    fn new(req: &DeviceIoRequest, io_status: NTSTATUS) -> Self {
+impl DeviceIoResponseDeprecated {
+    fn new(req: &DeviceIoRequestDeprecated, io_status: NTSTATUS) -> Self {
         Self {
             device_id: req.device_id,
             completion_id: req.completion_id,
@@ -2325,21 +2402,25 @@ impl DeviceIoResponse {
 }
 
 #[derive(Debug)]
-struct DeviceControlResponse {
-    header: DeviceIoResponse,
+struct DeviceControlResponseDeprecated {
+    header: DeviceIoResponseDeprecated,
     output_buffer: Box<dyn Encode>,
 }
 
-impl DeviceControlResponse {
-    fn new(req: &DeviceControlRequest, io_status: NTSTATUS, output: Box<dyn Encode>) -> Self {
+impl DeviceControlResponseDeprecated {
+    fn new(
+        req: &DeviceControlRequestDeprecated,
+        io_status: NTSTATUS,
+        output: Box<dyn Encode>,
+    ) -> Self {
         Self {
-            header: DeviceIoResponse::new(&req.header, io_status),
+            header: DeviceIoResponseDeprecated::new(&req.header, io_status),
             output_buffer: output,
         }
     }
 }
 
-impl Encode for DeviceControlResponse {
+impl Encode for DeviceControlResponseDeprecated {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.extend_from_slice(&self.header.encode()?);
@@ -2360,7 +2441,7 @@ pub type ServerCreateDriveRequest = DeviceCreateRequest;
 #[allow(dead_code)]
 pub struct DeviceCreateRequest {
     /// The MajorFunction field in this header MUST be set to IRP_MJ_CREATE.
-    pub device_io_request: DeviceIoRequest,
+    pub device_io_request: DeviceIoRequestDeprecated,
     desired_access: flags::DesiredAccess,
     allocation_size: u64,
     file_attributes: flags::FileAttributes,
@@ -2372,7 +2453,10 @@ pub struct DeviceCreateRequest {
 }
 
 impl DeviceCreateRequest {
-    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(
+        device_io_request: DeviceIoRequestDeprecated,
+        payload: &mut Payload,
+    ) -> RdpResult<Self> {
         debug!("In DeviceCreateRequest decode");
         let invalid_flags = |flag_name: &str, v: u32| {
             invalid_data_error(&format!(
@@ -2424,7 +2508,7 @@ impl DeviceCreateRequest {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/99e5fca5-b37a-41e4-bc69-8d7da7860f76
 #[derive(Debug)]
 struct DeviceCreateResponse {
-    device_io_reply: DeviceIoResponse,
+    device_io_reply: DeviceIoResponseDeprecated,
     file_id: u32,
     /// The values of the CreateDisposition field in the Device Create Request (section 2.2.1.4.1) that determine the value
     /// of the Information field are associated as follows:
@@ -2471,7 +2555,7 @@ impl DeviceCreateResponse {
         }
 
         Self {
-            device_io_reply: DeviceIoResponse::new(device_io_request, io_status),
+            device_io_reply: DeviceIoResponseDeprecated::new(device_io_request, io_status),
             file_id,
             information,
         }
@@ -2491,7 +2575,7 @@ impl DeviceCreateResponse {
 #[derive(Debug)]
 struct ServerDriveQueryInformationRequest {
     /// A DR_DEVICE_IOREQUEST (section 2.2.1.4) header. The MajorFunction field in the DR_DEVICE_IOREQUEST header MUST be set to IRP_MJ_QUERY_INFORMATION.
-    device_io_request: DeviceIoRequest,
+    device_io_request: DeviceIoRequestDeprecated,
     /// A 32-bit unsigned integer.
     /// This field MUST contain one of the following values:
     /// FileBasicInformation
@@ -2517,7 +2601,10 @@ struct ServerDriveQueryInformationRequest {
 }
 
 impl ServerDriveQueryInformationRequest {
-    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(
+        device_io_request: DeviceIoRequestDeprecated,
+        payload: &mut Payload,
+    ) -> RdpResult<Self> {
         let n = payload.read_u32::<LittleEndian>()?;
         if let Some(file_info_class_lvl) = FileInformationClassLevel::from_u32(n) {
             return Ok(Self {
@@ -3459,7 +3546,7 @@ impl FileFsDeviceInformation {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/37ef4fb1-6a95-4200-9fbf-515464f034a4
 #[derive(Debug)]
 struct ClientDriveQueryInformationResponse {
-    device_io_response: DeviceIoResponse,
+    device_io_response: DeviceIoResponseDeprecated,
     length: Option<u32>,
     buffer: Option<FileInformationClass>,
 }
@@ -3475,7 +3562,10 @@ impl ClientDriveQueryInformationResponse {
         // device_io_response and don't need to create/encode the rest.
         if io_status == NTSTATUS::STATUS_UNSUCCESSFUL {
             return Ok(Self {
-                device_io_response: DeviceIoResponse::new(&req.device_io_request, io_status),
+                device_io_response: DeviceIoResponseDeprecated::new(
+                    &req.device_io_request,
+                    io_status,
+                ),
                 length: None,
                 buffer: None,
             });
@@ -3543,7 +3633,10 @@ impl ClientDriveQueryInformationResponse {
             };
 
             Ok(Self {
-                device_io_response: DeviceIoResponse::new(&req.device_io_request, io_status),
+                device_io_response: DeviceIoResponseDeprecated::new(
+                    &req.device_io_request,
+                    io_status,
+                ),
                 length,
                 buffer,
             })
@@ -3571,12 +3664,12 @@ impl ClientDriveQueryInformationResponse {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3ec6627f-9e0f-4941-a828-3fc6ed63d9e7
 #[derive(Debug)]
 struct DeviceCloseRequest {
-    device_io_request: DeviceIoRequest,
+    device_io_request: DeviceIoRequestDeprecated,
     // Padding (32 bytes):  An array of 32 bytes. Reserved. This field can be set to any value, and MUST be ignored.
 }
 
 impl DeviceCloseRequest {
-    fn decode(device_io_request: DeviceIoRequest) -> Self {
+    fn decode(device_io_request: DeviceIoRequestDeprecated) -> Self {
         Self { device_io_request }
     }
 }
@@ -3586,14 +3679,14 @@ impl DeviceCloseRequest {
 #[derive(Debug)]
 struct DeviceCloseResponse {
     /// The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4) message that had the MajorFunction field set to IRP_MJ_CLOSE.
-    device_io_response: DeviceIoResponse,
+    device_io_response: DeviceIoResponseDeprecated,
     /// This field can be set to any value and MUST be ignored.
     padding: u32,
 }
 impl DeviceCloseResponse {
     fn new(device_close_request: DeviceCloseRequest, io_status: NTSTATUS) -> Self {
         Self {
-            device_io_response: DeviceIoResponse::new(
+            device_io_response: DeviceIoResponseDeprecated::new(
                 &device_close_request.device_io_request,
                 io_status,
             ),
@@ -3616,7 +3709,7 @@ impl DeviceCloseResponse {
 struct ServerDriveNotifyChangeDirectoryRequest {
     /// The MajorFunction field in the DR_DEVICE_IOREQUEST header MUST be set to IRP_MJ_DIRECTORY_CONTROL,
     /// and the MinorFunction field MUST be set to IRP_MN_NOTIFY_CHANGE_DIRECTORY.
-    device_io_request: DeviceIoRequest,
+    device_io_request: DeviceIoRequestDeprecated,
     /// If nonzero, a change anywhere within the tree MUST trigger the notification response; otherwise, only a change in the root directory will do so.
     watch_tree: u8,
     completion_filter: flags::CompletionFilter,
@@ -3625,7 +3718,10 @@ struct ServerDriveNotifyChangeDirectoryRequest {
 
 #[allow(dead_code)]
 impl ServerDriveNotifyChangeDirectoryRequest {
-    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(
+        device_io_request: DeviceIoRequestDeprecated,
+        payload: &mut Payload,
+    ) -> RdpResult<Self> {
         let invalid_flags =
             || invalid_data_error("invalid flags in Server Drive NotifyChange Directory Request");
 
@@ -3647,7 +3743,7 @@ impl ServerDriveNotifyChangeDirectoryRequest {
 #[derive(Debug, Clone)]
 pub struct DeviceReadRequest {
     /// The MajorFunction field in this header MUST be set to IRP_MJ_READ.
-    pub device_io_request: DeviceIoRequest,
+    pub device_io_request: DeviceIoRequestDeprecated,
     /// This field specifies the maximum number of bytes to be read from the device.
     pub length: u32,
     /// This field specifies the file offset where the read operation is performed.
@@ -3656,7 +3752,10 @@ pub struct DeviceReadRequest {
 }
 
 impl DeviceReadRequest {
-    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(
+        device_io_request: DeviceIoRequestDeprecated,
+        payload: &mut Payload,
+    ) -> RdpResult<Self> {
         Ok(Self {
             device_io_request,
             length: payload.read_u32::<LittleEndian>()?,
@@ -3669,7 +3768,7 @@ impl DeviceReadRequest {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/d35d3f91-fc5b-492b-80be-47f483ad1dc9
 struct DeviceReadResponse {
     /// The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4) message that had the MajorFunction field set to IRP_MJ_READ.
-    device_io_reply: DeviceIoResponse,
+    device_io_reply: DeviceIoResponseDeprecated,
     /// Specifies the number of bytes in the ReadData field.
     length: u32,
     /// A variable-length array of bytes that specifies the output data from the read request.
@@ -3695,7 +3794,7 @@ impl DeviceReadResponse {
         let device_io_request = &device_read_request.device_io_request;
 
         Self {
-            device_io_reply: DeviceIoResponse::new(device_io_request, io_status),
+            device_io_reply: DeviceIoResponseDeprecated::new(device_io_request, io_status),
             length: u32::try_from(read_data.len()).unwrap(),
             read_data,
         }
@@ -3715,7 +3814,7 @@ impl DeviceReadResponse {
 #[derive(Clone)]
 pub struct DeviceWriteRequest {
     /// The MajorFunction field in this header MUST be set to IRP_MJ_WRITE.
-    pub device_io_request: DeviceIoRequest,
+    pub device_io_request: DeviceIoRequestDeprecated,
     /// Number of bytes in the write_data field.
     pub length: u32,
     /// File offset at which the data must be written.
@@ -3736,7 +3835,10 @@ impl std::fmt::Debug for DeviceWriteRequest {
 }
 
 impl DeviceWriteRequest {
-    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(
+        device_io_request: DeviceIoRequestDeprecated,
+        payload: &mut Payload,
+    ) -> RdpResult<Self> {
         let length = payload.read_u32::<LittleEndian>()?;
         let offset = payload.read_u64::<LittleEndian>()?;
 
@@ -3761,15 +3863,19 @@ impl DeviceWriteRequest {
 #[derive(Debug)]
 pub struct DeviceWriteResponse {
     /// The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4) message that had the MajorFunction field set to IRP_MJ_WRITE.
-    device_io_reply: DeviceIoResponse,
+    device_io_reply: DeviceIoResponseDeprecated,
     /// Number of bytes written in response to the write request.
     length: u32,
 }
 
 impl DeviceWriteResponse {
-    fn new(device_io_request: &DeviceIoRequest, io_status: NTSTATUS, length: u32) -> Self {
+    fn new(
+        device_io_request: &DeviceIoRequestDeprecated,
+        io_status: NTSTATUS,
+        length: u32,
+    ) -> Self {
         Self {
-            device_io_reply: DeviceIoResponse::new(device_io_request, io_status),
+            device_io_reply: DeviceIoResponseDeprecated::new(device_io_request, io_status),
             length,
         }
     }
@@ -3788,7 +3894,7 @@ impl DeviceWriteResponse {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/16b893d5-5d8b-49d1-8dcb-ee21e7612970
 #[derive(Debug)]
 struct ClientDriveSetInformationResponse {
-    device_io_reply: DeviceIoResponse,
+    device_io_reply: DeviceIoResponseDeprecated,
     /// This field MUST be equal to the Length field in the Server Drive Set Information Request (section 2.2.3.3.9).
     length: u32,
 }
@@ -3796,7 +3902,7 @@ struct ClientDriveSetInformationResponse {
 impl ClientDriveSetInformationResponse {
     fn new(req: &ServerDriveSetInformationRequest, io_status: NTSTATUS) -> Self {
         Self {
-            device_io_reply: DeviceIoResponse::new(&req.device_io_request, io_status),
+            device_io_reply: DeviceIoResponseDeprecated::new(&req.device_io_request, io_status),
             length: req.set_buffer.size(),
         }
     }
@@ -3816,13 +3922,16 @@ impl ClientDriveSetInformationResponse {
 #[derive(Debug, Clone)]
 struct ServerDriveSetInformationRequest {
     /// The MajorFunction field in the DR_DEVICE_IOREQUEST header MUST be set to IRP_MJ_SET_INFORMATION.
-    device_io_request: DeviceIoRequest,
+    device_io_request: DeviceIoRequestDeprecated,
     file_information_class_level: FileInformationClassLevel,
     set_buffer: FileInformationClass,
 }
 
 impl ServerDriveSetInformationRequest {
-    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(
+        device_io_request: DeviceIoRequestDeprecated,
+        payload: &mut Payload,
+    ) -> RdpResult<Self> {
         let file_information_class_level =
             FileInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
                 .ok_or_else(|| invalid_data_error("failed to read FileInformationClassLevel"))?;
@@ -3864,7 +3973,7 @@ impl ServerDriveSetInformationRequest {
 struct ServerDriveQueryDirectoryRequest {
     /// The MajorFunction field in the DR_DEVICE_IOREQUEST header MUST be set to IRP_MJ_DIRECTORY_CONTROL,
     /// and the MinorFunction field MUST be set to IRP_MN_QUERY_DIRECTORY.
-    device_io_request: DeviceIoRequest,
+    device_io_request: DeviceIoRequestDeprecated,
     /// Must contain one of FileDirectoryInformation, FileFullDirectoryInformation, FileBothDirectoryInformation, FileNamesInformation
     file_info_class_lvl: FileInformationClassLevel,
     /// If the value of this field is zero, the request is for the next file in the directory that was specified in a previous
@@ -3883,7 +3992,10 @@ struct ServerDriveQueryDirectoryRequest {
 }
 
 impl ServerDriveQueryDirectoryRequest {
-    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(
+        device_io_request: DeviceIoRequestDeprecated,
+        payload: &mut Payload,
+    ) -> RdpResult<Self> {
         let file_info_class_lvl =
             FileInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
                 .ok_or_else(|| invalid_data_error("failed to read FileInformationClassLevel"))?;
@@ -3934,7 +4046,7 @@ impl ServerDriveQueryDirectoryRequest {
 struct ClientDriveQueryDirectoryResponse {
     /// The CompletionId field of the DR_DEVICE_IOCOMPLETION header MUST match a Device I/O Request (section 2.2.1.4) that
     /// has the MajorFunction field set to IRP_MJ_DIRECTORY_CONTROL and the MinorFunction field set to IRP_MN_QUERY_DIRECTORY.
-    device_io_reply: DeviceIoResponse,
+    device_io_reply: DeviceIoResponseDeprecated,
     /// Specifies the number of bytes in the Buffer field.
     length: u32,
     /// The content of this field is based on the value of the FileInformationClass field in the Server Drive Query Directory Request
@@ -3945,7 +4057,7 @@ struct ClientDriveQueryDirectoryResponse {
 
 impl ClientDriveQueryDirectoryResponse {
     fn new(
-        device_io_request: &DeviceIoRequest,
+        device_io_request: &DeviceIoRequestDeprecated,
         io_status: NTSTATUS,
         buffer: Option<FileInformationClass>,
     ) -> RdpResult<Self> {
@@ -3997,7 +4109,7 @@ impl ClientDriveQueryDirectoryResponse {
         };
 
         Ok(Self {
-            device_io_reply: DeviceIoResponse::new(device_io_request, io_status),
+            device_io_reply: DeviceIoResponseDeprecated::new(device_io_request, io_status),
             length,
             buffer,
         })
@@ -4027,12 +4139,15 @@ impl ClientDriveQueryDirectoryResponse {
 /// https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L464
 #[derive(Debug)]
 struct ServerDriveQueryVolumeInformationRequest {
-    device_io_request: DeviceIoRequest,
+    device_io_request: DeviceIoRequestDeprecated,
     fs_info_class_lvl: FileSystemInformationClassLevel,
 }
 
 impl ServerDriveQueryVolumeInformationRequest {
-    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(
+        device_io_request: DeviceIoRequestDeprecated,
+        payload: &mut Payload,
+    ) -> RdpResult<Self> {
         let fs_info_class_lvl =
             FileSystemInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
                 .ok_or_else(|| {
@@ -4065,7 +4180,7 @@ impl ServerDriveQueryVolumeInformationRequest {
 /// 2.2.3.4.6 Client Drive Query Volume Information Response
 #[derive(Debug)]
 struct ClientDriveQueryVolumeInformationResponse {
-    device_io_reply: DeviceIoResponse,
+    device_io_reply: DeviceIoResponseDeprecated,
     /// Specifies the number of bytes in the Buffer field.
     length: u32,
     /// The content of this field is based on the value of the FileInformationClass field in the Server Drive Query Volume Information Request message,
@@ -4075,7 +4190,7 @@ struct ClientDriveQueryVolumeInformationResponse {
 
 impl ClientDriveQueryVolumeInformationResponse {
     fn new(
-        device_io_request: &DeviceIoRequest,
+        device_io_request: &DeviceIoRequestDeprecated,
         io_status: NTSTATUS,
         buffer: Option<FileSystemInformationClass>,
     ) -> RdpResult<Self> {
@@ -4115,7 +4230,7 @@ impl ClientDriveQueryVolumeInformationResponse {
         };
 
         Ok(Self {
-            device_io_reply: DeviceIoResponse::new(device_io_request, io_status),
+            device_io_reply: DeviceIoResponseDeprecated::new(device_io_request, io_status),
             length,
             buffer,
         })
