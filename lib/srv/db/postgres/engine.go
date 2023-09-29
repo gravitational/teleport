@@ -418,8 +418,11 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 	copyReader, copyWriter := io.Pipe()
 	defer copyWriter.Close()
 
+	closeChan := make(chan struct{})
+
 	go func() {
 		defer copyReader.Close()
+		defer close(closeChan)
 
 		// server will never be used to write to server,
 		// which is why we pass io.Discard instead of e.rawServerConn
@@ -454,6 +457,8 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 	if err != nil && !trace.IsConnectionProblem(trace.ConvertSystemError(err)) {
 		log.WithError(err).Warn("Server -> Client copy finished with unexpected error.")
 	}
+
+	<-closeChan
 
 	serverErrCh <- trace.Wrap(err)
 	log.Debugf("Stopped receiving from server. Transferred %v bytes.", total)
