@@ -124,21 +124,23 @@ function getIndicatorStatus(
   if (isAgentConfiguredAttempt.status === 'error') {
     return 'error';
   }
+  const isAgentConfigured =
+    isAgentConfiguredAttempt.status === 'success' &&
+    isAgentConfiguredAttempt.data;
+
+  // Returning 'not-configured' early means that the indicator won't be shown until the user
+  // completes the setup.
+  //
+  // This is fine, as the setup has multiple steps but not all come from the context (and thus are
+  // not ever assigned to currentAction). This means that if the indicator was shown during the
+  // setup, it would not work reliably, as it would not reflect the progress of certain steps.
+  if (!isAgentConfigured) {
+    return 'not-configured';
+  }
 
   if (currentAction.kind === 'observe-process') {
     switch (currentAction.agentProcessState.status) {
       case 'not-started': {
-        const isAgentConfigured =
-          isAgentConfiguredAttempt.status === 'success' &&
-          isAgentConfiguredAttempt.data;
-
-        // Before returning 'not-configured', we have to first inspect currentAction. If we didn't
-        // do that, then during setup the indicator status would be 'not-configured' all the way
-        // until the end.
-        if (!isAgentConfigured) {
-          return 'not-configured';
-        }
-
         return '';
       }
       case 'error': {
