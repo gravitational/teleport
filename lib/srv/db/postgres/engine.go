@@ -133,7 +133,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 	defer func() {
-		err := e.teardownUser(ctx, sessionCtx)
+		err := e.GetUserProvisioner(e).Teardown(ctx, sessionCtx)
 		if err != nil {
 			e.Log.WithError(err).Error("Failed to teardown auto user.")
 		}
@@ -572,22 +572,6 @@ func (e *Engine) handleCancelRequest(ctx context.Context, sessionCtx *common.Ses
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// teardownUser chooses and call the auto provisioner method used to drop
-// auto-users.
-func (e *Engine) teardownUser(ctx context.Context, sessionCtx *common.Session) error {
-	var err error
-	p := e.GetUserProvisioner(e)
-
-	switch sessionCtx.AutoCreateUserMode {
-	case types.CreateDatabaseUserMode_DB_USER_MODE_KEEP:
-		err = p.Deactivate(ctx, sessionCtx)
-	case types.CreateDatabaseUserMode_DB_USER_MODE_PREFER_DROP:
-		err = p.Delete(ctx, sessionCtx)
-	}
-
-	return trace.Wrap(err)
 }
 
 // startPGWireTLS is a helper func that upgrades upstream connection to TLS.

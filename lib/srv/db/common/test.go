@@ -75,7 +75,6 @@ func (cfg *TestServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.Users == nil {
-		cfg.Users = make([]string, 0)
 		cfg.AllowAnyUser = true
 	}
 

@@ -96,9 +96,9 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 	defer func() {
-		err := e.GetUserProvisioner(e).Deactivate(ctx, sessionCtx)
+		err := e.GetUserProvisioner(e).Teardown(ctx, sessionCtx)
 		if err != nil {
-			e.Log.WithError(err).Error("Failed to deactivate the user.")
+			e.Log.WithError(err).Error("Failed to teardown the user.")
 		}
 	}()
 

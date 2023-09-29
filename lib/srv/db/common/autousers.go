@@ -99,12 +99,22 @@ func (a *UserProvisioner) Activate(ctx context.Context, sessionCtx *Session) (fu
 	return release, nil
 }
 
-// Deactivate disables a database user.
-func (a *UserProvisioner) Deactivate(ctx context.Context, sessionCtx *Session) error {
-	if !sessionCtx.AutoCreateUserMode.IsEnabled() {
-		return nil
+// Teardown chooses and call the auto provisioner method used to cleanup a
+// database user.
+func (a *UserProvisioner) Teardown(ctx context.Context, sessionCtx *Session) error {
+	var err error
+	switch sessionCtx.AutoCreateUserMode {
+	case types.CreateDatabaseUserMode_DB_USER_MODE_KEEP:
+		err = a.deactivate(ctx, sessionCtx)
+	case types.CreateDatabaseUserMode_DB_USER_MODE_PREFER_DROP:
+		err = a.delete(ctx, sessionCtx)
 	}
 
+	return trace.Wrap(err)
+}
+
+// deactivate disables a database user.
+func (a *UserProvisioner) deactivate(ctx context.Context, sessionCtx *Session) error {
 	// Observe.
 	defer methodCallMetrics("UserProvisioner:Deactivate", teleport.ComponentDatabase, sessionCtx.Database)()
 
@@ -131,11 +141,10 @@ func (a *UserProvisioner) Deactivate(ctx context.Context, sessionCtx *Session) e
 	return nil
 }
 
-// Delete deletes a database user.
-func (a *UserProvisioner) Delete(ctx context.Context, sessionCtx *Session) error {
-	if !sessionCtx.AutoCreateUserMode.IsEnabled() {
-		return nil
-	}
+// delete deletes a database user.
+func (a *UserProvisioner) delete(ctx context.Context, sessionCtx *Session) error {
+	// Observe.
+	defer methodCallMetrics("UserProvisioner:Delete", teleport.ComponentDatabase, sessionCtx.Database)()
 
 	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
 	defer cancel()

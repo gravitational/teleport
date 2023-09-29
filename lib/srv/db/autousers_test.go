@@ -46,8 +46,11 @@ func TestAutoUsersPostgres(t *testing.T) {
 			expectConnectionErr: false,
 		},
 		"disabled": {
-			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
-			databaseRoles:       []string{"reader", "writer"},
+			mode:          types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
+			databaseRoles: []string{"reader", "writer"},
+			// Given the "alice" user is not present on the database and
+			// Teleport won't create it, this should fail with an access denied
+			// error.
 			expectConnectionErr: true,
 		},
 	} {
