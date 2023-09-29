@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   Alert,
   Box,
@@ -82,6 +82,13 @@ export function DocumentConnectMyComputerStatus(
   const isAgentIncompatible = agentCompatibility === 'incompatible';
   const isAgentIncompatibleOrUnknown =
     agentCompatibility === 'incompatible' || agentCompatibility === 'unknown';
+  const downloadAndStartAgentAndIgnoreErrors = useCallback(async () => {
+    try {
+      await downloadAndStartAgent();
+    } catch (error) {
+      // Ignore the error, it'll be shown in the UI by inspecting the attempts.
+    }
+  }, [downloadAndStartAgent]);
 
   const prettyCurrentAction = prettifyCurrentAction(currentAction);
 
@@ -222,7 +229,9 @@ export function DocumentConnectMyComputerStatus(
           >
             {state => (
               <LabelsContainer gap={1} className={state}>
-                {renderLabels(agentNode.labelsList)}
+                {/* Explicitly check for existence of agentNode because Transition doesn't seem to
+                unmount immediately when `in` becomes falsy. */}
+                {agentNode?.labelsList && renderLabels(agentNode.labelsList)}
               </LabelsContainer>
             )}
           </Transition>
@@ -298,7 +307,7 @@ export function DocumentConnectMyComputerStatus(
                 <ButtonPrimary
                   block
                   disabled={disableStartAgentButton}
-                  onClick={downloadAndStartAgent}
+                  onClick={downloadAndStartAgentAndIgnoreErrors}
                   size="large"
                   data-testid="start-agent"
                 >
