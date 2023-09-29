@@ -4285,7 +4285,7 @@ func TestCheckDatabaseRoles(t *testing.T) {
 
 			create, roles, err := accessChecker.CheckDatabaseRoles(database)
 			require.NoError(t, err)
-			require.Equal(t, test.outCreateUser, IsCreateDatabaseUserEnabled(create))
+			require.Equal(t, test.outCreateUser, create.IsEnabled())
 			require.Equal(t, test.outRoles, roles)
 		})
 	}

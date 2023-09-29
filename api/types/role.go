@@ -2008,3 +2008,8 @@ func (h *CreateDatabaseUserMode) UnmarshalJSON(data []byte) error {
 	err = h.decode(val)
 	return trace.Wrap(err)
 }
+
+// IsEnabled returns true if database automatic user provisioning is enabled.
+func (m CreateDatabaseUserMode) IsEnabled() bool {
+	return m != CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED && m != CreateDatabaseUserMode_DB_USER_MODE_OFF
+}

@@ -3053,12 +3053,6 @@ func (set RoleSet) GetCreateDatabaseUserMode() types.CreateDatabaseUserMode {
 	return mode
 }
 
-// IsCreateDatabaseUserEnabled returns true if database automatic user
-// provisioning is enabled.
-func IsCreateDatabaseUserEnabled(mode types.CreateDatabaseUserMode) bool {
-	return mode != types.CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED && mode != types.CreateDatabaseUserMode_DB_USER_MODE_OFF
-}
-
 // AccessState holds state for the present access attempt, including both
 // cluster settings and user state (MFA, device trust, etc).
 type AccessState struct {

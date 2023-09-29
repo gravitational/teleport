@@ -51,7 +51,7 @@ type UserProvisioner struct {
 // database has been established to release the cluster lock acquired by this
 // function to make sure no 2 processes run user activation simultaneously.
 func (a *UserProvisioner) Activate(ctx context.Context, sessionCtx *Session) (func(), error) {
-	if !services.IsCreateDatabaseUserEnabled(sessionCtx.AutoCreateUserMode) {
+	if !sessionCtx.AutoCreateUserMode.IsEnabled() {
 		return func() {}, nil
 	}
 
@@ -101,7 +101,7 @@ func (a *UserProvisioner) Activate(ctx context.Context, sessionCtx *Session) (fu
 
 // Deactivate disables a database user.
 func (a *UserProvisioner) Deactivate(ctx context.Context, sessionCtx *Session) error {
-	if !services.IsCreateDatabaseUserEnabled(sessionCtx.AutoCreateUserMode) {
+	if !sessionCtx.AutoCreateUserMode.IsEnabled() {
 		return nil
 	}
 
@@ -133,7 +133,7 @@ func (a *UserProvisioner) Deactivate(ctx context.Context, sessionCtx *Session) e
 
 // Delete deletes a database user.
 func (a *UserProvisioner) Delete(ctx context.Context, sessionCtx *Session) error {
-	if !services.IsCreateDatabaseUserEnabled(sessionCtx.AutoCreateUserMode) {
+	if !sessionCtx.AutoCreateUserMode.IsEnabled() {
 		return nil
 	}
 
