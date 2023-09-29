@@ -47,16 +47,6 @@ func GetOrCreateRegistryKey(name string) (registry.Key, error) {
 	return reg, nil
 }
 
-// DeleteValueFromRegistryKey deletes a named value from the passed registry key
-func DeleteValueFromRegistryKey(k registry.Key, path string) error {
-	err := k.DeleteValue(path)
-	if err != nil {
-		log.Debugf("Couldn't delete value path %v from key %v: %v", path, k, err)
-		return err
-	}
-	return nil
-}
-
 // WriteDword writes a DWORD value to the given registry key handle
 func WriteDword(k registry.Key, name string, value string) error {
 	dwordValue, err := strconv.ParseUint(value, 10, 32)

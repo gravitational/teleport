@@ -257,26 +257,31 @@ func CheckAndSplitValidityKey(input string, caName string) ([]string, error) {
 
 	// if the total number of hostnames and tokens doesn't equal an odd number, we can return an error early as the string is invalid
 	if len(splitTokens)%2 != 1 {
-		return nil, trace.BadParameter("validity string for %v contains non-odd [%d] number of entries, see %v", caName, len(splitTokens), docsURL)
+		return nil, trace.BadParameter("validity string for %v contains an even [%d] number of entries but should be odd, see %v",
+			caName, len(splitTokens), docsURL)
 	}
 	for index, token := range splitTokens {
 		// check that every odd value in the string (zero-indexed) is equal to the OR splitter "||" and return an error if not
 		if index%2 == 1 {
 			if token != "||" {
-				return nil, trace.BadParameter("validity string for %v contains invalid splitter token %q in field %d, see %v", caName, token, index, docsURL)
+				return nil, trace.BadParameter("validity string for %v contains invalid splitter token %q in field %d, see %v",
+					caName, token, index, docsURL)
 			}
 		} else {
 			// if the || delimiter is in a non-odd position, return an error
 			if token == "||" {
-				return nil, trace.BadParameter("validity string for %v contains consecutive splitter tokens with no hostname in field %d, see %v", caName, index, docsURL)
+				return nil, trace.BadParameter("validity string for %v contains consecutive splitter tokens with no hostname in field %d, see %v",
+					caName, index, docsURL)
 			}
 			// if the string contains any value which is not part of a hostname, return an error
 			if badIndex := strings.IndexAny(token, "()&!:|"); badIndex != -1 {
-				return nil, trace.BadParameter("validity string for %v contains an invalid character %q in field %v, see %v", caName, token[badIndex], index, docsURL)
+				return nil, trace.BadParameter("validity string for %v contains an invalid character %q in field %v, see %v",
+					caName, token[badIndex], index, docsURL)
 			}
 			// check the token using the naive hostname regex and return an error if it doesn't match
 			if !hostnameIsWildcard(token) && !NaivelyValidateHostname(token) {
-				return nil, trace.BadParameter("validity string for %v appears to contain non-hostname %q in field %v, see %v", caName, token, index, docsURL)
+				return nil, trace.BadParameter("validity string for %v appears to contain non-hostname %q in field %v, see %v",
+					caName, token, index, docsURL)
 			}
 			output = append(output, token)
 		}
