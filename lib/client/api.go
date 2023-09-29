@@ -4173,7 +4173,7 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 		}
 
 		// Recent `tsh mfa` changes require at least Teleport v15.
-		const minServerVersion = "15.0.0"
+		const minServerVersion = "15.0.0-aa" // "-aa" matches all development versions
 		if !utils.MeetsVersion(pr.ServerVersion, minServerVersion) {
 			fmt.Fprintf(tc.Stderr, `
 			WARNING
