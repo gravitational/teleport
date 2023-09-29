@@ -12,9 +12,6 @@ crate-type = ["cdylib"]
 bytes = "1.4.0"
 byteorder = "1.4.3"
 getrandom = { version = "0.2", features = ["js"] }
-ironrdp-session = { git = "https://github.com/Devolutions/IronRDP/", rev = "4844e77b7f65024d85ba74b1824013eda6eb32b2" }
-ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP/", rev = "4844e77b7f65024d85ba74b1824013eda6eb32b2" }
-ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP/", rev = "4844e77b7f65024d85ba74b1824013eda6eb32b2" }
 js-sys = "0.3.61"
 log = "0.4.17"
 console_log = "0.2.2"
@@ -26,3 +23,12 @@ tracing-subscriber = { version = "0.3.16", features = ["time"] }
 tracing-web = "0.1.2"
 time = { version = "0.3", features = ["wasm-bindgen"] }
 console_error_panic_hook = "0.1.7"
+
+ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "fe1567c887bfebfb546d86903c3b878c90d3867e" }
+ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "fe1567c887bfebfb546d86903c3b878c90d3867e" }
+ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP", rev = "fe1567c887bfebfb546d86903c3b878c90d3867e" }
+
+# Uncomment the following lines and comment out the ones above to use local crates instead of the ones from github
+# ironrdp-session = { path = "/path/to/your/local/IronRDP/crates/ironrdp-session" }
+# ironrdp-pdu = { path = "/path/to/your/local/IronRDP/crates/ironrdp-pdu" }
+# ironrdp-graphics = { path = "/path/to/your/local/IronRDP/crates/ironrdp-graphics" }
