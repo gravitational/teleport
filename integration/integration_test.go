@@ -157,6 +157,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("IP Propagation", suite.bind(testIPPropagation))
 	t.Run("JumpTrustedClusters", suite.bind(testJumpTrustedClusters))
 	t.Run("JumpTrustedClustersWithLabels", suite.bind(testJumpTrustedClustersWithLabels))
+	t.Run("LeafSessionRecording", suite.bind(testLeafProxySessionRecording))
 	t.Run("List", suite.bind(testList))
 	t.Run("MapRoles", suite.bind(testMapRoles))
 	t.Run("ModeratedSessions", suite.bind(testModeratedSessions))
@@ -184,7 +185,6 @@ func TestIntegrations(t *testing.T) {
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
 	t.Run("ListResourcesAcrossClusters", suite.bind(testListResourcesAcrossClusters))
 	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
-	t.Run("LeafSessionRecording", suite.bind(testLeafProxySessionRecording))
 	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
 	t.Run("JoinOverReverseTunnelOnly", suite.bind(testJoinOverReverseTunnelOnly))
 	t.Run("SFTP", suite.bind(testSFTP))
@@ -1235,14 +1235,11 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 			}()
 
 			var sessionID string
-			require.Eventually(t, func() bool {
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
 				trackers, err := authSrv.GetActiveSessionTrackers(ctx)
-				require.NoError(t, err)
-				if len(trackers) == 1 {
-					sessionID = trackers[0].GetSessionID()
-					return true
-				}
-				return false
+				require.NoError(c, err)
+				require.Len(c, trackers, 1)
+				sessionID = trackers[0].GetSessionID()
 			}, time.Second*5, time.Millisecond*100)
 
 			// Send stuff to the session.
