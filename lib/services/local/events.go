@@ -1629,6 +1629,7 @@ func (p *discoveryConfigParser) parse(event backend.Event) (types.Resource, erro
 		return services.UnmarshalDiscoveryConfig(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
