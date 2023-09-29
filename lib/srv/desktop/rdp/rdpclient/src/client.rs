@@ -3,10 +3,11 @@ use crate::{
     handle_fastpath_pdu, handle_rdp_channel_ids, CGOErrCode, CGOKeyboardEvent,
     CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
 };
+use bitflags::Flags;
 use ironrdp_connector::{Config, ConnectorError};
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
 use ironrdp_pdu::input::mouse::PointerFlags;
-use ironrdp_pdu::input::MousePdu;
+use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
@@ -61,7 +62,10 @@ impl Client {
     /// Initializes the RDP connection with the given [`ConnectParams`].
     async fn connect(cgo_handle: CgoHandle, params: ConnectParams) -> ClientResult<Self> {
         let server_addr = params.addr.clone();
-        let server_socket_addr = server_addr.to_socket_addrs().unwrap().next().unwrap();
+        let server_socket_addr = server_addr
+            .to_socket_addrs()?
+            .next()
+            .ok_or(ClientError::UnknownAddress)?;
 
         let stream = TokioTcpStream::connect(&server_socket_addr).await?;
 
@@ -292,7 +296,7 @@ impl Client {
 
         let mut data: Vec<u8> = Vec::new();
         let input_pdu = FastPathInput(fastpath_events);
-        input_pdu.to_buffer(&mut data).unwrap();
+        input_pdu.to_buffer(&mut data)?;
 
         write_stream.write_all(&data).await?;
         Ok(())
@@ -338,7 +342,7 @@ impl Client {
 
         let mut data: Vec<u8> = Vec::new();
         let input_pdu = FastPathInput(fastpath_events);
-        input_pdu.to_buffer(&mut data).unwrap();
+        input_pdu.to_buffer(&mut data)?;
 
         write_stream.write_all(&data).await?;
         Ok(())
@@ -435,6 +439,8 @@ pub enum ClientError {
     SendError,
     JoinError(JoinError),
     InternalError,
+    UnknownAddress,
+    InputEventError(InputEventError),
 }
 
 impl From<IoError> for ClientError {
@@ -487,5 +493,11 @@ impl From<CGOErrCode> for ClientResult<()> {
             CGOErrCode::ErrCodeSuccess => Ok(()),
             _ => Err(ClientError::from(value)),
         }
+    }
+}
+
+impl From<InputEventError> for ClientError {
+    fn from(e: InputEventError) -> Self {
+        ClientError::InputEventError(e)
     }
 }
