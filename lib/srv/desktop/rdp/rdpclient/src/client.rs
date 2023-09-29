@@ -1,8 +1,7 @@
-pub mod global;
-use crate::{
-    handle_fastpath_pdu, handle_rdp_channel_ids, CGOErrCode, CGOKeyboardEvent,
-    CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
-};
+use std::io::Error as IoError;
+use std::net::ToSocketAddrs;
+use std::sync::{Arc, Mutex};
+
 use bitflags::Flags;
 use ironrdp_connector::{Config, ConnectorError};
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
@@ -17,9 +16,6 @@ use ironrdp_session::{reason_err, SessionError};
 use ironrdp_tls::TlsStream;
 use ironrdp_tokio::{Framed, TokioStream};
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
-use std::io::Error as IoError;
-use std::net::ToSocketAddrs;
-use std::sync::{Arc, Mutex};
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
@@ -28,13 +24,20 @@ use tokio::task::JoinError;
 // Export this for crate level use.
 pub(crate) use global::call_function_on_handle;
 
+use crate::{
+    handle_fastpath_pdu, handle_rdp_channel_ids, CGOErrCode, CGOKeyboardEvent,
+    CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
+};
+
+pub mod global;
+
 /// The RDP client on the Rust side of things. Each `Client`
 /// corresponds with a Go `Client` specified by `cgo_handle`.
 pub struct Client {
     cgo_handle: CgoHandle,
     read_stream: Option<RdpReadStream>,
     write_stream: Option<RdpWriteStream>,
-    x224_processor: Option<Arc<Mutex<X224Processor>>>,
+    x224_processor: Arc<Mutex<X224Processor>>,
     write_requester: Option<ClientHandle>,
     function_receiver: Option<FunctionReceiver>,
 }
@@ -124,7 +127,7 @@ impl Client {
             cgo_handle,
             read_stream: Some(read_stream),
             write_stream: Some(write_stream),
-            x224_processor: Some(Arc::new(Mutex::new(x224_processor))),
+            x224_processor: Arc::new(Mutex::new(x224_processor)),
             write_requester: None,
             function_receiver: None,
         })
@@ -162,10 +165,7 @@ impl Client {
             .take()
             .ok_or_else(|| ClientError::InternalError)?;
 
-        let x224_processor = self
-            .x224_processor
-            .take()
-            .ok_or_else(|| ClientError::InternalError)?;
+        let x224_processor = self.x224_processor.clone();
 
         let write_requester = self
             .write_requester
