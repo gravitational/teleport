@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
@@ -131,6 +132,16 @@ func (f Features) ToProto() *proto.Features {
 	}
 }
 
+// AccessResourcesGetter is a minimal interface that is used to get access lists
+// and related resources from the backend.
+type AccessResourcesGetter interface {
+	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+
+	GetUser(userName string, withSecrets bool) (types.User, error)
+	GetRole(ctx context.Context, name string) (types.Role, error)
+}
+
 // Modules defines interface that external libraries can implement customizing
 // default teleport behavior
 type Modules interface {
@@ -146,6 +157,8 @@ type Modules interface {
 	BuildType() string
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
 	AttestHardwareKey(context.Context, interface{}, keys.PrivateKeyPolicy, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (keys.PrivateKeyPolicy, error)
+	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
+	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	// EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
 	EnableRecoveryCodes()
 	// EnablePlugins enables the hosted plugins runtime
@@ -242,6 +255,12 @@ func (p *defaultModules) IsBoringBinary() bool {
 func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
 	// Default modules do not support attesting hardware keys.
 	return keys.PrivateKeyPolicyNone, nil
+}
+
+// GenerateAccessRequestPromotions is a noop since OSS teleport does not support generating access list promotions.
+func (p *defaultModules) GenerateAccessRequestPromotions(_ context.Context, _ AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+	// The default module does not support generating access list promotions.
+	return types.NewAccessRequestAllowedPromotions(nil), nil
 }
 
 // EnableRecoveryCodes enables recovery codes. This is a noop since OSS teleport does not

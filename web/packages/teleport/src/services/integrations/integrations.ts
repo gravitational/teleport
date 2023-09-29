@@ -159,7 +159,7 @@ export const integrationService = {
     return api
       .post(cfg.getListEc2InstanceConnectEndpointsUrl(integrationName), req)
       .then(json => {
-        const endpoints = json?.ec2InstanceConnectEndpoints ?? [];
+        const endpoints = json?.ec2Ices ?? [];
 
         return {
           endpoints: endpoints.map(makeEc2InstanceConnectEndpoint),

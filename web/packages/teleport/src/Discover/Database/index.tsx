@@ -16,7 +16,7 @@
 
 import React from 'react';
 
-import { ResourceKind, Finished } from 'teleport/Discover/Shared';
+import { AwsAccount, ResourceKind, Finished } from 'teleport/Discover/Shared';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { DatabaseWrapper } from 'teleport/Discover/Database/DatabaseWrapper';
 import {
@@ -31,7 +31,6 @@ import { ManualDeploy } from 'teleport/Discover/Database/DeployService/ManualDep
 import { MutualTls } from 'teleport/Discover/Database/MutualTls';
 import { TestConnection } from 'teleport/Discover/Database/TestConnection';
 import { DiscoverEvent } from 'teleport/services/userEvent';
-import { ConnectAwsAccount } from 'teleport/Discover/Database/ConnectAwsAccount';
 import { EnrollRdsDatabase } from 'teleport/Discover/Database/EnrollRdsDatabase';
 import { IamPolicy } from 'teleport/Discover/Database/IamPolicy';
 
@@ -59,7 +58,7 @@ export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
           configureResourceViews = [
             {
               title: 'Connect AWS Account',
-              component: ConnectAwsAccount,
+              component: AwsAccount,
               eventName: DiscoverEvent.IntegrationAWSOIDCConnectEvent,
             },
             {
