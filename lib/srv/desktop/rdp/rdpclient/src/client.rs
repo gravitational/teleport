@@ -5,6 +5,7 @@ use crate::{
     CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
 };
 use bitflags::Flags;
+use bytes::BytesMut;
 use ironrdp_connector::{Config, ConnectorError};
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
 use ironrdp_pdu::input::mouse::PointerFlags;
@@ -14,7 +15,7 @@ use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::PduParsing;
 use ironrdp_session::x224::Processor as X224Processor;
-use ironrdp_session::SessionError;
+use ironrdp_session::{SessionError, SessionResult};
 use ironrdp_tls::TlsStream;
 use ironrdp_tokio::{Framed, TokioStream};
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
@@ -23,8 +24,8 @@ use std::io::Error as IoError;
 use std::net::ToSocketAddrs;
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
-use tokio::sync::mpsc;
 use tokio::sync::mpsc::{error::SendError, Receiver, Sender};
+use tokio::sync::{mpsc, oneshot};
 use tokio::task;
 use tokio::task::JoinError;
 
@@ -37,9 +38,17 @@ pub struct Client {
     cgo_handle: CgoHandle,
     read_stream: Option<RdpReadStream>,
     write_stream: Option<RdpWriteStream>,
-    x224_processor: RefCell<X224Processor>,
+    x224_processor: Handler<BytesMut, SessionResult<Vec<u8>>>,
     write_requester: Option<ClientHandle>,
     function_receiver: Option<FunctionReceiver>,
+}
+
+type Handler<T, R> = Sender<(T, oneshot::Sender<R>)>;
+
+async fn process<T, R>(handler: Handler<T, R>, data: T) -> ClientResult<R> {
+    let (tx, rx) = oneshot::channel();
+    handler.send((data, tx)).await?;
+    rx.await.map_err(|_| ClientError::Channel)
 }
 
 impl Client {
@@ -53,13 +62,13 @@ impl Client {
     /// This function hangs until the RDP session ends or a [`ClientFunction::Stop`] is dispatched
     /// (see [`global::call_function_on_handle`]).
     pub fn run(cgo_handle: CgoHandle, params: ConnectParams) -> ClientResult<()> {
-        global::TOKIO_RT.block_on(async {
+        global::TOKIO_RT.block_on(global::TOKIO_RT.spawn(async move {
             Self::connect(cgo_handle, params)
                 .await?
                 .register()
                 .run_loops()
                 .await
-        })
+        }))?
     }
 
     /// Initializes the RDP connection with the given [`ConnectParams`].
@@ -115,7 +124,7 @@ impl Client {
         let read_stream = ironrdp_tokio::TokioFramed::new(read_stream);
         let write_stream = ironrdp_tokio::TokioFramed::new(write_stream);
 
-        let x224_processor = X224Processor::new(
+        let mut x224_processor = X224Processor::new(
             connection_result.static_channels,
             connection_result.user_channel_id,
             connection_result.io_channel_id,
@@ -123,11 +132,20 @@ impl Client {
             None,
         );
 
+        let (tx, mut rx) =
+            mpsc::channel::<(BytesMut, oneshot::Sender<SessionResult<Vec<u8>>>)>(100);
+
+        tokio::spawn(async move {
+            while let Some((frame, tx)) = rx.recv().await {
+                tx.send(x224_processor.process(&frame));
+            }
+        });
+
         Ok(Self {
             cgo_handle,
             read_stream: Some(read_stream),
             write_stream: Some(write_stream),
-            x224_processor: RefCell::new(x224_processor),
+            x224_processor: tx,
             write_requester: None,
             function_receiver: None,
         })
@@ -176,15 +194,15 @@ impl Client {
             .ok_or_else(|| ClientError::InternalError)?;
 
         tokio::select! {
-            res = Client::run_write_loop(write_stream, write_receiver, &self.x224_processor) => res,
-            res = Client::run_read_loop(self.cgo_handle, read_stream, &self.x224_processor, write_requester) => res,
+            res = Client::run_write_loop(write_stream, write_receiver, self.x224_processor.clone()) => res,
+            res = Client::run_read_loop(self.cgo_handle, read_stream, self.x224_processor.clone(), write_requester) => res,
         }
     }
 
     async fn run_read_loop(
         cgo_handle: CgoHandle,
         mut read_stream: RdpReadStream,
-        x224_processor: &RefCell<X224Processor>,
+        x224_processor: Handler<BytesMut, SessionResult<Vec<u8>>>,
         write_requester: ClientHandle,
     ) -> ClientResult<()> {
         let _marker = DropLog("read loop ends");
@@ -204,7 +222,7 @@ impl Client {
                     // X224 PDU, process it and send any immediate response frames to the write loop
                     // for writing to the RDP server.
                     // Process x224 frame.
-                    let res = x224_processor.borrow_mut().process(&frame)?;
+                    let res = process(x224_processor.clone(), frame).await??;
                     // Send response frames to write loop for writing to RDP server.
                     write_requester
                         .send(ClientFunction::WriteRawPdu(res))
@@ -217,11 +235,11 @@ impl Client {
     async fn run_write_loop(
         mut write_stream: RdpWriteStream,
         mut write_receiver: FunctionReceiver,
-        mut x224_processor: &RefCell<X224Processor>,
+        mut x224_processor: Sender<(BytesMut, oneshot::Sender<SessionResult<Vec<u8>>>)>,
     ) -> ClientResult<()> {
         let _marker = DropLog("write loop ends");
         loop {
-            x224_processor.borrow_mut();
+            x224_processor.clone();
             match write_receiver.recv().await {
                 Some(write_request) => match write_request {
                     ClientFunction::WriteRdpKey(args) => {
@@ -400,7 +418,7 @@ pub enum ClientError {
     SessionError(SessionError),
     ConnectorError(ConnectorError),
     CGOErrCode(CGOErrCode),
-    SendError,
+    Channel,
     JoinError(JoinError),
     InputEventError(InputEventError),
     InternalError,
@@ -439,7 +457,13 @@ impl From<SessionError> for ClientError {
 
 impl<T> From<SendError<T>> for ClientError {
     fn from(_value: SendError<T>) -> Self {
-        ClientError::SendError
+        ClientError::Channel
+    }
+}
+
+impl From<oneshot::error::RecvError> for ClientError {
+    fn from(_value: oneshot::error::RecvError) -> Self {
+        ClientError::Channel
     }
 }
 
