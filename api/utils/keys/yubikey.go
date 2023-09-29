@@ -49,6 +49,10 @@ import (
 const (
 	// PIVCardTypeYubiKey is the PIV card type assigned to yubiKeys.
 	PIVCardTypeYubiKey = "yubikey"
+
+	// PIV connections are closed after a short delay so that the program
+	// has a chance to reclaim the connection before it is closed completely.
+	releaseConnectionDelay = 5 * time.Second
 )
 
 // Cache keys to prevent reconnecting to PIV module to discover a known key.
@@ -303,7 +307,6 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 		y.attestation.PINPolicy = piv.PINPolicyAlways
 		signature, err = y.sign(ctx, rand, digest, opts)
 	}
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -311,13 +314,24 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 	return signature, nil
 }
 
-func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	yk, err := y.open()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer yk.Close()
+// YubiKeys require touch when signing with a private key that requires touch.
+// Unfortunately, there is no good way to check whether touch is cached by the
+// PIV module at a given time. In order to require touch only when needed, we
+// prompt for touch after a short delay when we expect the request would succeed
+// if touch were not required.
+//
+// There are some X factors which determine how long a request may take, such as the
+// YubiKey model and firmware version, so the delays below may need to be adjusted to
+// suit more models. The durations mentioned below were retrieved from testing with a
+// YubiKey 5 nano (5.2.7) and a YubiKey NFC (5.4.3).
+const (
+	// piv.ECDSAPrivateKey.Sign consistently takes ~70 milliseconds. However, 200ms
+	// should be imperceptible the the user and should avoid misfired prompts for
+	// slower cards (if there are any).
+	signTouchPromptDelay = time.Millisecond * 200
+)
 
+func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	var touchPromptDelayTimer *time.Timer
 	if y.attestation.TouchPolicy != piv.TouchPolicyNever {
 		touchPromptDelayTimer = time.NewTimer(signTouchPromptDelay)
@@ -352,7 +366,7 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 		PINPolicy: y.attestation.PINPolicy,
 	}
 
-	privateKey, err := yk.PrivateKey(y.pivSlot, y.slotCert.PublicKey, auth)
+	privateKey, err := y.privateKey(y.pivSlot, y.Public(), auth)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -433,39 +447,37 @@ func GetPrivateKeyPolicyFromAttestation(att *piv.Attestation) PrivateKeyPolicy {
 
 // YubiKey is a specific YubiKey PIV card.
 type YubiKey struct {
-	// card is a reader name used to find and connect to this yubiKey.
-	// This value may change between OS's, or with other system changes.
-	card string
+	// conn is a shared YubiKey PIV connection.
+	//
+	// PIV connections claim an exclusive lock on the PIV module until closed.
+	// In order to improve connection sharing for this program without locking
+	// out other programs during extended program executions (like "tsh proxy ssh"),
+	// this connections is opportunistically formed and released after being
+	// unused for a few seconds.
+	*sharedPIVConnection
 	// serialNumber is the yubiKey's 8 digit serial number.
 	serialNumber uint32
 }
 
 func newYubiKey(card string) (*YubiKey, error) {
-	y := &YubiKey{card: card}
+	y := &YubiKey{
+		sharedPIVConnection: &sharedPIVConnection{
+			card: card,
+		},
+	}
 
-	yk, err := y.open()
+	serialNumber, err := y.serial()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer yk.Close()
 
-	y.serialNumber, err = yk.Serial()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	y.serialNumber = serialNumber
 	return y, nil
 }
 
 // Reset resets the YubiKey PIV module to default settings.
 func (y *YubiKey) Reset() error {
-	yk, err := y.open()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer yk.Close()
-
-	err = yk.Reset()
+	err := y.reset()
 	return trace.Wrap(err)
 }
 
@@ -490,41 +502,23 @@ func (y *YubiKey) generatePrivateKeyAndCert(slot piv.Slot, requiredKeyPolicy Pri
 // slot is in used by a Teleport Client and is not fit to be used in cryptographic operations.
 // This cert is also useful for users to discern where the key came with tools like `ykman piv info`.
 func (y *YubiKey) SetMetadataCertificate(slot piv.Slot, subject pkix.Name) error {
-	yk, err := y.open()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer yk.Close()
-
 	cert, err := SelfSignedMetadataCertificate(subject)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = yk.SetCertificate(piv.DefaultManagementKey, slot, cert)
+	err = y.setCertificate(piv.DefaultManagementKey, slot, cert)
 	return trace.Wrap(err)
 }
 
 // getCertificate gets a certificate from the given PIV slot.
 func (y *YubiKey) getCertificate(slot piv.Slot) (*x509.Certificate, error) {
-	yk, err := y.open()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer yk.Close()
-
-	cert, err := yk.Certificate(slot)
+	cert, err := y.certificate(slot)
 	return cert, trace.Wrap(err)
 }
 
 // generatePrivateKey generates a new private key in the given PIV slot.
 func (y *YubiKey) generatePrivateKey(slot piv.Slot, requiredKeyPolicy PrivateKeyPolicy) error {
-	yk, err := y.open()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer yk.Close()
-
 	touchPolicy, pinPolicy, err := getKeyPolicies(requiredKeyPolicy)
 	if err != nil {
 		return trace.Wrap(err)
@@ -536,26 +530,20 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, requiredKeyPolicy PrivateKey
 		TouchPolicy: touchPolicy,
 	}
 
-	_, err = yk.GenerateKey(piv.DefaultManagementKey, slot, opts)
+	_, err = y.generateKey(piv.DefaultManagementKey, slot, opts)
 	return trace.Wrap(err)
 }
 
 // getPrivateKey gets an existing private key from the given PIV slot.
 func (y *YubiKey) getPrivateKey(slot piv.Slot) (*PrivateKey, error) {
-	yk, err := y.open()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer yk.Close()
-
-	slotCert, err := yk.Attest(slot)
+	slotCert, err := y.attest(slot)
 	if errors.Is(err, piv.ErrNotFound) {
 		return nil, trace.NotFound("private key in YubiKey PIV slot %q not found.", slot.String())
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	attCert, err := yk.AttestationCertificate()
+	attCert, err := y.attestationCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -589,13 +577,7 @@ func (y *YubiKey) getPrivateKey(slot piv.Slot) (*PrivateKey, error) {
 
 // SetPin sets the YubiKey PIV PIN. This doesn't require user interaction like touch, just the correct old PIN.
 func (y *YubiKey) SetPIN(oldPin, newPin string) error {
-	yk, err := y.open()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer yk.Close()
-
-	err = yk.SetPIN(oldPin, newPin)
+	err := y.setPIN(oldPin, newPin)
 	return trace.Wrap(err)
 }
 
@@ -608,29 +590,42 @@ func (y *YubiKey) checkOrSetPIN(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	yk, err := y.open()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer yk.Close()
-
 	switch pin {
 	case piv.DefaultPIN:
 		fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", piv.DefaultPIN)
 		fallthrough
 	case "":
-		if pin, err = setPINAndPUKFromDefault(ctx, yk); err != nil {
+		if pin, err = y.setPINAndPUKFromDefault(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	return trace.Wrap(yk.VerifyPIN(pin))
+	return trace.Wrap(y.verifyPIN(pin))
 }
 
-// open a connection to YubiKey PIV module. The returned connection should be closed once
+type sharedPIVConnection struct {
+	// card is a reader name used to find and connect to this yubiKey.
+	// This value may change between OS's, or with other system changes.
+	card string
+
+	// conn is the shared PIV connection.
+	conn      *piv.YubiKey
+	mu        sync.Mutex
+	waitClose sync.WaitGroup
+}
+
+// connect a connection to YubiKey PIV module. The returned connection should be closed once
 // it's been used. The YubiKey PIV module itself takes some additional time to handle closed
 // connections, so we use a retry loop to give the PIV module time to close prior connections.
-func (y *YubiKey) open() (yk *piv.YubiKey, err error) {
+func (c *sharedPIVConnection) connect() (err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.conn != nil {
+		c.waitClose.Add(1)
+		return nil
+	}
+
 	linearRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		// If a PIV connection has just been closed, it take ~5 ms to become
 		// available to new connections. For this reason, we initially wait a
@@ -643,7 +638,7 @@ func (y *YubiKey) open() (yk *piv.YubiKey, err error) {
 		Max: time.Millisecond * 50,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// Backoff and retry for up to 1 second.
@@ -651,7 +646,7 @@ func (y *YubiKey) open() (yk *piv.YubiKey, err error) {
 	defer cancel()
 
 	err = linearRetry.For(retryCtx, func() error {
-		yk, err = piv.Open(y.card)
+		c.conn, err = piv.Open(c.card)
 		if err != nil && !isRetryError(err) {
 			return retryutils.PermanentRetryError(err)
 		}
@@ -666,11 +661,190 @@ func (y *YubiKey) open() (yk *piv.YubiKey, err error) {
 		// It's also possible that the user is running another PIV program, which may hold the PIV
 		// connection indefinitely (yubikey-agent). In this case, user action is necessary, so we
 		// alert them with this issue.
-		return nil, trace.LimitExceeded("could not connect to YubiKey as another application is using it. Please try again once the program that uses the YubiKey, such as yubikey-agent is closed")
+		return trace.LimitExceeded("could not connect to YubiKey as another application is using it. Please try again once the program that uses the YubiKey, such as yubikey-agent is closed")
 	} else if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	return yk, nil
+
+	c.waitClose.Add(1)
+	go func() {
+		c.waitClose.Wait()
+
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		c.conn.Close()
+		c.conn = nil
+	}()
+
+	return nil
+}
+
+func (c *sharedPIVConnection) releaseConnection() {
+	go func() {
+		time.Sleep(releaseConnectionDelay)
+		c.waitClose.Done()
+	}()
+}
+
+func (c *sharedPIVConnection) privateKey(slot piv.Slot, public crypto.PublicKey, auth piv.KeyAuth) (crypto.PrivateKey, error) {
+	c.connect()
+	defer c.releaseConnection()
+	return c.conn.PrivateKey(slot, public, auth)
+}
+
+func (c *sharedPIVConnection) serial() (uint32, error) {
+	c.connect()
+	defer c.releaseConnection()
+	return c.conn.Serial()
+}
+
+func (c *sharedPIVConnection) reset() error {
+	c.connect()
+	defer c.releaseConnection()
+	return c.conn.Reset()
+}
+
+func (c *sharedPIVConnection) setCertificate(key [24]byte, slot piv.Slot, cert *x509.Certificate) error {
+	c.connect()
+	defer c.releaseConnection()
+	return c.conn.SetCertificate(key, slot, cert)
+}
+
+func (c *sharedPIVConnection) certificate(slot piv.Slot) (*x509.Certificate, error) {
+	c.connect()
+	defer c.releaseConnection()
+	return c.conn.Certificate(slot)
+}
+
+func (c *sharedPIVConnection) generateKey(key [24]byte, slot piv.Slot, opts piv.Key) (crypto.PublicKey, error) {
+	c.connect()
+	defer c.releaseConnection()
+	return c.conn.GenerateKey(key, slot, opts)
+}
+
+func (c *sharedPIVConnection) attest(slot piv.Slot) (*x509.Certificate, error) {
+	c.connect()
+	defer c.releaseConnection()
+	return c.conn.Attest(slot)
+}
+
+func (c *sharedPIVConnection) attestationCertificate() (*x509.Certificate, error) {
+	c.connect()
+	defer c.releaseConnection()
+	return c.conn.AttestationCertificate()
+}
+
+func (c *sharedPIVConnection) setPIN(oldPIN string, newPIN string) error {
+	c.connect()
+	defer c.releaseConnection()
+	return c.conn.SetPIN(oldPIN, newPIN)
+}
+
+func (c *sharedPIVConnection) setPUK(oldPUK string, newPUK string) error {
+	c.connect()
+	defer c.releaseConnection()
+	return c.conn.SetPUK(oldPUK, newPUK)
+}
+
+func (c *sharedPIVConnection) unblock(puk string, newPIN string) error {
+	c.connect()
+	defer c.releaseConnection()
+	return c.conn.Unblock(puk, newPIN)
+}
+
+func (c *sharedPIVConnection) verifyPIN(pin string) error {
+	c.connect()
+	defer c.releaseConnection()
+	return c.conn.VerifyPIN(pin)
+}
+
+func (c *sharedPIVConnection) setPINAndPUKFromDefault(ctx context.Context) (string, error) {
+	// YubiKey requires that PIN and PUK be 6-8 characters.
+	isValid := func(pin string) bool {
+		return len(pin) >= 6 && len(pin) <= 8
+	}
+
+	var pin string
+	for {
+		fmt.Fprintf(os.Stderr, "Please set a new 6-8 character PIN.\n")
+		newPIN, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your new YubiKey PIV PIN")
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		newPINConfirm, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Confirm your new YubiKey PIV PIN")
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		if newPIN != newPINConfirm {
+			fmt.Fprintf(os.Stderr, "PINs do not match.\n")
+			continue
+		}
+
+		if newPIN == piv.DefaultPIN {
+			fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", piv.DefaultPIN)
+			continue
+		}
+
+		if !isValid(newPIN) {
+			fmt.Fprintf(os.Stderr, "PIN must be 6-8 characters long.\n")
+			continue
+		}
+
+		pin = newPIN
+		break
+	}
+
+	puk, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your YubiKey PIV PUK to reset PIN [blank to use default PUK]")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	switch puk {
+	case piv.DefaultPUK:
+		fmt.Fprintf(os.Stderr, "The default PUK %q is not supported.\n", piv.DefaultPUK)
+		fallthrough
+	case "":
+		for {
+			fmt.Fprintf(os.Stderr, "Please set a new 6-8 character PUK (used to reset PIN).\n")
+			newPUK, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your new YubiKey PIV PUK")
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+			newPUKConfirm, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Confirm your new YubiKey PIV PUK")
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			if newPUK != newPUKConfirm {
+				fmt.Fprintf(os.Stderr, "PUKs do not match.\n")
+				continue
+			}
+
+			if newPUK == piv.DefaultPUK {
+				fmt.Fprintf(os.Stderr, "The default PUK %q is not supported.\n", piv.DefaultPUK)
+				continue
+			}
+
+			if !isValid(newPUK) {
+				fmt.Fprintf(os.Stderr, "PUK must be 6-8 characters long.\n")
+				continue
+			}
+
+			if err := c.setPUK(piv.DefaultPUK, newPUK); err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			puk = newPUK
+			break
+		}
+	}
+
+	if err := c.unblock(puk, pin); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return pin, nil
 }
 
 func isRetryError(err error) bool {
@@ -790,110 +964,4 @@ func SelfSignedMetadataCertificate(subject pkix.Name) (*x509.Certificate, error)
 		return nil, trace.Wrap(err)
 	}
 	return cert, nil
-}
-
-// YubiKeys require touch when signing with a private key that requires touch.
-// Unfortunately, there is no good way to check whether touch is cached by the
-// PIV module at a given time. In order to require touch only when needed, we
-// prompt for touch after a short delay when we expect the request would succeed
-// if touch were not required.
-//
-// There are some X factors which determine how long a request may take, such as the
-// YubiKey model and firmware version, so the delays below may need to be adjusted to
-// suit more models. The durations mentioned below were retrieved from testing with a
-// YubiKey 5 nano (5.2.7) and a YubiKey NFC (5.4.3).
-const (
-	// piv.ECDSAPrivateKey.Sign consistently takes ~70 milliseconds. However, 200ms
-	// should be imperceptible the the user and should avoid misfired prompts for
-	// slower cards (if there are any).
-	signTouchPromptDelay = time.Millisecond * 200
-)
-
-func setPINAndPUKFromDefault(ctx context.Context, yk *piv.YubiKey) (string, error) {
-	// YubiKey requires that PIN and PUK be 6-8 characters.
-	isValid := func(pin string) bool {
-		return len(pin) >= 6 && len(pin) <= 8
-	}
-
-	var pin string
-	for {
-		fmt.Fprintf(os.Stderr, "Please set a new 6-8 character PIN.\n")
-		newPIN, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your new YubiKey PIV PIN")
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		newPINConfirm, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Confirm your new YubiKey PIV PIN")
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		if newPIN != newPINConfirm {
-			fmt.Fprintf(os.Stderr, "PINs do not match.\n")
-			continue
-		}
-
-		if newPIN == piv.DefaultPIN {
-			fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", piv.DefaultPIN)
-			continue
-		}
-
-		if !isValid(newPIN) {
-			fmt.Fprintf(os.Stderr, "PIN must be 6-8 characters long.\n")
-			continue
-		}
-
-		pin = newPIN
-		break
-	}
-
-	puk, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your YubiKey PIV PUK to reset PIN [blank to use default PUK]")
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	switch puk {
-	case piv.DefaultPUK:
-		fmt.Fprintf(os.Stderr, "The default PUK %q is not supported.\n", piv.DefaultPUK)
-		fallthrough
-	case "":
-		for {
-			fmt.Fprintf(os.Stderr, "Please set a new 6-8 character PUK (used to reset PIN).\n")
-			newPUK, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your new YubiKey PIV PUK")
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
-			newPUKConfirm, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Confirm your new YubiKey PIV PUK")
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
-
-			if newPUK != newPUKConfirm {
-				fmt.Fprintf(os.Stderr, "PUKs do not match.\n")
-				continue
-			}
-
-			if newPUK == piv.DefaultPUK {
-				fmt.Fprintf(os.Stderr, "The default PUK %q is not supported.\n", piv.DefaultPUK)
-				continue
-			}
-
-			if !isValid(newPUK) {
-				fmt.Fprintf(os.Stderr, "PUK must be 6-8 characters long.\n")
-				continue
-			}
-
-			if err := yk.SetPUK(piv.DefaultPUK, newPUK); err != nil {
-				return "", trace.Wrap(err)
-			}
-
-			puk = newPUK
-			break
-		}
-	}
-
-	if err := yk.Unblock(puk, pin); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return pin, nil
 }
