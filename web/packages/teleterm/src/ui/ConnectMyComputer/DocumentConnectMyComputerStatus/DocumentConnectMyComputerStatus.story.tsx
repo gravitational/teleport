@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useLayoutEffect } from 'react';
 
-import { wait } from 'shared/utils/wait';
-
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import {
+  makeRootCluster,
+  makeServer,
+  makeLabelsList,
+} from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import AppContext from 'teleterm/ui/appContext';
 
@@ -27,7 +29,11 @@ import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 
-import { ConnectMyComputerContextProvider } from '../connectMyComputerContext';
+import {
+  AgentCompatibilityError,
+  ConnectMyComputerContextProvider,
+  NodeWaitJoinTimeout,
+} from '../connectMyComputerContext';
 
 import { DocumentConnectMyComputerStatus } from './DocumentConnectMyComputerStatus';
 
@@ -40,7 +46,45 @@ export function NotStarted() {
 }
 
 export function Running() {
-  return <ShowState agentProcessState={{ status: 'running' }} />;
+  const appContext = new MockAppContext({ appVersion: '17.0.0' });
+
+  let agentUpdateListener: (state: AgentProcessState) => void;
+  appContext.mainProcessClient.subscribeToAgentUpdate = (
+    rootClusterUri,
+    listener
+  ) => {
+    agentUpdateListener = listener;
+    return { cleanup: () => undefined };
+  };
+  appContext.connectMyComputerService.isAgentConfigFileCreated = () =>
+    Promise.resolve(true);
+  appContext.connectMyComputerService.runAgent = async () => {
+    agentUpdateListener({ status: 'running' });
+  };
+  appContext.connectMyComputerService.waitForNodeToJoin = () =>
+    Promise.resolve(
+      makeServer({
+        hostname: 'staging-mac-mini',
+        labelsList: makeLabelsList({
+          hostname: 'staging-mac-mini',
+          'teleport.dev/connect-my-computer/owner': 'testuser@goteleport.com',
+        }),
+      })
+    );
+
+  useLayoutEffect(() => {
+    (
+      document.querySelector('[data-testid=start-agent]') as HTMLButtonElement
+    )?.click();
+  });
+
+  return (
+    <ShowState
+      appContext={appContext}
+      agentProcessState={{ status: 'not-started' }}
+      proxyVersion="17.0.0"
+    />
+  );
 }
 
 export function Errored() {
@@ -81,6 +125,30 @@ export function ExitedUnsuccessfully() {
   );
 }
 
+export function ErrorWithAlertAndLogs() {
+  const appContext = new MockAppContext({ appVersion: '17.0.0' });
+
+  appContext.connectMyComputerService.isAgentConfigFileCreated = () =>
+    Promise.resolve(true);
+  appContext.connectMyComputerService.waitForNodeToJoin = () =>
+    Promise.reject(
+      new NodeWaitJoinTimeout(
+        'teleport: error: unknown short flag -non-existing-flag'
+      )
+    );
+
+  return (
+    <ShowState
+      appContext={appContext}
+      agentProcessState={{
+        status: 'not-started',
+      }}
+      autoStart={true}
+      proxyVersion="17.0.0"
+    />
+  );
+}
+
 export function FailedToReadAgentConfigFile() {
   const appContext = new MockAppContext();
   appContext.connectMyComputerService.isAgentConfigFileCreated = async () => {
@@ -103,6 +171,24 @@ export function AgentVersionTooNew() {
       agentProcessState={{ status: 'not-started' }}
       appContext={appContext}
       proxyVersion={'16.3.0'}
+    />
+  );
+}
+
+export function AgentVersionTooNewWithFailedAutoStart() {
+  const appContext = new MockAppContext({ appVersion: '17.0.0' });
+
+  appContext.connectMyComputerService.downloadAgent = () =>
+    Promise.reject(new AgentCompatibilityError('incompatible'));
+  appContext.connectMyComputerService.isAgentConfigFileCreated = () =>
+    Promise.resolve(true);
+
+  return (
+    <ShowState
+      agentProcessState={{ status: 'not-started' }}
+      appContext={appContext}
+      proxyVersion={'16.3.0'}
+      autoStart={true}
     />
   );
 }
@@ -151,6 +237,7 @@ function ShowState(props: {
   agentProcessState: AgentProcessState;
   appContext?: AppContext;
   proxyVersion?: string;
+  autoStart?: boolean;
 }) {
   const cluster = makeRootCluster({
     proxyVersion: props.proxyVersion || makeRuntimeSettings().appVersion,
@@ -160,44 +247,26 @@ function ShowState(props: {
     new MockAppContext({ appVersion: cluster.proxyVersion });
 
   appContext.mainProcessClient.getAgentState = () => props.agentProcessState;
-  appContext.mainProcessClient.subscribeToAgentUpdate = (
-    rootClusterUri,
-    listener
-  ) => {
-    listener(props.agentProcessState);
-    return { cleanup: () => undefined };
-  };
-  appContext.connectMyComputerService.runAgent = async () => {
-    await wait(1_000);
-  };
-  appContext.connectMyComputerService.waitForNodeToJoin = async () => {
-    if (props.agentProcessState.status === 'running') {
-      await wait(2_000);
-      return {
-        uri: `${cluster.uri}/servers/178ef081-259b-4aa5-a018-449b5ea7e694`,
-        tunnel: false,
-        name: '178ef081-259b-4aa5-a018-449b5ea7e694',
-        hostname: 'staging-mac-mini',
-        addr: '127.0.0.1:3022',
-        labelsList: [
-          {
-            name: 'hostname',
-            value: 'staging-mac-mini',
-          },
-          {
-            name: 'teleport.dev/connect-my-computer',
-            value: 'testuser@goteleport.com',
-          },
-        ],
-      };
-    }
-    await wait(3_000);
-    throw new Error('TIMEOUT. Cannot find node.');
-  };
+  appContext.configService.set('feature.connectMyComputer', true);
   appContext.clustersService.state.clusters.set(cluster.uri, cluster);
   appContext.workspacesService.setState(draftState => {
     draftState.rootClusterUri = cluster.uri;
+    draftState.workspaces = {
+      [cluster.uri]: {
+        localClusterUri: cluster.uri,
+        documents: [],
+        location: '/docs/1234',
+        accessRequests: undefined,
+      },
+    };
   });
+
+  if (props.autoStart) {
+    appContext.workspacesService.setConnectMyComputerAutoStart(
+      cluster.uri,
+      true
+    );
+  }
 
   return (
     <MockAppContextProvider appContext={appContext}>

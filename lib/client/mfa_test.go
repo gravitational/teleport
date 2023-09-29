@@ -24,10 +24,10 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client/mfa"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
 // TestPromptMFAChallenge_usingNonRegisteredDevice tests a specific MFA scenario

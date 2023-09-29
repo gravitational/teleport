@@ -23,6 +23,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -56,6 +57,9 @@ type AccessLists interface {
 
 	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
 	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
+
+	// AccessRequestPromote promotes an access request to an access list.
+	AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error)
 }
 
 // MarshalAccessList marshals the access list resource to JSON.
@@ -86,7 +90,7 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var accessList *accesslist.AccessList
+	var accessList accesslist.AccessList
 	if err := utils.FastUnmarshal(data, &accessList); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
@@ -99,7 +103,7 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 	if !cfg.Expires.IsZero() {
 		accessList.SetExpiry(cfg.Expires)
 	}
-	return accessList, nil
+	return &accessList, nil
 }
 
 // AccessListMembersGetter defines an interface for reading access list members.
@@ -152,7 +156,7 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var member *accesslist.AccessListMember
+	var member accesslist.AccessListMember
 	if err := utils.FastUnmarshal(data, &member); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
@@ -165,7 +169,7 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 	if !cfg.Expires.IsZero() {
 		member.SetExpiry(cfg.Expires)
 	}
-	return member, nil
+	return &member, nil
 }
 
 // IsAccessListOwner will return true if the user is an owner for the current list.
@@ -237,7 +241,7 @@ func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires
 		}
 	}
 
-	// Assemble traits for easy lookyp.
+	// Assemble traits for easy lookup.
 	userTraitsMap := map[string]map[string]struct{}{}
 	for k, values := range identity.Traits {
 		if _, ok := userTraitsMap[k]; !ok {
