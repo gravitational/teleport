@@ -32,8 +32,14 @@ import {
 /**
  * IndicatorStatus combines a couple of different states into a single enum which dictates the
  * decorative look of NavigationMenu.
+ *
+ * 'not-configured' means that the user did not interact with the feature and thus no indicator
+ * should be shown.
+ * '' means that the user has interacted with the feature, but the agent is not currently running in
+ * which case we display an empty circle, like we do next to the Connections icon when there's no
+ * active connections.
  */
-type IndicatorStatus = AttemptStatus;
+type IndicatorStatus = AttemptStatus | 'not-configured';
 
 export function NavigationMenu() {
   const iconRef = useRef();
@@ -121,6 +127,17 @@ function getIndicatorStatus(
   if (currentAction.kind === 'observe-process') {
     switch (currentAction.agentProcessState.status) {
       case 'not-started': {
+        const isAgentConfigured =
+          isAgentConfiguredAttempt.status === 'success' &&
+          isAgentConfiguredAttempt.data;
+
+        // Before returning 'not-configured', we have to first inspect currentAction. If we didn't
+        // do that, then during setup the indicator status would be 'not-configured' all the way
+        // until the end.
+        if (!isAgentConfigured) {
+          return 'not-configured';
+        }
+
         return '';
       }
       case 'error': {
@@ -168,55 +185,12 @@ export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
         {props.indicatorStatus === 'error' ? (
           <StyledWarning />
         ) : (
-          indicatorStatusToStyledStatus(props.indicatorStatus)
+          <StyledStatus status={props.indicatorStatus} />
         )}
       </StyledButton>
     );
   }
 );
-
-const indicatorStatusToStyledStatus = (
-  indicatorStatus: '' | 'processing' | 'success'
-): JSX.Element => {
-  return (
-    <StyledStatus
-      status={indicatorStatus}
-      css={`
-        @keyframes blink {
-          0% {
-            opacity: 0;
-          }
-          50% {
-            opacity: 100%;
-          }
-          100% {
-            opacity: 0;
-          }
-        }
-
-        animation: blink 1.4s ease-in-out;
-        animation-iteration-count: ${props => {
-          const hasFinished =
-            props.status === 'success' || props.status === 'error';
-          return hasFinished ? '0' : 'infinite';
-        }};
-        visibility: ${props => (props.status === '' ? 'hidden' : 'visible')};
-        background: ${props => getIndicatorColor(props.status, props.theme)};
-      `}
-    />
-  );
-};
-
-function getIndicatorColor(
-  status: 'processing' | 'success',
-  theme: any
-): string {
-  switch (status) {
-    case 'processing':
-    case 'success':
-      return theme.colors.success;
-  }
-}
 
 const StyledButton = styled(Button)`
   position: relative;
@@ -235,6 +209,46 @@ const StyledStatus = styled(Box)`
   height: 8px;
   border-radius: 50%;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+
+  @keyframes blink {
+    0% {
+      opacity: 0;
+    }
+    50% {
+      opacity: 100%;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  animation: blink 1.4s ease-in-out;
+  animation-iteration-count: ${props =>
+    props.status === 'processing' ? 'infinite' : '0'};
+
+  ${props => {
+    const { status, theme } = props;
+    // 'not-configured' means that the user did not interact with the feature and thus no indicator
+    // should be shown.
+    if (status === 'not-configured') {
+      return { visibility: 'hidden' };
+    }
+
+    // '' means that the user has interacted with the feature, but the agent is not currently
+    // running in which case we display an empty circle, like we do next to the Connections icon
+    // when there's no active connections.
+    if (status === '') {
+      return {
+        border: `1px solid ${theme.colors.text.slightlyMuted}`,
+      };
+    }
+
+    if (status === 'processing' || status === 'success') {
+      return { backgroundColor: theme.colors.success };
+    }
+
+    // 'error' status can be ignored as it's handled outside of StyledStatus.
+  }}
 `;
 
 const StyledWarning = styled(Warning).attrs({
