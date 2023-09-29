@@ -247,7 +247,7 @@ const cfg = {
     ec2InstanceConnectIAMConfigureScriptPath:
       '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:awsOidcRoleArn',
     ec2InstanceConnectDeployPath:
-      '/v1/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice',
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployec2ice',
 
     userGroupsListPath:
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
