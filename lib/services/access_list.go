@@ -23,6 +23,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -56,6 +57,9 @@ type AccessLists interface {
 
 	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
 	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
+
+	// AccessRequestPromote promotes an access request to an access list.
+	AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error)
 }
 
 // MarshalAccessList marshals the access list resource to JSON.
@@ -237,7 +241,7 @@ func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires
 		}
 	}
 
-	// Assemble traits for easy lookyp.
+	// Assemble traits for easy lookup.
 	userTraitsMap := map[string]map[string]struct{}{}
 	for k, values := range identity.Traits {
 		if _, ok := userTraitsMap[k]; !ok {
