@@ -240,7 +240,7 @@ func addHostCAPublicKey(registryHostCAStruct puttyhosts.HostCAPublicKeyForRegist
 	// if matchHosts has any entries, delete the "MatchHosts" key from the registry as its entries were migrated above.
 	if len(matchHosts) > 0 {
 		log.Debugf("Deleting %v legacy MatchHosts value(s) from registry key %v", len(matchHosts), registryKeyName)
-		err := registry.DeleteValueFromRegistryKey(registryKey, "MatchHosts")
+		err := registryKey.DeleteValue("MatchHosts")
 		// failure to delete this value isn't a fatal error, so we should continue regardless
 		if err != nil {
 			log.Debugf("Failed to delete old MatchHosts value for %v: %v", registryHostCAStruct.KeyName, err)
