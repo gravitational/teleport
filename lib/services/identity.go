@@ -23,6 +23,7 @@ package services
 import (
 	"context"
 	"crypto"
+	"crypto/x509"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -405,4 +406,21 @@ func LastFailed(x int, attempts []LoginAttempt) bool {
 		}
 	}
 	return false
+}
+
+// NewWebSessionAttestationData creates attestation data for a web session key.
+// Inserting data to the Auth server will allow certificates generated for the
+// web session key to pass private key policies that are unobtainable in the web
+// (hardware key policies). In exchange, these keys must be kept strictly in the
+// Auth and Proxy processes and Auth storage. These keys and certs can only be
+// retrieved by users in the form of web session cookies.
+func NewWebSessionAttestationData(pub crypto.PublicKey) (*keys.AttestationData, error) {
+	pubDER, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &keys.AttestationData{
+		PublicKeyDER:     pubDER,
+		PrivateKeyPolicy: keys.PrivateKeyPolicyWebSession,
+	}, nil
 }

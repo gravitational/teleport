@@ -65,7 +65,7 @@ func (requiredPolicy PrivateKeyPolicy) IsSatisfiedBy(keyPolicy PrivateKeyPolicy)
 	case PrivateKeyPolicyNone:
 		return true
 	case PrivateKeyPolicyHardwareKey:
-		return keyPolicy.isHardwareKeyVerified()
+		return keyPolicy.IsHardwareKeyPolicy()
 	case PrivateKeyPolicyHardwareKeyTouch:
 		return keyPolicy.isHardwareKeyTouchVerified()
 	case PrivateKeyPolicyHardwareKeyPIN:
@@ -74,17 +74,6 @@ func (requiredPolicy PrivateKeyPolicy) IsSatisfiedBy(keyPolicy PrivateKeyPolicy)
 		return keyPolicy.isHardwareKeyTouchVerified() && keyPolicy.isHardwareKeyPINVerified()
 	}
 
-	return false
-}
-
-func (p PrivateKeyPolicy) isHardwareKeyVerified() bool {
-	switch p {
-	case PrivateKeyPolicyHardwareKey,
-		PrivateKeyPolicyHardwareKeyTouch,
-		PrivateKeyPolicyHardwareKeyPIN,
-		PrivateKeyPolicyHardwareKeyTouchAndPIN:
-		return true
-	}
 	return false
 }
 

@@ -645,6 +645,10 @@ type NewWebSessionRequest struct {
 	AccessRequests []string
 	// RequestedResourceIDs optionally lists requested resources
 	RequestedResourceIDs []ResourceID
+	// AttestWebSession optionally attests the web session to meet private key policy requirements.
+	// This should only be set to true for web sessions that are purely in the purview of the Proxy
+	// and Auth services. Users should never have direct access to attested web sessions.
+	AttestWebSession bool
 }
 
 // Check validates the request.
