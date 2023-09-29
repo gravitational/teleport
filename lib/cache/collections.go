@@ -2406,10 +2406,7 @@ func (discoveryConfigExecutor) getAll(ctx context.Context, cache *Cache, loadSec
 }
 
 func (discoveryConfigExecutor) upsert(ctx context.Context, cache *Cache, resource *discoveryconfig.DiscoveryConfig) error {
-	_, err := cache.discoveryConfigsCache.CreateDiscoveryConfig(ctx, resource)
-	if trace.IsAlreadyExists(err) {
-		_, err = cache.discoveryConfigsCache.UpdateDiscoveryConfig(ctx, resource)
-	}
+	_, err := cache.discoveryConfigsCache.UpsertDiscoveryConfig(ctx, resource)
 	return trace.Wrap(err)
 }
 
