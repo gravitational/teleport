@@ -424,7 +424,7 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Teleport Community Access Requests",
+              "title": "Teleport Community Edition Role Access Requests",
               "slug": "/access-controls/access-requests/oss-role-requests/",
               "forScopes": ["oss"]
             }
