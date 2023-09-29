@@ -51,6 +51,10 @@ func (req *UpdateServiceRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("teleport version tag required")
 	}
 
+	if req.OwnershipTags == nil {
+		req.OwnershipTags = make(AWSTags)
+	}
+
 	return nil
 }
 

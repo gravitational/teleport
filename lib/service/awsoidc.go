@@ -21,12 +21,12 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -228,24 +228,23 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgents(ctx context.Conte
 	}
 
 	// Perform updates in parallel across regions.
-	var sem = make(chan interface{}, maxConcurrentUpdates)
-	var wg sync.WaitGroup
+	sem := semaphore.NewWeighted(maxConcurrentUpdates)
 	for _, ig := range integrations {
 		for region := range awsRegions {
-			sem <- nil
-			wg.Add(1)
+			if err := sem.Acquire(ctx, 1); err != nil {
+				return trace.Wrap(err)
+			}
 			go func(ig types.Integration, region string) {
+				defer sem.Release(1)
 				if err := updater.updateDeployServiceAgent(ctx, ig, region, stableVersion); err != nil {
-					updater.Log.WithError(err).Warning("Failed to update deploy service agent.")
+					updater.Log.WithError(err).Warningf("Failed to update deploy service agent for integration %s in region %s.", ig.GetName(), region)
 				}
-				wg.Done()
-				<-sem
 			}(ig, region)
 		}
 	}
-	wg.Wait()
 
-	return nil
+	// Wait for all updates to finish.
+	return trace.Wrap(sem.Acquire(ctx, maxConcurrentUpdates))
 }
 
 func (updater *DeployServiceUpdater) updateDeployServiceAgent(ctx context.Context, integration types.Integration, awsRegion, teleportVersion string) error {
@@ -298,6 +297,11 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgent(ctx context.Contex
 		}
 		return trace.Wrap(err)
 	}
+	defer func() {
+		if err := updater.AuthClient.CancelSemaphoreLease(ctx, *semLock); err != nil {
+			updater.Log.WithError(err).Error("Failed to cancel semaphore lease.")
+		}
+	}()
 
 	updater.Log.Debugf("Updating Deploy Service Agents for integration %s in AWS region: %s", integration.GetName(), awsRegion)
 	if err := awsoidc.UpdateDeployServiceAgent(ctx, deployServiceClient, awsoidc.UpdateServiceRequest{
@@ -305,10 +309,6 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgent(ctx context.Contex
 		TeleportVersionTag:  teleportVersion,
 		OwnershipTags:       ownershipTags,
 	}); err != nil {
-		// Release the semaphore lease on failure so that another instance may attempt the update
-		if cancelErr := updater.AuthClient.CancelSemaphoreLease(ctx, *semLock); cancelErr != nil {
-			updater.Log.WithError(cancelErr).Error("Failed to cancel semaphore lease.")
-		}
 
 		switch {
 		case trace.IsNotFound(err):
