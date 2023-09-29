@@ -52,7 +52,7 @@ func (req *UpdateServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if req.OwnershipTags == nil {
-		req.OwnershipTags = make(AWSTags)
+		return trace.BadParameter("ownership tags required")
 	}
 
 	return nil
