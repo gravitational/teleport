@@ -29,6 +29,7 @@
         "log",
         "affinity",
         "annotations",
+        "extraContainers",
         "extraVolumes",
         "extraVolumeMounts",
         "imagePullPolicy",
@@ -595,6 +596,11 @@
         },
         "extraEnv": {
             "$id": "#/properties/extraEnv",
+            "type": "array",
+            "default": []
+        },
+        "extraContainers": {
+            "$id": "#/properties/extraContainers",
             "type": "array",
             "default": []
         },

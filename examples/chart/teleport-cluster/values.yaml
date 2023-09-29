@@ -609,6 +609,19 @@ extraArgs: []
 # Extra environment to be configured on the Teleport pod
 extraEnv: []
 
+# Extra containers to be added to the Teleport pod
+extraContainers: []
+# - name: nscenter
+#   command:
+#     - /bin/bash
+#     - -c
+#     - sleep infinity & wait
+#   image: praqma/network-multitool
+#   imagePullPolicy: IfNotPresent
+#   securityContext:
+#     privileged: true
+#     runAsNonRoot: false
+
 # Extra volumes to mount into the Teleport pods
 # https://kubernetes.io/docs/concepts/storage/volumes/
 extraVolumes: []

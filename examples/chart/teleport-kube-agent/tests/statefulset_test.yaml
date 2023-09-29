@@ -217,6 +217,35 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should have only one container when no `extraContainers` is set in values
+    template: statefulset.yaml
+    set:
+      extraContainers: []
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0]
+      - isNull:
+          path: spec.template.spec.containers[1]
+
+  - it: should add one more container when `extraContainers` is set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/extra-containers.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1]
+          value:
+            name: nscenter
+            command:
+              - /bin/bash
+              - -c
+              - sleep infinity & wait
+            image: praqma/network-multitool
+            imagePullPolicy: IfNotPresent
+            securityContext:
+              privileged: true
+              runAsNonRoot: false
+
   - it: should mount extraVolumes and extraVolumeMounts
     template: statefulset.yaml
     values:
@@ -404,7 +433,7 @@ tests:
     values:
       - ../.lint/stateful.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     release:
@@ -420,7 +449,7 @@ tests:
     values:
       - ../.lint/stateful.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     release:
@@ -437,7 +466,7 @@ tests:
     release:
       upgrade: true
     set:
-      # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
       # https://github.com/helm/helm/issues/8137
       unitTestUpgrade: true
 
@@ -459,7 +488,7 @@ tests:
     set:
       storage:
         requests: 256Mi
-      # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
       # https://github.com/helm/helm/issues/8137
       unitTestUpgrade: true
     asserts:
@@ -594,7 +623,7 @@ tests:
     values:
       - ../.lint/stateful.yaml
     set:
-      storage: 
+      storage:
         enabled: false
     asserts:
       - contains:
@@ -629,7 +658,7 @@ tests:
       - ../.lint/stateful.yaml
     set:
       unitTestUpgrade: true
-      storage: 
+      storage:
         enabled: false
     asserts:
       - contains:
