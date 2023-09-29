@@ -180,6 +180,7 @@ export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
         kind="secondary"
         size="small"
         title="Open Connect My Computer"
+        data-testid="connect-my-computer-icon"
       >
         <Laptop size="medium" />
         {props.indicatorStatus === 'error' ? (
