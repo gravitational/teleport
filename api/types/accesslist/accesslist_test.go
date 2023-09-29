@@ -49,7 +49,7 @@ func TestDeduplicateOwners(t *testing.T) {
 				},
 			},
 			Audit: Audit{
-				Frequency: time.Hour,
+				NextAuditDate: time.Now(),
 			},
 			MembershipRequires: Requires{
 				Roles: []string{"mrole1", "mrole2"},
