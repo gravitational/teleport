@@ -59,12 +59,13 @@ export const ServerResource: ResourceViewConfig<ResourceSpec> = {
         {
           title: 'Enroll EC2 Instance',
           component: EnrollEc2Instance,
-          // eventName: null, TODO rudream (ADD EVENTS FOR EICE FLOW)
+          eventName: DiscoverEvent.EC2InstanceSelection,
         },
         {
           title: 'Create EC2 Instance Connect Endpoint',
           component: CreateEc2Ice,
-          // eventName: null, TODO rudream (ADD EVENTS FOR EICE FLOW)
+          eventName: DiscoverEvent.CreateNode,
+          manuallyEmitSuccessEvent: true,
         },
       ];
     } else {
