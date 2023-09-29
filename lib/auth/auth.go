@@ -5290,7 +5290,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			Database:       db,
 			DatabaseUser:   t.Database.Username,
 			DatabaseName:   t.Database.GetDatabase(),
-			AutoCreateUser: autoCreate,
+			AutoCreateUser: services.IsCreateDatabaseUserEnabled(autoCreate),
 		})
 		noMFAAccessErr = checker.CheckAccess(
 			db,

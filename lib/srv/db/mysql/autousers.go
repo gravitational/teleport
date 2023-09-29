@@ -151,6 +151,13 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 	return trace.Wrap(err)
 }
 
+// DeleteUser deletes the database user.
+func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) error {
+	// TODO(gabrielcorado): implement delete database user. for now, just
+	// fallback to deactivate user.
+	return e.DeactivateUser(ctx, sessionCtx)
+}
+
 func (e *Engine) connectAsAdminUser(ctx context.Context, sessionCtx *common.Session) (*clientConn, error) {
 	adminSessionCtx := sessionCtx.WithUserAndDatabase(
 		sessionCtx.Database.GetAdminUser(),

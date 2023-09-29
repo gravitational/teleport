@@ -239,6 +239,7 @@ func TestRoleParse(t *testing.T) {
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          nil,
 						CreateDatabaseUser:      types.NewBoolOption(false),
+						CreateDatabaseUserMode:  types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{
@@ -293,6 +294,7 @@ func TestRoleParse(t *testing.T) {
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          nil,
 						CreateDatabaseUser:      types.NewBoolOption(false),
+						CreateDatabaseUserMode:  types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{
@@ -377,6 +379,7 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateDatabaseUser:      types.NewBoolOption(false),
+						CreateDatabaseUserMode:  types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
 						CreateHostUser:          nil,
 						SSHFileCopy:             types.NewBoolOption(false),
 						IDP: &types.IdPOptions{
@@ -481,6 +484,7 @@ func TestRoleParse(t *testing.T) {
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          nil,
 						CreateDatabaseUser:      types.NewBoolOption(false),
+						CreateDatabaseUserMode:  types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
 						SSHFileCopy:             types.NewBoolOption(false),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{
@@ -591,6 +595,7 @@ func TestRoleParse(t *testing.T) {
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          nil,
 						CreateDatabaseUser:      types.NewBoolOption(false),
+						CreateDatabaseUserMode:  types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{
@@ -687,6 +692,7 @@ func TestRoleParse(t *testing.T) {
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          nil,
 						CreateDatabaseUser:      types.NewBoolOption(false),
+						CreateDatabaseUserMode:  types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{
@@ -4279,8 +4285,77 @@ func TestCheckDatabaseRoles(t *testing.T) {
 
 			create, roles, err := accessChecker.CheckDatabaseRoles(database)
 			require.NoError(t, err)
-			require.Equal(t, test.outCreateUser, create)
+			require.Equal(t, test.outCreateUser, IsCreateDatabaseUserEnabled(create))
 			require.Equal(t, test.outRoles, roles)
+		})
+	}
+}
+
+func TestGetCreateDatabaseCreateMode(t *testing.T) {
+	for name, tc := range map[string]struct {
+		roleSet      RoleSet
+		expectedMode types.CreateDatabaseUserMode
+	}{
+		"disabled": {
+			roleSet: RoleSet{
+				&types.RoleV6{
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
+						},
+					},
+				},
+			},
+			expectedMode: types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
+		},
+		"enabled mode take precedence": {
+			roleSet: RoleSet{
+				&types.RoleV6{
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
+						},
+					},
+				},
+				&types.RoleV6{
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+						},
+					},
+				},
+			},
+			expectedMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+		},
+		"delete mode take precedence": {
+			roleSet: RoleSet{
+				&types.RoleV6{
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_PREFER_DROP,
+						},
+					},
+				},
+				&types.RoleV6{
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
+						},
+					},
+				},
+				&types.RoleV6{
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+						},
+					},
+				},
+			},
+			expectedMode: types.CreateDatabaseUserMode_DB_USER_MODE_PREFER_DROP,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, tc.expectedMode, tc.roleSet.GetCreateDatabaseUserMode())
 		})
 	}
 }

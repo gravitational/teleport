@@ -144,7 +144,7 @@ type AccessChecker interface {
 
 	// CheckDatabaseRoles returns whether a user should be auto-created in the
 	// database and a list of database roles to assign.
-	CheckDatabaseRoles(types.Database) (create bool, roles []string, err error)
+	CheckDatabaseRoles(types.Database) (mode types.CreateDatabaseUserMode, roles []string, err error)
 
 	// CheckImpersonate checks whether current user is allowed to impersonate
 	// users and roles
@@ -514,40 +514,41 @@ func (a *accessChecker) Traits() wrappers.Traits {
 
 // CheckDatabaseRoles returns whether a user should be auto-created in the
 // database and a list of database roles to assign.
-func (a *accessChecker) CheckDatabaseRoles(database types.Database) (create bool, roles []string, err error) {
-	// First, collect roles from this roleset that have "create_db_user" option.
+func (a *accessChecker) CheckDatabaseRoles(database types.Database) (mode types.CreateDatabaseUserMode, roles []string, err error) {
+	// First, collect roles from this roleset that have create database user mode set.
 	var autoCreateRoles RoleSet
 	for _, role := range a.RoleSet {
-		if role.GetCreateDatabaseUserOption() {
+		mode := role.GetCreateDatabaseUserMode()
+		if mode != types.CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED && mode != types.CreateDatabaseUserMode_DB_USER_MODE_OFF {
 			autoCreateRoles = append(autoCreateRoles, role)
 		}
 	}
 	// If there are no "auto-create user" roles, nothing to do.
 	if len(autoCreateRoles) == 0 {
-		return false, nil, nil
+		return types.CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED, nil, nil
 	}
 	// Otherwise, iterate over auto-create roles matching the database user
 	// is connecting to and compile a list of roles database user should be
 	// assigned.
+	var allowedRoleSet RoleSet
 	rolesMap := make(map[string]struct{})
-	var matched bool
 	for _, role := range autoCreateRoles {
 		match, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, database, false)
 		if err != nil {
-			return false, nil, trace.Wrap(err)
+			return types.CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED, nil, trace.Wrap(err)
 		}
 		if !match {
 			continue
 		}
+		allowedRoleSet = append(allowedRoleSet, role)
 		for _, dbRole := range role.GetDatabaseRoles(types.Allow) {
 			rolesMap[dbRole] = struct{}{}
 		}
-		matched = true
 	}
 	for _, role := range autoCreateRoles {
 		match, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, database, false)
 		if err != nil {
-			return false, nil, trace.Wrap(err)
+			return types.CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED, nil, trace.Wrap(err)
 		}
 		if !match {
 			continue
@@ -559,7 +560,7 @@ func (a *accessChecker) CheckDatabaseRoles(database types.Database) (create bool
 	// The collected role list can be empty and that should be ok, we want to
 	// leave the behavior of what happens when a user is created with default
 	// "no roles" configuration up to the target database.
-	return matched, utils.StringsSliceFromSet(rolesMap), nil
+	return allowedRoleSet.GetCreateDatabaseUserMode(), utils.StringsSliceFromSet(rolesMap), nil
 }
 
 // EnumerateDatabaseUsers specializes EnumerateEntities to enumerate db_users.

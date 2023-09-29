@@ -51,7 +51,7 @@ type UserProvisioner struct {
 // database has been established to release the cluster lock acquired by this
 // function to make sure no 2 processes run user activation simultaneously.
 func (a *UserProvisioner) Activate(ctx context.Context, sessionCtx *Session) (func(), error) {
-	if !sessionCtx.AutoCreateUser {
+	if !services.IsCreateDatabaseUserEnabled(sessionCtx.AutoCreateUserMode) {
 		return func() {}, nil
 	}
 
@@ -101,7 +101,7 @@ func (a *UserProvisioner) Activate(ctx context.Context, sessionCtx *Session) (fu
 
 // Deactivate disables a database user.
 func (a *UserProvisioner) Deactivate(ctx context.Context, sessionCtx *Session) error {
-	if !sessionCtx.AutoCreateUser {
+	if !services.IsCreateDatabaseUserEnabled(sessionCtx.AutoCreateUserMode) {
 		return nil
 	}
 
@@ -124,6 +124,35 @@ func (a *UserProvisioner) Deactivate(ctx context.Context, sessionCtx *Session) e
 	}()
 
 	err = a.Backend.DeactivateUser(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// Delete deletes a database user.
+func (a *UserProvisioner) Delete(ctx context.Context, sessionCtx *Session) error {
+	if !services.IsCreateDatabaseUserEnabled(sessionCtx.AutoCreateUserMode) {
+		return nil
+	}
+
+	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
+	defer cancel()
+
+	lease, err := services.AcquireSemaphoreWithRetry(retryCtx, a.makeAcquireSemaphoreConfig(sessionCtx))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		err := a.AuthClient.CancelSemaphoreLease(ctx, *lease)
+		if err != nil {
+			a.Log.WithError(err).Errorf("Failed to cancel lease: %v.", lease)
+		}
+	}()
+
+	err = a.Backend.DeleteUser(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

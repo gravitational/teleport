@@ -88,6 +88,28 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 	return nil
 }
 
+// DeleteUser deletes the database user.
+func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) error {
+	if sessionCtx.Database.GetAdminUser() == "" {
+		return trace.BadParameter("Teleport does not have admin user configured for this database")
+	}
+
+	conn, err := e.pgxConnect(ctx, sessionCtx.WithUser(sessionCtx.Database.GetAdminUser()))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer conn.Close(ctx)
+
+	e.Log.Infof("Deleting PostgreSQL user %q.", sessionCtx.DatabaseUser)
+
+	_, err = conn.Exec(ctx, deleteQuery, sessionCtx.DatabaseUser)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // initAutoUsers installs procedures for activating and deactivating users and
 // creates the bookkeeping role for auto-provisioned users.
 func (e *Engine) initAutoUsers(ctx context.Context, conn *pgx.Conn) error {
@@ -134,6 +156,9 @@ const (
 	// deactivateProcName is the name of the stored procedure Teleport will use
 	// to automatically deactivate database users after session ends.
 	deactivateProcName = "teleport_deactivate_user"
+	// deleteProcName is the name of the stored procedure Teleport will use to
+	// automatically delete database users after session ends.
+	deleteProcName = "teleport_delete_user"
 
 	// teleportAutoUserRole is the name of a PostgreSQL role that all Teleport
 	// managed users will be a part of.
@@ -151,8 +176,14 @@ var (
 	// deactivateQuery is the query for calling user deactivation procedure.
 	deactivateQuery = fmt.Sprintf(`call %v($1)`, deactivateProcName)
 
+	//go:embed delete-user.sql
+	deleteProc string
+	// deleteQuery is the query for calling user deletion procedure.
+	deleteQuery = fmt.Sprintf(`call %v($1)`, deleteProcName)
+
 	procs = map[string]string{
 		activateProcName:   activateProc,
 		deactivateProcName: deactivateProc,
+		deleteProcName:     deleteProc,
 	}
 )

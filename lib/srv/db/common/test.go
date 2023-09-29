@@ -56,6 +56,11 @@ type TestServerConfig struct {
 	// ClientAuth sets tls.ClientAuth in server's tls.Config. It can be used to force client
 	// certificate validation in tests.
 	ClientAuth tls.ClientAuthType
+	// Users is a list of possible users. If anything provided is outside this list
+	// it will return access denied.
+	Users []string
+	// AllowAnyUser sets the engine to accept any database user.
+	AllowAnyUser bool
 
 	Listener net.Listener
 }
@@ -67,6 +72,11 @@ func (cfg *TestServerConfig) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 		cfg.Listener = listener
+	}
+
+	if cfg.Users == nil {
+		cfg.Users = make([]string, 0)
+		cfg.AllowAnyUser = true
 	}
 
 	return nil

@@ -85,6 +85,8 @@ type TestServer struct {
 	userEventsCh chan UserEvent
 	// mu protects test server's shared state.
 	mu sync.Mutex
+	// allowedUsers list of users that can be used to connect to the server.
+	allowedUsers *sync.Map
 
 	// nextPid is a dummy variable used to assign each connection a unique fake "pid".
 	// it's incremented after each new startup connection. Starts counting from 1.
@@ -135,6 +137,11 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 		return nil, trace.Wrap(err)
 	}
 
+	var allowedUsers sync.Map
+	for _, user := range config.Users {
+		allowedUsers.Store(user, struct{}{})
+	}
+
 	return &TestServer{
 		cfg:       config,
 		listener:  config.Listener,
@@ -148,6 +155,7 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 		pids:             make(map[uint32]*pidHandle),
 		storedProcedures: make(map[string]string),
 		userEventsCh:     make(chan UserEvent, 100),
+		allowedUsers:     &allowedUsers,
 		mmCache:          make(map[string]*multiMessage),
 	}, nil
 }
@@ -223,9 +231,12 @@ func (s *TestServer) startTLS(conn net.Conn) (*pgproto3.Backend, error) {
 func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgproto3.StartupMessage) error {
 	// Push connect parameters into the channel so tests can consume them.
 	s.parametersCh <- startupMessage.Parameters
-	// If auth token is specified, used it for password authentication, this
-	// simulates cloud provider IAM auth.
-	if s.cfg.AuthToken != "" {
+
+	// Perform authentication.
+	switch {
+	case s.cfg.AuthToken != "":
+		// If auth token is specified, used it for password authentication, this
+		// simulates cloud provider IAM auth.
 		if err := s.handlePasswordAuth(client); err != nil {
 			if trace.IsAccessDenied(err) {
 				if err := client.Send(&pgproto3.ErrorResponse{Code: pgerrcode.InvalidPassword, Message: err.Error()}); err != nil {
@@ -234,7 +245,12 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgp
 			}
 			return trace.Wrap(err)
 		}
+	case !s.cfg.AllowAnyUser:
+		if _, ok := s.allowedUsers.Load(startupMessage.Parameters[userParameterName]); !ok {
+			return trace.AccessDenied("invalid username")
+		}
 	}
+
 	// Accept auth and send ready for query.
 	if err := client.Send(&pgproto3.AuthenticationOk{}); err != nil {
 		return trace.Wrap(err)
@@ -273,7 +289,7 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgp
 				if err := s.handleActivateUser(client); err != nil {
 					s.log.WithError(err).Error("Failed to handle user activation.")
 				}
-			case deactivateQuery:
+			case deactivateQuery, deleteQuery:
 				if err := s.handleDeactivateUser(client); err != nil {
 					s.log.WithError(err).Error("Failed to handle user deactivation.")
 				}
@@ -364,7 +380,7 @@ func (s *TestServer) handleCreateStoredProcedure(query string) error {
 		return trace.BadParameter("failed to extract stored procedure name from query")
 	}
 	switch match[1] {
-	case activateProcName, deactivateProcName:
+	case activateProcName, deactivateProcName, deleteProcName:
 		s.log.Debugf("Created stored procedure %q.", match[1])
 	default:
 		return trace.BadParameter("test server doesn't support stored procedure %q", match[1])
@@ -538,6 +554,7 @@ func (s *TestServer) handleActivateUser(client *pgproto3.Backend) error {
 	// Mark the user as active.
 	s.log.Debugf("Activated user %q with roles %v.", name, roles)
 	s.userEventsCh <- UserEvent{Name: name, Roles: roles, Active: true}
+	s.allowedUsers.Store(name, struct{}{})
 	return nil
 }
 
@@ -598,6 +615,7 @@ func (s *TestServer) handleDeactivateUser(client *pgproto3.Backend) error {
 	// Mark the user as active.
 	s.log.Debugf("Deactivated user %q.", name)
 	s.userEventsCh <- UserEvent{Name: name, Active: false}
+	s.allowedUsers.Delete(name)
 	return nil
 }
 
@@ -817,6 +835,10 @@ const TestLongRunningQuery = "pg_sleep(forever)"
 
 // testSecretKey is the secret key stub for all connections, used for cancel requests.
 const testSecretKey = 1234
+
+// userParameterName is the parameter name that contains the username used to
+// connect.
+const userParameterName = "user"
 
 // storedProcedureRe is the regex for capturing stored procedure name from its
 // creation query.

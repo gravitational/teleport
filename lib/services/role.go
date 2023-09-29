@@ -3040,6 +3040,25 @@ func (set RoleSet) GetAllowedPreviewAsRoles() []string {
 	return apiutils.Deduplicate(allowed)
 }
 
+// GetCreateDatabaseUserMode returns the create database user mode of the rule
+// set.
+func (set RoleSet) GetCreateDatabaseUserMode() types.CreateDatabaseUserMode {
+	var mode types.CreateDatabaseUserMode
+	for _, r := range set {
+		if roleMode := r.GetCreateDatabaseUserMode(); roleMode > mode {
+			mode = roleMode
+		}
+	}
+
+	return mode
+}
+
+// IsCreateDatabaseUserEnabled returns true if database automatic user
+// provisioning is enabled.
+func IsCreateDatabaseUserEnabled(mode types.CreateDatabaseUserMode) bool {
+	return mode != types.CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED && mode != types.CreateDatabaseUserMode_DB_USER_MODE_OFF
+}
+
 // AccessState holds state for the present access attempt, including both
 // cluster settings and user state (MFA, device trust, etc).
 type AccessState struct {
