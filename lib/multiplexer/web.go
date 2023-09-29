@@ -113,7 +113,10 @@ func (l *WebListener) Serve() error {
 
 		tlsConn, ok := conn.(*tls.Conn)
 		if !ok {
-			l.log.Errorf("Expected *tls.Conn, got %T.", conn)
+			l.log.WithFields(logrus.Fields{
+				"src_addr": conn.RemoteAddr(),
+				"dst_addr": conn.LocalAddr(),
+			}).Errorf("Expected *tls.Conn, got %T.", conn)
 			conn.Close()
 			continue
 		}
@@ -132,7 +135,10 @@ func (l *WebListener) detectAndForward(conn *tls.Conn) {
 
 	if err := conn.Handshake(); err != nil {
 		if trace.Unwrap(err) != io.EOF {
-			l.log.WithError(err).Warn("Handshake failed.")
+			l.log.WithFields(logrus.Fields{
+				"src_addr": conn.RemoteAddr(),
+				"dst_addr": conn.LocalAddr(),
+			}).WithError(err).Warn("Handshake failed.")
 		}
 		conn.Close()
 		return
@@ -151,7 +157,10 @@ func (l *WebListener) detectAndForward(conn *tls.Conn) {
 	// tls listener.
 	isDatabaseConnection, err := dbcommon.IsDatabaseConnection(conn.ConnectionState())
 	if err != nil {
-		l.log.WithError(err).Debug("Failed to check if connection is database connection.")
+		l.log.WithFields(logrus.Fields{
+			"src_addr": conn.RemoteAddr(),
+			"dst_addr": conn.LocalAddr(),
+		}).WithError(err).Debug("Failed to check if connection is database connection.")
 	}
 	if isDatabaseConnection {
 		l.dbListener.HandleConnection(l.context, conn)

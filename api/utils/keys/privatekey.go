@@ -208,7 +208,7 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse YubiKey private key")
 		}
-		return NewPrivateKey(priv, keyPEM)
+		return priv, nil
 	default:
 		return nil, trace.BadParameter("unexpected private key PEM type %q", block.Type)
 	}
