@@ -149,15 +149,19 @@ type signRegisterResult struct {
 }
 
 func (muk *Key) signRegister(appIDHash, clientDataHash []byte) (*signRegisterResult, error) {
-	//nolint:staticcheck // SA1019 requires Go 1.21 in go.mod and non-insignificant changes. TODO: fix.
-	pubKey := elliptic.Marshal(elliptic.P256(), muk.PrivateKey.PublicKey.X, muk.PrivateKey.PublicKey.Y)
+	// Marshal pubKey into the uncompressed "4||X||Y" form.
+	ecdhPubKey, err := muk.PrivateKey.PublicKey.ECDH()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pubKey := ecdhPubKey.Bytes()
 
 	var dataToSign []byte
-	dataToSign = append(dataToSign[:], 0)
-	dataToSign = append(dataToSign[:], appIDHash[:]...)
-	dataToSign = append(dataToSign[:], clientDataHash[:]...)
-	dataToSign = append(dataToSign[:], muk.KeyHandle[:]...)
-	dataToSign = append(dataToSign[:], pubKey[:]...)
+	dataToSign = append(dataToSign, 0)
+	dataToSign = append(dataToSign, appIDHash[:]...)
+	dataToSign = append(dataToSign, clientDataHash[:]...)
+	dataToSign = append(dataToSign, muk.KeyHandle[:]...)
+	dataToSign = append(dataToSign, pubKey...)
 
 	dataHash := sha256.Sum256(dataToSign)
 
