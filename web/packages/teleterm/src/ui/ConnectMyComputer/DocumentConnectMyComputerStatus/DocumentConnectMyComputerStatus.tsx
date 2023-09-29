@@ -229,7 +229,9 @@ export function DocumentConnectMyComputerStatus(
           >
             {state => (
               <LabelsContainer gap={1} className={state}>
-                {renderLabels(agentNode.labelsList)}
+                {/* Explicitly check for existence of agentNode because Transition doesn't seem to
+                unmount immediately when `in` becomes falsy. */}
+                {agentNode?.labelsList && renderLabels(agentNode.labelsList)}
               </LabelsContainer>
             )}
           </Transition>
