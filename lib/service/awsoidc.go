@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -32,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -39,6 +41,9 @@ import (
 const (
 	// updateDeployAgentsInterval specifies how frequently to check for available updates.
 	updateDeployAgentsInterval = time.Minute * 30
+
+	// maxConcurrentUpdates specifies the maximum number of concurrent updates
+	maxConcurrentUpdates = 3
 )
 
 func (process *TeleportProcess) initDeployServiceUpdater() error {
@@ -55,8 +60,6 @@ func (process *TeleportProcess) initDeployServiceUpdater() error {
 	if !resp.ServerFeatures.AutomaticUpgrades {
 		return nil
 	}
-
-	process.log.Infof("The new service has started successfully. Checking for deploy service updates every %v.", updateDeployAgentsInterval)
 
 	// If criticalEndpoint or versionEndpoint are empty, the default stable/cloud endpoint will be used
 	var criticalEndpoint string
@@ -83,7 +86,7 @@ func (process *TeleportProcess) initDeployServiceUpdater() error {
 	}
 
 	updater, err := NewDeployServiceUpdater(DeployServiceUpdaterConfig{
-		Log:                 process.log.WithField(trace.Component, teleport.Component(teleport.ComponentProxy, "deployserviceupdater")),
+		Log:                 process.log.WithField(trace.Component, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater")),
 		AuthClient:          process.getInstanceClient(),
 		Clock:               process.Clock,
 		TeleportClusterName: clusterNameConfig.GetClusterName(),
@@ -95,6 +98,7 @@ func (process *TeleportProcess) initDeployServiceUpdater() error {
 		return trace.Wrap(err)
 	}
 
+	process.log.Infof("The new service has started successfully. Checking for deploy service updates every %v.", updateDeployAgentsInterval)
 	return trace.Wrap(updater.Run(process.GracefulExitContext()))
 }
 
@@ -131,7 +135,7 @@ func (cfg *DeployServiceUpdaterConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.Log == nil {
-		cfg.Log = logrus.WithField(trace.Component, teleport.Component(teleport.ComponentProxy, "deployserviceupdater"))
+		cfg.Log = logrus.WithField(trace.Component, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater"))
 	}
 
 	if cfg.Clock == nil {
@@ -199,8 +203,8 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgents(ctx context.Conte
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// cloudStableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
-	cloudStableVersion := strings.TrimPrefix(stableVersion, "v")
+	// stableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
+	stableVersion = strings.TrimPrefix(stableVersion, "v")
 
 	databases, err := updater.AuthClient.GetDatabases(ctx)
 	if err != nil {
@@ -223,79 +227,104 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgents(ctx context.Conte
 		return trace.Wrap(err)
 	}
 
+	// Perform updates in parallel across regions.
+	var sem = make(chan interface{}, maxConcurrentUpdates)
+	var wg sync.WaitGroup
 	for _, ig := range integrations {
-		spec := ig.GetAWSOIDCIntegrationSpec()
-		if spec == nil {
-			continue
-		}
-		integrationName := ig.GetName()
-
 		for region := range awsRegions {
-			token, err := updater.AuthClient.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
-				Issuer: updater.AWSOIDCProviderAddr,
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			req := &awsoidc.AWSClientRequest{
-				IntegrationName: ig.GetName(),
-				Token:           token,
-				RoleARN:         spec.RoleARN,
-				Region:          region,
-			}
-
-			// The deploy service client is initialized using AWS OIDC integration
-			deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, req, updater.AuthClient)
-			if err != nil {
-				updater.Log.WithError(err).Warning("Failed to update deploy service agents.")
-				continue
-			}
-
-			ownershipTags := map[string]string{
-				types.ClusterLabel:     updater.TeleportClusterName,
-				types.OriginLabel:      types.OriginIntegrationAWSOIDC,
-				types.IntegrationLabel: integrationName,
-			}
-
-			// Acquire a lease for the region + integration before attempting to update the deploy service agent.
-			// If the lease cannot be acquired, the update is already being handled by another instance.
-			semLock, err := updater.AuthClient.AcquireSemaphore(ctx, types.AcquireSemaphoreRequest{
-				SemaphoreKind: types.SemaphoreKindConnection,
-				SemaphoreName: fmt.Sprintf("update_deploy_service_agents_%s_%s", region, integrationName),
-				MaxLeases:     1,
-				Expires:       updater.Clock.Now().Add(updateDeployAgentsInterval),
-				Holder:        "update_deploy_service_agents",
-			})
-
-			if err != nil {
-				if strings.Contains(err.Error(), teleport.MaxLeases) {
-					updater.Log.Debug("Deploy service agent update is already being processed")
-					continue
+			sem <- nil
+			wg.Add(1)
+			go func(ig types.Integration, region string) {
+				if err := updater.updateDeployServiceAgent(ctx, ig, region, stableVersion); err != nil {
+					updater.Log.WithError(err).Warning("Failed to update deploy service agent.")
 				}
-				return trace.Wrap(err)
-			}
-
-			updater.Log.Debugf("Updating Deploy Service Agents in AWS region: %s", region)
-			if err := awsoidc.UpdateDeployServiceAgent(ctx, deployServiceClient, awsoidc.UpdateServiceRequest{
-				TeleportClusterName: updater.TeleportClusterName,
-				TeleportVersionTag:  cloudStableVersion,
-				OwnershipTags:       ownershipTags,
-			}); err != nil {
-				if trace.IsNotFound(err) {
-					// The updater checks each integration/region combination, so
-					// there will be regions where there is no ECS cluster deployed
-					// for the integration
-					continue
-				}
-				updater.Log.WithError(err).Warning("Failed to update deploy service agents.")
-
-				// Release the semaphore lease on failure so that another instance may attempt the update
-				if err := updater.AuthClient.CancelSemaphoreLease(ctx, *semLock); err != nil {
-					updater.Log.WithError(err).Error("Failed to cancel semaphore lease.")
-				}
-			}
+				wg.Done()
+				<-sem
+			}(ig, region)
 		}
+	}
+	wg.Wait()
+
+	return nil
+}
+
+func (updater *DeployServiceUpdater) updateDeployServiceAgent(ctx context.Context, integration types.Integration, awsRegion, teleportVersion string) error {
+	// Do not attempt update if integration is not an aws oidc integration.
+	if integration.GetAWSOIDCIntegrationSpec() == nil {
+		return nil
+	}
+
+	token, err := updater.AuthClient.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
+		Issuer: updater.AWSOIDCProviderAddr,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	req := &awsoidc.AWSClientRequest{
+		IntegrationName: integration.GetName(),
+		Token:           token,
+		RoleARN:         integration.GetAWSOIDCIntegrationSpec().RoleARN,
+		Region:          awsRegion,
+	}
+
+	// The deploy service client is initialized using AWS OIDC integration.
+	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, req, updater.AuthClient)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// ownershipTags are used to identify if the ecs resources are managed by the
+	// teleport integration.
+	ownershipTags := map[string]string{
+		types.ClusterLabel:     updater.TeleportClusterName,
+		types.OriginLabel:      types.OriginIntegrationAWSOIDC,
+		types.IntegrationLabel: integration.GetName(),
+	}
+
+	// Acquire a lease for the region + integration before attempting to update the deploy service agent.
+	// If the lease cannot be acquired, the update is already being handled by another instance.
+	semLock, err := updater.AuthClient.AcquireSemaphore(ctx, types.AcquireSemaphoreRequest{
+		SemaphoreKind: types.SemaphoreKindConnection,
+		SemaphoreName: fmt.Sprintf("update_deploy_service_agents_%s_%s_BERNARD", awsRegion, integration.GetName()),
+		MaxLeases:     1,
+		Expires:       updater.Clock.Now().Add(updateDeployAgentsInterval),
+		Holder:        "update_deploy_service_agents",
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), teleport.MaxLeases) {
+			updater.Log.WithError(err).Debug("Deploy service agent update is already being processed.")
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	updater.Log.Debugf("Updating Deploy Service Agents for integration %s in AWS region: %s", integration.GetName(), awsRegion)
+	if err := awsoidc.UpdateDeployServiceAgent(ctx, deployServiceClient, awsoidc.UpdateServiceRequest{
+		TeleportClusterName: updater.TeleportClusterName,
+		TeleportVersionTag:  teleportVersion,
+		OwnershipTags:       ownershipTags,
+	}); err != nil {
+		// Release the semaphore lease on failure so that another instance may attempt the update
+		if cancelErr := updater.AuthClient.CancelSemaphoreLease(ctx, *semLock); cancelErr != nil {
+			updater.Log.WithError(cancelErr).Error("Failed to cancel semaphore lease.")
+		}
+
+		switch {
+		case trace.IsNotFound(err):
+			// The updater checks each integration/region combination, so
+			// there will be regions where there is no ECS cluster deployed
+			// for the integration.
+			updater.Log.WithError(err).Debugf("Integration %s does not manage any services within region %s.", integration.GetName(), awsRegion)
+			return nil
+		case trace.IsAccessDenied(awslib.ConvertIAMv2Error(trace.Unwrap(err))):
+			// The aws oidc role may lack permissions due to changes in teleport.
+			// In this situation users should be notified that they will need to
+			// re-run the deploy service iam configuration script and update the
+			// permissions.
+			updater.Log.WithError(err).Warning("Re-run deploy service configuration script to update permissions.")
+		}
+		return trace.Wrap(err)
 	}
 	return nil
 }

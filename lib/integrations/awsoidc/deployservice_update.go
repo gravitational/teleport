@@ -25,6 +25,7 @@ import (
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/aws/aws-sdk-go/aws/awsutil"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // waitDuration specifies the amount of time to wait for a service to become healthy after an update.
@@ -75,6 +76,8 @@ func UpdateDeployServiceAgent(ctx context.Context, clt DeployServiceClient, req 
 		return trace.Wrap(err)
 	}
 
+	// There is no need to update the ecs service if the ecs service is already
+	// running the latest stable version of teleport.
 	if currentTeleportImage == teleportImage {
 		return nil
 	}
@@ -97,15 +100,19 @@ func UpdateDeployServiceAgent(ctx context.Context, clt DeployServiceClient, req 
 			TaskDefinition: registerTaskDefinitionOut.TaskDefinition.TaskDefinitionArn,
 		})
 		if rollbackErr != nil {
-			return trace.Wrap(err, "failed to rollback task definition: %v", rollbackErr)
+			return trace.NewAggregate(err, trace.Wrap(rollbackErr, "failed to rollback task definition"))
 		}
 		return trace.Wrap(err)
 	}
 
 	// Attempt to deregister previous task definition but ignore error on failure
-	clt.DeregisterTaskDefinition(ctx, &ecs.DeregisterTaskDefinitionInput{
+	_, err = clt.DeregisterTaskDefinition(ctx, &ecs.DeregisterTaskDefinitionInput{
 		TaskDefinition: taskDefinition.TaskDefinitionArn,
 	})
+	if err != nil {
+		logrus.WithError(err).Warning("Failed to deregister task definition.")
+	}
+
 	return nil
 }
 
@@ -124,7 +131,7 @@ func getManagedService(ctx context.Context, clt DeployServiceClient, teleportClu
 		return nil, trace.Wrap(err)
 	}
 	if len(describeServicesOut.Services) == 0 {
-		return nil, trace.NotFound("service not found")
+		return nil, trace.NotFound("services %v not found", ecsServiceNames)
 	}
 	if len(describeServicesOut.Services) != 1 {
 		return nil, trace.BadParameter("expected 1 service, but got %d", len(describeServicesOut.Services))
