@@ -162,7 +162,6 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindClusterAlert, RW()),
 					types.NewRule(types.KindAccessList, RW()),
 					types.NewRule(types.KindNode, RW()),
-					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
 		},
@@ -220,7 +219,6 @@ func NewPresetAccessRole() types.Role {
 					},
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
-					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
 		},
@@ -266,7 +264,6 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindSessionTracker, RO()),
 					types.NewRule(types.KindClusterAlert, RO()),
 					types.NewRule(types.KindInstance, RO()),
-					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
 		},
@@ -355,7 +352,6 @@ func NewPresetGroupAccessRole() types.Role {
 				},
 				Rules: []types.Rule{
 					types.NewRule(types.KindUserGroup, RO()),
-					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
 		},
