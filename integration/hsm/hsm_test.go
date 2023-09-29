@@ -84,7 +84,7 @@ func etcdBackendConfig(t *testing.T) *backend.Config {
 	t.Cleanup(func() {
 		bk, err := etcdbk.New(context.Background(), cfg.Params)
 		require.NoError(t, err)
-		require.NoError(t, bk.DeleteRange(context.Background(), []byte(prefix),
+		require.NoError(t, bk.DeleteRange(context.Background(), append([]byte("/"), []byte(prefix)...),
 			backend.RangeEnd([]byte(prefix))),
 			"failed to clean up etcd backend")
 	})
