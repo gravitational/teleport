@@ -28,7 +28,8 @@ unlocks such workflows. This was already implemented for `tsh ssh` access, but i
 
 The main goal of this proposal is to provide headless Kubernetes access for remote Linux machines, as it addresses the
 majority of use cases requiring this feature. MacOS might be supported with a slightly different approach,
-without using a memory-only kubeconfig file.
+without using a memory-only kubeconfig file. We also want to make sure that other unprivileged user logins on a remote machine
+are separated from each other, in case the remote machine is shared by multiple people.
 
 # Details
 
@@ -226,11 +227,18 @@ disk [`unix.Mlockall`](https://pkg.go.dev/golang.org/x/sys/unix#Mlockall)
 
 We will not change any part of the headless login itself, only integrate the existing
 flow into the `tsh proxy kube` command as an option. Certificates for accessing Kubernetes clusters in Teleport will be
-limited by `max_session_ttl`, which is the same behavior when using the regular `tsh proxy kube`. Keeping everything in memory
+limited by `max_session_ttl`, which is the same behavior when using the regular `tsh proxy kube`. 
+
+Keeping everything in memory
 and reexecing into a new shell provides a secure and convenient workflow for the user - once the process for the headless kube proxy
 terminates, everything is automatically cleaned up; there are no residual security-sensitive files left on disk.
-It also protects the kube proxy from being accessed by other users logged in to the same machine, since they can't access
-the kubeconfig, required for successful kubectl work. Starting a new proxy or continuing access beyond the `max_session_ttl` time
+It also protects the kube proxy from being accessed by other unprivileged users logged in to the same machine, since they can't access
+the kubeconfig - file location for the kubeconfig `/proce/self/fd/3` can only be read by the owner user, so if another user
+will try to point `kubectl` to it, this wouldn't work. Clients logged in as the same Linux user on this machine will be able to read
+each other's kubeconfig though, therefore if an organization is using a shared remote machine for multiple users, they should make sure
+every person has their own dedicated Linux user login. 
+
+Starting a new proxy or continuing access beyond the `max_session_ttl` time
 requires a new full headless login procedure. Furthermore, security can be increased by using the IP pinning feature, which would
 make the certificates usable only from the remote machine's IP.
 
