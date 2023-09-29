@@ -41,7 +41,7 @@ using a self-hosted GitLab instance, your Teleport Auth Server must be able to
 connect to your GitLab instance and your GitLab instance must be configured with
 a valid TLS certificate.**
 
-## Step 1/3. Create a join token
+## Step 1/4. Create a join token
 
 To allow GitLab CI to authenticate to your Teleport cluster, you'll first need
 to create a join token. A GitLab join token contains allow rules that describe
@@ -61,7 +61,7 @@ suggested by the comments in this example:
 kind: token
 version: v2
 metadata:
-  name: gitlab-demo
+  name: example-bot
 spec:
   # The Bot role indicates that this token grants access to a bot user, rather
   # than allowing a node to join. This role is built in to Teleport.
@@ -69,7 +69,7 @@ spec:
   join_method: gitlab
   # The bot_name indicates which bot user this token grants access to. This
   # should match the name of the bot that you create in step 2.
-  bot_name: gitlab-demo
+  bot_name: example
   gitlab:
     # domain should be the domain of your GitLab instance. If you are using
     # GitLab's cloud hosted offering, omit this field entirely.
@@ -93,7 +93,7 @@ Apply this to your Teleport cluster using `tctl`:
 $ tctl create -f gitlab-token.yaml
 ```
 
-## Step 2/3. Create a Machine ID bot
+## Step 2/4. Create a Machine ID bot
 
 With the join token created, the next step is to create the Machine ID bot that
 the token will grant access to.
@@ -108,13 +108,34 @@ value with a Linux user on the host that you want your GitHub Actions flow to
 be able to connect to:
 
 ```code
-$ tctl bots add gitlab-demo --roles=access --token=gitlab-demo --logins=ci-user
+$ tctl bots add example --roles=example-bot --token=example-bot
 ```
 
-## Step 3/3. Configure a GitLab Pipeline
+## Step 3/4. Configure a GitLab Pipeline
 
 With the bot and join token created, you can now create a GitLab pipeline that
 uses these to access a node in your cluster.
+
+Create `tbot.yaml` within your repository:
+
+```yaml
+version: v2
+auth_server: example.teleport.sh:443
+onboarding:
+  join_method: gitlab
+  token: example-bot
+oneshot: true
+storage:
+  type: memory
+# outputs will be filled in during the completion of an access guide.
+outputs: []
+```
+
+Replace:
+
+- `example.teleport.sh:443` with the address of your Teleport Proxy or
+  Auth Server. Prefer using the address of a Teleport Proxy.
+- `example-bot` with the name of the token you created in the second step
 
 Create a file called `.gitlab-ci.yml` in the root of your repository. Replace:
 - `teleport.example.com` with the name of your Teleport cluster
@@ -140,21 +161,26 @@ deploy-job:
     - 'curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz'
     - tar -xvf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
     - sudo ./teleport/install
-    - 'tbot start --token=gitlab-demo --destination-dir=/tmp/tbot-user --data-dir=/tmp/tbot-data --auth-server=teleport.example.com:443 --join-method=gitlab --oneshot'
-    - 'tsh -i /tmp/tbot-user/identity --proxy teleport.example.com:443 ssh ci-user@my-node "echo $CI_JOB_ID >> ~/gitlab_run_log"'
+    - 'tbot start -c tbot.yaml'
 ```
 
-Commit and push this to the repository. Check your GitLab CI status, and examine
-the log results from the commit for failure. If the job has succeeded, you
-should see a file in the home directory of `ci-user` called `gitlab_run_log`
-that includes the ID of the CI run.
+Commit and push these two files to the repository.
+
+Check your GitLab CI status, and examine the log results from the commit for
+failure.
+
+### Step 4/4. Configure outputs
+
+(!docs/pages/includes/machine-id/configure-outputs.mdx!)
 
 ## Further steps
 
-For more information about GitLab itself, read
-[their documentation](https://docs.gitlab.com/ee/ci/).
-
-For more information about GitLab joining, read the
-[GitLab CI reference page.](../reference/gitlab.mdx#gitlab-join-token)
-
-[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)
+- For more information about GitLab joining, read the
+  [GitLab CI reference page.](../reference/gitlab.mdx#gitlab-join-token)
+- For more information about GitLab itself, read
+  [their documentation](https://docs.gitlab.com/ee/ci/).
+- Follow the [access guides](../access-guides.mdx) to finish configuring `tbot` for
+  your environment.
+- Read the [configuration reference](../reference/configuration.mdx) to explore
+  all the available configuration options.
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)
