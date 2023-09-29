@@ -138,11 +138,14 @@ my-host
   Teleport's port multiplexing.
 </Notice>
 
-### Other tools
+### Connecting using other tools
 
 To integrate with other SSH tools, first determine whether the `ssh_config`
 is compatible with them. This is the case for many tools such as Ansible and the
 guidance provided under "Connecting using OpenSSH" should be sufficient.
+
+If you wish to integrate with Ansible, check out the
+[Ansible specific guide](./ansible.mdx).
 
 If your tool is not compatible with `ssh_config`, it may still be possible to
 configure it to use the credentials produced by Machine ID. It must support
