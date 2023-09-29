@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"net/url"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
@@ -46,11 +47,16 @@ type AzureRunRequest struct {
 	ResourceGroup   string
 	ScriptName      string
 	PublicProxyAddr string
+	ClientID        string
 }
 
 // Run runs a command on a set of virtual machines and then blocks until the
 // commands have completed.
 func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
+	script, err := getInstallerScript(req.ScriptName, req.PublicProxyAddr, req.ClientID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	g, ctx := errgroup.WithContext(ctx)
 	// Somewhat arbitrary limit to make sure Teleport doesn't have to install
 	// hundreds of nodes at once.
@@ -64,7 +70,7 @@ func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
 				ResourceGroup: req.ResourceGroup,
 				VMName:        aws.StringValue(inst.Name),
 				Parameters:    req.Params,
-				Script:        getInstallerScript(req.ScriptName, req.PublicProxyAddr),
+				Script:        script,
 			}
 			return trace.Wrap(req.Client.Run(ctx, runRequest))
 		})
@@ -72,7 +78,17 @@ func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
 	return trace.Wrap(g.Wait())
 }
 
-func getInstallerScript(installerName, publicProxyAddr string) string {
+func getInstallerScript(installerName, publicProxyAddr, clientID string) (string, error) {
+	installerURL, err := url.Parse(fmt.Sprintf("https://%s/v1/webapi/scripts/installer/%v", publicProxyAddr, installerName))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if clientID != "" {
+		q := installerURL.Query()
+		q.Set("azure-client-id", clientID)
+		installerURL.RawQuery = q.Encode()
+	}
+
 	// Azure treats scripts with the same content as the same invocation and
 	// won't run them more than once. This is fine when the installer script
 	// succeeds, but it makes troubleshooting much harder when it fails. To
@@ -81,6 +97,6 @@ func getInstallerScript(installerName, publicProxyAddr string) string {
 	nonce := make([]byte, 8)
 	// No big deal if rand.Read fails, the script is still valid.
 	_, _ = rand.Read(nonce)
-	return fmt.Sprintf("curl -s -L https://%s/v1/webapi/scripts/installer/%v | bash -s $@ #%x",
-		publicProxyAddr, installerName, nonce)
+	script := fmt.Sprintf("curl -s -L %s| bash -s $@ #%x", installerURL, nonce)
+	return script, nil
 }

@@ -38,10 +38,6 @@ func TestNonHardwareSigner(t *testing.T) {
 	key, err := keys.NewPrivateKey(priv, nil)
 	require.NoError(t, err)
 
-	att, err := keys.GetAttestationStatement(key)
-	require.NoError(t, err)
-	require.Nil(t, att)
-
-	policy := keys.GetPrivateKeyPolicy(key)
-	require.Equal(t, keys.PrivateKeyPolicyNone, policy)
+	require.Nil(t, key.GetAttestationStatement())
+	require.Equal(t, keys.PrivateKeyPolicyNone, key.GetPrivateKeyPolicy())
 }

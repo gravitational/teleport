@@ -1407,6 +1407,11 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				ScriptName:      matcher.InstallParams.ScriptName,
 				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
 			}
+			if matcher.InstallParams.Azure != nil {
+				m.Params.Azure = &types.AzureInstallerParams{
+					ClientID: matcher.InstallParams.Azure.ClientID,
+				}
+			}
 		}
 		cfg.Discovery.AzureMatchers = append(cfg.Discovery.AzureMatchers, m)
 	}

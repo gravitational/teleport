@@ -71,7 +71,7 @@ func (c *Cluster) Logout(ctx context.Context) error {
 	}
 
 	// Remove keys for this user from disk and running agent.
-	if err := c.clusterClient.Logout(); !trace.IsNotFound(err) {
+	if err := c.clusterClient.Logout(); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
