@@ -239,7 +239,6 @@ func TestRoleParse(t *testing.T) {
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          nil,
 						CreateDatabaseUser:      types.NewBoolOption(false),
-						CreateDatabaseUserMode:  types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{
@@ -294,7 +293,6 @@ func TestRoleParse(t *testing.T) {
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          nil,
 						CreateDatabaseUser:      types.NewBoolOption(false),
-						CreateDatabaseUserMode:  types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{
@@ -379,7 +377,6 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateDatabaseUser:      types.NewBoolOption(false),
-						CreateDatabaseUserMode:  types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
 						CreateHostUser:          nil,
 						SSHFileCopy:             types.NewBoolOption(false),
 						IDP: &types.IdPOptions{
@@ -484,7 +481,6 @@ func TestRoleParse(t *testing.T) {
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          nil,
 						CreateDatabaseUser:      types.NewBoolOption(false),
-						CreateDatabaseUserMode:  types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
 						SSHFileCopy:             types.NewBoolOption(false),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{
@@ -595,7 +591,6 @@ func TestRoleParse(t *testing.T) {
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          nil,
 						CreateDatabaseUser:      types.NewBoolOption(false),
-						CreateDatabaseUserMode:  types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{
@@ -692,7 +687,6 @@ func TestRoleParse(t *testing.T) {
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          nil,
 						CreateDatabaseUser:      types.NewBoolOption(false),
-						CreateDatabaseUserMode:  types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{

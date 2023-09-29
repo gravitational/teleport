@@ -365,7 +365,7 @@ func (r *RoleV6) GetCreateDatabaseUserMode() CreateDatabaseUserMode {
 	if r.Spec.Options.CreateDatabaseUserMode != CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED {
 		return r.Spec.Options.CreateDatabaseUserMode
 	}
-	// To keep backwards compability, look at the create database user option.
+	// To keep backwards compatibility, look at the create database user option.
 	if r.Spec.Options.CreateDatabaseUser != nil && r.Spec.Options.CreateDatabaseUser.Value {
 		return CreateDatabaseUserMode_DB_USER_MODE_KEEP
 	}
