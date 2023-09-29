@@ -29,11 +29,14 @@ will cover access using Teleports CLI `tsh` as well as the OpenSSH SSH client.
 
 First, Teleport must be configured to allow the credentials produced by the bot
 to connect to the SSH servers. In this example, access will be granted to all
-SSH hosts for the username `root`.
+SSH nodes for the username `root`.
 
 For production use, you should use labels to restrict this access to only the
 hosts that the bot will need to access. This is known as the principal of
 least privilege and limits the damage that exfiltrated credentials can do.
+
+You may also wish to adjust this to grant access to a user other than `root`
+depending on what commands will need to be executed with the credentials.
 
 If you have followed an access guide, you will have created a role and granted
 the bot the ability to impersonate it already. This role just needs to have the
@@ -44,7 +47,7 @@ Use `tctl edit role/example-bot` to add the following to the role:
 ```yaml
 spec:
   allow:
-    # Allow login to the user 'root'.
+    # Allow login to the Linux user 'root'.
     logins: ['root']
     # Allow connection to any node. Adjust these labels to match only nodes
     # that ansible needs to access.
@@ -99,22 +102,40 @@ CA.
 These credentials can be used with Teleport's CLI `tsh` or with tools based on
 OpenSSHs SSH client.
 
-### Configuring `tsh`
+### Connecting using `tsh`
+
+To use `tsh` with a `tbot` identity output, the path to the `identity` file
+must be specified using the `-i` flag. In addition, `--proxy` must be used to
+specify the address of the Teleport Proxy that should be used when making
+connections.
+
+In this example, `tsh` is used to connect to a node called `my-host` via the
+proxy `example.teleport.sh:443` and to execute the command `hostname`:
 
 ```code
 $ tsh -i /opt/machine-id/identity --proxy example.teleport.sh:443 root@my-host hostname
+my-host
 ```
 
-### Configuring OpenSSH
+### Connecting using OpenSSH
+
+To use OpenSSH with the identity output, the path to the `ssh_config` should be
+provided to `ssh` with the `-F` flag.
+
+With the generated `ssh_config` you must append the name of the Teleport cluster
+to the name of the node - in this example, the command `hostname` is
+executed as `root` on the node `my-host` belonging to the cluster
+`example.teleport.sh`.
 
 ```code
-$ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
+$ ssh -F /opt/machine-id/ssh_config root@my-host.example.teleport.sh hostname
+my-host
 ```
 
 <Notice type="warning">
-  The `ssh_config` for OpenSSH still requires that `tsh` is installed on the
-  system that will use the `ssh_config`. This is necessary as `tsh` is used to
-  handle Teleport's port multiplexing.
+  The `ssh_config` for OpenSSH requires that `tsh` is installed. This is
+  necessary as `tsh` is used to make the OpenSSH client compatible with
+  Teleport's port multiplexing.
 </Notice>
 
 ## Next steps
