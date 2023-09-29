@@ -42,8 +42,8 @@ When headless authentication is initiated by the user on a remote machine, the c
 endpoint on the Auth server. It creates a `HeadlessAuthentication` resource on the backend.
 After that, the call is paused, and the user is provided with a link (or command line alternative) where they can approve
 the newly created headless authentication request using their local machine with a logged-in Teleport and an MFA device. Once
-the request is approved by the user, the authentication process is unpaused and the original call returns
-certificates created by the auth server. These certificates have a TTL of 1 minute.
+the request is approved by the user, the authentication process is unpaused and the original call returns regular
+user's Teleport login certificates created by the auth server. These certificates have a TTL of 1 minute.
 
 ## Headless Kubernetes proxy
 
