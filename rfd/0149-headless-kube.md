@@ -248,3 +248,10 @@ Points of interest in scope of this RFD - creating certificates and approving/de
 are already covered by existing audit events, therefore no new audit events need to be
 added. However we will add the additional information to the headless authentication audit event - we will include
 requester source (kube proxy).
+
+# Alternatives
+
+We explored an option of adding capability of listening on unix-sockets for the user's local kube proxy. But `kubectl`
+doesn't have a native way of connecting to the unix-sockets, it can only work with http(s) and socks5 endpoints. We could
+solve this by adding `tsh kubectl` into the scheme, but since ultimately unix-sockets are controlled by Linux user permissions,
+we would achieve same level of security as without them. So it would be just needlessly overcomplicating the workflow.
