@@ -136,6 +136,9 @@ deploy-job:
     TBOT_GITLAB_JWT:
       # aud for TBOT_GITLAB_JWT must be configured with the name of your
       # Teleport cluster. This should not include http/https or the port.
+      #
+      # This helps the Teleport Auth Server know that the token is intended for
+      # it, and not a different service or Teleport cluster.
       aud: teleport.example.com
   script:
     - cd /tmp
