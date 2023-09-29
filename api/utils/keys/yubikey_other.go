@@ -16,7 +16,6 @@ limitations under the License.
 package keys
 
 import (
-	"crypto"
 	"errors"
 
 	"github.com/gravitational/trace"
@@ -28,6 +27,6 @@ func getOrGenerateYubiKeyPrivateKey(touchRequired bool) (*PrivateKey, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
 
-func parseYubiKeyPrivateKeyData(keyDataBytes []byte) (crypto.Signer, error) {
+func parseYubiKeyPrivateKeyData(keyDataBytes []byte) (*PrivateKey, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
