@@ -205,7 +205,8 @@ func (c *CircularBuffer) fanOutEvent(r Event) {
 	}
 }
 
-func removeRedundantPrefixes(prefixes [][]byte) [][]byte {
+// RemoveRedundantPrefixes will remove redundant prefixes from the given prefix list.
+func RemoveRedundantPrefixes(prefixes [][]byte) [][]byte {
 	if len(prefixes) == 0 {
 		return prefixes
 	}
@@ -247,7 +248,7 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 	} else {
 		// if watcher's prefixes are redundant, keep only shorter prefixes
 		// to avoid double fan out
-		watch.Prefixes = removeRedundantPrefixes(watch.Prefixes)
+		watch.Prefixes = RemoveRedundantPrefixes(watch.Prefixes)
 	}
 
 	closeCtx, cancel := context.WithCancel(ctx)
@@ -305,7 +306,7 @@ type BufferWatcher struct {
 // String returns user-friendly representation
 // of the buffer watcher
 func (w *BufferWatcher) String() string {
-	return fmt.Sprintf("Watcher(name=%v, prefixes=%v, capacity=%v, size=%v)", w.Name, string(bytes.Join(w.Watch.Prefixes, []byte(", "))), w.capacity, len(w.eventsC))
+	return fmt.Sprintf("Watcher(name=%v, prefixes=%v, capacity=%v, size=%v)", w.Name, string(bytes.Join(w.Prefixes, []byte(", "))), w.capacity, len(w.eventsC))
 }
 
 // Events returns events channel.  This method performs internal work and should be re-called after each event
@@ -324,13 +325,6 @@ func (w *BufferWatcher) Events() <-chan Event {
 // Done channel is closed when watcher is closed
 func (w *BufferWatcher) Done() <-chan struct{} {
 	return w.ctx.Done()
-}
-
-// Prefixes returns the prefixes that the watcher is monitoring.
-func (w *BufferWatcher) Prefixes() [][]byte {
-	prefixes := make([][]byte, len(w.Watch.Prefixes))
-	copy(prefixes, w.Watch.Prefixes)
-	return prefixes
 }
 
 // flushBacklog attempts to push any backlogged events into the
@@ -438,7 +432,7 @@ type watcherTree struct {
 
 // add adds buffer watcher to the tree
 func (t *watcherTree) add(w *BufferWatcher) {
-	for _, p := range w.Watch.Prefixes {
+	for _, p := range w.Prefixes {
 		prefix := string(p)
 		val, ok := t.Tree.Get(prefix)
 		var watchers []*BufferWatcher
@@ -456,7 +450,7 @@ func (t *watcherTree) rm(w *BufferWatcher) bool {
 		return false
 	}
 	var found bool
-	for _, p := range w.Watch.Prefixes {
+	for _, p := range w.Prefixes {
 		prefix := string(p)
 		val, ok := t.Tree.Get(prefix)
 		if !ok {
