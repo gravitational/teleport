@@ -63,6 +63,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -87,7 +88,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 )
 
@@ -2844,6 +2844,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 		SSHConfig:               cfg.ClientConfig,
 		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      tc.InsecureSkipVerify,
+		PROXYHeaderGetter:       CreatePROXYHeaderGetter(ctx, tc.PROXYSigner),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

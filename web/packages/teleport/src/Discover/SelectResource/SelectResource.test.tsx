@@ -77,26 +77,246 @@ test('sortResources without preferred resources, sorts resources alphabetically 
   ]);
 });
 
+const t_Application_NoAccess = makeResourceSpec({
+  name: 'tango',
+  kind: ResourceKind.Application,
+  hasAccess: false,
+});
+const u_Database_NoAccess = makeResourceSpec({
+  name: 'uniform',
+  kind: ResourceKind.Database,
+  hasAccess: false,
+});
+const v_Desktop_NoAccess = makeResourceSpec({
+  name: 'victor',
+  kind: ResourceKind.Desktop,
+  hasAccess: false,
+});
+const w_Kubernetes_NoAccess = makeResourceSpec({
+  name: 'whiskey',
+  kind: ResourceKind.Kubernetes,
+  hasAccess: false,
+});
+const x_Server_NoAccess = makeResourceSpec({
+  name: 'xray',
+  kind: ResourceKind.Server,
+  hasAccess: false,
+});
+const y_Saml_NoAccess = makeResourceSpec({
+  name: 'yankee',
+  kind: ResourceKind.SamlApplication,
+  hasAccess: false,
+});
+
+const NoAccessList: ResourceSpec[] = [
+  t_Application_NoAccess,
+  u_Database_NoAccess,
+  v_Desktop_NoAccess,
+  w_Kubernetes_NoAccess,
+  x_Server_NoAccess,
+  y_Saml_NoAccess,
+];
+
+const c_Application = makeResourceSpec({
+  name: 'charlie',
+  kind: ResourceKind.Application,
+});
+const a_Database = makeResourceSpec({
+  name: 'alpha',
+  kind: ResourceKind.Database,
+});
+const l_Desktop = makeResourceSpec({
+  name: 'linux',
+  kind: ResourceKind.Desktop,
+});
+const e_Kubernetes_unguided = makeResourceSpec({
+  name: 'echo',
+  kind: ResourceKind.Kubernetes,
+  unguidedLink: 'test.com',
+});
+const f_Server = makeResourceSpec({
+  name: 'foxtrot',
+  kind: ResourceKind.Server,
+});
+const d_Saml = makeResourceSpec({
+  name: 'delta',
+  kind: ResourceKind.SamlApplication,
+});
+const g_Application = makeResourceSpec({
+  name: 'golf',
+  kind: ResourceKind.Application,
+});
+const k_Database = makeResourceSpec({
+  name: 'kilo',
+  kind: ResourceKind.Database,
+});
+const i_Desktop = makeResourceSpec({
+  name: 'india',
+  kind: ResourceKind.Desktop,
+});
+const j_Kubernetes = makeResourceSpec({
+  name: 'juliette',
+  kind: ResourceKind.Kubernetes,
+});
+const h_Server = makeResourceSpec({ name: 'hotel', kind: ResourceKind.Server });
+const l_Saml = makeResourceSpec({
+  name: 'lima',
+  kind: ResourceKind.SamlApplication,
+});
+
 const kindBasedList: ResourceSpec[] = [
-  makeResourceSpec({ name: 'charlie', kind: ResourceKind.Application }),
-  makeResourceSpec({ name: 'alpha', kind: ResourceKind.Database }),
-  makeResourceSpec({ name: 'linux', kind: ResourceKind.Desktop }),
-  makeResourceSpec({
-    name: 'echo',
-    kind: ResourceKind.Kubernetes,
-    unguidedLink: 'test.com',
-  }),
-  makeResourceSpec({ name: 'foxtrot', kind: ResourceKind.Server }),
-  makeResourceSpec({ name: 'delta', kind: ResourceKind.SamlApplication }),
-  makeResourceSpec({ name: 'golf', kind: ResourceKind.Application }),
-  makeResourceSpec({ name: 'kilo', kind: ResourceKind.Database }),
-  makeResourceSpec({ name: 'india', kind: ResourceKind.Desktop }),
-  makeResourceSpec({ name: 'juliette', kind: ResourceKind.Kubernetes }),
-  makeResourceSpec({ name: 'hotel', kind: ResourceKind.Server }),
-  makeResourceSpec({ name: 'lima', kind: ResourceKind.SamlApplication }),
+  c_Application,
+  a_Database,
+  t_Application_NoAccess,
+  l_Desktop,
+  e_Kubernetes_unguided,
+  u_Database_NoAccess,
+  f_Server,
+  w_Kubernetes_NoAccess,
+  d_Saml,
+  v_Desktop_NoAccess,
+  g_Application,
+  x_Server_NoAccess,
+  k_Database,
+  i_Desktop,
+  j_Kubernetes,
+  h_Server,
+  y_Saml_NoAccess,
+  l_Saml,
 ];
 
 describe('preferred resources', () => {
+  beforeEach(() => {
+    setUp();
+  });
+
+  const testCases: {
+    name: string;
+    preferred: ClusterResource[];
+    expected: ResourceSpec[];
+  }[] = [
+    {
+      name: 'preferred server/ssh',
+      preferred: [ClusterResource.RESOURCE_SERVER_SSH],
+      expected: [
+        // preferred first
+        f_Server,
+        h_Server,
+        // alpha; guided before unguided
+        a_Database,
+        c_Application,
+        d_Saml,
+        g_Application,
+        i_Desktop,
+        j_Kubernetes,
+        k_Database,
+        l_Saml,
+        l_Desktop,
+        e_Kubernetes_unguided,
+        // no access is last
+        ...NoAccessList,
+      ],
+    },
+    {
+      name: 'preferred databases',
+      preferred: [ClusterResource.RESOURCE_DATABASES],
+      expected: [
+        // preferred first
+        a_Database,
+        k_Database,
+        // alpha; guided before unguided
+        c_Application,
+        d_Saml,
+        f_Server,
+        g_Application,
+        h_Server,
+        i_Desktop,
+        j_Kubernetes,
+        l_Saml,
+        l_Desktop,
+        e_Kubernetes_unguided,
+        // no access is last
+        ...NoAccessList,
+      ],
+    },
+    {
+      name: 'preferred windows',
+      preferred: [ClusterResource.RESOURCE_WINDOWS_DESKTOPS],
+      expected: [
+        // preferred first
+        i_Desktop,
+        l_Desktop,
+        // alpha; guided before unguided
+        a_Database,
+        c_Application,
+        d_Saml,
+        f_Server,
+        g_Application,
+        h_Server,
+        j_Kubernetes,
+        k_Database,
+        l_Saml,
+        e_Kubernetes_unguided,
+        // no access is last
+        ...NoAccessList,
+      ],
+    },
+    {
+      name: 'preferred applications',
+      preferred: [ClusterResource.RESOURCE_WEB_APPLICATIONS],
+      expected: [
+        // preferred first
+        c_Application,
+        g_Application,
+        // alpha; guided before unguided
+        a_Database,
+        d_Saml,
+        f_Server,
+        h_Server,
+        i_Desktop,
+        j_Kubernetes,
+        k_Database,
+        l_Saml,
+        l_Desktop,
+        e_Kubernetes_unguided,
+        // no access is last
+        ...NoAccessList,
+      ],
+    },
+    {
+      name: 'preferred kubernetes',
+      preferred: [ClusterResource.RESOURCE_KUBERNETES],
+      expected: [
+        // preferred first; guided before unguided
+        j_Kubernetes,
+        e_Kubernetes_unguided,
+        // alpha
+        a_Database,
+        c_Application,
+        d_Saml,
+        f_Server,
+        g_Application,
+        h_Server,
+        i_Desktop,
+        k_Database,
+        l_Saml,
+        l_Desktop,
+        // no access is last
+        ...NoAccessList,
+      ],
+    },
+  ];
+
+  test.each(testCases)('$name', testCase => {
+    const preferences = makeDefaultUserPreferences();
+    preferences.onboard.preferredResources = testCase.preferred;
+    const actual = sortResources(kindBasedList, preferences);
+
+    expect(actual).toMatchObject(testCase.expected);
+  });
+});
+
+describe('marketing params', () => {
   beforeEach(() => {
     setUp();
   });
@@ -107,133 +327,183 @@ describe('preferred resources', () => {
     expected: ResourceSpec[];
   }[] = [
     {
-      name: 'preferred server/ssh',
-      preferred: {
-        preferredResources: [ClusterResource.RESOURCE_SERVER_SSH],
-      },
-      expected: [
-        // preferred first
-        makeResourceSpec({ name: 'foxtrot', kind: ResourceKind.Server }),
-        makeResourceSpec({ name: 'hotel', kind: ResourceKind.Server }),
-        // alpha; guided before unguided
-        makeResourceSpec({ name: 'alpha', kind: ResourceKind.Database }),
-        makeResourceSpec({ name: 'charlie', kind: ResourceKind.Application }),
-        makeResourceSpec({ name: 'delta', kind: ResourceKind.SamlApplication }),
-        makeResourceSpec({ name: 'golf', kind: ResourceKind.Application }),
-        makeResourceSpec({ name: 'india', kind: ResourceKind.Desktop }),
-        makeResourceSpec({ name: 'juliette', kind: ResourceKind.Kubernetes }),
-        makeResourceSpec({ name: 'kilo', kind: ResourceKind.Database }),
-        makeResourceSpec({ name: 'lima', kind: ResourceKind.SamlApplication }),
-        makeResourceSpec({ name: 'linux', kind: ResourceKind.Desktop }),
-        makeResourceSpec({
-          name: 'echo',
-          kind: ResourceKind.Kubernetes,
-          unguidedLink: 'test.com',
-        }),
-      ],
-    },
-    {
-      name: 'preferred databases',
-      preferred: {
-        preferredResources: [ClusterResource.RESOURCE_DATABASES],
-      },
-      expected: [
-        // preferred first
-        makeResourceSpec({ name: 'alpha', kind: ResourceKind.Database }),
-        makeResourceSpec({ name: 'kilo', kind: ResourceKind.Database }),
-        // alpha; guided before unguided
-        makeResourceSpec({ name: 'charlie', kind: ResourceKind.Application }),
-        makeResourceSpec({ name: 'delta', kind: ResourceKind.SamlApplication }),
-        makeResourceSpec({ name: 'foxtrot', kind: ResourceKind.Server }),
-        makeResourceSpec({ name: 'golf', kind: ResourceKind.Application }),
-        makeResourceSpec({ name: 'hotel', kind: ResourceKind.Server }),
-        makeResourceSpec({ name: 'india', kind: ResourceKind.Desktop }),
-        makeResourceSpec({ name: 'juliette', kind: ResourceKind.Kubernetes }),
-        makeResourceSpec({ name: 'lima', kind: ResourceKind.SamlApplication }),
-        makeResourceSpec({ name: 'linux', kind: ResourceKind.Desktop }),
-        makeResourceSpec({
-          name: 'echo',
-          kind: ResourceKind.Kubernetes,
-          unguidedLink: 'test.com',
-        }),
-      ],
-    },
-    {
-      name: 'preferred windows',
-      preferred: {
-        preferredResources: [ClusterResource.RESOURCE_WINDOWS_DESKTOPS],
-      },
-      expected: [
-        // preferred first
-        makeResourceSpec({ name: 'india', kind: ResourceKind.Desktop }),
-        makeResourceSpec({ name: 'linux', kind: ResourceKind.Desktop }),
-        // alpha; guided before unguided
-        makeResourceSpec({ name: 'alpha', kind: ResourceKind.Database }),
-        makeResourceSpec({ name: 'charlie', kind: ResourceKind.Application }),
-        makeResourceSpec({ name: 'delta', kind: ResourceKind.SamlApplication }),
-        makeResourceSpec({ name: 'foxtrot', kind: ResourceKind.Server }),
-        makeResourceSpec({ name: 'golf', kind: ResourceKind.Application }),
-        makeResourceSpec({ name: 'hotel', kind: ResourceKind.Server }),
-        makeResourceSpec({ name: 'juliette', kind: ResourceKind.Kubernetes }),
-        makeResourceSpec({ name: 'kilo', kind: ResourceKind.Database }),
-        makeResourceSpec({ name: 'lima', kind: ResourceKind.SamlApplication }),
-        makeResourceSpec({
-          name: 'echo',
-          kind: ResourceKind.Kubernetes,
-          unguidedLink: 'test.com',
-        }),
-      ],
-    },
-    {
-      name: 'preferred applications',
+      name: 'marketing params instead of preferred resources',
       preferred: {
         preferredResources: [ClusterResource.RESOURCE_WEB_APPLICATIONS],
+        marketingParams: {
+          campaign: 'kubernetes',
+          source: '',
+          medium: '',
+          intent: '',
+        },
       },
       expected: [
-        // preferred first
-        makeResourceSpec({ name: 'charlie', kind: ResourceKind.Application }),
-        makeResourceSpec({ name: 'golf', kind: ResourceKind.Application }),
-        // alpha; guided before unguided
-        makeResourceSpec({ name: 'alpha', kind: ResourceKind.Database }),
-        makeResourceSpec({ name: 'delta', kind: ResourceKind.SamlApplication }),
-        makeResourceSpec({ name: 'foxtrot', kind: ResourceKind.Server }),
-        makeResourceSpec({ name: 'hotel', kind: ResourceKind.Server }),
-        makeResourceSpec({ name: 'india', kind: ResourceKind.Desktop }),
-        makeResourceSpec({ name: 'juliette', kind: ResourceKind.Kubernetes }),
-        makeResourceSpec({ name: 'kilo', kind: ResourceKind.Database }),
-        makeResourceSpec({ name: 'lima', kind: ResourceKind.SamlApplication }),
-        makeResourceSpec({ name: 'linux', kind: ResourceKind.Desktop }),
-        makeResourceSpec({
-          name: 'echo',
-          kind: ResourceKind.Kubernetes,
-          unguidedLink: 'test.com',
-        }),
+        // marketing params first; no preferred priority, guided before unguided
+        j_Kubernetes,
+        e_Kubernetes_unguided,
+        // alpha
+        a_Database,
+        c_Application,
+        d_Saml,
+        f_Server,
+        g_Application,
+        h_Server,
+        i_Desktop,
+        k_Database,
+        l_Saml,
+        l_Desktop,
+        // no access is last
+        ...NoAccessList,
       ],
     },
     {
-      name: 'preferred kubernetes',
+      name: 'param server/ssh',
       preferred: {
-        preferredResources: [ClusterResource.RESOURCE_KUBERNETES],
+        preferredResources: [],
+        marketingParams: {
+          campaign: 'ssh',
+          source: '',
+          medium: '',
+          intent: '',
+        },
+      },
+      expected: [
+        // preferred first
+        f_Server,
+        h_Server,
+        // alpha; guided before unguided
+        a_Database,
+        c_Application,
+        d_Saml,
+        g_Application,
+        i_Desktop,
+        j_Kubernetes,
+        k_Database,
+        l_Saml,
+        l_Desktop,
+        e_Kubernetes_unguided,
+        // no access is last
+        ...NoAccessList,
+      ],
+    },
+    {
+      name: 'param databases',
+      preferred: {
+        preferredResources: [],
+        marketingParams: {
+          campaign: '',
+          source: 'database',
+          medium: '',
+          intent: '',
+        },
+      },
+      expected: [
+        // preferred first
+        a_Database,
+        k_Database,
+        // alpha; guided before unguided
+        c_Application,
+        d_Saml,
+        f_Server,
+        g_Application,
+        h_Server,
+        i_Desktop,
+        j_Kubernetes,
+        l_Saml,
+        l_Desktop,
+        e_Kubernetes_unguided,
+        // no access is last
+        ...NoAccessList,
+      ],
+    },
+    {
+      name: 'param windows',
+      preferred: {
+        preferredResources: [],
+        marketingParams: {
+          campaign: '',
+          source: '',
+          medium: 'windows',
+          intent: '',
+        },
+      },
+      expected: [
+        // preferred first
+        i_Desktop,
+        l_Desktop,
+        // alpha; guided before unguided
+        a_Database,
+        c_Application,
+        d_Saml,
+        f_Server,
+        g_Application,
+        h_Server,
+        j_Kubernetes,
+        k_Database,
+        l_Saml,
+        e_Kubernetes_unguided,
+        // no access is last
+        ...NoAccessList,
+      ],
+    },
+    {
+      name: 'param applications',
+      preferred: {
+        preferredResources: [],
+        marketingParams: {
+          campaign: '',
+          source: '',
+          medium: '',
+          intent: 'application',
+        },
+      },
+      expected: [
+        // preferred first
+        c_Application,
+        g_Application,
+        // alpha; guided before unguided
+        a_Database,
+        d_Saml,
+        f_Server,
+        h_Server,
+        i_Desktop,
+        j_Kubernetes,
+        k_Database,
+        l_Saml,
+        l_Desktop,
+        e_Kubernetes_unguided,
+        // no access is last
+        ...NoAccessList,
+      ],
+    },
+    {
+      name: 'param kubernetes',
+      preferred: {
+        preferredResources: [],
+        marketingParams: {
+          campaign: '',
+          source: '',
+          medium: 'k8s',
+          intent: '',
+        },
       },
       expected: [
         // preferred first; guided before unguided
-        makeResourceSpec({ name: 'juliette', kind: ResourceKind.Kubernetes }),
-        makeResourceSpec({
-          name: 'echo',
-          kind: ResourceKind.Kubernetes,
-          unguidedLink: 'test.com',
-        }),
+        j_Kubernetes,
+        e_Kubernetes_unguided,
         // alpha
-        makeResourceSpec({ name: 'alpha', kind: ResourceKind.Database }),
-        makeResourceSpec({ name: 'charlie', kind: ResourceKind.Application }),
-        makeResourceSpec({ name: 'delta', kind: ResourceKind.SamlApplication }),
-        makeResourceSpec({ name: 'foxtrot', kind: ResourceKind.Server }),
-        makeResourceSpec({ name: 'golf', kind: ResourceKind.Application }),
-        makeResourceSpec({ name: 'hotel', kind: ResourceKind.Server }),
-        makeResourceSpec({ name: 'india', kind: ResourceKind.Desktop }),
-        makeResourceSpec({ name: 'kilo', kind: ResourceKind.Database }),
-        makeResourceSpec({ name: 'lima', kind: ResourceKind.SamlApplication }),
-        makeResourceSpec({ name: 'linux', kind: ResourceKind.Desktop }),
+        a_Database,
+        c_Application,
+        d_Saml,
+        f_Server,
+        g_Application,
+        h_Server,
+        i_Desktop,
+        k_Database,
+        l_Saml,
+        l_Desktop,
+        // no access is last
+        ...NoAccessList,
       ],
     },
   ];
@@ -249,8 +519,18 @@ describe('preferred resources', () => {
 
 const osBasedList: ResourceSpec[] = [
   makeResourceSpec({ name: 'Aaaa' }),
+  makeResourceSpec({
+    name: 'no-linux-1',
+    platform: Platform.PLATFORM_LINUX,
+    hasAccess: false,
+  }),
   makeResourceSpec({ name: 'win', platform: Platform.PLATFORM_WINDOWS }),
   makeResourceSpec({ name: 'linux-2', platform: Platform.PLATFORM_LINUX }),
+  makeResourceSpec({
+    name: 'no-mac',
+    platform: Platform.PLATFORM_MACINTOSH,
+    hasAccess: false,
+  }),
   makeResourceSpec({ name: 'mac', platform: Platform.PLATFORM_MACINTOSH }),
   makeResourceSpec({ name: 'linux-1', platform: Platform.PLATFORM_LINUX }),
 ];
@@ -287,6 +567,17 @@ describe('os sorted resources', () => {
           platform: Platform.PLATFORM_LINUX,
         }),
         makeResourceSpec({ name: 'win', platform: Platform.PLATFORM_WINDOWS }),
+        // no access, alpha
+        makeResourceSpec({
+          name: 'no-linux-1',
+          platform: Platform.PLATFORM_LINUX,
+          hasAccess: false,
+        }),
+        makeResourceSpec({
+          name: 'no-mac',
+          platform: Platform.PLATFORM_MACINTOSH,
+          hasAccess: false,
+        }),
       ],
     },
     {
@@ -309,6 +600,17 @@ describe('os sorted resources', () => {
           platform: Platform.PLATFORM_MACINTOSH,
         }),
         makeResourceSpec({ name: 'win', platform: Platform.PLATFORM_WINDOWS }),
+        // no access, alpha
+        makeResourceSpec({
+          name: 'no-linux-1',
+          platform: Platform.PLATFORM_LINUX,
+          hasAccess: false,
+        }),
+        makeResourceSpec({
+          name: 'no-mac',
+          platform: Platform.PLATFORM_MACINTOSH,
+          hasAccess: false,
+        }),
       ],
     },
     {
@@ -330,6 +632,17 @@ describe('os sorted resources', () => {
         makeResourceSpec({
           name: 'mac',
           platform: Platform.PLATFORM_MACINTOSH,
+        }),
+        // no access, alpha
+        makeResourceSpec({
+          name: 'no-linux-1',
+          platform: Platform.PLATFORM_LINUX,
+          hasAccess: false,
+        }),
+        makeResourceSpec({
+          name: 'no-mac',
+          platform: Platform.PLATFORM_MACINTOSH,
+          hasAccess: false,
         }),
       ],
     },
@@ -384,7 +697,15 @@ describe('os sorted resources', () => {
   test('all logic together', () => {
     OS.mockReturnValue(Platform.PLATFORM_MACINTOSH);
     const preferences = makeDefaultUserPreferences();
-    preferences.onboard = { preferredResources: [2] };
+    preferences.onboard = {
+      preferredResources: [2],
+      marketingParams: {
+        campaign: '',
+        source: '',
+        medium: '',
+        intent: '',
+      },
+    };
 
     const actual = sortResources(oneOfEachList, preferences);
     expect(actual).toMatchObject([

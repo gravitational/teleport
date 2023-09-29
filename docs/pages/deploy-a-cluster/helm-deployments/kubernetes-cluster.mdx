@@ -284,21 +284,7 @@ down. Let's create a local user who has access to Kubernetes group
 
 Save this role as `member.yaml`:
 
-```yaml
-kind: role
-version: v6
-metadata:
-  name: member
-spec:
-  allow:
-    kubernetes_groups: ["system:masters"]
-    kubernetes_labels:
-      '*': '*'
-    kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
-```
+(!docs/pages/includes/kubernetes-access/member-role.mdx!)
 
 Create the role:
 

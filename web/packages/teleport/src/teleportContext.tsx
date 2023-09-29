@@ -96,34 +96,7 @@ class TeleportContext implements types.Context {
     const userContext = this.storeUser;
 
     if (!this.storeUser.state) {
-      return {
-        activeSessions: false,
-        applications: false,
-        audit: false,
-        authConnector: false,
-        billing: false,
-        databases: false,
-        desktops: false,
-        kubernetes: false,
-        nodes: false,
-        recordings: false,
-        roles: false,
-        trustedClusters: false,
-        users: false,
-        newAccessRequest: false,
-        accessRequests: false,
-        downloadCenter: false,
-        discover: false,
-        plugins: false,
-        integrations: false,
-        deviceTrust: false,
-        enrollIntegrationsOrPlugins: false,
-        enrollIntegrations: false,
-        locks: false,
-        newLocks: false,
-        assist: false,
-        managementSection: false,
-      };
+      return disabledFeatureFlags;
     }
 
     // If feature hiding is enabled in the license, this returns true if the user has no list access to any feature within the management section.
@@ -194,5 +167,34 @@ class TeleportContext implements types.Context {
     };
   }
 }
+
+export const disabledFeatureFlags: types.FeatureFlags = {
+  activeSessions: false,
+  applications: false,
+  audit: false,
+  authConnector: false,
+  billing: false,
+  databases: false,
+  desktops: false,
+  kubernetes: false,
+  nodes: false,
+  recordings: false,
+  roles: false,
+  trustedClusters: false,
+  users: false,
+  newAccessRequest: false,
+  accessRequests: false,
+  downloadCenter: false,
+  discover: false,
+  plugins: false,
+  integrations: false,
+  deviceTrust: false,
+  enrollIntegrationsOrPlugins: false,
+  enrollIntegrations: false,
+  locks: false,
+  newLocks: false,
+  assist: false,
+  managementSection: false,
+};
 
 export default TeleportContext;

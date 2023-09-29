@@ -46,9 +46,10 @@ import {
 
 import { resourceKindToPreferredResource } from 'teleport/Discover/Shared/ResourceKind';
 
+import { getMarketingTermMatches } from './getMarketingTermMatches';
 import { icons } from './icons';
 
-import { SearchResource } from './types';
+import { PrioritizedResources, SearchResource } from './types';
 
 import type { ResourceSpec } from './types';
 
@@ -89,16 +90,11 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
     // Apply access check to each resource.
     const userContext = ctx.storeUser.state;
     const { acl } = userContext;
-    const updatedResources = makeResourcesWithHasAccessField(acl);
 
-    // Sort resources that user has access to the
-    // top of the list, so it is more visible to
-    // the user.
-    const filteredResourcesByPerm = [
-      ...updatedResources.filter(r => r.hasAccess),
-      ...updatedResources.filter(r => !r.hasAccess),
-    ];
-    const sortedResources = sortResources(filteredResourcesByPerm, preferences);
+    const sortedResources = sortResources(
+      makeResourcesWithHasAccessField(acl),
+      preferences
+    );
     setDefaultResources(sortedResources);
 
     // A user can come to this screen by clicking on
@@ -333,31 +329,22 @@ function sortResourcesByKind(
   return sorted;
 }
 
-// Sort the resources by 1. preferred 2. guided and 3. alphabetically
 export function sortResources(
   resources: ResourceSpec[],
   preferences: UserPreferences
 ) {
-  // A user can have preferredResources set via their onboarding survey.
-  // We sort the list by the preferred resource type but do not apply a search.
-  const preferredResources =
-    (preferences &&
-      preferences.onboard &&
-      preferences.onboard.preferredResources) ||
-    [];
-  const hasPreferredResources =
-    preferredResources && preferredResources.length > 0;
-  const maxResources = Object.keys(ClusterResource).length / 2 - 1;
-  const selectedAllResources = preferredResources.length === maxResources;
+  const { preferredResources, hasPreferredResources } =
+    getPrioritizedResources(preferences);
 
   const sortedResources = [...resources];
-  sortedResources.sort((a, b) => {
-    if (!a.hasAccess) return -1;
-    if (!b.hasAccess) return -1;
+  const accessible = sortedResources.filter(r => r.hasAccess);
+  const restricted = sortedResources.filter(r => !r.hasAccess);
 
+  // Sort accessible resources by 1. os 2. preferred 3. guided and 4. alphabetically
+  accessible.sort((a, b) => {
     let aPreferred,
       bPreferred = false;
-    if (hasPreferredResources && !selectedAllResources) {
+    if (hasPreferredResources) {
       aPreferred = preferredResources.includes(
         resourceKindToPreferredResource(a.kind)
       );
@@ -409,7 +396,55 @@ export function sortResources(
     return a.name.localeCompare(b.name);
   });
 
-  return sortedResources;
+  // Sort restricted resources alphabetically
+  restricted.sort((a, b) => {
+    return a.name.localeCompare(b.name);
+  });
+
+  // Sort resources that user has access to the
+  // top of the list, so it is more visible to
+  // the user.
+  return [...accessible, ...restricted];
+}
+
+/**
+ * Returns prioritized resources based on user preferences cluster state
+ *
+ * @remarks
+ * A user can have preferredResources set via onboarding either from the survey (preferredResources)
+ * or various query parameters (marketingParams). We sort the list by the marketingParams if available.
+ * If not, we sort by preferred resource type if available.
+ * We do not search.
+ *
+ * @param preferences - Cluster state user preferences
+ * @returns PrioritizedResources which is both the resource to prioritize and a boolean value of the value
+ *
+ */
+function getPrioritizedResources(
+  preferences: UserPreferences
+): PrioritizedResources {
+  const marketingParams = preferences.onboard.marketingParams;
+
+  if (marketingParams) {
+    const marketingPriorities = getMarketingTermMatches(marketingParams);
+    if (marketingPriorities.length > 0) {
+      return {
+        hasPreferredResources: true,
+        preferredResources: marketingPriorities,
+      };
+    }
+  }
+
+  const preferredResources = preferences.onboard.preferredResources || [];
+
+  // hasPreferredResources will be false if all resources are selected
+  const maxResources = Object.keys(ClusterResource).length / 2 - 1;
+  const selectedAll = preferredResources.length === maxResources;
+
+  return {
+    preferredResources: preferredResources,
+    hasPreferredResources: preferredResources.length > 0 && !selectedAll,
+  };
 }
 
 function makeResourcesWithHasAccessField(acl: Acl): ResourceSpec[] {

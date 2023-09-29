@@ -382,6 +382,15 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 		"addr":     conn.conn.RemoteAddr().String(),
 	})
 
+	sshutils.DiscardChannelData(ch)
+	if ch != nil {
+		defer func() {
+			if err := ch.Close(); err != nil {
+				logger.Warnf("Failed to close heartbeat channel: %v", err)
+			}
+		}()
+	}
+
 	firstHeartbeat := true
 	proxyResyncTicker := s.clock.NewTicker(s.proxySyncInterval)
 	defer func() {

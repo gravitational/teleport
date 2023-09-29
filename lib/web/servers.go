@@ -415,5 +415,15 @@ func (h *Handler) handleNodeCreate(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	return server, nil
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiServer, err := ui.MakeServer(site.GetName(), server, accessChecker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return uiServer, nil
 }
