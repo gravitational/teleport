@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
-
-import { wait } from 'shared/utils/wait';
+import React, { useEffect, useRef, useLayoutEffect } from 'react';
 
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
@@ -33,6 +31,46 @@ import { ConnectMyComputerContextProvider } from './connectMyComputerContext';
 export default {
   title: 'Teleterm/ConnectMyComputer/NavigationMenu',
 };
+
+export function AgenNotConfigured() {
+  return (
+    <ShowState
+      agentProcessState={{ status: 'not-started' }}
+      isAgentConfigFileCreated={async () => {
+        return false;
+      }}
+    />
+  );
+}
+
+export function AgentConfiguredButNotStarted() {
+  return <ShowState agentProcessState={{ status: 'not-started' }} />;
+}
+
+export function AgentStarting() {
+  const abortControllerRef = useRef(new AbortController());
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current.abort();
+    };
+  }, []);
+
+  const appContext = new MockAppContext({ appVersion: '17.0.0' });
+
+  appContext.connectMyComputerService.downloadAgent = () =>
+    new Promise((resolve, reject) => {
+      abortControllerRef.current.signal.addEventListener('abort', () => reject);
+    });
+
+  return (
+    <ShowState
+      appContext={appContext}
+      agentProcessState={{ status: 'not-started' }}
+      autoStart={true}
+    />
+  );
+}
 
 export function AgentRunning() {
   return <ShowState agentProcessState={{ status: 'running' }} />;
@@ -76,25 +114,24 @@ export function AgentExitedUnsuccessfully() {
   );
 }
 
-export function AgentSetupNotDone() {
-  return (
-    <ShowState
-      agentProcessState={{ status: 'not-started' }}
-      isAgentConfigFileCreated={async () => {
-        return false;
-      }}
-    />
-  );
-}
-
 export function LoadingAgentConfigFile() {
+  const abortControllerRef = useRef(new AbortController());
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current.abort();
+    };
+  }, []);
+
+  const getPromiseRejectedOnUnmount = () =>
+    new Promise<boolean>((resolve, reject) => {
+      abortControllerRef.current.signal.addEventListener('abort', () => reject);
+    });
+
   return (
     <ShowState
       agentProcessState={{ status: 'not-started' }}
-      isAgentConfigFileCreated={async () => {
-        await wait(60_000);
-        return true;
-      }}
+      isAgentConfigFileCreated={getPromiseRejectedOnUnmount}
     />
   );
 }
@@ -113,14 +150,18 @@ export function FailedToLoadAgentConfigFile() {
 function ShowState({
   isAgentConfigFileCreated = async () => true,
   agentProcessState,
+  appContext = new MockAppContext(),
+  autoStart = false,
 }: {
   agentProcessState: AgentProcessState;
   isAgentConfigFileCreated?: () => Promise<boolean>;
+  appContext?: MockAppContext;
+  autoStart?: boolean;
 }) {
   const cluster = makeRootCluster({
     features: { isUsageBasedBilling: true, advancedAccessWorkflows: false },
+    proxyVersion: '17.0.0',
   });
-  const appContext = new MockAppContext();
   appContext.clustersService.state.clusters.set(cluster.uri, cluster);
   appContext.configService = createMockConfigService({
     'feature.connectMyComputer': true,
@@ -138,6 +179,21 @@ function ShowState({
   appContext.mainProcessClient.getAgentState = () => agentProcessState;
   appContext.connectMyComputerService.isAgentConfigFileCreated =
     isAgentConfigFileCreated;
+
+  if (autoStart) {
+    appContext.workspacesService.setConnectMyComputerAutoStart(
+      cluster.uri,
+      true
+    );
+  }
+
+  useLayoutEffect(() => {
+    (
+      document.querySelector(
+        '[data-testid=connect-my-computer-icon]'
+      ) as HTMLButtonElement
+    )?.click();
+  });
 
   return (
     <MockAppContextProvider appContext={appContext}>

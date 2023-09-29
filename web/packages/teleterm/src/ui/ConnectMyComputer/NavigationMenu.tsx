@@ -32,8 +32,14 @@ import {
 /**
  * IndicatorStatus combines a couple of different states into a single enum which dictates the
  * decorative look of NavigationMenu.
+ *
+ * 'not-configured' means that the user did not interact with the feature and thus no indicator
+ * should be shown.
+ * '' means that the user has interacted with the feature, but the agent is not currently running in
+ * which case we display an empty circle, like we do next to the Connections icon when there's no
+ * active connections.
  */
-type IndicatorStatus = AttemptStatus;
+type IndicatorStatus = AttemptStatus | 'not-configured';
 
 export function NavigationMenu() {
   const iconRef = useRef();
@@ -41,14 +47,15 @@ export function NavigationMenu() {
   const { documentsService, rootClusterUri } = useWorkspaceContext();
   const { isAgentConfiguredAttempt, currentAction, canUse } =
     useConnectMyComputerContext();
-  const indicatorStatus = getIndicatorStatus(
-    currentAction,
-    isAgentConfiguredAttempt
-  );
 
   if (!canUse) {
     return null;
   }
+
+  const indicatorStatus = getIndicatorStatus(
+    currentAction,
+    isAgentConfiguredAttempt
+  );
 
   function toggleMenu() {
     setIsMenuOpened(wasOpened => !wasOpened);
@@ -117,6 +124,19 @@ function getIndicatorStatus(
   if (isAgentConfiguredAttempt.status === 'error') {
     return 'error';
   }
+  const isAgentConfigured =
+    isAgentConfiguredAttempt.status === 'success' &&
+    isAgentConfiguredAttempt.data;
+
+  // Returning 'not-configured' early means that the indicator won't be shown until the user
+  // completes the setup.
+  //
+  // This is fine, as the setup has multiple steps but not all come from the context (and thus are
+  // not ever assigned to currentAction). This means that if the indicator was shown during the
+  // setup, it would not work reliably, as it would not reflect the progress of certain steps.
+  if (!isAgentConfigured) {
+    return 'not-configured';
+  }
 
   if (currentAction.kind === 'observe-process') {
     switch (currentAction.agentProcessState.status) {
@@ -163,60 +183,18 @@ export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
         kind="secondary"
         size="small"
         title="Open Connect My Computer"
+        data-testid="connect-my-computer-icon"
       >
         <Laptop size="medium" />
         {props.indicatorStatus === 'error' ? (
           <StyledWarning />
         ) : (
-          indicatorStatusToStyledStatus(props.indicatorStatus)
+          <StyledStatus status={props.indicatorStatus} />
         )}
       </StyledButton>
     );
   }
 );
-
-const indicatorStatusToStyledStatus = (
-  indicatorStatus: '' | 'processing' | 'success'
-): JSX.Element => {
-  return (
-    <StyledStatus
-      status={indicatorStatus}
-      css={`
-        @keyframes blink {
-          0% {
-            opacity: 0;
-          }
-          50% {
-            opacity: 100%;
-          }
-          100% {
-            opacity: 0;
-          }
-        }
-
-        animation: blink 1.4s ease-in-out;
-        animation-iteration-count: ${props => {
-          const hasFinished =
-            props.status === 'success' || props.status === 'error';
-          return hasFinished ? '0' : 'infinite';
-        }};
-        visibility: ${props => (props.status === '' ? 'hidden' : 'visible')};
-        background: ${props => getIndicatorColor(props.status, props.theme)};
-      `}
-    />
-  );
-};
-
-function getIndicatorColor(
-  status: 'processing' | 'success',
-  theme: any
-): string {
-  switch (status) {
-    case 'processing':
-    case 'success':
-      return theme.colors.success;
-  }
-}
 
 const StyledButton = styled(Button)`
   position: relative;
@@ -235,6 +213,46 @@ const StyledStatus = styled(Box)`
   height: 8px;
   border-radius: 50%;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+
+  @keyframes blink {
+    0% {
+      opacity: 0;
+    }
+    50% {
+      opacity: 100%;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  animation: blink 1.4s ease-in-out;
+  animation-iteration-count: ${props =>
+    props.status === 'processing' ? 'infinite' : '0'};
+
+  ${props => {
+    const { status, theme } = props;
+    // 'not-configured' means that the user did not interact with the feature and thus no indicator
+    // should be shown.
+    if (status === 'not-configured') {
+      return { visibility: 'hidden' };
+    }
+
+    // '' means that the user has interacted with the feature, but the agent is not currently
+    // running in which case we display an empty circle, like we do next to the Connections icon
+    // when there's no active connections.
+    if (status === '') {
+      return {
+        border: `1px solid ${theme.colors.text.slightlyMuted}`,
+      };
+    }
+
+    if (status === 'processing' || status === 'success') {
+      return { backgroundColor: theme.colors.success };
+    }
+
+    // 'error' status can be ignored as it's handled outside of StyledStatus.
+  }}
 `;
 
 const StyledWarning = styled(Warning).attrs({
