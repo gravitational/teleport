@@ -158,7 +158,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency: time.Hour,
+				NextAuditDate: clock.Now(),
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
