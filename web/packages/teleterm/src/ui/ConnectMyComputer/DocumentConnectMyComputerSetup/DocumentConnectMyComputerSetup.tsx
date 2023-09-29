@@ -89,6 +89,12 @@ function Information(props: { onSetUpAgentClick(): void }) {
         access your computer as <strong>{systemUsername}</strong>.
         <br />
         <br />
+        The role is not an exclusive controller of access to the node. We
+        recommend using Connect My Computer only in scenarios where no other
+        user could plausibly gain access to the node, such as when exploring a
+        Teleport cluster as its only user or in a home lab.
+        <br />
+        <br />
         Your computer will be shared while Teleport Connect is open. To stop
         sharing, close Teleport Connect or stop the agent through the Connect My
         Computer tab. Sharing will resume on app restart, unless you stop the
