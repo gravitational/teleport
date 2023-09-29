@@ -129,12 +129,13 @@ stages:
 
 deploy-job:
   stage: deploy
+  # id_tokens
+  # See https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html
+  # for further explanation of the id_tokens configuration in GitLab.
   id_tokens:
-    # See https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html
-    # for further explanation of the id_tokens configuration.
     TBOT_GITLAB_JWT:
-      # An environment variable named TBOT_GITLAB_JWT must exist and contain
-      # an ID token with an audience that matches your Teleport cluster's name.
+      # aud for TBOT_GITLAB_JWT must be configured with the name of your
+      # Teleport cluster. This should not include http/https or the port.
       aud: teleport.example.com
   script:
     - cd /tmp
