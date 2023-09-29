@@ -65,6 +65,9 @@ export class AccessRequest extends jspb.Message {
     setResourcesList(value: Array<Resource>): AccessRequest;
     addResources(value?: Resource, index?: number): Resource;
 
+    getPromotedAccessListTitle(): string;
+    setPromotedAccessListTitle(value: string): AccessRequest;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessRequest.AsObject;
@@ -91,6 +94,7 @@ export namespace AccessRequest {
         thresholdNamesList: Array<string>,
         resourceIdsList: Array<ResourceID.AsObject>,
         resourcesList: Array<Resource.AsObject>,
+        promotedAccessListTitle: string,
     }
 }
 
@@ -115,6 +119,9 @@ export class AccessRequestReview extends jspb.Message {
     getCreated(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setCreated(value?: google_protobuf_timestamp_pb.Timestamp): AccessRequestReview;
 
+    getPromotedAccessListTitle(): string;
+    setPromotedAccessListTitle(value: string): AccessRequestReview;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessRequestReview.AsObject;
@@ -133,6 +140,7 @@ export namespace AccessRequestReview {
         state: string,
         reason: string,
         created?: google_protobuf_timestamp_pb.Timestamp.AsObject,
+        promotedAccessListTitle: string,
     }
 }
 
