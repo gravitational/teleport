@@ -64,6 +64,147 @@ The top bar of Teleport Connect consists of:
 The **status bar** at the bottom displays **cluster breadcrumbs** in the bottom left, indicating
 which cluster the current tab is bound to, and the **Share Feedback** button in the bottom right.
 
+## Connect My Computer
+
+Connect My Computer makes it possible to add your personal machine to a Teleport cluster in just a
+couple of clicks.
+
+It is the easiest way to add a computer to the cluster, whether you're just exploring the
+capabilities of Teleport or want your computer to be available in a Teleport-powered home lab.
+
+Connect My Computer sets up a Teleport agent managed completely by Teleport Connect, without having
+to use the terminal to get the job done and without the need for tools like `systemctl` to control
+agent lifecycle.
+
+### Prerequisites
+
+(!docs/pages/connect-your-client/includes/connect-my-computer-prerequisites.mdx!)
+{/* The permission to read and update users is needed during setup but not for regular usage,
+that's why it's not listed in the partial. */}
+- Permissions to read and update user objects in the backend (verbs `read` and `update` for [the
+  `user` resource](../access-controls/reference.mdx#teleport-resources)).
+
+The agent runs as the current system user, not as root. Some features are thus not available, such
+as logging in as other system users or [host user creation](../server-access/guides/host-user-creation.mdx).
+
+### Setup and usage
+
+To begin the setup, click on the laptop icon in the top left and select "Connect My Computer". The
+new tab will guide you through an interaction-free setup. Click "Connect" to start the setup.
+
+The setup creates a new role in the cluster which grants access to your device as the current system
+user. The role is then added to your user object.
+
+<Admonition type="warning">
+The role is responsible merely for granting SSH access as your system user to the node managed by
+Connect My Computer. The node is subject to RBAC like any other SSH node in the cluster.
+
+In practice it means that users with administrative privileges can craft another role which grants
+access to the node or simply assign the Connect My Computer role to themselves.
+
+We recommend using Connect My Computer only in scenarios where no other user could plausibly gain
+access to the node, such as when exploring a Teleport cluster as its only user or in a home lab.
+</Admonition>
+
+Next, the setup downloads a Teleport agent for your platform and runs `teleport node configure`
+pointed at the current cluster. Once that is done, Connect My Computer starts the agent and waits
+for it to show up in the cluster as an SSH node.
+
+After the agent joins the cluster, the tab transitions to showing the status of the agent. From
+here, you can connect to the node made available by the agent, stop and start the agent, as well as
+completely remove it.
+
+Your computer will be shared while Teleport Connect is open. To stop sharing, close Teleport Connect
+or stop the agent through the Connect My Computer tab. Sharing will resume on app restart, unless
+you stop the agent before exiting. The agent stops immediately if Teleport Connect unexpectedly
+crashes.
+
+### Agent maintenance
+
+The version of the agent downloaded by Teleport Connect always matches the version of Teleport
+Connect. After upgrading Teleport Connect, Connect My Computer is going to automatically attempt to
+download a matching agent version before launching the agent.
+
+Connect My Computer always stores just a single version of the agent on disk.
+
+<Tabs>
+<TabItem label="macOS">
+The agent is stored at `~/Library/Caches/Teleport Connect/teleport/teleport`.
+</TabItem>
+<TabItem label="Linux">
+The agent is stored at `~/.cache/Teleport Connect/teleport/teleport` by default. The path respects
+`$XDG_CACHE_HOME`.
+</TabItem>
+</Tabs>
+
+### Troubleshooting
+
+#### Accessing agent logs
+
+After the setup is done, open the Connect My Computer tab and from the three dots menu within the
+tab choose "Open agent logs directory".
+
+<Tabs>
+<TabItem label="macOS">
+The logs are stored at `~/Library/Application Support/Teleport Connect/agents/<cluster>/logs`.
+</TabItem>
+<TabItem label="Linux">
+The logs are stored at `~/.config/Teleport Connect/agents/<cluster>/logs`.
+</TabItem>
+</Tabs>
+
+#### The Connect My Computer icon is not visible in the top bar
+
+The icon is visible only if your setup satisfies the following requirements:
+
+(!docs/pages/connect-your-client/includes/connect-my-computer-prerequisites.mdx!)
+
+#### The Connect My Computer tab says that the agent is running, but the computer is not visible in the cluster
+
+The setup makes sure that you have all the necessary permissions to access the server. If the server
+is not visible, it might indicate that you are assigned a role which happens to deny access to the
+Connect My Computer node. Inspect the role list in the Management section of the Web UI to resolve
+this problem. First, check what roles are assigned to your user object and then inspect each role.
+Look for a role with broad `deny` rules.
+
+#### Connect My Computer does not work after changing system username
+
+The system username that was in use at the time of configuring Connect My Computer is persisted in
+the Connect My Computer role for the given cluster user. To regain access to the Connect My Computer
+node, add the new system username under the `logins` section of the role. The role can be identified
+by its name following the format `connect-my-computer-<name of cluster user>`.
+
+Another solution is to restart the setup, as described in [the "Starting from scratch"
+section](#starting-from-scratch).
+
+#### Starting from scratch
+
+Since Teleport nodes are completely stateless, in case of problems with starting the agent or
+joining the cluster you may attempt to run the setup again. Either click "Retry" if the setup has
+failed or choose "Remove agent" from the three dots menu within the Connect My Computer tab after
+the agent was successfully configured.
+
+#### Preventing user access to Connect My Computer
+
+If you wish to prevent cluster users from using Connect My Computer, make sure they don't have
+permissions to create new join tokens. This is controlled by the `create` verb for the `token`
+resource. Either deny this permission explicitly or do not grant it in the first place. See [Access
+Controls Reference Documentation](../access-controls/reference.mdx#teleport-resources) for more
+details. Denying this permission will hide the icon in the top bar.
+
+Users who already set up agents will still be able to manage those agents, even after the denying
+them permissions to create join tokens. This is to ensure that a malicious admin is not able to make
+a user set up an agent and then lock the user out of removing the agent.
+
+To instantly revoke access to agents that have already joined the cluster, look for nodes labeled
+with the `teleport.dev/connect-my-computer/owner` label and then [place
+locks](../access-controls/guides/locking.mdx) on those nodes.
+
+```code
+$ tctl nodes ls -v --query='labels["teleport.dev/connect-my-computer/owner"] != ""'
+$ tctl lock --server-id=<Var name="Node UUID" /> --message="Using Connect My Computer is forbidden"
+```
+
 ## Connecting to an SSH server
 
 1. Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
