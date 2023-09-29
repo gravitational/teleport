@@ -183,6 +183,8 @@ type DynamicAccess interface {
 	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error
 	// SubmitAccessReview applies a review to a request and returns the post-application state.
 	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
+	// GetAccessRequestAllowedPromotions returns suggested access lists for the given access request.
+	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 }
 
 // DynamicAccessOracle is a service capable of answering questions related
@@ -269,6 +271,10 @@ type DynamicAccessExt interface {
 	DeleteAllAccessRequests(ctx context.Context) error
 	// SetAccessRequestState updates the state of an existing access request.
 	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) (types.AccessRequest, error)
+	// CreateAccessRequestAllowedPromotions creates a list of allowed access list promotions for the given access request.
+	CreateAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestAllowedPromotions) error
+	// GetAccessRequestAllowedPromotions returns a lists of allowed access list promotions for the given access request.
+	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 }
 
 // reviewParamsContext is a simplified view of an access review
@@ -405,6 +411,8 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author t
 		return trace.AccessDenied("the access request has been already approved")
 	case req.GetState().IsDenied():
 		return trace.AccessDenied("the access request has been already denied")
+	case req.GetState().IsPromoted():
+		return trace.AccessDenied("the access request has been already promoted")
 	}
 
 	req.SetReviews(append(req.GetReviews(), rev))
@@ -416,9 +424,17 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author t
 		return trace.Wrap(err)
 	}
 
-	// state-transition was triggered.  update the appropriate fields.
-	req.SetState(res.state)
+	// state-transition was triggered. update the appropriate fields.
+	if err := req.SetState(res.state); err != nil {
+		return trace.Wrap(err)
+	}
 	req.SetResolveReason(res.reason)
+	if req.GetPromotedAccessListName() == "" {
+		// Set the title only if it's not set yet. This is to prevent
+		// overwriting the title by another promotion review.
+		req.SetPromotedAccessListName(rev.GetAccessListName())
+		req.SetPromotedAccessListTitle(rev.GetAccessListTitle())
+	}
 	req.SetExpiry(req.GetAccessExpiry())
 	return nil
 }
@@ -426,14 +442,15 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author t
 // checkReviewCompat performs basic checks to ensure that the specified review can be
 // applied to the specified request (part of review application logic).
 func checkReviewCompat(req types.AccessRequest, rev types.AccessReview) error {
-	// we currently only support reviews that propose approval/denial.  future iterations
-	// may support additional states (e.g. None for comment-only reviews).
-	if !rev.ProposedState.IsApproved() && !rev.ProposedState.IsDenied() {
+	// Proposal cannot be already resolved.
+	if !rev.ProposedState.IsResolved() {
+		// Skip the promoted state in the error message. It's not a state that most people
+		// should be concerned with.
 		return trace.BadParameter("invalid state proposal: %s (expected approval/denial)", rev.ProposedState)
 	}
 
 	// the default threshold should exist. if it does not, the request either is not fully
-	// initialized (i.e. variable expansion has not been run yet) or the request was inserted into
+	// initialized (i.e., variable expansion has not been run yet), or the request was inserted into
 	// the backend by a teleport instance which does not support the review feature.
 	if len(req.GetThresholds()) == 0 {
 		return trace.BadParameter("request is uninitialized or does not support reviews")
@@ -586,6 +603,9 @@ ProcessReviews:
 				counts[idx].approval++
 			case rev.ProposedState.IsDenied():
 				counts[idx].denial++
+			case rev.ProposedState.IsPromoted():
+				// Promote skips the threshold check.
+				break ProcessReviews
 			default:
 				return nil, trace.BadParameter("cannot calculate state-transition, unexpected proposal: %s", rev.ProposedState)
 			}
@@ -657,6 +677,9 @@ ProcessReviews:
 			// their denial thresholds; no state-transition.
 			return nil, nil
 		}
+	case lastReview.ProposedState.IsPromoted():
+		// Let the state change. Promoted won't grant any access, meaning it is roughly equivalent to denial.
+		// But we want to be able to distinguish between promoted and denied in audit logs/UI.
 	default:
 		return nil, trace.BadParameter("cannot calculate state-transition, unexpected proposal: %s", lastReview.ProposedState)
 	}
@@ -1009,6 +1032,10 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 
 	if m.requireReason && req.GetRequestReason() == "" {
 		return trace.BadParameter("request reason must be specified (required by static role configuration)")
+	}
+
+	if !req.GetState().IsPromoted() && req.GetPromotedAccessListTitle() != "" {
+		return trace.BadParameter("only promoted requests can set the promoted access list title")
 	}
 
 	// check for "wildcard request" (`roles=*`).  wildcard requests
@@ -1598,6 +1625,21 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 	default:
 		return nil, trace.BadParameter("unrecognized access request type: %T", accessRequest)
 	}
+}
+
+// MarshalAccessRequestAllowedPromotion marshals the list of access list IDs to JSON.
+func MarshalAccessRequestAllowedPromotion(accessListIDs *types.AccessRequestAllowedPromotions) ([]byte, error) {
+	payload, err := utils.FastMarshal(accessListIDs)
+	return payload, trace.Wrap(err)
+}
+
+// UnmarshalAccessRequestAllowedPromotion unmarshals the list of access list IDs from JSON.
+func UnmarshalAccessRequestAllowedPromotion(data []byte) (*types.AccessRequestAllowedPromotions, error) {
+	var accessListIDs types.AccessRequestAllowedPromotions
+	if err := utils.FastUnmarshal(data, &accessListIDs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &accessListIDs, nil
 }
 
 // pruneResourceRequestRoles takes an access request and does one of two things:

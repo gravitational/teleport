@@ -2054,6 +2054,15 @@ message AccessReviewThreshold {
   uint32 Deny = 4 [(gogoproto.jsontag) = "deny,omitempty"];
 }
 
+// PromotedAccessList is a minimal access list representation used for
+// promoting access requests to access lists.
+message PromotedAccessList {
+  // Name is the name of the access list.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+  // Title is the title of the access list.
+  string Title = 2 [(gogoproto.jsontag) = "title"];
+}
+
 // AccessReview is a review to be applied to an access request.
 message AccessReview {
   // Author is the teleport username of the review author.
@@ -2081,6 +2090,13 @@ message AccessReview {
   // ThresholdIndexes stores the indexes of thresholds which this review matches
   // (internal use only).
   repeated uint32 ThresholdIndexes = 7 [(gogoproto.jsontag) = "i,omitempty"];
+
+  reserved "PromotedAccessListTitle";
+  reserved 8;
+
+  // AccessList is the access list that this request was promoted to.
+  // This field is only populated when the request is in the PROMOTED state.
+  PromotedAccessList accessList = 9 [(gogoproto.jsontag) = "access_list,omitempty"];
 }
 
 // AccessReviewSubmission encodes the necessary parameters for submitting
@@ -2109,6 +2125,9 @@ enum RequestState {
   // DENIED variant indicates that a request has been rejected by
   // an administrating party.
   DENIED = 3;
+  // PROMOTED variant indicates that a request has been promoted to
+  // an access list.
+  PROMOTED = 4;
 }
 
 // ThresholdIndexSet encodes a list of threshold indexes. One of the listed thresholds
@@ -2236,6 +2255,14 @@ message AccessRequestSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "session_ttl,omitempty"
   ];
+
+  reserved "PromotedAccessListTitle";
+  reserved 19;
+
+  // PromotedAccessListTitle is the title of the access list that this request
+  // was promoted to. Used by WebUI to display the title of the access list.
+  // This field is only populated when the request is in the PROMOTED state.
+  PromotedAccessList accessList = 20 [(gogoproto.jsontag) = "access_list,omitempty"];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -2920,6 +2947,19 @@ message AccessReviewConditions {
   // while they are viewing a Resource Access Request for the purposes of
   // viewing details such as the hostname and labels of requested resources.
   repeated string PreviewAsRoles = 4 [(gogoproto.jsontag) = "preview_as_roles,omitempty"];
+}
+
+// AccessRequestAllowedPromotion describes an allowed promotion to an access list.
+message AccessRequestAllowedPromotion {
+  // associated access list
+  string accessListName = 1;
+}
+
+// AccessRequestAllowedPromotions describes an valid promotion from an access request
+// to an access list.
+message AccessRequestAllowedPromotions {
+  // suggestions is a list of allowed access lists promotions.
+  repeated AccessRequestAllowedPromotion promotions = 1;
 }
 
 // ClaimMapping maps a claim to teleport roles.

@@ -285,6 +285,43 @@ func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req type
 	return nil
 }
 
+// CreateAccessRequestAllowedPromotions creates AccessRequestAllowedPromotions object.
+func (s *DynamicAccessService) CreateAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestAllowedPromotions) error {
+	// create the new access request promotion object
+	item, err := itemFromAccessListPromotions(req, accessLists)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Currently, this logic is used only internally (no API exposed), and
+	// there is only one place that calls it. If this ever changes, we will
+	// need to do a CompareAndSwap here.
+	if _, err := s.Put(ctx, item); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetAccessRequestAllowedPromotions returns AccessRequestAllowedPromotions object.
+func (s *DynamicAccessService) GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+	// get the access request promotions from the backend
+	item, err := s.Get(ctx, AccessRequestAllowedPromotionKey(req.GetName()))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			// do not return nil as the caller will assume that nil error
+			// means that there are some promotions
+			return types.NewAccessRequestAllowedPromotions(nil), nil
+		}
+		return nil, trace.Wrap(err)
+	}
+	// unmarshal the access request promotions
+	promotions, err := services.UnmarshalAccessRequestAllowedPromotion(item.Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return promotions, nil
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (s *DynamicAccessService) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
 	switch filter.Kind {
@@ -452,6 +489,19 @@ func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
 	}, nil
 }
 
+func itemFromAccessListPromotions(req types.AccessRequest, suggestedItems *types.AccessRequestAllowedPromotions) (backend.Item, error) {
+	value, err := services.MarshalAccessRequestAllowedPromotion(suggestedItems)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+	return backend.Item{
+		Key:     AccessRequestAllowedPromotionKey(req.GetName()),
+		Value:   value,
+		Expires: req.Expiry(), // expire the promotion at the same time as the access request
+		ID:      req.GetResourceID(),
+	}, nil
+}
+
 func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (types.AccessRequest, error) {
 	opts = append(
 		opts,
@@ -502,13 +552,18 @@ func accessRequestKey(name string) []byte {
 	return backend.Key(accessRequestsPrefix, name, paramsPrefix)
 }
 
+func AccessRequestAllowedPromotionKey(name string) []byte {
+	return backend.Key(accessRequestPromotionPrefix, name, paramsPrefix)
+}
+
 func pluginDataKey(kind string, name string) []byte {
 	return backend.Key(pluginDataPrefix, kind, name, paramsPrefix)
 }
 
 const (
-	accessRequestsPrefix = "access_requests"
-	pluginDataPrefix     = "plugin_data"
-	maxCmpAttempts       = 7
-	retryPeriodMs        = 2048
+	accessRequestsPrefix         = "access_requests"
+	accessRequestPromotionPrefix = "access_request_promotions"
+	pluginDataPrefix             = "plugin_data"
+	maxCmpAttempts               = 7
+	retryPeriodMs                = 2048
 )
