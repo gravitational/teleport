@@ -1775,6 +1775,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	if installUpdater {
 		repoChannel = stableCloudChannelRepo
 	}
+	azureClientID := r.URL.Query().Get("azure-client-id")
 
 	tmpl := installers.Template{
 		PublicProxyAddr:   h.PublicProxyAddr(),
@@ -1782,6 +1783,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		TeleportPackage:   teleportPackage,
 		RepoChannel:       repoChannel,
 		AutomaticUpgrades: strconv.FormatBool(installUpdater),
+		AzureClientID:     azureClientID,
 	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)
