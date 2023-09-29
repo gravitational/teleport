@@ -319,7 +319,7 @@ func checkMySQLSupportedVersion(serverVersion string) error {
 	// Reference:
 	// https://dev.mysql.com/doc/relnotes/mysql/8.0/en/news-8-0-0.html#mysqld-8-0-0-account-management
 	case ver.Major < 8:
-		return trace.BadParameter("role management is not supproted for MySQL servers older than 8.0")
+		return trace.BadParameter("role management is not supported for MySQL servers older than 8.0")
 
 	default:
 		return nil
