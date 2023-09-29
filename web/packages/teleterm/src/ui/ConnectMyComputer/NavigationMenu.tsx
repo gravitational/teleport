@@ -47,14 +47,15 @@ export function NavigationMenu() {
   const { documentsService, rootClusterUri } = useWorkspaceContext();
   const { isAgentConfiguredAttempt, currentAction, canUse } =
     useConnectMyComputerContext();
-  const indicatorStatus = getIndicatorStatus(
-    currentAction,
-    isAgentConfiguredAttempt
-  );
 
   if (!canUse) {
     return null;
   }
+
+  const indicatorStatus = getIndicatorStatus(
+    currentAction,
+    isAgentConfiguredAttempt
+  );
 
   function toggleMenu() {
     setIsMenuOpened(wasOpened => !wasOpened);
