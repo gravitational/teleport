@@ -3,13 +3,9 @@ title: Deploying Machine ID on CircleCI
 description: How to install and configure Machine ID on CircleCI
 ---
 
-In this guide, you will use Teleport Machine ID to allow a CircleCI job to
-securely connect to a Teleport SSH node without the need for long-lived secrets.
-
-This mitigates the risk of long-lived secrets such as passwords or SSH private
-keys being exfiltrated from your CircleCI organization and provides many of
-the other benefits of Teleport such as auditing and finely-grained access
-control.
+In this guide, you will configure Machine ID's agent, `tbot`, to run within a
+CircleCI workflow. The bot will be configured to use the `circleci` delegated
+joining method to eliminate the need for long-lived secrets.
 
 ## Prerequisites
 
@@ -24,7 +20,7 @@ node `my-node` and the user `ci-user`. Replace these with values appropriate to
 your setup.
 - A CircleCI project connected to a Git repository you can push to.
 
-## Step 1/4. Configure CircleCI
+## Step 1/5. Configure CircleCI
 
 In order to configure the rules for which CircleCI workflows will be allowed to
 connect to your Teleport cluster, you must determine the ID of your CircleCI
@@ -72,7 +68,7 @@ In this case, the context ID is: `00000000-0000-0000-0000-000000000000`.
 Note this value down and substitute `$CONTEXT_ID` in configuration examples
 with this.
 
-## Step 2/4. Create the join token for CircleCI
+## Step 2/5. Create the join token for CircleCI
 
 In order to allow your CircleCI workflow to authenticate with your Teleport
 cluster, you'll first need to create a join token. These tokens set out criteria
@@ -118,7 +114,7 @@ Apply this to your Teleport cluster using `tctl`:
 $ tctl create -f tokenconfig.yaml
 ```
 
-## Step 3/4. Create a Machine ID bot
+## Step 3/5. Create a Machine ID bot
 
 With the join token for the CircleCI project created, you now need to create a
 Machine ID bot that the token will grant access to. A Machine ID bot is a
@@ -138,14 +134,31 @@ Use `tctl` to create the bot:
 $ tctl bots add circleci-demo --roles=access --logins=ci-user --token=circleci-demo
 ```
 
-## Step 4/4. Configure a CircleCI workflow
+## Step 4/5. Configure a CircleCI workflow
 
 With the token and bot now configured, you can now create a CircleCI workflow
 that can connect to your Teleport cluster.
 
-Our example workflow will connect to an SSH node named `my-node` and write a
-line to a file that links back to the CI/CD run. This is a trivial example and
-could be replaced with pushing new configuration or binaries over SSH.
+Create `tbot.yaml` within your repository:
+
+```yaml
+version: v2
+auth_server: example.teleport.sh:443
+onboarding:
+  join_method: circleci
+  token: example-bot
+oneshot: true
+storage:
+  type: memory
+# outputs will be filled in during the completion of an access guide.
+outputs: []
+```
+
+Replace:
+
+- `example.teleport.sh:443` with the address of your Teleport Proxy or
+  Auth Server. Prefer using the address of a Teleport Proxy.
+- `example-bot` with the name of the token you created in the second step
 
 Open your Git repository and create a directory called `.circleci`. Then open
 a file called `config.yml` and insert the following configuration:
@@ -167,20 +180,10 @@ jobs:
             tar -xvf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
             sudo ./teleport/install
       - run:
-          name: "Use Machine ID to access Teleport Node"
+          name: "Run Machine ID"
           command: |
             export TELEPORT_ANONYMOUS_TELEMETRY=1
-            tbot start \
-              --auth-server=tele.example.com:443 \
-              --join-method=circleci --token=circleci-demo \
-              --oneshot \
-              --destination-dir=./certs \
-              --data-dir=/tmp/tbot-data
-            tsh \
-              -i ./certs/identity \
-              --proxy tele.example.com:443 \
-              ssh ci-user@my-node \
-              "echo $CIRCLE_BUILD_URL >> ~/circle_run_log_demo"
+            tbot start -c tbot.yaml
 workflows:
   write-run-log:
     jobs:
@@ -193,20 +196,12 @@ workflows:
 telemetry. This helps us shape the future development of `tbot`. You can disable
 this by omitting this.
 
-Replace `tele.example.com:443` with the public-facing address of your Teleport
-Proxy Service or cloud tenant (e.g. `example.teleport.sh`). Replace `my-node`
-with the name of the Teleport node that you wish to connect to and replace
-`ci-user` with the login you configured in Step 3.
-
 Add, commit, and push this new configuration file to your repository.
 
 Open CircleCI and check the status of the job, wait for it to complete and
 ensure that no errors are emitted.
 
-SSH into `my-node` and confirm that a file has been created in `ci-user`'s home
-directory named `circle_run_log` with a link to the build in CircleCI.
-
-## A note on security implications and risk
+### A note on security implications and risk
 
 Once `tbot start` has been used in a job, all successive steps in that job will
 have access to the credentials that have been produced by `tbot`. Break your
@@ -216,9 +211,16 @@ to these credentials.
 Ensure that the role you assign to your CircleCI bot has access to only the
 resources in your Teleport cluster that your CI/CD needs to interact with.
 
+### Step 5/5. Configure outputs
+
+(!docs/pages/includes/machine-id/configure-outputs.mdx!)
+
 ## Further steps
 
-For more information about CircleCI itself, read
+- Follow the [access guides](../access-guides.mdx) to finish configuring `tbot` for
+  your environment.
+- Read the [configuration reference](../reference/configuration.mdx) to explore
+  all the available configuration options.
+- For more information about CircleCI itself, read
 [their documentation](https://circleci.com/docs/).
-
-[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)
