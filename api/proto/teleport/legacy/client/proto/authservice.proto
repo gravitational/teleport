@@ -2297,6 +2297,18 @@ message ExportUpgradeWindowsResponse {
   string SystemdUnitSchedule = 3;
 }
 
+// AccessRequestAllowedPromotionRequest is the request to AccessRequestAllowedPromotion RPC call.
+message AccessRequestAllowedPromotionRequest {
+  // AccessRequest is the access request to get promotions for.
+  string accessRequestID = 1;
+}
+
+// AccessRequestAllowedPromotionResponse is the response to AccessRequestAllowedPromotion RPC call.
+message AccessRequestAllowedPromotionResponse {
+  // allowedPromotions is the list of allowed promotions for the access request.
+  types.AccessRequestAllowedPromotions allowedPromotions = 1;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2394,8 +2406,11 @@ service AuthService {
   rpc SetAccessRequestState(RequestStateSetter) returns (google.protobuf.Empty);
   // SubmitAccessReview applies a review to a request and returns the post-application state.
   rpc SubmitAccessReview(types.AccessReviewSubmission) returns (types.AccessRequestV3);
-  // GetAccessCapabilities requests the access capabilites of a user.
+  // GetAccessCapabilities requests the access capabilities of a user.
   rpc GetAccessCapabilities(types.AccessCapabilitiesRequest) returns (types.AccessCapabilities);
+
+  // GetAccessRequestAllowedPromotions returns a list of allowed promotions from an access request to an access list.
+  rpc GetAccessRequestAllowedPromotions(AccessRequestAllowedPromotionRequest) returns (AccessRequestAllowedPromotionResponse);
 
   // GetPluginData gets all plugin data matching the supplied filter.
   rpc GetPluginData(types.PluginDataFilter) returns (PluginDataSeq);

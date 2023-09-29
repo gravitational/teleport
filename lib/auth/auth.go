@@ -3444,6 +3444,9 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 		if req.GetState().IsDenied() {
 			return nil, trace.AccessDenied("access request %q has been denied", accessRequestID)
 		}
+		if req.GetState().IsPromoted() {
+			return nil, trace.AccessDenied("access request %q has been promoted. Use access list to access resources.", accessRequestID)
+		}
 		return nil, trace.AccessDenied("access request %q is awaiting approval", accessRequestID)
 	}
 
@@ -4178,6 +4181,20 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
+	// calculate the promotions
+	reqCopy := req.Copy()
+	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
+	if err != nil {
+		// Do not fail the request if the promotions failed to generate.
+		// The request promotion will be blocked, but the request can still be approved.
+		log.WithError(err).Warn("Failed to generate access list promotions.")
+	} else if promotions != nil {
+		// Create the promotion entry even if the allowed promotion is empty. Otherwise, we won't
+		// be able to distinguish between an allowed empty set and generation failure.
+		if err := a.Services.CreateAccessRequestAllowedPromotions(ctx, reqCopy, promotions); err != nil {
+			log.WithError(err).Warn("Failed to update access request with promotions.")
+		}
+	}
 
 	accessRequestsCreatedMetric.WithLabelValues(
 		strconv.Itoa(len(req.GetRoles())),
@@ -4242,6 +4259,11 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 }
 
 func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error) {
+	// When promoting a request, the access list name must be set.
+	if params.Review.ProposedState.IsPromoted() && params.Review.GetAccessListName() == "" {
+		return nil, trace.BadParameter("promoted access list can be only set when promoting access requests")
+	}
+
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4274,12 +4296,13 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 		ResourceMetadata: apievents.ResourceMetadata{
 			Expires: req.GetAccessExpiry(),
 		},
-		RequestID:     params.RequestID,
-		RequestState:  req.GetState().String(),
-		ProposedState: params.Review.ProposedState.String(),
-		Reason:        params.Review.Reason,
-		Reviewer:      params.Review.Author,
-		MaxDuration:   req.GetMaxDuration(),
+		RequestID:              params.RequestID,
+		RequestState:           req.GetState().String(),
+		ProposedState:          params.Review.ProposedState.String(),
+		Reason:                 params.Review.Reason,
+		Reviewer:               params.Review.Author,
+		MaxDuration:            req.GetMaxDuration(),
+		PromotedAccessListName: req.GetPromotedAccessListName(),
 	}
 
 	if len(params.Review.Annotations) > 0 {
