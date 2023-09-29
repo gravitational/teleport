@@ -494,10 +494,10 @@ func TestSelectNextAccessListReviewDate(t *testing.T) {
 func TestAccessListRecurrenceDefaults(t *testing.T) {
 	t.Parallel()
 
-	// Frequency set, next audit date is zero, recurrence not set. This will trigger a frequency conversion.
+	// Frequency set, recurrence not set. This will trigger a frequency conversion.
 	accessList := newAccessList(t)
 	accessList.Spec.Audit.Frequency = time.Minute
-	accessList.Spec.Audit.NextAuditDate = time.Time{}
+	accessList.Spec.Audit.NextAuditDate = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	accessList.Spec.Audit.Recurrence = ""
 	require.NoError(t, accessList.CheckAndSetDefaults())
 
@@ -505,7 +505,7 @@ func TestAccessListRecurrenceDefaults(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC), nextDate)
 
-	// Frequency not set, next audit date is set, recurrence not set. This will trigger a default recurrence.
+	// Frequency not set, recurrence not set. This will trigger a default recurrence.
 	accessList = newAccessList(t)
 	accessList.Spec.Audit.NextAuditDate = time.Date(2023, 01, 01, 0, 0, 0, 0, time.UTC)
 	accessList.Spec.Audit.Recurrence = ""
