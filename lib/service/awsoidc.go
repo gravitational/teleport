@@ -286,7 +286,7 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgent(ctx context.Contex
 	// If the lease cannot be acquired, the update is already being handled by another instance.
 	semLock, err := updater.AuthClient.AcquireSemaphore(ctx, types.AcquireSemaphoreRequest{
 		SemaphoreKind: types.SemaphoreKindConnection,
-		SemaphoreName: fmt.Sprintf("update_deploy_service_agents_%s_%s_BERNARD", awsRegion, integration.GetName()),
+		SemaphoreName: fmt.Sprintf("update_deploy_service_agents_%s_%s", awsRegion, integration.GetName()),
 		MaxLeases:     1,
 		Expires:       updater.Clock.Now().Add(updateDeployAgentsInterval),
 		Holder:        "update_deploy_service_agents",
