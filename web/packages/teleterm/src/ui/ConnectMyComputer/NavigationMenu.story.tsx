@@ -32,8 +32,19 @@ export default {
   title: 'Teleterm/ConnectMyComputer/NavigationMenu',
 };
 
-export function AgentRunning() {
-  return <ShowState agentProcessState={{ status: 'running' }} />;
+export function AgenNotConfigured() {
+  return (
+    <ShowState
+      agentProcessState={{ status: 'not-started' }}
+      isAgentConfigFileCreated={async () => {
+        return false;
+      }}
+    />
+  );
+}
+
+export function AgentConfiguredButNotStarted() {
+  return <ShowState agentProcessState={{ status: 'not-started' }} />;
 }
 
 export function AgentStarting() {
@@ -59,6 +70,10 @@ export function AgentStarting() {
       autoStart={true}
     />
   );
+}
+
+export function AgentRunning() {
+  return <ShowState agentProcessState={{ status: 'running' }} />;
 }
 
 export function AgentError() {
@@ -94,17 +109,6 @@ export function AgentExitedUnsuccessfully() {
         code: 1,
         logs: 'teleport: error: unknown short flag -non-existing-flag',
         signal: null,
-      }}
-    />
-  );
-}
-
-export function AgentSetupNotDone() {
-  return (
-    <ShowState
-      agentProcessState={{ status: 'not-started' }}
-      isAgentConfigFileCreated={async () => {
-        return false;
       }}
     />
   );
