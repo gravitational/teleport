@@ -14,7 +14,12 @@
  * limitations under the License.
  */
 
-import { middleValues } from 'teleport/AccessRequests/utils';
+import { Duration } from 'date-fns';
+
+import {
+  middleValues,
+  roundToNearestTenMinutes,
+} from 'teleport/AccessRequests/utils';
 
 // Generate testing response
 function generateResponse(
@@ -221,4 +226,58 @@ describe('generate middle times', () => {
       expect(result).toEqual(generateResponse(new Date(created), expected));
     }
   );
+});
+
+describe('round to nearest 10 minutes', () => {
+  const cases: {
+    name: string;
+    input: Duration;
+    expected: Duration;
+  }[] = [
+    {
+      name: 'round up',
+      input: { minutes: 9, seconds: 0 },
+      expected: { minutes: 10, seconds: 0 },
+    },
+    {
+      name: 'round down',
+      input: { minutes: 11, seconds: 0 },
+      expected: { minutes: 10, seconds: 0 },
+    },
+    {
+      name: 'round to 10',
+      input: { minutes: 15, seconds: 0 },
+      expected: { minutes: 20, seconds: 0 },
+    },
+    {
+      name: 'do not round to 0',
+      input: { minutes: 1, seconds: 0 },
+      expected: { minutes: 10, seconds: 0 },
+    },
+    {
+      name: 'round minutes to 0 when days or hours are present',
+      input: { hours: 3, minutes: 1, seconds: 0 },
+      expected: { hours: 3, minutes: 0, seconds: 0 },
+    },
+    {
+      name: 'do not round to 0',
+      input: { minutes: 0, seconds: 0 },
+      expected: { minutes: 10, seconds: 0 },
+    },
+    {
+      name: 'seconds are removed',
+      input: { minutes: 9, seconds: 10 },
+      expected: { minutes: 10, seconds: 0 },
+    },
+    {
+      name: "duration doesn't change when days are present",
+      input: { days: 1, minutes: 9, seconds: 10 },
+      expected: { days: 1, minutes: 10, seconds: 0 },
+    },
+  ];
+
+  test.each(cases)('$name', ({ input, expected }) => {
+    const result = roundToNearestTenMinutes(input);
+    expect(result).toEqual(expected);
+  });
 });

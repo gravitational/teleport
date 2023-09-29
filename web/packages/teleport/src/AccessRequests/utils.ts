@@ -28,6 +28,28 @@ type TimeDuration = {
   duration: Duration;
 };
 
+// Round the duration to the nearest 10 minutes
+// Example:
+// 9m -> 10m
+// 10m -> 10m
+// 11m -> 10m
+// 15m -> 20m
+// 1d -> 1d
+// 1d 1h -> 1d 1h
+// The only exception is 0m, which is rounded to 10m
+export function roundToNearestTenMinutes(date: Duration): Duration {
+  let minutes = date.minutes;
+  let roundedMinutes = Math.round(minutes / 10) * 10; // Round to the nearest 10
+  if (roundedMinutes === 0 && !date.days && !date.hours) {
+    // Do not round down to 0. This
+    roundedMinutes = 10;
+  }
+  date.minutes = roundedMinutes;
+  date.seconds = 0;
+
+  return date;
+}
+
 // Generate a list of middle values between start and end. The first value is the
 // session TTL that is rounded to the nearest hour. The rest of the values are
 // rounded to the nearest day. Example:
@@ -44,10 +66,12 @@ export function middleValues(
   end: Date
 ): TimeDuration[] {
   const getInterval = (d: Date) =>
-    intervalToDuration({
-      start: created,
-      end: d,
-    });
+    roundToNearestTenMinutes(
+      intervalToDuration({
+        start: created,
+        end: d,
+      })
+    );
 
   const points: Date[] = [start];
 
