@@ -191,6 +191,12 @@ func (t *teleportService) authAddr(testingT *testing.T) utils.NetAddr {
 	return *addr
 }
 
+func (t *teleportService) authAddrString(testingT *testing.T) string {
+	addr, err := t.process.AuthAddr()
+	require.NoError(testingT, err)
+	return addr.String()
+}
+
 type teleportServices []*teleportService
 
 func (s teleportServices) forEach(f func(t *teleportService) error) error {
