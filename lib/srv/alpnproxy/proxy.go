@@ -313,7 +313,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 	for {
 		clientConn, err := p.cfg.Listener.Accept()
 		if err != nil {
-			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
+			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) || ctx.Err() != nil {
 				return nil
 			}
 			return trace.Wrap(err)

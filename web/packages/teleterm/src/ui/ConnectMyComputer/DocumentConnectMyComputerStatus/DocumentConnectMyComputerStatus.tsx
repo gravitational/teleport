@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   Alert,
   Box,
@@ -74,11 +74,21 @@ export function DocumentConnectMyComputerStatus(
     isAgentConfiguredAttempt,
     markAgentAsNotConfigured,
     removeAgent,
-    isAgentCompatible,
+    agentCompatibility,
   } = useConnectMyComputerContext();
   const { rootClusterUri } = useWorkspaceContext();
   const { roleName, systemUsername, hostname } = useAgentProperties();
   const { proxyVersion, appVersion, isLocalBuild } = useVersions();
+  const isAgentIncompatible = agentCompatibility === 'incompatible';
+  const isAgentIncompatibleOrUnknown =
+    agentCompatibility === 'incompatible' || agentCompatibility === 'unknown';
+  const downloadAndStartAgentAndIgnoreErrors = useCallback(async () => {
+    try {
+      await downloadAndStartAgent();
+    } catch (error) {
+      // Ignore the error, it'll be shown in the UI by inspecting the attempts.
+    }
+  }, [downloadAndStartAgent]);
 
   const prettyCurrentAction = prettifyCurrentAction(currentAction);
 
@@ -135,7 +145,11 @@ export function DocumentConnectMyComputerStatus(
   const showConnectAndStopAgentButtons = isRunning || isKilling;
   const disableConnectAndStopAgentButtons = isKilling;
   const disableStartAgentButton =
-    isDownloading || isStarting || isRemoving || isRemoved;
+    isDownloading ||
+    isStarting ||
+    isRemoving ||
+    isRemoved ||
+    isAgentIncompatibleOrUnknown;
 
   return (
     <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">
@@ -168,108 +182,142 @@ export function DocumentConnectMyComputerStatus(
           again.
         </Alert>
       )}
-      <Flex justifyContent="space-between" mb={3}>
-        <Text
-          typography="h3"
-          css={`
-            display: flex;
-          `}
-        >
-          <Laptop mr={2} />
-          {/** The node name can be changed, so it might be different from the system hostname. */}
-          {agentNode?.hostname || hostname}
-        </Text>
-        <MenuIcon
-          buttonIconProps={{
-            css: css`
-              border-radius: ${props => props.theme.space[1]}px;
-              background: ${props => props.theme.colors.spotBackground[0]};
-            `,
-          }}
-          menuProps={{
-            anchorOrigin: {
-              vertical: 'bottom',
-              horizontal: 'right',
-            },
-            transformOrigin: {
-              vertical: 'top',
-              horizontal: 'right',
-            },
-          }}
-        >
-          <MenuItem onClick={openAgentLogs}>Open agent logs directory</MenuItem>
-          <MenuItem onClick={removeAgentAndClose}>Remove agent</MenuItem>
-        </MenuIcon>
-      </Flex>
 
-      <Transition in={!!agentNode} timeout={1_800} mountOnEnter unmountOnExit>
-        {state => (
-          <LabelsContainer gap={1} className={state}>
-            {renderLabels(agentNode.labelsList)}
-          </LabelsContainer>
-        )}
-      </Transition>
-      <Flex
-        mt={3}
-        mb={2}
-        gap={1}
-        display="flex"
-        alignItems="center"
-        minHeight="32px"
-      >
-        {prettyCurrentAction.Icon && <prettyCurrentAction.Icon size="medium" />}
-        {prettyCurrentAction.title}
-        {showConnectAndStopAgentButtons && (
-          <ButtonSecondary
-            onClick={killAgent}
-            disabled={disableConnectAndStopAgentButtons}
-            ml={3}
+      <Flex flexDirection="column" gap={3}>
+        <Flex flexDirection="column" gap={1}>
+          <Flex justifyContent="space-between">
+            <Text
+              typography="h3"
+              css={`
+                display: flex;
+              `}
+            >
+              <Laptop mr={2} />
+              {/** The node name can be changed, so it might be different from the system hostname. */}
+              {agentNode?.hostname || hostname}
+            </Text>
+            <MenuIcon
+              buttonIconProps={{
+                css: css`
+                  border-radius: ${props => props.theme.space[1]}px;
+                  background: ${props => props.theme.colors.spotBackground[0]};
+                `,
+              }}
+              menuProps={{
+                anchorOrigin: {
+                  vertical: 'bottom',
+                  horizontal: 'right',
+                },
+                transformOrigin: {
+                  vertical: 'top',
+                  horizontal: 'right',
+                },
+              }}
+            >
+              <MenuItem onClick={openAgentLogs}>
+                Open agent logs directory
+              </MenuItem>
+              <MenuItem onClick={removeAgentAndClose}>Remove agent</MenuItem>
+            </MenuIcon>
+          </Flex>
+
+          <Transition
+            in={!!agentNode}
+            timeout={1_800}
+            mountOnEnter
+            unmountOnExit
           >
-            Stop Agent
-          </ButtonSecondary>
-        )}
-      </Flex>
-      {prettyCurrentAction.error && (
-        <Alert
-          css={`
-            white-space: pre-wrap;
-          `}
-        >
-          {prettyCurrentAction.error}
-        </Alert>
-      )}
-      {prettyCurrentAction.logs && <Logs logs={prettyCurrentAction.logs} />}
+            {state => (
+              <LabelsContainer gap={1} className={state}>
+                {/* Explicitly check for existence of agentNode because Transition doesn't seem to
+                unmount immediately when `in` becomes falsy. */}
+                {agentNode?.labelsList && renderLabels(agentNode.labelsList)}
+              </LabelsContainer>
+            )}
+          </Transition>
+        </Flex>
 
-      {!isAgentCompatible ? (
-        <CompatibilityError />
-      ) : (
-        <>
-          <Text mb={4} mt={1}>
-            Connecting your computer will allow any cluster user with the role{' '}
-            <strong>{roleName}</strong> to access it as an SSH resource with the
-            user <strong>{systemUsername}</strong>.
-          </Text>
-          {showConnectAndStopAgentButtons ? (
-            <ButtonPrimary
-              block
-              disabled={disableConnectAndStopAgentButtons}
-              onClick={startSshSession}
-              size="large"
+        <Flex flexDirection="column" gap={2}>
+          <Flex gap={1} display="flex" alignItems="center" minHeight="32px">
+            {prettyCurrentAction.Icon && (
+              <prettyCurrentAction.Icon size="medium" />
+            )}
+            {prettyCurrentAction.title}
+            {showConnectAndStopAgentButtons && (
+              <ButtonSecondary
+                onClick={killAgent}
+                disabled={disableConnectAndStopAgentButtons}
+                ml={3}
+              >
+                Stop Agent
+              </ButtonSecondary>
+            )}
+          </Flex>
+          {prettyCurrentAction.error && (
+            <Alert
+              mb={0}
+              css={`
+                white-space: pre-wrap;
+              `}
             >
-              Connect
-            </ButtonPrimary>
-          ) : (
-            <ButtonPrimary
-              block
-              disabled={disableStartAgentButton}
-              onClick={downloadAndStartAgent}
-              size="large"
-            >
-              Start Agent
-            </ButtonPrimary>
+              {prettyCurrentAction.error}
+            </Alert>
           )}
-        </>
-      )}
+          {prettyCurrentAction.logs && <Logs logs={prettyCurrentAction.logs} />}
+        </Flex>
+
+        <Flex flexDirection="column" gap={2}>
+          {isAgentIncompatible ? (
+            <CompatibilityError
+              // Hide the alert if the current action has failed. downloadAgent and startAgent already
+              // return an error message related to compatibility.
+              //
+              // Basically, we have to cover two use cases:
+              //
+              // * Auto start has failed due to compatibility promise, so the downloadAgent failed with
+              // an error.
+              // * Auto start wasn't enabled, so the current action has no errors, but the user should
+              // not be able to start the agent due to compatibility issues.
+              hideAlert={!!prettyCurrentAction.error}
+            />
+          ) : (
+            <>
+              {isRunning ? (
+                <Text>
+                  Any cluster user with the role <strong>{roleName}</strong> can
+                  now access your computer as <strong>{systemUsername}</strong>.
+                </Text>
+              ) : (
+                <Text>
+                  Connecting your computer will allow any cluster user with the
+                  role <strong>{roleName}</strong> to access it as an SSH
+                  resource with the user <strong>{systemUsername}</strong>.
+                </Text>
+              )}
+              {showConnectAndStopAgentButtons ? (
+                <ButtonPrimary
+                  block
+                  disabled={disableConnectAndStopAgentButtons}
+                  onClick={startSshSession}
+                  size="large"
+                >
+                  Connect
+                </ButtonPrimary>
+              ) : (
+                <ButtonPrimary
+                  block
+                  disabled={disableStartAgentButton}
+                  onClick={downloadAndStartAgentAndIgnoreErrors}
+                  size="large"
+                  data-testid="start-agent"
+                >
+                  Start Agent
+                </ButtonPrimary>
+              )}
+            </>
+          )}
+        </Flex>
+      </Flex>
     </Box>
   );
 }

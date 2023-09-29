@@ -1,0 +1,17 @@
+kind: role
+spec:
+  allow:
+    rules:
+    - resources:
+      - integration
+      verbs:
+      - list
+      - create
+      - use
+    - resources:
+      - node
+      verbs:
+      - create
+      - update
+      - list
+      - read

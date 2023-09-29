@@ -196,7 +196,7 @@ func TestRemoveRedundantPrefixes(t *testing.T) {
 		},
 	}
 	for _, tc := range tcs {
-		require.Empty(t, cmp.Diff(removeRedundantPrefixes(tc.in), tc.out))
+		require.Empty(t, cmp.Diff(RemoveRedundantPrefixes(tc.in), tc.out))
 	}
 }
 

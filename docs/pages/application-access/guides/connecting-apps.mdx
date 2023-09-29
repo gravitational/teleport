@@ -3,7 +3,7 @@ title: Web Application Access
 description: In this getting started guide, learn how to connect an application to your Teleport cluster by running the Teleport Application Service.
 ---
 
-Download the latest version of Teleport for your platform from our [downloads page](https://goteleport.com/download)
+Download the latest version of Teleport for your platform from the [downloads page](https://goteleport.com/download)
 and follow the installation [instructions](../../installation.mdx).
 
 ## Start Auth/Proxy service
@@ -30,7 +30,7 @@ ssh_service:
 
 ### Generate a token
 
-A join token is required to authorize a Teleport Application Proxy service to
+A join token is required to authorize a Teleport Application Service to
 join the cluster. Generate a short-lived join token and save it for example
 in `/tmp/token`:
 
@@ -38,7 +38,7 @@ in `/tmp/token`:
 # Log in to your cluster with tsh so you can use tctl from your local machine.
 # You can also run tctl on your Auth Service host without running "tsh login"
 # first.
-$ tsh login --user=myuser --proxy=teleport.example.com
+$ tsh login --user=<Var name="myuser"/> --proxy=<Var name="teleport.example.com"/>
 $ tctl tokens add \
     --type=app \
     --app-name=grafana \
@@ -47,19 +47,20 @@ $ tctl tokens add \
 
 ### TLS requirements
 
-TLS is required to secure Teleport's Access Plane and any connected
+TLS is required to secure the Teleport Access Platform and any connected
 applications. When setting up Teleport, the minimum requirement is a certificate
-for the proxy and a wildcard certificate for its sub-domain. This is where
+for the Teleport Proxy Service and a wildcard certificate for its sub-domain. This is where
 everyone will log into Teleport.
 
 <Admonition type="tip" title="Application Access and DNS">
 (!docs/pages/includes/dns-app-access.mdx!)
 </Admonition>
 
-In our example:
+In this example:
 
-- `teleport.example.com` will host the Access Plane.
-- `*.teleport.example.com` will host all of the applications e.g. `grafana.teleport.example.com`.
+- `teleport.example.com` hosts the Teleport Auth Service and the Teleport Proxy Service that are the 
+  that form the core cluster services of the Teleport Access Platform.
+- `*.teleport.example.com` hosts all of the applications, for example, `grafana.teleport.example.com`.
 
 (!docs/pages/includes/tls-certificate-setup.mdx!)
 

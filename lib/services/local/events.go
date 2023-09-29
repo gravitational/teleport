@@ -192,6 +192,15 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		return nil, trace.BadParameter("none of the requested kinds can be watched")
 	}
 
+	origNumPrefixes := len(prefixes)
+	redundantNumPrefixes := len(backend.RemoveRedundantPrefixes(prefixes))
+	if origNumPrefixes != redundantNumPrefixes {
+		// If you've hit this error, the prefixes in two or more of your parsers probably overlap, meaning
+		// one prefix will also contain another as a subset. Look into using backend.ExactKey instead of
+		// backend.Key in your parser.
+		return nil, trace.BadParameter("redundant prefixes detected in events, which will result in event parsers not aligning with their intended prefix (this is a bug)")
+	}
+
 	w, err := e.backend.NewWatcher(ctx, backend.Watch{
 		Name:            watch.Name,
 		Prefixes:        prefixes,
@@ -1637,7 +1646,7 @@ func (p *headlessAuthenticationParser) parse(event backend.Event) (types.Resourc
 
 func newAccessListParser() *accessListParser {
 	return &accessListParser{
-		baseParser: newBaseParser(backend.Key(accessListPrefix)),
+		baseParser: newBaseParser(backend.ExactKey(accessListPrefix)),
 	}
 }
 
@@ -1687,7 +1696,7 @@ func (p *userLoginStateParser) parse(event backend.Event) (types.Resource, error
 
 func newAccessListMemberParser() *accessListMemberParser {
 	return &accessListMemberParser{
-		baseParser: newBaseParser(backend.Key(accessListMemberPrefix)),
+		baseParser: newBaseParser(backend.ExactKey(accessListMemberPrefix)),
 	}
 }
 
