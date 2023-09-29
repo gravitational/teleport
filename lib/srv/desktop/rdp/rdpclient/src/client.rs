@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::io::Error as IoError;
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, Mutex};
@@ -9,6 +10,7 @@ use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
+use ironrdp_pdu::rdp::server_error_info::ProtocolIndependentCode;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::PduParsing;
 use ironrdp_session::x224::Processor as X224Processor;
@@ -53,13 +55,28 @@ impl Client {
     /// This function hangs until the RDP session ends or a [`ClientFunction::Stop`] is dispatched
     /// (see [`global::call_function_on_handle`]).
     pub fn run(cgo_handle: CgoHandle, params: ConnectParams) -> ClientResult<()> {
-        global::TOKIO_RT.block_on(async {
+        match global::TOKIO_RT.block_on(async {
             Self::connect(cgo_handle, params)
                 .await?
                 .register()
                 .run_loops()
                 .await
-        })
+        }) {
+            Err(ClientError::SessionError(e)) => {
+                let s = e.to_string();
+                for reason in [
+                    ProtocolIndependentCode::RpcInitiatedLogoff,
+                    ProtocolIndependentCode::RpcInitiatedDisconnectByuser,
+                    ProtocolIndependentCode::RpcInitiatedDisconnect,
+                ] {
+                    if s.contains(reason.description()) {
+                        return Ok(());
+                    }
+                }
+                Err(e.into())
+            }
+            res => res,
+        }
     }
 
     /// Initializes the RDP connection with the given [`ConnectParams`].
@@ -207,7 +224,12 @@ impl Client {
     ) -> tokio::task::JoinHandle<ClientResult<()>> {
         global::TOKIO_RT.spawn(async move {
             loop {
-                let (action, mut frame) = read_stream.read_pdu().await?;
+                let res = read_stream.read_pdu().await;
+                if let Err(e) = res {
+                    trace!("res e {:?}", e);
+                    return Err(e.into());
+                }
+                let (action, mut frame) = res?;
                 match action {
                     // Fast-path PDU, send to the browser for processing / rendering.
                     ironrdp_pdu::Action::FastPath => {
@@ -240,11 +262,19 @@ impl Client {
                                     })?
                                     .process(&frame)
                             })
-                            .await??;
-                        // Send response frames to write loop for writing to RDP server.
-                        write_requester
-                            .send(ClientFunction::WriteRawPdu(res))
                             .await?;
+                        match res {
+                            Ok(res) => {
+                                // Send response frames to write loop for writing to RDP server.
+                                write_requester
+                                    .send(ClientFunction::WriteRawPdu(res))
+                                    .await?;
+                            }
+                            Err(e) => {
+                                trace!("x224 {}", e);
+                                return Err(e.into());
+                            }
+                        }
                     }
                 }
             }

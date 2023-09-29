@@ -176,38 +176,35 @@ func (c *Client) Run(ctx context.Context) error {
 	c.handle = cgo.NewHandle(c)
 	defer c.handle.Delete()
 
-	// Create a channel to communicate return values
-	returnCh := make(chan error, 2)
-
 	// Create a channel to signal the startInputStreaming goroutine to stop
 	stopCh := make(chan struct{})
 
+	inputStreamingReturnCh := make(chan error, 1)
 	// Kick off input streaming goroutine
 	go func() {
-		returnCh <- c.startInputStreaming(stopCh)
+		inputStreamingReturnCh <- c.startInputStreaming(stopCh)
 	}()
 
+	rustRdpReturnCh := make(chan error, 1)
 	// Kick off rust RDP loop goroutine
 	go func() {
-		returnCh <- c.startRustRdp(ctx)
+		rustRdpReturnCh <- c.startRustRdp(ctx)
 	}()
 
-	// Wait for either goroutine to return
-	err1 := <-returnCh
-
-	// If startRustRdp returned first, this will
-	// ensure the startInputStreaming goroutine returns.
-	close(stopCh)
-
-	// If startInputStreaming returned first, this will
-	// ensure the startRustRdp goroutine returns.
-	stopErr := c.stopRustRdp()
-
-	// Catch the return value of whichever goroutine returned
-	// second.
-	err2 := <-returnCh
-
-	return trace.NewAggregate(err1, err2, stopErr)
+	select {
+	case err := <-rustRdpReturnCh:
+		{
+			// Ensure the startInputStreaming goroutine returns.
+			close(stopCh)
+			return err
+		}
+	case err := <-inputStreamingReturnCh:
+		{
+			// Ensure the startRustRdp goroutine returns.
+			stopErr := c.stopRustRdp()
+			return trace.NewAggregate(err, stopErr)
+		}
+	}
 }
 
 func (c *Client) readClientUsername() error {
@@ -334,6 +331,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 	for {
 		select {
 		case <-stopCh:
+			c.cfg.Conn.WriteMessage(tdp.)
 			return nil
 		default:
 		}
