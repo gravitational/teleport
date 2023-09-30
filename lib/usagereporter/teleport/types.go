@@ -1039,6 +1039,39 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 
 		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverEc2InstanceSelection:
+		ret := &UIDiscoverEC2InstanceSelectionEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverEc2InstanceSelection.Metadata, userMD),
+			Resource: discoverResourceToPrehog(e.UiDiscoverEc2InstanceSelection.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverEc2InstanceSelection.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployEice:
+		ret := &UIDiscoverAutoDiscoveredResourcesEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployEice.Metadata, userMD),
+			Resource: discoverResourceToPrehog(e.UiDiscoverDeployEice.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverDeployEice.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverCreateNode:
+		ret := &UIDiscoverAutoDiscoveredResourcesEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverCreateNode.Metadata, userMD),
+			Resource: discoverResourceToPrehog(e.UiDiscoverCreateNode.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverCreateNode.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseConfigureIamPolicyEvent:
 		ret := &UIDiscoverDatabaseConfigureIAMPolicyEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Metadata, userMD),
