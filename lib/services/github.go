@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-var ErrRequiresEnterprise = trace.AccessDenied("this feature requires Teleport Enterprise")
+var ErrRequiresEnterprise = trace.AccessDenied("Endpoint URLs are not allowed in GitHub Auth Connector. This feature requires Teleport Enterprise")
 
 // githubConnectorMutex is a mutex for the GitHub auth connector
 // registration functions.
