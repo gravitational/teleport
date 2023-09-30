@@ -89,6 +89,24 @@ In this RFD we'll explore both options together, since they are not mutually exc
 
 Hardware key private keys can also be configured to require pin to be used in cryptographical operations. When combined with touch, requiring pin provides a level of authentication security similar to passwordless, as both user presence and a user secret are verified.
 
+#### Web Sessions
+
+Unlike WebAuthn, PIV does not have any native browser support. This means that the WebUI is incompatible with Hardware Key support. We could create custom browser extensions for some of the most commonly used browsers, but this induces too large of a development and maintenance cost to justify currently.
+
+Instead, web sessions will be treated as an exception from Hardware Key support. This exception will only apply to web sessions created through the auth http endpoint `POST /:version/users/:user/web/authenticate`. This is the endpoint used by the WebUI login flow. Web Session created through this endpoint can only be accessed by the Auth and Proxy services. This will result in similar security properties to hardware private keys since the user, or an attacker, has no way to extract web session secrets without direct access to the Proxy/Auth services or Auth storage.
+
+Web sessions created by user-authorized endpoints like the auth http endpoint `POST /:version/users/:user/web/sessions` will still be subject to hardware key restrictions to prevent abuse.
+
+##### Web Session Access
+
+Currently, the auth grpc endpoint `GetWebSession` can be used by a user to retrieve a specific web session, including secrets. This endpoint will be restricted to required `read` permissions for `KindWebSession`, similar to `GetWebSessions`. Users will still be able to retrieve non-secret web session info with the auth http endpoint `GET /:version/users/:user/web/sessions/:sid`.
+
+##### Web Session cookies
+
+Although we can guarantee that web session private key material is safely stored, web session cookies are easy to obtain from a user's browser. Web session cookies can only be used with the HTTP web API (`/webapi`), which provides a subset of functionality provided by the main Auth API to web sessions. Essentially, any functionality available in the WebUI is available through the `/webapi`.
+
+Since MFA will still be required for sessions and admin actions, this is an acceptable tradeoff.
+
 ### Server changes
 
 #### Private Key Policy
@@ -104,6 +122,7 @@ We will start with the following private key policies:
   * Unlike touch, pin is not cached explicitly. However, the pin is cached for the duration of a single PIV transaction. PIV transactions take a few seconds to close and can be reclaimed by subsequent PIV connections during the closing period. In this case, when multiple `tsh` commands are run in quick succession, it is as if the pin is cached.
   * This policy is intended for rare circumstances where a touch policy can not be configured due to the use of external PIV tools. However, since pin alone does not verify user presence, this option opens the door for remote attacks. When possible, `hardware_key_touch_and_pin` should be used instead of this option.
 * `hardware_key_touch_and_pin`: combination of `hardware_key_touch` and `hardware_key_pin`.
+* `web_session`: private key stored as a web session in the Auth service storage. This key is only accessible by the Auth and Proxy services. Keys with this policy meet all other key policy requirements.
 
 In the future, we could choose to enforce more things, such as requiring a specific key algorithm.
 
@@ -380,14 +399,6 @@ slot=<slot>
 #### Supported clients
 
 `tsh` and Teleport Connect will both support hardware private key login, and `tctl` will be able to use resulting login sessions.
-
-#### Unsupported clients
-
-The WebUI will not be able to support PIV login, since it is browser-based and cannot connect directly to the user's PIV device. If a user with `require_session_mfa: hardware_key` attempts to login on the WebUI, or use an existing login session, it will fail. However, WebUI user registration and password reset logic must still work, regardless of the user's private key policy requirement. After initial registration/reset flow, the user should be directed to a page which notifies them that `tsh` or Teleport Connect must be used.
-
-It may be possible to work around this limitation by introducing a local proxy to connect to the hardware key, or by supporting a hardware key solution which doesn't need a direct connection, but this is out of scope and will not be explored in this PR.
-
-In cases where WebUI access is needed or desired, cluster admins should only apply hardware key policies selectively to roles which warrant more protection. Teleport Connect will also serve as a great UI alternative.
 
 ### UX
 
