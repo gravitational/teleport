@@ -44,7 +44,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.11
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.86
 	github.com/aws/aws-sdk-go-v2/service/athena v1.31.6
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.21.5
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.22.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.120.0
 	github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.17.0
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.30.1
