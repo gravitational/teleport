@@ -203,9 +203,8 @@ with at least the `Microsoft.Compute/virtualMachines/read` permission.
 
 (!docs/pages/includes/server-access/azure-join-managed-identity.mdx!)
 
-VMs to be discovered must have only one managed identity assigned to them,
-otherwise the installed Teleport agent will not know which identity to use
-to authenticate with the cluster.
+If the VMs to be discovered have more than one managed identity assigned to
+them, save the client ID of the identity you just created for step 5.
 
 ## Step 4/6. Install the Teleport Discovery Service
 
@@ -259,6 +258,12 @@ discovery_service:
       regions: ["<region>"]
       tags:
         "env": "prod" # Match virtual machines where tag:env=prod
+      install:
+        azure:
+          # Optional: If the VMs to discover have more than one managed
+          # identity assigned to them, set the client ID here to the client
+          # ID of the identity created in step 3.
+          client_id: "<client-id>"
 ```
 
 - Edit the `teleport.auth_servers` key to match your Auth Service or Proxy Service's URI
@@ -270,6 +275,9 @@ discovery_service:
 ## Step 6/6. [Optional] Customize the default installer script
 
 (!docs/pages/includes/server-access/custom-installer.mdx cloud="Azure" matcher="azure" matchTypes="[\"vm\"]"!)
+
+If `client_id` is set in the Discovery Service config, custom installers will
+also have the `{{ .AzureClientID }}` templating option.
 
 ## Troubleshooting
 
