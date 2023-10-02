@@ -26,7 +26,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// generic error for attempting usage of a enterprise feature
+// ErrRequiresEnterprise indicates that a feature requires
+// Teleport Enterprise
 var ErrRequiresEnterprise = trace.AccessDenied("This feature requires Teleport Enterprise")
 
 // error message for usage of endpoint urls in GitHub auth connector
