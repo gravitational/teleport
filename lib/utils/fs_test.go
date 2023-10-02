@@ -40,6 +40,8 @@ func TestOpenFileLinks(t *testing.T) {
 	// broken-s -> nonexistent
 	// hardfile
 	// hardfile-h -> hardfile
+
+	// macOS is special cased here since t.TempDir() returns a path to a protected directory that doesn't allow symlinks.
 	var rootDir string
 	switch runtime.GOOS {
 	case "darwin":
