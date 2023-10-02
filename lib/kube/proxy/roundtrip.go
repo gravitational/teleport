@@ -69,8 +69,8 @@ var (
 type roundTripperConfig struct {
 	// ctx is a context for this round tripper
 	ctx context.Context
-	// authCtx is the auth context to use for this round tripper
-	authCtx authContext
+	// sess is the cluster session
+	sess *clusterSession
 	// dialWithContext is the function used connect to remote address
 	dialWithContext dialContextFunc
 	// tlsConfig holds the TLS configuration settings to use when connecting
@@ -207,7 +207,7 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	copyImpersonationHeaders(header, s.originalHeaders)
 	header.Set(httpstream.HeaderConnection, httpstream.HeaderUpgrade)
 	header.Set(httpstream.HeaderUpgrade, streamspdy.HeaderSpdy31)
-	if err := setupImpersonationHeaders(log.StandardLogger(), s.authCtx, header); err != nil {
+	if err := setupImpersonationHeaders(log.StandardLogger(), s.sess, header); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
