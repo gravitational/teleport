@@ -22,11 +22,13 @@ var referenceTemplate string = strings.ReplaceAll(`{{ range . }}
 
 {/*Automatically generated from: {{ .SourcePath}}*/}
 
+{{ if gt (len .Fields) 0 }}
 |Field Name|Description|Type|
 |---|---|---|
 {{ range .Fields -}}
 |{{.Name}}|{{.Description}}|{{.Type}}|
 {{ end }} 
+{{ end }}
 
 Example:
 
