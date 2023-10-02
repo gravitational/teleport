@@ -31,10 +31,17 @@ message Node {
   string name = 4;
 }
 
+// Edge is an edge in the access graph.
+message Edge {
+  string from = 1;
+  string to = 2;
+  string type = 3;
+}
+
 // QueryResponse is a response to a query.
 message QueryResponse {
   repeated Node nodes = 1;
-  repeated string edges = 2;
+  repeated Edge edges = 2;
 }
 
 // QueryService is a service for querying the access graph.
