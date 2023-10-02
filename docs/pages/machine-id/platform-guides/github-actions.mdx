@@ -117,7 +117,7 @@ GitHub-provided identity.
 
 You now need to configure your GitHub Action pipeline.
 
-### `teleport-actions/auth`
+### Option A: `teleport-actions/auth`
 
 In the GitHub workflows directory of your repo (`.github/workflows/`) create a new workflow YAML file,
 in this case `actionstest.yml`, that will reflect the action you'd like to configure. This guide will create an action that
@@ -130,7 +130,7 @@ a file on a node. To create this configuration, use the following YAML file:
 on:
   push:
     branches:
-      - main
+    - main
 jobs:
   demo:
     permissions:
@@ -141,32 +141,32 @@ jobs:
     name: guide-demo
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      - name: Fetch Teleport binaries
-        uses: teleport-actions/setup@v1
-        with:
-          version: (=teleport.version=)
-      - name: Fetch credentials using Machine ID
-        id: auth
-        uses: teleport-actions/auth@v2
-        with:
-          # Use the address of the auth/proxy server for your own cluster.
-          proxy: example.teleport.sh:443
-          # Use the name of the join token resource you created in step 1.
-          token: example-bot
-          # Specify the length of time that the generated credentials should be
-          # valid for. This is optional and defaults to "1h"
-          certificate-ttl: 1h
-          # Enable the submission of anonymous usage telemetry.
-          anonymous-telemetry: 1
-      - name: List nodes
-        # Enters a command from the cluster, in this case "tsh ls" using Machine ID credentials to list remote SSH nodes.
-        run: tsh ls
-      - name: Write file to remote
-        # Enters a command from the cluster, in this case "tsh ssh" using Machine ID credentials to gain SSH access to an SSH node, and then write the commit hash to the "github_run_log" file.
-        # Ensure that `username` matches the username of a remote SSH username, and that hostname matches an SSH host name that is a part of the Teleport cluster configured for access.
-        run: tsh ssh username@hostname "echo $GITHUB_SHA >> ~/github_run_log"
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    - name: Fetch Teleport binaries
+      uses: teleport-actions/setup@v1
+      with:
+        version: (=teleport.version=)
+    - name: Fetch credentials using Machine ID
+      id: auth
+      uses: teleport-actions/auth@v2
+      with:
+        # Use the address of the auth/proxy server for your own cluster.
+        proxy: example.teleport.sh:443
+        # Use the name of the join token resource you created in step 1.
+        token: example-bot
+        # Specify the length of time that the generated credentials should be
+        # valid for. This is optional and defaults to "1h"
+        certificate-ttl: 1h
+        # Enable the submission of anonymous usage telemetry.
+        anonymous-telemetry: 1
+    - name: List nodes
+      # Enters a command from the cluster, in this case "tsh ls" using Machine ID credentials to list remote SSH nodes.
+      run: tsh ls
+    - name: Write file to remote
+      # Enters a command from the cluster, in this case "tsh ssh" using Machine ID credentials to gain SSH access to an SSH node, and then write the commit hash to the "github_run_log" file.
+      # Ensure that `username` matches the username of a remote SSH username, and that hostname matches an SSH host name that is a part of the Teleport cluster configured for access.
+      run: tsh ssh username@hostname "echo $GITHUB_SHA >> ~/github_run_log"
 ```
 
 `anonymous-telemetry` enables the submission of anonymous usage telemetry. This
@@ -186,7 +186,7 @@ Expand the **List nodes** step of the action, and the output will
 list all nodes in the cluster, from the perspective of the
 Machine ID bot using the command `tsh ls`.
 
-### `teleport-actions/kubernetes`
+### Option B: `teleport-actions/kubernetes`
 
 With all the configuration in Teleport and Kubernetes complete, you can now
 create a GitHub Actions workflow that can connect to your Kubernetes cluster.
@@ -207,7 +207,7 @@ Proxy or cloud tenant (e.g. `example.teleport.sh`).
 on:
   push:
     branches:
-      - main
+    - main
 jobs:
   demo:
     permissions:
@@ -218,27 +218,27 @@ jobs:
     name: guide-demo
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      - name: Fetch kubectl
-        uses: azure/setup-kubectl@v3
-      - name: Fetch Teleport binaries
-        uses: teleport-actions/setup@v1
-        with:
-          version: (=teleport.version=)
-      - name: Fetch credentials using Machine ID
-        uses: teleport-actions/auth-k8s@v1
-        with:
-          # Use the address of the auth/proxy server for your own cluster.
-          proxy: example.teleport.sh:443
-          # Use the name of the join token resource you created in step 1.
-          token: example-bot
-          # Use the name of your Kubernetes cluster
-          kubernetes-cluster: my-kubernetes-cluster
-          # Enable the submission of anonymous usage telemetry.
-          anonymous-telemetry: 1
-      - name: List pods
-        run: kubectl get pods -A
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    - name: Fetch kubectl
+      uses: azure/setup-kubectl@v3
+    - name: Fetch Teleport binaries
+      uses: teleport-actions/setup@v1
+      with:
+        version: (=teleport.version=)
+    - name: Fetch credentials using Machine ID
+      uses: teleport-actions/auth-k8s@v1
+      with:
+        # Use the address of the auth/proxy server for your own cluster.
+        proxy: example.teleport.sh:443
+        # Use the name of the join token resource you created in step 1.
+        token: example-bot
+        # Use the name of your Kubernetes cluster
+        kubernetes-cluster: my-kubernetes-cluster
+        # Enable the submission of anonymous usage telemetry.
+        anonymous-telemetry: 1
+    - name: List pods
+      run: kubectl get pods -A
 ```
 
 `anonymous-telemetry` enables the submission of anonymous usage telemetry. This
@@ -260,7 +260,7 @@ and select the `guide-demo` job.
 Expand the **List pods** step of the action, where you can then confirm that the
 output shows a list of all the pods within your Kubernetes cluster.
 
-### Do It Yourself
+### Option C: Do It Yourself
 
 Whilst we offer off-the-shelf GitHub Actions to use, it is also possible to manually configure `tbot` to use the
 `github` join method and produce the outputs that you desire. This may be useful in more specialist situations.
@@ -271,7 +271,7 @@ Create `tbot.yaml` within your repository:
 version: v2
 auth_server: example.teleport.sh:443
 onboarding:
-  join_method: gitlab
+  join_method: github
   token: example-bot
 oneshot: true
 storage:
@@ -285,6 +285,38 @@ Replace:
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
 Auth Server. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the second step
+
+```yaml
+# This is a basic workflow to help you get started.
+# It will take the following action whenever a push is made to the "main" branch.
+on:
+  push:
+    branches:
+    - main
+jobs:
+  demo:
+    permissions:
+      # The "id-token: write" permission is required or Machine ID will not be able to authenticate with the cluster.
+      id-token: write
+      contents: read
+    # The name of the workflow, and the Linux distro to be used to perform the required steps.
+    name: guide-demo
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    - name: Fetch Teleport binaries
+      uses: teleport-actions/setup@v1
+      with:
+        version: (=teleport.version=)
+    - name: Execute Machine ID
+      env:
+        # TELEPORT_ANONYMOUS_TELEMETRY enables the submission of anonymous
+        # usage telemetry. This helps us shape the future development of
+        # tbot. You can disable this by omitting this.
+        TELEPORT_ANONYMOUS_TELEMETRY: 1
+      run: tbot -c ./tbot.yaml
+```
 
 (!docs/pages/includes/machine-id/configure-outputs.mdx!)
 
