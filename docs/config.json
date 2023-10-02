@@ -717,8 +717,8 @@
           "slug": "/connect-your-client/teleport-connect/"
         },
         {
-          "title": "Using PuTTY",
-          "slug": "/connect-your-client/putty/"
+          "title": "Using PuTTY and WinSCP",
+          "slug": "/connect-your-client/putty-winscp/"
         },
         {
           "title": "Database GUI Clients",
@@ -896,7 +896,7 @@
         {
           "title": "Troubleshooting Application Access",
           "slug": "/application-access/troubleshooting-apps/"
-        },           
+        },
         {
           "title": "Reference",
           "slug": "/application-access/reference/"
@@ -2819,6 +2819,11 @@
     {
       "source": "/server-access/guides/openssh/",
       "destination": "/server-access/guides/openssh/openssh/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/putty/",
+      "destination": "/connect-your-client/putty-winscp/",
       "permanent": true
     }
   ]
