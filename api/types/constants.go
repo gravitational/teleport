@@ -403,6 +403,9 @@ const (
 	// KindAccessListMember is an AccessListMember resource
 	KindAccessListMember = "access_list_member"
 
+	// KindAccessListReview is an AccessListReview resource
+	KindAccessListReview = "access_list_review"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
