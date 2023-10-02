@@ -1759,6 +1759,14 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("Azure client ID", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			AzureClientID: "abcd1234",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "abcd1234", fc.JoinParams.Azure.ClientID)
+	})
+
 	t.Run("CAPin", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
 			CAPin: "sha256:7e12c17c20d9cb",
