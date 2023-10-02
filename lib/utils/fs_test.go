@@ -18,9 +18,11 @@ package utils
 
 import (
 	"context"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 
@@ -38,7 +40,24 @@ func TestOpenFileLinks(t *testing.T) {
 	// broken-s -> nonexistent
 	// hardfile
 	// hardfile-h -> hardfile
-	rootDir := t.TempDir()
+	var rootDir string
+	switch runtime.GOOS {
+	case "darwin":
+		rootDir = "/private/tmp/" + strconv.Itoa(rand.Int())
+		err := os.Mkdir(rootDir, 0700)
+		if err != nil {
+			t.Fatalf("failed to create rootDir %q: %v", rootDir, err)
+		}
+
+		t.Cleanup(func() {
+			err := os.RemoveAll(rootDir)
+			if err != nil {
+				t.Fatalf("failed to remove rootDir %q: %v", rootDir, err)
+			}
+		})
+	default:
+		rootDir = t.TempDir()
+	}
 
 	dirPath := filepath.Join(rootDir, "dir")
 	err := os.Mkdir(dirPath, 0755)
