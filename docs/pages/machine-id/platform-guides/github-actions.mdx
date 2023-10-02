@@ -18,36 +18,106 @@ Actions runners as well as GitHub Enterprise Server.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-- A node that is a part of the Teleport cluster with [Server Access](../../server-access/introduction.mdx).
 - Your user should have the privileges to create token resources.
-- A GitHub repository with GitHub Actions enabled. This guide uses the example `gravitational/example`
-repo, however this value should be replaced with your own unique repo.
+- A GitHub repository with GitHub Actions enabled. This guide uses the example
+`gravitational/example` repo, however this value should be replaced with
+your own unique repo.
 
 ## Step 1/3. Create a join token for GitHub Actions
 
-(!docs/pages/includes/machine-id/github-actions-create-token.mdx!)
+In order to allow your GitHub Actions workflow to authenticate with your
+Teleport cluster, you'll first need to create a join token. These tokens set out
+criteria by which the Auth Server decides whether to allow a bot or node
+to join.
+
+Create a file named `bot-token.yaml` and insert the following contents:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: example-bot
+spec:
+  roles: [Bot]
+  join_method: github
+  bot_name: example
+  github:
+    allow:
+    - repository: gravitational/example
+```
+
+<Admonition type="note" title="GitHub Enterprise Server">
+From Teleport 11.1.4, users with Teleport Enterprise are able to permit
+workflows within GitHub Enterprise Server instances to authenticate using the
+GitHub join method.
+
+To configure this, set `spec.github.enterprise_server_host` to the hostname of
+the GHES instance.
+
+For example:
+```yaml
+spec:
+  github:
+    enterprise_server_host: ghes.example.com
+```
+</Admonition>
+
+Let's go over the token resource YAML's fields in more detail:
+
+- `metadata.name` defines the name of the token. Note that this value will need
+to be used in other parts of the configuration later.
+- `metadata.expires` defines the date that the join token will expire. This
+example is set to the year `2100`.
+- `spec.bot_name` is the name of the Machine ID bot that this token will grant
+access to. Note that this value will need to be used in other parts of the
+configuration later.
+- `spec.roles` defines which roles that this token will grant access to. The
+value of `[Bot]` states that this token grants access to a Machine ID bot.
+- `spec.join_method` defines the join method the token is applicable for. Since
+this guide only focuses on GitHub Actions, we will set this to to `github`.
+- `spec.github.allow` is used to set rules for what GitHub Actions will be able
+to authenticate by using the token. In this example, the `gravitational/example`
+repository is used, and this example repository should be replaced with your own
+repo.
+
+You can find a full list of the token configuration options for GitHub Actions
+joining on the
+[GitHub Actions reference page.](../reference/github-actions.mdx#github-join-token)
+
+Once the resource file has been written, create the token with `tctl`:
+
+```code
+$ tctl create -f bot-token.yaml
+```
+
+Check that token `example-bot` has been created with the following
+command:
+
+```code
+$ tctl tokens ls
+Token       Type Labels Expiry Time (UTC)
+----------- ---- ------ ----------------------------------------------
+example-bot Bot         01 Jan 00 00:00 UTC (2562047h47m16.854775807s)
+```
 
 ## Step 2/3. Create your Machine ID bot
 
-With the join token created, the next step is to create the Machine ID bot that
-the token will grant access to.
+(!docs/pages/includes/machine-id/blank-role.mdx!)
 
-In this example, the bot is given the preset `access` role. In a production
-environment, the principle of least privilege should be applied and you should
-create a role that grants the bot access to the precise resources that will be
-needed in your CI/CD workflow.
-
-From your workstation enter the following command, replacing the`username`
-value with a Linux user on the host that you want your GitHub Actions flow to
-be able to connect to:
+Create the bot, specifying the role and token that you have created:
 
 ```code
-$ tctl bots add github-demo --roles=access --token=github-token --logins=username
+$ tctl bots add example --roles=example-bot --token=example-bot
 ```
 
 ## Step 3/3. Configure GitHub Actions
 
-Now that the bot has been successfully created, GitHub Actions can authenticate with the Teleport cluster using their GitHub-provided identity.
+Now that the bot has been successfully created, GitHub Actions can authenticate with the Teleport cluster using their
+GitHub-provided identity.
+
+You now need to configure your GitHub Action pipeline.
+
+### `teleport-actions/auth`
 
 In the GitHub workflows directory of your repo (`.github/workflows/`) create a new workflow YAML file,
 in this case `actionstest.yml`, that will reflect the action you'd like to configure. This guide will create an action that
@@ -79,12 +149,12 @@ jobs:
           version: (=teleport.version=)
       - name: Fetch credentials using Machine ID
         id: auth
-        uses: teleport-actions/auth@v1
+        uses: teleport-actions/auth@v2
         with:
           # Use the address of the auth/proxy server for your own cluster.
           proxy: example.domain:443
           # Use the name of the join token resource you created in step 1.
-          token: github-token
+          token: example-bot
           # Specify the length of time that the generated credentials should be
           # valid for. This is optional and defaults to "1h"
           certificate-ttl: 1h
@@ -92,20 +162,16 @@ jobs:
           anonymous-telemetry: 1
       - name: List nodes
         # Enters a command from the cluster, in this case "tsh ls" using Machine ID credentials to list remote SSH nodes.
-        run: tsh -i ${{ steps.auth.outputs.identity-file }} ls
+        run: tsh ls
       - name: Write file to remote
         # Enters a command from the cluster, in this case "tsh ssh" using Machine ID credentials to gain SSH access to an SSH node, and then write the commit hash to the "github_run_log" file.
-        # Ensure that that `username` matches the username of a remote SSH username, and that hostname matches an SSH host name that is a part of the Teleport cluster configured for access.
-        run: tsh -i ${{ steps.auth.outputs.identity-file }} ssh username@hostname "echo $GITHUB_SHA >> ~/github_run_log"
+        # Ensure that `username` matches the username of a remote SSH username, and that hostname matches an SSH host name that is a part of the Teleport cluster configured for access.
+        run: tsh ssh username@hostname "echo $GITHUB_SHA >> ~/github_run_log"
 ```
 
 `anonymous-telemetry` enables the submission of anonymous usage telemetry. This
 helps us shape the future development of `tbot`. You can disable this by
 omitting this.
-
-From Teleport 11.1.0, the `-i` parameter for configuring the identity file of
-`tsh` is not necessary and `-i ${{ steps.auth.outputs.identity-file }}` can be
-omitted.
 
 Add, commit, and push your changes to the `main` branch of the repository.
 
@@ -119,6 +185,36 @@ to complete, and will resemble the following once successful.
 Expand the **List nodes** step of the action, and the output will
 list all nodes in the cluster, from the perspective of the
 Machine ID bot using the command `tsh ls`.
+
+### `teleport-actions/kubernetes`
+
+### Do It Yourself
+
+Whilst we offer off-the-shelf GitHub Actions to use, it is also possible to manually configure `tbot` to use the
+`github` join method and produce the outputs that you desire. This may be useful in more specialist situations.
+
+Create `tbot.yaml` within your repository:
+
+```yaml
+version: v2
+auth_server: example.teleport.sh:443
+onboarding:
+  join_method: gitlab
+  token: example-bot
+oneshot: true
+storage:
+  type: memory
+# outputs will be filled in during the completion of an access guide.
+outputs: []
+```
+
+Replace:
+
+- `example.teleport.sh:443` with the address of your Teleport Proxy or
+Auth Server. Prefer using the address of a Teleport Proxy.
+- `example-bot` with the name of the token you created in the second step
+
+(!docs/pages/includes/machine-id/configure-outputs.mdx!)
 
 ## A note on security implications and risk
 
@@ -135,14 +231,8 @@ interact with.
 
 ## Next steps
 
-You can find out more about the `teleport-action/setup` and
-`teleport-actions/auth` actions on their GitHub repositories:
-
-- [https://github.com/teleport-actions/setup](https://github.com/teleport-actions/setup)
-- [https://github.com/teleport-actions/auth](https://github.com/teleport-actions/auth)
-
-For more information about GitHub Actions itself, read
-[their documentation](https://docs.github.com/en/actions).
-
-[More information about `anonymous-telemetry`.](../reference/telemetry.mdx)
+- [GitHub Actions reference page](../reference/github-actions.mdx#github-join-token)
+- For more information about GitHub Actions itself, read
+  [their documentation](https://docs.github.com/en/actions).
+- [More information about `anonymous-telemetry`.](../reference/telemetry.mdx)
 
