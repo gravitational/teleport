@@ -58,8 +58,9 @@ $ teleport version
 Teleport Enterprise v13.3.9 git:api/v13.3.9-0-gd1a97d9 go1.20.8 X:boringcrypto
 ```
 
-If your Teleport cluster runs on AWS, the cluster must run in a GovCloud
-region to support FIPS.
+If your Teleport cluster runs on AWS, the cluster can run in US-East or US-West regions for services
+with low or moderate impact levels. For services with a high impact level, the cluster must run 
+in a GovCloud region to support FIPS.
 
 ## Configure the Teleport Auth Service
 
