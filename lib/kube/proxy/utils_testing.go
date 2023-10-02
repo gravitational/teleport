@@ -122,7 +122,8 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
-	testCtx.TLSServer, err = authServer.NewTestTLSServer()
+	testCtx.TLSServer, err = authServer.NewTestTLSServer(
+		auth.WithLimiterConfig(&limiter.Config{MaxConnections: 100000, MaxNumberOfUsers: 1000}))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testCtx.TLSServer.Close()) })
 
