@@ -18,11 +18,11 @@ package utils
 
 import (
 	"context"
-	"math/rand"
+	"crypto/rand"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"testing"
 	"time"
 
@@ -45,8 +45,14 @@ func TestOpenFileLinks(t *testing.T) {
 	var rootDir string
 	switch runtime.GOOS {
 	case "darwin":
-		rootDir = "/private/tmp/" + strconv.Itoa(rand.Int())
-		err := os.Mkdir(rootDir, 0700)
+		suffix := make([]byte, 8)
+		_, err := rand.Read(suffix)
+		if err != nil {
+			t.Fatalf("failed to generate random suffix: %v", err)
+		}
+
+		rootDir = "/private/tmp/" + "teleport-test-" + hex.EncodeToString(suffix)
+		err = os.Mkdir(rootDir, 0700)
 		if err != nil {
 			t.Fatalf("failed to create rootDir %q: %v", rootDir, err)
 		}
