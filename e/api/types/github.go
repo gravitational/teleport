@@ -1,14 +1,12 @@
 package types
 
 import (
-	"encoding/json"
 	"net/url"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // GithubConnector is an enterprise version of the GitHub auth connector
@@ -36,7 +34,7 @@ func NewGithubConnectorE(name string, spec types.GithubConnectorSpecV3) (types.G
 // CheckAndSetDefaults verifies the connector is valid and sets some defaults.
 func (c *GithubConnector) CheckAndSetDefaults() error {
 	if err := c.GithubConnectorV3.CheckAndSetDefaults(); err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	if c.Spec.APIEndpointURL != "" && c.Spec.EndpointURL == "" {
@@ -92,31 +90,27 @@ func (c *GithubConnector) GetAPIEndpointURL() string {
 	return c.Spec.APIEndpointURL
 }
 
-// UnmarshalGithubConnector unmarshals the GithubConnector resource from JSON.
-func UnmarshalGithubConnector(bytes []byte) (types.GithubConnector, error) {
-	var h types.ResourceHeader
-	if err := json.Unmarshal(bytes, &h); err != nil {
+// UnmarshalGithubConnector unmarshals the enterprise GithubConnector resource from JSON.
+func UnmarshalGithubConnector(bytes []byte, opts ...services.MarshalOption) (types.GithubConnector, error) {
+	connector, err := services.UnmarshalOSSGithubConnector(bytes, opts...)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch h.Version {
-	case types.V3:
-		var c *types.GithubConnectorV3
-		if err := utils.FastUnmarshal(bytes, &c); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		ec := GithubConnector{
-			GithubConnectorV3: c,
-		}
-		if err := ec.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return c, nil
+
+	v3, ok := connector.(*types.GithubConnectorV3)
+	if !ok {
+		return nil, trace.BadParameter("unrecognized github connector version %T", connector)
 	}
-	return nil, trace.BadParameter(
-		"GitHub connector resource version %q is not supported", h.Version)
+
+	ec := GithubConnector{GithubConnectorV3: v3}
+	if err := ec.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return connector, nil
 }
 
-// MarshalGithubConnector marshals the GithubConnector resource to JSON.
+// MarshalGithubConnector marshals the enterprise GithubConnector resource to JSON.
 func MarshalGithubConnector(connector types.GithubConnector, opts ...services.MarshalOption) ([]byte, error) {
 	githubConnector, ok := connector.(*GithubConnector)
 	if !ok {
@@ -129,17 +123,5 @@ func MarshalGithubConnector(connector types.GithubConnector, opts ...services.Ma
 		return nil, trace.Wrap(err)
 	}
 
-	cfg, err := services.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if !cfg.PreserveResourceID {
-		// avoid modifying the original object
-		// to prevent unexpected data races
-		copy := *githubConnector.GithubConnectorV3
-		copy.SetResourceID(0)
-		githubConnector.GithubConnectorV3 = &copy
-	}
-	return utils.FastMarshal(githubConnector.GithubConnectorV3)
+	return services.MarshalOSSGithubConnector(githubConnector.GithubConnectorV3, opts...)
 }

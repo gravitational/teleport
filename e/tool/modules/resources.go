@@ -94,7 +94,7 @@ func init() {
 	})
 	// Register unmarshaler for enterprise GitHub auth connector.
 	services.RegisterResourceUnmarshaler(types.KindGithubConnector, func(bytes []byte, opts ...services.MarshalOption) (types.Resource, error) {
-		githubConnector, err := etypes.UnmarshalGithubConnector(bytes) // XXX: Does not support marshal options.
+		githubConnector, err := etypes.UnmarshalGithubConnector(bytes, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
