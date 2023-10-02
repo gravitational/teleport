@@ -197,6 +197,7 @@ export function DocumentConnectMyComputerStatus(
               {agentNode?.hostname || hostname}
             </Text>
             <MenuIcon
+              Icon={icons.MoreVert}
               buttonIconProps={{
                 css: css`
                   border-radius: ${props => props.theme.space[1]}px;
