@@ -48,7 +48,7 @@ export const Labels = ({
   const hasDbLabels = dbLabels.length > 0;
   return (
     <Box mb={2}>
-      <Text bold>Optionally Define Matcher Labels</Text>
+      <Text bold>Define Matcher Labels</Text>
       {!hasDbLabels && (
         <Text typography="subtitle1" mb={2}>
           Since no labels were defined for the registered database from the

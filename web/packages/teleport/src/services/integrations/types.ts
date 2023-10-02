@@ -236,6 +236,7 @@ export type AwsOidcDeployServiceRequest = {
   subnetIds: string[];
   taskRoleArn: string;
   databaseAgentMatcherLabels: Label[];
+  securityGroups?: string[];
 };
 
 export type AwsOidcDeployServiceResponse = {
