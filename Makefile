@@ -267,6 +267,10 @@ CGOFLAG_TSH ?= $(CGOFLAG)
 ELECTRON_BUILDER_ARCH_amd64 = x64
 ELECTRON_BUILDER_ARCH = $(or $(ELECTRON_BUILDER_ARCH_$(ARCH)),$(ARCH))
 
+# Used for caching when on a build system that frequently switches namespaces (i.e. running in containers)
+GOMODCACHE ?= /tmp/gomodcache
+GOCACHE ?= /tmp/gocache
+
 #
 # 'make all' builds all 4 executables and places them in the current directory.
 #
@@ -912,18 +916,46 @@ run-etcd:
 	docker build -f .github/services/Dockerfile.etcd -t etcdbox --build-arg=ETCD_VERSION=3.3.9 .
 	docker run -it --rm -p'2379:2379' etcdbox
 
+# Do tasks that should run before any integration package test is run, rather than before
+# each integration package
+.PHONY: integration-test-setup
+integration-test-setup: OUTPUT_FILES = $(addprefix ./,$(notdir $(PACKAGES)))
+integration-test-setup: LOG_PATH = $(TEST_LOG_DIR)/build.json
+integration-test-setup: $(TEST_LOG_DIR)
+	@mkdir -p $(TEST_BIN_DIR)
+	$(CGOFLAG) go test -c -json -race -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" \
+		$(PACKAGES) -o $(TEST_BIN_DIR) $(OUTPUT_FILES) \
+	| tee $(LOG_PATH) \
+	| gotestsum --ignore-non-json-output-lines --raw-command --format=testname -- cat
+
+# Run each integration test package inside a docker container,
+# allowing them to run in parallel without a risk of interference between tests
+.PHONY: %-integration-test
+%-integration-test: FLAGS ?= -test.v
+%-integration-test: LOG_PATH = $(TEST_LOG_DIR)/$@.json
+%-integration-test: BINARY_NAME = $(notdir $*).test
+%-integration-test: TEST_BINARY = $(TEST_BIN_DIR)/$(BINARY_NAME)
+%-integration-test: MOVED_TEST_BINARY = $(*:github.com/gravitational/teleport/%=%)/$(BINARY_NAME)
+%-integration-test: ensure-gotestsum integration-test-setup
+	@mkdir -p $(dir $(LOG_PATH))
+	[ ! -f "$(TEST_BINARY)" ] || ( \
+		mv $(TEST_BINARY) $(MOVED_TEST_BINARY); \
+		cd $(dir $(MOVED_TEST_BINARY)); \
+		go tool test2json -p $* ./$(BINARY_NAME) -test.timeout=30m $(FLAGS) \
+		| tee $(LOG_PATH) \
+		| gotestsum --raw-command --format=testname -- cat \
+	)
+
 #
 # Integration tests. Need a TTY to work.
 # Any tests which need to run as root must be skipped during regular integration testing.
 #
+# The prerequisite generation should be split up to be more readable but I don't know how
+# without evaluating the shell command on every single makefile run, regardless of target
 .PHONY: integration
-integration: FLAGS ?= -v -race
-integration: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
-integration:  $(TEST_LOG_DIR) ensure-gotestsum
-	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
-		| tee $(TEST_LOG_DIR)/integration.json \
-		| gotestsum --raw-command --format=testname -- cat
+integration: PACKAGES := $(shell go list ./... | grep 'teleport/integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
+integration: TEST_BIN_DIR ?= /tmp/binaries
+integration: $(addsuffix -integration-test,$(shell go list ./... | grep 'teleport/integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration ))
 
 #
 # Integration tests that run Kubernetes tests in order to complete successfully

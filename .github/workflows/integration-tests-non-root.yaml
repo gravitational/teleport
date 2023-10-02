@@ -37,7 +37,7 @@ jobs:
     name: Integration Tests (Non-root)
     needs: changes
     if: ${{ !startsWith(github.head_ref, 'dependabot/') }} && needs.changes.outputs.changed == 'true' }}
-    runs-on: ubuntu-22.04-16core
+    runs-on: ubuntu-22.04-32core
 
     permissions:
       contents: read
@@ -80,4 +80,4 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 40
-        run: runuser -u ci -g ci make integration RDPCLIENT_SKIP_BUILD=1
+        run: runuser -u ci -g ci -- make -j"$(nproc)" integration RDPCLIENT_SKIP_BUILD=1
