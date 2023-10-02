@@ -152,7 +152,7 @@ jobs:
         uses: teleport-actions/auth@v2
         with:
           # Use the address of the auth/proxy server for your own cluster.
-          proxy: example.domain:443
+          proxy: example.teleport.sh:443
           # Use the name of the join token resource you created in step 1.
           token: example-bot
           # Specify the length of time that the generated credentials should be
@@ -187,6 +187,78 @@ list all nodes in the cluster, from the perspective of the
 Machine ID bot using the command `tsh ls`.
 
 ### `teleport-actions/kubernetes`
+
+With all the configuration in Teleport and Kubernetes complete, you can now
+create a GitHub Actions workflow that can connect to your Kubernetes cluster.
+
+Our example workflow will list all of the pods contained within the cluster,
+but this could just as easily be modified to deploy to a Kubernetes cluster with
+`kubectl` or `helm`.
+
+In the GitHub workflows directory of your repository (`.github/workflows/`)
+create a new workflow YAML file `actionstest.yml`.
+
+Insert the following, replacing `my-kubernetes-cluster` with the name of your
+Kubernetes cluster and `example.domain:443` with the address of your Teleport
+Proxy or cloud tenant (e.g. `example.teleport.sh`).
+
+```yaml
+# This is a basic workflow to help you get started, modify it for your needs.
+on:
+  push:
+    branches:
+      - main
+jobs:
+  demo:
+    permissions:
+      # The "id-token: write" permission is required or Machine ID will not be
+      # able to authenticate with the cluster.
+      id-token: write
+      contents: read
+    name: guide-demo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Fetch kubectl
+        uses: azure/setup-kubectl@v3
+      - name: Fetch Teleport binaries
+        uses: teleport-actions/setup@v1
+        with:
+          version: (=teleport.version=)
+      - name: Fetch credentials using Machine ID
+        uses: teleport-actions/auth-k8s@v1
+        with:
+          # Use the address of the auth/proxy server for your own cluster.
+          proxy: example.teleport.sh:443
+          # Use the name of the join token resource you created in step 1.
+          token: example-bot
+          # Use the name of your Kubernetes cluster
+          kubernetes-cluster: my-kubernetes-cluster
+          # Enable the submission of anonymous usage telemetry.
+          anonymous-telemetry: 1
+      - name: List pods
+        run: kubectl get pods -A
+```
+
+`anonymous-telemetry` enables the submission of anonymous usage telemetry. This
+helps us shape the future development of `tbot`. You can disable this by
+omitting this.
+
+The `auth-k8s` action sets the `KUBECONFIG` for future steps to the credentials
+it has fetched from Teleport. This means that most existing tooling for
+Kubernetes (e.g `kubectl` and `helm`) can use your cluster with no additional
+configuration.
+
+Add, commit, and push this new workflow file to the default branch of your
+repository.
+
+Navigate to the **Actions** tab of your GitHub repository in your web browser.
+Select the **Workflow** that has now been created and triggered by the change,
+and select the `guide-demo` job.
+
+Expand the **List pods** step of the action, where you can then confirm that the
+output shows a list of all the pods within your Kubernetes cluster.
 
 ### Do It Yourself
 
