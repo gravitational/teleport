@@ -286,14 +286,16 @@ export function DocumentConnectMyComputerStatus(
               {isRunning ? (
                 // TODO: Expand this.
                 <Text>
-                  Any cluster user with the role <strong>{roleName}</strong> can
-                  now access your computer as <strong>{systemUsername}</strong>.
+                  Cluster users with the role <strong>{roleName}</strong> and
+                  users with administrator privileges can now access your
+                  computer as <strong>{systemUsername}</strong>.
                 </Text>
               ) : (
                 <Text>
-                  Connecting your computer will allow any cluster user with the
-                  role <strong>{roleName}</strong> to access it as an SSH
-                  resource with the user <strong>{systemUsername}</strong>.
+                  Starting the agent will allow clusters users with the role{' '}
+                  <strong>{roleName}</strong> and users with administrator
+                  privileges to access it as an SSH resource as the user{' '}
+                  <strong>{systemUsername}</strong>.
                 </Text>
               )}
               {showConnectAndStopAgentButtons ? (

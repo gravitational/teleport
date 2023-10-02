@@ -89,7 +89,8 @@ function Information(props: { onSetUpAgentClick(): void }) {
         access your computer as <strong>{systemUsername}</strong>.
         <br />
         <br />
-        The role is not an exclusive controller of access to the node. We
+        Note that users with administrator privileges can assign that role to
+        themselves or craft another role which grants access to the node. We
         recommend using Connect My Computer only in scenarios where no other
         user could plausibly gain access to the node, such as when exploring a
         Teleport cluster as its only user or in a home lab.
