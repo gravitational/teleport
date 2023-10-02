@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { Flex } from 'design';
+import { Cog } from 'design/Icon';
 
 import { Cog } from 'design/Icon';
 
