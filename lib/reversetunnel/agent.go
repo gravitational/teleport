@@ -404,6 +404,7 @@ func (a *agent) sendFirstHeartbeat(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	sshutils.DiscardChannelData(channel)
 
 	a.hbChannel = channel
 	a.hbRequests = requests
@@ -489,7 +490,7 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 				}
 			}
 		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
+			return nil
 		}
 	}
 }
@@ -534,7 +535,7 @@ func (a *agent) handleDrainChannels() error {
 
 		select {
 		case <-a.ctx.Done():
-			return trace.Wrap(a.ctx.Err())
+			return nil
 		// Signal once when the drain context is canceled to ensure we unblock
 		// to call drainWG.Done().
 		case <-drainSignal:
@@ -594,7 +595,7 @@ func (a *agent) handleChannels() error {
 		select {
 		// need to exit:
 		case <-a.ctx.Done():
-			return trace.Wrap(a.ctx.Err())
+			return nil
 		// new discovery request channel
 		case nch := <-a.discoveryC:
 			if nch == nil {
@@ -624,6 +625,7 @@ func (a *agent) handleChannels() error {
 // reqC : request payload
 func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	a.log.Debugf("handleDiscovery requests channel.")
+	sshutils.DiscardChannelData(ch)
 	defer func() {
 		if err := ch.Close(); err != nil {
 			a.log.Warnf("Failed to close discovery channel: %v", err)

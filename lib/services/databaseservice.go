@@ -55,6 +55,7 @@ func MarshalDatabaseService(databaseService types.DatabaseService, opts ...Marsh
 			// to prevent unexpected data races
 			copy := *databaseService
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			databaseService = &copy
 		}
 		return utils.FastMarshal(databaseService)
@@ -87,6 +88,9 @@ func UnmarshalDatabaseService(data []byte, opts ...MarshalOption) (types.Databas
 		}
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
+		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
 		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)

@@ -229,7 +229,9 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 
 	closeStream := func(eventStream apievents.Stream) {
 		if err := eventStream.Close(auth.CloseContext()); err != nil {
-			g.WithError(err).Warningf("Failed to flush close the stream.")
+			if auth.CloseContext().Err() == nil {
+				g.WithError(err).Warn("Failed to flush close the stream.")
+			}
 		} else {
 			g.Debugf("Flushed and closed the stream.")
 		}
@@ -241,7 +243,9 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			return nil
 		}
 		if err != nil {
-			g.WithError(err).Debugf("Failed to receive stream request.")
+			if stream.Context().Err() == nil {
+				g.WithError(err).Debug("Failed to receive stream request.")
+			}
 			return trace.Wrap(err)
 		}
 		if create := request.GetCreateStream(); create != nil {
@@ -859,6 +863,32 @@ func (g *GRPCServer) SubmitAccessReview(ctx context.Context, review *types.Acces
 	}
 
 	return r, nil
+}
+
+func (g *GRPCServer) GetAccessRequestAllowedPromotions(ctx context.Context, request *authpb.AccessRequestAllowedPromotionRequest) (*authpb.AccessRequestAllowedPromotionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessRequest, err := auth.GetAccessRequests(ctx, types.AccessRequestFilter{
+		ID: request.AccessRequestID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(accessRequest) != 1 {
+		return nil, trace.NotFound("access request not found")
+	}
+
+	allowedPromotions, err := auth.ServerWithRoles.GetAccessRequestAllowedPromotions(ctx, accessRequest[0])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &authpb.AccessRequestAllowedPromotionResponse{
+		AllowedPromotions: allowedPromotions,
+	}, nil
 }
 
 func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
@@ -2248,6 +2278,10 @@ func (g *GRPCServer) MaintainSessionPresence(stream authpb.AuthService_MaintainS
 	}
 }
 
+// Deprecated: Use AddMFADeviceSync instead.
+//
+// DELETE IN v16, kept for compatibility with older tsh versions (codingllama).
+// (Don't actually delete it, but instead make it always error.)
 func (g *GRPCServer) AddMFADevice(stream authpb.AuthService_AddMFADeviceServer) error {
 	actx, err := g.authenticate(stream.Context())
 	if err != nil {
@@ -2308,6 +2342,7 @@ func (g *GRPCServer) AddMFADevice(stream authpb.AuthService_AddMFADeviceServer) 
 	return nil
 }
 
+//nolint:staticcheck // SA1019. Kept for compatibility with older tsh versions.
 func addMFADeviceInit(gctx *grpcContext, stream authpb.AuthService_AddMFADeviceServer) (*authpb.AddMFADeviceRequestInit, error) {
 	req, err := stream.Recv()
 	if err != nil {
@@ -2340,6 +2375,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_AddM
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	//nolint:staticcheck // SA1019. Kept for compatibility with older tsh versions.
 	if err := stream.Send(&authpb.AddMFADeviceResponse{
 		Response: &authpb.AddMFADeviceResponse_ExistingMFAChallenge{ExistingMFAChallenge: authChallenge},
 	}); err != nil {
@@ -2363,6 +2399,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_AddM
 	return nil
 }
 
+//nolint:staticcheck // SA1019. Kept for compatibility with older tsh versions.
 func addMFADeviceRegisterChallenge(gctx *grpcContext, stream authpb.AuthService_AddMFADeviceServer, initReq *authpb.AddMFADeviceRequestInit) (*types.MFADevice, error) {
 	auth := gctx.authServer
 	user := gctx.User.GetName()
@@ -2386,6 +2423,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream authpb.AuthService_
 	}
 	regChallenge.Request = res.GetRequest()
 
+	//nolint:staticcheck // SA1019. Kept for compatibility with older tsh versions.
 	if err := stream.Send(&authpb.AddMFADeviceResponse{
 		Response: &authpb.AddMFADeviceResponse_NewMFARegisterChallenge{NewMFARegisterChallenge: regChallenge},
 	}); err != nil {

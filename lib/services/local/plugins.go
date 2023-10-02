@@ -92,7 +92,7 @@ func (s *PluginsService) GetPlugin(ctx context.Context, name string, withSecrets
 	}
 
 	plugin, err := services.UnmarshalPlugin(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -139,7 +139,7 @@ func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey st
 
 	plugins := make([]types.Plugin, 0, len(result.Items))
 	for _, item := range result.Items {
-		plugin, err := services.UnmarshalPlugin(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		plugin, err := services.UnmarshalPlugin(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -199,7 +199,7 @@ func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify 
 	}
 
 	plugin, err := services.UnmarshalPlugin(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return trace.Wrap(err)
 	}

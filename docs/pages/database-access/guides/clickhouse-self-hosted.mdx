@@ -135,7 +135,7 @@ Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
 $ teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/> \
+   --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/>:443 \
    --name=example-clickhouse \
    --protocol=clickhouse-http \
    --uri=clickhouse.example.com:8443 \
@@ -149,7 +149,7 @@ $ teleport db configure create \
 $ teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/> \
+   --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/>:443 \
    --name=example-clickhouse \
    --protocol=clickhouse \
    --uri=clickhouse.example.com:9440 \
@@ -178,7 +178,7 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --create-namespace \
   --namespace teleport-agent \
   --set roles=db \
-  --set proxyAddr=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/> \
+  --set proxyAddr=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/>:443 \
   --set authToken=${JOIN_TOKEN?} \
   --set "databases[0].name=example-clickhouse" \
   --set "databases[0].uri=clickhouse.example.com:8443" \
@@ -196,7 +196,7 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --create-namespace \
   --namespace teleport-agent \
   --set roles=db \
-  --set proxyAddr=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/> \
+  --set proxyAddr=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/>:443 \
   --set authToken=${JOIN_TOKEN?} \
   --set "databases[0].name=example-clickhouse" \
   --set "databases[0].uri=clickhouse.example.com:9440" \
@@ -227,7 +227,7 @@ Log in to Teleport and list the databases you can connect to. You should see the
 ClickHouse database you enrolled earlier:
 
 ```code
-$ tsh login --proxy=<Var name="proxy-address" /> --user=alice
+$ tsh login --proxy=<Var name="teleport.example.com" /> --user=alice
 $ tsh db ls
 # Name                      Description Allowed Users Labels  Connect
 # ------------------------- ----------- ------------- ------- -------
@@ -269,7 +269,7 @@ Log in to Teleport and list the databases you can connect to. You should see the
 ClickHouse database you enrolled earlier:
 
 ```code
-$ tsh login --proxy=<Var name="proxy-address" /> --user=alice
+$ tsh login --proxy=<Var name="teleport.example.com" /> --user=alice
 $ tsh db ls
 # Name                    Description Allowed Users Labels  Connect
 # ----------------------- ----------- ------------- ------- -------

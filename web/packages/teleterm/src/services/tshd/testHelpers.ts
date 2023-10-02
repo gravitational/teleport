@@ -17,9 +17,9 @@
 import * as tsh from './types';
 
 export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
-  uri: '/clusters/teleport-local/servers/178ef081-259b-4aa5-a018-449b5ea7e694',
+  uri: '/clusters/teleport-local/servers/1234abcd-1234-abcd-1234-abcd1234abcd',
   tunnel: false,
-  name: '178ef081-259b-4aa5-a018-449b5ea7e694',
+  name: '1234abcd-1234-abcd-1234-abcd1234abcd',
   hostname: 'foo',
   addr: '127.0.0.1:3022',
   labelsList: [],
@@ -61,8 +61,23 @@ export const makeRootCluster = (
   connected: true,
   leaf: false,
   proxyHost: 'teleport-local:3080',
-  authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
+  authClusterId: 'fefe3434-fefe-3434-fefe-3434fefe3434',
   loggedInUser: makeLoggedInUser(),
+  proxyVersion: '1.0.0',
+  ...props,
+});
+
+export const makeLeafCluster = (
+  props: Partial<tsh.Cluster> = {}
+): tsh.Cluster => ({
+  uri: '/clusters/teleport-local/leaves/leaf',
+  name: 'teleport-local-leaf',
+  connected: true,
+  leaf: true,
+  proxyHost: '',
+  authClusterId: '',
+  loggedInUser: makeLoggedInUser(),
+  proxyVersion: '',
   ...props,
 });
 

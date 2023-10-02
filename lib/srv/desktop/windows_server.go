@@ -494,13 +494,8 @@ func (s *WindowsService) initializeLDAP() error {
 		s.ldapInitialized = false
 
 		// failures due to timeouts might be transient, so retry more frequently
-		//
-		// TODO(zmb3): errors.Is does not work properly on ldap.Error
-		// (remove the extra errors.As() check when https://github.com/go-ldap/ldap/pull/461 merges)
 		retryAfter := windowsDesktopServiceCertRetryInterval
-		var ldapErr *ldap.Error
-		if errors.Is(err, context.DeadlineExceeded) ||
-			(errors.As(err, &ldapErr) && errors.Is(ldapErr.Err, context.DeadlineExceeded)) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			retryAfter = ldapTimeoutRetryInterval
 		}
 

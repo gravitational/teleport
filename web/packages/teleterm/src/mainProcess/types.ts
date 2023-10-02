@@ -103,12 +103,17 @@ export type MainProcessClient = {
   createAgentConfigFile(
     properties: AgentConfigFileClusterProperties
   ): Promise<void>;
+  openAgentLogsDirectory(args: {
+    rootClusterUri: RootClusterUri;
+  }): Promise<void>;
   runAgent(args: { rootClusterUri: RootClusterUri }): Promise<void>;
   isAgentConfigFileCreated(args: {
     rootClusterUri: RootClusterUri;
   }): Promise<boolean>;
   killAgent(args: { rootClusterUri: RootClusterUri }): Promise<void>;
+  removeAgentDirectory(args: { rootClusterUri: RootClusterUri }): Promise<void>;
   getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
+  getAgentLogs(args: { rootClusterUri: RootClusterUri }): string;
   subscribeToAgentUpdate: SubscribeToAgentUpdate;
 };
 

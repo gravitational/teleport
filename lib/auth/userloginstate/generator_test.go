@@ -27,12 +27,15 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -50,26 +53,33 @@ func TestAccessLists(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	tests := []struct {
-		name        string
-		user        types.User
-		accessLists []*accesslist.AccessList
-		members     []*accesslist.AccessListMember
-		roles       []string
-		expected    *userloginstate.UserLoginState
+		name               string
+		user               types.User
+		cloud              bool
+		accessLists        []*accesslist.AccessList
+		members            []*accesslist.AccessListMember
+		roles              []string
+		expected           *userloginstate.UserLoginState
+		expectedRoleCount  int
+		expectedTraitCount int
 	}{
 		{
 			name:  "access lists are empty",
 			user:  user,
+			cloud: true,
 			roles: []string{"orole1"},
 			expected: newUserLoginState(t, "user", []string{
 				"orole1",
 			}, map[string][]string{
 				"otrait1": {"value1", "value2"},
 			}),
+			expectedRoleCount:  0,
+			expectedTraitCount: 0,
 		},
 		{
-			name: "access lists add roles and traits",
-			user: user,
+			name:  "access lists add roles and traits",
+			user:  user,
+			cloud: true,
 			accessLists: []*accesslist.AccessList{
 				newAccessList(t, clock, "1", []string{"role1"}, trait.Traits{
 					"trait1": []string{"value1"},
@@ -91,10 +101,41 @@ func TestAccessLists(t *testing.T) {
 					"trait1":  []string{"value1", "value2"},
 					"trait2":  []string{"value3"},
 				}),
+			expectedRoleCount:  2,
+			expectedTraitCount: 3,
 		},
 		{
-			name: "access lists add roles and traits, roles missing from backend",
-			user: user,
+			name:  "access lists add roles and traits (cloud disabled)",
+			user:  user,
+			cloud: false,
+			accessLists: []*accesslist.AccessList{
+				newAccessList(t, clock, "1", []string{"role1"}, trait.Traits{
+					"trait1": []string{"value1"},
+				}),
+				newAccessList(t, clock, "2", []string{"role2"}, trait.Traits{
+					"trait1": []string{"value2"},
+					"trait2": []string{"value3"},
+				}),
+			},
+			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
+			roles:   []string{"orole1", "role1", "role2"},
+			expected: newUserLoginState(t, "user",
+				[]string{
+					"orole1",
+					"role1",
+					"role2",
+				}, trait.Traits{
+					"otrait1": []string{"value1", "value2"},
+					"trait1":  []string{"value1", "value2"},
+					"trait2":  []string{"value3"},
+				}),
+			expectedRoleCount:  0,
+			expectedTraitCount: 0,
+		},
+		{
+			name:  "access lists add roles and traits, roles missing from backend",
+			user:  user,
+			cloud: true,
 			accessLists: []*accesslist.AccessList{
 				newAccessList(t, clock, "1", []string{"role1"}, trait.Traits{
 					"trait1": []string{"value1"},
@@ -112,10 +153,13 @@ func TestAccessLists(t *testing.T) {
 					"trait1":  []string{"value1", "value2"},
 					"trait2":  []string{"value3"},
 				}),
+			expectedRoleCount:  0,
+			expectedTraitCount: 3,
 		},
 		{
-			name: "access lists only a member of some lists",
-			user: user,
+			name:  "access lists only a member of some lists",
+			user:  user,
+			cloud: true,
 			accessLists: []*accesslist.AccessList{
 				newAccessList(t, clock, "1", []string{"role1"}, trait.Traits{
 					"trait1": []string{"value1"},
@@ -135,10 +179,13 @@ func TestAccessLists(t *testing.T) {
 					"otrait1": []string{"value1", "value2"},
 					"trait1":  []string{"value1"},
 				}),
+			expectedRoleCount:  1,
+			expectedTraitCount: 1,
 		},
 		{
-			name: "access lists add roles with duplicates",
-			user: user,
+			name:  "access lists add roles with duplicates",
+			user:  user,
+			cloud: true,
 			accessLists: []*accesslist.AccessList{
 				newAccessList(t, clock, "1", []string{"role1", "role2"}, trait.Traits{}),
 				newAccessList(t, clock, "2", []string{"role2", "role3"}, trait.Traits{}),
@@ -154,10 +201,13 @@ func TestAccessLists(t *testing.T) {
 				}, trait.Traits{
 					"otrait1": []string{"value1", "value2"},
 				}),
+			expectedRoleCount:  3,
+			expectedTraitCount: 0,
 		},
 		{
-			name: "access lists add traits with duplicates",
-			user: user,
+			name:  "access lists add traits with duplicates",
+			user:  user,
+			cloud: true,
 			accessLists: []*accesslist.AccessList{
 				newAccessList(t, clock, "1", []string{},
 					trait.Traits{
@@ -184,10 +234,13 @@ func TestAccessLists(t *testing.T) {
 					"trait2":  []string{"value3", "value4", "value1"},
 					"trait3":  []string{"value5", "value6"},
 				}),
+			expectedRoleCount:  0,
+			expectedTraitCount: 7,
 		},
 		{
-			name: "access lists add traits with no roles or traits in original",
-			user: userNoRolesOrTraits,
+			name:  "access lists add traits with no roles or traits in original",
+			user:  userNoRolesOrTraits,
+			cloud: true,
 			accessLists: []*accesslist.AccessList{
 				newAccessList(t, clock, "1", []string{"role1"},
 					trait.Traits{
@@ -212,11 +265,20 @@ func TestAccessLists(t *testing.T) {
 					"trait2": []string{"value3", "value4"},
 					"trait3": []string{"value5", "value6"},
 				}),
+			expectedRoleCount:  1,
+			expectedTraitCount: 6,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Cloud: test.cloud,
+				},
+			})
+
 			ctx := context.Background()
 			svc, backendSvc := initGeneratorSvc(t)
 
@@ -242,6 +304,16 @@ func TestAccessLists(t *testing.T) {
 				cmpopts.SortSlices(func(str1, str2 string) bool {
 					return str1 < str2
 				})))
+
+			if test.expectedRoleCount == 0 && test.expectedTraitCount == 0 {
+				require.Nil(t, backendSvc.event)
+			} else {
+				require.IsType(t, &usageeventsv1.UsageEventOneOf_AccessListGrantsToUser{}, backendSvc.event.Event)
+				event := (backendSvc.event.Event).(*usageeventsv1.UsageEventOneOf_AccessListGrantsToUser)
+
+				require.Equal(t, test.expectedRoleCount, int(event.AccessListGrantsToUser.CountRolesGranted))
+				require.Equal(t, test.expectedTraitCount, int(event.AccessListGrantsToUser.CountTraitsGranted))
+			}
 		})
 	}
 }
@@ -249,6 +321,13 @@ func TestAccessLists(t *testing.T) {
 type svc struct {
 	services.AccessLists
 	services.Access
+
+	event *usageeventsv1.UsageEventOneOf
+}
+
+func (s *svc) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+	s.event = req.Event
+	return nil
 }
 
 func initGeneratorSvc(t *testing.T) (*Generator, *svc) {
@@ -265,8 +344,17 @@ func initGeneratorSvc(t *testing.T) (*Generator, *svc) {
 	accessSvc := local.NewAccessService(mem)
 
 	log := logrus.WithField("test", "logger")
-	return &Generator{log: log, accessLists: accessListsSvc, access: accessSvc, clock: clock},
-		&svc{AccessLists: accessListsSvc, Access: accessSvc}
+	svc := &svc{AccessLists: accessListsSvc, Access: accessSvc}
+
+	generator, err := NewGenerator(GeneratorConfig{
+		Log:         log,
+		AccessLists: svc,
+		Access:      svc,
+		UsageEvents: svc,
+		Clock:       clock,
+	})
+	require.NoError(t, err)
+	return generator, svc
 }
 
 func newAccessList(t *testing.T, clock clockwork.Clock, name string, roles []string, traits trait.Traits) *accesslist.AccessList {

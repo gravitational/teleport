@@ -22,7 +22,66 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/header"
 )
+
+func TestDeduplicateOwners(t *testing.T) {
+	accessList, err := NewAccessList(
+		header.Metadata{
+			Name: "duplicate test",
+		},
+		Spec{
+			Title:       "title",
+			Description: "test access list",
+			Owners: []Owner{
+				{
+					Name:        "test-user1",
+					Description: "test user 1",
+				},
+				{
+					Name:        "test-user2",
+					Description: "test user 2",
+				},
+				{
+					Name:        "test-user2",
+					Description: "duplicate",
+				},
+			},
+			Audit: Audit{
+				Frequency: time.Hour,
+			},
+			MembershipRequires: Requires{
+				Roles: []string{"mrole1", "mrole2"},
+				Traits: map[string][]string{
+					"mtrait1": {"mvalue1", "mvalue2"},
+					"mtrait2": {"mvalue3", "mvalue4"},
+				},
+			},
+			OwnershipRequires: Requires{
+				Roles: []string{"orole1", "orole2"},
+				Traits: map[string][]string{
+					"otrait1": {"ovalue1", "ovalue2"},
+					"otrait2": {"ovalue3", "ovalue4"},
+				},
+			},
+			Grants: Grants{
+				Roles: []string{"grole1", "grole2"},
+				Traits: map[string][]string{
+					"gtrait1": {"gvalue1", "gvalue2"},
+					"gtrait2": {"gvalue3", "gvalue4"},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	require.Len(t, accessList.Spec.Owners, 2)
+	require.Equal(t, "test-user1", accessList.Spec.Owners[0].Name)
+	require.Equal(t, "test user 1", accessList.Spec.Owners[0].Description)
+	require.Equal(t, "test-user2", accessList.Spec.Owners[1].Name)
+	require.Equal(t, "test user 2", accessList.Spec.Owners[1].Description)
+}
 
 func TestAuditMarshaling(t *testing.T) {
 	audit := Audit{

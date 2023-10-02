@@ -30,5 +30,9 @@ export {
 } from './ConnectionDiagnostic';
 export { useShowHint } from './useShowHint';
 export { StepBox } from './StepBox';
+export { SecurityGroupPicker } from './SecurityGroupPicker';
+export type { ViewRulesSelection } from './SecurityGroupPicker';
+export { AwsAccount } from './AwsAccount';
+export { DisableableCell, Labels, labelMatcher, RadioCell } from './Aws';
 
 export type { DiscoverLabel } from './LabelsCreater';

@@ -204,6 +204,12 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     return this.state.workspaces[rootClusterUri].connectMyComputer?.autoStart;
   }
 
+  removeConnectMyComputerState(rootClusterUri: RootClusterUri): void {
+    this.setState(draftState => {
+      delete draftState.workspaces[rootClusterUri].connectMyComputer;
+    });
+  }
+
   setActiveWorkspace(clusterUri: RootClusterUri): Promise<void> {
     const setWorkspace = () => {
       this.setState(draftState => {

@@ -167,6 +167,7 @@ func marshalGithubConnector(githubConnector types.GithubConnector, opts ...Marsh
 			// to prevent unexpected data races
 			copy := *githubConnector
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			githubConnector = &copy
 		}
 		return utils.FastMarshal(githubConnector)

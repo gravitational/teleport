@@ -59,4 +59,7 @@ type Template struct {
 	// AutomaticUpgrades indicates whether Automatic Upgrades are enabled or disabled.
 	// Its value is either `true` or `false`.
 	AutomaticUpgrades string
+	// AzureClientID is the client ID of the managed identity to use when joining
+	// the cluster. Only applicable for the azure join method.
+	AzureClientID string
 }

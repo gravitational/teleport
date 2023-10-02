@@ -1118,7 +1118,7 @@ func TestGetCurrentUser(t *testing.T) {
 
 	currentUser, err := client1.GetCurrentUser(ctx)
 	require.NoError(t, err)
-	require.Equal(t, &types.UserV2{
+	require.Empty(t, cmp.Diff(&types.UserV2{
 		Kind:    "user",
 		SubKind: "",
 		Version: "v2",
@@ -1128,12 +1128,11 @@ func TestGetCurrentUser(t *testing.T) {
 			Description: "",
 			Labels:      nil,
 			Expires:     nil,
-			ID:          currentUser.GetMetadata().ID,
 		},
 		Spec: types.UserSpecV2{
 			Roles: []string{"user:user1"},
 		},
-	}, currentUser)
+	}, currentUser, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestGetCurrentUserRoles(t *testing.T) {
@@ -1148,7 +1147,7 @@ func TestGetCurrentUserRoles(t *testing.T) {
 
 	roles, err := client1.GetCurrentUserRoles(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(roles, []types.Role{user1Role}, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+	require.Empty(t, cmp.Diff(roles, []types.Role{user1Role}, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestAuthPreferenceSettings(t *testing.T) {
@@ -1358,7 +1357,7 @@ func TestOTPCRUD(t *testing.T) {
 }
 
 // TestWebSessions tests web sessions flow for web user,
-// that logs in, extends web session and tries to perform administratvie action
+// that logs in, extends web session and tries to perform administrative action
 // but fails
 func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	t.Parallel()
@@ -1791,9 +1790,13 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	web, err := testSrv.NewClientFromWebSession(ws)
 	require.NoError(t, err)
 
-	// Update some traits.
+	// Update some traits and roles.
+	newRoleName := "new-role"
 	newUser.SetLogins([]string{"apple", "banana"})
 	newUser.SetDatabaseUsers([]string{"llama", "alpaca"})
+	_, err = CreateRole(ctx, clt, newRoleName, types.RoleSpecV6{})
+	require.NoError(t, err)
+	newUser.AddRole(newRoleName)
 	require.NoError(t, clt.UpdateUser(ctx, newUser))
 
 	// Renew session with the updated traits.
@@ -1809,8 +1812,11 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	require.NoError(t, err)
 	traits, err := services.ExtractTraitsFromCert(sshcert)
 	require.NoError(t, err)
+	roles, err := services.ExtractRolesFromCert(sshcert)
+	require.NoError(t, err)
 	require.Equal(t, traits[constants.TraitLogins], []string{"apple", "banana"})
 	require.Equal(t, traits[constants.TraitDBUsers], []string{"llama", "alpaca"})
+	require.Contains(t, roles, newRoleName)
 }
 
 func TestExtendWebSessionWithMaxDuration(t *testing.T) {
@@ -4037,16 +4043,6 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 					Roles:      types.SystemRoles{types.RoleTrustedCluster},
 					JoinMethod: types.JoinMethodToken,
 				},
-				//nolint:staticcheck // Emit a deprecated event.
-				&eventtypes.TrustedClusterTokenCreate{
-					Metadata: eventtypes.Metadata{
-						Type: events.TrustedClusterTokenCreateEvent,
-						Code: events.TrustedClusterTokenCreateCode,
-					},
-					UserMetadata: eventtypes.UserMetadata{
-						User: "token-creator",
-					},
-				},
 			},
 		},
 		{
@@ -4099,7 +4095,7 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.token,
 					token,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				))
 			}
 		})
@@ -4196,16 +4192,6 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 					Roles:      types.SystemRoles{types.RoleTrustedCluster},
 					JoinMethod: types.JoinMethodToken,
 				},
-				//nolint:staticcheck // Emit a deprecated event.
-				&eventtypes.TrustedClusterTokenCreate{
-					Metadata: eventtypes.Metadata{
-						Type: events.TrustedClusterTokenCreateEvent,
-						Code: events.TrustedClusterTokenCreateCode,
-					},
-					UserMetadata: eventtypes.UserMetadata{
-						User: "token-upserter",
-					},
-				},
 			},
 		},
 		{
@@ -4276,7 +4262,7 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.token,
 					token,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				))
 			}
 		})
@@ -4366,7 +4352,7 @@ func TestGRPCServer_GetTokens(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					expectTokens,
 					tokens,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				))
 			} else {
 				require.Empty(t, tokens)
@@ -4436,7 +4422,7 @@ func TestGRPCServer_GetToken(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					token,
 					pt,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				))
 			} else {
 				require.Nil(t, token)

@@ -141,6 +141,12 @@ func printEnrollOutcome(outcome enroll.RunAdminOutcome, dev *devicepb.Device) {
 		return // All actions failed, don't print anything.
 	}
 
+	// This shouldn't happen, but let's play it safe and avoid a silly panic.
+	if dev == nil {
+		fmt.Printf("Device %v\n", action)
+		return
+	}
+
 	fmt.Printf(
 		"Device %q/%v %v\n",
 		dev.AssetTag, devicetrust.FriendlyOSType(dev.OsType), action)

@@ -83,12 +83,15 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 			Traits: traitv1.FromProto(msg.Spec.Grants.Traits),
 		},
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	for _, opt := range opts {
 		opt(accessList)
 	}
 
-	return accessList, trace.Wrap(err)
+	return accessList, nil
 }
 
 // ToProto converts an internal access list into a v1 access list object.

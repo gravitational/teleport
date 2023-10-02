@@ -16,13 +16,21 @@
 
 /** Resolves after a given duration */
 export function wait(ms: number, abortSignal?: AbortSignal): Promise<void> {
+  if (abortSignal?.aborted) {
+    return Promise.reject(new DOMException('Wait was aborted.', 'AbortError'));
+  }
+
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(resolve, ms);
-    if (abortSignal) {
-      abortSignal.onabort = () => {
-        clearTimeout(timeout);
-        reject(new DOMException('Wait was aborted.', 'AbortError'));
-      };
-    }
+    const abort = () => {
+      clearTimeout(timeout);
+      reject(new DOMException('Wait was aborted.', 'AbortError'));
+    };
+    const done = () => {
+      abortSignal?.removeEventListener('abort', abort);
+      resolve();
+    };
+
+    const timeout = setTimeout(done, ms);
+    abortSignal?.addEventListener('abort', abort, { once: true });
   });
 }

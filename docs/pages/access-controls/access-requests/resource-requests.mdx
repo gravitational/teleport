@@ -15,7 +15,7 @@ The Access Request API makes it easy to dynamically approve or deny these
 requests.
 
 Just-in-time Access Requests are a feature of Teleport Enterprise.
-Open-source Teleport users can get a preview of how Access Requests work by
+Teleport Community Edition users can get a preview of how Access Requests work by
 requesting a role via the Teleport CLI. Full Access Request functionality,
 including Resource Access Requests and an intuitive and searchable UI are
 available in Teleport Enterprise.
@@ -25,16 +25,6 @@ available in Teleport Enterprise.
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-
-<Admonition type="warning">
-All `teleport` instances in the cluster must be running Teleport `v10.0.0` or
-greater in order for Resource Access Requests to be properly enforced.
-Older versions of `teleport` will only do RBAC checks based on roles and will
-not respect resource restrictions.
-It is not recommended to enable Resource Access Requests by setting any
-`search_as_roles` until all `teleport` instances in your cluster have been
-upgraded to version 10.
-</Admonition>
 
 ## Step 1/8. Create the requester role
 
