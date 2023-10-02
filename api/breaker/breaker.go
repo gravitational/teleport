@@ -103,7 +103,7 @@ func (s State) String() string {
 
 // ErrStateTripped will be returned from executions performed while the CircuitBreaker
 // is in StateTripped
-var ErrStateTripped = trace.ConnectionProblem(nil, "circuit breaker is tripped. unable to connect to api service")
+var ErrStateTripped = trace.ConnectionProblem(fmt.Errorf("circuit breaker is tripped. unable to connect to api service"), "Unable to reach Teleport API on Auth Service. Number of attempts has tripped circuit breaker.")
 
 // Config contains configuration of the CircuitBreaker
 type Config struct {
@@ -329,7 +329,12 @@ func (c *CircuitBreaker) beforeExecution() (uint64, error) {
 
 	generation, state := c.currentState(now)
 
+	//temp
+
 	switch {
+	case state == StateStandby:
+		return generation, ErrStateTripped
+
 	case state == StateTripped:
 		return generation, ErrStateTripped
 	}
