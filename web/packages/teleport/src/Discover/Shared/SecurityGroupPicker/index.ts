@@ -14,4 +14,5 @@
  * limitations under the License.
  */
 
-export { ConnectAwsAccount } from './ConnectAwsAccount';
+export { SecurityGroupPicker } from './SecurityGroupPicker';
+export type { ViewRulesSelection } from './SecurityGroupPicker';

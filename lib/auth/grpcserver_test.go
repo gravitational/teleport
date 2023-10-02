@@ -419,133 +419,57 @@ type mfaDevices struct {
 	clock     clockwork.Clock
 	webOrigin string
 
-	TOTPName, TOTPSecret string
-	WebName              string
-	WebKey               *mocku2f.Key
+	TOTPName string
+	TOTPDev  *TestDevice
+
+	WebName string
+	WebDev  *TestDevice
 }
 
 func (d *mfaDevices) totpAuthHandler(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-	require.NotNil(t, challenge.TOTP)
+	require.NotNil(t, challenge.TOTP, "nil TOTP challenge")
 
 	if c, ok := d.clock.(clockwork.FakeClock); ok {
 		c.Advance(30 * time.Second)
 	}
-	code, err := totp.GenerateCode(d.TOTPSecret, d.clock.Now())
-	require.NoError(t, err)
-	return &proto.MFAAuthenticateResponse{
-		Response: &proto.MFAAuthenticateResponse_TOTP{
-			TOTP: &proto.TOTPResponse{
-				Code: code,
-			},
-		},
-	}
+
+	mfaResp, err := d.TOTPDev.SolveAuthn(challenge)
+	require.NoError(t, err, "SolveAuthn")
+
+	return mfaResp
 }
 
 func (d *mfaDevices) webAuthHandler(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-	require.NotNil(t, challenge.WebauthnChallenge)
+	require.NotNil(t, challenge.WebauthnChallenge, "nil Webauthn challenge")
 
-	resp, err := d.WebKey.SignAssertion(
-		d.webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
-	require.NoError(t, err)
-	return &proto.MFAAuthenticateResponse{
-		Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
-		},
-	}
+	mfaResp, err := d.WebDev.SolveAuthn(challenge)
+	require.NoError(t, err, "SolveAuthn")
+
+	return mfaResp
 }
 
-func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, origin string) mfaDevices {
+func addOneOfEachMFADevice(t *testing.T, userClient *Client, clock clockwork.Clock, origin string) mfaDevices {
 	const totpName = "totp-dev"
 	const webName = "webauthn-dev"
-	mfaDevs := mfaDevices{
+
+	ctx := context.Background()
+
+	totpDev, err := RegisterTestDevice(
+		ctx, userClient, totpName, proto.DeviceType_DEVICE_TYPE_TOTP, nil /* authenticator */, WithTestDeviceClock(clock))
+	require.NoError(t, err, "RegisterTestDevice(totp)")
+
+	webDev, err := RegisterTestDevice(
+		ctx, userClient, webName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev /* authenticator */)
+	require.NoError(t, err, "RegisterTestDevice(totp)")
+
+	return mfaDevices{
 		clock:     clock,
 		webOrigin: origin,
 		TOTPName:  totpName,
 		WebName:   webName,
+		TOTPDev:   totpDev,
+		WebDev:    webDev,
 	}
-
-	var err error
-	mfaDevs.WebKey, err = mocku2f.Create()
-	require.NoError(t, err)
-	mfaDevs.WebKey.PreferRPID = true
-
-	ctx := context.Background()
-
-	devs := []struct {
-		name string
-		opts mfaAddTestOpts
-	}{
-		{
-			name: "TOTP device",
-			opts: mfaAddTestOpts{
-				deviceName: totpName,
-				deviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
-				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-					// Empty for first device.
-					return &proto.MFAAuthenticateResponse{}
-				},
-				checkAuthErr: require.NoError,
-				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
-					require.NotEmpty(t, challenge.GetTOTP())
-					require.Equal(t, challenge.GetTOTP().Algorithm, otp.AlgorithmSHA1.String())
-
-					mfaDevs.TOTPSecret = challenge.GetTOTP().Secret
-					code, err := totp.GenerateCodeCustom(mfaDevs.TOTPSecret, clock.Now(), totp.ValidateOpts{
-						Period:    uint(challenge.GetTOTP().PeriodSeconds),
-						Digits:    otp.Digits(challenge.GetTOTP().Digits),
-						Algorithm: otp.AlgorithmSHA1,
-					})
-					require.NoError(t, err)
-
-					return &proto.MFARegisterResponse{
-						Response: &proto.MFARegisterResponse_TOTP{
-							TOTP: &proto.TOTPRegisterResponse{
-								Code: code,
-								ID:   challenge.GetTOTP().ID,
-							},
-						},
-					}
-				},
-				checkRegisterErr: require.NoError,
-				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
-					want, err := services.NewTOTPDevice(totpName, mfaDevs.TOTPSecret, clock.Now())
-					want.Id = got.Id
-					require.NoError(t, err)
-					require.Empty(t, cmp.Diff(want, got))
-				},
-			},
-		},
-		{
-			name: "Webauthn device",
-			opts: mfaAddTestOpts{
-				deviceName:   webName,
-				deviceType:   proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-				authHandler:  mfaDevs.totpAuthHandler,
-				checkAuthErr: require.NoError,
-				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
-					require.NotNil(t, challenge.GetWebauthn())
-
-					ccr, err := mfaDevs.WebKey.SignCredentialCreation(origin, wantypes.CredentialCreationFromProto(challenge.GetWebauthn()))
-					require.NoError(t, err)
-					return &proto.MFARegisterResponse{
-						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
-						},
-					}
-				},
-				checkRegisterErr: require.NoError,
-				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
-					// MFADevice device asserted in its entirety by lib/auth/webauthn
-					// tests, a simple check suffices here.
-					require.Equal(t, mfaDevs.WebKey.KeyHandle, got.GetWebauthn().CredentialId)
-				},
-			},
-		},
-	}
-	for _, dev := range devs {
-		testAddMFADevice(ctx, t, cl, dev.opts)
-	}
-	return mfaDevs
 }
 
 type mfaAddTestOpts struct {

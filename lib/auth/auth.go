@@ -3052,17 +3052,39 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 
 // DeleteMFADeviceSync implements AuthService.DeleteMFADeviceSync.
 func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error {
-	token, err := a.GetUserToken(ctx, req.GetTokenID())
-	if err != nil {
-		log.Error(trace.DebugReport(err))
-		return trace.AccessDenied("invalid token")
+	var user string
+	switch {
+	case req.TokenID != "":
+		token, err := a.GetUserToken(ctx, req.TokenID)
+		if err != nil {
+			log.Error(trace.DebugReport(err))
+			return trace.AccessDenied("invalid token")
+		}
+		user = token.GetUser()
+
+		if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
+			return trace.Wrap(err)
+		}
+
+	case req.ExistingMFAResponse != nil:
+		var err error
+		user, err = authz.GetClientUsername(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if _, _, err := a.validateMFAAuthResponse(
+			ctx, req.ExistingMFAResponse, user, false, /* passwordless */
+		); err != nil {
+			return trace.Wrap(err)
+		}
+
+	default:
+		return trace.BadParameter(
+			"deleting an MFA device requires either a privilege token or a solved authentication challenge")
 	}
 
-	if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = a.deleteMFADeviceSafely(ctx, token.GetUser(), req.GetDeviceName())
+	_, err := a.deleteMFADeviceSafely(ctx, user, req.DeviceName)
 	return trace.Wrap(err)
 }
 
@@ -4336,8 +4358,8 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 }
 
 func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error) {
-	// When promoting a request, the access list title must be set.
-	if !params.Review.ProposedState.IsPromoted() && params.Review.PromotedAccessListTitle != "" {
+	// When promoting a request, the access list name must be set.
+	if params.Review.ProposedState.IsPromoted() && params.Review.GetAccessListName() == "" {
 		return nil, trace.BadParameter("promoted access list can be only set when promoting access requests")
 	}
 
@@ -4373,13 +4395,13 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 		ResourceMetadata: apievents.ResourceMetadata{
 			Expires: req.GetAccessExpiry(),
 		},
-		RequestID:               params.RequestID,
-		RequestState:            req.GetState().String(),
-		ProposedState:           params.Review.ProposedState.String(),
-		Reason:                  params.Review.Reason,
-		Reviewer:                params.Review.Author,
-		MaxDuration:             req.GetMaxDuration(),
-		PromotedAccessListTitle: req.GetPromotedAccessListTitle(),
+		RequestID:              params.RequestID,
+		RequestState:           req.GetState().String(),
+		ProposedState:          params.Review.ProposedState.String(),
+		Reason:                 params.Review.Reason,
+		Reviewer:               params.Review.Author,
+		MaxDuration:            req.GetMaxDuration(),
+		PromotedAccessListName: req.GetPromotedAccessListName(),
 	}
 
 	if len(params.Review.Annotations) > 0 {
