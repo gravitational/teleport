@@ -15,7 +15,7 @@ import (
 )
 
 // Intended to be executed with a []ReferenceEntry
-const referenceTemplate string = `{{ range . }}
+var referenceTemplate string = strings.ReplaceAll(`{{ range . }}
 ## {{ .SectionName }}
 
 {{ .Description }}
@@ -28,8 +28,12 @@ const referenceTemplate string = `{{ range . }}
 |{{.Name}}|{{.Description}}|{{.Type}}|
 {{ end }} 
 
+Example:
+
+&&&yaml
 {{ .YAMLExample }}
-{{ end }}`
+&&&
+{{ end }}`, "&", "`")
 
 type TypeInfo struct {
 	// Go package path (not a file path)
