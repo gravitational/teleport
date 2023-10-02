@@ -66,15 +66,13 @@ Let's go over the token resource YAML's fields in more detail:
 
 - `metadata.name` defines the name of the token. Note that this value will need
 to be used in other parts of the configuration later.
-- `metadata.expires` defines the date that the join token will expire. This
-example is set to the year `2100`.
 - `spec.bot_name` is the name of the Machine ID bot that this token will grant
 access to. Note that this value will need to be used in other parts of the
 configuration later.
 - `spec.roles` defines which roles that this token will grant access to. The
 value of `[Bot]` states that this token grants access to a Machine ID bot.
 - `spec.join_method` defines the join method the token is applicable for. Since
-this guide only focuses on GitHub Actions, we will set this to to `github`.
+this guide only focuses on GitHub Actions, we will set this to `github`.
 - `spec.github.allow` is used to set rules for what GitHub Actions will be able
 to authenticate by using the token. In this example, the `gravitational/example`
 repository is used, and this example repository should be replaced with your own
@@ -191,8 +189,10 @@ Replace:
 - `example.teleport.sh:443` with the address of your Teleport Proxy or cloud
   tenant.
 - `example-bot` with the name of the token you created in a previous step.
-- `root` with the name of the token you created in a previous step.
-- `example-node` with the name of the token you created in a previous step.
+- `example-node` with the name of a Teleport SSH node that you wish to connect
+  to.
+- `root` with the name of a user on the node that you are connecting to and that
+  you have granted the bot access to.
 
 Add, commit, and push your changes to the `main` branch of the repository.
 
@@ -240,7 +240,7 @@ jobs:
       with:
         version: (=teleport.version=)
     - name: Fetch credentials using Machine ID
-      uses: teleport-actions/auth-k8s@v1
+      uses: teleport-actions/auth-k8s@v2
       with:
         # Use the address of the auth/proxy server for your own cluster.
         proxy: example.teleport.sh:443
@@ -302,7 +302,7 @@ outputs: []
 Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
-Auth Server. Prefer using the address of a Teleport Proxy.
+  Auth Server. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the first step.
 
 Now you can define a GitHub Actions workflow that will start `tbot` with this
@@ -362,9 +362,14 @@ interact with.
 
 ## Next steps
 
+- Check out the GitHub Actions for more usage information:
+  - [teleport-actions/setup](https://github.com/teleport-actions/setup)
+  - [teleport-actions/auth](https://github.com/teleport-actions/auth)
+  - [teleport-actions/auth-k8s](https://github.com/teleport-actions/auth-k8s)
+  - [teleport-actions/auth-application](https://github.com/teleport-actions/auth-application)
 - For more information about the `github` join method, read the [GitHub Actions
   reference page](../reference/github-actions.mdx#github-join-token)
-- For more information about GitHub Actions itself, read
+- Find out more about GitHub Actions itself, read
   [their documentation](https://docs.github.com/en/actions).
 - [More information about `anonymous-telemetry`.](../reference/telemetry.mdx)
 
