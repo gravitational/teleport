@@ -453,7 +453,7 @@
             {
               "title": "Opsgenie",
               "slug": "/access-controls/access-request-plugins/opsgenie/",
-              "forScopes": ["cloud"]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "ServiceNow",
