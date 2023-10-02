@@ -24,7 +24,7 @@ var referenceTemplate string = strings.ReplaceAll(`{{ range . }}
 
 |Field Name|Description|Type|
 |---|---|---|
-{{ range .Fields }}
+{{ range .Fields -}}
 |{{.Name}}|{{.Description}}|{{.Type}}|
 {{ end }} 
 
