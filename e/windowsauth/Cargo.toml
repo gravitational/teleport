@@ -19,7 +19,7 @@ panic = "abort"
 
 [build-dependencies]
 embed-resource = "2.3.0"
-regex = "1.9.5"
+regex = "1.9.6"
 
 [dependencies]
 log = "0.4.20"
