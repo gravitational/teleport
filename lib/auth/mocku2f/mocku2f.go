@@ -156,11 +156,12 @@ func (muk *Key) signRegister(appIDHash, clientDataHash []byte) (*signRegisterRes
 	}
 	pubKey := ecdhPubKey.Bytes()
 
-	var dataToSign []byte
+	cap := 1 + len(appIDHash) + len(clientDataHash) + len(muk.KeyHandle) + len(pubKey)
+	dataToSign := make([]byte, 0, cap)
 	dataToSign = append(dataToSign, 0)
-	dataToSign = append(dataToSign, appIDHash[:]...)
-	dataToSign = append(dataToSign, clientDataHash[:]...)
-	dataToSign = append(dataToSign, muk.KeyHandle[:]...)
+	dataToSign = append(dataToSign, appIDHash...)
+	dataToSign = append(dataToSign, clientDataHash...)
+	dataToSign = append(dataToSign, muk.KeyHandle...)
 	dataToSign = append(dataToSign, pubKey...)
 
 	dataHash := sha256.Sum256(dataToSign)
@@ -177,13 +178,14 @@ func (muk *Key) signRegister(appIDHash, clientDataHash []byte) (*signRegisterRes
 		flags = uint8(protocol.FlagUserPresent | protocol.FlagUserVerified | protocol.FlagAttestedCredentialData)
 	}
 
-	var regData []byte
+	cap = 1 + len(pubKey) + 1 + len(muk.KeyHandle) + len(muk.Cert) + len(sig)
+	regData := make([]byte, 0, cap)
 	regData = append(regData, flags)
-	regData = append(regData, pubKey[:]...)
+	regData = append(regData, pubKey...)
 	regData = append(regData, byte(len(muk.KeyHandle)))
-	regData = append(regData, muk.KeyHandle[:]...)
-	regData = append(regData, muk.Cert[:]...)
-	regData = append(regData, sig[:]...)
+	regData = append(regData, muk.KeyHandle...)
+	regData = append(regData, muk.Cert...)
+	regData = append(regData, sig...)
 
 	return &signRegisterResult{
 		RawResp:   regData,
