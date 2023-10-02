@@ -161,12 +161,16 @@ deploy-job:
     - 'curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz'
     - tar -xvf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
     - sudo ./teleport/install
-    - 'tbot start -c tbot.yaml'
+    - 'TELEPORT_ANONYMOUS_TELEMETRY=1 tbot start -c tbot.yaml'
 ```
 
 Replace `teleport.example.com` with the name of your Teleport cluster. This
 is not necessarily the address of your Teleport cluster and will not include
 a port or scheme (e.g. http/https).
+
+`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
+telemetry. This helps us shape the future development of `tbot`. You can disable
+this by omitting this.
 
 Commit and push these two files to the repository.
 
