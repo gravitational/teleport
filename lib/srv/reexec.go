@@ -402,7 +402,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		if err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
-		if err := os.Chown(c.X11Config.XServerUnixSocket, uid, gid); err != nil {
+		if err := os.Lchown(c.X11Config.XServerUnixSocket, uid, gid); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 
