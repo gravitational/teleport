@@ -82,7 +82,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords:
       baseServerKeywords + 'ec2 instance connect endpoint aws amazon eice',
     icon: 'Aws',
-    event: null, // TODO rudream (ADD EVENTS FOR EICE FLOW)
+    event: DiscoverEventResource.Ec2Instance,
     nodeMeta: { location: ServerLocation.Aws },
   },
 ];

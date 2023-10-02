@@ -27,6 +27,10 @@ import {
   SecurityGroup,
   integrationService,
 } from 'teleport/services/integrations';
+import {
+  DiscoverEvent,
+  DiscoverEventStatus,
+} from 'teleport/services/userEvent';
 import { NodeMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
   ActionButtons,
@@ -78,7 +82,8 @@ export function CreateEc2Ice() {
   const { attempt: deployEc2IceAttempt, setAttempt: setDeployEc2IceAttempt } =
     useAttempt('');
 
-  const { emitErrorEvent, agentMeta, prevStep, nextStep } = useDiscover();
+  const { emitErrorEvent, agentMeta, prevStep, nextStep, emitEvent } =
+    useDiscover();
 
   async function fetchSecurityGroups() {
     const integration = (agentMeta as NodeMeta).integration;
@@ -122,13 +127,22 @@ export function CreateEc2Ice() {
         }
       );
       // Capture event for deploying EICE.
-      // emitEvent(null); TODO rudream (ADD EVENTS FOR EICE FLOW)
+      emitEvent(
+        { stepStatus: DiscoverEventStatus.Success },
+        {
+          eventName: DiscoverEvent.EC2DeployEICE,
+        }
+      );
     } catch (err) {
       const errMsg = getErrMessage(err);
       setShowCreatingDialog(false);
       setDeployEc2IceAttempt({ status: 'failed', statusText: errMsg });
-      emitErrorEvent(
-        `ec2 instance connect endpoint deploying failed: ${errMsg}`
+      // Capture error event for failing to deploy EICE.
+      emitEvent(
+        { stepStatus: DiscoverEventStatus.Error, stepStatusError: errMsg },
+        {
+          eventName: DiscoverEvent.EC2DeployEICE,
+        }
       );
     }
   }
