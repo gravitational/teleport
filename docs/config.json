@@ -458,7 +458,7 @@
             {
               "title": "ServiceNow",
               "slug": "/access-controls/access-request-plugins/servicenow/",
-              "forScopes": ["cloud"]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Jira",
