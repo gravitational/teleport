@@ -989,21 +989,12 @@ func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client aut
 
 	remote := client.DiscoveryConfigClient()
 
-	_, err = remote.GetDiscoveryConfig(ctx, discoveryConfig.GetName())
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	exists := (err == nil)
-
-	if exists {
-		if !rc.force {
-			return trace.AlreadyExists("DiscoveryConfig %q already exists", discoveryConfig.GetName())
-		}
-
-		if _, err := remote.UpdateDiscoveryConfig(ctx, discoveryConfig); err != nil {
+	if rc.force {
+		if _, err := remote.UpsertDiscoveryConfig(ctx, discoveryConfig); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("DiscoveryConfig %q has been updated\n", discoveryConfig.GetName())
+
+		fmt.Printf("DiscoveryConfig %q has been written\n", discoveryConfig.GetName())
 		return nil
 	}
 
