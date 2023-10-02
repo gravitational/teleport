@@ -354,6 +354,10 @@ func makeSectionName(original string) string {
 // single *ast.Expr into a single yamlKindNode, returning the new node.
 func getYAMLTypeForExpr(exp ast.Expr, pkg string) (yamlKindNode, error) {
 	switch t := exp.(type) {
+	case *ast.StarExpr:
+		// Ignore the star, since YAML fields are unmarshaled as the
+		// values they point to.
+		return getYAMLTypeForExpr(t.X, pkg)
 	case *ast.Ident:
 		switch t.Name {
 		case "string":

@@ -782,6 +782,63 @@ description: "string"
 				},
 			},
 		},
+		{
+			description: "pointer field",
+			source: `package typestest
+
+// DatabaseServerV3 represents a database access server.
+type DatabaseServerV3 struct {
+	// Metadata is the database server metadata.
+	Metadata *Metadata BACKTICKprotobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"BACKTICK
+}
+`,
+			declSources: []string{
+				`package typestest
+
+// Metadata is resource metadata
+type Metadata struct {
+	// Name is an object name
+	Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
+}`,
+			},
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					TypeName:    "DatabaseServerV3",
+					PackageName: "typestest",
+				}: ReferenceEntry{
+					SectionName: "Database Server v3",
+					Description: "Represents a database access server.",
+					SourcePath:  "myfile.go",
+					Fields: []Field{
+						Field{
+							Name:        "metadata",
+							Description: "The database server metadata.",
+							Type:        "[Metadata](#metadata)",
+						},
+					},
+					YAMLExample: `metadata: 
+# [...]
+`,
+				},
+				PackageInfo{
+					TypeName:    "Metadata",
+					PackageName: "typestest",
+				}: ReferenceEntry{
+					SectionName: "Metadata",
+					Description: "Resource metadata",
+					SourcePath:  "myfile0.go",
+					Fields: []Field{
+						{
+							Name:        "name",
+							Description: "An object name",
+							Type:        "string",
+						},
+					},
+					YAMLExample: `name: "string"
+`,
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
