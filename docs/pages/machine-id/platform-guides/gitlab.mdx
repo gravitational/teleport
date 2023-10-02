@@ -30,11 +30,6 @@ control.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-- A running instance of the Teleport SSH Service registered with your Teleport
-cluster. For instructions on setting this up, see the [Getting Started
-Guide](../../server-access/introduction.mdx). The SSH node must include a user
-you want to grant access to. In this guide, we will call the SSH node `my-node`
-and the user `ci-user`. Replace these with values appropriate to your setup.
 - A GitLab project to connect to Teleport. This can either be on GitLab's
 cloud-hosted offering (gitlab.com) or on a self-hosted GitLab instance. **When
 using a self-hosted GitLab instance, your Teleport Auth Server must be able to
@@ -46,7 +41,7 @@ a valid TLS certificate.**
 To allow GitLab CI to authenticate to your Teleport cluster, you'll first need
 to create a join token. A GitLab join token contains allow rules that describe
 which pipelines can use that token in order to join the Teleport cluster. A rule
-can contain multiple fields, and any pipeline that matches all of the fields
+can contain multiple fields, and any pipeline that matches all the fields
 within a single rule is granted access.
 
 In this example, you will create a token with a rule that grants access to any
@@ -93,19 +88,11 @@ Apply this to your Teleport cluster using `tctl`:
 $ tctl create -f gitlab-token.yaml
 ```
 
-## Step 2/4. Create a Machine ID bot
+## Step 2/4. Create a role and Machine ID bot
 
-With the join token created, the next step is to create the Machine ID bot that
-the token will grant access to.
+(!docs/pages/includes/machine-id/blank-role.mdx!)
 
-In this example, the bot is given the preset `access` role. In a production
-environment, the principle of least privilege should be applied and you should
-create a role that grants the bot access to the precise resources that will be
-needed in your CI/CD pipeline.
-
-From your workstation enter the following command, replacing the`ci-user`
-value with a Linux user on the host that you want your GitHub Actions flow to
-be able to connect to:
+Create the bot, specifying the role and token that you have created:
 
 ```code
 $ tctl bots add example --roles=example-bot --token=example-bot
@@ -113,8 +100,12 @@ $ tctl bots add example --roles=example-bot --token=example-bot
 
 ## Step 3/4. Configure a GitLab Pipeline
 
-With the bot and join token created, you can now create a GitLab pipeline that
-uses these to access a node in your cluster.
+With the bot and join token created, you can now configure a GitLab pipeline
+that sets up `tbot` to use these.
+
+To configure `tbot`, a YAML file will be used. In this example we'll store this
+within the repository itself, but this could be generated or created by the
+CI pipeline itself.
 
 Create `tbot.yaml` within your repository:
 
@@ -137,11 +128,13 @@ Replace:
   Auth Server. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the second step
 
-Create a file called `.gitlab-ci.yml` in the root of your repository. Replace:
-- `teleport.example.com` with the name of your Teleport cluster
-- `teleport.example.com:443` with the public address and port of your Teleport
-  Proxy
-- `my-node` and `ci-user` with the user and host you wish to connect to
+Now, the GitLab CI pipeline can be defined. Before the pipeline can use `tbot`,
+it must be available within the environment. For this example, we'll show
+downloading `tbot` as part of the CI step, but in a production implementation
+you may wish to build a docker image that contains this binary to avoid
+depending on the Teleport CDN.
+
+Create `.gitlab-ci.yml`  within your repository:
 
 ```yaml
 stages:
@@ -149,12 +142,19 @@ stages:
 
 deploy-job:
   stage: deploy
+  # id_tokens configures ID Tokens that GitLab will automatically inject into
+  # the environment of your GitLab run.
+  #
+  # See https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html
+  # for further explanation of the id_tokens configuration in GitLab.
   id_tokens:
-    # See https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html
-    # for further explanation of the id_tokens configuration.
     TBOT_GITLAB_JWT:
-      # An environment variable named TBOT_GITLAB_JWT must exist and contain
-      # an ID token with an audience that matches your Teleport cluster's name.
+      # aud for TBOT_GITLAB_JWT must be configured with the name of your
+      # Teleport cluster. This is not necessarily the address of your Teleport
+      # cluster and will not include a port or scheme (http/https)
+      #
+      # This helps the Teleport Auth Server know that the token is intended for
+      # it, and not a different service or Teleport cluster.
       aud: teleport.example.com
   script:
     - cd /tmp
@@ -163,6 +163,10 @@ deploy-job:
     - sudo ./teleport/install
     - 'tbot start -c tbot.yaml'
 ```
+
+Replace `teleport.example.com` with the name of your Teleport cluster. This
+is not necessarily the address of your Teleport cluster and will not include
+a port or scheme (e.g. http/https).
 
 Commit and push these two files to the repository.
 
