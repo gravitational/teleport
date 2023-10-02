@@ -180,3 +180,52 @@ func Test_checkMySQLSupportedVersion(t *testing.T) {
 		})
 	}
 }
+
+func Test_checkMariaDBSupportedVersion(t *testing.T) {
+	tests := []struct {
+		input      string
+		checkError require.ErrorAssertionFunc
+	}{
+		{
+			input:      "invalid-server-version",
+			checkError: require.NoError,
+		},
+		{
+			input:      "5.5.5-10.7.8-MariaDB-1:10.7.8+maria~ubu2004",
+			checkError: require.NoError,
+		},
+		{
+			input:      "5.5.5-10.9.8-MariaDB",
+			checkError: require.NoError,
+		},
+		{
+			input:      "5.5.5-10.3.3-MariaDB",
+			checkError: require.NoError,
+		},
+		{
+			input:      "5.5.5-10.2.11-MariaDB",
+			checkError: require.NoError,
+		},
+		{
+			input:      "5.5.5-11.0.0-MariaDB",
+			checkError: require.NoError,
+		},
+		{
+			input:      "5.5.5-10.3.2-MariaDB",
+			checkError: require.Error,
+		},
+		{
+			input:      "5.5.5-10.2.10-MariaDB",
+			checkError: require.Error,
+		},
+		{
+			input:      "5.5.5-10.1.0-MariaDB",
+			checkError: require.Error,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			test.checkError(t, checkMariaDBSupportedVersion(test.input))
+		})
+	}
+}

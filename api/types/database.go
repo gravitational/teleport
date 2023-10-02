@@ -128,7 +128,7 @@ type Database interface {
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
 	// GetAdminUser returns database privileged user information.
-	GetAdminUser() string
+	GetAdminUser() DatabaseAdminUser
 	// SupportsAutoUsers returns true if this database supports automatic
 	// user provisioning.
 	SupportsAutoUsers() bool
@@ -291,13 +291,23 @@ func (d *DatabaseV3) SetURI(uri string) {
 }
 
 // GetAdminUser returns database privileged user information.
-func (d *DatabaseV3) GetAdminUser() string {
+func (d *DatabaseV3) GetAdminUser() (ret DatabaseAdminUser) {
 	// First check the spec.
 	if d.Spec.AdminUser != nil {
-		return d.Spec.AdminUser.Name
+		ret = *d.Spec.AdminUser
 	}
+
 	// If it's not in the spec, check labels (for auto-discovered databases).
-	return d.Metadata.Labels[DatabaseAdminLabel]
+	// TODO Azure will require different labels.
+	if d.Origin() == OriginCloud {
+		if ret.Name == "" {
+			ret.Name = d.Metadata.Labels[DatabaseAdminLabel]
+		}
+		if ret.DefaultDatabase == "" {
+			ret.DefaultDatabase = d.Metadata.Labels[DatabaseAdminDefaultDatabaseLabel]
+		}
+	}
+	return
 }
 
 // GetOracle returns the Oracle options from spec.
@@ -841,7 +851,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 
 	// Admin user (for automatic user provisioning) is only supported for
 	// PostgreSQL currently.
-	if d.GetAdminUser() != "" && !d.SupportsAutoUsers() {
+	if d.GetAdminUser().Name != "" && !d.SupportsAutoUsers() {
 		return trace.BadParameter("cannot set admin user on database %q: %v/%v databases don't support automatic user provisioning yet",
 			d.GetName(), d.GetProtocol(), d.GetType())
 	}

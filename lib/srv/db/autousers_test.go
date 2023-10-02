@@ -18,6 +18,7 @@ package db
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -77,16 +78,70 @@ func TestAutoUsersPostgres(t *testing.T) {
 }
 
 func TestAutoUsersMySQL(t *testing.T) {
+	tests := []mysqlAutoUserTest{
+		{
+			name:             "MySQL with long name",
+			serverVersion:    "8.0.28",
+			teleportUser:     "a.very.long.name@teleport.example.com",
+			wantDatabaseUser: "tp-ZLhdP1FgxXsUvcVpG8ucVm/PCHg",
+		},
+		{
+			name:            "MySQL not supported",
+			serverVersion:   "5.7.42",
+			teleportUser:    "a.very.long.name@teleport.example.com",
+			wantClientError: true,
+		},
+		{
+			name:          "MariaDB",
+			serverVersion: "5.5.5-10.11.0-MariaDB",
+			teleportUser:  "a.very.long.name@teleport.example.com",
+			// MariaDB max username length is 80 (MySQL is 32).
+			wantDatabaseUser: "a.very.long.name@teleport.example.com",
+		},
+		{
+			name:             "MariaDB with long name",
+			serverVersion:    "5.5.5-10.11.0-MariaDB",
+			teleportUser:     strings.Repeat("even-longer-name", 5) + "@teleport.example.com",
+			wantDatabaseUser: "tp-W+34lSjdNvyLfzOejQLRcbe0Rrs",
+		},
+		{
+			name:            "MariaDB not supported",
+			serverVersion:   "5.5.5-10.0.0-MariaDB",
+			teleportUser:    "a.very.long.name@teleport.example.com",
+			wantClientError: true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, test.Run)
+	}
+}
+
+type mysqlAutoUserTest struct {
+	name             string
+	serverVersion    string
+	teleportUser     string
+	wantDatabaseUser string
+	wantClientError  bool
+}
+
+func (m *mysqlAutoUserTest) Run(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql", withMySQLAdminUser("admin")))
+	testCtx := setupTestContext(
+		ctx,
+		t,
+		withSelfHostedMySQL("mysql",
+			withMySQLAdminUser("admin"),
+			withMySQLServerVersion(m.serverVersion),
+		),
+	)
 	go testCtx.startHandlingConnections()
 
-	// Use a long name to test hashed name is used in database.
-	teleportUser := "a.very.long.name@teleport.example.com"
-	wantDatabaseUser := "tp-ZLhdP1FgxXsUvcVpG8ucVm/PCHg"
-
 	// Create user with role that allows user provisioning.
-	_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), teleportUser, []string{"auto"}, nil)
+	_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), m.teleportUser, []string{"auto"}, nil)
 	require.NoError(t, err)
 	options := role.GetOptions()
 	options.CreateDatabaseUser = types.NewBoolOption(true)
@@ -97,17 +152,21 @@ func TestAutoUsersMySQL(t *testing.T) {
 	require.NoError(t, err)
 
 	// DatabaseUser must match identity.
-	_, err = testCtx.mysqlClient(teleportUser, "mysql", "user1")
+	_, err = testCtx.mysqlClient(m.teleportUser, "mysql", "user1")
 	require.Error(t, err)
 
 	// Try to connect to the database as this user.
-	mysqlConn, err := testCtx.mysqlClient(teleportUser, "mysql", teleportUser)
+	mysqlConn, err := testCtx.mysqlClient(m.teleportUser, "mysql", m.teleportUser)
+	if m.wantClientError {
+		require.Error(t, err)
+		return
+	}
 	require.NoError(t, err)
 
 	select {
 	case e := <-testCtx.mysql["mysql"].db.UserEventsCh():
-		require.Equal(t, teleportUser, e.TeleportUser)
-		require.Equal(t, wantDatabaseUser, e.DatabaseUser)
+		require.Equal(t, m.teleportUser, e.TeleportUser)
+		require.Equal(t, m.wantDatabaseUser, e.DatabaseUser)
 		require.Equal(t, []string{"reader", "writer"}, e.Roles)
 		require.True(t, e.Active)
 	case <-time.After(5 * time.Second):
@@ -121,8 +180,8 @@ func TestAutoUsersMySQL(t *testing.T) {
 	// Verify user was deactivated.
 	select {
 	case e := <-testCtx.mysql["mysql"].db.UserEventsCh():
-		require.Equal(t, teleportUser, e.TeleportUser)
-		require.Equal(t, wantDatabaseUser, e.DatabaseUser)
+		require.Equal(t, m.teleportUser, e.TeleportUser)
+		require.Equal(t, m.wantDatabaseUser, e.DatabaseUser)
 		require.False(t, e.Active)
 	case <-time.After(5 * time.Second):
 		t.Fatal("user not deactivated after 5s")

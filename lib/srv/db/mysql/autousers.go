@@ -54,11 +54,14 @@ type activateUserDetails struct {
 	//
 	// User attributes is a MySQL JSON in MySQL databases.
 	//
-	// To check current user's attribute:
+	// To check current user's attribute for MySQL:
 	// SELECT * FROM INFORMATION_SCHEMA.USER_ATTRIBUTES WHERE CONCAT(USER, '@', HOST) = current_user()
 	//
 	// Reference:
 	// https://dev.mysql.com/doc/refman/8.0/en/information-schema-user-attributes-table.html
+	//
+	// To check current user's attribute for MariaDB:
+	// SELECT * FROM teleport.V_user_attributes
 	Attributes struct {
 		// User is the original Teleport user name.
 		//
@@ -85,7 +88,7 @@ func (c *clientConn) isMariaDB() bool {
 	return strings.Contains(strings.ToLower(c.GetServerVersion()), "mariadb")
 }
 
-// maxUsernameLength returns the username/role character limit.
+// maxUsernameLength returns the username character limit.
 func (c *clientConn) maxUsernameLength() int {
 	if c.isMariaDB() {
 		return mariadbMaxUsernameLength
@@ -93,9 +96,18 @@ func (c *clientConn) maxUsernameLength() int {
 	return mysqlMaxUsernameLength
 }
 
+// maxRoleLength returns the role character limit.
+func (c *clientConn) maxRoleLength() int {
+	if c.isMariaDB() {
+		return mariadbMaxRoleLength
+	}
+	// Same username vs role length for MySQL.
+	return mysqlMaxUsernameLength
+}
+
 // ActivateUser creates or enables the database user.
 func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) error {
-	if sessionCtx.Database.GetAdminUser() == "" {
+	if sessionCtx.Database.GetAdminUser().Name == "" {
 		return trace.BadParameter("Teleport does not have admin user configured for this database")
 	}
 
@@ -146,7 +158,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 
 // DeactivateUser disables the database user.
 func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session) error {
-	if sessionCtx.Database.GetAdminUser() == "" {
+	if sessionCtx.Database.GetAdminUser().Name == "" {
 		return trace.BadParameter("Teleport does not have admin user configured for this database")
 	}
 
@@ -172,7 +184,7 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 
 func (e *Engine) connectAsAdminUser(ctx context.Context, sessionCtx *common.Session) (*clientConn, error) {
 	adminSessionCtx := sessionCtx.WithUserAndDatabase(
-		sessionCtx.Database.GetAdminUser(),
+		sessionCtx.Database.GetAdminUser().Name,
 		defaultSchema(sessionCtx),
 	)
 	conn, err := e.connect(ctx, adminSessionCtx)
@@ -185,19 +197,6 @@ func (e *Engine) connectAsAdminUser(ctx context.Context, sessionCtx *common.Sess
 }
 
 func (e *Engine) setupDatabaseForAutoUsers(conn *clientConn, sessionCtx *common.Session) error {
-	// TODO MariaDB requires separate stored procedures to handle auto user:
-	// - Max user length is different.
-	// - MariaDB uses mysql.roles_mapping instead of mysql.role_edges.
-	// - MariaDB cannot set all roles as default role at the same time.
-	// - MariaDB does not have user attributes. Will need another way for
-	//   saving original Teleport user names. For example, a separate table can
-	//   be used to track User -> JSON attribute mapping (protected view with
-	//   row level security can be used in addition so each user can only read
-	//   their own attributes, if needed).
-	if conn.isMariaDB() {
-		return trace.NotImplemented("auto user provisioning is not supported for MariaDB yet")
-	}
-
 	// Create "teleport-auto-user".
 	err := conn.executeAndCloseResult(fmt.Sprintf("CREATE ROLE IF NOT EXISTS %q", teleportAutoUserRole))
 	if err != nil {
@@ -222,14 +221,15 @@ func (e *Engine) setupDatabaseForAutoUsers(conn *clientConn, sessionCtx *common.
 	// If update is necessary, do a transaction.
 	e.Log.Debugf("Updating stored procedures for MySQL server %s.", sessionCtx.Database.GetName())
 	return trace.Wrap(doTransaction(conn, func() error {
-		for _, procedure := range allProcedures {
-			dropCommand := fmt.Sprintf("DROP PROCEDURE IF EXISTS %s", procedure.name)
-			updateCommand := fmt.Sprintf("ALTER PROCEDURE %s COMMENT %q", procedure.name, procedureVersion)
+		for _, procedureName := range allProcedureNames {
+			dropCommand := fmt.Sprintf("DROP PROCEDURE IF EXISTS %s", procedureName)
+			createCommand := getCreateProcedureCommand(conn, procedureName)
+			updateCommand := fmt.Sprintf("ALTER PROCEDURE %s COMMENT %q", procedureName, procedureVersion)
 
 			if err := conn.executeAndCloseResult(dropCommand); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := conn.executeAndCloseResult(procedure.createCommand); err != nil {
+			if err := conn.executeAndCloseResult(createCommand); err != nil {
 				return trace.Wrap(err)
 			}
 			if err := conn.executeAndCloseResult(updateCommand); err != nil {
@@ -275,7 +275,7 @@ func convertActivateError(sessionCtx *common.Session, err error) error {
 //
 // This also avoids "No database selected" errors if client doesn't provide
 // one.
-func defaultSchema(_ *common.Session) string {
+func defaultSchema(sessionCtx *common.Session) string {
 	// Aurora MySQL does not allow procedures on built-in "mysql" database.
 	// Technically we can use another built-in database like "sys". However,
 	// AWS (or database admins for self-hosted) may restrict permissions on
@@ -286,14 +286,15 @@ func defaultSchema(_ *common.Session) string {
 	// created when configuring the admin user. The admin user should be
 	// granted the following permissions for this database:
 	// GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON teleport.* TO '<admin-user>'
-	//
-	// TODO consider allowing user to specify the default database through database
-	// definition/labels.
+	adminUser := sessionCtx.Database.GetAdminUser()
+	if adminUser.DefaultDatabase != "" {
+		return adminUser.DefaultDatabase
+	}
 	return "teleport"
 }
 
 func checkRoles(conn *clientConn, roles []string) error {
-	maxRoleLength := conn.maxUsernameLength()
+	maxRoleLength := conn.maxRoleLength()
 	for _, role := range roles {
 		if len(role) > maxRoleLength {
 			return trace.BadParameter("role %q exceeds maximum length limit of %d", role, maxRoleLength)
@@ -304,7 +305,7 @@ func checkRoles(conn *clientConn, roles []string) error {
 
 func checkSupportedVersion(conn *clientConn) error {
 	if conn.isMariaDB() {
-		return trace.NotImplemented("auto user provisioning is not supported for MariaDB yet")
+		return trace.Wrap(checkMariaDBSupportedVersion(conn.GetServerVersion()))
 	}
 	return trace.Wrap(checkMySQLSupportedVersion(conn.GetServerVersion()))
 }
@@ -319,7 +320,41 @@ func checkMySQLSupportedVersion(serverVersion string) error {
 	// Reference:
 	// https://dev.mysql.com/doc/relnotes/mysql/8.0/en/news-8-0-0.html#mysqld-8-0-0-account-management
 	case ver.Major < 8:
-		return trace.BadParameter("role management is not supported for MySQL servers older than 8.0")
+		return trace.BadParameter("automatic user provisioning is not supported for MySQL servers older than 8.0")
+
+	default:
+		return nil
+	}
+}
+
+func checkMariaDBSupportedVersion(serverVersion string) error {
+	// serverVersion may look like these:
+	// 5.5.5-10.7.8-MariaDB-1:10.7.8+maria~ubu2004
+	// 5.5.5-10.11.5-MariaDB
+	serverVersion, _, _ = strings.Cut(serverVersion, "-MariaDB")
+	serverVersion = strings.TrimPrefix(serverVersion, "5.5.5-")
+
+	ver, err := semver.NewVersion(serverVersion)
+	switch {
+	case err != nil:
+		logrus.Debugf("Invalid MariaDB server version %q. Assuming role management is supported.", serverVersion)
+		return nil
+
+	case ver.Major > 10:
+		return nil
+	case ver.Major < 10:
+		return trace.BadParameter("automatic user provisioning is not supported for MariaDB servers older than 10")
+
+	// ver.Major == 10
+	//
+	// Versions below 10.3.3, 10.2.11 get a weird syntax error when running the
+	// stored procedures. These are fairly old versions from 2017.
+	case ver.Minor == 3 && ver.Patch < 3:
+		return trace.BadParameter("automatic user provisioning is not supported for MariaDB servers older than 10.3.3")
+	case ver.Minor == 2 && ver.Patch < 11:
+		return trace.BadParameter("automatic user provisioning is not supported for MariaDB servers older than 10.2.11")
+	case ver.Minor < 2:
+		return trace.BadParameter("automatic user provisioning is not supported for MariaDB servers older than 10.2")
 
 	default:
 		return nil
@@ -381,7 +416,7 @@ func isProcedureUpdateRequired(conn *clientConn, wantSchema, wantVersion string)
 	}
 	defer result.Close()
 
-	if result.RowNumber() < len(allProcedures) {
+	if result.RowNumber() < len(allProcedureNames) {
 		return true, nil
 	}
 
@@ -399,8 +434,8 @@ func isProcedureUpdateRequired(conn *clientConn, wantSchema, wantVersion string)
 }
 
 func allProceduresFound(foundProcedures []string) bool {
-	for _, wantProcedure := range allProcedures {
-		if !slices.Contains(foundProcedures, wantProcedure.name) {
+	for _, wantProcedureName := range allProcedureNames {
+		if !slices.Contains(foundProcedures, wantProcedureName) {
 			return false
 		}
 	}
@@ -419,12 +454,19 @@ func doTransaction(conn *clientConn, do func() error) error {
 	return trace.Wrap(conn.Commit())
 }
 
+func getCreateProcedureCommand(conn *clientConn, procedureName string) string {
+	if conn.isMariaDB() {
+		return mariadbProcedures[procedureName]
+	}
+	return mysqlProcedures[procedureName]
+}
+
 const (
 	// procedureVersion is a hard-coded string that is set as procedure
 	// comments to indicate the procedure version.
 	procedureVersion = "teleport-auto-user-v1"
 
-	// mysqlMaxUsernameLength is the maximum username length for MySQL.
+	// mysqlMaxUsernameLength is the maximum username/role length for MySQL.
 	//
 	// https://dev.mysql.com/doc/refman/8.0/en/user-names.html
 	mysqlMaxUsernameLength = 32
@@ -432,12 +474,17 @@ const (
 	//
 	// https://mariadb.com/kb/en/identifier-names/#maximum-length
 	mariadbMaxUsernameLength = 80
+	// mariadbMaxRoleLength is the maximum role length for MariaDB.
+	mariadbMaxRoleLength = 128
 
 	// teleportAutoUserRole is the name of a MySQL role that all Teleport
 	// managed users will be a part of.
 	//
-	// To find all users that assigned this role:
+	// To find all users that assigned this role for MySQL:
 	// SELECT TO_USER AS 'Teleport Managed Users' FROM mysql.role_edges WHERE FROM_USER = 'teleport-auto-user'
+	//
+	// To find all users that assigned this role for MariaDB:
+	// SELECT USER AS 'Teleport Managed Users' FROM mysql.roles_mapping WHERE ROLE = 'teleport-auto-user' AND Admin_option = 'N'
 	teleportAutoUserRole = "teleport-auto-user"
 
 	// sqlStateActiveUser is the SQLSTATE raised by deactivation procedure when
@@ -469,21 +516,55 @@ var (
 	//go:embed mysql_revoke_roles.sql
 	revokeRolesProcedure string
 
-	allProcedures = []struct {
-		name          string
-		createCommand string
-	}{
-		{
-			name:          revokeRolesProcedureName,
-			createCommand: revokeRolesProcedure,
-		},
-		{
-			name:          activateUserProcedureName,
-			createCommand: activateUserProcedure,
-		},
-		{
-			name:          deactivateUserProcedureName,
-			createCommand: deactivateUserProcedure,
-		},
+	//go:embed mariadb_activate_user.sql
+	mariadbActivateUserProcedure string
+	//go:embed mariadb_deactivate_user.sql
+	mariadbDeactivateUserProcedure string
+	//go:embed mariadb_revoke_roles.sql
+	mariadbRevokeRolesProcedure string
+
+	// allProcedureNames contains a list of all procedures required to setup
+	// auto-user provisioning. Note that order matters here as later procedures
+	// may depend on the earlier ones.
+	allProcedureNames = []string{
+		revokeRolesProcedureName,
+		activateUserProcedureName,
+		deactivateUserProcedureName,
+	}
+
+	// mysqlProcedures maps procedure names to the procedures used for MySQL.
+	mysqlProcedures = map[string]string{
+		activateUserProcedureName:   activateUserProcedure,
+		deactivateUserProcedureName: deactivateUserProcedure,
+		revokeRolesProcedureName:    revokeRolesProcedure,
+	}
+
+	// mariadbProcedures maps procedure names to the procedures used for MariaDB.
+	//
+	// MariaDB requires separate procedures from MySQL because:
+	// - Max length of username/role is 80/128 instead of 32.
+	// - MariaDB uses mysql.roles_mapping instead of mysql.role_edges.
+	//   Note that roles_mapping tracks both role assignments and role "owners".
+	//   "Owners" are tracked in rows with Admin_option = 'Y'.
+	// - MariaDB does not have built-in user attributes field. Instead, the
+	//   procedure will create an `user_attributes` table for tracking this. A
+	//   view `V_user_attributes` is also created so that each logged-in user
+	//   can see their own attributes.
+	// - MariaDB cannot `SET DEFAULT ROLE ALL`. To workaround this, a role
+	//   `tp-role-<username>` is created and assigned to the database user
+	//   while all roles are assigned to this all-in-one role. Then `SET
+	//   DEFAULT ROLE tp-role-<username>` before each session.
+	//
+	// Other MariaDB quirks:
+	// - In order to be able to grant a role, the grantor doing so must have
+	//   permission to do so (see WITH ADMIN in the CREATE ROLE article).
+	//   (Quoted from https://mariadb.com/kb/en/grant/#roles)
+	// - To set a default role for another user one needs to have write access
+	//   to the mysql database.
+	//   (Quoted from https://mariadb.com/kb/en/set-default-role/)
+	mariadbProcedures = map[string]string{
+		activateUserProcedureName:   mariadbActivateUserProcedure,
+		deactivateUserProcedureName: mariadbDeactivateUserProcedure,
+		revokeRolesProcedureName:    mariadbRevokeRolesProcedure,
 	}
 )
