@@ -16,6 +16,7 @@ Type=simple
 User=teleport
 Group=teleport
 Restart=on-failure
+Environment="TELEPORT_ANONYMOUS_TELEMETRY=1"
 ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/tbot.pid
@@ -29,6 +30,10 @@ Ensure that you replace:
 
 - `teleport` with the name of Linux user you wish to run `tbot` as.
 - `/etc/tbot.yaml` with the path to the configuration file you have created
+
+`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
+telemetry. This helps us shape the future development of `tbot`. You can disable
+this by omitting this.
 
 Next, enable the service so that it will start on boot and then start the
 service:

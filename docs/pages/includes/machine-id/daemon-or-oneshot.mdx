@@ -29,5 +29,10 @@ Now, you should test your `tbot` configuration. When started, several log
 messages will be emitted before it exits with status 0:
 
 ```code
+$ export TELEPORT_ANONYMOUS_TELEMETRY=1
 $ tbot start -c /etc/tbot.yaml
 ```
+
+`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
+telemetry. This helps us shape the future development of `tbot`. You can disable
+this by omitting this.
