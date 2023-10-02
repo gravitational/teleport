@@ -148,8 +148,13 @@ func (f *azureFetcher[DBType, ListClient]) Get(ctx context.Context) (types.Resou
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	f.rewriteDatabases(databases)
+	return databases.AsResources(), nil
+}
 
-	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log).AsResources(), nil
+// rewriteDatabases rewrites the discovered databases.
+func (f *azureFetcher[DBType, ListClient]) rewriteDatabases(databases types.Databases) {
+	// no-op
 }
 
 // getSubscriptions returns the subscriptions that this fetcher is configured to query.
@@ -225,7 +230,7 @@ func (f *azureFetcher[DBType, ListClient]) getDatabases(ctx context.Context) (ty
 			databases = append(databases, database)
 		}
 	}
-	return databases, nil
+	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
 }
 
 // String returns the fetcher's string description.

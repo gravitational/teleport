@@ -191,7 +191,7 @@ export function SuccessfullyAddedIntegrationDialog({
               },
             }}
           >
-            Begin RDS Enrollment
+            Begin AWS Resource Enrollment
           </ButtonPrimary>
         ) : (
           <Flex gap="3">

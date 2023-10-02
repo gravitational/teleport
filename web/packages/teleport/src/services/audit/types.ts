@@ -239,6 +239,22 @@ export const eventCodes = {
   OKTA_ASSIGNMENT_PROCESS_FAILURE: 'TOK004E',
   OKTA_ASSIGNMENT_CLEANUP: 'TOK005I',
   OKTA_ASSIGNMENT_CLEANUP_FAILURE: 'TOK005E',
+  ACCESS_LIST_CREATE: 'TAL001I',
+  ACCESS_LIST_CREATE_FAILURE: 'TAL001E',
+  ACCESS_LIST_UPDATE: 'TAL002I',
+  ACCESS_LIST_UPDATE_FAILURE: 'TAL002E',
+  ACCESS_LIST_DELETE: 'TAL003I',
+  ACCESS_LIST_DELETE_FAILURE: 'TAL003E',
+  ACCESS_LIST_REVIEW: 'TAL004I',
+  ACCESS_LIST_REVIEW_FAILURE: 'TAL004E',
+  ACCESS_LIST_MEMBER_CREATE: 'TAL005I',
+  ACCESS_LIST_MEMBER_CREATE_FAILURE: 'TAL005E',
+  ACCESS_LIST_MEMBER_UPDATE: 'TAL006I',
+  ACCESS_LIST_MEMBER_UPDATE_FAILURE: 'TAL006E',
+  ACCESS_LIST_MEMBER_DELETE: 'TAL007I',
+  ACCESS_LIST_MEMBER_DELETE_FAILURE: 'TAL007E',
+  ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST: 'TAL008I',
+  ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE: 'TAL008E',
 } as const;
 
 /**
@@ -1303,6 +1319,124 @@ export type RawEvents = {
     {
       name: string;
       source: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_CREATE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_CREATE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_CREATE_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_CREATE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_UPDATE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_UPDATE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_UPDATE_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_UPDATE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_DELETE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_DELETE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_DELETE_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_DELETE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_REVIEW]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_REVIEW,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_REVIEW_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_REVIEW_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_CREATE,
+    {
+      access_list_name: string;
+      member_name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE,
+    {
+      access_list_name: string;
+      member_name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_UPDATE,
+    {
+      access_list_name: string;
+      member_name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE,
+    {
+      access_list_name: string;
+      member_name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE,
+    {
+      access_list_name: string;
+      member_name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE,
+    {
+      access_list_name: string;
+      member_name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST,
+    {
+      access_list_name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE,
+    {
+      access_list_name: string;
+      updated_by: string;
     }
   >;
 };

@@ -692,11 +692,15 @@ func (j *jdbcOracleThinConnection) ConnString() string {
 }
 
 func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
+	tnsAdminPath := c.profile.OracleWalletDir(c.profile.Cluster, c.db.ServiceName)
+	if runtime.GOOS == constants.WindowsOS {
+		tnsAdminPath = strings.ReplaceAll(tnsAdminPath, `\`, `\\`)
+	}
 	cs := jdbcOracleThinConnection{
 		host:     c.host,
 		port:     c.port,
 		db:       c.db.Database,
-		tnsAdmin: c.profile.OracleWalletDir(c.profile.Cluster, c.db.ServiceName),
+		tnsAdmin: tnsAdminPath,
 	}
 	// Quote the address for printing as the address contains "?".
 	connString := cs.ConnString()

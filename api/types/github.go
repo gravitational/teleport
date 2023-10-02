@@ -28,8 +28,8 @@ import (
 )
 
 const (
-	githubURL    = "https://github.com"
-	githubAPIURL = "https://api.github.com"
+	GithubURL    = "https://github.com"
+	GithubAPIURL = "https://api.github.com"
 )
 
 // GithubConnector defines an interface for a Github OAuth2 connector
@@ -269,12 +269,12 @@ func (c *GithubConnectorV3) SetDisplay(display string) {
 
 // GetEndpointURL returns the endpoint URL
 func (c *GithubConnectorV3) GetEndpointURL() string {
-	return githubURL
+	return GithubURL
 }
 
 // GetEndpointURL returns the API endpoint URL
 func (c *GithubConnectorV3) GetAPIEndpointURL() string {
-	return githubAPIURL
+	return GithubAPIURL
 }
 
 // MapClaims returns a list of logins based on the provided claims,

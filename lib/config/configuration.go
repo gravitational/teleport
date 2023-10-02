@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -202,6 +203,14 @@ type CommandLineFlags struct {
 	// IntegrationConfEICEIAMArguments contains the arguments of
 	// `teleport integration configure eice-iam` command
 	IntegrationConfEICEIAMArguments IntegrationConfEICEIAM
+
+	// IntegrationConfAWSOIDCIdPArguments contains the arguments of
+	// `teleport integration configure awsoidc-idp` command
+	IntegrationConfAWSOIDCIdPArguments IntegrationConfAWSOIDCIdP
+
+	// IntegrationConfListDatabasesIAMArguments contains the arguments of
+	// `teleport integration configure listdatabases-iam` command
+	IntegrationConfListDatabasesIAMArguments IntegrationConfListDatabasesIAM
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -222,6 +231,31 @@ type IntegrationConfDeployServiceIAM struct {
 // IntegrationConfEICEIAM contains the arguments of
 // `teleport integration configure eice-iam` command
 type IntegrationConfEICEIAM struct {
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// Role is the AWS Role associated with the Integration
+	Role string
+}
+
+// IntegrationConfAWSOIDCIdP contains the arguments of
+// `teleport integration configure awsoidc-idp` command
+type IntegrationConfAWSOIDCIdP struct {
+	// Cluster is the teleport cluster name.
+	Cluster string
+	// Name is the integration name.
+	Name string
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// Role is the AWS Role to associate with the Integration
+	Role string
+	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
+	// Eg, https://<tenant>.teleport.sh
+	ProxyPublicURL string
+}
+
+// IntegrationConfListDatabasesIAM contains the arguments of
+// `teleport integration configure listdatabases-iam` command
+type IntegrationConfListDatabasesIAM struct {
 	// Region is the AWS Region used to set up the client.
 	Region string
 	// Role is the AWS Role associated with the Integration
@@ -1304,6 +1338,17 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 
+		for _, region := range matcher.Regions {
+			if !awsutils.IsKnownRegion(region) {
+				log.Warnf("AWS matcher uses unknown region %q. "+
+					"There could be a typo in %q. "+
+					"Ignore this message if this is a new AWS region that is unknown to the AWS SDK used to compile this binary. "+
+					"Known regions are: %v.",
+					region, region, awsutils.GetKnownRegions(),
+				)
+			}
+		}
+
 		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers,
 			types.AWSMatcher{
 				Types:   matcher.Types,
@@ -1342,6 +1387,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		m := types.GCPMatcher{
 			Types:           matcher.Types,
 			Locations:       matcher.Locations,
+			Labels:          matcher.Labels,
 			Tags:            matcher.Tags,
 			ProjectIDs:      matcher.ProjectIDs,
 			ServiceAccounts: matcher.ServiceAccounts,
@@ -2500,6 +2546,7 @@ func applyOktaConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Okta.Enabled = fc.Okta.Enabled()
 	cfg.Okta.APIEndpoint = fc.Okta.APIEndpoint
 	cfg.Okta.APITokenPath = fc.Okta.APITokenPath
+	cfg.Okta.SyncPeriod = fc.Okta.SyncPeriod
 	return nil
 }
 

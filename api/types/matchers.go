@@ -59,3 +59,12 @@ func (m GCPMatcher) CopyWithTypes(t []string) Matcher {
 	newMatcher.Types = t
 	return newMatcher
 }
+
+// GetLabels gets the matcher's labels.
+func (m GCPMatcher) GetLabels() Labels {
+	if len(m.Labels) != 0 {
+		return m.Labels
+	}
+	// Check Tags as well for backwards compatibility.
+	return m.Tags
+}

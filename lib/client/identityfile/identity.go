@@ -39,12 +39,12 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
 // Format describes possible file formats how a user identity can be stored.
@@ -58,7 +58,7 @@ const (
 	// two different files (in the same directory)
 	FormatOpenSSH Format = "openssh"
 
-	// FormatTLS is a standard TLS format used by common TLS clients (e.g. GRPC) where
+	// FormatTLS is a standard TLS format used by common TLS clients (e.g. gRPC) where
 	// certificate and key are stored in separate files.
 	FormatTLS Format = "tls"
 

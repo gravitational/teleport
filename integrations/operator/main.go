@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -68,11 +68,14 @@ func main() {
 	var err error
 	var metricsAddr string
 	var probeAddr string
+	var pprofAddr string
 	var leaderElectionID string
 	var syncPeriodString string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	// pprof is disabled by default
+	flag.StringVar(&pprofAddr, "pprof-bind-address", "", "The address the pprof endpoint binds to, leave empty to disable.")
 	flag.StringVar(&leaderElectionID, "leader-election-id", "431e83f4.teleport.dev", "Leader Election Id to use")
 	flag.StringVar(&syncPeriodString, "sync-period", "10h", "Operator sync period (format: https://pkg.go.dev/time#ParseDuration)")
 
@@ -105,6 +108,7 @@ func main() {
 		LeaderElectionID:       leaderElectionID,
 		Namespace:              namespace,
 		SyncPeriod:             &syncPeriod,
+		PprofBindAddress:       pprofAddr,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")

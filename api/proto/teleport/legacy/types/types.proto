@@ -501,6 +501,8 @@ message RDS {
   bool IAMAuth = 4 [(gogoproto.jsontag) = "iam_auth"];
   // Subnets is a list of subnets for the RDS instance.
   repeated string Subnets = 5 [(gogoproto.jsontag) = "subnets,omitempty"];
+  // VPCID is the VPC where the RDS is running.
+  string VPCID = 6 [(gogoproto.jsontag) = "vpc_id,omitempty"];
 }
 
 // RDSProxy contains AWS RDS Proxy specific database metadata.
@@ -1392,6 +1394,12 @@ message ProvisionTokenSpecV2CircleCI {
 // ProvisionTokenSpecV2Kubernetes contains the Kubernetes-specific part of the
 // ProvisionTokenSpecV2
 message ProvisionTokenSpecV2Kubernetes {
+  message StaticJWKSConfig {
+    // JWKS should be the JSON Web Key Set formatted public keys of that the
+    // Kubernetes Cluster uses to sign service account tokens.
+    // This can be fetched from /openid/v1/jwks on the Kubernetes API Server.
+    string JWKS = 1 [(gogoproto.jsontag) = "jwks,omitempty"];
+  }
   // Rule is a set of properties the Kubernetes-issued token might have to be
   // allowed to use this ProvisionToken
   message Rule {
@@ -1402,6 +1410,17 @@ message ProvisionTokenSpecV2Kubernetes {
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // Type controls which behavior should be used for validating the Kubernetes
+  // Service Account token. Support values:
+  // - `in_cluster`
+  // - `static_jwks`
+  // If unset, this defaults to `in_cluster`.
+  string Type = 2 [
+    (gogoproto.jsontag) = "type,omitempty",
+    (gogoproto.casttype) = "KubernetesJoinType"
+  ];
+  // StaticJWKS is the configuration specific to the `static_jwks` type.
+  StaticJWKSConfig StaticJWKS = 3 [(gogoproto.jsontag) = "static_jwks,omitempty"];
 }
 
 // ProvisionTokenSpecV2Azure contains the Azure-specific part of the
@@ -1845,6 +1864,10 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "default_session_ttl,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+
+  // Okta is a set of options related to the Okta service in Teleport.
+  // Requires Teleport Enterprise.
+  OktaOptions Okta = 17 [(gogoproto.jsontag) = "okta,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -4945,6 +4968,9 @@ message SessionTrackerSpecV1 {
 
   // DesktopName is the windows desktop server this session belongs to.
   string DesktopName = 20 [(gogoproto.jsontag) = "desktop_name,omitempty"];
+
+  // TargetSubKind is the sub kind of the target server.
+  string TargetSubKind = 22 [(gogoproto.jsontag) = "target_sub_kind,omitempty"];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker
@@ -6189,7 +6215,7 @@ message GCPMatcher {
   repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
   // Locations are GKE locations to search resources for.
   repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
-  // Tags are GCP labels to match.
+  // Tags is obsolete and only exists for backwards compatibility. Use Labels instead.
   wrappers.LabelValues Tags = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "tags,omitempty",
@@ -6202,4 +6228,19 @@ message GCPMatcher {
   // Params sets the join method when installing on
   // discovered GCP nodes.
   InstallerParams Params = 6 [(gogoproto.jsontag) = "install_params,omitempty"];
+  // Labels are GCP labels to match.
+  wrappers.LabelValues Labels = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+}
+
+// OktaOptions specify options related to the Okta service.
+message OktaOptions {
+  // SyncPeriod is the duration between synchronization calls in nanoseconds.
+  int64 SyncPeriod = 1 [
+    (gogoproto.jsontag) = "sync_period,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }

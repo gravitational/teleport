@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -437,6 +438,110 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, user.GetStatus().IsLocked)
 			require.False(t, user.GetStatus().LockExpires.IsZero())
+		})
+	}
+}
+
+// TestCreatePrivilegeToken_unusableDevice tests that it is possible to
+// register new devices even if the user has an "unusable" device (due to
+// cluster setting changes).
+func TestCreatePrivilegeToken_unusableDevice(t *testing.T) {
+	t.Parallel()
+
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	clock := authServer.GetClock()
+	ctx := context.Background()
+
+	initialPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional, // most permissive setting
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+	})
+	require.NoError(t, err, "NewAuthPreference")
+
+	setAuthPref := func(t *testing.T, authPref types.AuthPreference) {
+		require.NoError(t,
+			authServer.SetAuthPreference(ctx, authPref),
+			"SetAuthPreference")
+	}
+	setAuthPref(t, initialPref)
+
+	tests := []struct {
+		name                  string
+		existingType, newType proto.DeviceType
+		newAuthSpec           types.AuthPreferenceSpecV2
+	}{
+		{
+			name:         "unusable totp, new webauthn",
+			existingType: proto.DeviceType_DEVICE_TYPE_TOTP,
+			newType:      proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			newAuthSpec: types.AuthPreferenceSpecV2{
+				Type:         initialPref.GetType(),
+				SecondFactor: constants.SecondFactorWebauthn, // makes TOTP unusable
+				Webauthn: func() *types.Webauthn {
+					w, _ := initialPref.GetWebauthn()
+					return w
+				}(),
+			},
+		},
+		{
+			name:         "unusable webauthn, new totp",
+			existingType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			newType:      proto.DeviceType_DEVICE_TYPE_TOTP,
+			newAuthSpec: types.AuthPreferenceSpecV2{
+				Type:         initialPref.GetType(),
+				SecondFactor: constants.SecondFactorOTP, // makes Webauthn unusable
+			},
+		},
+	}
+
+	devOpts := []TestDeviceOpt{WithTestDeviceClock(clock)}
+	for i, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setAuthPref(t, initialPref) // restore permissive settings.
+
+			// Create user.
+			username := fmt.Sprintf("llama-%d", i)
+			user, _, err := CreateUserAndRole(authServer, username, []string{username} /* logins */, nil /* allowRules */)
+			require.NoError(t, err, "CreateUserAndRole")
+			userClient, err := testServer.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err, "NewClient")
+
+			// Register initial MFA device.
+			_, err = RegisterTestDevice(
+				ctx,
+				userClient,
+				"existing", test.existingType, nil /* authenticator */, devOpts...)
+			require.NoError(t, err, "RegisterTestDevice")
+
+			// Sanity check: privilege tokens for test.existingType require a solved
+			// authn challenge.
+			_, err = userClient.CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{
+				ExistingMFAResponse: &proto.MFAAuthenticateResponse{},
+			})
+			assert.ErrorContains(t, err, "second factor")
+
+			// Restore initial settings after test.
+			defer func() {
+				setAuthPref(t, initialPref)
+			}()
+
+			// Change cluster settings.
+			// This should make the device registered above unusable.
+			newAuthPref, err := types.NewAuthPreference(test.newAuthSpec)
+			require.NoError(t, err, "NewAuthPreference")
+			setAuthPref(t, newAuthPref)
+
+			// Create a privilege token for the "new" device without an
+			// ExistingMFAResponse.
+			// Not allowed if the device above was usable.
+			_, err = userClient.CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{
+				ExistingMFAResponse: &proto.MFAAuthenticateResponse{},
+			})
+			assert.NoError(t, err, "CreatePrivilegeToken")
 		})
 	}
 }

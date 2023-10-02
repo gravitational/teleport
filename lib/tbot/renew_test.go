@@ -18,15 +18,20 @@ package tbot
 
 import (
 	"context"
+	"fmt"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	libconfig "github.com/gravitational/teleport/lib/config"
+	kubeserver "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -76,13 +81,17 @@ func TestDatabaseRequest(t *testing.T) {
 	log := libutils.NewLoggerForTests()
 	// Make a new auth server.
 	fc, fds := testhelpers.DefaultConfig(t)
+	dbSvcName := "foo-rds-us-west-1-123456789012"
+	// fake a renamed discovered database
+	dbSvcDiscoveredName := "foo"
 	fc.Databases.Databases = []*libconfig.Database{
 		{
-			Name:     "foo",
+			Name:     dbSvcName,
 			Protocol: "mysql",
 			URI:      "foo.example.com:1234",
 			StaticLabels: map[string]string{
-				"env": "dev",
+				"env":                     "dev",
+				types.DiscoveredNameLabel: dbSvcDiscoveredName,
 			},
 		},
 	}
@@ -92,7 +101,7 @@ func TestDatabaseRequest(t *testing.T) {
 	// Wait for the database to become available. Sometimes this takes a bit
 	// of time in CI.
 	for i := 0; i < 10; i++ {
-		_, err := getDatabase(context.Background(), rootClient, "foo")
+		_, err := getDatabase(context.Background(), rootClient, dbSvcName)
 		if err == nil {
 			break
 		} else if !trace.IsNotFound(err) {
@@ -129,39 +138,56 @@ func TestDatabaseRequest(t *testing.T) {
 
 	require.NoError(t, rootClient.UpsertRole(context.Background(), role))
 
-	// Make and join a new bot instance.
-	botParams := testhelpers.MakeBot(t, rootClient, "test", roleName)
-	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
-
-	dest := botConfig.Destinations[0]
-	dest.Database = &config.Database{
-		Service:  "foo",
-		Database: "bar",
-		Username: "baz",
+	tests := []struct {
+		desc  string
+		dbSvc string
+	}{
+		{
+			desc:  "by full name",
+			dbSvc: dbSvcName,
+		},
+		{
+			desc:  "by discovered name",
+			dbSvc: dbSvcDiscoveredName,
+		},
 	}
+	for i, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			// Make and join a new bot instance.
+			botName := fmt.Sprintf("test-%v", i)
+			botParams := testhelpers.MakeBot(t, rootClient, botName, roleName)
+			botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
 
-	// Onboard the bot.
-	b := New(botConfig, log, nil)
-	ident, err := b.getIdentityFromToken()
-	require.NoError(t, err)
+			dest := botConfig.Destinations[0]
+			dest.Database = &config.Database{
+				Service:  test.dbSvc,
+				Database: "bar",
+				Username: "baz",
+			}
 
-	b._client = testhelpers.MakeBotAuthClient(t, fc, ident)
-	b._ident = ident
+			// Onboard the bot.
+			b := New(botConfig, log, nil)
+			ident, err := b.getIdentityFromToken()
+			require.NoError(t, err)
 
-	impersonatedIdent, _, err := b.generateImpersonatedIdentity(
-		context.Background(), dest, []string{roleName},
-	)
-	require.NoError(t, err)
+			b._client = testhelpers.MakeBotAuthClient(t, fc, ident)
+			b._ident = ident
+			impersonatedIdent, _, err := b.generateImpersonatedIdentity(
+				context.Background(), dest, []string{roleName},
+			)
+			require.NoError(t, err)
 
-	tlsIdent, err := tlsca.FromSubject(impersonatedIdent.X509Cert.Subject, impersonatedIdent.X509Cert.NotAfter)
-	require.NoError(t, err)
+			tlsIdent, err := tlsca.FromSubject(impersonatedIdent.X509Cert.Subject, impersonatedIdent.X509Cert.NotAfter)
+			require.NoError(t, err)
 
-	route := tlsIdent.RouteToDatabase
+			route := tlsIdent.RouteToDatabase
 
-	require.Equal(t, "foo", route.ServiceName)
-	require.Equal(t, "bar", route.Database)
-	require.Equal(t, "baz", route.Username)
-	require.Equal(t, "mysql", route.Protocol)
+			require.Equal(t, dbSvcName, route.ServiceName)
+			require.Equal(t, "bar", route.Database)
+			require.Equal(t, "baz", route.Username)
+			require.Equal(t, "mysql", route.Protocol)
+		})
+	}
 }
 
 func TestAppRequest(t *testing.T) {
@@ -237,4 +263,140 @@ func TestAppRequest(t *testing.T) {
 	require.Equal(t, appName, route.Name)
 	require.Equal(t, "foo.example.com", route.PublicAddr)
 	require.NotEmpty(t, route.SessionID)
+}
+
+func TestKubeClusterRequest(t *testing.T) {
+	t.Parallel()
+
+	kubeClusterName := "foo-eks-us-west-1-123456789012"
+	// fake a renamed discovered database
+	kubeClusterDiscoveredName := "foo"
+	log := libutils.NewLoggerForTests()
+	// Make a new auth server.
+	fc, fds := testhelpers.DefaultConfig(t)
+	fc.Databases.EnabledFlag = "false"
+	fc.Kube.EnabledFlag = "true"
+	fc.Kube.ListenAddress = "localhost:0"
+	fc.Kube.KubeconfigFile = newKubeConfigFile(t, kubeClusterName)
+	fc.Kube.StaticLabels = map[string]string{
+		"env":                     "test",
+		types.DiscoveredNameLabel: kubeClusterDiscoveredName,
+	}
+	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+
+	// Wait for the database to become available. Sometimes this takes a bit
+	// of time in CI.
+	for i := 0; i < 10; i++ {
+		_, err := getKubeCluster(context.Background(), rootClient, kubeClusterName)
+		if err == nil {
+			break
+		} else if !trace.IsNotFound(err) {
+			require.NoError(t, err)
+		}
+
+		if i >= 9 {
+			t.Fatalf("kube cluster never became available")
+		}
+
+		t.Logf("Kube cluster not yet available, waiting...")
+		time.Sleep(time.Second * 1)
+	}
+
+	// Note: we don't actually need a role granting us database access to
+	// request it. Actual access is validated via RBAC at connection time.
+	// We do need an actual database and permission to list them, however.
+
+	// Create a role to grant access to the database.
+	const roleName = "kube-role"
+	role, err := types.NewRole(roleName, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			KubernetesLabels: types.Labels{
+				"*": utils.Strings{"*"},
+			},
+			KubeUsers:  []string{"alice"},
+			KubeGroups: []string{"example"},
+			KubernetesResources: []types.KubernetesResource{{
+				Kind:      "pod",
+				Name:      "*",
+				Namespace: "*",
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, rootClient.UpsertRole(context.Background(), role))
+
+	tests := []struct {
+		desc        string
+		clusterName string
+	}{
+		{
+			desc:        "by full name",
+			clusterName: kubeClusterName,
+		},
+		{
+			desc:        "by discovered name",
+			clusterName: kubeClusterDiscoveredName,
+		},
+	}
+	for i, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			// Make and join a new bot instance.
+			botName := fmt.Sprintf("test-%v", i)
+			botParams := testhelpers.MakeBot(t, rootClient, botName, roleName)
+			botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
+
+			dest := botConfig.Destinations[0]
+			dest.KubernetesCluster = &config.KubernetesCluster{
+				ClusterName: test.clusterName,
+			}
+			// Onboard the bot.
+			b := New(botConfig, log, nil)
+			ident, err := b.getIdentityFromToken()
+			require.NoError(t, err)
+
+			b._client = testhelpers.MakeBotAuthClient(t, fc, ident)
+			b._ident = ident
+			impersonatedIdent, _, err := b.generateImpersonatedIdentity(
+				context.Background(), dest, []string{roleName},
+			)
+			require.NoError(t, err)
+
+			tlsIdent, err := tlsca.FromSubject(impersonatedIdent.X509Cert.Subject, impersonatedIdent.X509Cert.NotAfter)
+			require.NoError(t, err)
+
+			require.Equal(t, kubeClusterName, tlsIdent.KubernetesCluster)
+		})
+	}
+}
+
+func newKubeConfigFile(t *testing.T, clusterNames ...string) string {
+	tmpDir := t.TempDir()
+
+	kubeConf := clientcmdapi.NewConfig()
+	for _, name := range clusterNames {
+		kubeConf.Clusters[name] = &clientcmdapi.Cluster{
+			Server:                newKubeSelfSubjectServer(t),
+			InsecureSkipTLSVerify: true,
+		}
+		kubeConf.AuthInfos[name] = &clientcmdapi.AuthInfo{}
+
+		kubeConf.Contexts[name] = &clientcmdapi.Context{
+			Cluster:  name,
+			AuthInfo: name,
+		}
+	}
+	kubeConfigLocation := filepath.Join(tmpDir, "kubeconfig")
+	err := clientcmd.WriteToFile(*kubeConf, kubeConfigLocation)
+	require.NoError(t, err)
+	return kubeConfigLocation
+}
+
+func newKubeSelfSubjectServer(t *testing.T) string {
+	srv, err := kubeserver.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { srv.Close() })
+
+	return srv.URL
 }

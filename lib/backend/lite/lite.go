@@ -22,6 +22,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -206,6 +207,9 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	// Ensure that the path to the root directory exists.
 	err := os.MkdirAll(cfg.Path, os.ModeDir|defaultDirMode)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			return nil, trace.AccessDenied("Teleport does not have permission to write to %v", path)
+		}
 		return nil, trace.ConvertSystemError(err)
 	}
 

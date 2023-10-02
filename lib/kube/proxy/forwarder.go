@@ -30,6 +30,7 @@ import (
 	mathrand "math/rand"
 	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -55,6 +56,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apiserver/pkg/util/wsstream"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -2164,6 +2166,7 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 		tlsConfig:       sess.tlsConfig,
 		pingPeriod:      f.cfg.ConnPingPeriod,
 		originalHeaders: req.Header,
+		proxier:         sess.getProxier(),
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.kubeAPICreds != nil {
@@ -2186,6 +2189,7 @@ func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.R
 		tlsConfig:       sess.tlsConfig,
 		pingPeriod:      f.cfg.ConnPingPeriod,
 		originalHeaders: req.Header,
+		proxier:         sess.getProxier(),
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.kubeAPICreds != nil {
@@ -2317,6 +2321,20 @@ func (s *clusterSession) dial(ctx context.Context, network string) (net.Conn, er
 		return conn, nil
 	}
 	return nil, trace.NewAggregate(errs...)
+}
+
+// getProxier returns the proxier function to use for this session.
+// If the target cluster is not served by this teleport service, the proxier
+// must be nil to avoid using it through the reverse tunnel.
+// If the target cluster is served by this teleport service, the proxier
+// must be set to the default proxy function.
+func (s *clusterSession) getProxier() func(req *http.Request) (*url.URL, error) {
+	// When the target cluster is not served by this teleport service, the
+	// proxier must be nil to avoid using it through the reverse tunnel.
+	if s.kubeAPICreds == nil {
+		return nil
+	}
+	return utilnet.NewProxierWithNoProxyCIDR(http.ProxyFromEnvironment)
 }
 
 // TODO(awly): unit test this

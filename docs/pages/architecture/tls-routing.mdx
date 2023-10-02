@@ -28,8 +28,7 @@ TLS extensions.
 
 ## How it works
 
-Starting from version `8.0` Teleport proxy listens for all client connections
-on its `web_listen_addr` by default:
+The Teleport Proxy Service listens for all client connections on its `web_listen_addr` by default:
 
 ```yaml
 proxy_service:
@@ -249,7 +248,7 @@ and long-lived connections.
 You can set up a Teleport Proxy Service behind the reverse proxy and run the
 following command to test the connection:
 ```bash
-$ curl -v https://<proxy.example.com>/webapi/connectionupgrade -H "Connection: Upgrade" -H "Upgrade: alpn-ping"
+$ curl -v https://<proxy.example.com>/webapi/connectionupgrade -H "Connection: Upgrade" -H "Upgrade: alpn-ping" --no-alpn
 ```
 
 For a successful upgrade, the server should return "101 Switching Protocols"

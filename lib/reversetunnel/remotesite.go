@@ -382,6 +382,15 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 		"addr":     conn.conn.RemoteAddr().String(),
 	})
 
+	sshutils.DiscardChannelData(ch)
+	if ch != nil {
+		defer func() {
+			if err := ch.Close(); err != nil {
+				logger.Warnf("Failed to close heartbeat channel: %v", err)
+			}
+		}()
+	}
+
 	firstHeartbeat := true
 	proxyResyncTicker := s.clock.NewTicker(s.proxySyncInterval)
 	defer func() {
@@ -780,6 +789,7 @@ func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
 		ClientSrcAddr:   stringOrEmpty(params.From),
 		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
 		TeleportVersion: params.TeleportVersion,
+		IsAgentlessNode: params.IsAgentlessNode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -789,8 +799,8 @@ func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
 }
 
 func (s *remoteSite) dialAndForward(params DialParams) (_ net.Conn, retErr error) {
-	if params.GetUserAgent == nil && params.AgentlessSigner == nil {
-		return nil, trace.BadParameter("user agent getter and agentless signer both missing")
+	if params.GetUserAgent == nil && !params.IsAgentlessNode {
+		return nil, trace.BadParameter("user agent getter is required for teleport nodes")
 	}
 	s.logger.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
 
@@ -822,6 +832,7 @@ func (s *remoteSite) dialAndForward(params DialParams) (_ net.Conn, retErr error
 		ClientSrcAddr:   stringOrEmpty(params.From),
 		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
 		TeleportVersion: params.TeleportVersion,
+		IsAgentlessNode: params.IsAgentlessNode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -836,6 +847,7 @@ func (s *remoteSite) dialAndForward(params DialParams) (_ net.Conn, retErr error
 	serverConfig := forward.ServerConfig{
 		AuthClient:      s.localClient,
 		UserAgent:       userAgent,
+		IsAgentlessNode: params.IsAgentlessNode,
 		AgentlessSigner: params.AgentlessSigner,
 		TargetConn:      targetConn,
 		SrcAddr:         params.From,

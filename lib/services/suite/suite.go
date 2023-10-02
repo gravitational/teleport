@@ -155,7 +155,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 // ServicesTestSuite is an acceptance test suite
 // for services. It is used for local implementations and implementations
-// using GRPC to guarantee consistency between local and remote services
+// using gRPC to guarantee consistency between local and remote services
 type ServicesTestSuite struct {
 	Access        services.Access
 	CAS           services.Trust
@@ -1883,10 +1883,6 @@ waitLoop:
 			if event.Type != types.OpPut {
 				log.Debugf("Skipping event %+v", event)
 				continue
-			}
-			if resource.GetResourceID() > event.Resource.GetResourceID() {
-				log.Debugf("Skipping stale event %v %v %v %v, latest object version is %v", event.Type, event.Resource.GetKind(), event.Resource.GetName(), event.Resource.GetResourceID(), resource.GetResourceID())
-				continue waitLoop
 			}
 			if resource.GetName() != event.Resource.GetName() || resource.GetKind() != event.Resource.GetKind() || resource.GetSubKind() != event.Resource.GetSubKind() {
 				log.Debugf("Skipping event %v resource %v, expecting %v", event.Type, event.Resource.GetMetadata(), event.Resource.GetMetadata())

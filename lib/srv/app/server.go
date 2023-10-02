@@ -269,7 +269,9 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		}
 	}()
 
-	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{})
+	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
+		Clock: c.Clock,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

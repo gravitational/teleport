@@ -56,7 +56,7 @@ Create the Database Service configuration.
   URI (e.g. `mytenant.teleport.sh:443`):
 
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
     -o file \
     --proxy=teleport.example.com:443 \
     --token=/tmp/token \
@@ -72,7 +72,7 @@ Create the Database Service configuration.
   URI (e.g. `mytenant.teleport.sh:443`):
 
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
     -o file \
     --proxy=teleport.example.com:443 \
     --token=/tmp/token \
@@ -86,7 +86,7 @@ Create the Database Service configuration.
 Run the following command on your Database Service host:
 
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
     -o file \
     --proxy=teleport.example.com:443 \
     --token=/tmp/token \

@@ -97,16 +97,49 @@ func TestOverwriteFile(t *testing.T) {
 	fName := filepath.Join(t.TempDir(), "teleport-overwrite-file-test")
 
 	require.NoError(t, os.WriteFile(fName, have, 0600))
-	require.NoError(t, overwriteFile(fName))
+	f, err := os.OpenFile(fName, os.O_WRONLY, 0)
+	require.NoError(t, err)
+	defer f.Close()
+	fi, err := os.Stat(fName)
+	require.NoError(t, err)
+	require.NoError(t, overwriteFile(f, fi))
 
 	contents, err := os.ReadFile(fName)
 	require.NoError(t, err)
 	require.NotContains(t, contents, have, "File contents were not overwritten")
 }
 
-func TestRemoveSecure(t *testing.T) {
-	f, err := os.Create(filepath.Join(t.TempDir(), "teleport-remove-secure-test"))
+func TestRemoveAllSecure(t *testing.T) {
+	tempDir := t.TempDir()
+	tempFile := filepath.Join(tempDir, "teleport-remove-all-secure-test")
+	f, err := os.Create(tempFile)
+	symlink := filepath.Join(tempDir, "teleport-remove-secure-symlink")
+	require.NoError(t, os.Symlink(tempFile, symlink))
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
+
+	require.NoError(t, RemoveAllSecure(""))
+	require.NoError(t, RemoveAllSecure(tempDir))
+	_, err = os.Stat(tempDir)
+	require.True(t, os.IsNotExist(err), "Directory should be removed: %v", err)
+}
+
+func TestRemoveSecure(t *testing.T) {
+	tempFile := filepath.Join(t.TempDir(), "teleport-remove-secure-test")
+	f, err := os.Create(tempFile)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
 	require.NoError(t, RemoveSecure(f.Name()))
+	_, err = os.Stat(tempFile)
+	require.True(t, os.IsNotExist(err), "File should be removed: %v", err)
+}
+
+func TestRemoveSecure_symlink(t *testing.T) {
+	symlink := filepath.Join(t.TempDir(), "teleport-remove-secure-symlink")
+	require.NoError(t, os.Symlink("/tmp", symlink))
+
+	require.NoError(t, RemoveSecure(symlink))
+	_, err := os.Stat(symlink)
+	require.True(t, os.IsNotExist(err), "Symlink should be removed: %v", err)
 }

@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Node } from './types';
+import { Node, AwsMetadata } from './types';
 
 export default function makeNode(json: any): Node {
   json = json ?? {};
-  const { id, siteId, hostname, addr, tunnel, tags, sshLogins } = json;
+  const { id, siteId, hostname, addr, tunnel, tags, sshLogins, aws } = json;
 
   return {
     id,
@@ -28,5 +28,20 @@ export default function makeNode(json: any): Node {
     addr,
     tunnel,
     sshLogins: sshLogins ?? [],
+    awsMetadata: aws ? makeAwsMetadata(aws) : undefined,
+  };
+}
+
+function makeAwsMetadata(json: any): AwsMetadata {
+  json = json ?? {};
+  const { accountId, instanceId, region, vpcId, integration, subnetId } = json;
+
+  return {
+    accountId,
+    instanceId,
+    region,
+    vpcId,
+    integration,
+    subnetId,
   };
 }

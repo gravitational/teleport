@@ -42,7 +42,7 @@ const Container = styled.div<SelectedProps>`
   opacity: ${p => (p.visible ? 1 : 0)};
   transition: opacity 0.15s linear;
   bottom: 0;
-  top: 25px;
+  top: 0;
   overflow-y: auto;
 `;
 

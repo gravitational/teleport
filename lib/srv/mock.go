@@ -262,9 +262,9 @@ func (m *mockServer) Context() context.Context {
 	return context.Background()
 }
 
-// GetUtmpPath returns the path of the user accounting database and log. Returns empty for system defaults.
-func (m *mockServer) GetUtmpPath() (utmp, wtmp string) {
-	return "test", "test"
+// GetUserAccountingPaths returns the path of the user accounting database and log. Returns empty for system defaults.
+func (m *mockServer) GetUserAccountingPaths() (utmp, wtmp, btmp string) {
+	return "test", "test", "test"
 }
 
 // GetLockWatcher gets the server's lock watcher.
@@ -281,6 +281,11 @@ func (m *mockServer) GetCreateHostUser() bool {
 // GetHostUsers
 func (m *mockServer) GetHostUsers() HostUsers {
 	return nil
+}
+
+// GetHostSudoers
+func (m *mockServer) GetHostSudoers() HostSudoers {
+	return &HostSudoersNotImplemented{}
 }
 
 // Implementation of ssh.Conn interface.

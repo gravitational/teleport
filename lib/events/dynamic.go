@@ -311,6 +311,22 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.OktaAssignmentResult{}
 	case OktaAssignmentCleanupEvent:
 		e = &events.OktaAssignmentResult{}
+	case AccessListCreateEvent:
+		e = &events.AccessListCreate{}
+	case AccessListUpdateEvent:
+		e = &events.AccessListUpdate{}
+	case AccessListDeleteEvent:
+		e = &events.AccessListDelete{}
+	case AccessListReviewEvent:
+		e = &events.AccessListReview{}
+	case AccessListMemberCreateEvent:
+		e = &events.AccessListMemberCreate{}
+	case AccessListMemberUpdateEvent:
+		e = &events.AccessListMemberUpdate{}
+	case AccessListMemberDeleteEvent:
+		e = &events.AccessListMemberDelete{}
+	case AccessListMemberDeleteAllForAccessListEvent:
+		e = &events.AccessListMemberDeleteAllForAccessList{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 

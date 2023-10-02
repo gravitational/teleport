@@ -45,7 +45,7 @@ const (
 	minServerVersion = "6.1.0"
 	// pluginName is used to tag PluginData and as a Delegator in Audit log.
 	pluginName = "pagerduty"
-	// grpcBackoffMaxDelay is a maximum time GRPC client waits before reconnection attempt.
+	// grpcBackoffMaxDelay is a maximum time gRPC client waits before reconnection attempt.
 	grpcBackoffMaxDelay = time.Second * 2
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
@@ -525,7 +525,7 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 		Review: types.AccessReview{
 			Author:        a.conf.TeleportUser,
 			ProposedState: types.RequestState_APPROVED,
-			Reason: fmt.Sprintf("Access requested by user %s (%s) which is on call in service(s) %s",
+			Reason: fmt.Sprintf("Access requested by user %s (%s) who is on call in service(s) %s",
 				user.Name,
 				user.Email,
 				strings.Join(serviceNames, ","),

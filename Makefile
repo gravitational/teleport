@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=13.3.6
+VERSION=13.4.1
 
 DOCKER_IMAGE ?= teleport
 
@@ -399,7 +399,10 @@ endif
 # make clean - Removes all build artifacts.
 #
 .PHONY: clean
-clean: clean-ui
+clean: clean-ui clean-build
+
+.PHONY: clean-build
+clean-build:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
 # Check if the variable is set to prevent calling remove on the root directory.
@@ -481,8 +484,14 @@ build-archive: | $(RELEASE_DIR)
 # make release-unix - Produces binary release tarballs for both OSS and
 # Enterprise editions, containing teleport, tctl, tbot and tsh.
 #
-.PHONY:
+.PHONY: release-unix
 release-unix: clean full build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+
+# release-unix-preserving-webassets cleans just the build and not the UI
+# allowing webassets to be built in a prior step before building the release.
+.PHONY: release-unix-preserving-webassets
+release-unix-preserving-webassets: clean-build full build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 include darwin-signing.mk
@@ -1172,25 +1181,25 @@ buf/installed:
 		exit 1; \
 	fi
 
-# grpc generates GRPC stubs from service definitions.
+# grpc generates gRPC stubs from service definitions.
 # This target runs in the buildbox container.
 .PHONY: grpc
 grpc:
 	$(MAKE) -C build.assets grpc
 
-# grpc/host generates GRPC stubs.
+# grpc/host generates gRPC stubs.
 # Unlike grpc, this target runs locally.
 .PHONY: grpc/host
 grpc/host: protos/all
 	@build.assets/genproto.sh
 
-# protos-up-to-date checks if the generated GRPC stubs are up to date.
+# protos-up-to-date checks if the generated gRPC stubs are up to date.
 # This target runs in the buildbox container.
 .PHONY: protos-up-to-date
 protos-up-to-date:
 	$(MAKE) -C build.assets protos-up-to-date
 
-# protos-up-to-date/host checks if the generated GRPC stubs are up to date.
+# protos-up-to-date/host checks if the generated gRPC stubs are up to date.
 # Unlike protos-up-to-date, this target runs locally.
 .PHONY: protos-up-to-date/host
 protos-up-to-date/host: must-start-clean/host grpc/host

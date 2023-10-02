@@ -166,8 +166,8 @@ type Server interface {
 	// Context returns server shutdown context
 	Context() context.Context
 
-	// GetUtmpPath returns the path of the user accounting database and log. Returns empty for system defaults.
-	GetUtmpPath() (utmp, wtmp string)
+	// GetUserAccountingPaths returns the path of the user accounting database and log. Returns empty for system defaults.
+	GetUserAccountingPaths() (utmp, wtmp, btmp string)
 
 	// GetLockWatcher gets the server's lock watcher.
 	GetLockWatcher() *services.LockWatcher
@@ -179,6 +179,10 @@ type Server interface {
 	// GetHostUsers returns the HostUsers instance being used to manage
 	// host user provisioning
 	GetHostUsers() HostUsers
+
+	// GetHostSudoers returns the HostSudoers instance being used to manage
+	// sudoer file provisioning
+	GetHostSudoers() HostSudoers
 
 	// TargetMetadata returns metadata about the session target node.
 	TargetMetadata() apievents.ServerMetadata
@@ -1279,13 +1283,14 @@ func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	utmpPath, wtmpPath := c.srv.GetUtmpPath()
+	utmpPath, wtmpPath, btmpPath := c.srv.GetUserAccountingPaths()
 
 	return &UaccMetadata{
 		Hostname:   hostname,
 		RemoteAddr: preparedAddr,
 		UtmpPath:   utmpPath,
 		WtmpPath:   wtmpPath,
+		BtmpPath:   btmpPath,
 	}, nil
 }
 

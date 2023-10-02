@@ -127,15 +127,7 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	}
 
 	if len(reports) < 1 {
-		if _, err := c.Status.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-			AlertID: alertName,
-		}); err != nil && trace.IsNotFound(err) {
-			// if we can confirm that there's no cluster alert we go ahead and
-			// exit here without attempting the delete (reads are cheaper than
-			// writes)
-			return
-		}
-		err := c.Status.DeleteClusterAlert(ctx, alertName)
+		err := ClearAlert(ctx, c.Status)
 		if err == nil {
 			c.Log.Infof("Deleted cluster alert %v after successfully clearing usage report backlog.", alertName)
 		} else if !trace.IsNotFound(err) {
@@ -203,4 +195,19 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	if lastErr != nil {
 		c.Log.WithField("last_error", lastErr).Warn("Failed to delete some usage reports after successful send.")
 	}
+}
+
+// ClearAlert attempts to delete the reporting-failed alert; it's expected to
+// return nil if it successfully deletes the alert, and a trace.NotFound error
+// if there's no alert.
+func ClearAlert(ctx context.Context, status services.StatusInternal) error {
+	if _, err := status.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+		AlertID: alertName,
+	}); err != nil && trace.IsNotFound(err) {
+		// if we can confirm that there's no cluster alert we go ahead and
+		// return the NotFound immediately without attempting the delete (reads
+		// are cheaper than writes)
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(status.DeleteClusterAlert(ctx, alertName))
 }

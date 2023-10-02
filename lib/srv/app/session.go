@@ -160,6 +160,8 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 			roles = nil
 		case types.JWTClaimsRewriteRoles:
 			traits = nil
+		case types.JWTClaimsRewriteTraits:
+			roles = nil
 		case "", types.JWTClaimsRewriteRolesAndTraits:
 		}
 	}

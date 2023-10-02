@@ -45,7 +45,7 @@ On the node where you will run the Database Service, start Teleport, pointing
 the `--auth-server` flag at the address of your Teleport Proxy Service:
 
 ```code
-$ teleport db start \
+$ sudo teleport db start \
   --token=/tmp/token \
   --auth-server=teleport.example.com:443 \
   --name=mongodb-atlas \
@@ -108,7 +108,7 @@ On the node where you will run the Database Service, start Teleport, pointing th
 `mytenant.teleport.sh`.
 
 ```code
-$ teleport db start \
+$ sudo teleport db start \
   --token=/tmp/token \
   --auth-server=mytenant.teleport.sh:443 \
   --name=mongodb-atlas \

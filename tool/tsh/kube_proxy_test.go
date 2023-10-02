@@ -118,6 +118,9 @@ func sendRequestToKubeLocalProxy(t *testing.T, config *clientcmdapi.Config, tele
 
 	contextName := kubeconfig.ContextName(teleportCluster, kubeCluster)
 
+	require.NotNil(t, config)
+	require.NotNil(t, config.Clusters)
+	require.Contains(t, config.Clusters, contextName)
 	proxyURL, err := url.Parse(config.Clusters[contextName].ProxyURL)
 	require.NoError(t, err)
 

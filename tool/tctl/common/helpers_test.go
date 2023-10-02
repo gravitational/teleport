@@ -152,14 +152,18 @@ func runAuthCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...
 	return runCommand(t, fc, command, args, opts...)
 }
 
-func mustDecodeJSON(t *testing.T, r io.Reader, i interface{}) {
-	err := json.NewDecoder(r).Decode(i)
+func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
+	var out T
+	err := json.NewDecoder(r).Decode(&out)
 	require.NoError(t, err)
+	return out
 }
 
-func mustDecodeYAML(t *testing.T, r io.Reader, i interface{}) {
-	err := yaml.NewDecoder(r).Decode(i)
+func mustDecodeYAML[T any](t *testing.T, r io.Reader) T {
+	var out T
+	err := yaml.NewDecoder(r).Decode(&out)
 	require.NoError(t, err)
+	return out
 }
 func mustGetBase64EncFileConfig(t *testing.T, fc *config.FileConfig) string {
 	configYamlContent, err := yaml.Marshal(fc)
@@ -264,6 +268,9 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 }
 
 func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []servicecfg.Database) {
+	if len(dbs) == 0 {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {

@@ -262,10 +262,17 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 		archImage := archImageMap[archImageKey]
 
 		// Skip pushing images if the tag or container registry is immutable
-		tagAndPushCommands = append(tagAndPushCommands, buildImmutableSafeCommands(archImageKey.IsImmutable || cr.IsImmutable, archImage.GetShellName(), []string{
+		archImageCommands := buildImmutableSafeCommands(archImageKey.IsImmutable || cr.IsImmutable, archImage.GetShellName(), []string{
 			fmt.Sprintf("docker tag %s %s", buildStepDetails.BuiltImage.GetShellName(), archImage.GetShellName()),
 			fmt.Sprintf("docker push %s", archImage.GetShellName()),
-		})...)
+		})
+
+		// Only create and push images for major and minor versions if the release version is not a prerelease
+		if !archImageKey.IsForFullSemver {
+			archImageCommands = buildPrereleaseExclusionaryCommands(buildStepDetails.Version, archImageCommands)
+		}
+
+		tagAndPushCommands = append(tagAndPushCommands, archImageCommands...)
 	}
 	tagAndPushCommands = cr.buildCommandsWithLogin(tagAndPushCommands)
 

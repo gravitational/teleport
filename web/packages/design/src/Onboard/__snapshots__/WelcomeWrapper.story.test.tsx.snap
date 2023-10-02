@@ -1,13 +1,13 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`wrapper 1`] = `
-.c4 {
+.c5 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
 }
 
-.c7 {
+.c8 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -23,7 +23,13 @@ exports[`wrapper 1`] = `
   flex-direction: column;
 }
 
-.c6 {
+.c2 {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.c7 {
   box-sizing: border-box;
   display: flex;
   justify-content: center;
@@ -31,20 +37,20 @@ exports[`wrapper 1`] = `
   gap: 50px;
 }
 
-.c5 {
+.c6 {
   padding-bottom: 24px;
   width: 100%;
   color: white;
 }
 
-.c8 {
+.c9 {
   color: white;
   text-decoration: none;
 }
 
-.c8:hover,
-.c8:active,
-.c8:focus {
+.c9:hover,
+.c9:active,
+.c9:focus {
   color: rgba(255,255,255,0.54);
 }
 
@@ -76,7 +82,7 @@ exports[`wrapper 1`] = `
   backdrop-filter: blur(17.5px);
 }
 
-.c2 {
+.c3 {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -84,7 +90,7 @@ exports[`wrapper 1`] = `
   margin: 24px 0;
 }
 
-.c3 {
+.c4 {
   box-sizing: border-box;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
@@ -92,12 +98,12 @@ exports[`wrapper 1`] = `
   width: 600px;
   padding: 24px;
   text-align: left;
-  margin: 40px auto auto auto;
+  margin: 16px auto 16px auto;
   overflow-y: auto;
 }
 
 @media screen and (max-width:800px) {
-  .c6 {
+  .c7 {
     flex-direction: column-reverse;
     text-align: center;
     gap: 10px;
@@ -105,14 +111,14 @@ exports[`wrapper 1`] = `
 }
 
 @media screen and (max-width:800px) {
-  .c3 {
+  .c4 {
     width: auto;
     margin: 20px;
   }
 }
 
 @media screen and (max-height:760px) {
-  .c3 {
+  .c4 {
     height: calc(100vh - 250px);
   }
 }
@@ -124,9 +130,11 @@ exports[`wrapper 1`] = `
     class="c1"
     height="100%"
   >
-    <span>
+    <div
+      class="c2"
+    >
       <div
-        class="c2"
+        class="c3"
       >
         <svg
           fill="none"
@@ -144,28 +152,28 @@ exports[`wrapper 1`] = `
         </svg>
       </div>
       <div
-        class="c3"
+        class="c4"
       >
         <div
-          class="c4"
+          class="c5"
         >
           Some content
         </div>
       </div>
-    </span>
+    </div>
     <footer
-      class="c5"
+      class="c6"
     >
       <div
-        class="c6"
+        class="c7"
       >
         <div
-          class="c4"
+          class="c5"
         >
           © Gravitational, Inc. All Rights Reserved
         </div>
         <a
-          class="c7 c8"
+          class="c8 c9"
           href="https://goteleport.com/legal/tos/"
           rel="noreferrer"
           target="_blank"
@@ -173,7 +181,7 @@ exports[`wrapper 1`] = `
           Terms of Service
         </a>
         <a
-          class="c7 c8"
+          class="c8 c9"
           href="https://goteleport.com/legal/privacy/"
           rel="noreferrer"
           target="_blank"

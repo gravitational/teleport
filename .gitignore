@@ -94,3 +94,6 @@ coverage
 # vite
 .swc
 web/certs/
+
+# Vagrant
+.vagrant

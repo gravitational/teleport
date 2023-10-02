@@ -33,6 +33,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       onSelect,
       anchorOrigin,
       transformOrigin,
+      alignButtonWidthToMenu = false,
       required = true,
       width,
     } = props;
@@ -75,12 +76,14 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
     return (
       <React.Fragment>
         <ButtonBorder
+          width={alignButtonWidthToMenu ? width : null}
+          textTransform={props.textTransform}
           height="24px"
           size="small"
           setRef={anchorRef}
           onClick={onOpen}
         >
-          CONNECT
+          Connect
           <CarrotDown ml={2} mr={-2} fontSize="2" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
@@ -124,6 +127,13 @@ const LoginItemList = ({
       <Input
         p="2"
         m="2"
+        // this prevents safari from adding the autofill options which would cover the available logins and make it
+        // impossible to select. "But why would it do that? this isn't a username or password field?".
+        // Safari includes parsed words in the placeholder as well to determine if that autofill should show.
+        // Since our placeholder has the word "login" in it, it thinks its a login form.
+        // https://github.com/gravitational/teleport/pull/31600
+        // https://stackoverflow.com/questions/22661977/disabling-safari-autofill-on-usernames-and-passwords
+        name="notsearch_password"
         onKeyPress={onKeyPress}
         type="text"
         autoFocus

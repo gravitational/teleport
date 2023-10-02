@@ -22,10 +22,8 @@ import (
 	"net"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	awsdynamodb "github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/stretchr/testify/require"
@@ -35,6 +33,7 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 func registerTestDynamoDBEngine() {
@@ -48,12 +47,10 @@ func newTestDynamoDBEngine(ec common.EngineConfig) common.Engine {
 		EngineConfig:  ec,
 		RoundTrippers: make(map[string]http.RoundTripper),
 		// inject mock AWS credentials.
-		GetSigningCredsFn: staticAWSCredentials,
+		CredentialsGetter: awsutils.NewStaticCredentialsGetter(
+			credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION"),
+		),
 	}
-}
-
-func staticAWSCredentials(client.ConfigProvider, time.Time, string, string, string) *credentials.Credentials {
-	return credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION")
 }
 
 func TestAccessDynamoDB(t *testing.T) {

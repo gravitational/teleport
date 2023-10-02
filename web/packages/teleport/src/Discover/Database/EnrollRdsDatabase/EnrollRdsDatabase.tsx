@@ -15,7 +15,7 @@
  */
 
 import React, { useState } from 'react';
-import { Box } from 'design';
+import { Box, Text } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
 
@@ -30,6 +30,7 @@ import {
   integrationService,
 } from 'teleport/services/integrations';
 import { DatabaseEngine } from 'teleport/Discover/SelectResource';
+import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
 import { Database } from 'teleport/services/databases';
 
 import { ActionButtons, Header } from '../../Shared';
@@ -37,7 +38,6 @@ import { ActionButtons, Header } from '../../Shared';
 import { useCreateDatabase } from '../CreateDatabase/useCreateDatabase';
 import { CreateDatabaseDialog } from '../CreateDatabase/CreateDatabaseDialog';
 
-import { AwsRegionSelector } from './AwsRegionSelector';
 import { DatabaseList } from './RdsDatabaseList';
 
 type TableData = {
@@ -205,6 +205,9 @@ export function EnrollRdsDatabase() {
       {fetchDbAttempt.status === 'failed' && (
         <Danger mt={3}>{fetchDbAttempt.statusText}</Danger>
       )}
+      <Text mt={4}>
+        Select the AWS Region you would like to see databases for:
+      </Text>
       <AwsRegionSelector
         onFetch={fetchDatabasesWithNewRegion}
         onRefresh={refreshDatabaseList}

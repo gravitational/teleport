@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"time"
 
@@ -200,6 +201,9 @@ type AccessChecker interface {
 	// HostUsers returns host user information matching a server or nil if
 	// a role disallows host user creation
 	HostUsers(types.Server) (*HostUsersInfo, error)
+
+	// HostSudoers returns host sudoers entries matching a server
+	HostSudoers(types.Server) ([]string, error)
 
 	// DesktopGroups returns the desktop groups a user is allowed to create or an access denied error if a role disallows desktop user creation
 	DesktopGroups(types.WindowsDesktop) ([]string, error)
@@ -803,8 +807,6 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 type HostUsersInfo struct {
 	// Groups is the list of groups to include host users in
 	Groups []string
-	// Sudoers is a list of entries for a users sudoers file
-	Sudoers []string
 	// Mode determines if a host user should be deleted after a session
 	// ends or not.
 	Mode types.CreateHostUserMode
@@ -818,17 +820,9 @@ type HostUsersInfo struct {
 // a role disallows host user creation
 func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	groups := make(map[string]struct{})
-	var sudoers []string
 	var mode types.CreateHostUserMode
 
-	roleSet := make([]types.Role, len(a.RoleSet))
-	copy(roleSet, a.RoleSet)
-	slices.SortStableFunc(roleSet, func(a types.Role, b types.Role) bool {
-		return strings.Compare(a.GetName(), b.GetName()) == -1
-	})
-
-	seenSudoers := make(map[string]struct{})
-	for _, role := range roleSet {
+	for _, role := range a.RoleSet {
 		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -864,6 +858,59 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		for _, group := range role.GetHostGroups(types.Allow) {
 			groups[group] = struct{}{}
 		}
+	}
+
+	for _, role := range a.RoleSet {
+		result, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, s, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !result {
+			continue
+		}
+		for _, group := range role.GetHostGroups(types.Deny) {
+			delete(groups, group)
+		}
+	}
+
+	traits := a.Traits()
+	var gid string
+	gidL := traits[constants.TraitHostUserGID]
+	if len(gidL) >= 1 {
+		gid = gidL[0]
+	}
+	var uid string
+	uidL := traits[constants.TraitHostUserUID]
+	if len(uidL) >= 1 {
+		uid = uidL[0]
+	}
+
+	return &HostUsersInfo{
+		Groups: utils.StringsSliceFromSet(groups),
+		Mode:   mode,
+		UID:    uid,
+		GID:    gid,
+	}, nil
+}
+
+// HostSudoers returns host sudoers entries matching a server
+func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
+	var sudoers []string
+
+	roleSet := slices.Clone(a.RoleSet)
+	sort.Sort(SortedRoles(roleSet))
+
+	seenSudoers := make(map[string]struct{})
+	for _, role := range roleSet {
+		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// skip nodes that dont have matching labels
+		if !result {
+			continue
+		}
+
 		for _, sudoer := range role.GetHostSudoers(types.Allow) {
 			if _, ok := seenSudoers[sudoer]; ok {
 				continue
@@ -882,9 +929,6 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		if !result {
 			continue
 		}
-		for _, group := range role.GetHostGroups(types.Deny) {
-			delete(groups, group)
-		}
 
 	outer:
 		for _, sudoer := range sudoers {
@@ -901,25 +945,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		sudoers = finalSudoers
 	}
 
-	traits := a.Traits()
-	var gid string
-	gidL := traits[constants.TraitHostUserGID]
-	if len(gidL) >= 1 {
-		gid = gidL[0]
-	}
-	var uid string
-	uidL := traits[constants.TraitHostUserUID]
-	if len(uidL) >= 1 {
-		uid = uidL[0]
-	}
-
-	return &HostUsersInfo{
-		Groups:  utils.StringsSliceFromSet(groups),
-		Sudoers: sudoers,
-		Mode:    mode,
-		UID:     uid,
-		GID:     gid,
-	}, nil
+	return sudoers, nil
 }
 
 // AccessInfoFromLocalCertificate returns a new AccessInfo populated from the

@@ -18,6 +18,7 @@ package reversetunnel
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -32,6 +33,18 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 )
+
+const proxyAlreadyClaimedError = "proxy already claimed"
+
+// isProxyAlreadyClaimed returns true if the error is non-nil and its message
+// ends with "proxy already claimed" (we can't extract a better sentinel out of
+// a SSH handshake, unfortunately).
+func isProxyAlreadyClaimed(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.HasSuffix(err.Error(), proxyAlreadyClaimedError)
+}
 
 // agentDialer dials an ssh server on behalf of an agent.
 type agentDialer struct {
@@ -61,7 +74,10 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 			OnCheckCert: func(c *ssh.Certificate) error {
 				if d.isClaimed != nil && d.isClaimed(c.ValidPrincipals...) {
 					d.log.Debugf("Aborting SSH handshake because the proxy %q is already claimed by some other agent.", c.ValidPrincipals[0])
-					return trace.Errorf("proxy already claimed")
+					// the error message must end with
+					// [proxyAlreadyClaimedError] to be recognized by
+					// [isProxyAlreadyClaimed]
+					return trace.Errorf(proxyAlreadyClaimedError)
 				}
 
 				principals = c.ValidPrincipals
@@ -83,7 +99,6 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 		Timeout:         apidefaults.DefaultIOTimeout,
 	})
 	if err != nil {
-		d.log.WithError(err).Debugf("Failed to create client to %v.", addr.Addr)
 		return nil, trace.Wrap(err)
 	}
 

@@ -173,7 +173,10 @@ export default class StoreUserContext extends Store<UserContext> {
   }
 
   hasDiscoverAccess() {
-    return this.hasPrereqAccessToAddAgents() || this.hasAccessToQueryAgent();
+    return (
+      this.hasPrereqAccessToAddAgents() ||
+      (this.hasAccessToQueryAgent() && !cfg.hideInaccessibleFeatures)
+    );
   }
 
   getPluginsAccess() {
@@ -194,5 +197,9 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getAccessListAccess() {
     return this.state.acl.accessList;
+  }
+
+  getAllowedSearchAsRoles() {
+    return this.state.allowedSearchAsRoles;
   }
 }

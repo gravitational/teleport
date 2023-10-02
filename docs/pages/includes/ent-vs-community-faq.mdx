@@ -1,0 +1,22 @@
+Teleport Team, Enterprise, and Enterprise Cloud customers should use the Enterprise release of the 
+`teleport` binary for agents. Running the Community Edition binary could result in
+incompatibility to these cluster editions for certain features.
+
+To verify you have a Teleport Enterprise release installed run the `teleport version`
+command and Enterprise will be in the output.
+
+```code
+$ teleport version
+# Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
+```
+
+Teleport Community Edition clusters should use the Teleport Community Edition releases. The `teleport version`
+command will only include Teleport in its output for those releases.
+
+```code
+$ teleport version
+# Teleport v(=teleport.version=) go(=teleport.golang=)
+```
+
+See the [Installation](../installation.mdx) guide for details on installing to specific platforms
+with Enterprise or OSS releases. 

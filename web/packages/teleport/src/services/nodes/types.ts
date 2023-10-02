@@ -15,6 +15,8 @@ limitations under the License.
 */
 import { AgentLabel } from 'teleport/services/agents';
 
+import { Regions } from '../integrations';
+
 export interface Node {
   id: string;
   clusterId: string;
@@ -23,9 +25,28 @@ export interface Node {
   addr: string;
   tunnel: boolean;
   sshLogins: string[];
+  awsMetadata?: AwsMetadata;
 }
 
 export interface BashCommand {
   text: string;
   expires: string;
 }
+
+export type AwsMetadata = {
+  accountId: string;
+  instanceId: string;
+  region: Regions;
+  vpcId: string;
+  integration: string;
+  subnetId: string;
+};
+
+export type CreateNodeRequest = {
+  name: string;
+  subKind: string;
+  hostname: string;
+  addr: string;
+  labels?: AgentLabel[];
+  aws?: AwsMetadata;
+};

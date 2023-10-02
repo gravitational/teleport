@@ -23,6 +23,7 @@
         "clusterRoleBindingName",
         "roleName",
         "roleBindingName",
+        "podMonitor",
         "serviceAccountName",
         "secretName",
         "log",
@@ -365,6 +366,29 @@
                     "$id": "#/properties/highAvailability/properties/requireAntiAffinity",
                     "type": "boolean",
                     "default": false
+                }
+            }
+        },
+        "podMonitor": {
+            "$id": "#/properties/podMonitor",
+            "type": "object",
+            "required": ["enabled"],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/podMonitor/enabled",
+                    "type": "boolean",
+                    "default": false
+                },
+                "additionalLabels": {
+                    "$id": "#/properties/podMonitor/additionalLabels",
+                    "type": "object",
+                    "default": {"prometheus": "default"},
+                    "additionalProperties": {"type": "string"}
+                },
+                "interval": {
+                    "$id": "#/properties/podMonitor/interval",
+                    "type": "string",
+                    "default": "30s"
                 }
             }
         },

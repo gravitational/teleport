@@ -979,7 +979,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c20 c28 icon icon-caret-down "
                 color="text.slightlyMuted"
@@ -1021,7 +1021,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c20 c28 icon icon-caret-down "
                 color="text.slightlyMuted"
@@ -1063,7 +1063,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c20 c28 icon icon-caret-down "
                 color="text.slightlyMuted"
@@ -1105,7 +1105,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c20 c28 icon icon-caret-down "
                 color="text.slightlyMuted"
@@ -1147,7 +1147,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c20 c28 icon icon-caret-down "
                 color="text.slightlyMuted"
@@ -1194,7 +1194,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c20 c28 icon icon-caret-down "
                 color="text.slightlyMuted"
@@ -1241,7 +1241,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c20 c28 icon icon-caret-down "
                 color="text.slightlyMuted"
@@ -1319,6 +1319,7 @@ exports[`loaded 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
 .c7:hover,
@@ -2101,7 +2102,7 @@ exports[`loaded 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c23 c31 icon icon-caret-down "
                 color="text.slightlyMuted"
@@ -2143,7 +2144,7 @@ exports[`loaded 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c23 c31 icon icon-caret-down "
                 color="text.slightlyMuted"
@@ -2185,7 +2186,7 @@ exports[`loaded 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c23 c31 icon icon-caret-down "
                 color="text.slightlyMuted"
@@ -2227,7 +2228,7 @@ exports[`loaded 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c23 c31 icon icon-caret-down "
                 color="text.slightlyMuted"
@@ -2269,7 +2270,7 @@ exports[`loaded 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c23 c31 icon icon-caret-down "
                 color="text.slightlyMuted"
@@ -2316,7 +2317,7 @@ exports[`loaded 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c23 c31 icon icon-caret-down "
                 color="text.slightlyMuted"
@@ -2363,7 +2364,7 @@ exports[`loaded 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c23 c31 icon icon-caret-down "
                 color="text.slightlyMuted"

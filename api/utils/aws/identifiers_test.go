@@ -154,6 +154,11 @@ func TestIsValidRegion(t *testing.T) {
 			errCheck: require.NoError,
 		},
 		{
+			name:     "valid format",
+			region:   "xx-iso-somewhere-100",
+			errCheck: require.NoError,
+		},
+		{
 			name:     "empty",
 			region:   "",
 			errCheck: isBadParamErrFn,
@@ -161,6 +166,11 @@ func TestIsValidRegion(t *testing.T) {
 		{
 			name:     "symbols",
 			region:   "us@east-1",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "invalid country code",
+			region:   "xxx-east-1",
 			errCheck: isBadParamErrFn,
 		},
 	} {

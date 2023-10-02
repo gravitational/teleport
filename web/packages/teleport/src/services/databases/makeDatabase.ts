@@ -32,6 +32,7 @@ export function makeDatabase(json: any): Database {
       rds: {
         resourceId: aws.rds?.resource_id,
         region: aws.rds?.region,
+        vpcId: aws.rds?.vpc_id,
         subnets: aws.rds?.subnets || [],
       },
       iamPolicyStatus: aws.iam_policy_status,

@@ -489,8 +489,12 @@ message Features {
   bool Assist = 18 [(gogoproto.jsontag) = "assist"];
   // DeviceTrust holds its namesake feature settings.
   DeviceTrustFeature DeviceTrust = 19 [(gogoproto.jsontag) = "device_trust,omitempty"];
+  // FeatureHiding enables hiding features from being discoverable for users who don't have the necessary permissions.
+  bool FeatureHiding = 20 [(gogoproto.jsontag) = "feature_hiding,omitempty"];
   // AccessRequests holds its namesake feature settings.
   AccessRequestsFeature AccessRequests = 21 [(gogoproto.jsontag) = "access_requests,omitempty"];
+  // CustomTheme holds the name of WebUI custom theme.
+  string CustomTheme = 22 [(gogoproto.jsontag) = "custom_theme,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based

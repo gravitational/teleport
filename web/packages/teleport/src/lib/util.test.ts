@@ -100,6 +100,8 @@ test('compareSemVers', () => {
     '10.1.0',
     '11.1.0',
   ]);
+
+  expect(compareSemVers('1.0.0', '1.0.0')).toBe(0);
 });
 
 test('sortByString with simple string array', () => {

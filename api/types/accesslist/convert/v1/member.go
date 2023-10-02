@@ -25,8 +25,10 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 )
 
+type MemberOption func(*accesslist.AccessListMember)
+
 // FromMemberProto converts a v1 access list member into an internal access list member object.
-func FromMemberProto(msg *accesslistv1.Member) (*accesslist.AccessListMember, error) {
+func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslist.AccessListMember, error) {
 	if msg == nil {
 		return nil, trace.BadParameter("access list message is nil")
 	}
@@ -42,22 +44,72 @@ func FromMemberProto(msg *accesslistv1.Member) (*accesslist.AccessListMember, er
 		Expires:    msg.Spec.Expires.AsTime(),
 		Reason:     msg.Spec.Reason,
 		AddedBy:    msg.Spec.AddedBy,
+		// Set it to empty as default.
+		// Must provide as options to set it with the provided value.
+		IneligibleStatus: "",
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return member, trace.Wrap(err)
+	for _, opt := range opts {
+		opt(member)
+	}
+
+	return member, nil
+}
+
+// FromMembersProto converts a list of v1 access list members into a list of internal access list members.
+func FromMembersProto(msgs []*accesslistv1.Member) ([]*accesslist.AccessListMember, error) {
+	members := make([]*accesslist.AccessListMember, len(msgs))
+	for i, msg := range msgs {
+		var err error
+		members[i], err = FromMemberProto(msg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return members, nil
 }
 
 // ToMemberProto converts an internal access list member into a v1 access list member object.
 func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
+	var ineligibleStatus accesslistv1.IneligibleStatus
+	if enumVal, ok := accesslistv1.IneligibleStatus_value[member.Spec.IneligibleStatus]; ok {
+		ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
+	}
+
 	return &accesslistv1.Member{
 		Header: headerv1.ToResourceHeaderProto(member.ResourceHeader),
 		Spec: &accesslistv1.MemberSpec{
-			AccessList: member.Spec.AccessList,
-			Name:       member.Spec.Name,
-			Joined:     timestamppb.New(member.Spec.Joined),
-			Expires:    timestamppb.New(member.Spec.Expires),
-			Reason:     member.Spec.Reason,
-			AddedBy:    member.Spec.AddedBy,
+			AccessList:       member.Spec.AccessList,
+			Name:             member.Spec.Name,
+			Joined:           timestamppb.New(member.Spec.Joined),
+			Expires:          timestamppb.New(member.Spec.Expires),
+			Reason:           member.Spec.Reason,
+			AddedBy:          member.Spec.AddedBy,
+			IneligibleStatus: ineligibleStatus,
 		},
+	}
+}
+
+// ToMembersProto converts a list of internal access list members into a list of v1 access list members.
+func ToMembersProto(members []*accesslist.AccessListMember) []*accesslistv1.Member {
+	out := make([]*accesslistv1.Member, len(members))
+	for i, member := range members {
+		out[i] = ToMemberProto(member)
+	}
+	return out
+}
+
+// WithMemberIneligibleStatusField sets the "ineligibleStatus" field to the provided proto value.
+func WithMemberIneligibleStatusField(protoMember *accesslistv1.Member) MemberOption {
+	return func(m *accesslist.AccessListMember) {
+		protoIneligibleStatus := protoMember.GetSpec().GetIneligibleStatus()
+		ineligibleStatus := ""
+		if protoIneligibleStatus != accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED {
+			ineligibleStatus = protoIneligibleStatus.String()
+		}
+		m.Spec.IneligibleStatus = ineligibleStatus
 	}
 }

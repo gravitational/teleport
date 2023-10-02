@@ -253,55 +253,49 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 		daemonService.Stop()
 	})
 
-	// Start the tshd event service and connect the daemon to it. This should also
-	// start a headless watcher for the connected cluster.
-
-	tshdEventsService, addr := newMockTSHDEventsServiceServer(t)
-	err = daemonService.UpdateAndDialTshdEventsServerAddress(addr)
-	require.NoError(t, err)
-
-	// Ensure the watcher catches events and sends them to the Electron App.
-
 	expires := pack.Root.Cluster.Config.Clock.Now().Add(time.Minute)
 	ha, err := types.NewHeadlessAuthentication(pack.Root.User.GetName(), "uuid", expires)
 	require.NoError(t, err)
 	ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
 
-	eventuallyCatchAndSendHeadlessAuthn := func(t require.TestingT) {
-		tshdEventsService.sendPendingHeadlessAuthenticationCount.Store(0)
+	// Start the tshd event service and connect the daemon to it.
 
-		err = pack.Root.Cluster.Process.GetAuthServer().UpsertHeadlessAuthentication(ctx, ha)
-		require.NoError(t, err)
-
-		assert.Eventually(t, func() bool {
-			return tshdEventsService.sendPendingHeadlessAuthenticationCount.Load() == 1
-		}, 100*time.Millisecond, 20*time.Millisecond, "Expected tshdEventService to receive a SendPendingHeadlessAuthentication message")
-	}
-
-	// The watcher takes some amount of time to set up, so if we immediately upsert a headless
-	// authentication, it may not be caught by the watcher.
-	// require.Eventually(t, upsertAndWaitForEvent, time.Second, 100*time.Millisecond, "Expected tshdEventService to receive a SendPendingHeadlessAuthentication message")
-
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		eventuallyCatchAndSendHeadlessAuthn(collect)
-	}, time.Second, 100*time.Millisecond)
+	tshdEventsService, addr := newMockTSHDEventsServiceServer(t)
+	err = daemonService.UpdateAndDialTshdEventsServerAddress(addr)
+	require.NoError(t, err)
 
 	// Stop and restart the watcher twice to simulate logout + login + relogin. Ensure the watcher catches events.
 
 	err = daemonService.StopHeadlessWatcher(cluster.URI.String())
 	require.NoError(t, err)
-	err = daemonService.StartHeadlessWatcher(cluster.URI.String())
+	err = daemonService.StartHeadlessWatcher(cluster.URI.String(), false /* waitInit */)
 	require.NoError(t, err)
-	err = daemonService.StartHeadlessWatcher(cluster.URI.String())
+	err = daemonService.StartHeadlessWatcher(cluster.URI.String(), true /* waitInit */)
 	require.NoError(t, err)
 
 	// Ensure the watcher catches events and sends them to the Electron App.
 
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		eventuallyCatchAndSendHeadlessAuthn(collect)
-	}, time.Second, 100*time.Millisecond)
+	err = pack.Root.Cluster.Process.GetAuthServer().UpsertHeadlessAuthentication(ctx, ha)
+	assert.NoError(t, err)
+
+	assert.Eventually(t,
+		func() bool {
+			return tshdEventsService.sendPendingHeadlessAuthenticationCount.Load() == 1
+		},
+		10*time.Second,
+		500*time.Millisecond,
+		"Expected tshdEventService to receive 1 SendPendingHeadlessAuthentication message but got %v",
+		tshdEventsService.sendPendingHeadlessAuthenticationCount.Load(),
+	)
 }
 
+// mustLogin logs in as the given user by completely skipping the actual login flow and saving valid
+// certs to disk. clusters.Storage can then be pointed to tc.KeysDir and daemon.Service can act as
+// if the user was successfully logged in.
+//
+// This is faster than going through the actual process, but keep in mind that it might skip some
+// vital steps. It should be used only for tests which don't depend on complex user setup and do not
+// reissue certs or modify them in some other way.
 func mustLogin(t *testing.T, userName string, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) *client.TeleportClient {
 	tc, err := pack.Root.Cluster.NewClientWithCreds(helpers.ClientConfig{
 		Login:   userName,

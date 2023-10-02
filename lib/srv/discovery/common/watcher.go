@@ -148,6 +148,7 @@ func (w *Watcher) fetchAndSend() {
 
 				// Set the origin to Cloud indicating that the resource was imported from a cloud provider.
 				staticLabels[types.OriginLabel] = types.OriginCloud
+				staticLabels[types.CloudLabel] = lFetcher.Cloud()
 
 				r.SetStaticLabels(staticLabels)
 			}

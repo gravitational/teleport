@@ -61,7 +61,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -86,7 +88,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 )
 
@@ -1484,17 +1485,13 @@ func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt
 // the current clusters auth server. The auth server will then forward along to the configured
 // telemetry backend.
 func (tc *TeleportClient) NewTracingClient(ctx context.Context) (*apitracing.Client, error) {
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := proxyClient.NewTracingClient(ctx, tc.SiteName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clt, nil
+	tracingClient, err := client.NewTracingClient(ctx, clusterClient.ProxyClient.ClientConfig(ctx, clusterClient.ClusterName()))
+	return tracingClient, trace.Wrap(err)
 }
 
 // SSHOptions allow overriding configuration
@@ -1919,6 +1916,9 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 
 	if session.GetSessionKind() != types.SSHSessionKind {
 		return trace.BadParameter("session joining is only supported for ssh sessions, not %q sessions", session.GetSessionKind())
+	}
+	if types.IsOpenSSHNodeSubKind(session.GetTargetSubKind()) {
+		return trace.BadParameter("session joining is only supported for Teleport nodes, not OpenSSH nodes")
 	}
 
 	// connect to server:
@@ -2831,8 +2831,8 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 		TLSRoutingEnabled:  tc.TLSRoutingEnabled,
 		TLSConfig:          tlsConfig,
 		DialOpts:           tc.Config.DialOpts,
-		UnaryInterceptors:  []grpc.UnaryClientInterceptor{utils.GRPCClientUnaryErrorInterceptor},
-		StreamInterceptors: []grpc.StreamClientInterceptor{utils.GRPCClientStreamErrorInterceptor},
+		UnaryInterceptors:  []grpc.UnaryClientInterceptor{interceptors.GRPCClientUnaryErrorInterceptor},
+		StreamInterceptors: []grpc.StreamClientInterceptor{interceptors.GRPCClientStreamErrorInterceptor},
 		SSHDialer: proxyclient.SSHDialerFunc(func(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
 			clt, err := makeProxySSHClient(ctx, tc, config)
 			return clt, trace.Wrap(err)
@@ -2840,6 +2840,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 		SSHConfig:               cfg.ClientConfig,
 		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      tc.InsecureSkipVerify,
+		PROXYHeaderGetter:       CreatePROXYHeaderGetter(ctx, tc.PROXYSigner),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

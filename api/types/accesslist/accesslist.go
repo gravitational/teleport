@@ -18,7 +18,6 @@ package accesslist
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -67,10 +66,6 @@ type Spec struct {
 
 	// Grants describes the access granted by membership to this access list.
 	Grants Grants `json:"grants" yaml:"grants"`
-
-	// Members describes the current members of the access list.
-	// TODO(mdwn): Remove this.
-	Members []Member `json:"members" yaml:"members"`
 }
 
 // Owner is an owner of an access list.
@@ -80,6 +75,9 @@ type Owner struct {
 
 	// Description is the plaintext description of the owner and why they are an owner.
 	Description string `json:"description" yaml:"description"`
+
+	// IneligibleStatus describes the reason why this owner is not eligible.
+	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
 }
 
 // Audit describes the audit configuration for an access list.
@@ -159,12 +157,6 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("owners are missing")
 	}
 
-	for _, owner := range a.Spec.Owners {
-		if owner.Name == "" {
-			return trace.BadParameter("owner name is missing")
-		}
-	}
-
 	if a.Spec.Audit.Frequency == 0 {
 		return trace.BadParameter("audit frequency must be greater than 0")
 	}
@@ -175,19 +167,24 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("grants must specify at least one role or trait")
 	}
 
-	for _, member := range a.Spec.Members {
-		if member.Name == "" {
-			return trace.BadParameter("member name is missing")
+	// Deduplicate owners. The backend will currently prevent this, but it's possible that access lists
+	// were created with duplicated owners before the backend checked for duplicate owners. In order to
+	// ensure that these access lists are backwards compatible, we'll deduplicate them here.
+	ownerMap := make(map[string]struct{}, len(a.Spec.Owners))
+	deduplicatedOwners := []Owner{}
+	for _, owner := range a.Spec.Owners {
+		if owner.Name == "" {
+			return trace.BadParameter("owner name is missing")
 		}
 
-		if member.Joined.IsZero() {
-			return trace.BadParameter("member %s joined is missing", member.Name)
+		if _, ok := ownerMap[owner.Name]; ok {
+			continue
 		}
 
-		if member.AddedBy == "" {
-			return trace.BadParameter("member %s added by is missing", member.Name)
-		}
+		ownerMap[owner.Name] = struct{}{}
+		deduplicatedOwners = append(deduplicatedOwners, owner)
 	}
+	a.Spec.Owners = deduplicatedOwners
 
 	return nil
 }
@@ -195,6 +192,11 @@ func (a *AccessList) CheckAndSetDefaults() error {
 // GetOwners returns the list of owners from the access list.
 func (a *AccessList) GetOwners() []Owner {
 	return a.Spec.Owners
+}
+
+// GetOwners returns the list of owners from the access list.
+func (a *AccessList) SetOwners(owners []Owner) {
+	a.Spec.Owners = owners
 }
 
 // GetAuditFrequency returns the audit frequency from the access list.
@@ -217,11 +219,6 @@ func (a *AccessList) GetGrants() Grants {
 	return a.Spec.Grants
 }
 
-// GetMembers returns the members from the access list.
-func (a *AccessList) GetMembers() []Member {
-	return a.Spec.Members
-}
-
 // GetMetadata returns metadata. This is specifically for conforming to the Resource interface,
 // and should be removed when possible.
 func (a *AccessList) GetMetadata() types.Metadata {
@@ -236,27 +233,39 @@ func (a *AccessList) MatchSearch(values []string) bool {
 }
 
 func (a *Audit) UnmarshalJSON(data []byte) error {
-	var audit map[string]interface{}
+	type Alias Audit
+	audit := struct {
+		Frequency     string `json:"frequency"`
+		NextAuditDate string `json:"next_audit_date"`
+		*Alias
+	}{
+		Alias: (*Alias)(a),
+	}
 	if err := json.Unmarshal(data, &audit); err != nil {
 		return trace.Wrap(err)
 	}
 
 	var err error
-	a.Frequency, err = time.ParseDuration(fmt.Sprintf("%v", audit["frequency"]))
+	a.Frequency, err = time.ParseDuration(audit.Frequency)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	a.NextAuditDate, err = time.Parse(time.RFC3339Nano, fmt.Sprintf("%v", audit["next_audit_date"]))
+	a.NextAuditDate, err = time.Parse(time.RFC3339Nano, audit.NextAuditDate)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (a *Audit) MarshalJSON() ([]byte, error) {
-	audit := map[string]interface{}{}
-	audit["frequency"] = a.Frequency.String()
-	audit["next_audit_date"] = a.NextAuditDate.Format(time.RFC3339Nano)
-	data, err := json.Marshal(audit)
-	return data, trace.Wrap(err)
+func (a Audit) MarshalJSON() ([]byte, error) {
+	type Alias Audit
+	return json.Marshal(&struct {
+		Frequency     string `json:"frequency"`
+		NextAuditDate string `json:"next_audit_date"`
+		Alias
+	}{
+		Alias:         (Alias)(a),
+		Frequency:     a.Frequency.String(),
+		NextAuditDate: a.NextAuditDate.Format(time.RFC3339Nano),
+	})
 }

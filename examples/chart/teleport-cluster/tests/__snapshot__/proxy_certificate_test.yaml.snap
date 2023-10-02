@@ -1,3 +1,55 @@
+? should not request a certificate for cluster name and publicAddrs when cert-manager
+  is enabled and proxy.highAvailability.certManager.addPublicAddrs is not set (cert-manager.yaml)
+: 1: |
+    - test-cluster
+    - '*.test-cluster'
+  2: |
+    group: custom.cert-manager.io
+    kind: CustomClusterIssuer
+    name: custom
+? should not request a certificate for cluster name and publicAddrs when cert-manager
+  is enabled and proxy.highAvailability.certManager.addPublicAddrs is not set (cert-secret.yaml)
+: 1: |
+    - test-cluster
+    - '*.test-cluster'
+  2: |
+    group: cert-manager.io
+    kind: Issuer
+    name: letsencrypt
+? should request a certificate for cluster name and publicAddrs when cert-manager
+  is enabled and proxy.highAvailability.certManager.addPublicAddrs is set (cert-manager.yaml)
+: 1: |
+    - test-cluster
+    - '*.test-cluster'
+    - teleport.test.com
+    - teleport.shared-services.old-domain.com
+  2: |
+    group: custom.cert-manager.io
+    kind: CustomClusterIssuer
+    name: custom
+? should request a certificate for cluster name and publicAddrs when cert-manager
+  is enabled and proxy.highAvailability.certManager.addPublicAddrs is set (cert-secret.yaml)
+: 1: |
+    - test-cluster
+    - '*.test-cluster'
+    - teleport.test.com
+    - teleport.shared-services.old-domain.com
+  2: |
+    group: cert-manager.io
+    kind: Issuer
+    name: letsencrypt
+? should request a certificate for cluster name and publicAddrs when cert-manager
+  is enabled and proxy.highAvailability.certManager.addPublicAddrs is set, removing
+  duplicates
+: 1: |
+    - test-cluster
+    - '*.test-cluster'
+    - teleport.test.com
+    - teleport.shared-services.old-domain.com
+  2: |
+    group: custom.cert-manager.io
+    kind: CustomClusterIssuer
+    name: custom
 should request a certificate for cluster name when cert-manager is enabled (cert-manager.yaml):
   1: |
     - test-cluster

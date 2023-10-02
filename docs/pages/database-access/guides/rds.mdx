@@ -111,7 +111,7 @@ Save the token in a file called `/tmp/token` on the host that will run the
 Database Service.
 
 </TabItem>
-<TabItem label="Kubernetes">
+<TabItem label="Kubernetes Cluster">
 
 Later in this guide, you will use this join token when configuring the Teleport
 Database Service.
@@ -141,7 +141,7 @@ the region associated with the RDS databases you would like Teleport to
 discover.
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --proxy=<Var name="example.teleport.sh:443" />  \
    --token=/tmp/token \
@@ -330,7 +330,7 @@ annotations:
 Install the Helm chart for Teleport agent services, `teleport-kube-agent`:
 
 ```code
-$ helm -n teleport install teleport-kube-agent teleport/teleport-kube-agent \
+$ helm -n teleport-agent install teleport-kube-agent teleport/teleport-kube-agent \
   --values values.yaml --create-namespace
 ```
 
@@ -338,7 +338,7 @@ Make sure that the Teleport agent pod is running. You should see one
 `teleport-kube-agent` pod with a single ready container:
 
 ```code
-$ kubectl -n teleport get pods
+$ kubectl -n teleport-agent get pods
 NAME                    READY   STATUS    RESTARTS   AGE
 teleport-kube-agent-0   1/1     Running   0          32s
 ```

@@ -1,9 +1,9 @@
 # Keep all tool versions in one place.
 # This file can be included in other Makefiles to avoid duplication.
 
-GOLANG_VERSION ?= go1.20.7
+GOLANG_VERSION ?= go1.20.8
 
-NODE_VERSION ?= 16.18.1
+NODE_VERSION ?= 18.17.1
 
 # Run lint-rust check locally before merging code after you bump this.
 RUST_VERSION ?= 1.68.0

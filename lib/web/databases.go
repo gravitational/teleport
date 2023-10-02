@@ -46,8 +46,10 @@ type createDatabaseRequest struct {
 }
 
 type awsRDS struct {
-	AccountID  string `json:"accountId,omitempty"`
-	ResourceID string `json:"resourceId,omitempty"`
+	AccountID  string   `json:"accountId,omitempty"`
+	ResourceID string   `json:"resourceId,omitempty"`
+	Subnets    []string `json:"subnets,omitempty"`
+	VPCID      string   `json:"vpcId,omitempty"`
 }
 
 func (r *createDatabaseRequest) checkAndSetDefaults() error {
@@ -69,6 +71,12 @@ func (r *createDatabaseRequest) checkAndSetDefaults() error {
 		}
 		if r.AWSRDS.AccountID == "" {
 			return trace.BadParameter("missing aws rds field account id")
+		}
+		if len(r.AWSRDS.Subnets) == 0 {
+			return trace.BadParameter("missing aws rds field subnets")
+		}
+		if r.AWSRDS.VPCID == "" {
+			return trace.BadParameter("missing aws rds field vpc id")
 		}
 	}
 
@@ -321,6 +329,8 @@ func getNewDatabaseResource(req createDatabaseRequest) (*types.DatabaseV3, error
 			AccountID: req.AWSRDS.AccountID,
 			RDS: types.RDS{
 				ResourceID: req.AWSRDS.ResourceID,
+				Subnets:    req.AWSRDS.Subnets,
+				VPCID:      req.AWSRDS.VPCID,
 			},
 		}
 	}

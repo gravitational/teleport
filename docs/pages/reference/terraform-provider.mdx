@@ -107,15 +107,16 @@ Metadata is the app resource metadata.
 
 Spec is the app resource spec.
 
-|         Name         |  Type  | Required |                               Description                                |
-|----------------------|--------|----------|--------------------------------------------------------------------------|
-| aws                  | object |          | AWS contains additional options for AWS applications.                    |
-| cloud                | string |          | Cloud identifies the cloud instance the app represents.                  |
-| dynamic_labels       | object |          | DynamicLabels are the app's command labels.                              |
-| insecure_skip_verify | bool   |          | InsecureSkipVerify disables app's TLS certificate verification.          |
-| public_addr          | string |          | PublicAddr is the public address the application is accessible at.       |
-| rewrite              | object |          | Rewrite is a list of rewriting rules to apply to requests and responses. |
-| uri                  | string |          | URI is the web app endpoint.                                             |
+|         Name         |       Type       | Required |                                Description                                |
+|----------------------|------------------|----------|---------------------------------------------------------------------------|
+| aws                  | object           |          | AWS contains additional options for AWS applications.                     |
+| cloud                | string           |          | Cloud identifies the cloud instance the app represents.                   |
+| dynamic_labels       | object           |          | DynamicLabels are the app's command labels.                               |
+| insecure_skip_verify | bool             |          | InsecureSkipVerify disables app's TLS certificate verification.           |
+| public_addr          | string           |          | PublicAddr is the public address the application is accessible at.        |
+| rewrite              | object           |          | Rewrite is a list of rewriting rules to apply to requests and responses.  |
+| uri                  | string           |          | URI is the web app endpoint.                                              |
+| user_groups          | array of strings |          | UserGroups are a list of user group IDs that this app is associated with. |
 
 #### spec.aws
 
@@ -139,10 +140,11 @@ DynamicLabels are the app's command labels.
 
 Rewrite is a list of rewriting rules to apply to requests and responses.
 
-|   Name   |       Type       | Required |                                                                Description                                                                |
-|----------|------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| headers  | object           |          | Headers is a list of headers to inject when passing the request over to the application.                                                  |
-| redirect | array of strings |          | Redirect defines a list of hosts which will be rewritten to the public address of the application if they occur in the "Location" header. |
+|    Name    |       Type       | Required |                                                                Description                                                                |
+|------------|------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| headers    | object           |          | Headers is a list of headers to inject when passing the request over to the application.                                                  |
+| jwt_claims | string           |          | JWTClaims configures whether roles/traits are included in the JWT token.                                                                  |
+| redirect   | array of strings |          | Redirect defines a list of hosts which will be rewritten to the public address of the application if they occur in the "Location" header. |
 
 ##### spec.rewrite.headers
 
@@ -197,31 +199,34 @@ Metadata is resource metadata
 
 Spec is an AuthPreference specification
 
-|          Name           |  Type  | Required |                                                              Description                                                               |
-|-------------------------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------|
-| allow_headless          | bool   |          |                                                                                                                                        |
-| allow_local_auth        | bool   |          |                                                                                                                                        |
-| allow_passwordless      | bool   |          |                                                                                                                                        |
-| connector_name          | string |          | ConnectorName is the name of the OIDC or SAML connector. If this value is not set the first connector in the backend will be used.     |
-| device_trust            | object |          | DeviceTrust holds settings related to trusted device verification. Requires Teleport Enterprise.                                       |
-| disconnect_expired_cert | bool   |          |                                                                                                                                        |
-| idp                     | object |          | IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.                                       |
-| locking_mode            | string |          | LockingMode is the cluster-wide locking mode default.                                                                                  |
-| message_of_the_day      | string |          |                                                                                                                                        |
-| require_session_mfa     | number |          | RequireMFAType is the type of MFA requirement enforced for this cluster: 0:Off, 1:Session, 2:SessionAndHardwareKey, 3:HardwareKeyTouch |
-| second_factor           | string |          | SecondFactor is the type of second factor.                                                                                             |
-| type                    | string |          | Type is the type of authentication.                                                                                                    |
-| u2f                     | object |          | U2F are the settings for the U2F device.                                                                                               |
-| webauthn                | object |          | Webauthn are the settings for server-side Web Authentication support.                                                                  |
+|          Name           |   Type   | Required |                                                              Description                                                               |
+|-------------------------|----------|----------|----------------------------------------------------------------------------------------------------------------------------------------|
+| allow_headless          | bool     |          |                                                                                                                                        |
+| allow_local_auth        | bool     |          |                                                                                                                                        |
+| allow_passwordless      | bool     |          |                                                                                                                                        |
+| connector_name          | string   |          | ConnectorName is the name of the OIDC or SAML connector. If this value is not set the first connector in the backend will be used.     |
+| default_session_ttl     | duration |          | DefaultSessionTTL is the TTL to use for user certs when an explicit TTL is not requested.                                              |
+| device_trust            | object   |          | DeviceTrust holds settings related to trusted device verification. Requires Teleport Enterprise.                                       |
+| disconnect_expired_cert | bool     |          |                                                                                                                                        |
+| idp                     | object   |          | IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.                                       |
+| locking_mode            | string   |          | LockingMode is the cluster-wide locking mode default.                                                                                  |
+| message_of_the_day      | string   |          |                                                                                                                                        |
+| okta                    | object   |          | Okta is a set of options related to the Okta service in Teleport. Requires Teleport Enterprise.                                        |
+| require_session_mfa     | number   |          | RequireMFAType is the type of MFA requirement enforced for this cluster: 0:Off, 1:Session, 2:SessionAndHardwareKey, 3:HardwareKeyTouch |
+| second_factor           | string   |          | SecondFactor is the type of second factor.                                                                                             |
+| type                    | string   |          | Type is the type of authentication.                                                                                                    |
+| u2f                     | object   |          | U2F are the settings for the U2F device.                                                                                               |
+| webauthn                | object   |          | Webauthn are the settings for server-side Web Authentication support.                                                                  |
 
 #### spec.device_trust
 
 DeviceTrust holds settings related to trusted device verification. Requires Teleport Enterprise.
 
-|    Name     |  Type  | Required |                                                                                                                                                                                                                       Description                                                                                                                                                                                                                        |
-|-------------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| auto_enroll | bool   |          | Enable device auto-enroll. Auto-enroll lets any user issue a device enrollment token for a known device that is not already enrolled. `tsh` takes advantage of auto-enroll to automatically enroll devices on user login, when appropriate. The effective cluster Mode still applies: AutoEnroll=true is meaningless if Mode="off".                                                                                                                      |
-| mode        | string |          | Mode of verification for trusted devices.  The following modes are supported:  - "off": disables both device authentication and authorization. - "optional": allows both device authentication and authorization, but doesn't enforce the presence of device extensions for sensitive endpoints. - "required": enforces the presence of device extensions for sensitive endpoints.  Mode is always "off" for OSS. Defaults to "optional" for Enterprise. |
+|        Name        |       Type       | Required |                                                                                                                                                                                                                       Description                                                                                                                                                                                                                        |
+|--------------------|------------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| auto_enroll        | bool             |          | Enable device auto-enroll. Auto-enroll lets any user issue a device enrollment token for a known device that is not already enrolled. `tsh` takes advantage of auto-enroll to automatically enroll devices on user login, when appropriate. The effective cluster Mode still applies: AutoEnroll=true is meaningless if Mode="off".                                                                                                                      |
+| ekcert_allowed_cas | array of strings |          | Allow list of EKCert CAs in PEM format. If present, only TPM devices that present an EKCert that is signed by a CA specified here may be enrolled (existing enrollments are unchanged).  If not present, then the CA of TPM EKCerts will not be checked during enrollment, this allows any device to enroll.                                                                                                                                             |
+| mode               | string           |          | Mode of verification for trusted devices.  The following modes are supported:  - "off": disables both device authentication and authorization. - "optional": allows both device authentication and authorization, but doesn't enforce the presence of device extensions for sensitive endpoints. - "required": enforces the presence of device extensions for sensitive endpoints.  Mode is always "off" for OSS. Defaults to "optional" for Enterprise. |
 
 #### spec.idp
 
@@ -238,6 +243,14 @@ SAML are options related to the Teleport SAML IdP.
 |  Name   | Type | Required | Description |
 |---------|------|----------|-------------|
 | enabled | bool |          |             |
+
+#### spec.okta
+
+Okta is a set of options related to the Okta service in Teleport. Requires Teleport Enterprise.
+
+|    Name     |   Type   | Required |                               Description                                |
+|-------------|----------|----------|--------------------------------------------------------------------------|
+| sync_period | duration |          | SyncPeriod is the duration between synchronization calls in nanoseconds. |
 
 #### spec.u2f
 
@@ -357,18 +370,19 @@ Metadata is resource metadata
 
 Spec is a ClusterNetworkingConfig specification
 
-|          Name           |   Type   | Required |                                                                                               Description                                                                                               |
-|-------------------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| client_idle_timeout     | duration |          | ClientIdleTimeout sets global cluster default setting for client idle timeouts.                                                                                                                         |
-| idle_timeout_message    | string   |          | ClientIdleTimeoutMessage is the message sent to the user when a connection times out.                                                                                                                   |
-| keep_alive_count_max    | number   |          | KeepAliveCountMax is the number of keep-alive messages that can be missed before the server disconnects the connection to the client.                                                                   |
-| keep_alive_interval     | duration |          | KeepAliveInterval is the interval at which the server sends keep-alive messages to the client.                                                                                                          |
-| proxy_listener_mode     | number   |          | ProxyListenerMode is proxy listener mode used by Teleport Proxies.                                                                                                                                      |
-| proxy_ping_interval     | duration |          | ProxyPingInterval defines in which interval the TLS routing ping message should be sent. This is applicable only when using ping-wrapped connections, regular TLS routing connections are not affected. |
-| routing_strategy        | number   |          | RoutingStrategy determines the strategy used to route to nodes.                                                                                                                                         |
-| session_control_timeout | duration |          | SessionControlTimeout is the session control lease expiry and defines the upper limit of how long a node may be out of contact with the auth server before it begins terminating controlled sessions.   |
-| tunnel_strategy         | object   |          | TunnelStrategyV1 determines the tunnel strategy used in the cluster.                                                                                                                                    |
-| web_idle_timeout        | duration |          | WebIdleTimeout sets global cluster default setting for the web UI idle timeouts.                                                                                                                        |
+|               Name               |   Type   | Required |                                                                                               Description                                                                                               |
+|----------------------------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| assist_command_execution_workers | number   |          | AssistCommandExecutionWorkers determines the number of workers that will execute arbitrary Assist commands on servers in parallel                                                                       |
+| client_idle_timeout              | duration |          | ClientIdleTimeout sets global cluster default setting for client idle timeouts.                                                                                                                         |
+| idle_timeout_message             | string   |          | ClientIdleTimeoutMessage is the message sent to the user when a connection times out.                                                                                                                   |
+| keep_alive_count_max             | number   |          | KeepAliveCountMax is the number of keep-alive messages that can be missed before the server disconnects the connection to the client.                                                                   |
+| keep_alive_interval              | duration |          | KeepAliveInterval is the interval at which the server sends keep-alive messages to the client.                                                                                                          |
+| proxy_listener_mode              | number   |          | ProxyListenerMode is proxy listener mode used by Teleport Proxies.                                                                                                                                      |
+| proxy_ping_interval              | duration |          | ProxyPingInterval defines in which interval the TLS routing ping message should be sent. This is applicable only when using ping-wrapped connections, regular TLS routing connections are not affected. |
+| routing_strategy                 | number   |          | RoutingStrategy determines the strategy used to route to nodes.                                                                                                                                         |
+| session_control_timeout          | duration |          | SessionControlTimeout is the session control lease expiry and defines the upper limit of how long a node may be out of contact with the auth server before it begins terminating controlled sessions.   |
+| tunnel_strategy                  | object   |          | TunnelStrategyV1 determines the tunnel strategy used in the cluster.                                                                                                                                    |
+| web_idle_timeout                 | duration |          | WebIdleTimeout sets global cluster default setting for the web UI idle timeouts.                                                                                                                        |
 
 #### spec.tunnel_strategy
 
@@ -443,11 +457,13 @@ Spec is the database spec.
 |      Name      |  Type  | Required |                                                                 Description                                                                  |
 |----------------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------|
 | ad             | object |          | AD is the Active Directory configuration for the database.                                                                                   |
+| admin_user     | object |          | AdminUser is the database admin user for automatic user provisioning.                                                                        |
 | aws            | object |          | AWS contains AWS specific settings for RDS/Aurora/Redshift databases.                                                                        |
 | azure          | object |          | Azure contains Azure specific database metadata.                                                                                             |
 | ca_cert        | string |          | CACert is the PEM-encoded database CA certificate.  DEPRECATED: Moved to TLS.CACert. DELETE IN 10.0.                                         |
 | dynamic_labels | object |          | DynamicLabels is the database dynamic labels.                                                                                                |
 | gcp            | object |          | GCP contains parameters specific to GCP Cloud SQL databases.                                                                                 |
+| mongo_atlas    | object |          | MongoAtlas contains Atlas metadata about the database.                                                                                       |
 | mysql          | object |          | MySQL is an additional section with MySQL database options.                                                                                  |
 | protocol       | string | *        | Protocol is the database protocol: postgres, mysql, mongodb, etc.                                                                            |
 | tls            | object |          | TLS is the TLS configuration used when establishing connection to target database. Allows to provide custom CA cert or override server name. |
@@ -466,23 +482,33 @@ AD is the Active Directory configuration for the database.
 | ldap_cert     | string |          | LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication. |
 | spn           | string |          | SPN is the service principal name for the database.                                     |
 
+#### spec.admin_user
+
+AdminUser is the database admin user for automatic user provisioning.
+
+| Name |  Type  | Required |                      Description                      |
+|------|--------|----------|-------------------------------------------------------|
+| name | string |          | Name is the username of the privileged database user. |
+
 #### spec.aws
 
 AWS contains AWS specific settings for RDS/Aurora/Redshift databases.
 
-|        Name         |  Type  | Required |                                                                    Description                                                                     |
-|---------------------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------|
-| account_id          | string |          | AccountID is the AWS account ID this database belongs to.                                                                                          |
-| assume_role_arn     | string |          | AssumeRoleARN is an optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts. |
-| elasticache         | object |          | ElastiCache contains AWS ElastiCache Redis specific metadata.                                                                                      |
-| external_id         | string |          | ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.                                                     |
-| memorydb            | object |          | MemoryDB contains AWS MemoryDB specific metadata.                                                                                                  |
-| rds                 | object |          | RDS contains RDS specific metadata.                                                                                                                |
-| rdsproxy            | object |          | RDSProxy contains AWS Proxy specific metadata.                                                                                                     |
-| redshift            | object |          | Redshift contains Redshift specific metadata.                                                                                                      |
-| redshift_serverless | object |          | RedshiftServerless contains AWS Redshift Serverless specific metadata.                                                                             |
-| region              | string |          | Region is a AWS cloud region.                                                                                                                      |
-| secret_store        | object |          | SecretStore contains secret store configurations.                                                                                                  |
+|        Name         |  Type  | Required |                                                                                                                                     Description                                                                                                                                      |
+|---------------------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| account_id          | string |          | AccountID is the AWS account ID this database belongs to.                                                                                                                                                                                                                            |
+| assume_role_arn     | string |          | AssumeRoleARN is an optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts.                                                                                                                                   |
+| elasticache         | object |          | ElastiCache contains AWS ElastiCache Redis specific metadata.                                                                                                                                                                                                                        |
+| external_id         | string |          | ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.                                                                                                                                                                                       |
+| iam_policy_status   | number |          | IAMPolicyStatus indicates whether the IAM Policy is configured properly for database access. If not, the user must update the AWS profile identity to allow access to the Database. Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database. |
+| memorydb            | object |          | MemoryDB contains AWS MemoryDB specific metadata.                                                                                                                                                                                                                                    |
+| opensearch          | object |          | OpenSearch contains AWS OpenSearch specific metadata.                                                                                                                                                                                                                                |
+| rds                 | object |          | RDS contains RDS specific metadata.                                                                                                                                                                                                                                                  |
+| rdsproxy            | object |          | RDSProxy contains AWS Proxy specific metadata.                                                                                                                                                                                                                                       |
+| redshift            | object |          | Redshift contains Redshift specific metadata.                                                                                                                                                                                                                                        |
+| redshift_serverless | object |          | RedshiftServerless contains AWS Redshift Serverless specific metadata.                                                                                                                                                                                                               |
+| region              | string |          | Region is a AWS cloud region.                                                                                                                                                                                                                                                        |
+| secret_store        | object |          | SecretStore contains secret store configurations.                                                                                                                                                                                                                                    |
 
 ##### spec.aws.elasticache
 
@@ -506,6 +532,16 @@ MemoryDB contains AWS MemoryDB specific metadata.
 | endpoint_type | string |          | EndpointType is the type of the endpoint.                            |
 | tls_enabled   | bool   |          | TLSEnabled indicates whether in-transit encryption (TLS) is enabled. |
 
+##### spec.aws.opensearch
+
+OpenSearch contains AWS OpenSearch specific metadata.
+
+|     Name      |  Type  | Required |                Description                |
+|---------------|--------|----------|-------------------------------------------|
+| domain_id     | string |          | DomainID is the ID of the domain.         |
+| domain_name   | string |          | DomainName is the name of the domain.     |
+| endpoint_type | string |          | EndpointType is the type of the endpoint. |
+
 ##### spec.aws.rds
 
 RDS contains RDS specific metadata.
@@ -517,6 +553,7 @@ RDS contains RDS specific metadata.
 | instance_id | string           |          | InstanceID is the RDS instance identifier.                        |
 | resource_id | string           |          | ResourceID is the RDS instance resource identifier (db-xxx).      |
 | subnets     | array of strings |          | Subnets is a list of subnets for the RDS instance.                |
+| vpc_id      | string           |          | VPCID is the VPC where the RDS is running.                        |
 
 ##### spec.aws.rdsproxy
 
@@ -592,6 +629,14 @@ GCP contains parameters specific to GCP Cloud SQL databases.
 |-------------|--------|----------|--------------------------------------------------------------------|
 | instance_id | string |          | InstanceID is the Cloud SQL instance ID.                           |
 | project_id  | string |          | ProjectID is the GCP project ID the Cloud SQL instance resides in. |
+
+#### spec.mongo_atlas
+
+MongoAtlas contains Atlas metadata about the database.
+
+| Name |  Type  | Required |                Description                |
+|------|--------|----------|-------------------------------------------|
+| name | string |          | Name is the Atlas database instance name. |
 
 #### spec.mysql
 
@@ -823,6 +868,7 @@ Spec is an OIDC connector specification.
 | google_service_account     | string           |          | GoogleServiceAccount is a string containing google service account credentials.                                                               |
 | google_service_account_uri | string           |          | GoogleServiceAccountURI is a path to a google service account uri.                                                                            |
 | issuer_url                 | string           |          | IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.                                                                  |
+| max_age                    | duration         |          |                                                                                                                                               |
 | prompt                     | string           |          | Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility. |
 | provider                   | string           |          | Provider is the external identity provider.                                                                                                   |
 | redirect_url               | array of strings |          |                                                                                                                                               |
@@ -944,7 +990,7 @@ resource "teleport_okta_import_rule" "example" {
         add_labels = {
           "label1": "value1"
         }
-        matches = [
+        match = [
           {
             app_ids = ["1", "2", "3"]
           },
@@ -954,12 +1000,32 @@ resource "teleport_okta_import_rule" "example" {
         add_labels = {
           "label2": "value2"
         }
-        matches = [
+        match = [
           {
             group_ids = ["1", "2", "3"]
           },
         ],
       },
+      {
+        add_labels = {
+          "label3" : "value3",
+        }
+        match = [
+          {
+            group_name_regexes = ["^.*$"]
+          },
+        ],
+      },
+      {
+        add_labels = {
+          "label4" : "value4",
+        }
+        match = [
+          {
+            app_name_regexes = ["^.*$"]
+          },
+        ],
+      }
     ]
   }
 }
@@ -982,7 +1048,7 @@ Metadata is resource metadata
 |    Name     |      Type      | Required |                                              Description                                               |
 |-------------|----------------|----------|--------------------------------------------------------------------------------------------------------|
 | description | string         |          | Description is object description                                                                      |
-| expires     | RFC3339 time   | *        | Expires is a global expiry time header can be set on any resource in the system.                       |
+| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                       |
 | labels      | map of strings |          | Labels is a set of labels                                                                              |
 | name        | string         |          | Name is an object name                                                                                 |
 | namespace   | string         |          | Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4. |
@@ -1155,6 +1221,20 @@ resource "teleport_provision_token" "example" {
   }
 }
 
+resource "teleport_provision_token" "iam-token" {
+  metadata = {
+    name = "iam-token"
+  }
+  spec = {
+    roles       = ["Bot"]
+    bot_name    = "mybot"
+    join_method = "iam"
+    allow = [{
+      aws_account = "123456789012"
+    }]
+  }
+}
+
 ```
 
 ## teleport_role
@@ -1192,35 +1272,44 @@ Spec is a role specification
 
 Allow is the set of conditions evaluated to grant access.
 
-|          Name          |         Type         | Required |                                                           Description                                                           |
-|------------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------|
-| app_labels             | map of string arrays |          |                                                                                                                                 |
-| aws_role_arns          | array of strings     |          | AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.                                                          |
-| azure_identities       | array of strings     |          | AzureIdentities is a list of Azure identities this role is allowed to assume.                                                   |
-| cluster_labels         | map of string arrays |          |                                                                                                                                 |
-| db_labels              | map of string arrays |          |                                                                                                                                 |
-| db_names               | array of strings     |          | DatabaseNames is a list of database names this role is allowed to connect to.                                                   |
-| db_service_labels      | map of string arrays |          |                                                                                                                                 |
-| db_users               | array of strings     |          | DatabaseUsers is a list of databases users this role is allowed to connect as.                                                  |
-| desktop_groups         | array of strings     |          | DesktopGroups is a list of groups for created desktop users to be added to                                                      |
-| gcp_service_accounts   | array of strings     |          | GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.                                            |
-| group_labels           | map of string arrays |          |                                                                                                                                 |
-| host_groups            | array of strings     |          | HostGroups is a list of groups for created users to be added to                                                                 |
-| host_sudoers           | array of strings     |          | HostSudoers is a list of entries to include in a users sudoer file                                                              |
-| impersonate            | object               |          | Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means. |
-| join_sessions          | object               |          | JoinSessions specifies policies to allow users to join other sessions.                                                          |
-| kubernetes_groups      | array of strings     |          | KubeGroups is a list of kubernetes groups                                                                                       |
-| kubernetes_labels      | map of string arrays |          |                                                                                                                                 |
-| kubernetes_resources   | object               |          | KubernetesResources is the Kubernetes Resources this Role grants access to.                                                     |
-| kubernetes_users       | array of strings     |          | KubeUsers is an optional kubernetes users to impersonate                                                                        |
-| logins                 | array of strings     |          | Logins is a list of *nix system logins.                                                                                         |
-| node_labels            | map of string arrays |          |                                                                                                                                 |
-| request                | object               |          |                                                                                                                                 |
-| require_session_join   | object               |          | RequireSessionJoin specifies policies for required users to start a session.                                                    |
-| review_requests        | object               |          | ReviewRequests defines conditions for submitting access reviews.                                                                |
-| rules                  | object               |          | Rules is a list of rules and their access levels. Rules are a high level construct used for access control.                     |
-| windows_desktop_labels | map of string arrays |          |                                                                                                                                 |
-| windows_desktop_logins | array of strings     |          | WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.                                      |
+|               Name                |         Type         | Required |                                                           Description                                                           |
+|-----------------------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------|
+| app_labels                        | map of string arrays |          |                                                                                                                                 |
+| app_labels_expression             | string               |          | AppLabelsExpression is a predicate expression used to allow/deny access to Apps.                                                |
+| aws_role_arns                     | array of strings     |          | AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.                                                          |
+| azure_identities                  | array of strings     |          | AzureIdentities is a list of Azure identities this role is allowed to assume.                                                   |
+| cluster_labels                    | map of string arrays |          |                                                                                                                                 |
+| cluster_labels_expression         | string               |          | ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.                        |
+| db_labels                         | map of string arrays |          |                                                                                                                                 |
+| db_labels_expression              | string               |          | DatabaseLabelsExpression is a predicate expression used to allow/deny access to Databases.                                      |
+| db_names                          | array of strings     |          | DatabaseNames is a list of database names this role is allowed to connect to.                                                   |
+| db_roles                          | array of strings     |          | DatabaseRoles is a list of databases roles for automatic user creation.                                                         |
+| db_service_labels                 | map of string arrays |          |                                                                                                                                 |
+| db_service_labels_expression      | string               |          | DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.                       |
+| db_users                          | array of strings     |          | DatabaseUsers is a list of databases users this role is allowed to connect as.                                                  |
+| desktop_groups                    | array of strings     |          | DesktopGroups is a list of groups for created desktop users to be added to                                                      |
+| gcp_service_accounts              | array of strings     |          | GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.                                            |
+| group_labels                      | map of string arrays |          |                                                                                                                                 |
+| group_labels_expression           | string               |          | GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.                                       |
+| host_groups                       | array of strings     |          | HostGroups is a list of groups for created users to be added to                                                                 |
+| host_sudoers                      | array of strings     |          | HostSudoers is a list of entries to include in a users sudoer file                                                              |
+| impersonate                       | object               |          | Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means. |
+| join_sessions                     | object               |          | JoinSessions specifies policies to allow users to join other sessions.                                                          |
+| kubernetes_groups                 | array of strings     |          | KubeGroups is a list of kubernetes groups                                                                                       |
+| kubernetes_labels                 | map of string arrays |          |                                                                                                                                 |
+| kubernetes_labels_expression      | string               |          | KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.                          |
+| kubernetes_resources              | object               |          | KubernetesResources is the Kubernetes Resources this Role grants access to.                                                     |
+| kubernetes_users                  | array of strings     |          | KubeUsers is an optional kubernetes users to impersonate                                                                        |
+| logins                            | array of strings     |          | Logins is a list of *nix system logins.                                                                                         |
+| node_labels                       | map of string arrays |          |                                                                                                                                 |
+| node_labels_expression            | string               |          | NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.                                          |
+| request                           | object               |          |                                                                                                                                 |
+| require_session_join              | object               |          | RequireSessionJoin specifies policies for required users to start a session.                                                    |
+| review_requests                   | object               |          | ReviewRequests defines conditions for submitting access reviews.                                                                |
+| rules                             | object               |          | Rules is a list of rules and their access levels. Rules are a high level construct used for access control.                     |
+| windows_desktop_labels            | map of string arrays |          |                                                                                                                                 |
+| windows_desktop_labels_expression | string               |          | WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.                         |
+| windows_desktop_logins            | array of strings     |          | WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.                                      |
 
 ##### spec.allow.impersonate
 
@@ -1261,6 +1350,7 @@ KubernetesResources is the Kubernetes Resources this Role grants access to.
 |---------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | annotations         | map of string arrays |          |                                                                                                                                                                                                                                                   |
 | claims_to_roles     | object               |          | ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.                                                                                                                                                                         |
+| max_duration        | duration             |          | MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.                                                                                                                                  |
 | roles               | array of strings     |          | Roles is the name of roles which will match the request rule.                                                                                                                                                                                     |
 | search_as_roles     | array of strings     |          | SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request. |
 | suggested_reviewers | array of strings     |          | SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.                                                                                                                            |
@@ -1336,35 +1426,44 @@ Rules is a list of rules and their access levels. Rules are a high level constru
 
 Deny is the set of conditions evaluated to deny access. Deny takes priority over allow.
 
-|          Name          |         Type         | Required |                                                           Description                                                           |
-|------------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------|
-| app_labels             | map of string arrays |          |                                                                                                                                 |
-| aws_role_arns          | array of strings     |          | AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.                                                          |
-| azure_identities       | array of strings     |          | AzureIdentities is a list of Azure identities this role is allowed to assume.                                                   |
-| cluster_labels         | map of string arrays |          |                                                                                                                                 |
-| db_labels              | map of string arrays |          |                                                                                                                                 |
-| db_names               | array of strings     |          | DatabaseNames is a list of database names this role is allowed to connect to.                                                   |
-| db_service_labels      | map of string arrays |          |                                                                                                                                 |
-| db_users               | array of strings     |          | DatabaseUsers is a list of databases users this role is allowed to connect as.                                                  |
-| desktop_groups         | array of strings     |          | DesktopGroups is a list of groups for created desktop users to be added to                                                      |
-| gcp_service_accounts   | array of strings     |          | GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.                                            |
-| group_labels           | map of string arrays |          |                                                                                                                                 |
-| host_groups            | array of strings     |          | HostGroups is a list of groups for created users to be added to                                                                 |
-| host_sudoers           | array of strings     |          | HostSudoers is a list of entries to include in a users sudoer file                                                              |
-| impersonate            | object               |          | Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means. |
-| join_sessions          | object               |          | JoinSessions specifies policies to allow users to join other sessions.                                                          |
-| kubernetes_groups      | array of strings     |          | KubeGroups is a list of kubernetes groups                                                                                       |
-| kubernetes_labels      | map of string arrays |          |                                                                                                                                 |
-| kubernetes_resources   | object               |          | KubernetesResources is the Kubernetes Resources this Role grants access to.                                                     |
-| kubernetes_users       | array of strings     |          | KubeUsers is an optional kubernetes users to impersonate                                                                        |
-| logins                 | array of strings     |          | Logins is a list of *nix system logins.                                                                                         |
-| node_labels            | map of string arrays |          |                                                                                                                                 |
-| request                | object               |          |                                                                                                                                 |
-| require_session_join   | object               |          | RequireSessionJoin specifies policies for required users to start a session.                                                    |
-| review_requests        | object               |          | ReviewRequests defines conditions for submitting access reviews.                                                                |
-| rules                  | object               |          | Rules is a list of rules and their access levels. Rules are a high level construct used for access control.                     |
-| windows_desktop_labels | map of string arrays |          |                                                                                                                                 |
-| windows_desktop_logins | array of strings     |          | WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.                                      |
+|               Name                |         Type         | Required |                                                           Description                                                           |
+|-----------------------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------|
+| app_labels                        | map of string arrays |          |                                                                                                                                 |
+| app_labels_expression             | string               |          | AppLabelsExpression is a predicate expression used to allow/deny access to Apps.                                                |
+| aws_role_arns                     | array of strings     |          | AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.                                                          |
+| azure_identities                  | array of strings     |          | AzureIdentities is a list of Azure identities this role is allowed to assume.                                                   |
+| cluster_labels                    | map of string arrays |          |                                                                                                                                 |
+| cluster_labels_expression         | string               |          | ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.                        |
+| db_labels                         | map of string arrays |          |                                                                                                                                 |
+| db_labels_expression              | string               |          | DatabaseLabelsExpression is a predicate expression used to allow/deny access to Databases.                                      |
+| db_names                          | array of strings     |          | DatabaseNames is a list of database names this role is allowed to connect to.                                                   |
+| db_roles                          | array of strings     |          | DatabaseRoles is a list of databases roles for automatic user creation.                                                         |
+| db_service_labels                 | map of string arrays |          |                                                                                                                                 |
+| db_service_labels_expression      | string               |          | DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.                       |
+| db_users                          | array of strings     |          | DatabaseUsers is a list of databases users this role is allowed to connect as.                                                  |
+| desktop_groups                    | array of strings     |          | DesktopGroups is a list of groups for created desktop users to be added to                                                      |
+| gcp_service_accounts              | array of strings     |          | GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.                                            |
+| group_labels                      | map of string arrays |          |                                                                                                                                 |
+| group_labels_expression           | string               |          | GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.                                       |
+| host_groups                       | array of strings     |          | HostGroups is a list of groups for created users to be added to                                                                 |
+| host_sudoers                      | array of strings     |          | HostSudoers is a list of entries to include in a users sudoer file                                                              |
+| impersonate                       | object               |          | Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means. |
+| join_sessions                     | object               |          | JoinSessions specifies policies to allow users to join other sessions.                                                          |
+| kubernetes_groups                 | array of strings     |          | KubeGroups is a list of kubernetes groups                                                                                       |
+| kubernetes_labels                 | map of string arrays |          |                                                                                                                                 |
+| kubernetes_labels_expression      | string               |          | KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.                          |
+| kubernetes_resources              | object               |          | KubernetesResources is the Kubernetes Resources this Role grants access to.                                                     |
+| kubernetes_users                  | array of strings     |          | KubeUsers is an optional kubernetes users to impersonate                                                                        |
+| logins                            | array of strings     |          | Logins is a list of *nix system logins.                                                                                         |
+| node_labels                       | map of string arrays |          |                                                                                                                                 |
+| node_labels_expression            | string               |          | NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.                                          |
+| request                           | object               |          |                                                                                                                                 |
+| require_session_join              | object               |          | RequireSessionJoin specifies policies for required users to start a session.                                                    |
+| review_requests                   | object               |          | ReviewRequests defines conditions for submitting access reviews.                                                                |
+| rules                             | object               |          | Rules is a list of rules and their access levels. Rules are a high level construct used for access control.                     |
+| windows_desktop_labels            | map of string arrays |          |                                                                                                                                 |
+| windows_desktop_labels_expression | string               |          | WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.                         |
+| windows_desktop_logins            | array of strings     |          | WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.                                      |
 
 ##### spec.deny.impersonate
 
@@ -1405,6 +1504,7 @@ KubernetesResources is the Kubernetes Resources this Role grants access to.
 |---------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | annotations         | map of string arrays |          |                                                                                                                                                                                                                                                   |
 | claims_to_roles     | object               |          | ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.                                                                                                                                                                         |
+| max_duration        | duration             |          | MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.                                                                                                                                  |
 | roles               | array of strings     |          | Roles is the name of roles which will match the request rule.                                                                                                                                                                                     |
 | search_as_roles     | array of strings     |          | SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request. |
 | suggested_reviewers | array of strings     |          | SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.                                                                                                                            |
@@ -1485,8 +1585,10 @@ Options is for OpenSSH options like agent forwarding.
 | cert_extensions            | object           |          | CertExtensions specifies the key/values                                                                                                                                    |
 | cert_format                | string           |          | CertificateFormat defines the format of the user certificate to allow compatibility with older versions of OpenSSH.                                                        |
 | client_idle_timeout        | duration         |          | ClientIdleTimeout sets disconnect clients on idle timeout behavior, if set to 0 means do not disconnect, otherwise is set to the idle duration.                            |
+| create_db_user             | bool             |          |                                                                                                                                                                            |
 | create_desktop_user        | bool             |          |                                                                                                                                                                            |
 | create_host_user           | bool             |          |                                                                                                                                                                            |
+| create_host_user_mode      | number           |          | CreateHostUserMode allows users to be automatically created on a host when not set to off                                                                                  |
 | desktop_clipboard          | bool             |          |                                                                                                                                                                            |
 | desktop_directory_sharing  | bool             |          |                                                                                                                                                                            |
 | device_trust_mode          | string           |          | DeviceTrustMode is the device authorization mode used for the resources associated with the role. See DeviceTrust.Mode. Reserved for future use, not yet used by Teleport. |
@@ -1864,6 +1966,33 @@ Specification of the device.
 | asset_tag     | string | *        |             |
 | enroll_status | string |          |             |
 | os_type       | string | *        |             |
+| owner         | string |          |             |
+| profile       | object |          |             |
+| source        | object |          |             |
+
+#### spec.profile
+
+
+
+|         Name          |       Type       | Required | Description |
+|-----------------------|------------------|----------|-------------|
+| external_id           | string           |          |             |
+| jamf_binary_version   | string           |          |             |
+| model_identifier      | string           |          |             |
+| os_build              | string           |          |             |
+| os_build_supplemental | string           |          |             |
+| os_usernames          | array of strings |          |             |
+| os_version            | string           |          |             |
+| update_time           | RFC3339 time     |          |             |
+
+#### spec.source
+
+
+
+|  Name  |  Type  | Required | Description |
+|--------|--------|----------|-------------|
+| name   | string |          |             |
+| origin | string |          |             |
 
 Example:
 
@@ -1904,13 +2033,14 @@ Metadata is resource metadata
 
 Spec is a user specification
 
-|       Name        |         Type         | Required |                                                    Description                                                    |
-|-------------------|----------------------|----------|-------------------------------------------------------------------------------------------------------------------|
-| github_identities | object               |          | GithubIdentities list associated Github OAuth2 identities that let user log in using externally verified identity |
-| oidc_identities   | object               |          | OIDCIdentities lists associated OpenID Connect identities that let user log in using externally verified identity |
-| roles             | array of strings     |          | Roles is a list of roles assigned to user                                                                         |
-| saml_identities   | object               |          | SAMLIdentities lists associated SAML identities that let user log in using externally verified identity           |
-| traits            | map of string arrays |          |                                                                                                                   |
+|        Name        |         Type         | Required |                                                              Description                                                              |
+|--------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------|
+| github_identities  | object               |          | GithubIdentities list associated Github OAuth2 identities that let user log in using externally verified identity                     |
+| oidc_identities    | object               |          | OIDCIdentities lists associated OpenID Connect identities that let user log in using externally verified identity                     |
+| roles              | array of strings     |          | Roles is a list of roles assigned to user                                                                                             |
+| saml_identities    | object               |          | SAMLIdentities lists associated SAML identities that let user log in using externally verified identity                               |
+| traits             | map of string arrays |          |                                                                                                                                       |
+| trusted_device_ids | array of strings     |          | TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user. Managed by the Device Trust subsystem, avoid manual edits. |
 
 #### spec.github_identities
 

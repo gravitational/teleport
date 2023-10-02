@@ -12,11 +12,9 @@ both incremental (called "partial") and full syncs, as well as removals from
 Teleport if a computer is removed from Jamf Pro.
 
 Syncing devices from Jamf Pro is an **inventory management** step, equivalent to
-automatically running the corresponding `tctl devices add` commands. If you want
-to automatically enroll synced devices on user login, refer to the
-[auto-enrollment](#optional-enable-auto-enrollment) section.
+automatically running the corresponding `tctl devices add` commands.
 
-See the [Device Trust guide](./guide.mdx) for fundamental Device Trust concepts
+See the [Device Trust guide](../device-trust.mdx) for fundamental Device Trust concepts
 and behavior.
 
 ## Prerequisites
@@ -53,6 +51,17 @@ Create a readonly Jamf user for inventory sync.
 
 ## Step 2/4. Configure Jamf service
 
+<Admonition type="tip" title="Hosted Jamf plugin">
+  Teleport Cloud users can quickly get started with Jamf integration by using
+  the hosted Jamf plugin in the Web UI.
+  <Details title="Configure Jamf hosted plugin" min="13.2" closed>
+    Select the Jamf plugin:
+    ![Select Jamf plugin](../../../img/access-controls/device-trust/select-jamf.png)
+    Fill in the required information and click "Connect Jamf" button:
+    ![Configure Jamf plugin](../../../img/access-controls/device-trust/hosted-jamf.png)
+  </Details>
+</Admonition>
+
 Jamf inventory sync is performed by a separate `teleport` process, configured
 using the `jamf_service` key. It is recommended to run the service isolated from
 other Teleport processes, as it requires the Jamf credentials created in the
@@ -64,7 +73,9 @@ Save the following file as `/var/lib/teleport.yaml` and edit as needed:
 version: v3
 teleport:
   # Necessary to write devices back to Teleport.
-  proxy_server: teleport.example.com:443 # CHANGEME
+  proxy_server: (=clusterDefaults.clusterName=):443 # CHANGEME
+  join_params:
+    token_name: "/tmp/token"
 
 jamf_service:
   enabled: true
@@ -92,11 +103,11 @@ Change the following settings, as appropriate:
 Finally, write your Jamf password to the `/var/lib/teleport/jamf_password` file:
 
 ```code
-$ nano /var/lib/teleport/jamf_password # or use your favorite editor
+$ sudo nano /var/lib/teleport/jamf_password # or use your favorite editor
 
 # Only the OS user that runs `teleport` should have access to the password file.
-$ chmod 400 /var/lib/teleport/jamf_password
-$ chown teleport /var/lib/teleport/jamf_password
+$ sudo chmod 400 /var/lib/teleport/jamf_password
+$ sudo chown teleport /var/lib/teleport/jamf_password
 ```
 
 ## Step 3/4. Create a join token
@@ -106,7 +117,7 @@ On your local workstation, create the token as shown below:
 
 ```code
 $ tctl tokens add --type=mdm
-The invite token: 07c0565aa280595d7645b2964c36ebd1
+The invite token: (=presets.tokens.second=)
 This token will expire in 30 minutes.
 
 From the Jamf service host, use this token to add an MDM service to Teleport.
@@ -117,15 +128,13 @@ From the Jamf service host, use this token to add an MDM service to Teleport.
    --config=/path/to/teleport.yaml
 ```
 
+On the Jamf service host, write the token to a file called `/tmp/token`.
+
 ## Step 4/4. Start Jamf service
 
 Using the token created above, start the service:
 
-```code
-$ teleport start --config=/var/lib/teleport.yaml \
-   --token=07c0565aa280595d7645b2964c36ebd1 \
-   --ca-pin=sha256:4b32d9c54b2b3332019d5f0720b8f9a603de03ace07d308bcd743465eee1f200
-```
+(!docs/pages/includes/start-teleport.mdx!)
 
 The initial sync should happen in a few minutes. You can confirm from the Teleport service logs:
 
@@ -256,7 +265,7 @@ service has a different "jamf\_service.name". For example:
 ```diff
 version: v3
 teleport:
-  proxy_server: teleport.example.com:443
+  proxy_server: (=clusterDefaults.clusterName=):443
 
 jamf_service:
   enabled: true
@@ -299,6 +308,7 @@ ssh_service:
   enabled: false
 ```
 
-## Optional: Enable auto-enrollment
+## Next steps
 
-Refer to the [auto-enrollment guide](./auto-enrollment.mdx).
+Automatically enroll synced devices on user login with
+[auto-enrollment](./device-management.mdx#auto-enrollment).

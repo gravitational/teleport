@@ -203,7 +203,7 @@ Install Teleport on the host where you will run the Teleport Database Service:
 On the same host, create a Teleport configuration file:
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --proxy=teleport.example.com:443 \
    --token=/tmp/token \

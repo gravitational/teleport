@@ -1809,14 +1809,15 @@ func TestAWSDocumentConfigurator(t *testing.T) {
 		AWSSession:   &awssession.Session{},
 		AWSIAMClient: &iamMock{},
 		AWSSTSClient: &STSMock{ARN: "arn:aws:iam::1234567:role/example-role"},
-		AWSSSMClient: &SSMMock{
-			t: t,
-			expectedInput: &ssm.CreateDocumentInput{
-				Content:        aws.String(EC2DiscoverySSMDocument("https://proxy.example.org:443")),
-				DocumentType:   aws.String("Command"),
-				DocumentFormat: aws.String("YAML"),
-				Name:           aws.String("document"),
-			},
+		AWSSSMClients: map[string]ssmiface.SSMAPI{
+			"eu-central-1": &SSMMock{
+				t: t,
+				expectedInput: &ssm.CreateDocumentInput{
+					Content:        aws.String(EC2DiscoverySSMDocument("https://proxy.example.org:443")),
+					DocumentType:   aws.String("Command"),
+					DocumentFormat: aws.String("YAML"),
+					Name:           aws.String("document"),
+				}},
 		},
 		ServiceConfig: serviceConfig,
 		Flags: configurators.BootstrapFlags{
@@ -1849,7 +1850,7 @@ func TestAWSConfigurator(t *testing.T) {
 		AWSSession:    &awssession.Session{},
 		AWSIAMClient:  &iamMock{},
 		AWSSTSClient:  &STSMock{ARN: "arn:aws:iam::1234567:role/example-role"},
-		AWSSSMClient:  &SSMMock{},
+		AWSSSMClients: map[string]ssmiface.SSMAPI{"eu-central-1": &SSMMock{}},
 		ServiceConfig: &servicecfg.Config{},
 		Flags: configurators.BootstrapFlags{
 			AttachToUser:        "some-user",

@@ -208,8 +208,16 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) ([]
 					hostname, resolverName, err)
 			}
 
-			ch <- addrs
+			// even though we requested "ip4" it's possible to get IPv4
+			// addresses mapped to IPv6 addresses, so we unmap them here
+			result := make([]netip.Addr, 0, len(addrs))
+			for _, addr := range addrs {
+				if addr.Is4() || addr.Is4In6() {
+					result = append(result, addr.Unmap())
+				}
+			}
 
+			ch <- result
 		}()
 		return ch
 	}

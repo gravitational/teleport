@@ -39,6 +39,8 @@ const Container = styled.div`
   position: relative;
   align-self: center;
   user-select: none;
+  margin-bottom: 25px;
+  margin-top: 26px;
 `;
 
 const ActiveValue = styled.div<OpenProps>`

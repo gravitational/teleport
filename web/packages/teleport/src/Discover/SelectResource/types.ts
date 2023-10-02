@@ -16,6 +16,8 @@
 
 import { Platform } from 'design/theme/utils';
 
+import { ClusterResource } from 'teleport/services/userPreferences/types';
+
 import { ResourceKind } from '../Shared/ResourceKind';
 
 import type { DiscoverEventResource } from 'teleport/services/userEvent';
@@ -51,8 +53,13 @@ export enum DatabaseEngine {
   Doc,
 }
 
+export enum ServerLocation {
+  Aws,
+}
+
 export interface ResourceSpec {
   dbMeta?: { location: DatabaseLocation; engine: DatabaseEngine };
+  nodeMeta?: { location: ServerLocation };
   name: string;
   popular?: boolean;
   kind: ResourceKind;
@@ -87,3 +94,8 @@ export enum SearchResource {
   KUBERNETES = 'kubernetes',
   SERVER = 'server',
 }
+
+export type PrioritizedResources = {
+  preferredResources: ClusterResource[];
+  hasPreferredResources: boolean;
+};

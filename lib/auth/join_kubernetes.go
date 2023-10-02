@@ -19,54 +19,83 @@ package auth
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	v1 "k8s.io/api/authentication/v1"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
 )
 
-type kubernetesTokenValidator interface {
-	Validate(context.Context, string) (*v1.UserInfo, error)
+type k8sTokenReviewValidator interface {
+	Validate(context.Context, string) (*kubernetestoken.ValidationResult, error)
 }
 
-func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
+type k8sJWKSValidator func(now time.Time, jwksData []byte, clusterName string, token string) (*kubernetestoken.ValidationResult, error)
+
+func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*kubernetestoken.ValidationResult, error) {
 	if req.IDToken == "" {
-		return trace.BadParameter("IDToken not provided for Kubernetes join request")
+		return nil, trace.BadParameter("IDToken not provided for Kubernetes join request")
 	}
-	pt, err := a.GetToken(ctx, req.Token)
+	unversionedToken, err := a.GetToken(ctx, req.Token)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+	token, ok := unversionedToken.(*types.ProvisionTokenV2)
+	if !ok {
+		return nil, trace.BadParameter(
+			"kubernetes join method only supports ProvisionTokenV2, '%T' was provided",
+			unversionedToken,
+		)
 	}
 
-	userInfo, err := a.kubernetesTokenValidator.Validate(ctx, req.IDToken)
-	if err != nil {
-		return trace.WrapWithMessage(err, "failed to validate the Kubernetes token")
+	// Switch to join method subtype token validation.
+	var result *kubernetestoken.ValidationResult
+	switch token.Spec.Kubernetes.Type {
+	case types.KubernetesJoinTypeStaticJWKS:
+		clusterName, err := a.GetDomainName()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result, err = a.k8sJWKSValidator(
+			a.clock.Now(),
+			[]byte(token.Spec.Kubernetes.StaticJWKS.JWKS),
+			clusterName,
+			req.IDToken,
+		)
+		if err != nil {
+			return nil, trace.WrapWithMessage(err, "reviewing kubernetes token with static_jwks")
+		}
+	case types.KubernetesJoinTypeInCluster, types.KubernetesJoinTypeUnspecified:
+		result, err = a.k8sTokenReviewValidator.Validate(ctx, req.IDToken)
+		if err != nil {
+			return nil, trace.WrapWithMessage(err, "reviewing kubernetes token with in_cluster")
+		}
+	default:
+		return nil, trace.BadParameter(
+			"unsupported kubernetes join method type (%s)",
+			token.Spec.Kubernetes.Type,
+		)
 	}
 
 	log.WithFields(logrus.Fields{
-		"userInfo": userInfo,
-		"token":    pt.GetName(),
+		"validated_identity": result,
+		"token":              token.GetName(),
 	}).Info("Kubernetes workload trying to join cluster")
 
-	return trace.Wrap(checkKubernetesAllowRules(pt, userInfo))
+	return result, trace.Wrap(checkKubernetesAllowRules(token, result))
 }
 
-func checkKubernetesAllowRules(pt types.ProvisionToken, userInfo *v1.UserInfo) error {
-	token, ok := pt.(*types.ProvisionTokenV2)
-	if !ok {
-		return trace.BadParameter("kubernetes join method only supports ProvisionTokenV2, '%T' was provided", pt)
-	}
-
+func checkKubernetesAllowRules(pt *types.ProvisionTokenV2, got *kubernetestoken.ValidationResult) error {
 	// If a single rule passes, accept the token
-	for _, rule := range token.Spec.Kubernetes.Allow {
-		if fmt.Sprintf("%s:%s", kubernetestoken.ServiceAccountNamePrefix, rule.ServiceAccount) != userInfo.Username {
+	for _, rule := range pt.Spec.Kubernetes.Allow {
+		wantUsername := fmt.Sprintf("%s:%s", kubernetestoken.ServiceAccountNamePrefix, rule.ServiceAccount)
+		if wantUsername != got.Username {
 			continue
 		}
 		return nil
 	}
 
-	return trace.AccessDenied("kubernetes token user info did not match any allow rules")
+	return trace.AccessDenied("kubernetes token did not match any allow rules")
 }

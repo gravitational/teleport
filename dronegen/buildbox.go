@@ -52,8 +52,8 @@ func buildboxPipelineSteps() []step {
 
 	for _, name := range []string{"buildbox", "buildbox-arm", "buildbox-centos7"} {
 		for _, fips := range []bool{false, true} {
-			// FIPS is unsupported on ARM/ARM64
-			if name == "buildbox-arm" && fips {
+			// FIPS is only supported on centos7
+			if fips && name != "buildbox-centos7" {
 				continue
 			}
 			steps = append(steps, buildboxPipelineStep(name, fips))

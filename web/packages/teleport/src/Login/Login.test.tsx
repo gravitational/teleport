@@ -114,41 +114,62 @@ test('login with private key policy enabled through role setting', async () => {
   expect(screen.getByText(/login disabled/i)).toBeInTheDocument();
 });
 
-test('show motd only if motd is set', async () => {
-  // default login form
-  const { unmount } = render(<Login />);
-  expect(screen.getByPlaceholderText(/username/i)).toBeInTheDocument();
-  expect(
-    screen.queryByText('Welcome to cluster, your activity will be recorded.')
-  ).not.toBeInTheDocument();
-  unmount();
+describe('test MOTD', () => {
+  test('show motd only if motd is set', async () => {
+    // default login form
+    const { unmount } = render(<Login />);
+    expect(screen.getByPlaceholderText(/username/i)).toBeInTheDocument();
+    expect(
+      screen.queryByText('Welcome to cluster, your activity will be recorded.')
+    ).not.toBeInTheDocument();
+    unmount();
 
-  // now set motd
-  jest
-    .spyOn(cfg, 'getMotd')
-    .mockImplementation(
-      () => 'Welcome to cluster, your activity will be recorded.'
-    );
+    // now set motd
+    jest
+      .spyOn(cfg, 'getMotd')
+      .mockImplementation(
+        () => 'Welcome to cluster, your activity will be recorded.'
+      );
 
-  render(<Login />);
+    render(<Login />);
 
-  expect(
-    screen.getByText('Welcome to cluster, your activity will be recorded.')
-  ).toBeInTheDocument();
-  expect(screen.queryByPlaceholderText(/username/i)).not.toBeInTheDocument();
-});
+    expect(
+      screen.getByText('Welcome to cluster, your activity will be recorded.')
+    ).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/username/i)).not.toBeInTheDocument();
+  });
 
-test('show login form after modt acknowledge', async () => {
-  jest
-    .spyOn(cfg, 'getMotd')
-    .mockImplementation(
-      () => 'Welcome to cluster, your activity will be recorded.'
-    );
-  render(<Login />);
-  expect(
-    screen.getByText('Welcome to cluster, your activity will be recorded.')
-  ).toBeInTheDocument();
+  test('show login form after modt acknowledge', async () => {
+    jest
+      .spyOn(cfg, 'getMotd')
+      .mockImplementation(
+        () => 'Welcome to cluster, your activity will be recorded.'
+      );
+    render(<Login />);
+    expect(
+      screen.getByText('Welcome to cluster, your activity will be recorded.')
+    ).toBeInTheDocument();
 
-  fireEvent.click(screen.getByText('Acknowledge'));
-  expect(screen.getByPlaceholderText(/username/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Acknowledge'));
+    expect(screen.getByPlaceholderText(/username/i)).toBeInTheDocument();
+  });
+
+  test('skip motd if login initiated from headless auth', async () => {
+    jest
+      .spyOn(cfg, 'getMotd')
+      .mockImplementation(
+        () => 'Welcome to cluster, your activity will be recorded.'
+      );
+    jest
+      .spyOn(history, 'getRedirectParam')
+      .mockReturnValue(
+        'https://teleport.example.com/web/headless/5c5c1f73-ac5c-52ee-bc9e-0353094dcb4a'
+      );
+
+    render(<Login />);
+
+    expect(
+      screen.queryByText('Welcome to cluster, your activity will be recorded.')
+    ).not.toBeInTheDocument();
+  });
 });

@@ -25,13 +25,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	clientproto "github.com/gravitational/teleport/api/client/proto"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/lib/ai/model"
@@ -42,15 +42,14 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 )
 
-// We can not know how many tokens we will consume in advance.
-// Try to consume a small number of tokens first.
-const lookaheadTokens = 100
-
 const (
 	// actionSSHGenerateCommand is a name of the action for generating SSH commands.
 	actionSSHGenerateCommand = "ssh-cmdgen"
 	// actionSSHExplainCommand is a name of the action for explaining terminal output in SSH session.
 	actionSSHExplainCommand = "ssh-explain"
+	// We can not know how many tokens we will consume in advance.
+	// Try to consume a small amount of tokens first.
+	lookaheadTokens = 100
 )
 
 // createAssistantConversationResponse is a response for POST /webapi/assistant/conversations.
@@ -341,7 +340,7 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 	return nil, nil
 }
 
-func (h *Handler) reportTokenUsage(usedTokens *model.TokenCount, lookaheadTokens int, conversationID string, authClient auth.ClientI) {
+func (h *Handler) reportTokenUsage(usedTokens *model.TokenCount, conversationID string, authClient auth.ClientI) {
 	// Create a new context to not be bounded by the request timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -494,9 +493,9 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 	switch r.URL.Query().Get("action") {
 	case actionSSHGenerateCommand:
-		err = h.assistGenSSHCommandLoop(ctx, assistClient, ws, sctx.GetUser(), authClient)
+		err = h.assistGenSSHCommandLoop(ctx, assistClient, authClient, ws, sctx.GetUser())
 	case actionSSHExplainCommand:
-		err = h.assistSSHExplainOutputLoop(ctx, assistClient, ws, authClient)
+		err = h.assistSSHExplainOutputLoop(ctx, assistClient, authClient, ws)
 	default:
 		err = h.assistChatLoop(ctx, assistClient, authClient, conversationID, sctx, ws)
 	}
@@ -504,12 +503,8 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 	return trace.Wrap(err)
 }
 
-type usageReporter interface {
-	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
-}
-
 // assistSSHExplainOutputLoop reads the user's input and generates a command summary.
-func (h *Handler) assistSSHExplainOutputLoop(ctx context.Context, assistClient *assist.Assist, ws *websocket.Conn, usageRep usageReporter) error {
+func (h *Handler) assistSSHExplainOutputLoop(ctx context.Context, assistClient *assist.Assist, authClient auth.ClientI, ws *websocket.Conn) error {
 	_, payload, err := ws.ReadMessage()
 	if err != nil {
 		if wsIsClosed(err) {
@@ -525,6 +520,14 @@ func (h *Handler) assistSSHExplainOutputLoop(ctx context.Context, assistClient *
 		},
 	}
 
+	onMessage := func(kind assist.MessageType, payload []byte, createdTime time.Time) error {
+		return onMessageFn(ws, kind, payload, createdTime)
+	}
+
+	if err := h.preliminaryRateLimitGuard(onMessage); err != nil {
+		return trace.Wrap(err)
+	}
+
 	summary, tokenCount, err := assistClient.GenerateCommandSummary(ctx, modelMessages, map[string][]byte{})
 	if err != nil {
 		return trace.Wrap(err)
@@ -534,32 +537,19 @@ func (h *Handler) assistSSHExplainOutputLoop(ctx context.Context, assistClient *
 		return trace.Wrap(err)
 	}
 
-	prompt, completion := model.CountTokens(tokenCount)
-
-	usageEventReq := &clientproto.SubmitUsageEventRequest{
-		Event: &usageeventsv1.UsageEventOneOf{
-			Event: &usageeventsv1.UsageEventOneOf_AssistAction{
-				AssistAction: &usageeventsv1.AssistAction{
-					Action:           actionSSHExplainCommand,
-					TotalTokens:      int64(completion + prompt),
-					PromptTokens:     int64(prompt),
-					CompletionTokens: int64(completion),
-				},
-			},
-		},
-	}
-	if err := usageRep.SubmitUsageEvent(ctx, usageEventReq); err != nil {
-		h.log.WithError(err).Warn("Failed to emit usage event")
-	}
-
+	go h.reportTokenUsage(tokenCount, uuid.NewString(), authClient)
 	return nil
 }
 
 // assistSSHCommandLoop reads the user's input and generates a Linux command.
-func (h *Handler) assistGenSSHCommandLoop(ctx context.Context, assistClient *assist.Assist, ws *websocket.Conn, username string, usageRep usageReporter) error {
+func (h *Handler) assistGenSSHCommandLoop(ctx context.Context, assistClient *assist.Assist, authClient auth.ClientI, ws *websocket.Conn, username string) error {
 	chat, err := assistClient.NewLightweightChat(username)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	onMessage := func(kind assist.MessageType, payload []byte, createdTime time.Time) error {
+		return trace.Wrap(onMessageFn(ws, kind, payload, createdTime))
 	}
 
 	for {
@@ -571,6 +561,10 @@ func (h *Handler) assistGenSSHCommandLoop(ctx context.Context, assistClient *ass
 			return trace.Wrap(err)
 		}
 
+		if err := h.preliminaryRateLimitGuard(onMessage); err != nil {
+			return trace.Wrap(err)
+		}
+
 		tokenCount, err := chat.ProcessComplete(ctx, func(kind assist.MessageType, payload []byte, createdTime time.Time) error {
 			return onMessageFn(ws, kind, payload, createdTime)
 		}, string(payload))
@@ -578,23 +572,7 @@ func (h *Handler) assistGenSSHCommandLoop(ctx context.Context, assistClient *ass
 			return trace.Wrap(err)
 		}
 
-		prompt, completion := model.CountTokens(tokenCount)
-
-		usageEventReq := &clientproto.SubmitUsageEventRequest{
-			Event: &usageeventsv1.UsageEventOneOf{
-				Event: &usageeventsv1.UsageEventOneOf_AssistAction{
-					AssistAction: &usageeventsv1.AssistAction{
-						Action:           actionSSHGenerateCommand,
-						TotalTokens:      int64(completion + prompt),
-						PromptTokens:     int64(prompt),
-						CompletionTokens: int64(completion),
-					},
-				},
-			},
-		}
-		if err := usageRep.SubmitUsageEvent(ctx, usageEventReq); err != nil {
-			h.log.WithError(err).Warn("Failed to emit usage event")
-		}
+		go h.reportTokenUsage(tokenCount, uuid.NewString(), authClient)
 	}
 	return nil
 }
@@ -644,12 +622,8 @@ func (h *Handler) assistChatLoop(ctx context.Context, assistClient *assist.Assis
 			return trace.Wrap(err)
 		}
 
-		if !h.assistantLimiter.AllowN(h.clock.Now(), lookaheadTokens) {
-			err := onMessageFn(ws, assist.MessageKindError, []byte("You have reached the rate limit. Please try again later."), h.clock.Now().UTC())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			continue
+		if err := h.preliminaryRateLimitGuard(onMessage); err != nil {
+			return trace.Wrap(err)
 		}
 
 		//TODO(jakule): Should we sanitize the payload?
@@ -660,10 +634,27 @@ func (h *Handler) assistChatLoop(ctx context.Context, assistClient *assist.Assis
 
 		// Token usage reporting is asynchronous as we might still be streaming
 		// a message, and we don't want to block everything.
-		go h.reportTokenUsage(usedTokens, lookaheadTokens, conversationID, authClient)
+		go h.reportTokenUsage(usedTokens, conversationID, authClient)
 	}
 
 	h.log.Debug("end assistant conversation loop")
+	return nil
+}
+
+// preliminaryRateLimitGuard checks that some small amount of tokens are still available and the ratelimit is not exceeded.
+// This is done because the changed quantity within the limiter is not known until after a request is processed.
+func (h *Handler) preliminaryRateLimitGuard(onMessageFn func(kind assist.MessageType, payload []byte, createdTime time.Time) error) error {
+	const errorMsg = "You have reached the rate limit. Please try again later."
+
+	if !h.assistantLimiter.AllowN(time.Now(), lookaheadTokens) {
+		err := onMessageFn(assist.MessageKindError, []byte(errorMsg), h.clock.Now().UTC())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return trace.LimitExceeded(errorMsg)
+	}
+
 	return nil
 }
 
@@ -673,7 +664,9 @@ func wsIsClosed(err error) bool {
 		websocket.CloseGoingAway, websocket.CloseNormalClosure)
 }
 
-// onMessageFn is called when a message is received from the OpenAI API.
+// onMessageFn is a helper function used to send an assist message to the frontend.
+// It deals with serializing the kind and payload into a wire and sending it over with the correct
+// websocket frame type.
 func onMessageFn(ws *websocket.Conn, kind assist.MessageType, payload []byte, createdTime time.Time) error {
 	msg := &assistantMessage{
 		Type:        kind,

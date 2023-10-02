@@ -25,7 +25,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-// withErrorHandling is GRPC middleware that maps internal errors to proper GRPC error codes
+// withErrorHandling is gRPC middleware that maps internal errors to proper gRPC error codes
 func withErrorHandling(log logrus.FieldLogger) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,

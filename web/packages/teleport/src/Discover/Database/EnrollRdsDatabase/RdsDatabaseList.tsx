@@ -16,11 +16,16 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Flex, Box, Label as Pill } from 'design';
-import Table, { Cell as TableCell } from 'design/DataTable';
+import { Flex, Box } from 'design';
+import Table from 'design/DataTable';
 import { FetchStatus } from 'design/DataTable/types';
 
-import { Label } from 'teleport/types';
+import {
+  DisableableCell as Cell,
+  RadioCell,
+  Labels,
+  labelMatcher,
+} from 'teleport/Discover/Shared';
 
 import { CheckedAwsRdsDatabase } from './EnrollRdsDatabase';
 
@@ -31,6 +36,8 @@ type Props = {
   onSelectDatabase(item: CheckedAwsRdsDatabase): void;
   selectedDatabase?: CheckedAwsRdsDatabase;
 };
+
+const disabledText = `This RDS database is already enrolled and is a part of this cluster`;
 
 export const DatabaseList = ({
   items = [],
@@ -51,12 +58,14 @@ export const DatabaseList = ({
               item.name === selectedDatabase?.name &&
               item.engine === selectedDatabase?.engine;
             return (
-              <RadioCell
+              <RadioCell<CheckedAwsRdsDatabase>
+                disabledText={disabledText}
                 item={item}
                 key={`${item.name}${item.resourceId}`}
                 isChecked={isChecked}
                 onChange={onSelectDatabase}
                 disabled={item.dbServerExists}
+                value={item.name}
               />
             );
           },
@@ -65,21 +74,25 @@ export const DatabaseList = ({
           key: 'name',
           headerText: 'Name',
           render: ({ name, dbServerExists }) => (
-            <Cell disabled={dbServerExists}>{name}</Cell>
+            <Cell disabledText={disabledText} disabled={dbServerExists}>
+              {name}
+            </Cell>
           ),
         },
         {
           key: 'engine',
           headerText: 'Engine',
           render: ({ engine, dbServerExists }) => (
-            <Cell disabled={dbServerExists}>{engine}</Cell>
+            <Cell disabledText={disabledText} disabled={dbServerExists}>
+              {engine}
+            </Cell>
           ),
         },
         {
           key: 'labels',
           headerText: 'Labels',
           render: ({ labels, dbServerExists }) => (
-            <Cell disabled={dbServerExists}>
+            <Cell disabledText={disabledText} disabled={dbServerExists}>
               <Labels labels={labels} />
             </Cell>
           ),
@@ -103,7 +116,7 @@ const StatusCell = ({ item }: { item: CheckedAwsRdsDatabase }) => {
   const status = getStatus(item);
 
   return (
-    <Cell disabled={item.dbServerExists}>
+    <Cell disabledText={disabledText} disabled={item.dbServerExists}>
       <Flex alignItems="center">
         <StatusLight status={status} />
         {item.status}
@@ -111,42 +124,6 @@ const StatusCell = ({ item }: { item: CheckedAwsRdsDatabase }) => {
     </Cell>
   );
 };
-
-function RadioCell({
-  item,
-  isChecked,
-  onChange,
-  disabled,
-}: {
-  item: CheckedAwsRdsDatabase;
-  isChecked: boolean;
-  onChange(selectedItem: CheckedAwsRdsDatabase): void;
-  disabled: boolean;
-}) {
-  return (
-    <Cell width="20px" disabled={disabled}>
-      <Flex alignItems="center" my={2} justifyContent="center">
-        <input
-          css={`
-            margin: 0 ${props => props.theme.space[2]}px 0 0;
-            accent-color: ${props => props.theme.colors.brand.accent};
-            cursor: pointer;
-
-            &:disabled {
-              cursor: not-allowed;
-            }
-          `}
-          type="radio"
-          name={item.name}
-          checked={isChecked}
-          onChange={() => onChange(item)}
-          value={item.name}
-          disabled={disabled}
-        />
-      </Flex>
-    </Cell>
-  );
-}
 
 enum Status {
   Success,
@@ -185,61 +162,3 @@ const StatusLight = styled(Box)`
     return theme.colors.grey[300]; // Unknown
   }};
 `;
-
-const Labels = ({ labels }: { labels: Label[] }) => {
-  const $labels = labels.map((label, index) => {
-    const labelText = `${label.name}: ${label.value}`;
-
-    return (
-      <Pill key={`${label.name}${label.value}${index}`} mr="1" kind="secondary">
-        {labelText}
-      </Pill>
-    );
-  });
-
-  return <Flex flexWrap="wrap">{$labels}</Flex>;
-};
-
-// labelMatcher allows user to client search by labels in the format
-//   1) `key: value` or
-//   2) `key:value` or
-//   3) `key` or `value`
-function labelMatcher(
-  targetValue: any,
-  searchValue: string,
-  propName: keyof CheckedAwsRdsDatabase & string
-) {
-  if (propName === 'labels') {
-    return targetValue.some((label: Label) => {
-      const convertedKey = label.name.toLocaleUpperCase();
-      const convertedVal = label.value.toLocaleUpperCase();
-      const formattedWords = [
-        `${convertedKey}:${convertedVal}`,
-        `${convertedKey}: ${convertedVal}`,
-      ];
-      return formattedWords.some(w => w.includes(searchValue));
-    });
-  }
-}
-
-const Cell: React.FC<{ disabled: boolean; width?: string }> = ({
-  disabled,
-  width,
-  children,
-}) => {
-  return (
-    <TableCell
-      width={width}
-      title={
-        disabled
-          ? 'this RDS database is already enrolled and is a part of this cluster'
-          : null
-      }
-      css={`
-        opacity: ${disabled ? '0.5' : '1'};
-      `}
-    >
-      {children}
-    </TableCell>
-  );
-};

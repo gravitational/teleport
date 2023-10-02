@@ -293,8 +293,10 @@ export function useCreateDatabase() {
 
     return (
       createdDb.uri !== db.uri ||
-      createdDb.awsRds?.accountId !== db.awsRds?.accountId ||
-      createdDb.awsRds?.resourceId !== db.awsRds?.resourceId
+      createdDb.awsRds?.resourceId !== db.awsRds?.resourceId ||
+      createdDb.awsRds?.vpcId !== db.awsRds?.vpcId ||
+      createdDb.awsRds?.subnets !== db.awsRds?.subnets ||
+      createdDb.awsRds?.accountId !== db.awsRds?.accountId
     );
   }
 

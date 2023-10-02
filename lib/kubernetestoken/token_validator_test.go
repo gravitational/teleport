@@ -18,11 +18,17 @@ package kubernetestoken
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/jwt"
 	v1 "k8s.io/api/authentication/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/version"
@@ -30,6 +36,8 @@ import (
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/kubernetes/fake"
 	ctest "k8s.io/client-go/testing"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 var userGroups = []string{"system:serviceaccounts", "system:serviceaccounts:namespace", "system:authenticated"}
@@ -86,6 +94,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		token         string
 		review        *v1.TokenReview
 		kubeVersion   *version.Info
+		wantResult    *ValidationResult
 		expectedError error
 	}{
 		{
@@ -107,6 +116,11 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 					},
 				},
 			},
+			wantResult: &ValidationResult{
+				Type:     types.KubernetesJoinTypeInCluster,
+				Username: "system:serviceaccount:namespace:my-service-account",
+				// Raw will be filled in during test run to value of review
+			},
 			kubeVersion:   &boundTokenKubernetesVersion,
 			expectedError: nil,
 		},
@@ -125,6 +139,11 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 						Extra:    nil,
 					},
 				},
+			},
+			wantResult: &ValidationResult{
+				Type:     types.KubernetesJoinTypeInCluster,
+				Username: "system:serviceaccount:namespace:my-service-account",
+				// Raw will be filled in during test run to value of review
 			},
 			kubeVersion:   &legacyTokenKubernetesVersion,
 			expectedError: nil,
@@ -208,18 +227,23 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.token, func(t *testing.T) {
+			// Fill value of raw to avoid duplication in test table
+			if tt.wantResult != nil {
+				tt.wantResult.Raw = tt.review.Status
+			}
+
 			client := newFakeClientset(tt.kubeVersion)
 			client.AddReactor("create", "tokenreviews", tokenReviewMock(t, tt.review))
-			v := Validator{
+			v := TokenReviewValidator{
 				client: client,
 			}
-			userInfo, err := v.Validate(context.Background(), tt.token)
-			if tt.expectedError == nil {
-				require.NoError(t, err)
-				require.Equal(t, tt.review.Status.User, *userInfo)
-			} else {
+			result, err := v.Validate(context.Background(), tt.token)
+			if tt.expectedError != nil {
 				require.ErrorIs(t, err, tt.expectedError)
+				return
 			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantResult, result)
 		})
 	}
 }
@@ -255,6 +279,226 @@ func Test_kubernetesSupportsBoundTokens(t *testing.T) {
 			result, err := kubernetesSupportsBoundTokens(tt.gitVersion)
 			tt.expectErr(t, err)
 			require.Equal(t, tt.supportBoundToken, result)
+		})
+	}
+}
+
+func testSigner(t *testing.T) ([]byte, jose.Signer) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	signer, err := jose.NewSigner(
+		jose.SigningKey{Algorithm: jose.RS256, Key: key},
+		(&jose.SignerOptions{}).
+			WithType("JWT").
+			WithHeader("kid", "foo"),
+	)
+	require.NoError(t, err)
+
+	jwks := jose.JSONWebKeySet{Keys: []jose.JSONWebKey{
+		{
+			Key:       key.Public(),
+			Use:       "sig",
+			Algorithm: string(jose.RS256),
+			KeyID:     "foo",
+		},
+	}}
+	jwksData, err := json.Marshal(jwks)
+	require.NoError(t, err)
+	return jwksData, signer
+}
+
+func TestValidateTokenWithJWKS(t *testing.T) {
+	jwks, signer := testSigner(t)
+	_, wrongSigner := testSigner(t)
+
+	now := time.Now()
+	clusterName := "example.teleport.sh"
+	validKubeSubclaim := &kubernetesSubClaim{
+		ServiceAccount: &serviceAccountSubClaim{
+			Name: "my-service-account",
+			UID:  "8b77ea6d-3144-4203-9a8b-36eb5ad65596",
+		},
+		Pod: &podSubClaim{
+			Name: "my-pod-797959fdf-wptbj",
+			UID:  "413b22ca-4833-48d9-b6db-76219d583173",
+		},
+		Namespace: "default",
+	}
+
+	tests := []struct {
+		name   string
+		signer jose.Signer
+		claims serviceAccountClaims
+
+		wantResult *ValidationResult
+		wantErr    string
+	}{
+		{
+			name:   "valid",
+			signer: signer,
+			claims: serviceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
+				},
+				Kubernetes: validKubeSubclaim,
+			},
+			wantResult: &ValidationResult{
+				Type:     types.KubernetesJoinTypeStaticJWKS,
+				Username: "system:serviceaccount:default:my-service-account",
+			},
+		},
+		{
+			name:   "missing bound pod claim",
+			signer: signer,
+			claims: serviceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
+				},
+				Kubernetes: &kubernetesSubClaim{
+					ServiceAccount: &serviceAccountSubClaim{
+						Name: "my-service-account",
+						UID:  "8b77ea6d-3144-4203-9a8b-36eb5ad65596",
+					},
+					Namespace: "default",
+				},
+			},
+			wantErr: "static_jwks joining requires the use of projected pod bound service account token",
+		},
+		{
+			name:   "signed by unknown key",
+			signer: wrongSigner,
+			claims: serviceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
+				},
+				Kubernetes: validKubeSubclaim,
+			},
+			wantErr: "error in cryptographic primitive",
+		},
+		{
+			name:   "wrong audience",
+			signer: signer,
+			claims: serviceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{"wrong.audience"},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
+				},
+				Kubernetes: validKubeSubclaim,
+			},
+			wantErr: "invalid audience claim",
+		},
+		{
+			name:   "no expiry",
+			signer: signer,
+			claims: serviceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+				},
+				Kubernetes: validKubeSubclaim,
+			},
+			wantErr: "static_jwks joining requires the use of a service account token with `exp`",
+		},
+		{
+			name:   "no issued at",
+			signer: signer,
+			claims: serviceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
+				},
+				Kubernetes: validKubeSubclaim,
+			},
+			wantErr: "static_jwks joining requires the use of a service account token with `iat`",
+		},
+		{
+			name:   "too long ttl",
+			signer: signer,
+			claims: serviceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Hour)),
+				},
+				Kubernetes: validKubeSubclaim,
+			},
+			wantResult: &ValidationResult{
+				Type:     types.KubernetesJoinTypeStaticJWKS,
+				Username: "system:serviceaccount:default:my-service-account",
+			},
+			wantErr: "static_jwks joining requires the use of a service account token with a TTL of less than 30m0s",
+		},
+		{
+			name:   "expired",
+			signer: signer,
+			claims: serviceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-2 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-2 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+				},
+				Kubernetes: validKubeSubclaim,
+			},
+			wantErr: "token is expired",
+		},
+		{
+			name:   "not yet valid",
+			signer: signer,
+			claims: serviceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(2 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(2 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(4 * time.Minute)),
+				},
+				Kubernetes: validKubeSubclaim,
+			},
+			wantErr: "token not valid yet",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Fill value of raw to avoid duplication in test table
+			if tt.wantResult != nil {
+				tt.wantResult.Raw = tt.claims
+			}
+
+			token, err := jwt.Signed(tt.signer).Claims(tt.claims).CompactSerialize()
+			require.NoError(t, err)
+
+			result, err := ValidateTokenWithJWKS(
+				now, jwks, clusterName, token,
+			)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantResult, result)
 		})
 	}
 }

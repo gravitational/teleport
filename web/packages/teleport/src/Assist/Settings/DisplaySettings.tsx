@@ -154,7 +154,7 @@ const PageNavigation = styled.div`
 `;
 
 const NavigationLogo = styled.div`
-  background: url(${p => (p.theme.name === 'light' ? logoLight : logoDark)})
+  background: url(${p => (p.theme.type === 'light' ? logoLight : logoDark)})
     no-repeat;
   background-size: contain;
   width: 36px;

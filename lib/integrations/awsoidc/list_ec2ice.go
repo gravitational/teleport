@@ -56,33 +56,33 @@ func (req *ListEC2ICERequest) CheckAndSetDefaults() error {
 // EC2InstanceConnectEndpoint is the Teleport representation of an EC2 Instance Connect Endpoint
 type EC2InstanceConnectEndpoint struct {
 	// Name is the endpoint name.
-	Name string
+	Name string `json:"name,omitempty"`
 
 	// State is the endpoint state.
 	// Known values:
 	// create-in-progress | create-complete | create-failed | delete-in-progress | delete-complete | delete-failed
-	State string
+	State string `json:"state,omitempty"`
 
 	// StateMessage contains a message describing the state of the EICE.
 	// Can be empty.
-	StateMessage string
+	StateMessage string `json:"stateMessage,omitempty"`
 
 	// DashboardLink is a URL to AWS Console where the user can see the EC2 Instance Connect Endpoint.
-	DashboardLink string
+	DashboardLink string `json:"dashboardLink,omitempty"`
 
 	// SubnetID is the subnet used by the endpoint.
 	// Please note that the Endpoint should be able to reach any subnet within the VPC.
-	SubnetID string
+	SubnetID string `json:"subnetId,omitempty"`
 }
 
 // ListEC2ICEResponse contains a page of AWS EC2 Instances as Teleport Servers.
 type ListEC2ICEResponse struct {
 	// EC2ICEs contains the page of EC2 Instance Connect Endpoint.
-	EC2ICEs []EC2InstanceConnectEndpoint
+	EC2ICEs []EC2InstanceConnectEndpoint `json:"ec2InstanceConnectEndpoints,omitempty"`
 
 	// NextToken is used for pagination.
 	// If non-empty, it can be used to request the next page.
-	NextToken string
+	NextToken string `json:"nextToken,omitempty"`
 }
 
 // ListEC2ICEClient describes the required methods to List EC2 Instances using a 3rd Party API.
