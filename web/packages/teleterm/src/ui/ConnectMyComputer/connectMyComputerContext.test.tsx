@@ -33,6 +33,7 @@ import {
 import { createMockConfigService } from 'teleterm/services/config/fixtures/mocks';
 
 import {
+  AgentCompatibilityError,
   AgentProcessError,
   ConnectMyComputerContextProvider,
   useConnectMyComputerContext,
@@ -167,7 +168,7 @@ test('starting the agent flips the workspace autoStart flag to true', async () =
 
   expect(
     appContext.workspacesService.getConnectMyComputerAutoStart(rootCluster.uri)
-  ).toBeTruthy();
+  ).toBe(true);
 });
 
 test('killing the agent flips the workspace autoStart flag to false', async () => {
@@ -182,7 +183,44 @@ test('killing the agent flips the workspace autoStart flag to false', async () =
 
   expect(
     appContext.workspacesService.getConnectMyComputerAutoStart(rootCluster.uri)
-  ).toBeFalsy();
+  ).toBe(false);
+});
+
+test('failed autostart flips the workspace autoStart flag to false', async () => {
+  const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
+
+  let currentAgentProcessState: AgentProcessState = {
+    status: 'not-started',
+  };
+  jest
+    .spyOn(appContext.mainProcessClient, 'getAgentState')
+    .mockImplementation(() => currentAgentProcessState);
+  jest
+    .spyOn(appContext.connectMyComputerService, 'isAgentConfigFileCreated')
+    .mockResolvedValue(true);
+  jest
+    .spyOn(appContext.connectMyComputerService, 'downloadAgent')
+    .mockRejectedValue(new AgentCompatibilityError('incompatible'));
+
+  appContext.workspacesService.setConnectMyComputerAutoStart(
+    rootCluster.uri,
+    true
+  );
+
+  const { result, waitFor } = renderUseConnectMyComputerContextHook(
+    appContext,
+    rootCluster
+  );
+
+  await waitFor(
+    () =>
+      result.current.currentAction.kind === 'download' &&
+      result.current.currentAction.attempt.status === 'error'
+  );
+
+  expect(
+    appContext.workspacesService.getConnectMyComputerAutoStart(rootCluster.uri)
+  ).toBe(false);
 });
 
 test('starts the agent automatically if the workspace autoStart flag is true', async () => {
@@ -215,9 +253,10 @@ test('starts the agent automatically if the workspace autoStart flag is true', a
       return { cleanup: () => eventEmitter.off('', listener) };
     });
 
-  jest
-    .spyOn(appContext.workspacesService, 'getConnectMyComputerAutoStart')
-    .mockReturnValue(true);
+  appContext.workspacesService.setConnectMyComputerAutoStart(
+    rootCluster.uri,
+    true
+  );
 
   const { result, waitFor } = renderUseConnectMyComputerContextHook(
     appContext,

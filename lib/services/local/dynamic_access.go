@@ -507,6 +507,7 @@ func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (typ
 		opts,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
 	)
 	req, err := services.UnmarshalAccessRequest(
 		item.Value,
@@ -541,6 +542,7 @@ func itemToPluginData(item backend.Item) (types.PluginData, error) {
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

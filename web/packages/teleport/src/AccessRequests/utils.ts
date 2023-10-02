@@ -20,57 +20,88 @@ import {
   Duration,
   intervalToDuration,
   isAfter,
+  isBefore,
 } from 'date-fns';
 
-interface TimeDuration {
+type TimeDuration = {
   timestamp: number;
   duration: Duration;
+};
+
+// Round the duration to the nearest 10 minutes
+// Example:
+// 9m -> 10m
+// 10m -> 10m
+// 11m -> 10m
+// 15m -> 20m
+// 1d -> 1d
+// 1d 1h -> 1d 1h
+// The only exception is 0m, which is rounded to 10m
+export function roundToNearestTenMinutes(date: Duration): Duration {
+  let minutes = date.minutes;
+  let roundedMinutes = Math.round(minutes / 10) * 10; // Round to the nearest 10
+  if (roundedMinutes === 0 && !date.days && !date.hours) {
+    // Do not round down to 0. This
+    roundedMinutes = 10;
+  }
+  date.minutes = roundedMinutes;
+  date.seconds = 0;
+
+  return date;
 }
 
-export function middleValues(start: Date, end: Date): TimeDuration[] {
-  const now = new Date();
-
-  const roundDuration = (d: Date) =>
-    roundToNearestHour(
+// Generate a list of middle values between start and end. The first value is the
+// session TTL that is rounded to the nearest hour. The rest of the values are
+// rounded to the nearest day. Example:
+//
+// created: 2021-09-01T00:00:00.000Z
+// start: 2021-09-01T01:00:00.000Z
+// end: 2021-09-03T00:00:00.000Z
+// now: 2021-09-01T00:00:00.000Z
+//
+// returns: [1h, 1d, 2d, 3d]
+export function middleValues(
+  created: Date,
+  start: Date,
+  end: Date
+): TimeDuration[] {
+  const getInterval = (d: Date) =>
+    roundToNearestTenMinutes(
       intervalToDuration({
-        start: now,
+        start: created,
         end: d,
       })
     );
 
   const points: Date[] = [start];
 
-  if (isAfter(addDays(start, 1), end)) {
+  if (isAfter(addDays(created, 1), end)) {
+    // Add all possible options to the list. This covers the case when the
+    // max duration is less than 24 hours.
+    if (isBefore(addHours(points[points.length - 1], 1), end)) {
+      points.push(end);
+    }
+
     return points.map(d => ({
       timestamp: d.getTime(),
-      duration: roundDuration(d),
+      duration: getInterval(d),
     }));
   }
 
-  points.push(addDays(now, 1));
+  points.push(addDays(created, 1));
 
-  while (points[points.length - 1] <= end) {
-    points.push(addHours(points[points.length - 1], 24));
+  // I also prefer while(true), but our linter doesn't
+  for (;;) {
+    const next = addHours(points[points.length - 1], 24);
+    // Allow next == end
+    if (next > end) {
+      break;
+    }
+    points.push(next);
   }
 
   return points.map(d => ({
     timestamp: d.getTime(),
-    duration: roundDuration(d),
+    duration: getInterval(d),
   }));
-}
-
-export function roundToNearestHour(duration: Duration): Duration {
-  if (duration.minutes > 30) {
-    duration.hours += 1;
-  }
-
-  if (duration.hours >= 24) {
-    duration.days += 1;
-    duration.hours -= 24;
-  }
-
-  duration.minutes = 0;
-  duration.seconds = 0;
-
-  return duration;
 }

@@ -424,7 +424,7 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Role Requests in OSS Teleport",
+              "title": "Teleport Community Edition Role Access Requests",
               "slug": "/access-controls/access-requests/oss-role-requests/",
               "forScopes": ["oss"]
             }
@@ -925,7 +925,11 @@
             },
             {
               "title": "Agentless OpenSSH Integration",
-              "slug": "/server-access/guides/openssh/"
+              "slug": "/server-access/guides/openssh/openssh/"
+            },
+            {
+              "title": "Agentless OpenSSH Integration (Manual Install)",
+              "slug": "/server-access/guides/openssh/openssh-manual-install/"
             },
             {
               "title": "Recording Proxy Mode",
@@ -2817,6 +2821,11 @@
     {
       "source": "/machine-id/guides/gitlab/",
       "destination": "/machine-id/platform-guides/github-actions/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/openssh/",
+      "destination": "/server-access/guides/openssh/openssh/",
       "permanent": true
     }
   ]

@@ -1206,12 +1206,20 @@ message DeleteMFADeviceResponseAck {
 // DeleteMFADeviceSyncRequest is a request to delete a MFA device (nonstream).
 message DeleteMFADeviceSyncRequest {
   // TokenID is the ID of a user token that will be used to verify this request.
+  //
   // Token types accepted are:
   //   - Recovery approved token that is obtained with RPC VerifyAccountRecovery
   //   - Privilege token that is obtained with RPC CreatePrivilegeToken
+  //
+  // Authenticated users can delete a device by providing an ExistingMFAResponse
+  // instead.
   string TokenID = 1 [(gogoproto.jsontag) = "token_id"];
   // DeviceName is the name of the device to delete.
   string DeviceName = 2 [(gogoproto.jsontag) = "device_name"];
+  // ExistingMFAResponse is an MFA response from an existing device.
+  //
+  // May be provided as an alternative to TokenID.
+  MFAAuthenticateResponse ExistingMFAResponse = 3 [(gogoproto.jsontag) = "existing_mfa_response,omitempty"];
 }
 
 // AddMFADeviceSyncRequest is a request to add a MFA device (nonstream).

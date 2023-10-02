@@ -22,7 +22,7 @@ import { compareSemVers } from 'shared/utils/semVer';
 
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 
-import { isAgentCompatible } from './CompatibilityPromise';
+import { checkAgentCompatibility } from './CompatibilityPromise';
 
 export function shouldShowAgentUpgradeSuggestion(
   proxyVersion: string,
@@ -32,7 +32,7 @@ export function shouldShowAgentUpgradeSuggestion(
   const isClusterOnOlderVersion =
     compareSemVers(proxyVersion, appVersion) === 1;
   return (
-    isAgentCompatible(proxyVersion, runtimeSettings) &&
+    checkAgentCompatibility(proxyVersion, runtimeSettings) === 'compatible' &&
     isClusterOnOlderVersion &&
     !isLocalBuild
   );

@@ -209,3 +209,12 @@ func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accessli
 
 	return accessList, updatedMembers, nil
 }
+
+// AccessRequestPromote promotes an access request to an access list.
+func (c *Client) AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
+	resp, err := c.grpcClient.AccessRequestPromote(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
