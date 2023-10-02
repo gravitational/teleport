@@ -463,7 +463,7 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client auth.ClientI, 
 		// Unmarshalling user sets createdBy to zero values which will overwrite existing data.
 		// This field should not be allowed to be overwritten.
 		user.SetCreatedBy(existingUser.GetCreatedBy())
-
+		user.SetRevision(existingUser.GetRevision())
 		if err := client.UpdateUser(ctx, user); err != nil {
 			return trace.Wrap(err)
 		}

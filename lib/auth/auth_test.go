@@ -802,6 +802,8 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	require.Nil(t, s.mockEmitter.LastEvent())
 
 	// test update user
+	user, err = s.a.GetUser(user.GetName(), false)
+	require.NoError(t, err)
 	err = s.a.UpdateUser(ctx, user)
 	require.NoError(t, err)
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.UserUpdatedEvent)

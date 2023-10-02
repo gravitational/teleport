@@ -651,6 +651,11 @@ func testRoleRefreshWithBogusRequestID(t *testing.T, testPack *accessRequestTest
 	err = auth.UpsertUser(user)
 	require.NoError(t, err)
 
+	// Get user to obtain the revision since the user isn't returned
+	// from the create call above.
+	user, err = auth.GetUser(user.GetName(), false)
+	require.NoError(t, err)
+
 	// Create a client with the old set of roles.
 	clt, err := testPack.tlsServer.NewClient(TestUser(username))
 	require.NoError(t, err)

@@ -274,6 +274,11 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 	user.SetCreatedBy(types.CreatedBy{
 		Connector: &types.ConnectorRef{Type: "oidc", ID: "google"},
 	})
+
+	// Get the user to retrieve the revision.
+	user, err = srv.Auth().GetUser(user.GetName(), false)
+	require.NoError(t, err)
+
 	err = srv.Auth().UpdateUser(ctx, user)
 	require.NoError(t, err)
 

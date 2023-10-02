@@ -822,7 +822,7 @@ func (l *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 			}
 			defer stmt.Close()
 
-			if _, err := stmt.ExecContext(ctx, types.OpPut, now, string(i.Key), id(now), expires(i.Expires), i.Value, i.Revision); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, now, string(i.Key), id(now), expires(i.Expires), i.Value, rev); err != nil {
 				return trace.Wrap(err)
 			}
 		}

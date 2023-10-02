@@ -34,6 +34,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -1208,4 +1209,96 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 	require.Empty(t, cmp.Diff(types.Databases(want).ToMap(), databases.ToMap(),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace", "Expires"),
 	))
+}
+
+func TestCreateUser(t *testing.T) {
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+
+	timeNow := time.Now().UTC()
+	fakeClock := clockwork.NewFakeClockAt(timeNow)
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withFakeClock(fakeClock))
+
+	_, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{
+			User: "bad@actor",
+		},
+		Message: "I am a message",
+	})
+	require.NoError(t, err)
+
+	// Ensure there are no users to start
+	buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindUser, "--format=json"})
+	require.NoError(t, err)
+	users := mustDecodeJSON[[]*types.UserV2](t, buf)
+	require.Empty(t, users)
+
+	const userYAML = `kind: user
+version: v2
+metadata:
+  name: test-user
+spec:
+  roles:
+  - editor
+  - auditor
+  - access
+  traits:
+    logins:
+      - root
+      - ubuntu
+      - debian`
+
+	// Create the user
+	userYAMLPath := filepath.Join(t.TempDir(), "user.yaml")
+	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
+	_, err = runResourceCommand(t, fileConfig, []string{"create", userYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the user
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindUser, "--format=json"})
+	require.NoError(t, err)
+	users = mustDecodeJSON[[]*types.UserV2](t, buf)
+	require.Len(t, users, 1)
+
+	expected, err := types.NewUser("test-user")
+	require.NoError(t, err)
+	expected.SetRoles([]string{teleport.PresetEditorRoleName, teleport.PresetAuditorRoleName, teleport.PresetAccessRoleName})
+	expected.SetTraits(map[string][]string{"logins": {"root", "ubuntu", "debian"}})
+
+	require.Empty(t, cmp.Diff(
+		[]*types.UserV2{expected.(*types.UserV2)},
+		users,
+		cmpopts.IgnoreFields(types.UserV2{}, "Metadata"),
+		cmpopts.IgnoreFields(types.UserSpecV2{}, "CreatedBy"),
+	))
+
+	// Explicitly change the revision and try creating the user with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	userBytes, err := services.MarshalUser(expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(userYAMLPath, userBytes, 0644))
+
+	_, err = runResourceCommand(t, fileConfig, []string{"create", userYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fileConfig, []string{"create", "-f", userYAMLPath})
+	require.NoError(t, err)
 }

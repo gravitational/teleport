@@ -1791,6 +1791,10 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Update some traits and roles.
+
+	newUser, err = clt.GetUser(newUser.GetName(), false)
+	require.NoError(t, err)
+
 	newRoleName := "new-role"
 	newUser.SetLogins([]string{"apple", "banana"})
 	newUser.SetDatabaseUsers([]string{"llama", "alpaca"})
