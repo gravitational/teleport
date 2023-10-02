@@ -66,6 +66,7 @@ export type HostedPlugin = PluginBase & {
   // For each hosted plugin, these describe additional elements in the enroll page.
   fullName: string;
   Description?: () => JSX.Element;
+  Setup?: () => JSX.Element;
   FormMixin?: () => JSX.Element;
   NextSteps?: (props: { successData?: EnrollSuccessResponse }) => JSX.Element;
   permissions?: CategoryPermissions[];
@@ -80,23 +81,47 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     icon: slackIcon,
     url: 'https://github.com/gravitational/teleport-plugins/tree/master/access/slack',
     hosted: true,
-    fullName: 'Slack Access Notifications',
+    fullName: 'Slack access request notifications',
     Description: () => (
       <Text>
         <p>
-          Your Slack integration will match Slack and Teleport emails for
-          Teleport reviewers and alert them whenever a teammate makes an access
-          request. To do that, the integration will need you* to approve the
-          following permissions:
+          The Slack integration receives access requests from Teleport and posts
+          them as Slack messages to alert reviewers.
         </p>
         <p>
-          *Please note that if you do not have permissions to add new apps to
+          If an access request includes suggested reviewers, the Slack
+          integration will add these to the list of channels to notify. If a
+          suggested reviewer is an email address, the Slack integration will
+          look up the the direct message channel for that address and post a
+          message in that channel. Otherwise, the integration will post messages
+          in the default channel that you select on this screen.
+        </p>
+        <p>
+          Please note that if you do not have permissions to add new apps to
           your Slack workspace, you will need to request approval in the next
           step. Once that approval is given, Slackbot will notify you within
           your workspace, and you will be able to connect Slack and Teleport by
           coming back to this view and clicking the “Connect Slack” button
           again.
         </p>
+      </Text>
+    ),
+    Setup: () => (
+      <Text>
+        <ol>
+          <li>
+            Authenticate to the Slack workspace where you plan to manage access
+            requests.
+          </li>
+          <li>
+            Configure the default channel for the plugin at the bottom of this
+            page.
+          </li>
+          <li>
+            The integration will request permissions to access your workspace.
+            Grant these permissions to the integration.
+          </li>
+        </ol>
       </Text>
     ),
     permissions: [
@@ -233,8 +258,19 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     NextSteps: () => {
       return (
         <Text typography="body1">
-          It may take a while before all applications and groups are synced to
-          Teleport.
+          <p>
+            After enabling the Okta integration, create an import rule to
+            configure the applications that Teleport imports from Okta. See the{' '}
+            <a href="https://goteleport.com/docs/application-access/okta/reference/">
+              Teleport documentation
+            </a>{' '}
+            for details.
+          </p>
+
+          <p>
+            It may take a while before all applications and groups are synced to
+            Teleport.
+          </p>
         </Text>
       );
     },
@@ -245,7 +281,7 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     icon: opsgenieIcon, // TODO(lisa): update all these icons to SVGIcon for theme friendly
     url: 'https://goteleport.com/docs/access-controls/access-requests/resource-requests/', // TODO(lisa): change to opsgenie docs (wip)
     hosted: true,
-    fullName: 'Opsgenie Alerts',
+    fullName: 'Opsgenie access request notifications',
     Description: () => (
       <Text>
         <p>
@@ -254,8 +290,34 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
         </p>
         <p>
           You will need to provide an API key with the following permissions
-          'Read Access' and 'Create and Update Access'
+          “Read Access” and “Create and Update Access”.
         </p>
+      </Text>
+    ),
+    Setup: () => (
+      <Text>
+        <p>
+          Generate an API key that the Opsgenie plugin will use to create and
+          modify alerts as well as list users, services, and on-call policies.
+        </p>
+
+        <ol>
+          <li>
+            Follow the instructions in the{' '}
+            <a href="https://support.atlassian.com/opsgenie/docs/api-key-management/">
+              Opsgenie documentation
+            </a>
+            , assigning the following permissions to your API key:
+            <ul>
+              <li>read</li>
+              <li>create</li>
+              <li>update</li>
+            </ul>
+          </li>
+          <li>
+            Copy the API key so you can paste it in the form on this screen.
+          </li>
+        </ol>
       </Text>
     ),
     permissions: [
@@ -335,9 +397,9 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     Description: () => (
       <Text>
         <p>
-          Jamf plugin updates trusted devices in Teleport to match available
-          devices in your Jamf inventory. For more details, see our docs page
-          about{' '}
+          Jamf integration updates trusted devices in Teleport to match
+          available devices in your Jamf inventory. For more details, see our
+          docs page about{' '}
           <Link
             href="https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise"
             target="_blank"
@@ -345,6 +407,39 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
             Device Trust and the Jamf Integration.
           </Link>
         </p>
+      </Text>
+    ),
+    Setup: () => (
+      <Text>
+        <p>Create a read-only Jamf user for inventory sync:</p>
+
+        <ol>
+          <li>
+            Access {'https://yourtenant.jamfcloud.com/accounts.html'}, replacing
+            “yourtenant” with your Jamf Pro account URL.{' '}
+          </li>
+
+          <li>
+            {' '}
+            Create a new Standard Account with the following settings:
+            <ul>
+              <li> Username: teleport (change as desired)</li>
+              <li> Access Level: Full Access</li>
+              <li> Privilege Set: Custom</li>
+              <li> Access Status: Enabled</li>
+              <li> Password: (a strong password of your choice)</li>
+              <li> Privileges:</li>
+              <ul>
+                <li>Advanced Computer Searches: Read</li>
+                <li>Computers: Read</li>
+              </ul>
+            </ul>
+          </li>
+          <li>
+            Take note of the user and password you created in order to configure
+            the Jamf integration on this screen.
+          </li>
+        </ol>
       </Text>
     ),
     permissions: [
@@ -412,8 +507,8 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     NextSteps: () => {
       return (
         <Text typography="body1">
-          Jamf plugin is configured for your cluster. Depending on the size of
-          your Jamf inventory, it may take a few minutes to sync with{' '}
+          Jamf integration is configured for your cluster. Depending on the size
+          of your Jamf inventory, it may take a few minutes to sync with{' '}
           <ReactRouterLink to={cfg.routes.deviceTrust}>
             Trusted Devices
           </ReactRouterLink>{' '}
@@ -509,7 +604,7 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
   {
     type: 'jira',
     name: 'Jira',
-    fullName: 'Jira',
+    fullName: 'Jira access request management',
     icon: jiraIcon,
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-jira',
     hosted: true,
@@ -531,9 +626,73 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     Description: () => (
       <Text>
         <p>
-          A Teleport integration with Jira allows your team to treat Teleport
-          access requests as Jira incidents.
+          The Teleport Jira integration allows you to manage Teleport access
+          requests using Jira tickets.
         </p>
+      </Text>
+    ),
+    Setup: () => (
+      <Text>
+        <ol>
+          <li>
+            Follow the{' '}
+            <a href="https://support.atlassian.com/jira-software-cloud/docs/create-a-new-project/">
+              Jira documentation
+            </a>{' '}
+            to create a project. Ensure that the project has the following
+            attributes:
+            <ul>
+              <li>
+                Uses the{' '}
+                <a href="https://www.atlassian.com/software/jira/templates/kanban">
+                  Kanban
+                </a>{' '}
+                template.
+              </li>
+              <li>Is a company-managed project.</li>
+            </ul>
+          </li>
+          <li>
+            Edit the statuses in your board so it contains the following four:
+            <ul>
+              <li>Pending</li>
+              <li>Approved</li>
+              <li>Denied</li>
+              <li>Expired</li>
+            </ul>
+          </li>
+
+          <li>
+            Create a column with the same name as each status. If your project
+            board does not contain these (and only these) columns, each with a
+            status of the same name, the Jira access request integration will
+            behave in unexpected ways. Remove all other columns and statuses.
+          </li>
+          <li>
+            The Teleport Jira integration expects tasks your project board to
+            include a field called “teleportAccessRequestId”, which it uses to
+            track individual access requests. This prevents users from tampering
+            with or forging access requests. Follow the{' '}
+            <a href="https://support.atlassian.com/jira-cloud-administration/docs/create-a-custom-field/">
+              Jira documentation
+            </a>{' '}
+            to create a custom field and add it to the project you created.
+            Ensure that the custom field has the following attributes:
+            <ul>
+              <li>The name of the field must be “teleportAccessRequestId”.</li>
+              <li>The field must be a short text field.</li>
+            </ul>
+          </li>
+
+          <li>
+            Obtain an API token for the Teleport Jira integration to use to make
+            changes to your Jira project by following the{' '}
+            <a href="https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/#Create-an-API-token">
+              Jira documentation
+            </a>
+            . Copy the API key into the form on this screen.{' '}
+          </li>
+        </ol>
       </Text>
     ),
     FormMixin: () => {
@@ -634,14 +793,38 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     icon: pagerdutyIcon,
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-pagerduty/',
     hosted: true,
-    fullName: 'PagerDuty Alerts',
+    fullName: 'PagerDuty access request management',
     Description: () => (
       <Text>
         <p>
-          A Teleport integration with PagerDuty allows your team to treat
-          Teleport permission requests as Pagerduty incidents, and provides
-          Pagerduty special actions to approve or deny permission requests.
+          The Teleport integration with PagerDuty allows your team to treat
+          Teleport permission requests as Pagerduty incidents and provides
+          Pagerduty saecial actions to approve or deny permission requests.
         </p>
+      </Text>
+    ),
+    Setup: () => (
+      <Text>
+        <p>
+          You will need to generate an API key for the PagerDuty integration to
+          use to create and modify incidents as well as list users, services,
+          and on-call policies.
+        </p>
+
+        <ol>
+          <li>
+            Follow the{' '}
+            <a href="https://support.pagerduty.com/docs/api-access-keys#generate-a-general-access-rest-api-key">
+              PagerDuty documentation
+            </a>{' '}
+            to create a REST API key. The key <strong>must not</strong> be read
+            only.
+          </li>
+          <li>
+            Copy the key and paste it into the “PagerDuty API Key” field on this
+            screen.
+          </li>
+        </ol>
       </Text>
     ),
     permissions: [
@@ -741,29 +924,38 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
   {
     type: 'discord',
     name: 'Discord',
-    fullName: 'Discord',
+    fullName: 'Discord access request notifications',
     icon: discordIcon,
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-discord',
     hosted: true,
     Description: () => (
       <Text>
         <p>
-          A Teleport integration with Discord will post Access Requests to
-          configured Discord Channels.
-        </p>
-        <p>
-          Before you begin you will need to create and configure configure an
-          app on your Discord Server. For step-by-step instructions, refer to
-          the{' '}
-          <Link
-            target="_blank"
-            href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-discord/#step-58-register-a-discord-app"
-          >
-            Register a Discord app
-          </Link>{' '}
-          section of the Access Requests with Discord guide.
+          The Discord integration receives access request events from the
+          Teleport Auth Service, formats them into Discord messages, and sends
+          them to the Discord API to post them in your guild (Discord server).
         </p>
       </Text>
+    ),
+    Setup: () => (
+      <ol>
+        <li>
+          Follow the{' '}
+          <a href="https://discord.com/developers/docs/getting-started">
+            Discord documentation
+          </a>{' '}
+          to create a bot application and install it on your Discord server. The
+          application must have the following attributes:
+          <ul>
+            <li>It must not be a public bot.</li>
+            <li>It must have the “bot” and “Send Messages” permissions.</li>
+          </ul>
+        </li>
+        <li>
+          After creating a Discord application, retrieve its API token and paste
+          it in the form on this screen.
+        </li>
+      </ol>
     ),
     FormMixin: () => {
       const [token, setToken] = useState('');
@@ -805,26 +997,44 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     icon: mattermostIcon,
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-mattermost/',
     hosted: true,
-    fullName: 'Mattermost Access Notifications',
+    fullName: 'Mattermost access request notifications',
     Description: () => (
       <Text>
         <p>
-          Your Mattermost integration will match Mattermost and Teleport emails
-          for the suggested reviewers defined in the access request and send
-          notifications. In addition, the integration can post notifications to
-          the team/channel you specify whenever a teammate makes an access
-          request.
+          The Mattermost integration receives access requests from Teleport and
+          posts them as Mattermost messages to alert reviewers.
         </p>
+
         <p>
-          You will first need to register a Mattermost bot as depicted{' '}
-          <Link
-            target="_blank"
-            href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-mattermost/#step-58-register-a-mattermost-bot"
-          >
-            in this step
-          </Link>
-          .
+          If an access request includes suggested reviewers, the Mattermost
+          integration will add these to the list of channels to notify. If a
+          suggested reviewer is an email address, the integration will look up
+          the the direct message channel for that address and post a message in
+          that channel. Otherwise, the integration will post the message to the
+          default channel that you specify on this screen.
         </p>
+      </Text>
+    ),
+    Setup: () => (
+      <Text>
+        <ol>
+          <li>
+            Follow the Mattermost{' '}
+            <a href="https://developers.mattermost.com/integrate/reference/bot-accounts/#user-interface-ui">
+              documentation
+            </a>{' '}
+            to create a bot account. Ensure that the bot account has the
+            following attributes:
+            <ul>
+              <li>The role must be “Member”.</li>
+              <li>“post:all” must be set to “Enabled”.</li>
+            </ul>
+          </li>
+          <li>
+            After creating the bot account, use the resulting OAuth 2.0 token
+            when you configure the Mattermost integration on this screen.
+          </li>
+        </ol>
       </Text>
     ),
     FormMixin: () => {
@@ -869,7 +1079,7 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
             onChange={e => setEmail(e.target.value)}
             placeholder="email"
             toolTipContent={`The email address of a Mattermost user to notify via \
-             a direct message when the plugin receives an Access Request event`}
+             a direct message when the integration receives an access request event`}
             mb={3}
           />
           <Box width="500px">
@@ -902,7 +1112,7 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
                 value={channel}
                 onChange={e => setChannel(e.target.value)}
                 placeholder="channel-name"
-                toolTipContent="Name of the channel to post Access Requests to"
+                toolTipContent="Name of the channel to post access requests to"
               />
             </Flex>
           </Box>
@@ -913,7 +1123,7 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
       return (
         <Text>
           <p>
-            For help with configuring roles for Access Requests, consult the{' '}
+            For help with configuring roles for access requests, consult the{' '}
             <Link
               target="_blank"
               href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-mattermost/?scope=enterprise#step-18-define-rbac-resources"

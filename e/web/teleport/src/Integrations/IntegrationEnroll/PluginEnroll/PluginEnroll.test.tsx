@@ -25,10 +25,12 @@ describe('slack PluginEnroll.tsx', () => {
   test('missing input prevents submitting', async () => {
     renderPluginEnroll('slack');
 
-    expect(screen.getByText(/slack access notifications/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Slack access request notifications/i)
+    ).toBeInTheDocument();
 
     await userEvent.click(
-      screen.getByRole('button', { name: /connect slack/i })
+      screen.getByRole('button', { name: /connect Slack/i })
     );
     expect(
       screen.getByText(/default channel must be specified/i)
@@ -67,7 +69,7 @@ describe('slack PluginEnroll.tsx', () => {
       `event_id=${eventId}&error=some-error&error_description=some%20error%20description`
     );
 
-    expect(screen.getByText(/unable to connect slack/i)).toBeInTheDocument();
+    expect(screen.getByText(/unable to connect Slack/i)).toBeInTheDocument();
     expect(
       userEventService.captureIntegrationEnrollEvent
     ).not.toHaveBeenCalled();
@@ -77,7 +79,9 @@ describe('slack PluginEnroll.tsx', () => {
 
     // Test closing the dialog, renders the slack page.
     await userEvent.click(screen.getByRole('button', { name: /close/i }));
-    expect(screen.getByText(/slack access notifications/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Slack access request notifications/i)
+    ).toBeInTheDocument();
   });
 });
 

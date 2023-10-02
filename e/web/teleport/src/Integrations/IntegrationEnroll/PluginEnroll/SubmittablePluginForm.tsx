@@ -73,7 +73,7 @@ export function SubmittablePluginForm({
 
   return (
     <Box mt={3} style={{ position: 'relative' }}>
-      <Text fontWeight="bold" typography="h4">
+      <Text fontWeight="bold" typography="h1">
         {plugin.fullName}
       </Text>
       {attempt.status === 'failed' && (
@@ -82,35 +82,44 @@ export function SubmittablePluginForm({
       {plugin.Description && <plugin.Description />}
       <Box style={wrapperStyle}>
         {plugin.permissions?.length && (
-          <Flex
-            gap={6}
-            p={4}
-            bg="levels.surface"
-            borderRadius={2}
-            mt={3}
-            mb={4}
-          >
-            {plugin.permissions.map((perm, index) => (
-              <Box key={index}>
-                <Text fontWeight="bold" typography="h6" mb={2}>
-                  {perm.category}
-                </Text>
-                {perm.permissions.map(p => (
-                  <Flex key={`${index}${p.title}`} alignItems="center">
-                    {p.title}{' '}
-                    {p.description && (
-                      <Flex ml={1}>
-                        <ToolTipInfo>{p.description}</ToolTipInfo>
-                      </Flex>
-                    )}
-                  </Flex>
-                ))}
-              </Box>
-            ))}
-          </Flex>
+          <>
+            <Text typography="h2">Required permissions</Text>
+            <Flex
+              gap={6}
+              p={4}
+              bg="levels.surface"
+              borderRadius={2}
+              mt={3}
+              mb={4}
+            >
+              {plugin.permissions.map((perm, index) => (
+                <Box key={index}>
+                  <Text fontWeight="bold" typography="h6" mb={2}>
+                    {perm.category}
+                  </Text>
+                  {perm.permissions.map(p => (
+                    <Flex key={`${index}${p.title}`} alignItems="center">
+                      {p.title}{' '}
+                      {p.description && (
+                        <Flex ml={1}>
+                          <ToolTipInfo>{p.description}</ToolTipInfo>
+                        </Flex>
+                      )}
+                    </Flex>
+                  ))}
+                </Box>
+              ))}
+            </Flex>
+          </>
         )}
-
+        {plugin.Setup && (
+          <>
+            <Text typography="h2">Set up the plugin</Text>
+            <plugin.Setup />
+          </>
+        )}
         <Box mt={3}>
+          <Text typography="h2">Configure and connect</Text>
           <Validation>
             {/* A "normal" HTTP form is used here instead of an AJAX request,
         since the user needs to be redirected to the OAuth provider after submitting. */}
