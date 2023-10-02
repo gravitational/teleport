@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -268,4 +269,23 @@ func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires
 
 	// The user meets all requirements.
 	return true
+}
+
+// SelectNextReviewDate will select the next review date for the access list.
+func SelectNextReviewDate(accessList *accesslist.AccessList) time.Time {
+	numMonths := int(accessList.Spec.Audit.Recurrence.Frequency)
+	dayOfMonth := int(accessList.Spec.Audit.Recurrence.DayOfMonth)
+
+	// If the last day of the month has been specified, use the 0 day of the
+	// next month, which will result in the last day of the target month.
+	if dayOfMonth == int(accesslist.LastDayOfMonth) {
+		numMonths += 1
+		dayOfMonth = 0
+	}
+
+	currentReviewDate := accessList.Spec.Audit.NextAuditDate
+	nextDate := time.Date(currentReviewDate.Year(), currentReviewDate.Month()+time.Month(numMonths), dayOfMonth,
+		0, 0, 0, 0, time.UTC)
+
+	return nextDate
 }

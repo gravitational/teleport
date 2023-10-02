@@ -2106,7 +2106,7 @@ func TestAccessLists(t *testing.T) {
 
 	testResources(t, p, testFuncs[*accesslist.AccessList]{
 		newResource: func(name string) (*accesslist.AccessList, error) {
-			return newAccessList(t, name), nil
+			return newAccessList(t, name, p.backend.Clock()), nil
 		},
 		create: func(ctx context.Context, accessList *accesslist.AccessList) error {
 			_, err := p.accessLists.UpsertAccessList(ctx, accessList)
@@ -2160,7 +2160,9 @@ func TestAccessListMembers(t *testing.T) {
 
 	const accessListName = "test-access-list"
 
-	p.accessLists.UpsertAccessList(context.Background(), newAccessList(t, accessListName))
+	clock := clockwork.NewFakeClock()
+
+	p.accessLists.UpsertAccessList(context.Background(), newAccessList(t, accessListName, clock))
 
 	testResources(t, p, testFuncs[*accesslist.AccessListMember]{
 		newResource: func(name string) (*accesslist.AccessListMember, error) {
@@ -2587,6 +2589,8 @@ func newProxyEvents(events types.Events, ignoreKinds []types.WatchKind) *proxyEv
 func TestCacheWatchKindExistsInEvents(t *testing.T) {
 	t.Parallel()
 
+	clock := clockwork.NewFakeClock()
+
 	cases := map[string]Config{
 		"ForAuth":           ForAuth(Config{}),
 		"ForProxy":          ForProxy(Config{}),
@@ -2642,7 +2646,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindOktaAssignment:          &types.OktaAssignmentV1{},
 		types.KindIntegration:             &types.IntegrationV1{},
 		types.KindHeadlessAuthentication:  &types.HeadlessAuthentication{},
-		types.KindAccessList:              newAccessList(t, "access-list"),
+		types.KindAccessList:              newAccessList(t, "access-list", clock),
 		types.KindUserLoginState:          newUserLoginState(t, "user-login-state"),
 		types.KindAccessListMember:        newAccessListMember(t, "access-list", "member"),
 	}
@@ -2845,7 +2849,7 @@ func TestInvalidDatabases(t *testing.T) {
 	}
 }
 
-func newAccessList(t *testing.T, name string) *accesslist.AccessList {
+func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist.AccessList {
 	t.Helper()
 
 	accessList, err := accesslist.NewAccessList(
@@ -2866,7 +2870,7 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency: time.Hour,
+				NextAuditDate: clock.Now(),
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
