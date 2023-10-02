@@ -820,6 +820,7 @@ func (oas *OIDCAuthService) createOIDCUser(ctx context.Context, p *auth.CreateUs
 		log.Debugf("Overwriting existing user %q created with %v connector %v.",
 			existingUser.GetName(), connectorRef.Type, connectorRef.ID)
 
+		user.SetRevision(existingUser.GetRevision())
 		if err := oas.auth.UpdateUser(ctx, user); err != nil {
 			return nil, trace.Wrap(err)
 		}

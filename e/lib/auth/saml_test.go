@@ -94,8 +94,21 @@ func TestCreateSAMLUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Within that 1 minute period the user should still exist.
-	_, err = a.GetUser("foo@example.com", false)
+	user, err = a.GetUser("foo@example.com", false)
 	require.NoError(t, err)
+
+	// Create the same user again and validate that the user was
+	// successfully updated
+	user2, err := sas.createSAMLUser(ctx, &auth.CreateUserParams{
+		ConnectorName: "samlService",
+		Username:      "foo@example.com",
+		Roles:         []string{"admin"},
+		SessionTTL:    1 * time.Minute,
+	}, false)
+	require.NoError(t, err)
+	// TODO(tross): validate revisions after teleport is updated
+	//require.NotEqual(t, user.GetRevision(), user2.GetRevision())
+	require.Equal(t, user.GetName(), user2.GetName())
 
 	// Advance time 2 minutes, the user should be gone.
 	clock.Advance(2 * time.Minute)
