@@ -232,7 +232,9 @@ export const ConnectMyComputerContextProvider: FC<{
   const [killAgentAttempt, killAgent] = useAsync(
     useCallback(async () => {
       setCurrentActionKind('kill');
+
       await connectMyComputerService.killAgent(rootClusterUri);
+
       setCurrentActionKind('observe-process');
       workspacesService.setConnectMyComputerAutoStart(rootClusterUri, false);
     }, [connectMyComputerService, rootClusterUri, workspacesService])
@@ -241,6 +243,7 @@ export const ConnectMyComputerContextProvider: FC<{
   const markAgentAsConfigured = useCallback(() => {
     setAgentConfiguredAttempt(makeSuccessAttempt(true));
   }, [setAgentConfiguredAttempt]);
+
   const markAgentAsNotConfigured = useCallback(() => {
     setDownloadAgentAttempt(makeEmptyAttempt());
     setAgentConfiguredAttempt(makeSuccessAttempt(false));
@@ -267,10 +270,12 @@ export const ConnectMyComputerContextProvider: FC<{
 
   const [removeAgentAttempt, removeAgent] = useAsync(
     useCallback(async () => {
+      // killAgent sets the current action to 'kill'.
       const [, error] = await killAgent();
       if (error) {
         throw error;
       }
+
       setCurrentActionKind('remove');
 
       let hasAccessDeniedError = false;
