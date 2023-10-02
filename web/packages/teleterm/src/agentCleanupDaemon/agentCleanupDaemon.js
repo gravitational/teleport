@@ -83,7 +83,7 @@ const logger = createLogger({
       maxsize: 4194304, // 4 MB - max size of a single file
       maxFiles: 5,
       dirname: logsDir,
-      filename: 'cleanup.log',
+      filename: 'agent-cleanup.log',
     }),
   ],
 }).child({
