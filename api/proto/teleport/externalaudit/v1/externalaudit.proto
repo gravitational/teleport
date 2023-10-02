@@ -51,3 +51,18 @@ message ExternalAuditSpec {
   // Athena engine.
   string athena_results_uri = 7;
 }
+
+// ClusterExternalAudit contains cluster external audit configuration.
+message ClusterExternalAudit {
+  // Header is the header for the resource.
+  teleport.header.v1.ResourceHeader header = 1;
+  // Spec is the specification for the cluster external audit.
+  ClusterExternalAuditSpec spec = 2;
+}
+
+// ClusterExternalAuditSpec is the specification of cluster external audit.
+message ClusterExternalAuditSpec {
+  // ExternalAuditName is name of existing external audit resource,
+  // that will be used in cluster.
+  string external_audit_name = 1;
+}

@@ -86,8 +86,8 @@ message DeleteExternalAuditRequest {
 
 // SetClusterExternalAuditRequest is a request for setting an cluster external audit status.
 message SetClusterExternalAuditRequest {
-  // name of external audit to set as cluster external audit.
-  string name = 1;
+  // ClusterExternalAudit contains name of external audit to set as cluster external audit.
+  ClusterExternalAudit cluster_external_audit = 1;
 }
 
 // SetClusterExternalAuditResponse is a response for setting an cluster external audit status.

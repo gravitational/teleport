@@ -139,5 +139,7 @@ message Event {
     teleport.discoveryconfig.v1.DiscoveryConfig DiscoveryConfig = 48;
     // ExternalAudit is an ExternalAudit resource.
     teleport.externalaudit.v1.ExternalAudit ExternalAudit = 49;
+    // ClusterExternalAudit is an ClusterExternalAudit resource.
+    teleport.externalaudit.v1.ClusterExternalAudit ClusterExternalAudit = 50;
   }
 }
