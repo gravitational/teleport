@@ -6,9 +6,13 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
+	"os"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v3"
 )
 
 func TestShouldProcess(t *testing.T) {
@@ -123,25 +127,32 @@ type MyStruct struct{
 }
 
 func TestGenerate(t *testing.T) {
-	// TODO: Read a golden file instead to get the expected value
-	var expected string
-	conf := GeneratorConfig{
-		RequiredTypes: []TypeInfo{
-			{
-				Package: "typestest",
-				Name:    "ResourceHeader",
-			},
-			{
-				Package: "typestest",
-				Name:    "Metadata",
-			},
-		},
-		SourcePath: "testdata",
-		// No-op in this case
-		DestinationPath: "",
+	// This test reads the file at the destination path and compares the
+	// generated resource reference with it. The test does not regenerate the
+	// file at the destination path. To do so, navigate to the root of the
+	// project directory and run the program with the -config flag pointing to:
+	// "reference/testdata/conf.yaml".
+	cf, err := os.Open(path.Join("testdata", "config.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := GeneratorConfig{}
+	if err := yaml.NewDecoder(cf).Decode(&config); err != nil {
+		t.Fatal(err)
 	}
 
-	var buf bytes.Buffer
-	assert.NoError(t, Generate(&buf, conf))
-	assert.Equal(t, expected, buf.String())
+	golden, err := os.Open(path.Join(path.Split(config.DestinationPath)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var expected bytes.Buffer
+	_, err = io.Copy(&expected, golden)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var actual bytes.Buffer
+	assert.NoError(t, Generate(&actual, config))
+	assert.Equal(t, expected.String(), actual.String())
 }
