@@ -21,8 +21,6 @@ import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 
-import { createMockConfigService } from 'teleterm/services/config/fixtures/mocks';
-
 import { AgentProcessState } from 'teleterm/mainProcess/types';
 
 import { NavigationMenu } from './NavigationMenu';
@@ -163,9 +161,6 @@ function ShowState({
     proxyVersion: '17.0.0',
   });
   appContext.clustersService.state.clusters.set(cluster.uri, cluster);
-  appContext.configService = createMockConfigService({
-    'feature.connectMyComputer': true,
-  });
   appContext.workspacesService.setState(draftState => {
     draftState.rootClusterUri = cluster.uri;
     draftState.workspaces[cluster.uri] = {
