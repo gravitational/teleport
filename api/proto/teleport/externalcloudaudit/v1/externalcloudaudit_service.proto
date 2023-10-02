@@ -1,0 +1,125 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.externalcloudaudit.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/externalcloudaudit/v1/externalcloudaudit.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1;externalcloudauditv1";
+
+// ExternalCloudAuditService provides methods to manage external cloud audit.
+// It's used only in Teleport Cloud for feature called 'bring your own audit bucket'.
+//
+// There could be multiple external cloud audit resources in cluster, but only single
+// resource can be set as ClusterExternalCloudAudit.
+// The one which is set as ClusterExternalCloudAudit is used by auth.
+//
+// Supporting multiple ExternalCloudAudit as resources allow us to to add resource,
+// and test connection before actually enabling it in cluster.
+
+// This service intentionally does not provide update method on ExternalCloudAudit
+// resource. Updating fields on already enabled resouce in cluster can break cluster.
+// If you client want to update some fields, new resource should be created,
+// and after test connection is done, it can be promoted as ClusterExternalCloudAudit.
+service ExternalCloudAuditService {
+  // GetExternalCloudAudit returns the external cloud audit configuration resource.
+  rpc GetExternalCloudAudit(GetExternalCloudAuditRequest) returns (GetExternalCloudAuditResponse);
+  // GetExternalCloudAudits returns all external cloud audit configuration resources.
+  rpc GetExternalCloudAudits(GetExternalCloudAuditsRequest) returns (GetExternalCloudAuditsResponse);
+
+  // CreateExternalCloudAudit creates a new External cloud Audit resource.
+  rpc CreateExternalCloudAudit(CreateExternalCloudAuditRequest) returns (CreateExternalCloudAuditResponse);
+
+  // DeleteExternalCloudAudit removes External cloud Audit resource.
+  // You cannot remove external cloud audit that is set as 'ClusterExternalCloudAudit'.
+  // First you need to DisableClusterExternalCloudAudit or use other resource as
+  // ClusterExternalCloudAudit.
+  rpc DeleteExternalCloudAudit(DeleteExternalCloudAuditRequest) returns (google.protobuf.Empty);
+
+  // EnableClusterExternalCloudAudit enables external cloud audit to be used in cluster
+  // based on name of external cloud audit.
+  // This method cause Teleport Auth service reload.
+  // Only single external cloud audit resource can be set to cluster external cloud audit resource.
+  rpc EnableClusterExternalCloudAudit(EnableClusterExternalCloudAuditRequest) returns (EnableClusterExternalCloudAuditResponse);
+
+  // GetClusterExternalCloudAudit gets cluster external cloud audit.
+  rpc GetClusterExternalCloudAudit(GetClusterExternalCloudAuditRequest) returns (GetClusterExternalCloudAuditResponse);
+
+  // DisableClusterExternalCloudAudit disables cluster configuration for external cloud audit.
+  // This method cause Teleport Auth service reload.
+  // Deleting ClusterExternalCloudAudit means disabling whole feature.
+  rpc DisableClusterExternalCloudAudit(DisableClusterExternalCloudAuditRequest) returns (google.protobuf.Empty);
+}
+
+// GetExternalCloudAuditRequest is a request to get an external cloud audit.
+message GetExternalCloudAuditRequest {
+  // name of resource to get.
+  string name = 1;
+}
+
+// GetExternalCloudAuditResponse is a response to get an external cloud audit.
+message GetExternalCloudAuditResponse {
+  // ExternalCloudAudit is the ExternalCloudAudit to be created.
+  ExternalCloudAudit external_cloud_audit = 1;
+}
+
+// GetExternalCloudAuditRequest is a request to get all external cloud audits.
+message GetExternalCloudAuditsRequest {}
+
+// GetExternalCloudAuditResponse is a response to get all external cloud audits.
+message GetExternalCloudAuditsResponse {
+  // ExternalCloudAudit is the ExternalCloudAudit to be created.
+  repeated ExternalCloudAudit external_cloud_audits = 1;
+}
+
+// CreateExternalCloudAuditRequest is the request to create the provided external cloud audit.
+message CreateExternalCloudAuditRequest {
+  // ExternalCloudAudit is the ExternalCloudAudit to be created.
+  ExternalCloudAudit external_cloud_audit = 1;
+}
+
+// CreateExternalCloudAuditRequest is the request to create the provided external cloud audit.
+message CreateExternalCloudAuditResponse {
+  // ExternalCloudAudit is the ExternalCloudAudit that was created.
+  ExternalCloudAudit external_cloud_audit = 1;
+}
+
+// DeleteExternalCloudAuditRequest is a request for deleting an external cloud audit.
+message DeleteExternalCloudAuditRequest {
+  string name = 1;
+}
+
+// EnableClusterExternalCloudAuditRequest is a request for setting an cluster external cloud audit.
+message EnableClusterExternalCloudAuditRequest {
+  // ClusterExternalCloudAudit contains name of external cloud audit to set as cluster external cloud audit.
+  ClusterExternalCloudAudit cluster_external_cloud_audit = 1;
+}
+
+// EnableClusterExternalCloudAuditResponse is a response for enabling an cluster external cloud audit.
+message EnableClusterExternalCloudAuditResponse {}
+
+// GetClusterExternalCloudAuditRequest is a request to get an cluster external cloud audit.
+message GetClusterExternalCloudAuditRequest {}
+
+// GetClusterExternalCloudAuditResponse is a response of getting an cluster external cloud audit.
+message GetClusterExternalCloudAuditResponse {
+  // ClusterExternalCloudAudit contains name of external cloud audit.
+  ClusterExternalCloudAudit cluster_external_cloud_audit = 1;
+}
+
+// DisableClusterExternalCloudAuditRequest is a request for disabling cluster external cloud audit.
+message DisableClusterExternalCloudAuditRequest {}

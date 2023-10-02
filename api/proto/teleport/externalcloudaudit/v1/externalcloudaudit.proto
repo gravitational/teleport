@@ -14,25 +14,25 @@
 
 syntax = "proto3";
 
-package teleport.externalaudit.v1;
+package teleport.externalcloudaudit.v1;
 
 import "teleport/header/v1/resourceheader.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalaudit/v1;externalauditv1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1;externalcloudauditv1";
 
-// ExternalAudit contains external audit configuration.
+// ExternalCloudAudit contains external cloud audit configuration.
 // It's used only in Teleport Cloud with feature called "bring your own bucket".
 // It contains configuration that allows store audit events and session
 // recordings on customer infra instead of Teleport Cloud.
-message ExternalAudit {
+message ExternalCloudAudit {
   // Header is the header for the resource.
   teleport.header.v1.ResourceHeader header = 1;
-  // Spec is the specification for the external audit.
-  ExternalAuditSpec spec = 2;
+  // Spec is the specification for the external cloud audit.
+  ExternalCloudAuditSpec spec = 2;
 }
 
-// ExternalAuditConfigSpec is the specification of external audit.
-message ExternalAuditSpec {
+// ExternalCloudAuditConfigSpec is the specification of external cloud audit.
+message ExternalCloudAuditSpec {
   // IntegrationName is name of existing OIDC intagration used to
   // generate AWS credentials.
   string integration_name = 1;
@@ -52,17 +52,17 @@ message ExternalAuditSpec {
   string athena_results_uri = 7;
 }
 
-// ClusterExternalAudit contains cluster external audit configuration.
-message ClusterExternalAudit {
+// ClusterExternalCloudAudit contains cluster external cloud audit configuration.
+message ClusterExternalCloudAudit {
   // Header is the header for the resource.
   teleport.header.v1.ResourceHeader header = 1;
-  // Spec is the specification for the cluster external audit.
-  ClusterExternalAuditSpec spec = 2;
+  // Spec is the specification for the cluster external cloud audit.
+  ClusterExternalCloudAuditSpec spec = 2;
 }
 
-// ClusterExternalAuditSpec is the specification of cluster external audit.
-message ClusterExternalAuditSpec {
-  // ExternalAuditName is name of existing external audit resource,
+// ClusterExternalCloudAuditSpec is the specification of cluster external cloud audit.
+message ClusterExternalCloudAuditSpec {
+  // ExternalCloudAuditName is name of existing external cloud audit resource,
   // that will be used in cluster.
-  string external_audit_name = 1;
+  string external_cloud_audit_name = 1;
 }

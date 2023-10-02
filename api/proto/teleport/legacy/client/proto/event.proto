@@ -18,7 +18,7 @@ package proto;
 
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
-import "teleport/externalaudit/v1/externalaudit.proto";
+import "teleport/externalcloudaudit/v1/externalcloudaudit.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 
@@ -138,8 +138,8 @@ message Event {
     // DiscoveryConfig contains a list of matchers to be loaded dynamically by Discovery Services.
     teleport.discoveryconfig.v1.DiscoveryConfig DiscoveryConfig = 48;
     // ExternalAudit is an ExternalAudit resource.
-    teleport.externalaudit.v1.ExternalAudit ExternalAudit = 49;
+    teleport.externalcloudaudit.v1.ExternalCloudAudit ExternalCloudAudit = 49;
     // ClusterExternalAudit is an ClusterExternalAudit resource.
-    teleport.externalaudit.v1.ClusterExternalAudit ClusterExternalAudit = 50;
+    teleport.externalcloudaudit.v1.ClusterExternalCloudAudit ClusterExternalCloudAudit = 50;
   }
 }
