@@ -112,17 +112,27 @@ $ tctl bots add example --roles=example-bot --token=example-bot
 
 ## Step 3/3. Configure GitHub Actions
 
-Now that the bot has been successfully created, GitHub Actions can authenticate with the Teleport cluster using their
-GitHub-provided identity.
+Now that the bot has been successfully created, GitHub Actions can authenticate
+with the Teleport cluster using their GitHub-provided identity.
 
-You now need to configure your GitHub Action pipeline.
+You now need to configure your GitHub Action workflow. Teleport publishes
+several GitHub Actions that can be used within your workflow to assist you.
 
-### Option A: `teleport-actions/auth`
+It is also possible to manually configure `tbot` rather than using one of the
+Teleport GitHub Actions. This involves more configuration but allows for
+precise control of `tbot` and allows for implementations that are not possible
+with the actions.
 
-In the GitHub workflows directory of your repo (`.github/workflows/`) create a new workflow YAML file,
-in this case `actionstest.yml`, that will reflect the action you'd like to configure. This guide will create an action that
-will both list nodes within the cluster using `tsh ls`, as well as write the commit SHA that triggered the workflow to
-a file on a node. To create this configuration, use the following YAML file:
+What follows is examples demonstrating two of the GitHub Actions available as
+well as showing how to manually configure `tbot` for use with GitHub Actions.
+
+### Example: `teleport-actions/auth`
+
+In this example, the `teleport-actions/auth` action is used to connect to
+Teleport and then used to access servers via SSH, using both `tsh` and the
+OpenSSH configuration.
+
+Create `.github/workflows/example.yaml`:
 
 ```yaml
 # This is a basic workflow to help you get started.
@@ -134,11 +144,13 @@ on:
 jobs:
   demo:
     permissions:
-      # The "id-token: write" permission is required or Machine ID will not be able to authenticate with the cluster.
+      # The "id-token: write" permission is required or Machine ID will not be
+      # able to authenticate with the cluster.
       id-token: write
       contents: read
-    # The name of the workflow, and the Linux distro to be used to perform the required steps.
-    name: guide-demo
+    # The name of the workflow, and the Linux distro to be used to perform the
+    # required steps.
+    name: example
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
@@ -158,26 +170,35 @@ jobs:
         # Specify the length of time that the generated credentials should be
         # valid for. This is optional and defaults to "1h"
         certificate-ttl: 1h
-        # Enable the submission of anonymous usage telemetry.
+        # Enable the submission of anonymous usage telemetry. This
+        # helps us shape the future development of `tbot`. You can disable this
+        # by omitting this.
         anonymous-telemetry: 1
-    - name: List nodes
-      # Enters a command from the cluster, in this case "tsh ls" using Machine ID credentials to list remote SSH nodes.
+    - name: Use tsh to list the nodes
+      # Enters a command from the cluster, in this case "tsh ls" using Machine
+      # ID credentials to list remote SSH nodes.
       run: tsh ls
-    - name: Write file to remote
+    - name: Use tsh to connect
       # Enters a command from the cluster, in this case "tsh ssh" using Machine ID credentials to gain SSH access to an SSH node, and then write the commit hash to the "github_run_log" file.
-      # Ensure that `username` matches the username of a remote SSH username, and that hostname matches an SSH host name that is a part of the Teleport cluster configured for access.
-      run: tsh ssh username@hostname "echo $GITHUB_SHA >> ~/github_run_log"
+      # Ensure that `root` matches the username of a remote SSH username, and that hostname matches an SSH host name that is a part of the Teleport cluster configured for access.
+      run: tsh ssh root@example-node hostname
+    - name: Use OpenSSH to connect
+      run: ssh -F ${{ steps.auth.outputs.ssh-config }} root@example-node.example.teleport.sh hostname
 ```
 
-`anonymous-telemetry` enables the submission of anonymous usage telemetry. This
-helps us shape the future development of `tbot`. You can disable this by
-omitting this.
+Replace:
+
+- `example.teleport.sh:443` with the address of your Teleport Proxy or cloud
+  tenant.
+- `example-bot` with the name of the token you created in a previous step.
+- `root` with the name of the token you created in a previous step.
+- `example-node` with the name of the token you created in a previous step.
 
 Add, commit, and push your changes to the `main` branch of the repository.
 
 Navigate to the **Actions** tab of your GitHub repository in your web browser.
 Select the **Workflow** that has now been created and triggered by the change,
-and select the `guide-demo` job. The GitHub Actions workflow may take some time
+and select the `example` job. The GitHub Actions workflow may take some time
 to complete, and will resemble the following once successful.
 
 ![GitHub Actions](../../../img/machine-id/github-actions.png)
@@ -186,21 +207,13 @@ Expand the **List nodes** step of the action, and the output will
 list all nodes in the cluster, from the perspective of the
 Machine ID bot using the command `tsh ls`.
 
-### Option B: `teleport-actions/kubernetes`
+### Example: `teleport-actions/auth-k8s`
 
-With all the configuration in Teleport and Kubernetes complete, you can now
-create a GitHub Actions workflow that can connect to your Kubernetes cluster.
+In this example, the `teleport-actions/auth-k8s` action will be used to list
+all the pods contained within the cluster, but this could just as easily be
+modified to deploy to a Kubernetes cluster with `kubectl` or `helm`.
 
-Our example workflow will list all of the pods contained within the cluster,
-but this could just as easily be modified to deploy to a Kubernetes cluster with
-`kubectl` or `helm`.
-
-In the GitHub workflows directory of your repository (`.github/workflows/`)
-create a new workflow YAML file `actionstest.yml`.
-
-Insert the following, replacing `my-kubernetes-cluster` with the name of your
-Kubernetes cluster and `example.domain:443` with the address of your Teleport
-Proxy or cloud tenant (e.g. `example.teleport.sh`).
+Create `.github/workflows/example.yaml`:
 
 ```yaml
 # This is a basic workflow to help you get started, modify it for your needs.
@@ -215,7 +228,7 @@ jobs:
       # able to authenticate with the cluster.
       id-token: write
       contents: read
-    name: guide-demo
+    name: example
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
@@ -235,15 +248,20 @@ jobs:
         token: example-bot
         # Use the name of your Kubernetes cluster
         kubernetes-cluster: my-kubernetes-cluster
-        # Enable the submission of anonymous usage telemetry.
+        # Enable the submission of anonymous usage telemetry. This helps us
+        # shape the future development of `tbot`. You can disable this by
+        # omitting this.
         anonymous-telemetry: 1
     - name: List pods
       run: kubectl get pods -A
 ```
 
-`anonymous-telemetry` enables the submission of anonymous usage telemetry. This
-helps us shape the future development of `tbot`. You can disable this by
-omitting this.
+Replace:
+
+- `example.teleport.sh:443` with the address of your Teleport Proxy or cloud
+  tenant.
+- `example-bot` with the name of the token you created in a previous step.
+- `my-kubernetes-cluster` with the name of your Kubernetes cluster.
 
 The `auth-k8s` action sets the `KUBECONFIG` for future steps to the credentials
 it has fetched from Teleport. This means that most existing tooling for
@@ -255,15 +273,16 @@ repository.
 
 Navigate to the **Actions** tab of your GitHub repository in your web browser.
 Select the **Workflow** that has now been created and triggered by the change,
-and select the `guide-demo` job.
+and select the `example` job.
 
 Expand the **List pods** step of the action, where you can then confirm that the
 output shows a list of all the pods within your Kubernetes cluster.
 
-### Option C: Do It Yourself
+### Example: Manual configuration
 
-Whilst we offer off-the-shelf GitHub Actions to use, it is also possible to manually configure `tbot` to use the
-`github` join method and produce the outputs that you desire. This may be useful in more specialist situations.
+To configure `tbot` manually, a YAML file will be used. In this example we'll
+commit this to the repository, but this could be generated or created by the
+CI pipeline itself.
 
 Create `tbot.yaml` within your repository:
 
@@ -284,7 +303,12 @@ Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
 Auth Server. Prefer using the address of a Teleport Proxy.
-- `example-bot` with the name of the token you created in the second step
+- `example-bot` with the name of the token you created in the first step.
+
+Now you can define a GitHub Actions workflow that will start `tbot` with this
+configuration.
+
+Create `.github/workflows/example-action.yaml`:
 
 ```yaml
 # This is a basic workflow to help you get started.
@@ -318,6 +342,9 @@ jobs:
       run: tbot -c ./tbot.yaml
 ```
 
+Add, commit, and push these two files to the repository. Check the GitHub
+Actions UI to ensure that the workflow has succeeded.
+
 (!docs/pages/includes/machine-id/configure-outputs.mdx!)
 
 ## A note on security implications and risk
@@ -335,7 +362,8 @@ interact with.
 
 ## Next steps
 
-- [GitHub Actions reference page](../reference/github-actions.mdx#github-join-token)
+- For more information about the `github` join method, read the [GitHub Actions
+  reference page](../reference/github-actions.mdx#github-join-token)
 - For more information about GitHub Actions itself, read
   [their documentation](https://docs.github.com/en/actions).
 - [More information about `anonymous-telemetry`.](../reference/telemetry.mdx)
