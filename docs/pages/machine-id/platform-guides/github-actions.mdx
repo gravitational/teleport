@@ -3,12 +3,9 @@ title: Deploying Machine ID on GitHub Actions
 description: How to install and configure Machine ID on GitHub Actions
 ---
 
-GitHub Actions is a popular CI/CD platform that works as a part of the larger GitHub
-ecosystem. Teleport, with the help of Machine ID, allows for GitHub Actions to
-securely interact with Teleport protected resources without the need for long lived
-credentials. By ensuring that rotated Machine ID credentials are additionally limited by RBAC,
-GitHub Actions with Teleport can be applied as both a viable and secure solution whenever a
-CI/CD platform is needed.
+GitHub Actions is a popular CI/CD platform that works as a part of the larger
+GitHub ecosystem. Teleport Machine ID allows GitHub Actions to securely interact
+with Teleport protected resources without the need for long-lived credentials.
 
 Teleport supports secure joining on both GitHub-hosted and self-hosted GitHub
 Actions runners as well as GitHub Enterprise Server.
@@ -320,10 +317,12 @@ on:
 jobs:
   demo:
     permissions:
-      # The "id-token: write" permission is required or Machine ID will not be able to authenticate with the cluster.
+      # The "id-token: write" permission is required or Machine ID will not be
+      # able to authenticate with the cluster.
       id-token: write
       contents: read
-    # The name of the workflow, and the Linux distro to be used to perform the required steps.
+    # The name of the workflow, and the Linux distro to be used to perform the
+    # required steps.
     name: guide-demo
     runs-on: ubuntu-latest
     steps:
