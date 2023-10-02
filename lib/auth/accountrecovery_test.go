@@ -1393,11 +1393,22 @@ func createUserWithSecondFactors(testServer *TestTLSServer) (*userAuthCreds, err
 		return nil, trace.Wrap(err)
 	}
 
-	// Register a TOTP device.
 	userClient, err := testServer.NewClient(TestUser(username))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Fetch the MFA device created above.
+	devicesResp, err := userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(devicesResp.Devices) != 1 {
+		return nil, fmt.Errorf("found an unexpected number of MFA devices: %v", devicesResp.Devices)
+	}
+	webDev.MFA = devicesResp.Devices[0]
+
+	// Register a TOTP device.
 	totpDev, err := RegisterTestDevice(
 		ctx,
 		userClient,
