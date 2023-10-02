@@ -810,7 +810,7 @@ func TestUpsertVerb(t *testing.T) {
 			name:     "exists && force",
 			exists:   true,
 			force:    true,
-			expected: "created",
+			expected: "overwritten",
 		},
 		{
 			name:     "!exists && force",
