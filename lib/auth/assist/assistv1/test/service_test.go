@@ -440,7 +440,7 @@ func initSvc(t *testing.T) (map[string]context.Context, *assistv1.Service) {
 	})
 	require.NoError(t, err)
 
-	unifiedResourcesCache, err := services.NewUnifiedResourceCache(context.Background(), services.UnifiedResourceCacheConfig{
+	unifiedResourcesCache, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			QueueSize:    defaults.UnifiedResourcesQueueSize,
 			Component:    teleport.ComponentUnifiedResource,
