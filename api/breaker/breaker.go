@@ -329,12 +329,7 @@ func (c *CircuitBreaker) beforeExecution() (uint64, error) {
 
 	generation, state := c.currentState(now)
 
-	//temp
-
 	switch {
-	case state == StateStandby:
-		return generation, ErrStateTripped
-
 	case state == StateTripped:
 		return generation, ErrStateTripped
 	}
