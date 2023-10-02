@@ -49,7 +49,7 @@ GitLab CI job within a specific GitLab project. Determine the fully qualified
 path of your GitLab project. This will include your username (or group) and the
 name of your project, e.g `my-user/my-project`.
 
-Create a file named `gitlab-token.yaml`. Ensure you substitute any values as
+Create a file named `bot-token.yaml`. Ensure you substitute any values as
 suggested by the comments in this example:
 
 ```yaml
@@ -85,7 +85,7 @@ on the
 Apply this to your Teleport cluster using `tctl`:
 
 ```code
-$ tctl create -f gitlab-token.yaml
+$ tctl create -f bot-token.yaml
 ```
 
 ## Step 2/4. Create a role and Machine ID bot

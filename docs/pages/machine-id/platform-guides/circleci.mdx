@@ -68,7 +68,7 @@ In order to allow your CircleCI workflow to authenticate with your Teleport
 cluster, you'll first need to create a join token. These tokens set out criteria
 by which the Auth Server decides whether or not to allow a bot or node to join.
 
-Create a file named `tokenconfig.yaml`, ensuring that you replace
+Create a file named `bot-token.yaml`, ensuring that you replace
 `$ORGANIZATION_ID` and `$CONTEXT_ID` with the values from Step 1.
 
 ```yaml
@@ -107,7 +107,7 @@ to authenticate by using the token.
 Apply this to your Teleport cluster using `tctl`:
 
 ```code
-$ tctl create -f tokenconfig.yaml
+$ tctl create -f bot-token.yaml
 ```
 
 ## Step 3/5. Create a role and Machine ID bot
