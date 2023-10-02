@@ -588,6 +588,10 @@ func (l *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if item.Revision == "" {
+		item.Revision = backend.BlankRevision
+	}
 	return &item, nil
 }
 
@@ -646,6 +650,9 @@ func (l *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 				return trace.Wrap(err)
 			}
 			i.Expires = expires.Time
+			if i.Revision == "" {
+				i.Revision = backend.BlankRevision
+			}
 			result.Items = append(result.Items, i)
 		}
 		return nil
@@ -791,8 +798,12 @@ func (l *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) erro
 }
 
 func (l *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backend.Lease, error) {
-	if i.Key == nil {
-		return nil, trace.BadParameter("missing parameter key")
+	if i.Key == nil || i.Revision == "" {
+		return nil, trace.Wrap(backend.ErrIncorrectRevision)
+	}
+
+	if i.Revision == backend.BlankRevision {
+		i.Revision = ""
 	}
 
 	rev := backend.CreateRevision()
@@ -822,7 +833,7 @@ func (l *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 			}
 			defer stmt.Close()
 
-			if _, err := stmt.ExecContext(ctx, types.OpPut, now, string(i.Key), id(now), expires(i.Expires), i.Value, i.Revision); err != nil {
+			if _, err := stmt.ExecContext(ctx, types.OpPut, now, string(i.Key), id(now), expires(i.Expires), i.Value, rev); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -837,8 +848,12 @@ func (l *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 }
 
 func (l *Backend) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
-	if len(key) == 0 {
-		return trace.BadParameter("missing parameter key")
+	if len(key) == 0 || revision == "" {
+		return trace.Wrap(backend.ErrIncorrectRevision)
+	}
+
+	if revision == backend.BlankRevision {
+		revision = ""
 	}
 
 	return l.inTransaction(ctx, func(tx *sql.Tx) error {
