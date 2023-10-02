@@ -4919,7 +4919,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			ctx := context.Background()
 			srv := newTestTLSServer(t)
-			err := srv.Auth().CreateRole(ctx, testCase.role)
+			_, err := srv.Auth().CreateRole(ctx, testCase.role)
 			require.NoError(t, err)
 
 			_, err = srv.Auth().CreateSessionTracker(ctx, testCase.tracker)

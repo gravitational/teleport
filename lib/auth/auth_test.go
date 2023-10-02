@@ -973,7 +973,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	// SAML connector validation requires the roles in mappings exist.
 	role, err := types.NewRole("dummy", types.RoleSpecV6{})
 	require.NoError(t, err)
-	err = s.a.CreateRole(ctx, role)
+	role, err = s.a.CreateRole(ctx, role)
 	require.NoError(t, err)
 
 	saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
