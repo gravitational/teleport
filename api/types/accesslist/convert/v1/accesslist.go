@@ -18,7 +18,6 @@ package v1
 
 import (
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -51,6 +50,12 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		return nil, trace.BadParameter("grants is missing")
 	}
 
+	var recurrence accesslist.Recurrence
+	if msg.Spec.Audit.Recurrence != nil {
+		recurrence.Frequency = accesslist.ReviewFrequency(msg.Spec.Audit.Recurrence.Frequency)
+		recurrence.DayOfMonth = accesslist.ReviewDayOfMonth(msg.Spec.Audit.Recurrence.DayOfMonth)
+	}
+
 	owners := make([]accesslist.Owner, len(msg.Spec.Owners))
 	for i, owner := range msg.Spec.Owners {
 		owners[i] = accesslist.Owner{
@@ -67,8 +72,8 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		Description: msg.Spec.Description,
 		Owners:      owners,
 		Audit: accesslist.Audit{
-			Frequency:     msg.Spec.Audit.Frequency.AsDuration(),
 			NextAuditDate: msg.Spec.Audit.NextAuditDate.AsTime(),
+			Recurrence:    recurrence,
 		},
 		MembershipRequires: accesslist.Requires{
 			Roles:  msg.Spec.MembershipRequires.Roles,
@@ -116,8 +121,11 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 			Description: accessList.Spec.Description,
 			Owners:      owners,
 			Audit: &accesslistv1.AccessListAudit{
-				Frequency:     durationpb.New(accessList.Spec.Audit.Frequency),
 				NextAuditDate: timestamppb.New(accessList.Spec.Audit.NextAuditDate),
+				Recurrence: &accesslistv1.Recurrence{
+					Frequency:  accesslistv1.ReviewFrequency(accessList.Spec.Audit.Recurrence.Frequency),
+					DayOfMonth: accesslistv1.ReviewDayOfMonth(accessList.Spec.Audit.Recurrence.DayOfMonth),
+				},
 			},
 			MembershipRequires: &accesslistv1.AccessListRequires{
 				Roles:  accessList.Spec.MembershipRequires.Roles,
