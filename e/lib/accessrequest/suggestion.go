@@ -22,6 +22,7 @@ import (
 	"slices"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -42,6 +43,12 @@ type AccessListSuggestionClient interface {
 
 	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
+}
+
+type userDataGetter interface {
+	roleGetter
+	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 }
 
 type AccessListGetter interface {
@@ -183,37 +190,56 @@ func ScoreRelevance(request types.AccessRequest, lists []*accesslist.AccessList)
 	return lists[:len(scores)]
 }
 
-func isValidSuggestion(ctx context.Context, clt roleGetter, requester types.User,
-	requestedResources []types.ResourceWithLabels, list *accesslist.AccessList,
-) (bool, error) {
-	requirements := list.GetMembershipRequires()
+type suggestionValidator struct {
+	dataGetter         userDataGetter
+	requester          types.User
+	requestedResources []types.ResourceWithLabels
+
+	clock clockwork.Clock
+}
+
+func (v *suggestionValidator) isValidSuggestion(ctx context.Context, list *accesslist.AccessList) (bool, error) {
+	requesterIdentity := tlsca.Identity{
+		Username: v.requester.GetName(),
+		Groups:   v.requester.GetRoles(),
+		Traits:   v.requester.GetTraits(),
+	}
+
+	// If the user is already a member, or he doesn't meet the requirements to be assigned to the access list
+	// then the access list is not a valid suggestion.
+	err := services.IsAccessListMember(ctx, requesterIdentity, v.clock, list, v.dataGetter)
+	switch {
+	case trace.IsNotFound(err):
+		// If the user is not a member, then the access list may be a valid suggestion.
+	case err != nil:
+		return false, trace.Wrap(err)
+	default:
+		return false, nil
+	}
 
 	// Access lists not assignable to the user are irrelevant.
-	if !services.UserMeetsRequirements(tlsca.Identity{
-		Groups: requester.GetRoles(),
-		Traits: requester.GetTraits(),
-	}, requirements) {
+	if !services.UserMeetsRequirements(requesterIdentity, list.GetMembershipRequires()) {
 		return false, nil
 	}
 
 	// TODO(jakule/mdwn): This can be unified with userloginstate.Generator.addAccessListsToState().
 	// Clone the requester's roles and traits and add the access list's roles and traits.
 	// We need them to check if the additional roles and traits provide access to the requested resources.
-	allRoles := append(slices.Clone(requester.GetRoles()), list.GetGrants().Roles...)
+	allRoles := append(slices.Clone(v.requester.GetRoles()), list.GetGrants().Roles...)
 	allTraits := map[string][]string{}
-	maps.Copy(allTraits, requester.GetTraits())
+	maps.Copy(allTraits, v.requester.GetTraits())
 	maps.Copy(allTraits, list.GetGrants().Traits)
 
 	// Access lists that don't provide access to the requested resources are irrelevant
 	accessChecker, err := services.NewAccessChecker(&services.AccessInfo{
 		Roles:  allRoles,
 		Traits: allTraits,
-	}, "", clt)
+	}, "", v.dataGetter)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
-	for _, resource := range requestedResources {
+	for _, resource := range v.requestedResources {
 		select {
 		case <-ctx.Done():
 			return false, trace.Wrap(ctx.Err())
@@ -273,8 +299,15 @@ func GenerateAccessRequestPromotions(ctx context.Context, resourceGetter modules
 
 	allowedPromotions := types.NewAccessRequestAllowedPromotions(nil)
 
+	validator := suggestionValidator{
+		dataGetter:         resourceGetter,
+		requester:          requester,
+		requestedResources: resources,
+		clock:              clockwork.NewRealClock(),
+	}
+
 	if err := forEachAccessList(ctx, resourceGetter, func(accessList *accesslist.AccessList) error {
-		valid, err := isValidSuggestion(ctx, resourceGetter, requester, resources, accessList)
+		valid, err := validator.isValidSuggestion(ctx, accessList)
 		if err != nil {
 			log.Tracef("failed to validate access list suggestion: %v", err)
 			return nil
