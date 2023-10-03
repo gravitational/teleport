@@ -17,16 +17,10 @@ package main
 import (
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 )
 
 const (
-	// rpmPackage is the RPM package type
-	rpmPackage = "rpm"
-	// debPackage is the DEB package type
-	debPackage = "deb"
-
 	// tagCleanupPipelineName is the name of the pipeline that cleans up
 	// artifacts from a previous partially-failed build
 	tagCleanupPipelineName = "clean-up-previous-build"
@@ -402,47 +396,6 @@ func tagPipeline(b buildType) pipeline {
 	return p
 }
 
-// tagDownloadArtifactCommands generates a set of commands to download appropriate artifacts for creating a package as part of a tag build
-func tagDownloadArtifactCommands(b buildType) []string {
-	commands := []string{
-		`export VERSION=$(cat /go/.version.txt)`,
-		`if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi`,
-	}
-	artifactOSS := true
-	artifactType := fmt.Sprintf("%s-%s", b.os, b.arch)
-
-	if b.centos7 {
-		artifactType += "-centos7"
-	}
-
-	if b.fips {
-		artifactType += "-fips"
-		artifactOSS = false
-	}
-
-	if artifactOSS {
-		commands = append(commands,
-			fmt.Sprintf(`aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-%s-bin.tar.gz /go/artifacts/`, artifactType),
-		)
-	}
-	commands = append(commands,
-		fmt.Sprintf(`aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-%s-bin.tar.gz /go/artifacts/`, artifactType),
-	)
-	return commands
-}
-
-// tagCopyPackageArtifactCommands generates a set of commands to find and copy built package artifacts as part of a tag build
-func tagCopyPackageArtifactCommands(b buildType, packageType string) []string {
-	commands := []string{
-		`cd /go/src/github.com/gravitational/teleport`,
-	}
-	if !b.fips {
-		commands = append(commands, fmt.Sprintf(`find build -maxdepth 1 -iname "teleport*.%s*" -print -exec cp {} /go/artifacts \;`, packageType))
-	}
-	commands = append(commands, fmt.Sprintf(`find e/build -maxdepth 1 -iname "teleport*.%s*" -print -exec cp {} /go/artifacts \;`, packageType))
-	return commands
-}
-
 // createReleaseAssetCommands generates a set of commands to create release & asset in release management service
 func tagCreateReleaseAssetCommands(b buildType, packageType string, extraQualifications []string) []string {
 	commands := []string{
@@ -489,178 +442,6 @@ done`,
 			b.Description(packageType, extraQualifications...), b.os, b.arch),
 	}
 	return commands
-}
-
-// tagPackagePipeline generates a tag package pipeline for a given combination of os/arch/FIPS
-func tagPackagePipeline(packageType string, b buildType) pipeline {
-	if packageType == "" {
-		panic("packageType must be set")
-	}
-	if b.os == "" {
-		panic("b.os must be set")
-	}
-	if b.arch == "" {
-		panic("b.arch must be set")
-	}
-
-	environment := map[string]value{
-		"ARCH":             {raw: b.arch},
-		"TMPDIR":           {raw: "/go"},
-		"ENT_TARBALL_PATH": {raw: "/go/artifacts"},
-	}
-
-	dependentPipeline := fmt.Sprintf("build-%s-%s", b.os, b.arch)
-
-	if b.centos7 {
-		dependentPipeline += "-centos7"
-	}
-
-	apkPackages := []string{"bash", "curl", "gzip", "make", "tar"}
-	if packageType == rpmPackage {
-		// Required by `make rpm`
-		apkPackages = append(apkPackages, "go")
-	}
-
-	packageBuildCommands := []string{
-		fmt.Sprintf("apk add --no-cache %s", strings.Join(apkPackages, " ")),
-		`apk add --no-cache aws-cli`,
-		`cd /go/src/github.com/gravitational/teleport`,
-		`export VERSION=$(cat /go/.version.txt)`,
-		// Login to Amazon ECR Public
-		`aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws`,
-	}
-
-	makeCommand := fmt.Sprintf("make %s", packageType)
-	if b.fips {
-		dependentPipeline += "-fips"
-		environment["FIPS"] = value{raw: "yes"}
-		environment["RUNTIME"] = value{raw: "fips"}
-		makeCommand = fmt.Sprintf("make -C e %s", packageType)
-	} else {
-		environment["OSS_TARBALL_PATH"] = value{raw: "/go/artifacts"}
-	}
-
-	packageDockerVolumes := []volume{volumeAwsConfig, volumeDocker, volumeDockerConfig}
-	packageDockerVolumeRefs := []volumeRef{
-		volumeRefDocker,
-		volumeRefDockerConfig,
-		volumeRefAwsConfig,
-	}
-	packageDockerService := dockerService()
-
-	switch packageType {
-	case rpmPackage:
-		environment["GNUPG_DIR"] = value{raw: "/tmpfs/gnupg"}
-		environment["GPG_RPM_SIGNING_ARCHIVE"] = value{fromSecret: "GPG_RPM_SIGNING_ARCHIVE"}
-		packageBuildCommands = append(packageBuildCommands,
-			`mkdir -m0700 $GNUPG_DIR`,
-			`echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR`,
-			`chown -R root:root $GNUPG_DIR`,
-			makeCommand,
-			`rm -rf $GNUPG_DIR`,
-		)
-		// RPM builds require tmpfs to hold the key material in memory.
-		packageDockerVolumes = append(packageDockerVolumes, volumeTmpfs)
-		packageDockerVolumeRefs = append(packageDockerVolumeRefs, volumeRefTmpfs)
-		packageDockerService = dockerService(volumeRefTmpfs)
-	case debPackage:
-		packageBuildCommands = append(packageBuildCommands,
-			makeCommand,
-		)
-	default:
-		panic("packageType is not set")
-	}
-
-	assumeDownloadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
-		awsRoleSettings: awsRoleSettings{
-			awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
-			awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
-			role:               value{fromSecret: "AWS_ROLE"},
-		},
-		configVolume: volumeRefAwsConfig,
-		name:         "Assume Download AWS Role",
-	})
-	assumeBuildRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
-		awsRoleSettings: awsRoleSettings{
-			awsAccessKeyID:     value{fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
-			awsSecretAccessKey: value{fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_SECRET"},
-			role:               value{fromSecret: "TELEPORT_BUILD_READ_ONLY_AWS_ROLE"},
-		},
-		configVolume: volumeRefAwsConfig,
-		name:         "Assume Build AWS Role",
-	})
-	assumeUploadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
-		awsRoleSettings: awsRoleSettings{
-			awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
-			awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
-			role:               value{fromSecret: "AWS_ROLE"},
-		},
-		configVolume: volumeRefAwsConfig,
-		name:         "Assume Upload AWS Role",
-	})
-
-	pipelineName := fmt.Sprintf("%s-%s", dependentPipeline, packageType)
-
-	p := newKubePipeline(pipelineName)
-	p.Trigger = triggerTag
-	p.DependsOn = []string{dependentPipeline, tagCleanupPipelineName}
-	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = packageDockerVolumes
-	p.Services = []service{
-		packageDockerService,
-	}
-	p.Steps = []step{
-		{
-			Name:  "Check out code",
-			Image: "docker:git",
-			Environment: map[string]value{
-				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
-			},
-			Commands: tagCheckoutCommands(b),
-		},
-		waitForDockerStep(),
-		assumeDownloadRoleStep,
-		{
-			Name:  "Download artifacts from S3",
-			Image: "amazon/aws-cli",
-			Environment: map[string]value{
-				"AWS_REGION":    {raw: "us-west-2"},
-				"AWS_S3_BUCKET": {fromSecret: "AWS_S3_BUCKET"},
-			},
-			Commands: tagDownloadArtifactCommands(b),
-			Volumes:  []volumeRef{volumeRefAwsConfig},
-		},
-		assumeBuildRoleStep,
-		{
-			Name:        "Build artifacts",
-			Image:       "docker",
-			Environment: environment,
-			Volumes:     packageDockerVolumeRefs,
-			Commands:    packageBuildCommands,
-		},
-		{
-			Name:     "Copy artifacts",
-			Image:    "docker",
-			Commands: tagCopyPackageArtifactCommands(b, packageType),
-		},
-		assumeUploadRoleStep,
-		kubernetesUploadToS3Step(kubernetesS3Settings{
-			region:       "us-west-2",
-			source:       "/go/artifacts/",
-			target:       "teleport/tag/${DRONE_TAG##v}",
-			configVolume: volumeRefAwsConfig,
-		}),
-		{
-			Name:     "Register artifacts",
-			Image:    "docker",
-			Commands: tagCreateReleaseAssetCommands(b, strings.ToUpper(packageType), nil),
-			Environment: map[string]value{
-				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
-				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY"},
-			},
-		},
-	}
-	return p
 }
 
 func tagCleanupPipeline() pipeline {
