@@ -98,6 +98,11 @@ type TLSServerConfig struct {
 	KubernetesServersWatcher *services.KubeServerWatcher
 	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
+
+	// MultiplexerIgnoreSelfConnections is used for tests to control multiplexer's behavior regarding PROXY
+	// protocol for connections from same IP as the listener. This is required because in tests all connections
+	// are from the same IP.
+	MultiplexerIgnoreSelfConnections bool
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -288,6 +293,8 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 		// between the TCP being accepted and the time for the first byte is longer
 		// than the default value -  1s.
 		ReadDeadline: 10 * time.Second,
+
+		IgnoreSelfConnections: t.MultiplexerIgnoreSelfConnections,
 	})
 	if err != nil {
 		return trace.Wrap(err)

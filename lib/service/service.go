@@ -4391,6 +4391,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		proxyProtocol := cfg.Proxy.PROXYProtocolMode
+		if _, ok := listeners.kube.(*alpnproxy.ListenerMuxWrapper); ok {
+			// If kube listener is multiplexed it means PROXY protocol was already handled upstream.
+			proxyProtocol = multiplexer.PROXYProtocolOff
+		}
+
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
 				Namespace:                     apidefaults.Namespace,
@@ -4426,7 +4433,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Log:                      log,
 			IngressReporter:          ingressReporter,
 			KubernetesServersWatcher: kubeServerWatcher,
-			PROXYProtocolMode:        cfg.Proxy.PROXYProtocolMode,
+			PROXYProtocolMode:        proxyProtocol,
+
+			// Used for tests to force checking of required PROXY lines for all connections.
+			MultiplexerIgnoreSelfConnections: cfg.MultiplexerIgnoreSelfConnections,
 		})
 		if err != nil {
 			return trace.Wrap(err)

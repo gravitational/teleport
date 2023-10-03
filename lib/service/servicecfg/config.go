@@ -264,6 +264,11 @@ type Config struct {
 	// Note: When set, this overrides Auth and Proxy's AssistAPIKey settings.
 	OpenAIConfig *openai.ClientConfig
 
+	// MultiplexerIgnoreSelfConnections is used for tests to control multiplexer's behavior regarding PROXY
+	// protocol for connections from same IP as the listener. This is required because in tests all connections
+	// are from the same IP.
+	MultiplexerIgnoreSelfConnections bool
+
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
