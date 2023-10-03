@@ -369,6 +369,56 @@ exports[`failed state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
+.c31 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 90px;
+  text-transform: none;
+}
+
+.c31:active {
+  opacity: 0.56;
+}
+
+.c31:hover,
+.c31:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c31:active {
+  opacity: 0.24;
+}
+
+.c31:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
 .c18 {
   display: inline-block;
   transition: color 0.3s;
@@ -382,7 +432,7 @@ exports[`failed state 1`] = `
   font-size: 22px;
 }
 
-.c31 {
+.c32 {
   display: inline-block;
   transition: color 0.3s;
   margin-left: 4px;
@@ -390,7 +440,7 @@ exports[`failed state 1`] = `
   font-size: 14px;
 }
 
-.c36 {
+.c37 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -484,7 +534,7 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c32 {
+.c33 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -495,7 +545,7 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c34 {
+.c35 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -628,7 +678,7 @@ exports[`failed state 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c33 {
+.c34 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -655,28 +705,28 @@ exports[`failed state 1`] = `
   cursor: pointer;
 }
 
-.c35 {
+.c36 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c35 .c17 {
+.c36 .c17 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c35:hover .c17,
-.c35:focus .c17 {
+.c36:hover .c17,
+.c36:focus .c17 {
   opacity: 1;
 }
 
-.c35:disabled {
+.c36:disabled {
   cursor: default;
 }
 
-.c35:disabled .c17 {
+.c36:disabled .c17 {
   opacity: 0.1;
 }
 
@@ -1173,13 +1223,13 @@ exports[`failed state 1`] = `
             align="right"
           >
             <button
-              class="c27"
+              class="c31"
               kind="border"
-              width="88px"
+              width="90px"
             >
               LAUNCH
               <span
-                class="c17 c31 icon icon-caret-down "
+                class="c17 c32 icon icon-caret-down "
                 color="text.slightlyMuted"
                 font-size="2"
               />
@@ -1191,7 +1241,7 @@ exports[`failed state 1`] = `
             style="user-select: none;"
           >
             <div
-              class="c32"
+              class="c33"
               height="32px"
               width="32px"
             >
@@ -1247,31 +1297,31 @@ exports[`failed state 1`] = `
       </tbody>
     </table>
     <nav
-      class="c33"
+      class="c34"
     >
       <div
-        class="c34"
+        class="c35"
         width="100%"
       >
         <div
           class="c19"
         >
           <button
-            class="c35"
+            class="c36"
             title="Previous page"
           >
             <span
-              class="c17 c36 icon icon-arrow-left-circle "
+              class="c17 c37 icon icon-arrow-left-circle "
               color="light"
               font-size="3"
             />
           </button>
           <button
-            class="c35"
+            class="c36"
             title="Next page"
           >
             <span
-              class="c17 c36 icon icon-arrow-right-circle "
+              class="c17 c37 icon icon-arrow-right-circle "
               color="light"
               font-size="3"
             />
@@ -1315,6 +1365,7 @@ exports[`loaded state 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
 .c3:active {
@@ -1384,6 +1435,56 @@ exports[`loaded state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
+.c31 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 90px;
+  text-transform: none;
+}
+
+.c31:active {
+  opacity: 0.56;
+}
+
+.c31:hover,
+.c31:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c31:active {
+  opacity: 0.24;
+}
+
+.c31:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
 .c18 {
   display: inline-block;
   transition: color 0.3s;
@@ -1397,7 +1498,7 @@ exports[`loaded state 1`] = `
   font-size: 22px;
 }
 
-.c31 {
+.c32 {
   display: inline-block;
   transition: color 0.3s;
   margin-left: 4px;
@@ -1405,7 +1506,7 @@ exports[`loaded state 1`] = `
   font-size: 14px;
 }
 
-.c36 {
+.c37 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -1499,7 +1600,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c32 {
+.c33 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -1510,7 +1611,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c34 {
+.c35 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -1643,7 +1744,7 @@ exports[`loaded state 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c33 {
+.c34 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -1670,28 +1771,28 @@ exports[`loaded state 1`] = `
   cursor: pointer;
 }
 
-.c35 {
+.c36 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c35 .c17 {
+.c36 .c17 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c35:hover .c17,
-.c35:focus .c17 {
+.c36:hover .c17,
+.c36:focus .c17 {
   opacity: 1;
 }
 
-.c35:disabled {
+.c36:disabled {
   cursor: default;
 }
 
-.c35:disabled .c17 {
+.c36:disabled .c17 {
   opacity: 0.1;
 }
 
@@ -2194,13 +2295,13 @@ exports[`loaded state 1`] = `
             align="right"
           >
             <button
-              class="c27"
+              class="c31"
               kind="border"
-              width="88px"
+              width="90px"
             >
               LAUNCH
               <span
-                class="c17 c31 icon icon-caret-down "
+                class="c17 c32 icon icon-caret-down "
                 color="text.slightlyMuted"
                 font-size="2"
               />
@@ -2212,7 +2313,7 @@ exports[`loaded state 1`] = `
             style="user-select: none;"
           >
             <div
-              class="c32"
+              class="c33"
               height="32px"
               width="32px"
             >
@@ -2268,31 +2369,31 @@ exports[`loaded state 1`] = `
       </tbody>
     </table>
     <nav
-      class="c33"
+      class="c34"
     >
       <div
-        class="c34"
+        class="c35"
         width="100%"
       >
         <div
           class="c19"
         >
           <button
-            class="c35"
+            class="c36"
             title="Previous page"
           >
             <span
-              class="c17 c36 icon icon-arrow-left-circle "
+              class="c17 c37 icon icon-arrow-left-circle "
               color="light"
               font-size="3"
             />
           </button>
           <button
-            class="c35"
+            class="c36"
             title="Next page"
           >
             <span
-              class="c17 c36 icon icon-arrow-right-circle "
+              class="c17 c37 icon icon-arrow-right-circle "
               color="light"
               font-size="3"
             />
