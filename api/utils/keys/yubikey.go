@@ -49,6 +49,8 @@ import (
 const (
 	// PIVCardTypeYubiKey is the PIV card type assigned to yubiKeys.
 	PIVCardTypeYubiKey = "yubikey"
+
+	pivAuthErrMessage = "smart card error 6982: security status not satisfied"
 )
 
 // getOrGenerateYubiKeyPrivateKey connects to a connected yubiKey and gets a private key
@@ -244,7 +246,7 @@ func (y *YubiKeyPrivateKey) Public() crypto.PublicKey {
 
 // Sign implements crypto.Signer.
 func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	signCtx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// To prevent concurrent calls to Sign from failing due to PIV only handling a
@@ -252,6 +254,25 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 	y.signMux.Lock()
 	defer y.signMux.Unlock()
 
+	signature, err := y.sign(ctx, rand, digest, opts)
+	if err != nil && strings.Contains(err.Error(), pivAuthErrMessage) {
+		// If we get a generic auth error, it probably means the PIV connection didn't prompt for
+		// PIN when he PIV module expected PIN. This can happen in custom PIV modules that don't
+		// implement proper PIN caching in the connection, or potentially in very old YubiKey
+		// models. In these cases, modify the key's PIN policy to reflect that PIN should always
+		// be prompted for and try again.
+		y.attestation.PINPolicy = piv.PINPolicyAlways
+		signature, err = y.sign(ctx, rand, digest, opts)
+	}
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return signature, nil
+}
+
+func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	yk, err := y.open()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -269,7 +290,7 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 				// Prompt for touch after a delay, in case the function succeeds without touch due to a cached touch.
 				fmt.Fprintln(os.Stderr, "Tap your YubiKey")
 				return
-			case <-signCtx.Done():
+			case <-ctx.Done():
 				// touch cached, skip prompt.
 				return
 			}
@@ -284,7 +305,7 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 				defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
 			}
 		}
-		return prompt.Password(signCtx, os.Stderr, prompt.Stdin(), "Enter your YubiKey PIV PIN")
+		return prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your YubiKey PIV PIN")
 	}
 
 	auth := piv.KeyAuth{
@@ -518,7 +539,12 @@ func (y *YubiKey) getPrivateKey(slot piv.Slot) (*PrivateKey, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return NewPrivateKey(priv, keyPEM)
+	key, err := NewPrivateKey(priv, keyPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return key, nil
 }
 
 // SetPin sets the YubiKey PIV PIN.
