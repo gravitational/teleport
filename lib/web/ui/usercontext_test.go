@@ -71,6 +71,10 @@ func TestNewUserContext(t *testing.T) {
 			Verbs:     services.RW(),
 		},
 		{
+			Resources: []string{types.KindAccessList},
+			Verbs:     services.RW(),
+		},
+		{
 			Resources: []string{types.KindBilling},
 			Verbs:     services.RO(),
 		},
@@ -100,6 +104,7 @@ func TestNewUserContext(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.ACL.AccessRequests, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.ConnectionDiagnostic, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.Desktops, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ACL.AccessList, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.AccessStrategy, accessStrategy{
 		Type:   types.RequestStrategyOptional,
 		Prompt: "",
