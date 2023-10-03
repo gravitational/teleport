@@ -809,58 +809,35 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 		assert.True(t, trace.IsAccessDenied(err), "GenerateUserCerts error mismatch, got=%v (%T), want trace.AccessDeniedError", err, err)
 	}
 
-	// generateCertsMFA is used to run the MFA-aware, streaming certificate
-	// issuance ceremony.
-	generateCertsMFA := func(t *testing.T, client *Client, req proto.UserCertsRequest) (cert *proto.SingleUseUserCert, err error) {
+	// generateCertsMFA is used to generate single-use, MFA-enabled certificates.
+	generateCertsMFA := func(t *testing.T, client *Client, req proto.UserCertsRequest) (cert *proto.Certs, err error) {
 		defer func() {
 			// Translate gRPC to trace errors, as our clients do.
 			err = trail.FromGRPC(err)
 		}()
 
-		stream, err := client.GenerateUserSingleUseCerts(ctx)
+		authnChal, err := client.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+				ContextUser: &proto.ContextUser{},
+			},
+		})
 		if err != nil {
 			return nil, err
 		}
 
-		if err := stream.Send(&proto.UserSingleUseCertsRequest{
-			Request: &proto.UserSingleUseCertsRequest_Init{
-				Init: &req,
-			},
-		}); err != nil {
-			return nil, err
-		}
-		resp, err := stream.Recv()
-		if err != nil {
-			return nil, err
-		}
-		mfaResp := mfaDevices.webAuthHandler(t, resp.GetMFAChallenge())
-
-		if err := stream.Send(&proto.UserSingleUseCertsRequest{
-			Request: &proto.UserSingleUseCertsRequest_MFAResponse{
-				MFAResponse: mfaResp,
-			},
-		}); err != nil {
-			return nil, err
-		}
-		resp, err = stream.Recv()
-		if err != nil {
-			return nil, err
-		}
-		cert = resp.GetCert()
-		if cert == nil {
-			return nil, fmt.Errorf("unexpected response, cert is nil: %v", resp)
-		}
-		return cert, nil
+		req.MFAResponse = mfaDevices.webAuthHandler(t, authnChal)
+		req.Purpose = proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
+		return client.GenerateUserCerts(ctx, req)
 	}
 
 	tests := []struct {
-		name                     string
-		clusterDeviceMode        string
-		client                   *Client
-		req                      proto.UserCertsRequest
-		skipGenerateUserCertsRPC bool // aka non-MFA issuance.
-		skipSingleUseCertsRPC    bool // aka MFA/streaming issuance.
-		assertErr                func(t *testing.T, err error)
+		name               string
+		clusterDeviceMode  string
+		client             *Client
+		req                proto.UserCertsRequest
+		skipLoginCerts     bool // aka non-MFA issuance.
+		skipSingleUseCerts bool // aka MFA/streaming issuance.
+		assertErr          func(t *testing.T, err error)
 	}{
 		{
 			name:              "mode=optional without extensions",
@@ -891,21 +868,21 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 			assertErr:         assertSuccess,
 		},
 		{
-			name:                  "mode=required ignores App Access requests (non-MFA)",
-			clusterDeviceMode:     constants.DeviceTrustModeRequired,
-			client:                clientWithoutDevice,
-			req:                   appReq,
-			skipSingleUseCertsRPC: true,
-			assertErr:             assertSuccess,
+			name:               "mode=required ignores App Access requests (non-MFA)",
+			clusterDeviceMode:  constants.DeviceTrustModeRequired,
+			client:             clientWithoutDevice,
+			req:                appReq,
+			skipSingleUseCerts: true,
+			assertErr:          assertSuccess,
 		},
 		{
 			// Tracked here because, if this changes, then the scenario should be the
 			// same as the one above.
-			name:                     "GenerateUserSingleUseCerts does not allow App usage",
-			clusterDeviceMode:        constants.DeviceTrustModeRequired,
-			client:                   clientWithoutDevice,
-			req:                      appReq,
-			skipGenerateUserCertsRPC: true,
+			name:              "GenerateUserSingleUseCerts does not allow App usage",
+			clusterDeviceMode: constants.DeviceTrustModeRequired,
+			client:            clientWithoutDevice,
+			req:               appReq,
+			skipLoginCerts:    true,
 			assertErr: func(t *testing.T, err error) {
 				assert.ErrorContains(t, err, "app access certificates", "GenerateUserSingleUseCerts expected to fail for usage=App")
 			},
@@ -926,17 +903,15 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 				})
 			})
 
-			// Test the unary, non-MFA endpoint.
-			if !test.skipGenerateUserCertsRPC {
-				t.Run("GenerateUserCerts", func(t *testing.T) {
+			if !test.skipLoginCerts {
+				t.Run("login certs", func(t *testing.T) {
 					_, err := test.client.GenerateUserCerts(ctx, test.req)
 					test.assertErr(t, err)
 				})
 			}
 
-			// Test the streaming, MFA-aware endpoint.
-			if !test.skipSingleUseCertsRPC {
-				t.Run("GenerateUserSingleUseCerts", func(t *testing.T) {
+			if !test.skipSingleUseCerts {
+				t.Run("single-use certs", func(t *testing.T) {
 					_, err := generateCertsMFA(t, test.client, test.req)
 					test.assertErr(t, err)
 				})
