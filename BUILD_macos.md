@@ -1,6 +1,6 @@
 # MacOS environment setup
 
-The instructions below are provided as in a best-effort basis.
+The instructions below are provided on a best-effort basis.
 PRs with corrections and updates are welcome!
 
 * Install [Homebrew](https://brew.sh/)
@@ -14,10 +14,10 @@ PRs with corrections and updates are welcome!
     * If you need other go versions, see https://go.dev/doc/manage-install
       * You will need to add `export PATH="$HOME/go/bin:$PATH"` to the `~/.zprofile`
 
-  * Or install required version of `Go` with homebrew:
+  * Or install the required version of `Go` with homebrew:
 
   ```shell
-  # if we are not on the latest, you might need to install like this:
+  # if we are not on the latest, you might need to install it like this:
   # brew install go@<version from go.mod>, i.e. 1.16
   #
   # check which version will be installed by running:
