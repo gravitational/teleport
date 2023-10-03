@@ -4389,12 +4389,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		proxyProtocol := cfg.Proxy.PROXYProtocolMode
-		if clusterNetworkConfig.GetProxyListenerMode()== types.ProxyListenerMode_Multiplex {
-			// If ProxyListenerMode is MULTIPLEX it means that the ALPN listener handles the proxy line 
-			// and sends the connection to the Kubernetes listener. When it does, it shares the net.Conn
-			// and doesn't dial so the PROXY Protocol cannot be present. Under those circumstances, 
-			// ProxyProtocol must be off!
-			
+		if clusterNetworkConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
+			// If ProxyListenerMode is MULTIPLEX it means that the ALPN listener handles the PROXY line
+			// and sends the connection to the Proxy Kube listener. When it does, it uses the same net.Conn
+			// and doesn't dial so the PROXY Protocol cannot be present. Under those circumstances,
+			// ProxyProtocol for Proxy Kube listener must be off.
+
 			proxyProtocol = multiplexer.PROXYProtocolOff
 		}
 
