@@ -130,8 +130,9 @@ func TestGenerate(t *testing.T) {
 	// This test reads the file at the destination path and compares the
 	// generated resource reference with it. The test does not regenerate the
 	// file at the destination path. To do so, navigate to the root of the
-	// project directory and run the program with the -config flag pointing to:
-	// "reference/testdata/conf.yaml".
+	// project directory and run the following command:
+	//
+	// go run gen-resource-ref -config=reference/testdata/conf.yaml
 	cf, err := os.Open(path.Join("testdata", "config.yaml"))
 	if err != nil {
 		t.Fatal(err)
