@@ -52,7 +52,7 @@ func TestOpenFileLinks(t *testing.T) {
 		t.Cleanup(func() {
 			err := os.RemoveAll(rootDir)
 			if err != nil {
-				t.Fatalf("failed to remove rootDir %q: %v", rootDir, err)
+				require.NoError(t, err)
 			}
 		})
 	default:
