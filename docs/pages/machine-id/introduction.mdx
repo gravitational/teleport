@@ -15,15 +15,8 @@ description: Teleport Machine ID introduction, demo and resources.
 
 Teleport Machine ID enables machines, such as CI/CD workflows, to securely
 authenticate with your Teleport cluster in order to connect to resources and
-configure the cluster itself.
-
-Using Machine ID brings the existing benefits of the Teleport platform to
-machine access:
-
-- Short-lived, rotating credentials.
-- Rich auditing and session recording.
-- Fine-grained role-based access control.
-- Consistency with your techniques for managing human access.
+configure the cluster itself. This is sometimes referred to as Machine to
+Machine (or M2M) access.
 
 Machine ID supports a number of use-cases and platforms, but is commonly used
 for:
@@ -36,9 +29,19 @@ for:
 - Creating and renewing credentials for custom scripts that leverage `tctl` or
   the Teleport API in order to control Teleport configuration.
 
+Machine ID's design brings the existing benefits of the Teleport platform to
+machine access, including:
+
+- Short-lived, rotating certificate-based credentials.
+- Rich auditing and session recording.
+- Fine-grained role-based access control.
+- Consistency with your techniques for managing human access.
+
 ## Overview
 
-TODO: THIS TEXT IS ROUGH
+Machine ID works by issuing machines short-lived certificates in the same way
+that these certificates are issued to users when they sign in. These
+certificates
 
 Machine ID is used through an agent called `tbot`. `tbot` authenticates
 with the Teleport cluster and then writes short-lived credentials and
@@ -53,7 +56,10 @@ only accessible via a join token and cannot be "logged into" like a normal
 user. A Bot User holds a single role, known as the Bot Role. This role gives
 `tbot` the ability to generate certificates for specified Teleport roles.
 
-TODO: THIS TEXT IS ROUGH
+For a more in-depth overview, check out the
+[architecture page](./architecture.mdx). This covers the behind-the-scenes
+elements of how Machine ID functions and provides a strong background knowledge
+which can help in successfully deploying Machine ID.
 
 ## Further Reading
 
