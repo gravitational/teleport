@@ -39,17 +39,17 @@ Example:
 
 type TypeInfo struct {
 	// Go package path (not a file path)
-	Package string `json:"package"`
+	Package string `yaml:"package"`
 	// Name of the type, e.g., Metadata
-	Name string `json:"name"`
+	Name string `yaml:"name"`
 }
 
 type GeneratorConfig struct {
-	RequiredTypes []TypeInfo `json:"required_types"`
+	RequiredTypes []TypeInfo `yaml:"required_types"`
 	// Path to the root of the Go project directory
-	SourcePath string `json:"source"`
+	SourcePath string `yaml:"source"`
 	// Path of the resource reference
-	DestinationPath string `json:"destination"`
+	DestinationPath string `yaml:"destination"`
 }
 
 // shouldProcess indicates whether we should generate reference entries from d,
