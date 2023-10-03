@@ -1513,15 +1513,13 @@ type PluginOAuthProviders struct {
 
 func (p *PluginOAuthProviders) Parse() (servicecfg.PluginOAuthProviders, error) {
 	out := servicecfg.PluginOAuthProviders{}
-	if p.Slack == nil {
-		return out, trace.BadParameter("when plugin runtime is enabled, at least one plugin provider must be specified")
+	if p.Slack != nil {
+		slack, err := p.Slack.Parse()
+		if err != nil {
+			return out, trace.Wrap(err)
+		}
+		out.Slack = slack
 	}
-
-	slack, err := p.Slack.Parse()
-	if err != nil {
-		return out, trace.Wrap(err)
-	}
-	out.Slack = slack
 	return out, nil
 }
 
