@@ -135,6 +135,25 @@ This example shows using the credentials to:
 - Connect to an SSH node using `tsh`
 - Connect to an SSH node using OpenSSH's `ssh`
 
+First, you'll need to adjust the role you assigned to the bot to grant it access
+to SSH. This example grants access to root on all nodes. In a production setup,
+it would be a good idea to restrict this to only the nodes that the bot would
+need.
+
+Use `tctl edit role/example-bot` to add the following to the role:
+
+```yaml
+spec:
+  allow:
+    # Allow login to the Linux user 'root'.
+    logins: ['root']
+    # Allow connection to any node. Adjust these labels to match only nodes
+    # that ansible needs to access.
+    node_labels:
+      '*': '*'
+```
+
+With that privileges granted, you can now create the GitHub Actions workflow.
 Create `.github/workflows/example.yaml`:
 
 ```yaml
@@ -226,6 +245,27 @@ In this example, the `teleport-actions/auth-k8s` action will be used to list
 all the pods contained within the cluster, but this could just as easily be
 modified to deploy to a Kubernetes cluster with `kubectl` or `helm`.
 
+First, you'll need to adjust the role you assigned to the bot to grant it access
+to the Kubernetes cluster. This example will grant the bot access to all
+clusters with the group `editor`. For more detailed instructions on setting
+up Kubernetes RBAC, see the Kubernetes Access guide.
+
+Use `tctl edit role/example-bot` to add the following rule to the Teleport role:
+
+```yaml
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - kind: pod
+      namespace: "*"
+      name: "*"
+    kubernetes_groups:
+    - editor
+```
+
+With that privileges granted, you can now create the GitHub Actions workflow.
 Create `.github/workflows/example.yaml`:
 
 ```yaml
