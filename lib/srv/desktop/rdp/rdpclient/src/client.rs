@@ -25,7 +25,7 @@ use ironrdp_tokio::{Framed, TokioStream};
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
 use std::io::Error as IoError;
 use std::net::ToSocketAddrs;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
@@ -396,19 +396,12 @@ impl Client {
         frame: BytesMut,
     ) -> SessionResult<Vec<u8>> {
         global::TOKIO_RT
-            .spawn_blocking(move || {
-                x224_processor
-                    .lock()
-                    .map_err(|err| reason_err!("x224_processor.lock()", "PoisonError: {:?}", err))?
-                    .process(&frame)
-            })
+            .spawn_blocking(move || Self::x224_lock(&x224_processor)?.process(&frame))
             .await
-            .map_err(|err| {
-                reason_err!("tokio::spawn_blocking", "JoinError: {:?}", err.into_panic())
-            })?
+            .map_err(|err| reason_err!("tokio::spawn_blocking", "JoinError: {:?}", err))?
     }
 
-    /// Processes a [`SvcProcessorMessages`] on a blocking thread.
+    /// Processes some [`SvcProcessorMessages`] on a blocking thread.
     ///
     /// We use a blocking task here so we don't block the tokio runtime
     /// while waiting for the `x224_processor` lock, or while processing the frame.
@@ -420,15 +413,18 @@ impl Client {
     ) -> SessionResult<Vec<u8>> {
         global::TOKIO_RT
             .spawn_blocking(move || {
-                x224_processor
-                    .lock()
-                    .map_err(|err| reason_err!("x224_processor.lock()", "PoisonError: {:?}", err))?
-                    .process_svc_processor_messages(messages)
+                Self::x224_lock(&x224_processor)?.process_svc_processor_messages(messages)
             })
             .await
-            .map_err(|err| {
-                reason_err!("tokio::spawn_blocking", "JoinError: {:?}", err.into_panic())
-            })?
+            .map_err(|err| reason_err!("tokio::spawn_blocking", "JoinError: {:?}", err))?
+    }
+
+    fn x224_lock(
+        x224_processor: &Arc<Mutex<X224Processor>>,
+    ) -> Result<MutexGuard<X224Processor>, SessionError> {
+        x224_processor
+            .lock()
+            .map_err(|err| reason_err!("x224_processor.lock()", "PoisonError: {:?}", err))
     }
 }
 
