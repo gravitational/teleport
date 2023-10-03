@@ -28,7 +28,7 @@ import (
 )
 
 // ErrRequiresEnterprise indicates that a feature requires
-// Teleport Enterprise
+// Teleport Enterprise.
 var ErrRequiresEnterprise = &trace.AccessDeniedError{Message: "this feature requires Teleport Enterprise"}
 
 // githubConnectorMutex is a mutex for the GitHub auth connector
