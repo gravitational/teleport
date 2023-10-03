@@ -6,12 +6,12 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"html/template"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 )
 
 // Intended to be executed with a []ReferenceEntry
