@@ -4389,8 +4389,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		proxyProtocol := cfg.Proxy.PROXYProtocolMode
-		if _, ok := listeners.kube.(*alpnproxy.ListenerMuxWrapper); ok {
-			// If kube listener is multiplexed it means PROXY protocol was already handled upstream.
+		if clusterNetworkConfig.GetProxyListenerMode()== types.ProxyListenerMode_Multiplex {
+			// If ProxyListenerMode is MULTIPLEX it means that the ALPN listener handles the proxy line 
+			// and sends the connection to the Kubernetes listener. When it does, it shares the net.Conn
+			// and doesn't dial so the PROXY Protocol cannot be present. Under those circumstances, 
+			// ProxyProtocol must be off!
+			
 			proxyProtocol = multiplexer.PROXYProtocolOff
 		}
 
