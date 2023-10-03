@@ -177,7 +177,7 @@ func MarshalOSSGithubConnector(githubConnector types.GithubConnector, opts ...Ma
 	switch githubConnector := githubConnector.(type) {
 	case *types.GithubConnectorV3:
 		if githubConnector.Spec.EndpointURL != "" {
-			return nil, fmt.Errorf("GitHub endpoint URLs are set: %w", ErrRequiresEnterprise)
+			return nil, fmt.Errorf("GitHub endpoint URL is set: %w", ErrRequiresEnterprise)
 		}
 
 		if !cfg.PreserveResourceID {
