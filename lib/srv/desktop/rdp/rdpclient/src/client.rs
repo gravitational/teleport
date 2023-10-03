@@ -243,19 +243,11 @@ impl Client {
                                     })?
                                     .process(&frame)
                             })
+                            .await??;
+                        // Send response frames to write loop for writing to RDP server.
+                        write_requester
+                            .send(ClientFunction::WriteRawPdu(res))
                             .await?;
-                        match res {
-                            Ok(res) => {
-                                // Send response frames to write loop for writing to RDP server.
-                                write_requester
-                                    .send(ClientFunction::WriteRawPdu(res))
-                                    .await?;
-                            }
-                            Err(e) => {
-                                trace!("x224 {}", e);
-                                return Err(e.into());
-                            }
-                        }
                     }
                 }
             }
