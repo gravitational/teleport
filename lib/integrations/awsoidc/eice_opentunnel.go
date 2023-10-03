@@ -323,13 +323,31 @@ type eicedConn struct {
 
 // Reads from the reader into b and returns the number of read bytes.
 func (i *eicedConn) Read(b []byte) (n int, err error) {
-	return i.r.Read(b)
+	n, err = i.r.Read(b)
+	if err != nil {
+		return 0, handleIOError(err)
+	}
+
+	return n, nil
 }
 
 // Write writes into the websocket connection the contents of b.
 // Returns how many bytes were written.
 func (i *eicedConn) Write(b []byte) (int, error) {
-	return len(b), i.Conn.WriteMessage(websocket.BinaryMessage, b)
+	err := i.Conn.WriteMessage(websocket.BinaryMessage, b)
+	if err != nil {
+		return 0, handleIOError(err)
+	}
+	return len(b), trace.Wrap(err)
+}
+
+func handleIOError(err error) error {
+	var closeErr *websocket.CloseError
+	// This might happen if the EC2 does not inbound rules accepting TCP on port 22 from the Subnet of the EICE.
+	if errors.As(err, &closeErr) {
+		return trace.ConnectionProblem(err, "connection failed, please ensure instance accepts Inbound TPC/22 from the EICE subnet")
+	}
+	return trace.Wrap(err)
 }
 
 // SetDeadline sets the websocket read and write deadline.
