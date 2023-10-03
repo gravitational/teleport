@@ -7,26 +7,6 @@ resource "kubernetes_namespace_v1" "teleport" {
   }
 }
 
-resource "kubernetes_network_policy_v1" "teleport" {
-  metadata {
-    name      = "restrict-instance-metadata"
-    namespace = kubernetes_namespace_v1.teleport.metadata.0.name
-  }
-
-  spec {
-    pod_selector {}
-    policy_types = ["Egress"]
-    egress {
-      to {
-        ip_block {
-          cidr   = "0.0.0.0/0"
-          except = ["169.254.169.254/32"]
-        }
-      }
-    }
-  }
-}
-
 resource "helm_release" "teleport" {
   count = var.deploy_teleport ? 1 : 0
 
@@ -112,8 +92,6 @@ resource "helm_release" "teleport" {
   })]
 
   depends_on = [
-    # IDMS is blocked
-    kubernetes_network_policy_v1.teleport,
     # can use teleport_identity
     azurerm_federated_identity_credential.teleport_identity,
     # postgres has replication enabled, we can connect to it, and we can log in
