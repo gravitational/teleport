@@ -2,7 +2,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = ">= 3.72.0"
+      version = ">= 3.75.0"
     }
 
     random = {
@@ -22,7 +22,7 @@ terraform {
 
     kubectl = {
       source  = "alekc/kubectl"
-      version = ">= 2.0.2"
+      version = ">= 2.0.3"
     }
   }
 }
