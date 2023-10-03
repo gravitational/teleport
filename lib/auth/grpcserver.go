@@ -2453,6 +2453,10 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream authpb.AuthService_
 	return dev, trace.Wrap(err)
 }
 
+// Deprecated: Use DeleteMFADeviceSync instead.
+//
+// DELETE IN v16, kept for compatibility with older tsh versions (codingllama).
+// (Don't actually delete it, but instead make it always error.)
 func (g *GRPCServer) DeleteMFADevice(stream authpb.AuthService_DeleteMFADeviceServer) error {
 	ctx := stream.Context()
 	actx, err := g.authenticate(ctx)
@@ -2514,6 +2518,7 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_D
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	//nolint:staticcheck // SA1019. Kept for compatibility with older tsh versions.
 	if err := stream.Send(&authpb.DeleteMFADeviceResponse{
 		Response: &authpb.DeleteMFADeviceResponse_MFAChallenge{MFAChallenge: authChallenge},
 	}); err != nil {
@@ -4399,7 +4404,7 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 		return nil, trace.Wrap(err)
 	}
 
-	paginatedResources, err := auth.MakePaginatedResources(req.ResourceType, resp.Resources)
+	paginatedResources, err := services.MakePaginatedResources(req.ResourceType, resp.Resources)
 	if err != nil {
 		return nil, trace.Wrap(err, "making paginated resources")
 	}

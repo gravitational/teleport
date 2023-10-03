@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -32,6 +33,12 @@ import (
 	embeddinglib "github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
+)
+
+const (
+	// maxSearchLimit is the maximum number of search results to return.
+	// We have a hard cap due the simplistic design of our retriever which has quadratic complexity.
+	maxSearchLimit = 100
 )
 
 // ServiceConfig holds configuration options for
@@ -250,9 +257,37 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 
 	// Use default values for the id and content, as we only care about the embeddings.
 	queryEmbeddings := embeddinglib.NewEmbedding(msg.Kind, "", embeddings[0], [32]byte{})
-	accessChecker := accessCheckerForKind(ctx, a, authCtx, msg.Kind)
+	accessChecker := makeAccessChecker(ctx, a, authCtx, msg.Kind)
 	documents := a.embeddings.GetRelevant(queryEmbeddings, int(msg.Limit), accessChecker)
-	return assembleEmbeddingResponseForKind(ctx, a, msg.Kind, documents)
+	return assembleEmbeddingResponse(ctx, a, documents)
+}
+
+// SearchUnifiedResources returns a similarity-ordered list of resources from the unified resource cache
+func (a *Service) SearchUnifiedResources(ctx context.Context, msg *assist.SearchUnifiedResourcesRequest) (*assist.SearchUnifiedResourcesResponse, error) {
+	if a.embedder == nil {
+		return nil, trace.BadParameter("assist is not configured in auth server")
+	}
+
+	// Call the openAI API to get the embeddings for the query.
+	embeddings, err := a.embedder.ComputeEmbeddings(ctx, []string{msg.Query})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(embeddings) == 0 {
+		return nil, trace.NotFound("OpenAI embeddings returned no results")
+	}
+
+	authCtx, err := a.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+	}
+
+	// Use default values for the id and content, as we only care about the embeddings.
+	queryEmbeddings := embeddinglib.NewEmbedding("", "", embeddings[0], [32]byte{})
+	limit := max(msg.Limit, maxSearchLimit)
+	accessChecker := makeAccessChecker(ctx, a, authCtx, msg.Kinds...)
+	documents := a.embeddings.GetRelevant(queryEmbeddings, int(limit), accessChecker)
+	return assembleSearchResponse(ctx, a, documents)
 }
 
 // userHasAccess returns true if the user should have access to the resource.
@@ -260,13 +295,68 @@ func userHasAccess(authCtx *authz.Context, req interface{ GetUsername() string }
 	return !authz.IsCurrentUser(*authCtx, req.GetUsername()) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))
 }
 
-func assembleEmbeddingResponseForKind(ctx context.Context, a *Service, kind string, documents []*ai.Document) (*assist.GetAssistantEmbeddingsResponse, error) {
+func assembleSearchResponse(ctx context.Context, a *Service, documents []*ai.Document) (*assist.SearchUnifiedResourcesResponse, error) {
+	resources := make([]types.ResourceWithLabels, 0, len(documents))
+
+	for _, doc := range documents {
+		var resource types.ResourceWithLabels
+		var err error
+
+		switch doc.EmbeddedKind {
+		case types.KindNode:
+			resource, err = a.resourceGetter.GetNode(ctx, defaults.Namespace, doc.GetEmbeddedID())
+		case types.KindKubernetesCluster:
+			resource, err = a.resourceGetter.GetKubernetesCluster(ctx, doc.GetEmbeddedID())
+		case types.KindApp:
+			resource, err = a.resourceGetter.GetApp(ctx, doc.GetEmbeddedID())
+		case types.KindDatabase:
+			resource, err = a.resourceGetter.GetDatabase(ctx, doc.GetEmbeddedID())
+		case types.KindWindowsDesktop:
+			desktops, err := a.resourceGetter.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{
+				Name: doc.GetEmbeddedID(),
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			for _, d := range desktops {
+				if d.GetName() == doc.GetEmbeddedID() {
+					resource = d
+					break
+				}
+			}
+
+			if resource == nil {
+				return nil, trace.NotFound("windows desktop %q not found", doc.GetEmbeddedID())
+			}
+		default:
+			return nil, trace.BadParameter("resource kind %v is not supported", doc.EmbeddedKind)
+		}
+
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, resource)
+	}
+
+	paginated, err := services.MakePaginatedResources(types.KindUnifiedResource, resources)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &assist.SearchUnifiedResourcesResponse{
+		Resources: paginated,
+	}, nil
+}
+
+func assembleEmbeddingResponse(ctx context.Context, a *Service, documents []*ai.Document) (*assist.GetAssistantEmbeddingsResponse, error) {
 	protoDocs := make([]*assist.EmbeddedDocument, 0, len(documents))
 
 	for _, doc := range documents {
 		var content []byte
 
-		switch kind {
+		switch doc.EmbeddedKind {
 		case types.KindNode:
 			node, err := a.resourceGetter.GetNode(ctx, defaults.Namespace, doc.GetEmbeddedID())
 			if err != nil {
@@ -345,23 +435,22 @@ func assembleEmbeddingResponseForKind(ctx context.Context, a *Service, kind stri
 	}, nil
 }
 
-func accessCheckerForKind(ctx context.Context, a *Service, authCtx *authz.Context, kind string) func(id string, embedding *embeddinglib.Embedding) bool {
+func makeAccessChecker(ctx context.Context, a *Service, authCtx *authz.Context, kinds ...string) func(id string, embedding *embeddinglib.Embedding) bool {
 	return func(id string, embedding *embeddinglib.Embedding) bool {
-		if embedding.EmbeddedKind != kind {
+		if !slices.Contains(kinds, embedding.EmbeddedKind) && len(kinds) > 0 {
 			return false
 		}
 
 		var resource services.AccessCheckable
 		var err error
 
-		switch kind {
+		switch embedding.EmbeddedKind {
 		case types.KindNode:
 			resource, err = a.resourceGetter.GetNode(ctx, defaults.Namespace, embedding.GetEmbeddedID())
 			if err != nil {
 				a.log.Tracef("failed to get node %q: %v", embedding.GetName(), err)
 				return false
 			}
-
 		case types.KindKubernetesCluster:
 			resource, err = a.resourceGetter.GetKubernetesCluster(ctx, embedding.GetEmbeddedID())
 			if err != nil {
@@ -400,6 +489,9 @@ func accessCheckerForKind(ctx context.Context, a *Service, authCtx *authz.Contex
 				a.log.Tracef("failed to find windows desktop %q: %v", embedding.GetName(), err)
 				return false
 			}
+		default:
+			a.log.Tracef("resource kind %v is not supported", embedding.EmbeddedKind)
+			return false
 		}
 
 		return authCtx.Checker.CheckAccess(resource, services.AccessState{MFAVerified: true}) == nil

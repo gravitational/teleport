@@ -690,6 +690,7 @@
     "runscript",
     "russellhaering",
     "russjones",
+    "rwxr",
     "sadas",
     "samlauthentication",
     "samltest",
@@ -853,7 +854,8 @@
     "persistentvolumeclaim",
     "daemonset",
     "certificatesigningrequest",
-    "deletecollection"
+    "deletecollection",
+    "supervillain"
   ],
   "flagWords": [
     "hte"

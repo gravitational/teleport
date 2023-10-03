@@ -88,6 +88,7 @@ test('agent process and cleanup daemon start with correct arguments', async () =
       agentBinaryPath,
       'start',
       `--config=${userDataDir}/agents/cluster.local/config.yaml`,
+      '--insecure',
     ]);
     expect(cleanupDaemon.spawnargs).toEqual([
       process.argv[0], // path to Node.js bin
