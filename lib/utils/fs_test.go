@@ -45,15 +45,11 @@ func TestOpenFileLinks(t *testing.T) {
 	switch runtime.GOOS {
 	case "darwin":
 		rootDir, err = os.MkdirTemp("/private/tmp", "teleport-test-*")
-		if err != nil {
-			require.NoError(t, err)
-		}
+		require.NoError(t, err)
 
 		t.Cleanup(func() {
 			err := os.RemoveAll(rootDir)
-			if err != nil {
-				require.NoError(t, err)
-			}
+			require.NoError(t, err)
 		})
 	default:
 		rootDir = t.TempDir()
