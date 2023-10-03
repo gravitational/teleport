@@ -3,8 +3,14 @@ title: Machine ID with Ansible
 description: How to use Machine ID with Ansible
 ---
 
-In this guide, you will set up an Ansible playbook to run the OpenSSH client
-with a configuration file that is automatically managed by Machine ID.
+Ansible is a common tool for managing fleets of Linux hosts via SSH. In order to
+connect to the hosts, it requires a form of authentication. Machine ID can be
+used to provide short-lived certificates to Ansible that allows it to connect
+to SSH nodes enrolled in Teleport in a secure and auditable manner.
+
+In this guide, you will configure the Machine ID agent, `tbot`, to produce
+credentials and an OpenSSH configuration, and then configure Ansible to use
+these to connect to your SSH nodes through the Teleport Proxy Service.
 
 ## Prerequisites
 
@@ -34,12 +40,10 @@ You will need the following tools to use Teleport with Ansible.
 ## Step 1/4. Configure RBAC
 
 First, Teleport must be configured to allow the credentials produced by the bot
-to connect to the SSH servers. In this example, access will be granted to all
-SSH hosts for the username `root`.
-
-For production use, you should use labels to restrict this access to only the
-hosts that Ansible will need to access. This is known as the principal of
-least privilege and reduces damage that exfiltrated credentials can do.
+to connect to the SSH nodes. In this example, access will be granted to all
+SSH nodes for the username <Var name="root" />. Ensure that you set this to a
+username that is available across your SSH nodes and that will have the
+appropriate privileges to manage your nodes.
 
 If you have followed an access guide, you will have created a role and granted
 the bot the ability to impersonate it already. This role just needs to have the
@@ -51,12 +55,16 @@ Use `tctl edit role/example-bot` to add the following to the role:
 spec:
   allow:
     # Allow login to the user 'root'.
-    logins: ['root']
+    logins: ['<Var name="root" />']
     # Allow connection to any node. Adjust these labels to match only nodes
     # that Ansible needs to access.
     node_labels:
       '*': '*'
 ```
+
+For production use, you should use labels to restrict this access to only the
+hosts that Ansible will need to access. This is known as the principal of
+least privilege and reduces damage that exfiltrated credentials can do.
 
 ## Step 2/4. Configure the `tbot` output
 
@@ -140,13 +148,8 @@ $ tsh ls --format=json | jq -r '.[].spec.hostname' > hosts
 
 ## Step 4/4. Run a playbook
 
-Finally, let's create a simple Ansible playbook, `playbook.yaml`.
-
-The playbook below runs `hostname` on all hosts. Make sure to set the
-`remote_user` parameter to a valid SSH username that works with the target host
-and is allowed by Teleport RBAC. If you followed the [Machine ID getting started
-guide](../getting-started.mdx), this user will be `root`. Assign <Var
-name="root" /> to the username.
+Finally, let's create a simple Ansible playbook, `playbook.yaml`. The example
+playbook below runs `hostname` on all hosts.
 
 ```var
 - hosts: all
@@ -194,7 +197,7 @@ You can examine and tweak patterns matching the inventory hosts in `ssh_config`.
 Try the SSH connection using `ssh_config` with verbose mode to inspect the error:
 
 ```code
-$ ssh -vvv -F /opt/machine-id/ssh_config root@node-name.example.com
+$ ssh -vvv -F /opt/machine-id/ssh_config <Var name="root" />@node-name.example.com
 ```
 
 If `ssh` works, try running the playbook with verbose mode on:
