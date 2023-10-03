@@ -268,3 +268,15 @@ variable "route53_domain_acm_nlb_alias" {
   type    = string
   default = ""
 }
+
+// (optional) Change the default authentication type used for the Teleport cluster.
+// See https://goteleport.com/docs/reference/authentication for more information.
+// This is useful for persisting a different default authentication type across AMI upgrades when you have a SAML, OIDC
+// or Github connector configured in DynamoDB. The default if not set is "local".
+// Teleport Community Edition supports "local" or "github"
+// Teleport Enterprise Edition supports "local", "github", "oidc" or "saml"
+// Teleport Enterprise FIPS deployments have local authentication disabled, so should use "github", "oidc" or "saml"
+variable "teleport_auth_type" {
+  type    = string
+  default = "local"
+}
