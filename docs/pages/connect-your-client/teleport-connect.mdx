@@ -161,11 +161,16 @@ The icon is visible only if your setup satisfies the following requirements:
 
 #### The Connect My Computer tab says that the agent is running, but the computer is not visible in the cluster
 
-The setup makes sure that you have all the necessary permissions to access the server. If the server
-is not visible, it might indicate that you are assigned a role which happens to deny access to the
-Connect My Computer node. Inspect the role list in the Management section of the Web UI to resolve
-this problem. First, check what roles are assigned to your user object and then inspect each role.
-Look for a role with broad `deny` rules.
+Click "Connect" in the Connect My Computer tab. If the error message in the new tab says "access
+denied", it likely means that there's a role assigned to your cluster user which denies access to
+the Connect My Computer node, either by denying the specific login or access to the node itself
+through fields like `node_labels`. To resolve this problem, inspect the role list in the Management
+section of the Web UI. First, check what roles are assigned to your user object and then inspect
+each role. Look for a role with broad `deny` rules.
+
+If the error message mentions a node or a tunnel not being found, it means that while the cluster
+has a cached view of the agent, the agent did not join the cluster just yet. Wait for a couple of
+seconds and try connecting to the node again. If the problem persists, check [the agent logs](#accessing-agent-logs).
 
 #### Connect My Computer does not work after changing system username
 
