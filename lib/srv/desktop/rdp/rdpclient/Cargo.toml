@@ -33,28 +33,26 @@ tokio-util = { version = "0.7.4", features = ["compat"] }
 tokio-rustls =  { version = "0.24", features = ["dangerous_configuration"] }
 x509-parser = "0.14"
 sspi = { version = "0.10.1", features = ["network_client", "dns_resolver"] }
-
-# TODO: currently points to an IronRDP branch under review, change this once that branch is merged:
-# https://github.com/Devolutions/IronRDP/pull/201
-ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "1a98d69d9a7652e59d55c136b18233dd7da7ad88" }
-ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "1a98d69d9a7652e59d55c136b18233dd7da7ad88" }
-ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "1a98d69d9a7652e59d55c136b18233dd7da7ad88" }
-ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "1a98d69d9a7652e59d55c136b18233dd7da7ad88" }
-ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "1a98d69d9a7652e59d55c136b18233dd7da7ad88" }
-ironrdp-rdpsnd = { git = "https://github.com/Devolutions/IronRDP", rev = "1a98d69d9a7652e59d55c136b18233dd7da7ad88" }
-ironrdp-rdpdr = { git = "https://github.com/Devolutions/IronRDP", rev = "1a98d69d9a7652e59d55c136b18233dd7da7ad88" }
-ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "1a98d69d9a7652e59d55c136b18233dd7da7ad88" }
 static_init = "1.0.3"
 
+ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "c670ab433122366c96cbf7383e62ad353e2667ac" }
+ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "c670ab433122366c96cbf7383e62ad353e2667ac" }
+ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "c670ab433122366c96cbf7383e62ad353e2667ac" }
+ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "c670ab433122366c96cbf7383e62ad353e2667ac" }
+ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "c670ab433122366c96cbf7383e62ad353e2667ac" }
+ironrdp-rdpsnd = { git = "https://github.com/Devolutions/IronRDP", rev = "c670ab433122366c96cbf7383e62ad353e2667ac" }
+ironrdp-rdpdr = { git = "https://github.com/Devolutions/IronRDP", rev = "c670ab433122366c96cbf7383e62ad353e2667ac" }
+ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "c670ab433122366c96cbf7383e62ad353e2667ac" }
+
 # Uncomment the following lines to use local crates instead of the ones from github
-#ironrdp-connector = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-connector" }
-#ironrdp-tls = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-tls" }
-#ironrdp-session = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-session" }
-#ironrdp-pdu = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-pdu" }
-#ironrdp-tokio = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-tokio" }
-#ironrdp-rdpsnd = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-rdpsnd" }
-#ironrdp-rdpdr = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-rdpdr" }
-#ironrdp-svc = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-svc" }
+# ironrdp-connector = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-connector" }
+# ironrdp-tls = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-tls" }
+# ironrdp-session = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-session" }
+# ironrdp-pdu = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-pdu" }
+# ironrdp-tokio = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-tokio" }
+# ironrdp-rdpsnd = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-rdpsnd" }
+# ironrdp-rdpdr = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-rdpdr" }
+# ironrdp-svc = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-svc" }
 
 # Uncomment the following lines to use local crates instead of the ones from github
 # ironrdp-connector = { path = "/Users/hesperus/work/IronRDP/crates/ironrdp-connector" }
