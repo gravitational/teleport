@@ -1342,7 +1342,9 @@ func TestGenerateUserSingleUseCerts(t *testing.T) {
 					Usage:     proto.UserCertsRequest_All,
 					NodeName:  "node-a",
 				},
-				verifyErr: require.Error,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "concrete Usage")
+				},
 			},
 		},
 		{
@@ -1363,7 +1365,9 @@ func TestGenerateUserSingleUseCerts(t *testing.T) {
 					// Return no challenge response.
 					return &proto.MFAAuthenticateResponse{}
 				},
-				verifyErr: require.Error,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "unknown or missing MFAAuthenticateResponse")
+				},
 			},
 		},
 		{
@@ -1501,7 +1505,9 @@ func TestGenerateUserSingleUseCerts(t *testing.T) {
 					// Return no challenge response.
 					return &proto.MFAAuthenticateResponse{}
 				},
-				verifyErr: require.Error,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "unknown or missing MFAAuthenticateResponse")
+				},
 			},
 		},
 		{
@@ -1621,7 +1627,9 @@ func TestGenerateUserSingleUseCerts(t *testing.T) {
 					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
 					Usage:     proto.UserCertsRequest_App,
 				},
-				verifyErr: require.Error,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "app access")
+				},
 			},
 		},
 	}
