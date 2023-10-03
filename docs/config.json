@@ -620,6 +620,10 @@
               "slug": "/management/security/privilege-elevation/"
             },
             {
+              "title": "General Security Recommendations",
+              "slug": "/management/security/reduce-blast-radius/"
+            },
+            {
               "title": "Reducing the Blast Radius of Attacks",
               "slug": "/management/security/reduce-blast-radius/"
             },
