@@ -174,10 +174,26 @@ the Connect My Computer role for the given cluster user. To regain access to the
 node, add the new system username under the `logins` section of the role. The role can be identified
 by its name following the format `connect-my-computer-<name of cluster user>`.
 
-Another solution is to restart the setup, as described in [the "Starting from scratch"
-section](#starting-from-scratch).
+Another solution is to [restart the setup](#restarting-the-setup).
 
-#### Starting from scratch
+#### The agent cannot join the cluster and the logs say the token has expired or was not found
+
+In that scenario, the agent emits logs like these when starting up:
+
+```text
+INFO [PROC:1]    Joining the cluster with a secure token. pid:54364.1 service/connect.go:460
+INFO [AUTH]      Attempting registration via proxy server. auth/register.go:279
+ERRO [PROC:1]    Can not join the cluster as node, the token expired or not found. Regenerate the token and try again. pid:54364.1 service/connect.go:106
+```
+
+During the setup, Connect My Computer creates [a join token](../agents/join-services-to-your-cluster/join-token.mdx)
+that is valid for up to five minutes. If the logs say that the token has expired, it most likely
+means that the initial attempt to join the cluster has failed and you started another one after more
+than five minutes.
+
+To resolve this problem, remove the agent and [perform the setup again](#restarting-the-setup).
+
+#### Restarting the setup
 
 Since Teleport nodes are completely stateless, in case of problems with starting the agent or
 joining the cluster you may attempt to run the setup again. Either click "Retry" if the setup has
