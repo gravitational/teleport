@@ -53,7 +53,7 @@ spec:
     # Allow login to the user 'root'.
     logins: ['root']
     # Allow connection to any node. Adjust these labels to match only nodes
-    # that ansible needs to access.
+    # that Ansible needs to access.
     node_labels:
       '*': '*'
 ```
@@ -90,9 +90,9 @@ playbook.
 You should now see several files under `/opt/machine-id`:
 
 - `ssh_config`: this can be used with Ansible or OpenSSH to configure them to
-use the Teleport Proxy with the correct credentials when making connections.
+use the Teleport Proxy Service with the correct credentials when making connections.
 - `known_hosts`: this contains the Teleport SSH host CAs and allows the SSH
-client to validate a hosts certificate.
+client to validate a host's certificate.
 - `key-cert.pub`: this is an SSH certificate signed by the Teleport SSH user
 CA.
 - `key`: this is the private key needed to use the SSH certificate.
