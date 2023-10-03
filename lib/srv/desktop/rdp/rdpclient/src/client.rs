@@ -153,16 +153,15 @@ impl Client {
     /// This constitutes storing the [`ClientHandle`] (indexed by `self.cgo_handle`)
     /// in [`global::CLIENT_HANDLES`].
     fn register(self) -> ClientResult<Self> {
-        // These should have been initialized in [`Self::connect`].
-        if self.client_handle.is_none() || self.function_receiver.is_none() {
-            return Err(ClientError::InternalError);
-        }
-
         global::CLIENT_HANDLES.insert(
             self.cgo_handle,
-            // unwrap is safe because we just checked that it is Some
-            self.client_handle.as_ref().unwrap().clone(),
+            // self.client_handle should have been initialized in [`Self::connect`].
+            self.client_handle
+                .as_ref()
+                .ok_or(ClientError::InternalError)?
+                .clone(),
         );
+
         Ok(self)
     }
 
