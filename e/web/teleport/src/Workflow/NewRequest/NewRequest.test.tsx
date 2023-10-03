@@ -126,6 +126,7 @@ describe('new request behavior', () => {
     jest
       .spyOn(ctx.workflowService, 'createAccessRequest')
       .mockResolvedValueOnce({
+        created: new Date(),
         maxDuration: new Date(),
         sessionTTL: new Date(),
       } as AccessRequest);

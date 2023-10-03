@@ -6,9 +6,9 @@ import { formatDuration } from 'date-fns';
 
 import { Option } from 'shared/components/Select';
 
-import Ctx from 'e-teleport/teleportContextE';
+import { middleValues } from 'teleport/AccessRequests/utils';
 
-import { middleValues } from 'e-teleport/Workflow/NewRequest/RequestCheckout/timeHelpers';
+import Ctx from 'e-teleport/teleportContextE';
 
 import { State as NewRequestState, ResourceKind } from '../useNewRequest';
 
@@ -76,6 +76,7 @@ export function useRequestCheckout({
           return;
         }
         const values = middleValues(
+          new Date(resp.created),
           new Date(resp.sessionTTL),
           new Date(resp.maxDuration)
         ).map(e => ({
