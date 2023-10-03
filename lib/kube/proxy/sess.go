@@ -597,7 +597,7 @@ func (s *session) launch() error {
 
 	var executor remotecommand.Executor
 
-	executor, err = s.forwarder.getExecutor(s.ctx, s.sess, s.req)
+	executor, err = s.forwarder.getExecutor(s.sess, s.req)
 	if err != nil {
 		s.log.WithError(err).Warning("Failed creating executor.")
 		return trace.Wrap(err)

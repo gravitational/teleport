@@ -460,6 +460,9 @@ const (
 	// KindAccessListMember is an AccessListMember resource
 	KindAccessListMember = "access_list_member"
 
+	// KindAccessListReview is an AccessListReview resource
+	KindAccessListReview = "access_list_review"
+
 	// KindDiscoveryConfig is a DiscoveryConfig resource.
 	// Used for adding additional matchers in Discovery Service.
 	KindDiscoveryConfig = "discovery_config"
@@ -782,6 +785,10 @@ const (
 	// labels per the discovery LDAP attribute labels configuration.
 	DiscoveryLabelLDAPPrefix = "ldap/"
 )
+
+// CloudLabelPrefixes are prefixes used by cloud labels, generally added when
+// using automatic discovery
+var CloudLabelPrefixes = []string{CloudAWS, CloudAzure, CloudGCP, DiscoveryLabelLDAPPrefix}
 
 const (
 	// TeleportInternalLabelPrefix is the prefix used by all Teleport internal labels. Those labels
