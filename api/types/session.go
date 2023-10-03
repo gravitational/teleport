@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // WebSessionsGetter provides access to web sessions
@@ -649,6 +650,10 @@ type NewWebSessionRequest struct {
 	// This should only be set to true for web sessions that are purely in the purview of the Proxy
 	// and Auth services. Users should never have direct access to attested web sessions.
 	AttestWebSession bool
+	// PrivateKey is a specific private key to use when generating the web sessions' certificates.
+	// This should be provided when extending an attested web session in order to maintain the
+	// session attested status.
+	PrivateKey *keys.PrivateKey
 }
 
 // Check validates the request.
