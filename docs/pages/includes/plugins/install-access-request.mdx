@@ -6,8 +6,8 @@ plugins from source. You can run the plugin from a remote host or your local
 development machine.
 
 ```code
-$ curl -L -O https://get.gravitational.com/teleport-access-{{ name }}-v(=teleport.version=)-linux-amd64-bin.tar.gz
-$ tar -xzf teleport-access-{{ name }}-v(=teleport.version=)-linux-amd64-bin.tar.gz
+$ curl -L -O https://get.gravitational.com/teleport-access-{{ name }}-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+$ tar -xzf teleport-access-{{ name }}-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
 $ cd teleport-access-{{ name }}
 $ sudo ./install
 ```
@@ -16,7 +16,7 @@ Make sure the binary is installed:
 
 ```code
 $ teleport-{{ name }} version
-teleport-{{ name }} v(=teleport.version=) git:teleport-{{ name }}-v(=teleport.version=)-fffffffff go(=teleport.golang=)
+teleport-{{ name }} v(=teleport.plugin.version=) git:teleport-{{ name }}-v(=teleport.plugin.version=)-fffffffff go(=teleport.golang=)
 ```
 
 </TabItem>
@@ -26,14 +26,14 @@ We currently only provide Docker images for `linux-amd64`.
 Pull the Docker image for the latest access request plugin by running the following command:
 
 ```code
-$ docker pull public.ecr.aws/gravitational/teleport-plugin-{{ name }}:(=teleport.version=)
+$ docker pull public.ecr.aws/gravitational/teleport-plugin-{{ name }}:(=teleport.plugin.version=)
 ```
 
 Make sure the plugin is installed by running the following command:
 
 ```code
-$ docker run public.ecr.aws/gravitational/teleport-plugin-{{ name }}:(=teleport.version=) version
-teleport-{{ name }} v(=teleport.version=) git:teleport-{{ name }}-v(=teleport.version=)-(=teleport.git=) (=teleport.golang=)
+$ docker run public.ecr.aws/gravitational/teleport-plugin-{{ name }}:(=teleport.plugin.version=) version
+teleport-{{ name }} v(=teleport.plugin.version=) git:teleport-{{ name }}-v(=teleport.plugin.version=)-(=teleport.git=) (=teleport.golang=)
 ```
 
 For a list of available tags, visit [Amazon ECR Public Gallery](https://gallery.ecr.aws/gravitational/teleport-plugin-{{ name }})
@@ -55,7 +55,7 @@ Make sure the binary is installed:
 
 ```code
 $ teleport-{{ name }} version
-teleport-{{ name }} v(=teleport.version=) git:teleport-{{ name }}-v(=teleport.version=)-fffffffff go(=teleport.golang=)
+teleport-{{ name }} v(=teleport.plugin.version=) git:teleport-{{ name }}-v(=teleport.plugin.version=)-fffffffff go(=teleport.golang=)
 ```
 
 </TabItem>
