@@ -44,7 +44,7 @@ import { SVGIcon } from './SVGIcon';
 
 import type { SVGIconProps } from './common';
 
-export function UserList({ size = 24, fill }: SVGIconProps) {
+export function UserList({ size = 18, fill }: SVGIconProps) {
   return (
     <SVGIcon
       size={size}
