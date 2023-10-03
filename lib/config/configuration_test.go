@@ -3749,6 +3749,9 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 							},
 							ScriptName:      "default-installer",
 							PublicProxyAddr: "proxy.example.com",
+							Azure: &AzureInstallParams{
+								ClientID: "abcd1234",
+							},
 						},
 					},
 				},
@@ -3764,6 +3767,9 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 							JoinToken:       "azure-token",
 							ScriptName:      "default-installer",
 							PublicProxyAddr: "proxy.example.com",
+							Azure: &types.AzureInstallerParams{
+								ClientID: "abcd1234",
+							},
 						},
 					},
 				},

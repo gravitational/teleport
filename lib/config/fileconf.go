@@ -186,6 +186,9 @@ type SampleFlags struct {
 	NodeName string
 	// Silent suppresses user hint printed after config has been generated.
 	Silent bool
+	// AzureClientID is the client ID of the managed identity to use when joining
+	// the cluster. Only applicable for the azure join method.
+	AzureClientID string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -222,13 +225,8 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		g.DataDir = defaults.DataDir
 	}
 
-	joinMethod := flags.JoinMethod
-	if joinMethod == "" && flags.AuthToken != "" {
-		joinMethod = string(types.JoinMethodToken)
-	}
-	g.JoinParams = JoinParams{
-		TokenName: flags.AuthToken,
-		Method:    types.JoinMethod(joinMethod),
+	if err := setJoinParams(&g, flags); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if flags.Version == defaults.TeleportConfigVersionV3 {
@@ -300,6 +298,23 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		WindowsDesktop: d,
 	}
 	return fc, nil
+}
+
+func setJoinParams(g *Global, flags SampleFlags) error {
+	joinMethod := flags.JoinMethod
+	if joinMethod == "" && flags.AuthToken != "" {
+		joinMethod = string(types.JoinMethodToken)
+	}
+	g.JoinParams = JoinParams{
+		TokenName: flags.AuthToken,
+		Method:    types.JoinMethod(joinMethod),
+	}
+	if flags.AzureClientID != "" {
+		g.JoinParams.Azure = AzureJoinParams{
+			ClientID: flags.AzureClientID,
+		}
+	}
+	return nil
 }
 
 func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (SSH, error) {
@@ -1868,8 +1883,10 @@ type InstallParams struct {
 	// SSHDConfig provides the path to write sshd configuration changes
 	SSHDConfig string `yaml:"sshd_config,omitempty"`
 	// PublicProxyAddr is the address of the proxy the discovered node should use
-	// to connect to the cluster. Used ony in Azure.
+	// to connect to the cluster.
 	PublicProxyAddr string `yaml:"public_proxy_addr,omitempty"`
+	// Azure is te set of installation parameters specific to Azure.
+	Azure *AzureInstallParams `yaml:"azure,omitempty"`
 }
 
 func (ip *InstallParams) Parse() (types.InstallerParams, error) {
@@ -1899,6 +1916,12 @@ type AWSSSM struct {
 	// DocumentName is the name of the document to use when executing an
 	// SSM command
 	DocumentName string `yaml:"document_name,omitempty"`
+}
+
+// Azure is te set of installation parameters specific to Azure.
+type AzureInstallParams struct {
+	// ClientID is the client ID of the managed identity to use for installation.
+	ClientID string `yaml:"client_id"`
 }
 
 // AzureMatcher matches Azure resources.
