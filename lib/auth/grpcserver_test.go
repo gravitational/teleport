@@ -1078,9 +1078,10 @@ func TestGenerateUserSingleUseCerts(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc      string
-		newClient func() (*Client, error) // optional, makes a new client for the test.
-		opts      generateUserSingleUseCertsTestOpts
+		desc          string
+		newClient     func() (*Client, error) // optional, makes a new client for the test.
+		opts          generateUserSingleUseCertsTestOpts
+		skipUnaryTest bool // skip testing against GenerateUSerCerts
 	}{
 		{
 			desc: "ssh using webauthn",
@@ -1487,6 +1488,7 @@ func TestGenerateUserSingleUseCerts(t *testing.T) {
 					require.ErrorIs(t, err, io.EOF, i...)
 				},
 			},
+			skipUnaryTest: true,
 		},
 		{
 			desc: "mfa unspecified when no SSHLogin provided",
@@ -1642,7 +1644,16 @@ func TestGenerateUserSingleUseCerts(t *testing.T) {
 				require.NoError(t, err, "newClient failed")
 			}
 
-			testGenerateUserSingleUseCerts(ctx, t, testClient, tt.opts)
+			t.Run("stream", func(t *testing.T) {
+				testGenerateUserSingleUseCertsStream(ctx, t, testClient, tt.opts)
+			})
+			if tt.skipUnaryTest {
+				return
+			}
+
+			t.Run("unary", func(t *testing.T) {
+				testGenerateUserSingleUseCertsUnary(ctx, t, testClient, tt.opts)
+			})
 		})
 	}
 }
@@ -1655,7 +1666,7 @@ type generateUserSingleUseCertsTestOpts struct {
 	verifyCert         func(*testing.T, *proto.SingleUseUserCert)
 }
 
-func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertsTestOpts) {
+func testGenerateUserSingleUseCertsStream(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertsTestOpts) {
 	runStream := func() (*proto.SingleUseUserCert, error) {
 		stream, err := cl.GenerateUserSingleUseCerts(ctx)
 		require.NoError(t, err, "GenerateUserSingleUseCerts stream creation failed")
@@ -1706,6 +1717,40 @@ func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *Clien
 	}
 
 	opts.verifyCert(t, certs)
+}
+
+func testGenerateUserSingleUseCertsUnary(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertsTestOpts) {
+	authnChal, err := cl.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{},
+		},
+	})
+	require.NoError(t, err, "CreateAuthenticateChallenge")
+
+	req := opts.initReq
+	req.Purpose = proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
+	if opts.authnHandler != nil {
+		req.MFAResponse = opts.authnHandler(t, authnChal)
+	}
+
+	certs, err := cl.GenerateUserCerts(ctx, *req)
+	opts.verifyErr(t, err)
+	if err != nil {
+		return
+	}
+
+	singleUseCert := &proto.SingleUseUserCert{}
+	switch {
+	case len(certs.SSH) > 0:
+		singleUseCert.Cert = &proto.SingleUseUserCert_SSH{
+			SSH: certs.SSH,
+		}
+	case len(certs.TLS) > 0:
+		singleUseCert.Cert = &proto.SingleUseUserCert_TLS{
+			TLS: certs.TLS,
+		}
+	}
+	opts.verifyCert(t, singleUseCert)
 }
 
 var requireMFATypes = []types.RequireMFAType{
