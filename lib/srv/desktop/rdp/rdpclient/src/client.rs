@@ -210,12 +210,7 @@ impl Client {
     ) -> tokio::task::JoinHandle<ClientResult<()>> {
         global::TOKIO_RT.spawn(async move {
             loop {
-                let res = read_stream.read_pdu().await;
-                if let Err(e) = res {
-                    trace!("res e {:?}", e);
-                    return Err(e.into());
-                }
-                let (action, mut frame) = res?;
+                let (action, mut frame) = read_stream.read_pdu().await?;
                 match action {
                     // Fast-path PDU, send to the browser for processing / rendering.
                     ironrdp_pdu::Action::FastPath => {
