@@ -34,7 +34,7 @@ Add the following configuration section to your `terraform` configuration block:
 terraform {
   required_providers {
     teleport = {
-      version = ">= (=teleport.version=)"
+      version = "~> (=teleport.major_version=).0"
       source  = "terraform.releases.teleport.dev/gravitational/teleport"
     }
   }
@@ -754,7 +754,7 @@ resource "teleport_github_connector" "github" {
        example = "yes"
      }
   }
-  
+
   spec = {
     client_id = "client"
     client_secret = var.github_secret
@@ -889,7 +889,7 @@ Example:
 
 ```
 # Teleport OIDC connector
-# 
+#
 # Please note that OIDC connector will work in Enterprise version only. Check the setup docs:
 # https://goteleport.com/docs/enterprise/sso/oidc/
 
@@ -1211,7 +1211,7 @@ resource "teleport_provision_token" "example" {
     description = "Example token"
 
     labels = {
-      example = "yes" 
+      example = "yes"
       "teleport.dev/origin" = "dynamic" // This label is added on Teleport side by default
     }
   }
@@ -1658,10 +1658,10 @@ resource "teleport_role" "example" {
     description = "Example Teleport Role"
     expires     = "2022-10-12T07:20:51Z"
     labels = {
-      example  = "yes"      
+      example  = "yes"
     }
   }
-  
+
   spec = {
     options = {
       forward_agent           = false
@@ -1776,12 +1776,12 @@ Example:
 
 ```
 # Teleport SAML connector
-# 
+#
 # Please note that SAML connector will work in Enterprise version only. Check the setup docs:
 # https://goteleport.com/docs/enterprise/sso/okta/
 
 resource "teleport_saml_connector" "example" {
-  # This block will tell Terraform to never update private key from our side if a keys are managed 
+  # This block will tell Terraform to never update private key from our side if a keys are managed
   # from an outside of Terraform.
 
   # lifecycle {
