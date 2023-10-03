@@ -18,14 +18,12 @@ package accessrequest
 
 import (
 	"context"
-	"fmt"
 	"maps"
 	"slices"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -185,41 +183,6 @@ func ScoreRelevance(request types.AccessRequest, lists []*accesslist.AccessList)
 	return lists[:len(scores)]
 }
 
-type resourceFetcher interface {
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
-}
-
-func fetchResources(ctx context.Context, clt resourceFetcher, resourceIDs []types.ResourceID) ([]types.ResourceWithLabels, error) {
-	resources := make([]types.ResourceWithLabels, 0, len(resourceIDs))
-
-	for _, resourceID := range resourceIDs {
-		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType:        resourceID.Kind,
-			Namespace:           apidefaults.Namespace,
-			Limit:               1,
-			UseSearchAsRoles:    true,
-			PredicateExpression: queryByNames(resourceID.Name),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if len(resp.Resources) == 0 {
-			return nil, trace.NotFound("resource %q not found", resourceID)
-		}
-
-		resources = append(resources, resp.Resources[0])
-	}
-
-	return resources, nil
-}
-
-// queryByNames returns a query that matches resources by name. It queries by 'resource.metadata.name'
-// and by 'name' to also support nodes filtering.
-func queryByNames(resourceName string) string {
-	return fmt.Sprintf("equals(resource.metadata.name,\"%s\") || name == \"%s\"", resourceName, resourceName)
-}
-
 func isValidSuggestion(ctx context.Context, clt roleGetter, requester types.User,
 	requestedResources []types.ResourceWithLabels, list *accesslist.AccessList,
 ) (bool, error) {
@@ -292,26 +255,26 @@ func computeAccessListRelevancy(requestRoles []string, list *accesslist.AccessLi
 }
 
 // GenerateAccessRequestPromotions returns a list of access lists that are suggested for a given access request.
-func GenerateAccessRequestPromotions(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessRequest types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+func GenerateAccessRequestPromotions(ctx context.Context, resourceGetter modules.AccessResourcesGetter, accessRequest types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	if len(accessRequest.GetRequestedResourceIDs()) == 0 {
 		// Suggestions are only available for resource-based access requests.
 		return types.NewAccessRequestAllowedPromotions(nil), nil
 	}
 
-	requester, err := accessListGetter.GetUser(accessRequest.GetUser(), false)
+	requester, err := resourceGetter.GetUser(accessRequest.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resources, err := fetchResources(ctx, accessListGetter, accessRequest.GetRequestedResourceIDs())
+	resources, err := services.GetResourcesByResourceIDs(ctx, resourceGetter, accessRequest.GetRequestedResourceIDs())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	allowedPromotions := types.NewAccessRequestAllowedPromotions(nil)
 
-	if err := forEachAccessList(ctx, accessListGetter, func(accessList *accesslist.AccessList) error {
-		valid, err := isValidSuggestion(ctx, accessListGetter, requester, resources, accessList)
+	if err := forEachAccessList(ctx, resourceGetter, func(accessList *accesslist.AccessList) error {
+		valid, err := isValidSuggestion(ctx, resourceGetter, requester, resources, accessList)
 		if err != nil {
 			log.Tracef("failed to validate access list suggestion: %v", err)
 			return nil
