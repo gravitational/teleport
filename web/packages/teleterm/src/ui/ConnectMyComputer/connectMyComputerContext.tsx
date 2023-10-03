@@ -232,7 +232,9 @@ export const ConnectMyComputerContextProvider: FC<{
   const [killAgentAttempt, killAgent] = useAsync(
     useCallback(async () => {
       setCurrentActionKind('kill');
+
       await connectMyComputerService.killAgent(rootClusterUri);
+
       setCurrentActionKind('observe-process');
       workspacesService.setConnectMyComputerAutoStart(rootClusterUri, false);
     }, [connectMyComputerService, rootClusterUri, workspacesService])
@@ -241,6 +243,7 @@ export const ConnectMyComputerContextProvider: FC<{
   const markAgentAsConfigured = useCallback(() => {
     setAgentConfiguredAttempt(makeSuccessAttempt(true));
   }, [setAgentConfiguredAttempt]);
+
   const markAgentAsNotConfigured = useCallback(() => {
     setDownloadAgentAttempt(makeEmptyAttempt());
     setAgentConfiguredAttempt(makeSuccessAttempt(false));
@@ -267,10 +270,12 @@ export const ConnectMyComputerContextProvider: FC<{
 
   const [removeAgentAttempt, removeAgent] = useAsync(
     useCallback(async () => {
+      // killAgent sets the current action to 'kill'.
       const [, error] = await killAgent();
       if (error) {
         throw error;
       }
+
       setCurrentActionKind('remove');
 
       let hasAccessDeniedError = false;
@@ -299,6 +304,18 @@ export const ConnectMyComputerContextProvider: FC<{
 
       // We have to remove connections before removing the agent directory, because
       // we get the node UUID from the that directory.
+      //
+      // Theoretically, removing connections only at this stage means that if there are active
+      // connections from the app at the time of killing the agent above, the shutdown of the agent
+      // will take a couple of extra seconds while the agent waits for the connections to close.
+      // However, we'd have to remove the connections before calling `killAgent` above and this
+      // messes up error handling somewhat. `removeConnections` would have to be executed after the
+      // current action is set to 'kill' so that any errors thrown by `removeConnections` are
+      // correctly reported in the UI.
+      //
+      // Otherwise, if `removeConnections` was called before `killAgent` and the function threw an
+      // error, it'd simply be swallowed. It'd be shown once the current action is set to 'remove',
+      // but this would never happen because of the error.
       await removeConnections();
       ctx.workspacesService.removeConnectMyComputerState(rootClusterUri);
       await ctx.connectMyComputerService.removeAgentDirectory(rootClusterUri);
