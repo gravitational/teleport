@@ -18,6 +18,22 @@ spec:
         verbs: ['list', 'read']
       - resources: ['access_plugin_data']
         verbs: ['update']
+      # Optional: To display user-friendly names in resource-based access
+      # requests instead of resource IDs, the plugin also needs permission
+      # to list the resources being requested. Add applicable allow rules
+      # and labels.
+      - resources: ['node', 'app', 'db', 'kube_cluster']
+        verbs: ['list', 'read']
+    node_labels:
+      '*': '*'
+    kubernetes_labels:
+      '*': '*'
+    db_labels:
+      '*': '*'
+    app_labels:
+      '*': '*'
+    group_labels:
+      '*': '*'
 ---
 kind: user
 metadata:
