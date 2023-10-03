@@ -29,7 +29,7 @@ use std::io::{Read, Write};
 use std::vec;
 use uuid::Uuid;
 
-use super::{DeviceControlRequest, DeviceControlResponse};
+use super::{DeviceControlRequestDeprecated, DeviceControlResponseDeprecated};
 
 // Client implements the smartcard emulator, forwarded over an RDP virtual channel.
 // Spec: https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPESC/%5bMS-RDPESC%5d.pdf
@@ -61,9 +61,9 @@ impl Client {
     // ioctl handles messages coming from the RDP server over the RDPDR channel.
     pub(super) fn ioctl(
         &mut self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         debug!("got IoctlCode {:?}", &ioctl.io_control_code);
         // Note: this is an incomplete implementation of the scard API.
         // It's the bare minimum needed to make RDP authentication using a smartcard work.
@@ -108,14 +108,14 @@ impl Client {
 
     fn handle_access_started_event(
         &self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = ScardAccessStartedEvent_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
@@ -124,15 +124,15 @@ impl Client {
 
     fn handle_establish_context(
         &mut self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = EstablishContext_Call::decode(input)?;
         debug!("got {:?}", req);
         let ctx = self.contexts.establish();
         let resp = EstablishContext_Return::new(ReturnCode::SCARD_S_SUCCESS, ctx);
         debug!("sending {:?}", resp);
-        Ok(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
@@ -141,15 +141,15 @@ impl Client {
 
     fn handle_release_context(
         &mut self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
         self.contexts.release(req.context.value);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
@@ -158,9 +158,9 @@ impl Client {
 
     fn handle_cancel(
         &mut self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let mut responses = vec![];
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
@@ -178,7 +178,7 @@ impl Client {
         }
 
         // Also add the response to the SCARD_IOCTL_CANCEL request.
-        responses.push(DeviceControlResponse::new(
+        responses.push(DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(Long_Return::new(ReturnCode::SCARD_S_SUCCESS)),
@@ -189,14 +189,14 @@ impl Client {
 
     fn handle_is_valid_context(
         &self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
@@ -205,15 +205,15 @@ impl Client {
 
     fn handle_list_readers(
         &self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = ListReaders_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp =
             ListReaders_Return::new(ReturnCode::SCARD_S_SUCCESS, vec!["Teleport".to_string()]);
         debug!("sending {:?}", resp);
-        Ok(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
@@ -222,9 +222,9 @@ impl Client {
 
     fn handle_get_status_change(
         &mut self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = GetStatusChange_Call::decode(input)?;
         let timeout = req.timeout;
         let context_value = req.context.value;
@@ -255,7 +255,7 @@ impl Client {
             resp.set_return_code(ReturnCode::SCARD_E_CANCELLED);
             self.contexts
                 .get(context_value)?
-                .set_scard_cancel_response(DeviceControlResponse::new(
+                .set_scard_cancel_response(DeviceControlResponseDeprecated::new(
                     ioctl,
                     NTSTATUS::STATUS_SUCCESS,
                     Box::new(resp),
@@ -264,7 +264,7 @@ impl Client {
             Ok(vec![])
         } else {
             debug!("sending {:?}", resp);
-            Ok(vec![DeviceControlResponse::new(
+            Ok(vec![DeviceControlResponseDeprecated::new(
                 ioctl,
                 NTSTATUS::STATUS_SUCCESS,
                 Box::new(resp),
@@ -274,9 +274,9 @@ impl Client {
 
     fn handle_connect(
         &mut self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = Connect_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -291,7 +291,7 @@ impl Client {
 
         let resp = Connect_Return::new(ReturnCode::SCARD_S_SUCCESS, handle);
         debug!("sending {:?}", resp);
-        Ok(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
@@ -300,9 +300,9 @@ impl Client {
 
     fn handle_disconnect(
         &mut self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -312,7 +312,7 @@ impl Client {
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
@@ -321,14 +321,14 @@ impl Client {
 
     fn handle_begin_transaction(
         &self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
@@ -337,14 +337,14 @@ impl Client {
 
     fn handle_end_transaction(
         &self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
@@ -353,10 +353,10 @@ impl Client {
 
     fn handle_status(
         &self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
         enc: StringEncoding,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = Status_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Status_Return::new(
@@ -365,7 +365,7 @@ impl Client {
             enc,
         );
         debug!("sending {:?}", resp);
-        Ok(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
@@ -374,9 +374,9 @@ impl Client {
 
     fn handle_transmit(
         &mut self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = Transmit_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -400,7 +400,7 @@ impl Client {
 
         let resp = Transmit_Return::new(ReturnCode::SCARD_S_SUCCESS, resp.encode());
         debug!("sending {:?}", resp);
-        Ok(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
@@ -409,9 +409,9 @@ impl Client {
 
     fn handle_get_device_type_id(
         &mut self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = GetDeviceTypeId_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -419,7 +419,7 @@ impl Client {
 
         let resp = GetDeviceTypeId_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
@@ -428,9 +428,9 @@ impl Client {
 
     fn handle_read_cache(
         &mut self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = ReadCache_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -441,7 +441,7 @@ impl Client {
 
         let resp = ReadCache_Return::new(val);
         debug!("sending {:?}", resp);
-        Ok(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
@@ -450,9 +450,9 @@ impl Client {
 
     fn handle_write_cache(
         &mut self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = WriteCache_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -462,7 +462,7 @@ impl Client {
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
@@ -471,9 +471,9 @@ impl Client {
 
     fn handle_get_reader_icon(
         &mut self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         input: &mut Payload,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = GetReaderIcon_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -481,7 +481,7 @@ impl Client {
 
         let resp = GetReaderIcon_Return::new(ReturnCode::SCARD_E_UNSUPPORTED_FEATURE);
         debug!("sending {:?}", resp);
-        Ok(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
@@ -490,13 +490,13 @@ impl Client {
 
     fn handle_unimplemented_ioctl(
         &self,
-        ioctl: &DeviceControlRequest,
+        ioctl: &DeviceControlRequestDeprecated,
         code: IoctlCode,
-    ) -> RdpResult<Vec<DeviceControlResponse>> {
+    ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         warn!("unimplemented IOCTL: {:?}", code);
         let resp = Long_Return::new(ReturnCode::SCARD_F_INTERNAL_ERROR);
         debug!("sending {:?}", resp);
-        Ok(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponseDeprecated::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
@@ -2371,7 +2371,7 @@ struct ContextInternal {
     //
     // This value will be set during the handling of the SCARD_IOCTL_GETSTATUSCHANGEW, so that
     // it can be fetched and returned in response to a SCARD_IOCTL_CANCEL.
-    scard_cancel_response: Option<DeviceControlResponse>,
+    scard_cancel_response: Option<DeviceControlResponseDeprecated>,
 }
 
 impl ContextInternal {
@@ -2384,7 +2384,10 @@ impl ContextInternal {
         }
     }
 
-    fn set_scard_cancel_response(&mut self, response: DeviceControlResponse) -> RdpResult<()> {
+    fn set_scard_cancel_response(
+        &mut self,
+        response: DeviceControlResponseDeprecated,
+    ) -> RdpResult<()> {
         if self.scard_cancel_response.is_some() {
             return Err(invalid_data_error("SCARD_IOCTL_CANCEL already received"));
         }
@@ -2438,8 +2441,8 @@ fn debug_print_payload(payload: &mut Payload) {
 mod tests {
     use crate::{
         rdpdr::{
-            consts::{MajorFunction, MinorFunction, SCARD_DEVICE_ID},
-            DeviceIoRequest,
+            consts::{MajorFunctionDeprecated, MinorFunction, SCARD_DEVICE_ID},
+            DeviceIoRequestDeprecated,
         },
         Encode,
     };
@@ -2606,12 +2609,12 @@ mod tests {
 
         let res = c
             .ioctl(
-                &DeviceControlRequest::new(
-                    DeviceIoRequest::new(
+                &DeviceControlRequestDeprecated::new(
+                    DeviceIoRequestDeprecated::new(
                         SCARD_DEVICE_ID,
                         0,
                         0,
-                        MajorFunction::IRP_MJ_DEVICE_CONTROL,
+                        MajorFunctionDeprecated::IRP_MJ_DEVICE_CONTROL,
                         MinorFunction::IRP_MN_NONE,
                     ),
                     0,

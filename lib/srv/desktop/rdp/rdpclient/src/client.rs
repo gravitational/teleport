@@ -1,8 +1,11 @@
 pub mod global;
+use crate::rdpdr::consts::SCARD_DEVICE_ID;
+use crate::rdpdr::TeleportRdpdrBackend;
 use crate::{
     handle_fastpath_pdu, handle_rdp_channel_ids, CGOErrCode, CGOKeyboardEvent,
     CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
 };
+use bytes::BytesMut;
 use ironrdp_connector::{Config, ConnectorError};
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
 use ironrdp_pdu::input::mouse::PointerFlags;
@@ -11,14 +14,18 @@ use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::PduParsing;
+use ironrdp_rdpdr::pdu::RdpdrPdu;
+use ironrdp_rdpdr::Rdpdr;
+use ironrdp_rdpsnd::Rdpsnd;
 use ironrdp_session::x224::Processor as X224Processor;
-use ironrdp_session::{reason_err, SessionError};
+use ironrdp_session::{reason_err, SessionError, SessionResult};
+use ironrdp_svc::{SvcMessage, SvcProcessorMessages};
 use ironrdp_tls::TlsStream;
 use ironrdp_tokio::{Framed, TokioStream};
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
 use std::io::Error as IoError;
 use std::net::ToSocketAddrs;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
@@ -34,7 +41,7 @@ pub struct Client {
     read_stream: Option<RdpReadStream>,
     write_stream: Option<RdpWriteStream>,
     x224_processor: Option<Arc<Mutex<X224Processor>>>,
-    write_requester: Option<ClientHandle>,
+    client_handle: Option<ClientHandle>,
     function_receiver: Option<FunctionReceiver>,
 }
 
@@ -52,7 +59,7 @@ impl Client {
         global::TOKIO_RT.block_on(async {
             Self::connect(cgo_handle, params)
                 .await?
-                .register()
+                .register()?
                 .run_loops()
                 .await
         })
@@ -69,10 +76,25 @@ impl Client {
         let mut framed = ironrdp_tokio::TokioFramed::new(stream);
 
         let connector_config = create_config(params);
+
+        // Create a channel for sending/receiving function calls to/from the Client.
+        let (client_handle, function_receiver) = channel(100);
+
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
             .with_server_addr(server_socket_addr)
             .with_server_name(server_addr)
-            .with_credssp_network_client(RequestClientFactory);
+            .with_credssp_network_client(RequestClientFactory)
+            .with_static_channel(Rdpsnd::new())
+            .with_static_channel(
+                Rdpdr::new(
+                    Box::new(TeleportRdpdrBackend::new(
+                        SCARD_DEVICE_ID,
+                        client_handle.clone(),
+                    )),
+                    "IronRDP".to_string(),
+                )
+                .with_smartcard(SCARD_DEVICE_ID),
+            );
 
         let should_upgrade = ironrdp_tokio::connect_begin(&mut framed, &mut connector).await?;
 
@@ -121,22 +143,26 @@ impl Client {
             read_stream: Some(read_stream),
             write_stream: Some(write_stream),
             x224_processor: Some(Arc::new(Mutex::new(x224_processor))),
-            write_requester: None,
-            function_receiver: None,
+            client_handle: Some(client_handle),
+            function_receiver: Some(function_receiver),
         })
     }
 
     /// Registers the Client with the [`global::CLIENT_HANDLES`] cache.
     ///
-    /// This constitutes creating a new [`ClientHandle`]/[`FunctionReceiver`] pair,
-    /// storing the [`ClientHandle`] (indexed by `self.cgo_handle`) in [`global::CLIENT_HANDLES`],
-    /// and assigning the [`FunctionReceiver`] to `self.function_receiver`.
-    fn register(mut self) -> Self {
-        let (client_handle, function_receiver) = channel(100);
-        self.write_requester = Some(client_handle.clone());
-        self.function_receiver = Some(function_receiver);
-        global::CLIENT_HANDLES.insert(self.cgo_handle, client_handle);
-        self
+    /// This constitutes storing the [`ClientHandle`] (indexed by `self.cgo_handle`)
+    /// in [`global::CLIENT_HANDLES`].
+    fn register(self) -> ClientResult<Self> {
+        global::CLIENT_HANDLES.insert(
+            self.cgo_handle,
+            // self.client_handle should have been initialized in [`Self::connect`].
+            self.client_handle
+                .as_ref()
+                .ok_or(ClientError::InternalError)?
+                .clone(),
+        );
+
+        Ok(self)
     }
 
     /// Spawns separate tasks for the input and output loops:
@@ -163,12 +189,12 @@ impl Client {
             .take()
             .ok_or_else(|| ClientError::InternalError)?;
 
-        let write_requester = self
-            .write_requester
+        let client_handle = self
+            .client_handle
             .take()
             .ok_or_else(|| ClientError::InternalError)?;
 
-        let write_receiver = self
+        let function_receiver = self
             .function_receiver
             .take()
             .ok_or_else(|| ClientError::InternalError)?;
@@ -176,11 +202,12 @@ impl Client {
         let mut read_loop_handle = Client::run_read_loop(
             self.cgo_handle,
             read_stream,
-            x224_processor,
-            write_requester,
+            x224_processor.clone(),
+            client_handle,
         );
 
-        let mut write_loop_handle = Client::run_write_loop(write_stream, write_receiver);
+        let mut write_loop_handle =
+            Client::run_write_loop(write_stream, function_receiver, x224_processor);
 
         // Wait for either loop to finish. When one does, abort the other and return the result.
         tokio::select! {
@@ -221,22 +248,7 @@ impl Client {
                     ironrdp_pdu::Action::X224 => {
                         // X224 PDU, process it and send any immediate response frames to the write loop
                         // for writing to the RDP server.
-                        let x224_processor = x224_processor.clone();
-                        // Process x224 frame.
-                        let res = global::TOKIO_RT
-                            .spawn_blocking(move || {
-                                x224_processor
-                                    .lock()
-                                    .map_err(|err| {
-                                        reason_err!(
-                                            "x224_processor.lock()",
-                                            "PoisonError: {:?}",
-                                            err
-                                        )
-                                    })?
-                                    .process(&frame)
-                            })
-                            .await??;
+                        let res = Client::x224_process(x224_processor.clone(), frame).await?;
                         // Send response frames to write loop for writing to RDP server.
                         write_requester
                             .send(ClientFunction::WriteRawPdu(res))
@@ -250,6 +262,7 @@ impl Client {
     fn run_write_loop(
         mut write_stream: RdpWriteStream,
         mut write_receiver: FunctionReceiver,
+        x224_processor: Arc<Mutex<X224Processor>>,
     ) -> tokio::task::JoinHandle<ClientResult<()>> {
         global::TOKIO_RT.spawn(async move {
             loop {
@@ -263,6 +276,11 @@ impl Client {
                         }
                         ClientFunction::WriteRawPdu(args) => {
                             Client::write_raw_pdu(&mut write_stream, args).await?;
+                        }
+                        ClientFunction::WriteRdpdr(args) => {
+                            debug!("sending: {:?}", args);
+                            Client::write_rdpdr(&mut write_stream, x224_processor.clone(), args)
+                                .await?;
                         }
                         ClientFunction::Stop => {
                             // Stop this write loop. The read loop will then be stopped by the caller.
@@ -349,6 +367,65 @@ impl Client {
         write_stream.write_all(&resp).await?;
         Ok(())
     }
+
+    async fn write_rdpdr(
+        write_stream: &mut RdpWriteStream,
+        x224_processor: Arc<Mutex<X224Processor>>,
+        pdu: RdpdrPdu,
+    ) -> ClientResult<()> {
+        // Process the RDPDR PDU.
+        let encoded = Client::x224_process_svc_messages(
+            x224_processor,
+            SvcProcessorMessages::<Rdpdr>::new(vec![SvcMessage::from(pdu)]),
+        )
+        .await?;
+
+        // Write the RDPDR PDU to the RDP server.
+        write_stream.write_all(&encoded).await?;
+        Ok(())
+    }
+
+    /// Processes an x224 frame on a blocking thread.
+    ///
+    /// We use a blocking task here so we don't block the tokio runtime
+    /// while waiting for the `x224_processor` lock, or while processing the frame.
+    /// This function ensures `x224_processor` is locked only for the necessary duration
+    /// of the function call.
+    async fn x224_process(
+        x224_processor: Arc<Mutex<X224Processor>>,
+        frame: BytesMut,
+    ) -> SessionResult<Vec<u8>> {
+        global::TOKIO_RT
+            .spawn_blocking(move || Self::x224_lock(&x224_processor)?.process(&frame))
+            .await
+            .map_err(|err| reason_err!("tokio::spawn_blocking", "JoinError: {:?}", err))?
+    }
+
+    /// Processes some [`SvcProcessorMessages`] on a blocking thread.
+    ///
+    /// We use a blocking task here so we don't block the tokio runtime
+    /// while waiting for the `x224_processor` lock, or while processing the frame.
+    /// This function ensures `x224_processor` is locked only for the necessary duration
+    /// of the function call.
+    async fn x224_process_svc_messages(
+        x224_processor: Arc<Mutex<X224Processor>>,
+        messages: SvcProcessorMessages<Rdpdr>,
+    ) -> SessionResult<Vec<u8>> {
+        global::TOKIO_RT
+            .spawn_blocking(move || {
+                Self::x224_lock(&x224_processor)?.process_svc_processor_messages(messages)
+            })
+            .await
+            .map_err(|err| reason_err!("tokio::spawn_blocking", "JoinError: {:?}", err))?
+    }
+
+    fn x224_lock(
+        x224_processor: &Arc<Mutex<X224Processor>>,
+    ) -> Result<MutexGuard<X224Processor>, SessionError> {
+        x224_processor
+            .lock()
+            .map_err(|err| reason_err!("x224_processor.lock()", "PoisonError: {:?}", err))
+    }
 }
 
 impl Drop for Client {
@@ -368,13 +445,15 @@ pub enum ClientFunction {
     WriteRdpKey(CGOKeyboardEvent),
     /// Corresponds to [`Client::write_raw_pdu`]
     WriteRawPdu(Vec<u8>),
+    /// Corresponds to [`Client::write_rdpdr`]
+    WriteRdpdr(RdpdrPdu),
     /// Aborts the client by stopping both the read and write loops.
     Stop,
 }
 
 /// `ClientHandle` is used to dispatch [`ClientFunction`]s calls
 /// to a corresponding [`FunctionReceiver`] on a `Client`.
-type ClientHandle = Sender<ClientFunction>;
+pub type ClientHandle = Sender<ClientFunction>;
 
 /// Each `Client` has a `FunctionReceiver` that it listens to for
 /// incoming [`ClientFunction`] calls sent via its corresponding

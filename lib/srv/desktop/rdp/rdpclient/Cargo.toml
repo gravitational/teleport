@@ -33,13 +33,16 @@ tokio-util = { version = "0.7.4", features = ["compat"] }
 tokio-rustls =  { version = "0.24", features = ["dangerous_configuration"] }
 x509-parser = "0.14"
 sspi = { version = "0.10.1", features = ["network_client", "dns_resolver"] }
-
-ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "fe1567c887bfebfb546d86903c3b878c90d3867e" }
-ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "fe1567c887bfebfb546d86903c3b878c90d3867e" }
-ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "fe1567c887bfebfb546d86903c3b878c90d3867e" }
-ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "fe1567c887bfebfb546d86903c3b878c90d3867e" }
-ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "fe1567c887bfebfb546d86903c3b878c90d3867e" }
 static_init = "1.0.3"
+
+ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "c670ab433122366c96cbf7383e62ad353e2667ac" }
+ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "c670ab433122366c96cbf7383e62ad353e2667ac" }
+ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "c670ab433122366c96cbf7383e62ad353e2667ac" }
+ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "c670ab433122366c96cbf7383e62ad353e2667ac" }
+ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "c670ab433122366c96cbf7383e62ad353e2667ac" }
+ironrdp-rdpsnd = { git = "https://github.com/Devolutions/IronRDP", rev = "c670ab433122366c96cbf7383e62ad353e2667ac" }
+ironrdp-rdpdr = { git = "https://github.com/Devolutions/IronRDP", rev = "c670ab433122366c96cbf7383e62ad353e2667ac" }
+ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "c670ab433122366c96cbf7383e62ad353e2667ac" }
 
 # Uncomment the following lines to use local crates instead of the ones from github
 # ironrdp-connector = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-connector" }
@@ -47,6 +50,9 @@ static_init = "1.0.3"
 # ironrdp-session = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-session" }
 # ironrdp-pdu = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-pdu" }
 # ironrdp-tokio = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-tokio" }
+# ironrdp-rdpsnd = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-rdpsnd" }
+# ironrdp-rdpdr = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-rdpdr" }
+# ironrdp-svc = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-svc" }
 
 # Uncomment the following lines to use local crates instead of the ones from github
 # ironrdp-connector = { path = "/Users/hesperus/work/IronRDP/crates/ironrdp-connector" }
