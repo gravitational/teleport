@@ -852,7 +852,8 @@
     "persistentvolumeclaim",
     "daemonset",
     "certificatesigningrequest",
-    "deletecollection"
+    "deletecollection",
+    "supervillain"
   ],
   "flagWords": [
     "hte"
