@@ -41,53 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// MockEmbedder returns embeddings based on the sha256 hash function. Those
-// embeddings have no semantic meaning but ensure different embedded content
-// provides different embeddings.
-type MockEmbedder struct {
-	timesCalled map[string]int
-}
-
-func (m *MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]embedding.Vector64, error) {
-	result := make([]embedding.Vector64, len(input))
-	for i, text := range input {
-		name := strings.Split(text, "\n")[0]
-		m.timesCalled[name]++
-		hash := sha256.Sum256([]byte(text))
-		vector := make(embedding.Vector64, len(hash))
-		for j, x := range hash {
-			vector[j] = 1 / float64(int(x)+1)
-		}
-		result[i] = vector
-	}
-	return result, nil
-}
-
-type mockResourceGetter struct {
-	services.Presence
-	services.AccessLists
-}
-
-func (m *mockResourceGetter) GetDatabaseServers(_ context.Context, _ string, _ ...services.MarshalOption) ([]types.DatabaseServer, error) {
-	return nil, nil
-}
-
-func (m *mockResourceGetter) GetKubernetesServers(_ context.Context) ([]types.KubeServer, error) {
-	return nil, nil
-}
-
-func (m *mockResourceGetter) GetApplicationServers(_ context.Context, _ string) ([]types.AppServer, error) {
-	return nil, nil
-}
-
-func (m *mockResourceGetter) GetWindowsDesktops(_ context.Context, _ types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
-	return nil, nil
-}
-
-func (m *mockResourceGetter) ListSAMLIdPServiceProviders(_ context.Context, _ int, _ string) ([]types.SAMLIdPServiceProvider, string, error) {
-	return nil, "", nil
-}
-
 func TestNodeEmbeddingGeneration(t *testing.T) {
 	t.Parallel()
 
@@ -104,8 +57,8 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	embedder := MockEmbedder{
-		timesCalled: make(map[string]int),
+	embedder := ai.MockEmbedder{
+		TimesCalled: make(map[string]int),
 	}
 	events := local.NewEventsService(bk)
 	accessLists, err := local.NewAccessListService(bk, clock)
@@ -163,7 +116,7 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 		nodesAcquired,
 		embeddings.GetAllEmbeddings(ctx))
 
-	for k, v := range embedder.timesCalled {
+	for k, v := range embedder.TimesCalled {
 		require.Equal(t, 1, v, "expected %v to be computed once, was %d", k, v)
 	}
 
@@ -184,7 +137,7 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 		return len(items) == numInitialNodes+1
 	}, 7*time.Second, 200*time.Millisecond)
 
-	for k, v := range embedder.timesCalled {
+	for k, v := range embedder.TimesCalled {
 		expected := 1
 		if strings.Contains(k, "node1") {
 			expected = 2
@@ -330,4 +283,29 @@ func Test_batchReducer_Add(t *testing.T) {
 			assert.Equalf(t, tt.finalizeResult, got, "Finalize(%v)", tt.data)
 		})
 	}
+}
+
+type mockResourceGetter struct {
+	services.Presence
+	services.AccessLists
+}
+
+func (m *mockResourceGetter) GetDatabaseServers(_ context.Context, _ string, _ ...services.MarshalOption) ([]types.DatabaseServer, error) {
+	return nil, nil
+}
+
+func (m *mockResourceGetter) GetKubernetesServers(_ context.Context) ([]types.KubeServer, error) {
+	return nil, nil
+}
+
+func (m *mockResourceGetter) GetApplicationServers(_ context.Context, _ string) ([]types.AppServer, error) {
+	return nil, nil
+}
+
+func (m *mockResourceGetter) GetWindowsDesktops(_ context.Context, _ types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
+	return nil, nil
+}
+
+func (m *mockResourceGetter) ListSAMLIdPServiceProviders(_ context.Context, _ int, _ string) ([]types.SAMLIdPServiceProvider, string, error) {
+	return nil, "", nil
 }

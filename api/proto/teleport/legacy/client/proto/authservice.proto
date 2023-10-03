@@ -1174,6 +1174,8 @@ message AddMFADeviceResponseAck {
 
 // DeleteMFADeviceRequest is a message sent by the client during
 // DeleteMFADevice RPC.
+//
+// Deprecated: Use [AuthService.DeleteMFADeviceSync] instead.
 message DeleteMFADeviceRequest {
   oneof Request {
     // Init describes the device to be deleted.
@@ -1183,6 +1185,7 @@ message DeleteMFADeviceRequest {
   }
 }
 
+// Deprecated: Use [AuthService.DeleteMFADeviceSync] instead.
 message DeleteMFADeviceResponse {
   oneof Response {
     // MFAChallenge is an auth challenge using any existing MFA device.
@@ -1193,6 +1196,8 @@ message DeleteMFADeviceResponse {
 }
 
 // DeleteMFADeviceRequestInit describes the device to be deleted.
+//
+// Deprecated: Use [AuthService.DeleteMFADeviceSync] instead.
 message DeleteMFADeviceRequestInit {
   // DeviceName is an MFA device name or ID to be deleted.
   string DeviceName = 1;
@@ -2644,7 +2649,11 @@ service AuthService {
   // <- MFAChallenge
   // -> MFAResponse
   // <- Ack
-  rpc DeleteMFADevice(stream DeleteMFADeviceRequest) returns (stream DeleteMFADeviceResponse);
+  //
+  // Deprecated: Use [DeleteMFADeviceSync] instead.
+  rpc DeleteMFADevice(stream DeleteMFADeviceRequest) returns (stream DeleteMFADeviceResponse) {
+    option deprecated = true;
+  }
   // AddMFADeviceSync adds a new MFA device.
   //
   // A typical MFA registration sequence calls the following RPCs:
@@ -2655,6 +2664,14 @@ service AuthService {
   // 4. AddMFADeviceSync
   rpc AddMFADeviceSync(AddMFADeviceSyncRequest) returns (AddMFADeviceSyncResponse);
   // DeleteMFADeviceSync deletes a users MFA device (nonstream).
+  //
+  // A typical MFA deletion sequence calls the following RPCs:
+  //
+  // 1. (optional) CreateAuthenticateChallenge
+  //    (may be skipped depending on the token used, but is usually called
+  //    regardless)
+  // 2. (optional) CreatePrivilegeToken
+  // 3. DeleteMFADeviceSync (using either authn challenge or token)
   rpc DeleteMFADeviceSync(DeleteMFADeviceSyncRequest) returns (google.protobuf.Empty);
   // GetMFADevices returns all MFA devices registered for the user calling
   // this RPC.
