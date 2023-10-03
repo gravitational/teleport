@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::fmt::{Debug, Display, Formatter, Pointer};
 use std::io::Error as IoError;
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, Mutex};
@@ -10,10 +11,10 @@ use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
-use ironrdp_pdu::rdp::server_error_info::ProtocolIndependentCode;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::PduParsing;
 use ironrdp_session::x224::Processor as X224Processor;
+use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError};
 use ironrdp_tls::TlsStream;
 use ironrdp_tokio::{Framed, TokioStream};
@@ -55,28 +56,13 @@ impl Client {
     /// This function hangs until the RDP session ends or a [`ClientFunction::Stop`] is dispatched
     /// (see [`global::call_function_on_handle`]).
     pub fn run(cgo_handle: CgoHandle, params: ConnectParams) -> ClientResult<()> {
-        match global::TOKIO_RT.block_on(async {
+        global::TOKIO_RT.block_on(async {
             Self::connect(cgo_handle, params)
                 .await?
                 .register()
                 .run_loops()
                 .await
-        }) {
-            Err(ClientError::SessionError(e)) => {
-                let s = e.to_string();
-                for reason in [
-                    ProtocolIndependentCode::RpcInitiatedLogoff,
-                    ProtocolIndependentCode::RpcInitiatedDisconnectByuser,
-                    ProtocolIndependentCode::RpcInitiatedDisconnect,
-                ] {
-                    if s.contains(reason.description()) {
-                        return Ok(());
-                    }
-                }
-                Err(e.into())
-            }
-            res => res,
-        }
+        })
     }
 
     /// Initializes the RDP connection with the given [`ConnectParams`].
@@ -471,6 +457,26 @@ pub enum ClientError {
     InternalError,
     UnknownAddress,
     InputEventError(InputEventError),
+}
+
+impl Display for ClientError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClientError::Tcp(e) => Display::fmt(e, f),
+            ClientError::Rdp(e) => Display::fmt(e, f),
+            ClientError::SessionError(e) => match &e.kind {
+                Reason(reason) => Display::fmt(reason, f),
+                _ => Display::fmt(e, f),
+            },
+            ClientError::ConnectorError(e) => Display::fmt(e, f),
+            ClientError::InputEventError(e) => Display::fmt(e, f),
+            ClientError::JoinError(e) => Display::fmt(e, f),
+            ClientError::CGOErrCode(e) => Debug::fmt(e, f),
+            ClientError::SendError => Display::fmt("Couldn't send message to channel", f),
+            ClientError::InternalError => Display::fmt("Internal error", f),
+            ClientError::UnknownAddress => Display::fmt("Unknown address", f),
+        }
+    }
 }
 
 impl From<IoError> for ClientError {
