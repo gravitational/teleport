@@ -1095,13 +1095,12 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					NodeName: "node-a",
 					SSHLogin: "role",
 				},
-				checkInitErr: require.NoError,
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
-				authHandler:  registered.webAuthHandler,
-				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					sshCertBytes := c.GetSSH()
 					require.NotEmpty(t, sshCertBytes)
 
@@ -1128,13 +1127,12 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					NodeName: "node-a",
 					SSHLogin: "role",
 				},
-				checkInitErr: require.NoError,
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
-				authHandler:  registered.webAuthHandler,
-				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					crt := c.GetSSH()
 					require.NotEmpty(t, crt)
 
@@ -1160,13 +1158,12 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					Usage:             proto.UserCertsRequest_Kubernetes,
 					KubernetesCluster: "kube-a",
 				},
-				checkInitErr: require.NoError,
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
-				authHandler:  registered.webAuthHandler,
-				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					crt := c.GetTLS()
 					require.NotEmpty(t, crt)
 
@@ -1199,13 +1196,12 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 						Database:    "db-a",
 					},
 				},
-				checkInitErr: require.NoError,
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
-				authHandler:  registered.webAuthHandler,
-				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					crt := c.GetTLS()
 					require.NotEmpty(t, crt)
 
@@ -1239,13 +1235,12 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					},
 					RequesterName: proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
 				},
-				checkInitErr: require.NoError,
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
-				authHandler:  registered.webAuthHandler,
-				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					crt := c.GetTLS()
 					require.NotEmpty(t, crt)
 
@@ -1280,10 +1275,9 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
-				checkInitErr: require.NoError,
-				authHandler:  registered.webAuthHandler,
-				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					crt := c.GetTLS()
 					require.NotEmpty(t, crt)
 
@@ -1316,13 +1310,12 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 						Login:          "role",
 					},
 				},
-				checkInitErr: require.NoError,
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
-				authHandler:  registered.webAuthHandler,
-				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					crt := c.GetTLS()
 					require.NotEmpty(t, crt)
 
@@ -1349,7 +1342,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					Usage:     proto.UserCertsRequest_All,
 					NodeName:  "node-a",
 				},
-				checkInitErr: require.Error,
+				verifyErr: require.Error,
 			},
 		},
 		{
@@ -1363,15 +1356,14 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					NodeName:  "node-a",
 					SSHLogin:  "role",
 				},
-				checkInitErr: require.NoError,
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
-				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+				authnHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					// Return no challenge response.
 					return &proto.MFAAuthenticateResponse{}
 				},
-				checkAuthErr: require.Error,
+				verifyErr: require.Error,
 			},
 		},
 		{
@@ -1397,13 +1389,12 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					NodeName:  "node-a",
 					SSHLogin:  "role",
 				},
-				checkInitErr: require.NoError,
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
-				authHandler:  registered.webAuthHandler,
-				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					// SSH certificate.
 					sshRaw := c.GetSSH()
 					require.NotEmpty(t, sshRaw, "Got empty single-use SSH certificate")
@@ -1446,13 +1437,12 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 						ServiceName: "db-a",
 					},
 				},
-				checkInitErr: require.NoError,
-				authHandler:  registered.webAuthHandler,
+				authnHandler: registered.webAuthHandler,
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
-				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+				verifyErr: require.NoError,
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					// TLS certificate.
 					tlsRaw := c.GetTLS()
 					require.NotEmpty(t, tlsRaw, "Got empty single-use TLS certificate")
@@ -1482,15 +1472,14 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					NodeName:  "node-a",
 					SSHLogin:  "llama", // not an allowed login which prevents access
 				},
-				checkInitErr: require.NoError,
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, required)
 				},
-				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+				authnHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					// Return no challenge response.
 					return &proto.MFAAuthenticateResponse{}
 				},
-				checkAuthErr: func(t require.TestingT, err error, i ...interface{}) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorIs(t, err, io.EOF, i...)
 				},
 			},
@@ -1505,15 +1494,14 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					Usage:     proto.UserCertsRequest_SSH,
 					NodeName:  "node-a",
 				},
-				checkInitErr: require.NoError,
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
 				},
-				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+				authnHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					// Return no challenge response.
 					return &proto.MFAAuthenticateResponse{}
 				},
-				checkAuthErr: require.Error,
+				verifyErr: require.Error,
 			},
 		},
 		{
@@ -1529,13 +1517,12 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					KubernetesCluster: "kube-b",
 					RouteToCluster:    "leaf",
 				},
-				checkInitErr: require.NoError,
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
 				},
-				authHandler:  registered.webAuthHandler,
-				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					crt := c.GetTLS()
 					require.NotEmpty(t, crt)
 
@@ -1569,13 +1556,12 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					},
 					RouteToCluster: "leaf",
 				},
-				checkInitErr: require.NoError,
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
 				},
-				authHandler:  registered.webAuthHandler,
-				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					crt := c.GetTLS()
 					require.NotEmpty(t, crt)
 
@@ -1607,13 +1593,12 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					SSHLogin:       "role",
 					RouteToCluster: "leaf",
 				},
-				checkInitErr: require.NoError,
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
 				},
-				authHandler:  registered.webAuthHandler,
-				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					sshCertBytes := c.GetSSH()
 					require.NotEmpty(t, sshCertBytes)
 
@@ -1636,7 +1621,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
 					Usage:     proto.UserCertsRequest_App,
 				},
-				checkInitErr: require.Error,
+				verifyErr: require.Error,
 			},
 		},
 	}
@@ -1656,45 +1641,63 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 type generateUserSingleUseCertTestOpts struct {
 	initReq            *proto.UserCertsRequest
-	checkInitErr       require.ErrorAssertionFunc
-	authHandler        func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
+	authnHandler       func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
 	mfaRequiredHandler func(*testing.T, proto.MFARequired)
-	checkAuthErr       require.ErrorAssertionFunc
-	validateCert       func(*testing.T, *proto.SingleUseUserCert)
+	verifyErr          require.ErrorAssertionFunc
+	verifyCert         func(*testing.T, *proto.SingleUseUserCert)
 }
 
 func testGenerateUserSingleUseCert(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertTestOpts) {
-	stream, err := cl.GenerateUserSingleUseCerts(ctx)
-	require.NoError(t, err)
-	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_Init{Init: opts.initReq}})
-	require.NoError(t, err)
+	runStream := func() (*proto.SingleUseUserCert, error) {
+		stream, err := cl.GenerateUserSingleUseCerts(ctx)
+		require.NoError(t, err, "GenerateUserSingleUseCerts stream creation failed")
 
-	authChallenge, err := stream.Recv()
-	opts.checkInitErr(t, err)
+		// Init.
+		if err := stream.Send(&proto.UserSingleUseCertsRequest{
+			Request: &proto.UserSingleUseCertsRequest_Init{
+				Init: opts.initReq,
+			},
+		}); err != nil {
+			return nil, err
+		}
+
+		// Challenge response.
+		authChallenge, err := stream.Recv()
+		if err != nil {
+			return nil, err
+		}
+		authnChal := authChallenge.GetMFAChallenge()
+		opts.mfaRequiredHandler(t, authnChal.MFARequired)
+		authnSolved := opts.authnHandler(t, authnChal)
+
+		switch err := stream.Send(&proto.UserSingleUseCertsRequest{
+			Request: &proto.UserSingleUseCertsRequest_MFAResponse{
+				MFAResponse: authnSolved,
+			},
+		}); {
+		case err != nil && authnChal.MFARequired == proto.MFARequired_MFA_REQUIRED_NO:
+			require.ErrorIs(t, err, io.EOF, "Want the server to close the stream when MFA is not required")
+		case err != nil:
+			return nil, err
+		}
+
+		// Certs.
+		certs, err := stream.Recv()
+		if err != nil {
+			return nil, err
+		}
+
+		assert.NoError(t, stream.CloseSend(), "CloseSend")
+		return certs.GetCert(), err
+	}
+
+	certs, err := runStream()
+	opts.verifyErr(t, err)
 	if err != nil {
 		return
 	}
 
-	challenge := authChallenge.GetMFAChallenge()
-	opts.mfaRequiredHandler(t, challenge.MFARequired)
-
-	authResp := opts.authHandler(t, challenge)
-	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: authResp}})
-	if challenge.MFARequired == proto.MFARequired_MFA_REQUIRED_NO && err != nil {
-		require.ErrorIs(t, err, io.EOF, "Want the server to close the stream when MFA is not required")
-		return
-	} else {
-		require.NoError(t, err)
-	}
-
-	certs, err := stream.Recv()
-	opts.checkAuthErr(t, err)
-	if err != nil {
-		return
-	}
-	opts.validateCert(t, certs.GetCert())
-
-	require.NoError(t, stream.CloseSend())
+	opts.verifyCert(t, certs)
 }
 
 var requireMFATypes = []types.RequireMFAType{
