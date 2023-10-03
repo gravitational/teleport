@@ -69,17 +69,30 @@ func NewIdentityService(backend backend.Backend) *IdentityService {
 
 // DeleteAllUsers deletes all users
 func (s *IdentityService) DeleteAllUsers() error {
+	return trace.Wrap(s.DeleteAllUsersWithContext(context.TODO()))
+}
+
+// DeleteAllUsersWithContext deletes all users.
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func (s *IdentityService) DeleteAllUsersWithContext(ctx context.Context) error {
 	startKey := backend.ExactKey(webPrefix, usersPrefix)
-	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
 // GetUsers returns a list of users registered with the local auth server
 func (s *IdentityService) GetUsers(withSecrets bool) ([]types.User, error) {
+	users, err := s.GetUsersWithContext(context.TODO(), withSecrets)
+	return users, trace.Wrap(err)
+}
+
+// GetUsersWithContext returns a list of users registered with the local auth server
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func (s *IdentityService) GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	if withSecrets {
-		return s.getUsersWithSecrets()
+		return s.getUsersWithSecrets(ctx)
 	}
 	startKey := backend.ExactKey(webPrefix, usersPrefix)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -101,9 +114,9 @@ func (s *IdentityService) GetUsers(withSecrets bool) ([]types.User, error) {
 	return out, nil
 }
 
-func (s *IdentityService) getUsersWithSecrets() ([]types.User, error) {
+func (s *IdentityService) getUsersWithSecrets(ctx context.Context) ([]types.User, error) {
 	startKey := backend.ExactKey(webPrefix, usersPrefix)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -124,22 +137,29 @@ func (s *IdentityService) getUsersWithSecrets() ([]types.User, error) {
 
 // CreateUser creates user if it does not exist.
 func (s *IdentityService) CreateUser(user types.User) error {
+	_, err := s.CreateUserWithContext(context.TODO(), user)
+	return trace.Wrap(err)
+}
+
+// CreateUserWithContext creates user if it does not exist.
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func (s *IdentityService) CreateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
 	if err := services.ValidateUser(user); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Confirm user doesn't exist before creating.
 	_, err := s.GetUser(user.GetName(), false)
 	if !trace.IsNotFound(err) {
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
-		return trace.AlreadyExists("user %q already registered", user.GetName())
+		return nil, trace.AlreadyExists("user %q already registered", user.GetName())
 	}
 
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
@@ -148,49 +168,60 @@ func (s *IdentityService) CreateUser(user types.User) error {
 		Expires: user.Expiry(),
 	}
 
-	if _, err = s.Create(context.TODO(), item); err != nil {
-		return trace.Wrap(err)
+	lease, err := s.Create(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if auth := user.GetLocalAuth(); auth != nil {
-		if err = s.upsertLocalAuthSecrets(user.GetName(), *auth); err != nil {
-			return trace.Wrap(err)
+		if err = s.upsertLocalAuthSecrets(ctx, user.GetName(), *auth); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
-	return nil
+	user.SetRevision(lease.Revision)
+	return user, nil
 }
 
 // UpdateUser updates an existing user.
 func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) error {
+	_, err := s.UpdateUserWithContext(ctx, user)
+	return trace.Wrap(err)
+}
+
+// UpdateUserWithContext updates an existing user.
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func (s *IdentityService) UpdateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
 	if err := services.ValidateUser(user); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Confirm user exists before updating.
 	if _, err := s.GetUser(user.GetName(), false); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
-		Value:   value,
-		Expires: user.Expiry(),
-		ID:      user.GetResourceID(),
+		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  user.Expiry(),
+		ID:       user.GetResourceID(),
+		Revision: user.GetRevision(),
 	}
-	_, err = s.Update(ctx, item)
+	lease, err := s.Update(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if auth := user.GetLocalAuth(); auth != nil {
-		if err = s.upsertLocalAuthSecrets(user.GetName(), *auth); err != nil {
-			return trace.Wrap(err)
+		if err = s.upsertLocalAuthSecrets(ctx, user.GetName(), *auth); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
-	return nil
+	user.SetRevision(lease.Revision)
+	return user, nil
 }
 
 // UpdateAndSwapUser reads an existing user, runs `fn` against it and writes the
@@ -230,29 +261,38 @@ func (s *IdentityService) UpdateAndSwapUser(ctx context.Context, user string, wi
 
 // UpsertUser updates parameters about user, or creates an entry if not exist.
 func (s *IdentityService) UpsertUser(user types.User) error {
+	_, err := s.UpsertUserWithContext(context.TODO(), user)
+	return trace.Wrap(err)
+}
+
+// UpsertUserWithContext updates parameters about user, or creates an entry if not exist.
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func (s *IdentityService) UpsertUserWithContext(ctx context.Context, user types.User) (types.User, error) {
 	if err := services.ValidateUser(user); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
-		Value:   value,
-		Expires: user.Expiry(),
-		ID:      user.GetResourceID(),
+		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  user.Expiry(),
+		ID:       user.GetResourceID(),
+		Revision: user.GetRevision(),
 	}
-	_, err = s.Put(context.TODO(), item)
+	lease, err := s.Put(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if auth := user.GetLocalAuth(); auth != nil {
-		if err = s.upsertLocalAuthSecrets(user.GetName(), *auth); err != nil {
-			return trace.Wrap(err)
+		if err = s.upsertLocalAuthSecrets(ctx, user.GetName(), *auth); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
-	return nil
+	user.SetRevision(lease.Revision)
+	return user, nil
 }
 
 // CompareAndSwapUser updates a user, but fails if the value (as exists in the
@@ -272,10 +312,11 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 		return trace.Wrap(err)
 	}
 	newItem := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, new.GetName(), paramsPrefix),
-		Value:   newValue,
-		Expires: new.Expiry(),
-		ID:      new.GetResourceID(),
+		Key:      backend.Key(webPrefix, usersPrefix, new.GetName(), paramsPrefix),
+		Value:    newValue,
+		Expires:  new.Expiry(),
+		ID:       new.GetResourceID(),
+		Revision: new.GetRevision(),
 	}
 
 	existingRaw, ok := existing.WithoutSecrets().(types.User)
@@ -287,10 +328,11 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 		return trace.Wrap(err)
 	}
 	existingItem := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, existing.GetName(), paramsPrefix),
-		Value:   existingValue,
-		Expires: existing.Expiry(),
-		ID:      existing.GetResourceID(),
+		Key:      backend.Key(webPrefix, usersPrefix, existing.GetName(), paramsPrefix),
+		Value:    existingValue,
+		Expires:  existing.Expiry(),
+		ID:       existing.GetResourceID(),
+		Revision: existing.GetRevision(),
 	}
 
 	_, err = s.CompareAndSwap(ctx, existingItem, newItem)
@@ -302,7 +344,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 	}
 
 	if auth := new.GetLocalAuth(); auth != nil {
-		if err = s.upsertLocalAuthSecrets(new.GetName(), *auth); err != nil {
+		if err = s.upsertLocalAuthSecrets(ctx, new.GetName(), *auth); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -311,11 +353,15 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 
 // GetUser returns a user by name
 func (s *IdentityService) GetUser(user string, withSecrets bool) (types.User, error) {
-	u, _, err := s.getUser(context.TODO(), user, withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return u, nil
+	u, err := s.GetUserWithContext(context.TODO(), user, withSecrets)
+	return u, trace.Wrap(err)
+}
+
+// GetUserWithContext returns a user by name.
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func (s *IdentityService) GetUserWithContext(ctx context.Context, user string, withSecrets bool) (types.User, error) {
+	u, _, err := s.getUser(ctx, user, withSecrets)
+	return u, trace.Wrap(err)
 }
 
 func (s *IdentityService) getUser(ctx context.Context, user string, withSecrets bool) (types.User, *userItems, error) {
@@ -363,7 +409,7 @@ func (s *IdentityService) getUserWithSecrets(ctx context.Context, user string) (
 	return u, &items, trace.Wrap(err)
 }
 
-func (s *IdentityService) upsertLocalAuthSecrets(user string, auth types.LocalAuthSecrets) error {
+func (s *IdentityService) upsertLocalAuthSecrets(ctx context.Context, user string, auth types.LocalAuthSecrets) error {
 	if len(auth.PasswordHash) > 0 {
 		err := s.UpsertPasswordHash(user, auth.PasswordHash)
 		if err != nil {
@@ -371,12 +417,12 @@ func (s *IdentityService) upsertLocalAuthSecrets(user string, auth types.LocalAu
 		}
 	}
 	for _, d := range auth.MFA {
-		if err := s.UpsertMFADevice(context.TODO(), user, d); err != nil {
+		if err := s.UpsertMFADevice(ctx, user, d); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	if auth.Webauthn != nil {
-		if err := s.UpsertWebauthnLocalAuth(context.TODO(), user, auth.Webauthn); err != nil {
+		if err := s.UpsertWebauthnLocalAuth(ctx, user, auth.Webauthn); err != nil {
 			return trace.Wrap(err)
 		}
 	}
