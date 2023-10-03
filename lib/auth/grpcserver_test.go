@@ -959,7 +959,7 @@ func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.Databas
 	return database
 }
 
-func TestGenerateUserSingleUseCert(t *testing.T) {
+func TestGenerateUserSingleUseCerts(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise, // required for IP pinning.
 		TestFeatures:  modules.GetModules().Features(),
@@ -1080,11 +1080,11 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	tests := []struct {
 		desc      string
 		newClient func() (*Client, error) // optional, makes a new client for the test.
-		opts      generateUserSingleUseCertTestOpts
+		opts      generateUserSingleUseCertsTestOpts
 	}{
 		{
 			desc: "ssh using webauthn",
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
@@ -1116,7 +1116,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 		{
 			desc: "ssh - adjusted expiry",
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
@@ -1148,7 +1148,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 		{
 			desc: "k8s",
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
@@ -1183,7 +1183,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 		{
 			desc: "db",
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
@@ -1221,7 +1221,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 		{
 			desc: "db with ttl limit disabled",
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
@@ -1260,7 +1260,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 		{
 			desc: "kube with ttl limit disabled",
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
@@ -1297,7 +1297,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 		{
 			desc: "desktops",
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
@@ -1334,7 +1334,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 		{
 			desc: "fail - wrong usage",
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
@@ -1347,7 +1347,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 		{
 			desc: "fail - mfa challenge fail",
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
@@ -1379,7 +1379,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 				return srv.NewClient(u)
 			},
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				// Same as SSH options. Nothing special here.
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
@@ -1426,7 +1426,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 				return srv.NewClient(u)
 			},
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				// Same as Database options. Nothing special here.
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
@@ -1463,7 +1463,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 		{
 			desc: "fail - mfa not required when RBAC prevents access",
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
@@ -1486,7 +1486,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 		{
 			desc: "mfa unspecified when no SSHLogin provided",
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
@@ -1506,7 +1506,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 		{
 			desc: "k8s in leaf cluster",
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
@@ -1542,7 +1542,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 		{
 			desc: "db in leaf cluster",
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
@@ -1581,7 +1581,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 		{
 			desc: "ssh in leaf node",
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
@@ -1614,7 +1614,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		},
 		{
 			desc: "fail - app access not supported",
-			opts: generateUserSingleUseCertTestOpts{
+			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
@@ -1634,12 +1634,12 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				require.NoError(t, err, "newClient failed")
 			}
 
-			testGenerateUserSingleUseCert(ctx, t, testClient, tt.opts)
+			testGenerateUserSingleUseCerts(ctx, t, testClient, tt.opts)
 		})
 	}
 }
 
-type generateUserSingleUseCertTestOpts struct {
+type generateUserSingleUseCertsTestOpts struct {
 	initReq            *proto.UserCertsRequest
 	authnHandler       func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
 	mfaRequiredHandler func(*testing.T, proto.MFARequired)
@@ -1647,7 +1647,7 @@ type generateUserSingleUseCertTestOpts struct {
 	verifyCert         func(*testing.T, *proto.SingleUseUserCert)
 }
 
-func testGenerateUserSingleUseCert(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertTestOpts) {
+func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertsTestOpts) {
 	runStream := func() (*proto.SingleUseUserCert, error) {
 		stream, err := cl.GenerateUserSingleUseCerts(ctx)
 		require.NoError(t, err, "GenerateUserSingleUseCerts stream creation failed")
