@@ -18,8 +18,6 @@ package utils
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -43,18 +41,12 @@ func TestOpenFileLinks(t *testing.T) {
 
 	// macOS is special cased here since t.TempDir() returns a path to a protected directory that doesn't allow symlinks.
 	var rootDir string
+	var err error
 	switch runtime.GOOS {
 	case "darwin":
-		suffix := make([]byte, 8)
-		_, err := rand.Read(suffix)
+		rootDir, err = os.MkdirTemp("/private/tmp", "teleport-test-*")
 		if err != nil {
-			t.Fatalf("failed to generate random suffix: %v", err)
-		}
-
-		rootDir = "/private/tmp/" + "teleport-test-" + hex.EncodeToString(suffix)
-		err = os.Mkdir(rootDir, 0700)
-		if err != nil {
-			t.Fatalf("failed to create rootDir %q: %v", rootDir, err)
+			require.NoError(t, err)
 		}
 
 		t.Cleanup(func() {
@@ -68,7 +60,7 @@ func TestOpenFileLinks(t *testing.T) {
 	}
 
 	dirPath := filepath.Join(rootDir, "dir")
-	err := os.Mkdir(dirPath, 0755)
+	err = os.Mkdir(dirPath, 0755)
 	require.NoError(t, err)
 
 	dirFilePath := filepath.Join(dirPath, "file")
