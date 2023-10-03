@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -67,6 +68,7 @@ type UsersService interface {
 type AuthServer interface {
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
 	SubmitAccessReview(ctx context.Context, req types.AccessReviewSubmission) (types.AccessRequest, error)
+	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 }
 
 // ServiceConfig is the service config for the Access Lists gRPC service.
@@ -1166,17 +1168,31 @@ func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.Ac
 		return nil, trace.Wrap(err)
 	}
 
-	accessReq, err := s.authServer.GetAccessRequests(ctx, types.AccessRequestFilter{
+	accessReqs, err := s.authServer.GetAccessRequests(ctx, types.AccessRequestFilter{
 		ID: req.RequestId,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(accessReq) != 1 {
+	if len(accessReqs) != 1 {
 		return nil, trace.NotFound("access request not found")
 	}
 
-	memberName := accessReq[0].GetUser()
+	accessReq := accessReqs[0]
+
+	allowedPromotions, err := s.authServer.GetAccessRequestAllowedPromotions(ctx, accessReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Check if the access list can be used for promotion.
+	if !slices.ContainsFunc(allowedPromotions.Promotions, func(p *types.AccessRequestAllowedPromotion) bool {
+		return p.AccessListName == req.AccessListName
+	}) {
+		return nil, trace.AccessDenied("access request cannot be promoted to requested access list")
+	}
+
+	memberName := accessReq.GetUser()
 
 	user, err := authz.UserFromContext(ctx)
 	if err != nil {

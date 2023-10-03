@@ -538,6 +538,10 @@ func (a *fakeAuth) SubmitAccessReview(ctx context.Context, req types.AccessRevie
 	return &types.AccessRequestV3{}, nil
 }
 
+func (a *fakeAuth) GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+	return &types.AccessRequestAllowedPromotions{}, nil
+}
+
 func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Context, svc *Service, clock clockwork.Clock, emitter *eventstest.ChannelEmitter, usageEvents *usageEventsClient) {
 	ctx := context.Background()
 	clock = clockwork.NewFakeClock()

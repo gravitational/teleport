@@ -675,10 +675,12 @@ func TestSuggestAccessLists(t *testing.T) {
 }
 
 func TestPromoteAccessRequest(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			AdvancedAccessWorkflows: true,
+	modules.SetTestModules(t, &fakeBuildModule{
+		TestModules: modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				AdvancedAccessWorkflows: true,
+			},
 		},
 	})
 
@@ -691,9 +693,33 @@ func TestPromoteAccessRequest(t *testing.T) {
 
 	authClient := s.newAdminAuthClient(s.ctx, t)
 
+	createNode := func() types.Server {
+		const nodeName = "node"
+		node, err := types.NewServerWithLabels(
+			nodeName,
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"name": nodeName},
+		)
+		require.NoError(t, err)
+
+		_, err = authClient.UpsertNode(ctx, node)
+		require.NoError(t, err)
+
+		return node
+	}
+
+	// create a node, so we can request access to it
+	node := createNode()
+
 	createAccessRequest := func() types.AccessRequest {
 		// create an access request for reviewer to request access to the "access" role
-		accessRequest, err := services.NewAccessRequest("requester", "access")
+		accessRequest, err := services.NewAccessRequestWithResources("requester", []string{"access"}, []types.ResourceID{
+			{
+				Name: node.GetName(),
+				Kind: types.KindNode,
+			},
+		})
 		require.NoError(t, err)
 		accessRequest, err = authClient.CreateAccessRequestV2(ctx, accessRequest)
 		require.NoError(t, err)
@@ -701,9 +727,9 @@ func TestPromoteAccessRequest(t *testing.T) {
 		return accessRequest
 	}
 
-	createAccessList := func() *accesslist.AccessList {
-		accessListClient := authClient.AccessListClient()
+	accessListClient := authClient.AccessListClient()
 
+	createAccessList := func() *accesslist.AccessList {
 		accessListCloseMatch, err := accesslist.NewAccessList(
 			header.Metadata{
 				Name: "close-match",
@@ -712,17 +738,31 @@ func TestPromoteAccessRequest(t *testing.T) {
 				Title:              "close match title",
 				Audit:              accesslist.Audit{Frequency: time.Hour},
 				Owners:             []accesslist.Owner{{Name: "reviewer", Description: "reviewer desc"}},
-				MembershipRequires: accesslist.Requires{Roles: []string{"admin"}, Traits: trait.Traits{"preferred_drink": []string{"fanta"}}},
+				MembershipRequires: accesslist.Requires{},
 				Grants:             accesslist.Grants{Roles: []string{"access"}},
 			})
 		require.NoError(t, err)
 		accessListCloseMatch, err = accessListClient.UpsertAccessList(ctx, accessListCloseMatch)
 		require.NoError(t, err)
 
-		// verify all access lists exist in the backend
-		existingLists, err := accessListClient.GetAccessLists(ctx)
+		return accessListCloseMatch
+	}
+
+	createAccessListNoAccess := func() *accesslist.AccessList {
+		accessListCloseMatch, err := accesslist.NewAccessList(
+			header.Metadata{
+				Name: "no-access",
+			},
+			accesslist.Spec{
+				Title:              "no access title",
+				Audit:              accesslist.Audit{Frequency: time.Hour},
+				Owners:             []accesslist.Owner{{Name: "reviewer", Description: "reviewer desc"}},
+				MembershipRequires: accesslist.Requires{},
+				Grants:             accesslist.Grants{Roles: []string{"nonexistent-role"}},
+			})
 		require.NoError(t, err)
-		require.Len(t, existingLists, 1)
+		accessListCloseMatch, err = accessListClient.UpsertAccessList(ctx, accessListCloseMatch)
+		require.NoError(t, err)
 
 		return accessListCloseMatch
 	}
@@ -753,25 +793,43 @@ func TestPromoteAccessRequest(t *testing.T) {
 	// create a role that allows the requester to promote access requests
 	upsertRole("requesterRole", types.RoleConditions{
 		Request: &types.AccessRequestConditions{
-			Roles: []string{"access"},
+			SearchAsRoles: []string{"access"},
 		},
 	})
 
 	// create a role that can be requested
-	upsertRole("access", types.RoleConditions{})
+	upsertRole("access", types.RoleConditions{
+		NodeLabels: types.Labels{
+			"name": []string{"node"},
+		},
+	})
 
 	// assign roles to users
 	assignRole("reviewer", "reviewerRole")
 	assignRole("requester", "requesterRole")
 
-	accessRequest := createAccessRequest()
 	accessList := createAccessList()
+	accessListNoAccess := createAccessListNoAccess()
+	accessRequest := createAccessRequest()
+
+	// verify all access lists exist in the backend
+	existingLists, err := accessListClient.GetAccessLists(ctx)
+	require.NoError(t, err)
+	require.Len(t, existingLists, 2)
 
 	// login user as reviewer
 	webPack := s.newAuthWebPack(t, "reviewer", skipUserCreation())
 
-	// fetch suggestions from web api
 	endpoint := webPack.clt.Endpoint("enterprise", "accessrequest", accessRequest.GetName(), "promote")
+
+	// Promoting an access request to not allowed access list should fail
+	_, err = webPack.clt.PostJSON(s.ctx, endpoint, &accessRequestPromoteParameters{
+		Reason:         "promotion reason",
+		AccessListName: accessListNoAccess.GetName(),
+	})
+	require.Error(t, err)
+
+	// Promoting an access request to allowed access list should succeed
 	resp, err := webPack.clt.PostJSON(s.ctx, endpoint, &accessRequestPromoteParameters{
 		Reason:         "promotion reason",
 		AccessListName: accessList.GetName(),
@@ -783,8 +841,9 @@ func TestPromoteAccessRequest(t *testing.T) {
 
 	promotedAccessReq := promoteResp.AccessRequest
 
-	require.Equal(t, promotedAccessReq.User, accessRequest.GetUser())
-	require.Equal(t, promotedAccessReq.State, types.RequestState_PROMOTED.String())
-	require.Equal(t, promotedAccessReq.ResolveReason, "promotion reason")
-	require.Equal(t, promotedAccessReq.PromotedAccessListTitle, accessList.Spec.Title)
+	// Verify the promoted access request has the correct fields
+	require.Equal(t, accessRequest.GetUser(), promotedAccessReq.User)
+	require.Equal(t, types.RequestState_PROMOTED.String(), promotedAccessReq.State)
+	require.Equal(t, "promotion reason", promotedAccessReq.ResolveReason)
+	require.Equal(t, accessList.Spec.Title, promotedAccessReq.PromotedAccessListTitle)
 }
