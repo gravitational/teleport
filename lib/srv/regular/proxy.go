@@ -279,11 +279,50 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrc
 	if teleportVersion != "" && utils.CheckVersion(teleportVersion, utils.MinIPPropagationVersion) != nil {
 		t.doHandshake(ctx, clientSrcAddr, ch, conn)
 	}
+
+	checkedReader := &checkedPrefixReader{
+		ReadWriteCloser: ch,
+		// SSH connection MUST start with "SSH-2.0" bytes according to https://datatracker.ietf.org/doc/html/rfc4253#section-4.2
+		requiredPrefix: []byte("SSH-2.0"),
+	}
+
 	go func() {
-		t.close(utils.ProxyConn(ctx, ch, conn))
+		t.close(utils.ProxyConn(ctx, checkedReader, conn))
 	}()
 
 	return nil
+}
+
+// checkedPrefixReader checks that read data has the specified prefix.
+type checkedPrefixReader struct {
+	io.ReadWriteCloser
+
+	requiredPrefix  []byte
+	requiredPointer int
+}
+
+func (c *checkedPrefixReader) Read(b []byte) (int, error) {
+	// If pointer reached end of required prefix the check is done.
+	if len(c.requiredPrefix) == c.requiredPointer {
+		return c.ReadWriteCloser.Read(b)
+	}
+
+	n, err := c.ReadWriteCloser.Read(b)
+
+	// Decide which is smaller, read data or remaining portion of the required prefix
+	small, big := c.requiredPrefix[c.requiredPointer:], b[:n]
+	if len(small) > len(big) {
+		big, small = small, big
+	}
+
+	if !bytes.HasPrefix(big, small) {
+		return n, trace.AccessDenied("required prefix %q was not found", c.requiredPrefix)
+	}
+
+	// Advance pointer by confirmed portion of the prefix.
+	c.requiredPointer += len(small)
+
+	return n, err
 }
 
 func (t *proxySubsys) close(err error) {
