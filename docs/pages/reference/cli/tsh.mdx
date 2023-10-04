@@ -436,13 +436,13 @@ $ tsh proxy db [<flags>] <db>
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--cert-file` | none | string | Path to the certificate file for configuring TLS on the local proxy.|
 | `--cluster` | none | string | The name of the Teleport cluster to connect to. |
-| `--key-file` | none | string | Path to the private key file for configuring TLS on the local proxy.|
-| `--db-name` | none | string | Optional database name to log in to. |
-| `--db-user` | none | string | Optional database user to log in as. |
+| `--db-name` | see below | string | The database name to log in to. |
+| `--db-user` | see below | string | The database user to log in as. |
 | `--port` | none | string | Source port used by the local proxy.|
 | `--tunnel` | none | Boolean | Open an authenticated tunnel using a database's client certificate so clients don't need to authenticate. |
+
+(!docs/pages/includes/db-user-name-flags.mdx!)
 
 ### [Global Flags](#tsh-global-flags)
 

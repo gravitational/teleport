@@ -1493,6 +1493,131 @@ export namespace DeleteConnectMyComputerTokenResponse {
     }
 }
 
+export class WaitForConnectMyComputerNodeJoinRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): WaitForConnectMyComputerNodeJoinRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): WaitForConnectMyComputerNodeJoinRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: WaitForConnectMyComputerNodeJoinRequest): WaitForConnectMyComputerNodeJoinRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: WaitForConnectMyComputerNodeJoinRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): WaitForConnectMyComputerNodeJoinRequest;
+    static deserializeBinaryFromReader(message: WaitForConnectMyComputerNodeJoinRequest, reader: jspb.BinaryReader): WaitForConnectMyComputerNodeJoinRequest;
+}
+
+export namespace WaitForConnectMyComputerNodeJoinRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+    }
+}
+
+export class WaitForConnectMyComputerNodeJoinResponse extends jspb.Message { 
+
+    hasServer(): boolean;
+    clearServer(): void;
+    getServer(): teleport_lib_teleterm_v1_server_pb.Server | undefined;
+    setServer(value?: teleport_lib_teleterm_v1_server_pb.Server): WaitForConnectMyComputerNodeJoinResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): WaitForConnectMyComputerNodeJoinResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: WaitForConnectMyComputerNodeJoinResponse): WaitForConnectMyComputerNodeJoinResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: WaitForConnectMyComputerNodeJoinResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): WaitForConnectMyComputerNodeJoinResponse;
+    static deserializeBinaryFromReader(message: WaitForConnectMyComputerNodeJoinResponse, reader: jspb.BinaryReader): WaitForConnectMyComputerNodeJoinResponse;
+}
+
+export namespace WaitForConnectMyComputerNodeJoinResponse {
+    export type AsObject = {
+        server?: teleport_lib_teleterm_v1_server_pb.Server.AsObject,
+    }
+}
+
+export class DeleteConnectMyComputerNodeRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): DeleteConnectMyComputerNodeRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DeleteConnectMyComputerNodeRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: DeleteConnectMyComputerNodeRequest): DeleteConnectMyComputerNodeRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DeleteConnectMyComputerNodeRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DeleteConnectMyComputerNodeRequest;
+    static deserializeBinaryFromReader(message: DeleteConnectMyComputerNodeRequest, reader: jspb.BinaryReader): DeleteConnectMyComputerNodeRequest;
+}
+
+export namespace DeleteConnectMyComputerNodeRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+    }
+}
+
+export class DeleteConnectMyComputerNodeResponse extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DeleteConnectMyComputerNodeResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: DeleteConnectMyComputerNodeResponse): DeleteConnectMyComputerNodeResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DeleteConnectMyComputerNodeResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DeleteConnectMyComputerNodeResponse;
+    static deserializeBinaryFromReader(message: DeleteConnectMyComputerNodeResponse, reader: jspb.BinaryReader): DeleteConnectMyComputerNodeResponse;
+}
+
+export namespace DeleteConnectMyComputerNodeResponse {
+    export type AsObject = {
+    }
+}
+
+export class GetConnectMyComputerNodeNameRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): GetConnectMyComputerNodeNameRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetConnectMyComputerNodeNameRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetConnectMyComputerNodeNameRequest): GetConnectMyComputerNodeNameRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetConnectMyComputerNodeNameRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetConnectMyComputerNodeNameRequest;
+    static deserializeBinaryFromReader(message: GetConnectMyComputerNodeNameRequest, reader: jspb.BinaryReader): GetConnectMyComputerNodeNameRequest;
+}
+
+export namespace GetConnectMyComputerNodeNameRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+    }
+}
+
+export class GetConnectMyComputerNodeNameResponse extends jspb.Message { 
+    getName(): string;
+    setName(value: string): GetConnectMyComputerNodeNameResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetConnectMyComputerNodeNameResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetConnectMyComputerNodeNameResponse): GetConnectMyComputerNodeNameResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetConnectMyComputerNodeNameResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetConnectMyComputerNodeNameResponse;
+    static deserializeBinaryFromReader(message: GetConnectMyComputerNodeNameResponse, reader: jspb.BinaryReader): GetConnectMyComputerNodeNameResponse;
+}
+
+export namespace GetConnectMyComputerNodeNameResponse {
+    export type AsObject = {
+        name: string,
+    }
+}
+
 export enum PasswordlessPrompt {
     PASSWORDLESS_PROMPT_UNSPECIFIED = 0,
     PASSWORDLESS_PROMPT_PIN = 1,

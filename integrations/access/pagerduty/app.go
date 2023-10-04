@@ -236,9 +236,7 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 		switch {
 		case req.GetState().IsPending():
 			err = a.onPendingRequest(ctx, req)
-		case req.GetState().IsApproved():
-			err = a.onResolvedRequest(ctx, req)
-		case req.GetState().IsDenied():
+		case req.GetState().IsResolved():
 			err = a.onResolvedRequest(ctx, req)
 		default:
 			log.WithField("event", event).Warn("Unknown request state")
@@ -301,6 +299,8 @@ func (a *App) onResolvedRequest(ctx context.Context, req types.AccessRequest) er
 		resolution.Tag = ResolvedApproved
 	case types.RequestState_DENIED:
 		resolution.Tag = ResolvedDenied
+	case types.RequestState_PROMOTED:
+		resolution.Tag = ResolvedPromoted
 	}
 	err := trace.Wrap(a.resolveIncident(ctx, req.GetName(), resolution))
 	return trace.NewAggregate(notifyErr, err)
@@ -525,7 +525,7 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 		Review: types.AccessReview{
 			Author:        a.conf.TeleportUser,
 			ProposedState: types.RequestState_APPROVED,
-			Reason: fmt.Sprintf("Access requested by user %s (%s) which is on call in service(s) %s",
+			Reason: fmt.Sprintf("Access requested by user %s (%s) who is on call in service(s) %s",
 				user.Name,
 				user.Email,
 				strings.Join(serviceNames, ","),

@@ -74,7 +74,7 @@ func NewTestDeviceFromChallenge(c *proto.MFARegisterChallenge, opts ...TestDevic
 // RegisterTestDevice creates and registers a TestDevice.
 // TOTP devices require a clock option.
 func RegisterTestDevice(
-	ctx context.Context, clt authClient, devName string, devType proto.DeviceType, authenticator *TestDevice, opts ...TestDeviceOpt) (*TestDevice, error) {
+	ctx context.Context, clt authClientI, devName string, devType proto.DeviceType, authenticator *TestDevice, opts ...TestDeviceOpt) (*TestDevice, error) {
 	dev := &TestDevice{} // Remaining parameters set during registration
 	for _, opt := range opts {
 		opt(dev)
@@ -82,7 +82,7 @@ func RegisterTestDevice(
 	if devType == proto.DeviceType_DEVICE_TYPE_TOTP && dev.clock == nil {
 		return nil, trace.BadParameter("TOTP devices require the WithTestDeviceClock option")
 	}
-	return dev, dev.registerStream(ctx, clt, devName, devType, authenticator)
+	return dev, dev.registerDevice(ctx, clt, devName, devType, authenticator)
 }
 
 func (d *TestDevice) Origin() string {
@@ -92,72 +92,57 @@ func (d *TestDevice) Origin() string {
 	return d.origin
 }
 
-type authClient interface {
-	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
+type authClientI interface {
+	CreateAuthenticateChallenge(context.Context, *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+	CreateRegisterChallenge(context.Context, *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error)
+	AddMFADeviceSync(context.Context, *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
 }
 
-func (d *TestDevice) registerStream(
-	ctx context.Context, clt authClient, devName string, devType proto.DeviceType, authenticator *TestDevice) error {
-	stream, err := clt.AddMFADevice(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Inform device name and type.
-	if err := stream.Send(&proto.AddMFADeviceRequest{
-		Request: &proto.AddMFADeviceRequest_Init{
-			Init: &proto.AddMFADeviceRequestInit{
-				DeviceName: devName,
-				DeviceType: devType,
-			},
+func (d *TestDevice) registerDevice(
+	ctx context.Context, authClient authClientI, devName string, devType proto.DeviceType, authenticator *TestDevice) error {
+	// Re-authenticate using MFA.
+	authnChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{},
 		},
-	}); err != nil {
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authnSolved, err := authenticator.SolveAuthn(authnChal)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Solve authn challenge.
-	resp, err := stream.Recv()
+	// Acquire and solve registration challenge.
+	usage := proto.DeviceUsage_DEVICE_USAGE_MFA
+	if d.passwordless {
+		usage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
+	}
+	registerChal, err := authClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		ExistingMFAResponse: authnSolved,
+		DeviceType:          devType,
+		DeviceUsage:         usage,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	authResp, err := authenticator.SolveAuthn(resp.GetExistingMFAChallenge())
+	registerSolved, err := d.solveRegister(registerChal)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := stream.Send(&proto.AddMFADeviceRequest{
-		Request: &proto.AddMFADeviceRequest_ExistingMFAResponse{
-			ExistingMFAResponse: authResp,
-		},
-	}); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Solve register challenge.
-	resp, err = stream.Recv()
+	// Register.
+	addResp, err := authClient.AddMFADeviceSync(ctx, &proto.AddMFADeviceSyncRequest{
+		NewDeviceName:  devName,
+		NewMFAResponse: registerSolved,
+		DeviceUsage:    usage,
+	})
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	registerResp, err := d.solveRegister(resp.GetNewMFARegisterChallenge())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := stream.Send(&proto.AddMFADeviceRequest{
-		Request: &proto.AddMFADeviceRequest_NewMFARegisterResponse{
-			NewMFARegisterResponse: registerResp,
-		},
-	}); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Receive Ack.
-	resp, err = stream.Recv()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if resp.GetAck() == nil {
-		return trace.BadParameter("expected ack, got %T", resp.Response)
-	}
-	d.MFA = resp.GetAck().GetDevice()
+	d.MFA = addResp.Device
 	return nil
 }
 
@@ -274,6 +259,7 @@ func (d *TestDevice) solveRegisterTOTP(c *proto.MFARegisterChallenge) (*proto.MF
 		Response: &proto.MFARegisterResponse_TOTP{
 			TOTP: &proto.TOTPRegisterResponse{
 				Code: code,
+				ID:   c.GetTOTP().ID,
 			},
 		},
 	}, nil

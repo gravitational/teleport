@@ -36,6 +36,7 @@ const (
 	member1   = "member1"
 	member2   = "member2"
 	member3   = "member3"
+	member4   = "member4"
 )
 
 // TestAccessListUnmarshal verifies an access list resource can be unmarshaled.
@@ -58,7 +59,6 @@ func TestAccessListUnmarshal(t *testing.T) {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency:     time.Hour,
 				NextAuditDate: time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC),
 			},
 			MembershipRequires: accesslist.Requires{
@@ -112,7 +112,6 @@ func TestAccessListMarshal(t *testing.T) {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency:     time.Hour,
 				NextAuditDate: time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC),
 			},
 			MembershipRequires: accesslist.Requires{
@@ -317,7 +316,7 @@ func TestIsAccessListMember(t *testing.T) {
 		{
 			name: "is not a member",
 			identity: tlsca.Identity{
-				Username: member3,
+				Username: member4,
 				Groups:   []string{"mrole1", "mrole2"},
 				Traits: map[string][]string{
 					"mtrait1": {"mvalue1", "mvalue2"},
@@ -339,25 +338,23 @@ func TestIsAccessListMember(t *testing.T) {
 					"mtrait2": {"mvalue3", "mvalue4"},
 				},
 			},
-			currentTime: time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC),
+			currentTime: time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC),
 			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
 		{
-			name: "is expired member (overridden next audit date)",
+			name: "member has no expiration",
 			identity: tlsca.Identity{
-				Username: member1,
+				Username: member3,
 				Groups:   []string{"mrole1", "mrole2"},
 				Traits: map[string][]string{
 					"mtrait1": {"mvalue1", "mvalue2"},
 					"mtrait2": {"mvalue3", "mvalue4"},
 				},
 			},
-			currentTime: time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsAccessDenied(err))
-			},
+			currentTime:      time.Date(2030, 7, 1, 0, 0, 0, 0, time.UTC),
+			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "is member with missing roles",
@@ -416,6 +413,61 @@ func TestIsAccessListMember(t *testing.T) {
 	}
 }
 
+func TestSelectNextReviewDate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		frequency         accesslist.ReviewFrequency
+		dayOfMonth        accesslist.ReviewDayOfMonth
+		currentReviewDate time.Time
+		expected          time.Time
+	}{
+		{
+			name:              "one month, first day",
+			frequency:         accesslist.OneMonth,
+			dayOfMonth:        accesslist.FirstDayOfMonth,
+			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			expected:          time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name:              "one month, fifteenth day",
+			frequency:         accesslist.OneMonth,
+			dayOfMonth:        accesslist.FifteenthDayOfMonth,
+			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			expected:          time.Date(2023, 2, 15, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name:              "one month, last day",
+			frequency:         accesslist.OneMonth,
+			dayOfMonth:        accesslist.LastDayOfMonth,
+			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			expected:          time.Date(2023, 2, 28, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name:              "six months, last day",
+			frequency:         accesslist.SixMonths,
+			dayOfMonth:        accesslist.LastDayOfMonth,
+			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			expected:          time.Date(2023, 7, 31, 0, 0, 0, 0, time.UTC),
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			accessList := newAccessList(t)
+			accessList.Spec.Audit.NextAuditDate = test.currentReviewDate
+			accessList.Spec.Audit.Recurrence = accesslist.Recurrence{
+				Frequency:  test.frequency,
+				DayOfMonth: test.dayOfMonth,
+			}
+			require.Equal(t, test.expected, SelectNextReviewDate(accessList))
+		})
+	}
+}
+
 func newAccessList(t *testing.T) *accesslist.AccessList {
 	t.Helper()
 
@@ -437,7 +489,6 @@ func newAccessList(t *testing.T) *accesslist.AccessList {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency:     time.Hour,
 				NextAuditDate: time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
 			},
 			MembershipRequires: accesslist.Requires{
@@ -495,7 +546,18 @@ func newAccessListMembers(t *testing.T) []*accesslist.AccessListMember {
 	})
 	require.NoError(t, err)
 
-	return []*accesslist.AccessListMember{member1, member2}
+	member3, err := accesslist.NewAccessListMember(header.Metadata{
+		Name: member3,
+	}, accesslist.AccessListMemberSpec{
+		AccessList: "test",
+		Name:       member3,
+		Joined:     time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
+		Reason:     "because for the third time",
+		AddedBy:    ownerUser,
+	})
+	require.NoError(t, err)
+
+	return []*accesslist.AccessListMember{member1, member2, member3}
 }
 
 var accessListYAML = `---

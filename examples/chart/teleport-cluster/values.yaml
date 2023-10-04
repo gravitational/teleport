@@ -30,6 +30,30 @@ kubeClusterName: ""
 # If you want to run Teleport version X, you should use `helm --version X` instead.
 teleportVersionOverride: ""
 
+# The `proxyProtocol` value controls whether the Proxy pods will
+# accept PROXY lines with the client's IP address when they are
+# behind a L4 load balancer (e.g. AWS ELB, GCP L4 LB, etc) with PROXY protocol
+# enabled. Since L4 LBs do not preserve the client's IP address, PROXY protocol is
+# required to ensure that Teleport can properly audit the client's IP address.
+#
+# When Teleport pods are not behind a L4 LB with PROXY protocol enabled, this
+# value should be set to "off" to prevent Teleport from accepting PROXY headers
+# from untrusted sources.
+# Possible values are "on" and "off".
+# - "on" will enable the PROXY protocol for all connections and will require the
+#   L4 LB to send a PROXY header.
+# - "off" will disable the PROXY protocol for all connections and denies all
+#   connections prefixed with a PROXY header.
+#
+# If proxyProtocol is unspecified, Teleport does not require PROXY header for the
+# connection, but will accept it if present. This mode is considered insecure
+# and should only be used for testing purposes.
+#
+# See https://goteleport.com/docs/ver/14.x/management/security/proxy-protocol/
+# for more information.
+#
+# proxyProtocol: on
+
 # The `teleport-cluster` charts deploys two sets of pods: auth and proxy.
 # `auth` contains values specific for the auth pods. You can use it to
 #  set specific values for auth pods, taking precedence over chart-scoped values.

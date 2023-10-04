@@ -140,6 +140,20 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 		}
 	}
 
+	// 'kv'::regclass will get the oid for the kv table as searched given the
+	// current search_path, which matches the behavior of any query that refers
+	// to the kv table with no qualifier (like the rest of the pgbk code does)
+	var schemaName string
+	if err := conn.QueryRow(ctx,
+		"SELECT nsp.nspname "+
+			"FROM pg_class AS cl JOIN pg_namespace AS nsp ON cl.relnamespace = nsp.oid "+
+			"WHERE cl.oid = 'kv'::regclass",
+		pgx.QueryExecModeExec,
+	).Scan(&schemaName); err != nil {
+		return trace.Wrap(err)
+	}
+	addTables := wal2jsonEscape(schemaName) + ".kv"
+
 	// reading from a replication slot adds to the postgres log at "log" level
 	// (right below "fatal") for every poll, and we poll every second here, so
 	// we try to silence the logs for this connection; this can fail because of
@@ -189,7 +203,7 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	defer b.buf.Reset()
 
 	for ctx.Err() == nil {
-		messages, err := b.pollChangeFeed(ctx, conn, slotName, b.cfg.ChangeFeedBatchSize)
+		messages, err := b.pollChangeFeed(ctx, conn, addTables, slotName, b.cfg.ChangeFeedBatchSize)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -210,7 +224,7 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 
 // pollChangeFeed will poll the change feed and emit any fetched events, if any.
 // It returns the count of received messages.
-func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, slotName string, batchSize int) (int64, error) {
+func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, addTables, slotName string, batchSize int) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -218,8 +232,8 @@ func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, slotName s
 
 	rows, _ := conn.Query(ctx,
 		"SELECT data FROM pg_logical_slot_get_changes($1, NULL, $2, "+
-			"'format-version', '2', 'add-tables', 'public.kv', 'include-transaction', 'false')",
-		slotName, batchSize)
+			"'format-version', '2', 'add-tables', $3, 'include-transaction', 'false')",
+		slotName, batchSize, addTables)
 
 	var data []byte
 	tag, err := pgx.ForEachRow(rows, []any{(*pgtype.DriverBytes)(&data)}, func() error {

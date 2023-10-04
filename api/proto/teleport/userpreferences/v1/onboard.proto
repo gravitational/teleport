@@ -28,8 +28,24 @@ enum Resource {
   RESOURCE_WEB_APPLICATIONS = 5;
 }
 
+// MarketingParams are the parameters associated with a user via marketing campaign at the time of sign up.
+// They contain both traditional Urchin Tracking Module (UTM) parameters as well as custom parameters.
+message MarketingParams {
+  // campaign is the UTM campaign parameter which identifies a specific product promotion
+  string campaign = 1;
+  // source is the UTM source parameter which identifies which site sent the traffic
+  string source = 2;
+  // medium is the UTM medium parameter which identifies what type of link was used
+  string medium = 3;
+  // intent is the internal query param, which identifies any additional marketing intentions
+  // via internally set and directed parameters.
+  string intent = 4;
+}
+
 // OnboardUserPreferences is the user preferences selected during onboarding.
 message OnboardUserPreferences {
   // preferredResources is an array of the resources a user selected during their onboarding questionnaire.
   repeated Resource preferred_resources = 1;
+  // marketingParams are the parameters associated with a user via marketing campaign at the time of sign up
+  MarketingParams marketing_params = 2;
 }

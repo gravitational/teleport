@@ -591,9 +591,9 @@ type IdentityService interface {
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
-	// AddMFADevice adds a new MFA device for the calling user.
+	// Deprecated: Use AddMFADeviceSync instead.
 	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
-	// DeleteMFADevice deletes a MFA device for the calling user.
+	// Deprecated: Use DeleteMFADeviceSync instead.
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
 	// AddMFADeviceSync adds a new MFA device (nonstream).
 	AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
@@ -834,13 +834,13 @@ type ClientI interface {
 	OktaClient() services.Okta
 
 	// AccessListClient returns an access list client.
-	// Clients connecting to  older Teleport versions, still get an access list client
+	// Clients connecting to older Teleport versions still get an access list client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	AccessListClient() services.AccessLists
 
 	// UserLoginStateClient returns a user login state client.
-	// Clients connecting to  older Teleport versions, still get a user login state client
+	// Clients connecting to older Teleport versions still get a user login state client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	UserLoginStateClient() services.UserLoginStates

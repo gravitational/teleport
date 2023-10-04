@@ -74,6 +74,16 @@ const colors: ThemeColors = {
 
   brand: '#9F85FF',
 
+  interactive: {
+    tonal: {
+      primary: [
+        'rgba(159,133,255, 0.1)',
+        'rgba(159,133,255, 0.18)',
+        'rgba(159,133,255, 0.25)',
+      ],
+    },
+  },
+
   text: {
     main: '#FFFFFF',
     slightlyMuted: 'rgba(255, 255, 255, 0.72)',

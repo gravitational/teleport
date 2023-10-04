@@ -122,6 +122,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "long_term_storage
       kms_master_key_id = aws_kms_key.audit_key.arn
       sse_algorithm     = "aws:kms"
     }
+    bucket_key_enabled = true
   }
 }
 
@@ -160,6 +161,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "transient_storage
       kms_master_key_id = aws_kms_key.audit_key.arn
       sse_algorithm     = "aws:kms"
     }
+    bucket_key_enabled = true
   }
 }
 
@@ -250,6 +252,7 @@ resource "aws_athena_workgroup" "workgroup" {
   name          = var.workgroup
   force_destroy = true
   configuration {
+    bytes_scanned_cutoff_per_query = var.workgroup_max_scanned_bytes_per_query
     engine_version {
       selected_engine_version = "Athena engine version 3"
     }
@@ -275,6 +278,9 @@ output "athena_url" {
       format("workgroup=%s", aws_athena_workgroup.workgroup.name),
       format("queueURL=%s", aws_sqs_queue.audit_queue.url),
       format("queryResultsS3=s3://%s/query_results", aws_s3_bucket.transient_storage.bucket),
+      format("limiterBurst=%d", var.search_event_limiter_burst),
+      format("limiterRefillAmount=%s", var.search_event_limiter_amount),
+      format("limiterRefillTime=%s", var.search_event_limiter_time),
     ])
   )
 }

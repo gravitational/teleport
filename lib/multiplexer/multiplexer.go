@@ -287,7 +287,10 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 	connWrapper, err := m.detect(conn)
 	if err != nil {
 		if trace.Unwrap(err) != io.EOF {
-			m.logLimiter.Log(m.Entry, log.WarnLevel, trace.DebugReport(err))
+			m.logLimiter.Log(m.Entry.WithFields(log.Fields{
+				"src_addr": conn.RemoteAddr(),
+				"dst_addr": conn.LocalAddr(),
+			}), log.WarnLevel, trace.DebugReport(err))
 		}
 		conn.Close()
 		return
@@ -302,9 +305,15 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 	listener := m.protocolListener(connWrapper.protocol)
 	if listener == nil {
 		if connWrapper.protocol == ProtoHTTP {
-			m.Debug("Detected an HTTP request. If this is for a health check, use an HTTPS request instead.")
+			m.WithFields(log.Fields{
+				"src_addr": connWrapper.RemoteAddr(),
+				"dst_addr": connWrapper.LocalAddr(),
+			}).Debug("Detected an HTTP request. If this is for a health check, use an HTTPS request instead.")
 		}
-		m.Debugf("Closing %[1]s connection: %[1]s listener is disabled.", connWrapper.protocol)
+		m.WithFields(log.Fields{
+			"src_addr": connWrapper.RemoteAddr(),
+			"dst_addr": connWrapper.LocalAddr(),
+		}).Debugf("Closing %[1]s connection: %[1]s listener is disabled.", connWrapper.protocol)
 		connWrapper.Close()
 		return
 	}

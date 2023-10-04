@@ -59,7 +59,7 @@ type TestModules struct {
 //
 //	   // cleanup will revert module changes after test completes
 //	}
-func SetTestModules(t *testing.T, testModules *TestModules) {
+func SetTestModules(t *testing.T, testModules Modules) {
 	defaultModules := GetModules()
 	t.Cleanup(func() { SetModules(defaultModules) })
 	t.Setenv("TELEPORT_TEST_NOT_SAFE_FOR_PARALLEL", "true")
