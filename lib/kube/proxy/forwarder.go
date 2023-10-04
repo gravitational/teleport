@@ -79,7 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -107,7 +107,7 @@ const (
 // ForwarderConfig specifies configuration for proxy forwarder
 type ForwarderConfig struct {
 	// ReverseTunnelSrv is the teleport reverse tunnel server
-	ReverseTunnelSrv reversetunnel.Server
+	ReverseTunnelSrv reversetunnelclient.Server
 	// ClusterName is a local cluster name
 	ClusterName string
 	// Keygen points to a key generator implementation
@@ -718,7 +718,7 @@ func (f *Forwarder) setupContext(authCtx authz.Context, req *http.Request, isRem
 		}
 
 		dialFn = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
-			return targetCluster.DialTCP(reversetunnel.DialParams{
+			return targetCluster.DialTCP(reversetunnelclient.DialParams{
 				From:                  &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
 				To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
 				ConnType:              types.KubeTunnel,
@@ -730,7 +730,7 @@ func (f *Forwarder) setupContext(authCtx authz.Context, req *http.Request, isRem
 		isRemoteClosed = targetCluster.IsClosed
 	} else if f.cfg.ReverseTunnelSrv != nil {
 		// Not a remote cluster and we have a reverse tunnel server.
-		// Use the local reversetunnel.Site which knows how to dial by serverID
+		// Use the local reversetunnelclient.Site which knows how to dial by serverID
 		// (for "kubernetes_service" connected over a tunnel) and falls back to
 		// direct dial if needed.
 		localCluster, err := f.cfg.ReverseTunnelSrv.GetSite(f.cfg.ClusterName)
@@ -743,7 +743,7 @@ func (f *Forwarder) setupContext(authCtx authz.Context, req *http.Request, isRem
 			if forwarderType != ProxyService && endpoint.serverID == "" {
 				clientDst = nil
 			}
-			return localCluster.DialTCP(reversetunnel.DialParams{
+			return localCluster.DialTCP(reversetunnelclient.DialParams{
 				From:                  &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
 				To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
 				ConnType:              types.KubeTunnel,
@@ -2120,7 +2120,7 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx authContext) (*clusterSes
 		// and the targetKubernetes cluster endpoint is determined from the identity
 		// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
 		// `kube.teleport.cluster.local` value to indicate this is a Kubernetes proxy request
-		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}},
+		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: reversetunnelclient.LocalKubernetes}},
 		tlsConfig:            tlsConfig.Clone(),
 	}, nil
 }

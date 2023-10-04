@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
 func TestMatchAll(t *testing.T) {
@@ -79,20 +79,20 @@ func TestMatchHealthy(t *testing.T) {
 }
 
 type mockProxyClient struct {
-	reversetunnel.Tunnel
+	reversetunnelclient.Tunnel
 	remoteSite *mockRemoteSite
 }
 
-func (p *mockProxyClient) GetSite(_ string) (reversetunnel.RemoteSite, error) {
+func (p *mockProxyClient) GetSite(_ string) (reversetunnelclient.RemoteSite, error) {
 	return p.remoteSite, nil
 }
 
 type mockRemoteSite struct {
-	reversetunnel.RemoteSite
+	reversetunnelclient.RemoteSite
 	dialErr error
 }
 
-func (r *mockRemoteSite) Dial(_ reversetunnel.DialParams) (net.Conn, error) {
+func (r *mockRemoteSite) Dial(_ reversetunnelclient.DialParams) (net.Conn, error) {
 	if r.dialErr != nil {
 		return nil, r.dialErr
 	}

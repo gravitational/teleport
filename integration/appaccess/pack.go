@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -750,7 +750,7 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 	return servers
 }
 
-func waitForAppServer(t *testing.T, tunnel reversetunnel.Server, name string, hostUUID string, apps []service.App) {
+func waitForAppServer(t *testing.T, tunnel reversetunnelclient.Server, name string, hostUUID string, apps []service.App) {
 	// Make sure that the app server is ready to accept connections.
 	// The remote site cache needs to be filled with new registered application services.
 	waitForAppRegInRemoteSiteCache(t, tunnel, name, apps, hostUUID)
@@ -888,7 +888,7 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 	return servers
 }
 
-func waitForAppRegInRemoteSiteCache(t *testing.T, tunnel reversetunnel.Server, clusterName string, cfgApps []service.App, hostUUID string) {
+func waitForAppRegInRemoteSiteCache(t *testing.T, tunnel reversetunnelclient.Server, clusterName string, cfgApps []service.App, hostUUID string) {
 	require.Eventually(t, func() bool {
 		site, err := tunnel.GetSite(clusterName)
 		require.NoError(t, err)
