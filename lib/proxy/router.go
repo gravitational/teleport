@@ -71,24 +71,24 @@ func init() {
 	metrics.RegisterPrometheusCollectors(proxiedSessions, failedConnectingToNode, connectingToNode)
 }
 
-// proxiedMetricConn wraps [net.Conn] opened by
+// ProxiedMetricConn wraps [net.Conn] opened by
 // the [Router] so that the proxiedSessions counter
 // can be decremented when it is closed.
-type proxiedMetricConn struct {
+type ProxiedMetricConn struct {
 	// once ensures that proxiedSessions is only decremented
 	// a single time per [net.Conn]
 	once sync.Once
 	net.Conn
 }
 
-// newProxiedMetricConn increments proxiedSessions and creates
-// a proxiedMetricConn that defers to the provided [net.Conn].
-func newProxiedMetricConn(conn net.Conn) *proxiedMetricConn {
+// NewProxiedMetricConn increments proxiedSessions and creates
+// a ProxiedMetricConn that defers to the provided [net.Conn].
+func NewProxiedMetricConn(conn net.Conn) *ProxiedMetricConn {
 	proxiedSessions.Inc()
-	return &proxiedMetricConn{Conn: conn}
+	return &ProxiedMetricConn{Conn: conn}
 }
 
-func (c *proxiedMetricConn) Close() error {
+func (c *ProxiedMetricConn) Close() error {
 	c.once.Do(proxiedSessions.Dec)
 	return trace.Wrap(c.Conn.Close())
 }
@@ -285,7 +285,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		return nil, "", trace.Wrap(err)
 	}
 
-	return newProxiedMetricConn(conn), targetTeleportVersion, trace.Wrap(err)
+	return NewProxiedMetricConn(conn), targetTeleportVersion, trace.Wrap(err)
 }
 
 // getRemoteCluster looks up the provided clusterName to determine if a remote site exists with
@@ -465,5 +465,5 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 		return nil, trace.Wrap(err)
 	}
 
-	return newProxiedMetricConn(conn), trace.Wrap(err)
+	return NewProxiedMetricConn(conn), trace.Wrap(err)
 }
