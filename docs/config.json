@@ -616,8 +616,8 @@
           "slug": "/management/security/",
           "entries": [
             {
-              "title": "Privilege Elevation",
-              "slug": "/management/security/privilege-elevation/"
+              "title": "Restrict Access for Privileged Accounts",
+              "slug": "/management/security/restrict-privileges/"
             },
             {
               "title": "Reducing the Blast Radius of Attacks",
