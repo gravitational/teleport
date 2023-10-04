@@ -5,12 +5,12 @@ description: How to use Machine ID to access servers via SSH
 
 (!docs/pages/includes/machine-id/v2-config-warning.mdx!)
 
-Teleport Server Access protects and controls SSH access to servers. Machine ID
+Teleport protects and controls SSH access to servers. Machine ID
 can be used to grant machines secure, short-lived access to these servers.
 
 In this guide, you will configure `tbot` to produce credentials that can be
-used to access a Linux server enrolled in Teleport Server Access. The guide
-will cover access using Teleports CLI `tsh` as well as the OpenSSH SSH client.
+used to access a Linux server enrolled in Teleport. The guide
+will cover access using the Teleport CLI `tsh` as well as the OpenSSH client.
 
 ## Prerequisites
 
@@ -28,11 +28,11 @@ will cover access using Teleports CLI `tsh` as well as the OpenSSH SSH client.
 ## Step 1/3. Configure RBAC
 
 First, Teleport must be configured to allow the credentials produced by the bot
-to connect to the SSH servers. In this example, access will be granted to all
+to connect to SSH servers in your infrastructure. In this example, access will be granted to all
 SSH nodes for the username `root`.
 
 For production use, you should use labels to restrict this access to only the
-hosts that the bot will need to access. This is known as the principal of
+hosts that the bot will need to access. This is known as the principle of
 least privilege and limits the damage that exfiltrated credentials can do.
 
 You may also wish to adjust this to grant access to a user other than `root`
@@ -57,7 +57,7 @@ spec:
 
 ## Step 2/3. Configure the `tbot` output
 
-Now, `tbot` needs to be configured with an output that will produce the
+Now, `tbot` needs to be configured with an output that will produce an
 SSH certificate and OpenSSH configuration. For this we use the `identity` output
 type.
 
@@ -92,21 +92,20 @@ Once `tbot` has been run or restarted, you should now see several files under
 - `identity`: this is a bundle of credentials that can be used by `tsh` to
  authenticate.
 - `ssh_config`: this can be used with OpenSSH and other tools to configure them
-to use the Teleport Proxy with the correct credentials when making connections.
+to use the Teleport Proxy Service with the correct credentials when making connections.
 - `known_hosts`: this contains the Teleport SSH host CAs and allows the SSH
-client to validate a hosts certificate.
+client to validate a host's certificate.
 - `key-cert.pub`: this is an SSH certificate signed by the Teleport SSH user
 CA.
 - `key`: this is the private key needed to use the SSH certificate.
 
-These credentials can be used with Teleport's CLI `tsh` or with tools based on
-OpenSSHs SSH client.
+These credentials can be used with Teleport's CLI `tsh` or with OpenSSH client tools like `ssh` and `sftp`.
 
 ### Connecting using `tsh`
 
 To use `tsh` with a `tbot` identity output, the path to the `identity` file
 must be specified using the `-i` flag. In addition, `--proxy` must be used to
-specify the address of the Teleport Proxy that should be used when making
+specify the address of the Teleport Proxy Service that should be used when making
 connections.
 
 In this example, `tsh` is used to connect to a node called `my-host` via the
@@ -145,7 +144,7 @@ is compatible with them. This is the case for many tools such as Ansible and the
 guidance provided under "Connecting using OpenSSH" should be sufficient.
 
 If you wish to integrate with Ansible, check out the
-[Ansible specific guide](./ansible.mdx).
+[Ansible-specific guide](./ansible.mdx).
 
 If your tool is not compatible with `ssh_config`, it may still be possible to
 configure it to use the credentials produced by Machine ID. It must support
