@@ -734,8 +734,6 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindAppServer, services.RW()),
 						types.NewRule(types.KindApp, services.RO()),
-						types.NewRule(types.KindWebSession, services.RO()),
-						types.NewRule(types.KindWebToken, services.RO()),
 						types.NewRule(types.KindJWT, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
 					},
