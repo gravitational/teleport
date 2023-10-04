@@ -140,15 +140,10 @@ jobs:
             docker buildx imagetools create --tag $DST_REPO:$tag $SRC_IMAGE
           done
 
-      - name: Sign production images using signing key
+      - name: Sign production images using signing key and GitHub OIDC Token
         env:
           SIGNING_KEY_URL: ${{ inputs.production-signing-key-url }}
           DST_IMAGE: "${{ inputs.production-registry }}/${{ inputs.production-repository }}@${{ env.TELEPORT_IMAGE_LIST_HASH }}"
         run: |
           cosign sign --yes --key ${SIGNING_KEY_URL} --recursive ${DST_IMAGE}
-
-      - name: Sign production images using GitHub OIDC Token
-        env:
-          DST_IMAGE: "${{ inputs.production-registry }}/${{ inputs.production-repository }}@${{ env.TELEPORT_IMAGE_LIST_HASH }}"
-        run: |
-          cosign sign --yes --recursive ${DST_IMAGE}
+          cosign sign --yes --upload=false --recursive ${DST_IMAGE}
