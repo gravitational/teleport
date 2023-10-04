@@ -87,6 +87,7 @@ var SupportedAWSDatabaseMatchers = []string{
 // api/types.
 var RequireAWSIAMRolesAsUsersMatchers = []string{
 	AWSMatcherRedshiftServerless,
+	AWSMatcherOpenSearch,
 }
 
 // GetTypes gets the types that the matcher can match.
