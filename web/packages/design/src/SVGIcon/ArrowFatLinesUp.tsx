@@ -52,7 +52,7 @@ export function ArrowFatLinesUpIcon({
   return (
     <SVGIcon
       size={size}
-      color={fill}
+      fill={fill}
       viewBox="0 0 24 24"
       className="icon icon-arrowfatlinesup"
       {...otherProps}
