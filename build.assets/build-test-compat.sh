@@ -53,54 +53,16 @@ DISTROS=(
 # It will be set to non-zero value if any of run commands returns an error.
 EXIT_CODE=0
 
-# Run binary in a Docker container and propagate returned exit code. 
-#
-# This will sometimes run under Google Cloud Build, which implies using Docker-
-# out-of-Docker to interact with containers. This means that simply mounting
-# the test targest into the test container won't work, as it would require
-# knowledge of (and control over) the build container that we just don't have.
-#
-# In order to have a solution that works on both GCB and on a developer desktop,
-# we instead jump through a lot of hoops that `docker run` normally takes care 
-# of (like manually creating the container, copying the test targets into it, 
-# manually starting it, etc). 
-#
-# Arguments:
-# $1    - distro name
-# $2    - binary to run
-# $3... - arguments to binary
-function run_docker {
-  distro=$1
-  binary=$(basename $2)
-
-  container=$(docker create $distro /tmp/$binary "${@:3}")
-  # I *want* the variable below expanded now, so disabling lint
-  # shellcheck disable=SC2064
-  trap "docker rm $container > /dev/null" RETURN
-
-  docker cp $2 $container:/tmp/$binary
-  docker start $container > /dev/null
-  test_result=$(docker wait $container)
-
-  EXIT_CODE=$((EXIT_CODE || test_result))
-  if [ $test_result -ne 0 ]
-  then
-    echo "$binary failed on $distro:"
-    docker logs $container
-  fi
-
-  return $test_result
-}
+echo "============ Pulling images ============"
+# Cache images in parallel to speed up the process.
+printf '%s\0' "${DISTROS[@]}" | xargs -0 -P 10 -I{} docker pull {}
 
 for DISTRO in "${DISTROS[@]}";
 do
   echo "============ Checking ${DISTRO} ============"
-  docker pull "${DISTRO}"
 
-  run_docker "$DISTRO" $PWD/build/teleport version
-  run_docker "$DISTRO" $PWD/build/tsh version
-  run_docker "$DISTRO" $PWD/build/tctl version
-  run_docker "$DISTRO" $PWD/build/tbot version
+  printf '%s\0' "teleport" "tsh" "tctl" "tbot" | xargs -0 -P 4 -I{} bash -c "docker run -v ${PWD}:/app \"$DISTRO\" \"/app/build/{}\" version"
+  EXIT_CODE=$((EXIT_CODE || $?))
 done
 
 exit $EXIT_CODE

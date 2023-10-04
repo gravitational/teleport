@@ -3,12 +3,14 @@ title: FedRAMP Compliance for Infrastructure Access
 description: How to configure SSH, Kubernetes, database, and web app access to be FedRAMP compliant, including support for FIPS 140-2.
 ---
 
-Teleport provides the foundation to meet FedRAMP requirements for the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS\_140-2), also known as the Federal Information Processing Standard, which is the US government approved standard for cryptographic modules. This document outlines a high
-level overview of how Teleport FIPS mode works and how it can help your company to become FedRAMP authorized.
+Teleport provides the foundation to meet FedRAMP requirements for the purposes of accessing infrastructure. 
+This includes support for the Federal Information Processing Standard [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS\_140-2).
+This standard is the US government approved standard for cryptographic modules. This document explains how  
+Teleport FIPS mode works and how it can help your company to become FedRAMP authorized.
 
 ## Obtain FedRAMP authorization with Teleport
 
-Teleport includes new FedRAMP and FIPS 140-2 features to support companies that sell into
+Teleport includes FedRAMP and FIPS 140-2 features to support companies that sell into
 government agencies.
 
 | Control | Teleport Features |
@@ -25,29 +27,44 @@ government agencies.
 | [IA-03 Device Identification and Authentication]((=fedramp.control_url=)IA-3) | Teleport requires valid x509 or SSH certificates issued by a Teleport Certificate Authority (CA) to establish a network connection for device-to-device network connection between Teleport components. |
 | [SC-12 Cryptographic Key Establish and Management]((=fedramp.control_url=)SC-12) | Teleport initializes cryptographic keys that act as a Certificate Authority (CA) to further issue x509 and SSH certificates. SSH and x509 user certificates that are issued are signed by the CA and are (by default) short-lived. SSH host certificates are also signed by the CA and rotated automatically (a manual force rotation can also be performed).<br/>Teleport Enterprise builds against a FIPS 140-2 compliant library (BoringCrypto) is available. <br/>In addition, when Teleport Enterprise is in FedRAMP/FIPS 140-2 mode, Teleport will only start and use FIPS 140-2 compliant cryptography. |
 
-## Setup
+## Download and install
 
-If your Teleport cluster is running on AWS, it must be running in a GovCloud
-region to support FIPS.
+You can follow the [Installation instructions](../../installation.mdx#installation-instructions) for 
+Teleport Enterprise edition to download and install the appropriate FIPS-compliant binaries for 
+your operating environment and package manager or from compressed archive (tarball).
 
-Sign in to your [Teleport account](https://teleport.sh) to download a FIPS binary
-for Teleport Enterprise. Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB
-packages are also available.
-
-After downloading the binary tarball, run:
+For example, you can download and install from the compressed archive by running the following commands:
 
 ```code
-$ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-fips-bin.tar.gz
+$ curl https://get.gravitational.com/teleport-ent-(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz.sha256
+<checksum> <filename>
+$ curl -O https://cdn.teleport.dev/teleport-ent-(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz
+
+# Verify that the checksums match
+$ shasum -a 256 teleport-ent-(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz
+
+$ tar -xvf teleport-ent-(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz
 $ cd teleport-ent
 $ sudo ./install
-# This will copy Teleport Enterprise to /usr/local/bin.
 ```
 
-## Configuration
+After you download and install, all of the Teleport Enterprise binaries are 
+installed in the `/usr/local/bin` directory. You can verify you have FIPS-compliant
+binaries installed by running the `teleport version` command and verifying that 
+the `X:boringcrypto` library is listed. For example:
 
-### Teleport Auth Service
+```code
+$ teleport version
+Teleport Enterprise (= teleport.version =) (= teleport.git =) (= teleport.golang =) X:boringcrypto
+```
 
-Now, save the following configuration file as `/etc/teleport.yaml` on the Teleport Auth
+If your Teleport cluster runs on AWS, the cluster can run in US-East or US-West regions for services
+with low or moderate impact levels. For services with a high impact level, the cluster must run 
+in a GovCloud region to support FIPS.
+
+## Configure the Teleport Auth Service
+
+Save the following configuration file as `/etc/teleport.yaml` on the Teleport Auth
 Service:
 
 ```yaml
@@ -90,7 +107,7 @@ ssh_service:
   enabled: false
 ```
 
-### Teleport Node
+## Configure the Teleport SSH Service
 
 Save the following configuration file as `/etc/teleport.yaml` on the Node
 Service host:
@@ -114,9 +131,9 @@ proxy_service:
   enabled: false
 ```
 
-### Systemd Unit File
+## Configure service unit file
 
-Next, download the systemd service unit file from the [examples directory](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/systemd/fips)
+Download the `systemd` service unit file from the [examples directory](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/systemd/fips)
 on GitHub and save it as `/etc/systemd/system/teleport.service` on both servers.
 
 ```code
@@ -125,7 +142,7 @@ $ sudo systemctl daemon-reload
 $ sudo systemctl enable teleport
 ```
 
-### Starting Teleport in FIPS mode
+## Start Teleport in FIPS mode
 
 When using `teleport start --fips`, Teleport will start in FIPS mode.
 
@@ -142,7 +159,7 @@ When using `teleport start --fips`, Teleport will start in FIPS mode.
 - Running commands like `ps aux` can be useful to note that Teleport is running
   in FIPS mode.
 
-### Default Cryptographic Algorithms
+## Default cryptographic algorithms
 
 In FIPS mode, Teleport will use the following cryptographic algorithms by default.
 
@@ -171,7 +188,7 @@ Default FIPS ciphersuites for TLS:
 - `tls-ecdhe-rsa-with-aes-256-gcm-sha384`
 - `tls-ecdhe-ecdsa-with-aes-256-gcm-sha384`
 
-### FedRAMP Audit Log
+## FedRAMP audit log
 
 At the close of a connection (close of a \*srv.ServerContext), the total data transmitted and received
 is emitted to the Audit Log.

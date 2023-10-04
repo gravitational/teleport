@@ -760,7 +760,6 @@ func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.Cer
 			if err != nil {
 				return nil, 0, trace.Wrap(err)
 			}
-			log.Debugf("ClientCertPool -> %v", CertInfo(cert))
 			pool.AddCert(cert)
 
 			// Each subject in the list gets a separate 2-byte length prefix.

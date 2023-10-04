@@ -156,7 +156,6 @@ func (h *HeadlessAuthenticationWatcher) runWatchLoop(ctx context.Context) {
 			h.Log.Warningf("Restarting watch on error after waiting %v. Error: %v.", t.Sub(startedWaiting), err)
 			h.retry.Inc()
 		case <-ctx.Done():
-			h.Log.WithError(ctx.Err()).Debugf("Context closed with err. Returning from watch loop.")
 			return
 		case <-h.closed:
 			h.Log.Debug("Watcher closed. Returning from watch loop.")

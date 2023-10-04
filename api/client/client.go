@@ -1598,6 +1598,7 @@ func (c *Client) AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADevi
 	return stream, nil
 }
 
+// Deprecated: Use DeleteMFADeviceSync instead.
 func (c *Client) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error) {
 	stream, err := c.grpc.DeleteMFADevice(ctx)
 	if err != nil {

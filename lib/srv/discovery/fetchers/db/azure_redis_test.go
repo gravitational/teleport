@@ -47,7 +47,7 @@ func TestAzureRedisFetchers(t *testing.T) {
 	azRedisEnterpriseCluster, azRedisEnterpriseDatabase, azRedisEnterpriseDB := makeAzureRedisEnterpriseCluster(t, "redis-enterprise", "sub", "group", "eastus", map[string]string{"env": "prod"})
 
 	azureMatchers := []types.AzureMatcher{{
-		Types:        []string{services.AzureMatcherRedis},
+		Types:        []string{types.AzureMatcherRedis},
 		ResourceTags: types.Labels{"env": []string{"prod"}},
 		Regions:      []string{"eastus"},
 	}}
@@ -88,7 +88,7 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 
 	database, err := services.NewDatabaseFromAzureRedis(resourceInfo)
 	require.NoError(t, err)
-	common.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherRedis)
+	common.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherRedis)
 	return resourceInfo, database
 }
 
@@ -115,6 +115,6 @@ func makeAzureRedisEnterpriseCluster(t *testing.T, cluster, subscription, group,
 
 	database, err := services.NewDatabaseFromAzureRedisEnterprise(armCluster, armDatabase)
 	require.NoError(t, err)
-	common.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherRedis)
+	common.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherRedis)
 	return armCluster, armDatabase, database
 }

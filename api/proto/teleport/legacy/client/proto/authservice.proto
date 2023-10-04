@@ -1174,6 +1174,8 @@ message AddMFADeviceResponseAck {
 
 // DeleteMFADeviceRequest is a message sent by the client during
 // DeleteMFADevice RPC.
+//
+// Deprecated: Use [AuthService.DeleteMFADeviceSync] instead.
 message DeleteMFADeviceRequest {
   oneof Request {
     // Init describes the device to be deleted.
@@ -1183,6 +1185,7 @@ message DeleteMFADeviceRequest {
   }
 }
 
+// Deprecated: Use [AuthService.DeleteMFADeviceSync] instead.
 message DeleteMFADeviceResponse {
   oneof Response {
     // MFAChallenge is an auth challenge using any existing MFA device.
@@ -1193,6 +1196,8 @@ message DeleteMFADeviceResponse {
 }
 
 // DeleteMFADeviceRequestInit describes the device to be deleted.
+//
+// Deprecated: Use [AuthService.DeleteMFADeviceSync] instead.
 message DeleteMFADeviceRequestInit {
   // DeviceName is an MFA device name or ID to be deleted.
   string DeviceName = 1;
@@ -1206,12 +1211,20 @@ message DeleteMFADeviceResponseAck {
 // DeleteMFADeviceSyncRequest is a request to delete a MFA device (nonstream).
 message DeleteMFADeviceSyncRequest {
   // TokenID is the ID of a user token that will be used to verify this request.
+  //
   // Token types accepted are:
   //   - Recovery approved token that is obtained with RPC VerifyAccountRecovery
   //   - Privilege token that is obtained with RPC CreatePrivilegeToken
+  //
+  // Authenticated users can delete a device by providing an ExistingMFAResponse
+  // instead.
   string TokenID = 1 [(gogoproto.jsontag) = "token_id"];
   // DeviceName is the name of the device to delete.
   string DeviceName = 2 [(gogoproto.jsontag) = "device_name"];
+  // ExistingMFAResponse is an MFA response from an existing device.
+  //
+  // May be provided as an alternative to TokenID.
+  MFAAuthenticateResponse ExistingMFAResponse = 3 [(gogoproto.jsontag) = "existing_mfa_response,omitempty"];
 }
 
 // AddMFADeviceSyncRequest is a request to add a MFA device (nonstream).
@@ -2636,7 +2649,11 @@ service AuthService {
   // <- MFAChallenge
   // -> MFAResponse
   // <- Ack
-  rpc DeleteMFADevice(stream DeleteMFADeviceRequest) returns (stream DeleteMFADeviceResponse);
+  //
+  // Deprecated: Use [DeleteMFADeviceSync] instead.
+  rpc DeleteMFADevice(stream DeleteMFADeviceRequest) returns (stream DeleteMFADeviceResponse) {
+    option deprecated = true;
+  }
   // AddMFADeviceSync adds a new MFA device.
   //
   // A typical MFA registration sequence calls the following RPCs:
@@ -2647,6 +2664,14 @@ service AuthService {
   // 4. AddMFADeviceSync
   rpc AddMFADeviceSync(AddMFADeviceSyncRequest) returns (AddMFADeviceSyncResponse);
   // DeleteMFADeviceSync deletes a users MFA device (nonstream).
+  //
+  // A typical MFA deletion sequence calls the following RPCs:
+  //
+  // 1. (optional) CreateAuthenticateChallenge
+  //    (may be skipped depending on the token used, but is usually called
+  //    regardless)
+  // 2. (optional) CreatePrivilegeToken
+  // 3. DeleteMFADeviceSync (using either authn challenge or token)
   rpc DeleteMFADeviceSync(DeleteMFADeviceSyncRequest) returns (google.protobuf.Empty);
   // GetMFADevices returns all MFA devices registered for the user calling
   // this RPC.
