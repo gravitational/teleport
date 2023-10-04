@@ -72,12 +72,12 @@ func TestRDSFetchers(t *testing.T) {
 			},
 			inputMatchers: []types.AWSMatcher{
 				{
-					Types:   []string{services.AWSMatcherRDS},
+					Types:   []string{types.AWSMatcherRDS},
 					Regions: []string{"us-east-1"},
 					Tags:    toTypeLabels(wildcardLabels),
 				},
 				{
-					Types:   []string{services.AWSMatcherRDS},
+					Types:   []string{types.AWSMatcherRDS},
 					Regions: []string{"us-east-2"},
 					Tags:    toTypeLabels(wildcardLabels),
 				},
@@ -105,12 +105,12 @@ func TestRDSFetchers(t *testing.T) {
 			},
 			inputMatchers: []types.AWSMatcher{
 				{
-					Types:   []string{services.AWSMatcherRDS},
+					Types:   []string{types.AWSMatcherRDS},
 					Regions: []string{"us-east-1"},
 					Tags:    toTypeLabels(envProdLabels),
 				},
 				{
-					Types:   []string{services.AWSMatcherRDS},
+					Types:   []string{types.AWSMatcherRDS},
 					Regions: []string{"us-east-2"},
 					Tags:    toTypeLabels(envDevLabels),
 				},
@@ -138,12 +138,12 @@ func TestRDSFetchers(t *testing.T) {
 			},
 			inputMatchers: []types.AWSMatcher{
 				{
-					Types:   []string{services.AWSMatcherRDS},
+					Types:   []string{types.AWSMatcherRDS},
 					Regions: []string{"us-east-1"},
 					Tags:    toTypeLabels(wildcardLabels),
 				},
 				{
-					Types:   []string{services.AWSMatcherRDS},
+					Types:   []string{types.AWSMatcherRDS},
 					Regions: []string{"us-east-2"},
 					Tags:    toTypeLabels(wildcardLabels),
 				},
@@ -161,7 +161,7 @@ func TestRDSFetchers(t *testing.T) {
 				},
 			},
 			inputMatchers: []types.AWSMatcher{{
-				Types:   []string{services.AWSMatcherRDS},
+				Types:   []string{types.AWSMatcherRDS},
 				Regions: []string{"us-east-1"},
 				Tags:    toTypeLabels(wildcardLabels),
 			}},
@@ -177,7 +177,7 @@ func TestRDSFetchers(t *testing.T) {
 				},
 			},
 			inputMatchers: []types.AWSMatcher{{
-				Types:   []string{services.AWSMatcherRDS},
+				Types:   []string{types.AWSMatcherRDS},
 				Regions: []string{"us-east-1"},
 				Tags:    toTypeLabels(wildcardLabels),
 			}},
@@ -192,7 +192,7 @@ func TestRDSFetchers(t *testing.T) {
 				},
 			},
 			inputMatchers: []types.AWSMatcher{{
-				Types:   []string{services.AWSMatcherRDS},
+				Types:   []string{types.AWSMatcherRDS},
 				Regions: []string{"us-east-1"},
 				Tags:    toTypeLabels(wildcardLabels),
 			}},
@@ -206,7 +206,7 @@ func makeRDSInstance(t *testing.T, name, region string, labels map[string]string
 	instance := mocks.RDSInstance(name, region, labels, opts...)
 	database, err := services.NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRDS)
+	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRDS)
 	return instance, database
 }
 
@@ -214,7 +214,7 @@ func makeRDSCluster(t *testing.T, name, region string, labels map[string]string,
 	cluster := mocks.RDSCluster(name, region, labels, opts...)
 	database, err := services.NewDatabaseFromRDSCluster(cluster)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRDS)
+	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRDS)
 	return cluster, database
 }
 
@@ -250,7 +250,7 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 	databases = append(databases, customDatabases...)
 
 	for _, db := range databases {
-		common.ApplyAWSDatabaseNameSuffix(db, services.AWSMatcherRDS)
+		common.ApplyAWSDatabaseNameSuffix(db, types.AWSMatcherRDS)
 	}
 	return cluster, databases
 }
