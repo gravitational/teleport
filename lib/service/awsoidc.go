@@ -389,18 +389,19 @@ func (updater *DeployServiceUpdater) ensureClusterAlert(ctx context.Context, int
 		return trace.Wrap(err)
 	}
 
-	scriptURL, err := url.Parse(fmt.Sprintf("https://%swebapi/scripts/integrations/configure/deployservice-iam.sh", clusterConfig.GetClusterName()))
+	scriptURL, err := url.Parse(fmt.Sprintf("https://%s/webapi/scripts/integrations/configure/deployservice-iam.sh", clusterConfig.GetClusterName()))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	values := scriptURL.Query()
 	values.Add("integrationName", integration.GetName())
 	values.Add("awsRegion", awsRegion)
-	values.Add("taskRole", url.QueryEscape("<task-role>")) // The task role needs to be supplied by the user
-	values.Add("taskRole", path.Base(integration.GetAWSOIDCIntegrationSpec().RoleARN))
+	values.Add("role", path.Base(integration.GetAWSOIDCIntegrationSpec().RoleARN))
+	values.Add("taskRole", "TASK_ROLE") // The task role needs to be supplied by the user
 	scriptURL.RawQuery = values.Encode()
 
-	message := fmt.Sprintf("Re-run AWS OIDC integration configuration script to update permissions: %s", scriptURL.String())
+	cmd := fmt.Sprintf(`bash -c "$(curl '%s')"`, scriptURL)
+	message := fmt.Sprintf("Open Amazon CloudShell and copy/paste the following command to reconfigure integration. Replace TASK_ROLE with desired deploy service task role name: %s", cmd)
 
 	alert, err := types.NewClusterAlert(awsOIDCAccessDenied, message, types.WithAlertSeverity(types.AlertSeverity_LOW))
 	if err != nil {
