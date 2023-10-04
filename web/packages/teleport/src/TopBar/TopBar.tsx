@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useState, lazy } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { Flex, Text, TopNav } from 'design';
 
@@ -46,24 +46,10 @@ import {
 } from 'teleport/Assist/Popup/Popup';
 
 import ClusterSelector from './ClusterSelector';
+import { Notifications } from './Notifications';
+import { ButtonIconContainer } from './Shared';
 
-const Assist = React.lazy(() => import('teleport/Assist'));
-
-const AssistButton = styled.div`
-  padding: 0 10px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 5px;
-  cursor: pointer;
-  user-select: none;
-  margin-right: 5px;
-
-  &:hover {
-    background: ${props => props.theme.colors.spotBackground[0]};
-  }
-`;
+const Assist = lazy(() => import('teleport/Assist'));
 
 const AssistButtonContainer = styled.div`
   position: relative;
@@ -189,9 +175,9 @@ export function TopBar({ hidePopup = false }: TopBarProps) {
       <Flex ml="auto" height="100%" alignItems="center">
         {!hasDockedElement && assistEnabled && (
           <AssistButtonContainer>
-            <AssistButton onClick={() => setShowAssist(true)}>
+            <ButtonIconContainer onClick={() => setShowAssist(true)}>
               <BrainIcon />
-            </AssistButton>
+            </ButtonIconContainer>
             {showAssistPopup && !hidePopup && (
               <>
                 <Background />
@@ -217,6 +203,7 @@ export function TopBar({ hidePopup = false }: TopBarProps) {
             )}
           </AssistButtonContainer>
         )}
+        <Notifications />
         <UserMenuNav username={ctx.storeUser.state.username} />
       </Flex>
 
