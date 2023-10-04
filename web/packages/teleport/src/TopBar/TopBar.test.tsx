@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { render, screen } from 'design/utils/testing';
+import { render, screen, userEvent } from 'design/utils/testing';
 
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
@@ -57,56 +57,80 @@ function setup(): void {
   mockUserContextProviderWith(makeTestUserContext());
 }
 
-test('does not show assist popup if hidePopup is true', () => {
+test('does not show assist popup if hidePopup is true', async () => {
   setup();
 
-  render(
-    <Router history={createMemoryHistory()}>
-      <LayoutContextProvider>
-        <TeleportContextProvider ctx={ctx}>
-          <FeaturesContextProvider value={getOSSFeatures()}>
-            <TopBar hidePopup={true} />
-          </FeaturesContextProvider>
-        </TeleportContextProvider>
-      </LayoutContextProvider>
-    </Router>
-  );
+  render(getTopBar({ hidePopup: true }));
+  await screen.findByTestId('cluster-selector');
 
   expect(screen.queryByTestId('assistPopup')).not.toBeInTheDocument();
 });
 
-test('shows assist popup if hidePopup is absent', () => {
+test('shows assist popup if hidePopup is absent', async () => {
   setup();
 
-  render(
+  render(getTopBar({}));
+  await screen.findByTestId('cluster-selector');
+
+  expect(screen.getByTestId('assistPopup')).toBeInTheDocument();
+});
+
+test('shows assist popup if hidePopup is false', async () => {
+  setup();
+
+  render(getTopBar({ hidePopup: false }));
+  await screen.findByTestId('cluster-selector');
+
+  expect(screen.getByTestId('assistPopup')).toBeInTheDocument();
+});
+
+test('notification bell without notification', async () => {
+  setup();
+
+  render(getTopBar({}));
+  await screen.findByTestId('cluster-selector');
+
+  expect(screen.getByTestId('tb-note')).toBeInTheDocument();
+  expect(screen.queryByTestId('tb-note-attention')).not.toBeInTheDocument();
+});
+
+test('notification bell with notification', async () => {
+  setup();
+  ctx.storeNotifications.state = {
+    notices: [
+      {
+        kind: 'access-lists',
+        id: 'abc',
+        resourceName: 'banana',
+        date: new Date(),
+        route: '',
+      },
+    ],
+  };
+
+  render(getTopBar({}));
+  await screen.findByTestId('cluster-selector');
+
+  expect(screen.getByTestId('tb-note')).toBeInTheDocument();
+  expect(screen.getByTestId('tb-note-attention')).toBeInTheDocument();
+
+  // Test clicking and rendering of dropdown.
+  expect(screen.getByTestId('tb-note-dropdown')).not.toBeVisible();
+
+  await userEvent.click(screen.getByTestId('tb-note-button'));
+  expect(screen.getByTestId('tb-note-dropdown')).toBeVisible();
+});
+
+const getTopBar = ({ hidePopup = null }: { hidePopup?: boolean }) => {
+  return (
     <Router history={createMemoryHistory()}>
       <LayoutContextProvider>
         <TeleportContextProvider ctx={ctx}>
           <FeaturesContextProvider value={getOSSFeatures()}>
-            <TopBar />
+            <TopBar hidePopup={hidePopup} />
           </FeaturesContextProvider>
         </TeleportContextProvider>
       </LayoutContextProvider>
     </Router>
   );
-
-  expect(screen.getByTestId('assistPopup')).toBeInTheDocument();
-});
-
-test('shows assist popup if hidePopup is false', () => {
-  setup();
-
-  render(
-    <Router history={createMemoryHistory()}>
-      <LayoutContextProvider>
-        <TeleportContextProvider ctx={ctx}>
-          <FeaturesContextProvider value={getOSSFeatures()}>
-            <TopBar hidePopup={false} />
-          </FeaturesContextProvider>
-        </TeleportContextProvider>
-      </LayoutContextProvider>
-    </Router>
-  );
-
-  expect(screen.getByTestId('assistPopup')).toBeInTheDocument();
-});
+};

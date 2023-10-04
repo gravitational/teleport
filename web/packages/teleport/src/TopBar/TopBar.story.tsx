@@ -55,5 +55,53 @@ export function Story() {
     </Router>
   );
 }
-
 Story.storyName = 'TopBar';
+
+export function TopBarWithNotifications() {
+  const ctx = new TeleportContext();
+
+  ctx.storeUser.state = makeUserContext({
+    userName: 'admin',
+    cluster: {
+      name: 'test-cluster',
+      lastConnected: Date.now(),
+    },
+  });
+  ctx.storeNotifications.state = {
+    notices: [
+      {
+        kind: 'access-lists',
+        id: '111',
+        resourceName: 'banana',
+        date: new Date(),
+        route: '',
+      },
+      {
+        kind: 'access-lists',
+        id: '222',
+        resourceName: 'apple',
+        date: new Date(),
+        route: '',
+      },
+      {
+        kind: 'access-lists',
+        id: '333',
+        resourceName: 'carrot',
+        date: new Date(),
+        route: '',
+      },
+    ],
+  };
+
+  return (
+    <Router history={createMemoryHistory()}>
+      <LayoutContextProvider>
+        <TeleportContextProvider ctx={ctx}>
+          <FeaturesContextProvider value={getOSSFeatures()}>
+            <TopBar />
+          </FeaturesContextProvider>
+        </TeleportContextProvider>
+      </LayoutContextProvider>
+    </Router>
+  );
+}
