@@ -31,7 +31,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -111,21 +111,21 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, erro
 	//
 	// TODO(nic): this logic should be implemented once and reused in IoT
 	// nodes.
-	resolver := reversetunnel.WebClientResolver(&webclient.Config{
+	resolver := reversetunnelclient.WebClientResolver(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: cfg.AuthServers[0].String(),
 		Insecure:  cfg.TLS.InsecureSkipVerify,
 		Timeout:   cfg.DialTimeout,
 	})
 
-	resolver, err := reversetunnel.CachingResolver(ctx, resolver, nil /* clock */)
+	resolver, err := reversetunnelclient.CachingResolver(ctx, resolver, nil /* clock */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
+	// reversetunnelclient.TunnelAuthDialer will take care of creating a net.Conn
 	// within an SSH tunnel.
-	dialer, err := reversetunnel.NewTunnelAuthDialer(reversetunnel.TunnelAuthDialerConfig{
+	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              resolver,
 		ClientConfig:          cfg.SSH,
 		Log:                   cfg.Log,

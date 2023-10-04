@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -118,9 +119,9 @@ type AgentPoolConfig struct {
 	// either be proxy (trusted clusters) or node (dial back).
 	Component string
 	// ReverseTunnelServer holds all reverse tunnel connections.
-	ReverseTunnelServer Server
+	ReverseTunnelServer reversetunnelclient.Server
 	// Resolver retrieves the reverse tunnel address
-	Resolver Resolver
+	Resolver reversetunnelclient.Resolver
 	// Cluster is a cluster name of the proxy.
 	Cluster string
 	// FIPS indicates if Teleport was started in FIPS mode.
@@ -699,7 +700,7 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 	return nil
 }
 
-func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.ClusterNetworkingConfig, resolver Resolver) {
+func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.ClusterNetworkingConfig, resolver reversetunnelclient.Resolver) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

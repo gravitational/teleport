@@ -56,7 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/athena"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -477,7 +477,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				string(teleport.PrincipalLocalhost),
 				string(teleport.PrincipalLoopbackV4),
 				string(teleport.PrincipalLoopbackV6),
-				reversetunnel.LocalKubernetes,
+				reversetunnelclient.LocalKubernetes,
 				"proxy-ssh-public-1",
 				"proxy-ssh-public-2",
 				"proxy-tunnel-public-1",
@@ -540,7 +540,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				string(teleport.PrincipalLocalhost),
 				string(teleport.PrincipalLoopbackV4),
 				string(teleport.PrincipalLoopbackV6),
-				reversetunnel.LocalKubernetes,
+				reversetunnelclient.LocalKubernetes,
 				"kube-public-1",
 				"kube-public-2",
 			},
@@ -616,7 +616,7 @@ type mockAccessPoint struct {
 }
 
 type mockReverseTunnelServer struct {
-	reversetunnel.Server
+	reversetunnelclient.Server
 }
 
 func TestSetupProxyTLSConfig(t *testing.T) {

@@ -26,7 +26,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -157,12 +157,12 @@ func TestForwarderClusterDialer(t *testing.T) {
 	tests := []struct {
 		name          string
 		dialerCreator func(kubeClusterName string) dialContextFunc
-		want          reversetunnel.DialParams
+		want          reversetunnelclient.DialParams
 	}{
 		{
 			name:          "local site",
 			dialerCreator: f.localClusterDiater,
-			want: reversetunnel.DialParams{
+			want: reversetunnelclient.DialParams{
 				From: &utils.NetAddr{
 					Addr:        "0.0.0.0:0",
 					AddrNetwork: "tcp",
@@ -179,13 +179,13 @@ func TestForwarderClusterDialer(t *testing.T) {
 		{
 			name:          "remote site",
 			dialerCreator: f.remoteClusterDiater,
-			want: reversetunnel.DialParams{
+			want: reversetunnelclient.DialParams{
 				From: &utils.NetAddr{
 					Addr:        "0.0.0.0:0",
 					AddrNetwork: "tcp",
 				},
 				To: &utils.NetAddr{
-					Addr:        reversetunnel.LocalKubernetes,
+					Addr:        reversetunnelclient.LocalKubernetes,
 					AddrNetwork: "tcp",
 				},
 				ConnType: types.KubeTunnel,
@@ -204,12 +204,12 @@ func TestForwarderClusterDialer(t *testing.T) {
 }
 
 type fakeReverseTunnel struct {
-	reversetunnel.Server
-	want reversetunnel.DialParams
+	reversetunnelclient.Server
+	want reversetunnelclient.DialParams
 	t    *testing.T
 }
 
-func (f *fakeReverseTunnel) GetSite(_ string) (reversetunnel.RemoteSite, error) {
+func (f *fakeReverseTunnel) GetSite(_ string) (reversetunnelclient.RemoteSite, error) {
 	return &fakeRemoteSiteTunnel{
 		want: f.want,
 		t:    f.t,
@@ -217,12 +217,12 @@ func (f *fakeReverseTunnel) GetSite(_ string) (reversetunnel.RemoteSite, error) 
 }
 
 type fakeRemoteSiteTunnel struct {
-	reversetunnel.RemoteSite
-	want reversetunnel.DialParams
+	reversetunnelclient.RemoteSite
+	want reversetunnelclient.DialParams
 	t    *testing.T
 }
 
-func (f *fakeRemoteSiteTunnel) DialTCP(p reversetunnel.DialParams) (net.Conn, error) {
+func (f *fakeRemoteSiteTunnel) DialTCP(p reversetunnelclient.DialParams) (net.Conn, error) {
 	require.Equal(f.t, f.want, p)
 	return nil, nil
 }
