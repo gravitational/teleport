@@ -663,9 +663,112 @@ type MethodInfo struct {
 	FieldAssignments map[string]string
 }
 
-func getMethodInfo(decls []ast.Decl) (map[PackageInfo][]MethodInfo, error) {
+func getMethodInfo(decls []ast.Decl, packageName string) (map[PackageInfo][]MethodInfo, error) {
 	if decls == nil || len(decls) == 0 {
 		return map[PackageInfo][]MethodInfo{}, nil
 	}
-	return nil, nil
+
+	result := make(map[PackageInfo][]MethodInfo)
+
+	for _, d := range decls {
+		f, ok := d.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+
+		// Not a method
+		if f.Recv == nil {
+			continue
+		}
+
+		if len(f.Recv.List) != 1 {
+			return nil, fmt.Errorf("method %v.%v has an unexpected number of receivers",
+				packageName,
+				f.Name.Name,
+			)
+		}
+
+		if len(f.Recv.List[0].Names) != 1 {
+			return nil, fmt.Errorf("method %v.%v has an unexpected number of receiver names",
+				packageName,
+				f.Name.Name,
+			)
+
+		}
+
+		var i *ast.Ident
+		switch t := f.Recv.List[0].Type.(type) {
+		case *ast.StarExpr:
+			d, ok := t.X.(*ast.Ident)
+			if !ok {
+				return nil, fmt.Errorf("method %v.%v has a receiver type with a star expression but no identifier",
+					packageName,
+					f.Name.Name,
+				)
+
+			}
+			i = d
+		case *ast.Ident:
+			i = t
+		}
+		pi := PackageInfo{
+			PackageName: packageName,
+			TypeName:    i.Name,
+		}
+
+		mi := MethodInfo{
+			Name:             f.Name.Name,
+			FieldAssignments: map[string]string{},
+		}
+
+		a, ok := result[pi]
+		if !ok {
+			result[pi] = []MethodInfo{}
+		}
+
+		for _, l := range f.Body.List {
+			n, ok := l.(*ast.AssignStmt)
+			if !ok {
+				continue
+			}
+
+			// Do not collect assignments with more than one value.
+			// These are done done in the relevant parts of the Teleport
+			// source, and handling them complicates things.
+			if len(n.Rhs) != 1 || len(n.Lhs) != 1 {
+				continue
+			}
+
+			nt, ok := n.Rhs[0].(*ast.Ident)
+			// We don't need to process other types, such as
+			// selector expressions, on the right hand side yet.
+			if !ok {
+				continue
+			}
+			rhs := nt.Name
+
+			sel, ok := n.Lhs[0].(*ast.SelectorExpr)
+			// Does not assign one of the method receiver's
+			// fields, since it's not a selector expression.
+			if !ok {
+				continue
+			}
+
+			id, ok := sel.X.(*ast.Ident)
+			if !ok {
+				continue
+			}
+
+			// This is not an assignment of a field within
+			// the method receiver.
+			if id.Name != f.Recv.List[0].Names[0].Name {
+				continue
+			}
+
+			mi.FieldAssignments[sel.Sel.Name] = rhs
+		}
+
+		result[pi] = append(a, mi)
+	}
+	return result, nil
 }
