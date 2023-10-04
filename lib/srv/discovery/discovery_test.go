@@ -1287,7 +1287,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 		{
 			name: "discover AWS database",
 			awsMatchers: []types.AWSMatcher{{
-				Types:   []string{services.AWSMatcherRedshift},
+				Types:   []string{types.AWSMatcherRedshift},
 				Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 				Regions: []string{"us-east-1"},
 			}},
@@ -1297,7 +1297,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 		{
 			name: "discover AWS database with assumed role",
 			awsMatchers: []types.AWSMatcher{{
-				Types:      []string{services.AWSMatcherRDS},
+				Types:      []string{types.AWSMatcherRDS},
 				Tags:       map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 				Regions:    []string{"us-west-1"},
 				AssumeRole: &role,
@@ -1308,7 +1308,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 		{
 			name: "discover Azure database",
 			azureMatchers: []types.AzureMatcher{{
-				Types:          []string{services.AzureMatcherRedis},
+				Types:          []string{types.AzureMatcherRedis},
 				ResourceTags:   map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 				Regions:        []string{types.Wildcard},
 				ResourceGroups: []string{types.Wildcard},
@@ -1335,7 +1335,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				}),
 			},
 			awsMatchers: []types.AWSMatcher{{
-				Types:   []string{services.AWSMatcherRedshift},
+				Types:   []string{types.AWSMatcherRedshift},
 				Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 				Regions: []string{"us-east-1"},
 			}},
@@ -1354,7 +1354,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				}),
 			},
 			awsMatchers: []types.AWSMatcher{{
-				Types:      []string{services.AWSMatcherRDS},
+				Types:      []string{types.AWSMatcherRDS},
 				Tags:       map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 				Regions:    []string{"us-west-1"},
 				AssumeRole: &role,
@@ -1374,7 +1374,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				}),
 			},
 			awsMatchers: []types.AWSMatcher{{
-				Types:   []string{services.AWSMatcherRedshift},
+				Types:   []string{types.AWSMatcherRedshift},
 				Tags:    map[string]utils.Strings{"do-not-match": {"do-not-match"}},
 				Regions: []string{"us-east-1"},
 			}},
@@ -1402,7 +1402,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				}),
 			},
 			awsMatchers: []types.AWSMatcher{{
-				Types:   []string{services.AWSMatcherRedshift},
+				Types:   []string{types.AWSMatcherRedshift},
 				Tags:    map[string]utils.Strings{"do-not-match": {"do-not-match"}},
 				Regions: []string{"us-east-1"},
 			}},
@@ -1521,7 +1521,7 @@ func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (
 	staticLabels := database.GetStaticLabels()
 	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	database.SetStaticLabels(staticLabels)
-	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRDS)
+	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRDS)
 	return instance, database
 }
 
@@ -1543,7 +1543,7 @@ func makeRedshiftCluster(t *testing.T, name, region string, discoveryGroup strin
 	staticLabels := database.GetStaticLabels()
 	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	database.SetStaticLabels(staticLabels)
-	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRedshift)
+	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRedshift)
 	return cluster, database
 }
 
@@ -1566,7 +1566,7 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 	staticLabels := database.GetStaticLabels()
 	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	database.SetStaticLabels(staticLabels)
-	common.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherRedis)
+	common.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherRedis)
 	return resourceInfo, database
 }
 

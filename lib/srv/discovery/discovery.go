@@ -254,7 +254,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 // initAWSWatchers starts AWS resource watchers based on types provided.
 func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	ec2Matchers, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
-		return matcherType == services.AWSMatcherEC2
+		return matcherType == types.AWSMatcherEC2
 	})
 
 	// start ec2 watchers
@@ -302,7 +302,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		for _, t := range matcher.Types {
 			for _, region := range matcher.Regions {
 				switch t {
-				case services.AWSMatcherEKS:
+				case types.AWSMatcherEKS:
 					client, err := s.CloudClients.GetAWSEKSClient(
 						s.ctx,
 						region,
@@ -345,7 +345,7 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 	}
 
 	for _, matcher := range matchers {
-		if !slices.Contains(matcher.Types, services.KubernetesMatchersApp) {
+		if !slices.Contains(matcher.Types, types.KubernetesMatchersApp) {
 			continue
 		}
 
@@ -368,7 +368,7 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 // initAzureWatchers starts Azure resource watchers based on types provided.
 func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMatcher) error {
 	vmMatchers, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
-		return matcherType == services.AzureMatcherVM
+		return matcherType == types.AzureMatcherVM
 	})
 
 	// VM watcher.
@@ -404,7 +404,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 		for _, subscription := range subscriptions {
 			for _, t := range matcher.Types {
 				switch t {
-				case services.AzureMatcherKubernetes:
+				case types.AzureMatcherKubernetes:
 					kubeClient, err := s.CloudClients.GetAzureKubernetesClient(subscription)
 					if err != nil {
 						return trace.Wrap(err)
@@ -436,7 +436,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 	}
 
 	vmMatchers, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
-		return matcherType == services.GCPMatcherCompute
+		return matcherType == types.GCPMatcherCompute
 	})
 
 	// VM watcher.
@@ -462,7 +462,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 			for _, location := range matcher.Locations {
 				for _, t := range matcher.Types {
 					switch t {
-					case services.GCPMatcherKubernetes:
+					case types.GCPMatcherKubernetes:
 						fetcher, err := fetchers.NewGKEFetcher(fetchers.GKEFetcherConfig{
 							Client:       kubeClient,
 							Location:     location,

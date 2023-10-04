@@ -58,7 +58,7 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 					TagsByARN:  tagsByARN,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRedshiftServerless, "us-east-1", wildcardLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRedshiftServerless, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{workgroupProdDB, workgroupDevDB, endpointProdDB, endpointProdDev},
 		},
 		{
@@ -70,7 +70,7 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 					TagsByARN:  tagsByARN,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRedshiftServerless, "us-east-1", envProdLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRedshiftServerless, "us-east-1", envProdLabels),
 			wantDatabases: types.Databases{workgroupProdDB, endpointProdDB},
 		},
 		{
@@ -82,7 +82,7 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 					TagsByARN:  tagsByARN,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRedshiftServerless, "us-east-1", wildcardLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRedshiftServerless, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{workgroupProdDB},
 		},
 	}
@@ -94,7 +94,7 @@ func makeRedshiftServerlessWorkgroup(t *testing.T, name, region string, labels m
 	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](labels)
 	database, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(workgroup, tags)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRedshiftServerless)
+	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRedshiftServerless)
 	return workgroup, database
 }
 
@@ -103,6 +103,6 @@ func makeRedshiftServerlessEndpoint(t *testing.T, workgroup *redshiftserverless.
 	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](labels)
 	database, err := services.NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint, workgroup, tags)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRedshiftServerless)
+	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRedshiftServerless)
 	return endpoint, database
 }
