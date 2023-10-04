@@ -421,7 +421,7 @@ export default class MainProcess {
     ];
 
     // Enable actions like reload or toggle dev tools only in dev mode.
-    const viewMenuTemplate: MenuItemConstructorOptions = this.settings.dev
+    const viewMenuTemplate: MenuItemConstructorOptions = this.settings.debug
       ? { role: 'viewMenu' }
       : {
           label: 'View',
