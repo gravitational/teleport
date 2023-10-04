@@ -1173,3 +1173,32 @@ func TestMakeSectionName(t *testing.T) {
 		})
 	}
 }
+
+func TestGetMethodInfo(t *testing.T) {
+	cases := []struct {
+		description string
+		source      []string
+		expected    map[PackageInfo][]MethodInfo
+	}{}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			fset := token.NewFileSet()
+			allDecls := []ast.Decl{}
+			for n, dep := range c.source {
+				d, err := parser.ParseFile(fset,
+					fmt.Sprintf("myfile%v.go", n),
+					replaceBackticks(dep),
+					parser.ParseComments,
+				)
+				if err != nil {
+					t.Fatalf("test fixture contains invalid Go source: %v\n", err)
+				}
+				allDecls = append(allDecls, d.Decls...)
+			}
+			actual, err := getMethodInfo(allDecls)
+			assert.NoError(t, err)
+			assert.Equal(t, c.expected, actual)
+		})
+	}
+}

@@ -652,3 +652,17 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 	}
 	return refs, nil
 }
+
+// MethodInfo is a simplified representation of a Go method.
+type MethodInfo struct {
+	// The name of the method
+	Name string
+	// Any field assignments within the main body of the method. Keys
+	// represent fields of the receiver. Values are the values the
+	// assignments assign.
+	FieldAssignments map[string]string
+}
+
+func getMethodInfo(decls []ast.Decl) (map[PackageInfo][]MethodInfo, error) {
+	return nil, nil
+}
