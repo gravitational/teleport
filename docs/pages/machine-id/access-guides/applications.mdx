@@ -5,9 +5,8 @@ description: How to use Machine ID to access applications
 
 (!docs/pages/includes/machine-id/v2-config-warning.mdx!)
 
-Teleport protects and controls access to HTTP and TCP
-applications. Machine ID can be used to grant machines secure, short-lived
-access to these applications.
+Teleport protects and controls access to HTTP and TCP applications. Machine ID
+can be used to grant machines secure, short-lived access to these applications.
 
 In this guide, you will configure `tbot` to produce credentials that can be
 used to access an application enrolled in your Teleport cluster.
@@ -25,8 +24,8 @@ used to access an application enrolled in your Teleport cluster.
 
 ## Step 1/3. Configure RBAC
 
-First, Teleport must be configured to allow the credentials produced by the bot
-to access an Application.
+First, Teleport should be configured to allow the credentials produced by `tbot`
+to be used to connect to an Application.
 
 If you have followed an access guide, you will have created a role and granted
 the bot the ability to impersonate it already. This role just needs to have the
