@@ -4563,12 +4563,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		// really guaranteed to be capable to serve new requests if we're
 		// halfway through a shutdown, and double closing a listener is fine.
 		listeners.Close()
-		rcWatcher.Close()
 		if payload == nil {
 			log.Infof("Shutting down immediately.")
 			if tsrv != nil {
 				warnOnErr(tsrv.Close(), log)
 			}
+			warnOnErr(rcWatcher.Close(), log)
 			if proxyServer != nil {
 				warnOnErr(proxyServer.Close(), log)
 			}
@@ -4615,6 +4615,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if tsrv != nil {
 				warnOnErr(tsrv.Shutdown(ctx), log)
 			}
+			warnOnErr(rcWatcher.Close(), log)
 			if proxyServer != nil {
 				warnOnErr(proxyServer.Shutdown(), log)
 			}
