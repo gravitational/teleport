@@ -15,10 +15,14 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
-import { Flex } from 'design';
+import Flex from 'design/Flex';
 
 import { icons } from 'teleport/Discover/SelectResource/icons';
+import { StepTitle, StepsContainer } from 'teleport/components/StepNavigation';
+import {
+  Bullet,
+  Props as BulletProps,
+} from 'teleport/components/StepNavigation/Bullet';
 
 import { StepList } from './StepList';
 
@@ -52,9 +56,7 @@ export function StepItem(props: StepItemProps) {
     return (
       <StepsContainer>
         <StepTitle>
-          {getBulletIcon({
-            Icon: icons[props.selectedResource.icon],
-          })}
+          <BulletIcon Icon={icons[props.selectedResource.icon]} />
           {props.selectedResource.name}
         </StepTitle>
       </StepsContainer>
@@ -84,104 +86,28 @@ export function StepItem(props: StepItemProps) {
   return (
     <StepsContainer active={isDone || isActive}>
       <StepTitle>
-        {getBulletIcon({
-          isDone,
-          isActive,
-          stepNumber: props.view.index + 1,
-        })}
+        <BulletIcon
+          isDone={isDone}
+          isActive={isActive}
+          stepNumber={props.view.index + 1}
+        />
         {props.view.title}
       </StepTitle>
     </StepsContainer>
   );
 }
 
-function getBulletIcon({
+function BulletIcon({
   isDone,
   isActive,
   Icon,
   stepNumber,
-}: {
-  isDone?: boolean;
-  isActive?: boolean;
+}: BulletProps & {
   Icon?: JSX.Element;
-  stepNumber?: number;
 }) {
   if (Icon) {
     return <Flex mr={2}>{Icon}</Flex>;
   }
 
-  if (isActive) {
-    return <ActiveBullet />;
-  }
-
-  if (isDone) {
-    return <CheckedBullet />;
-  }
-
-  return <Bullet>{stepNumber}</Bullet>;
+  return <Bullet isDone={isDone} isActive={isActive} stepNumber={stepNumber} />;
 }
-
-const StepTitle = styled.div`
-  display: flex;
-  align-items: center;
-`;
-
-const Bullet = styled.span`
-  height: 14px;
-  width: 14px;
-  border: 1px solid #9b9b9b;
-  font-size: 11px;
-  border-radius: 50%;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`;
-
-const ActiveBullet = styled(Bullet)`
-  border-color: ${props => props.theme.colors.brand};
-  background: ${props => props.theme.colors.brand};
-
-  :before {
-    content: '';
-    height: 8px;
-    width: 8px;
-    border-radius: 50%;
-    border: 2px solid ${props => props.theme.colors.levels.surface};
-  }
-`;
-
-const CheckedBullet = styled(Bullet)`
-  border-color: ${props => props.theme.colors.brand};
-  background: ${props => props.theme.colors.brand};
-
-  :before {
-    content: '✓';
-    color: ${props => props.theme.colors.levels.popout};
-  }
-`;
-
-const StepsContainer = styled.div<{ active: boolean }>`
-  display: flex;
-  flex-direction: column;
-  color: ${p => (p.active ? 'inherit' : p.theme.colors.text.slightlyMuted)};
-  margin-right: 32px;
-  position: relative;
-
-  &:after {
-    position: absolute;
-    content: '';
-    width: 16px;
-    background: ${({ theme }) => theme.colors.brand};
-    height: 1px;
-    top: 50%;
-    transform: translate(0, -50%);
-    right: -25px;
-  }
-
-  &:last-of-type {
-    &:after {
-      display: none;
-    }
-  }
-`;
