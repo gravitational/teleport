@@ -303,11 +303,9 @@ func removeSecure(filePath string, fi os.FileInfo) error {
 			}
 		}
 		// The file should be closed before removing it on Windows.
-		err := f.Close()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.ConvertSystemError(os.Remove(filePath))
+		closeErr := trace.ConvertSystemError(f.Close())
+		removeErr := trace.ConvertSystemError(os.Remove(filePath))
+		return trace.NewAggregate(closeErr, removeErr)
 	} else {
 		removeErr := os.Remove(filePath)
 		if f != nil {
