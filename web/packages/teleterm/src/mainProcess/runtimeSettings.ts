@@ -44,8 +44,11 @@ const TSH_BIN_DEFAULT_PATH_FOR_DEV = path.resolve(
 );
 
 const dev = env.NODE_ENV === 'development';
-const debug = argv.includes('--debug') || dev;
-const insecure = argv.includes('--insecure') || !!env.CONNECT_INSECURE;
+const debug = argv.includes('--connect-debug') || dev;
+const insecure =
+  argv.includes('--connect-insecure') ||
+  argv.includes('--insecure') ||
+  !!env.CONNECT_INSECURE;
 
 export function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
