@@ -107,6 +107,8 @@ type Session struct {
 	Owner string `json:"owner"`
 	// Moderated is true if the session requires moderation (only relevant for Kind = ssh/k8s).
 	Moderated bool `json:"moderated"`
+	// Command is the command that was executed to start the session.
+	Command string `json:"command"`
 }
 
 // FileTransferRequestParams contain parameters for requesting a file transfer
