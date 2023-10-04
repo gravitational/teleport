@@ -1181,7 +1181,7 @@ func TestGetMethodInfo(t *testing.T) {
 		expected    map[PackageInfo][]MethodInfo
 	}{
 		{
-			description: "multiple declarations",
+			description: "multiple struct declarations",
 			source: `package testpkg
 
 import "strings"
@@ -1199,22 +1199,12 @@ func (m *myStruct) uppercaseName() string {
     return strings.ToUpper(m.name)
 }
 
-func (m myStruct) assignName() {
-    m.name = nameConst
-}
-
 func notAMethod(s string) string {
     return "Not a method"
-
 }
 
-func (o *otherStruct) assignAgeAndName(a int) {
-    o.age = a
-    o.name = nameConst
-}
-
-func (o *otherStruct) copyNameFrom(m *myStruct){
-    o.name = *m.name
+func (o otherStruct) lowercaseName() string{
+    return strings.ToLower(m.name)
 }
 `,
 			expected: map[PackageInfo][]MethodInfo{
@@ -1226,17 +1216,49 @@ func (o *otherStruct) copyNameFrom(m *myStruct){
 						Name:             "uppercaseName",
 						FieldAssignments: map[string]string{},
 					},
+				},
+				PackageInfo{
+					TypeName:    "otherStruct",
+					PackageName: "testpkg",
+				}: []MethodInfo{
+					{
+						Name:             "lowercaseName",
+						FieldAssignments: map[string]string{},
+					},
+				},
+			},
+		},
+		{
+			description: "assignments",
+			source: `package testpkg
+
+import "strings"
+
+type myStruct struct {
+    name string
+    age int
+}
+
+func (m myStruct) assignName() {
+    m.name = nameConst
+}
+
+func (o *myStruct) assignAgeAndName(a int) {
+    o.age = a
+    o.name = nameConst
+}
+`,
+			expected: map[PackageInfo][]MethodInfo{
+				PackageInfo{
+					TypeName:    "myStruct",
+					PackageName: "testpkg",
+				}: []MethodInfo{
 					{
 						Name: "assignName",
 						FieldAssignments: map[string]string{
 							"name": "nameConst",
 						},
 					},
-				},
-				PackageInfo{
-					TypeName:    "otherStruct",
-					PackageName: "testpkg",
-				}: []MethodInfo{
 					{
 						Name: "assignAgeAndName",
 						FieldAssignments: map[string]string{
@@ -1244,8 +1266,30 @@ func (o *otherStruct) copyNameFrom(m *myStruct){
 							"name": "nameConst",
 						},
 					},
+				},
+			},
+		},
+		{
+			description: "some assignment values are skipped",
+			source: `package testpkg
+
+func (o *otherStruct) copyNameFrom(m *myStruct){
+    o.name = *m.name
+    o.name, o.age = blah, 21
+}
+`,
+
+			expected: map[PackageInfo][]MethodInfo{
+				PackageInfo{
+					TypeName:    "otherStruct",
+					PackageName: "testpkg",
+				}: []MethodInfo{
 					{
-						Name:             "copyNameFrom",
+						Name: "copyNameFrom",
+						// Expecting no field assignments, since
+						// getMethodInfo does not process
+						// assignments to star expressions.
+						// Also ignoring multiple assignments
 						FieldAssignments: map[string]string{},
 					},
 				},
