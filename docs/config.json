@@ -1228,6 +1228,10 @@
         {
           "title": "Access Controls",
           "slug": "/server-access/rbac/"
+        },
+        {
+          "title": "Troubleshooting Server Access",
+          "slug": "/server-access/troubleshooting-server/"
         }
       ]
     },
