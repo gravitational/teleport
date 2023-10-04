@@ -4438,9 +4438,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			IngressReporter:          ingressReporter,
 			KubernetesServersWatcher: kubeServerWatcher,
 			PROXYProtocolMode:        proxyProtocol,
-
-			// Used for tests to force checking of required PROXY lines for all connections.
-			MultiplexerIgnoreSelfConnections: cfg.MultiplexerIgnoreSelfConnections,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -4455,7 +4452,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				kubeListenAddr = cfg.Proxy.Kube.ListenAddr.Addr
 			}
 			log.Infof("Starting Kube proxy on %v.", kubeListenAddr)
-			err := kubeServer.Serve(listeners.kube)
+
+			var mopts []kubeproxy.MultiplexerConfigOption
+			for _, opt := range cfg.Options {
+				if muxOption, ok := opt.(servicecfg.KubeMultiplexerConfigOption); ok {
+					mopts = append(mopts, func(config *multiplexer.Config) error {
+						return muxOption(config)
+					})
+				}
+			}
+
+			err := kubeServer.Serve(listeners.kube, mopts...)
 			if err != nil && err != http.ErrServerClosed {
 				log.Warningf("Kube TLS server exited with error: %v.", err)
 			}

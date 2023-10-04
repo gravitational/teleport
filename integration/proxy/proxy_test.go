@@ -572,8 +572,6 @@ func TestKubePROXYProtocol(t *testing.T) {
 			},
 		},
 	}
-	kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
-	require.NoError(t, err)
 
 	// Create mock kube server to test connection against
 	kubeAPIMockSvrRoot := startKubeAPIMock(t)
@@ -618,8 +616,11 @@ func TestKubePROXYProtocol(t *testing.T) {
 			tconf.Kube.ListenAddr = utils.MustParseAddr(
 				helpers.NewListener(t, service.ListenerKube, &tconf.FileDescriptors))
 
-			// Force multiplexer to check required PROXY lines on all connections
-			tconf.MultiplexerIgnoreSelfConnections = true
+			// Force Proxy kube server multiplexer to check required PROXY lines on all connections
+			tconf.Options = []servicecfg.Option{servicecfg.NewKubeMultiplexerConfigOption(true)}
+
+			kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
+			require.NoError(t, err)
 
 			testCluster.AddUserWithRole(username, kubeRole)
 

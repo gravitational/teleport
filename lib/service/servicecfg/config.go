@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -264,10 +265,8 @@ type Config struct {
 	// Note: When set, this overrides Auth and Proxy's AssistAPIKey settings.
 	OpenAIConfig *openai.ClientConfig
 
-	// MultiplexerIgnoreSelfConnections is used for tests to control multiplexer's behavior regarding PROXY
-	// protocol for connections from same IP as the listener. This is required because in tests all connections
-	// are from the same IP.
-	MultiplexerIgnoreSelfConnections bool
+	// Options provide a way to customize behavior of service initialization.
+	Options []Option
 
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
@@ -289,6 +288,28 @@ type Config struct {
 	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
 	// as we still need to keep multiple addresses and return them for older config versions.
 	authServers []utils.NetAddr
+}
+
+// Option applies an option value for a Config.
+type Option interface {
+	Apply(any) error
+}
+
+// KubeMultiplexerConfigOption allows to modify multiplexer config for Kube Proxy TLS server's listener
+type KubeMultiplexerConfigOption func(any) error
+
+func (f KubeMultiplexerConfigOption) Apply(input any) error {
+	return f(input)
+}
+
+func NewKubeMultiplexerConfigOption(val bool) KubeMultiplexerConfigOption {
+	return func(input any) error {
+		if cfg, ok := input.(*multiplexer.Config); ok {
+			cfg.IgnoreSelfConnections = val
+			return nil
+		}
+		return trace.BadParameter("unexpected option type - expected %T, got %T", &multiplexer.Config{}, input)
+	}
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.

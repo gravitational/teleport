@@ -98,11 +98,6 @@ type TLSServerConfig struct {
 	KubernetesServersWatcher *services.KubeServerWatcher
 	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
-
-	// MultiplexerIgnoreSelfConnections is used for tests to control multiplexer's behavior regarding PROXY
-	// protocol for connections from same IP as the listener. This is required because in tests all connections
-	// are from the same IP.
-	MultiplexerIgnoreSelfConnections bool
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -274,13 +269,14 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	return server, nil
 }
 
+type MultiplexerConfigOption func(*multiplexer.Config) error
+
 // Serve takes TCP listener, upgrades to TLS using config and starts serving
-func (t *TLSServer) Serve(listener net.Listener) error {
+func (t *TLSServer) Serve(listener net.Listener, options ...MultiplexerConfigOption) error {
 	caGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 		return t.CachingAuthClient.GetCertAuthority(ctx, id, loadKeys)
 	}
-	// Wrap listener with a multiplexer to get Proxy Protocol support.
-	mux, err := multiplexer.New(multiplexer.Config{
+	muxConfig := multiplexer.Config{
 		Context:             t.Context,
 		Listener:            listener,
 		Clock:               t.Clock,
@@ -293,9 +289,16 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 		// between the TCP being accepted and the time for the first byte is longer
 		// than the default value -  1s.
 		ReadDeadline: 10 * time.Second,
+	}
+	for _, opt := range options {
+		err := opt(&muxConfig)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
-		IgnoreSelfConnections: t.MultiplexerIgnoreSelfConnections,
-	})
+	// Wrap listener with a multiplexer to get PROXY Protocol support.
+	mux, err := multiplexer.New(muxConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
