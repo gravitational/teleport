@@ -19,7 +19,7 @@ mod scard;
 pub(crate) mod tdp;
 
 use self::path::{UnixPath, WindowsPath};
-use self::scard::IoctlCode;
+use self::scard::{Contexts, IoctlCode};
 use crate::client::{ClientFunction, ClientHandle};
 use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error,
@@ -35,14 +35,14 @@ use consts::{
     SMARTCARD_CAPABILITY_VERSION_01, TDP_FALSE, U32_SIZE, U8_SIZE, VERSION_MAJOR, VERSION_MINOR,
 };
 use ironrdp_pdu::{other_err, PduResult};
+use ironrdp_rdpdr::pdu::esc::{rpce, EstablishContextCall, EstablishContextReturn, ScardCall};
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::{
     pdu::{
         efs::{
-            DeviceControlRequest, DeviceControlResponse, DeviceIoResponse, NtStatus,
-            ServerDeviceAnnounceResponse,
+            DeviceControlRequest, DeviceControlResponse, NtStatus, ServerDeviceAnnounceResponse,
         },
-        esc::{rpce, LongReturn, ReturnCode, ScardAccessStartedEventCall, ScardIoCtlCode},
+        esc::{LongReturn, ReturnCode, ScardAccessStartedEventCall, ScardIoCtlCode},
     },
     RdpdrBackend,
 };
@@ -63,6 +63,7 @@ use tdp::{
     SharedDirectoryReadRequest, SharedDirectoryReadResponse, SharedDirectoryWriteRequest,
     SharedDirectoryWriteResponse, TdpErrCode,
 };
+use tokio::sync::mpsc::error::SendError;
 
 #[derive(Debug)]
 pub struct TeleportRdpdrBackend {
@@ -72,6 +73,11 @@ pub struct TeleportRdpdrBackend {
     active_device_ids: Vec<u32>,
     /// The client handle for this backend, used to send messages to the RDP server.
     client_handle: ClientHandle,
+    // contexts holds all the active contexts for the server, established using
+    // SCARD_IOCTL_ESTABLISHCONTEXT. Some IOCTLs are context-specific and pass it as argument.
+    //
+    // contexts also holds a cache and connected smartcard handles for each context.
+    contexts: Contexts,
 }
 
 impl TeleportRdpdrBackend {
@@ -79,11 +85,12 @@ impl TeleportRdpdrBackend {
         Self {
             active_device_ids: vec![smartcard_device_id],
             client_handle,
+            contexts: Contexts::new(),
         }
     }
 
     fn get_scard_device_id(&self) -> PduResult<u32> {
-        if self.active_device_ids.len() == 0 {
+        if self.active_device_ids.is_empty() {
             return Err(other_err!(
                 "TeleportRdpdrBackend::get_scard_device_id",
                 "no active devices",
@@ -91,11 +98,66 @@ impl TeleportRdpdrBackend {
         }
         Ok(self.active_device_ids[0])
     }
+
+    fn handle_access_started(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        _call: ScardAccessStartedEventCall,
+    ) -> PduResult<()> {
+        if req.header.device_id != self.get_scard_device_id()? {
+            return Err(other_err!(
+                "TeleportRdpdrBackend::handle_scard_access_started_event_call",
+                "got ScardAccessStartedEventCall for unknown device_id",
+            ));
+        }
+
+        self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
+            .map_err(|_e| {
+                other_err!(
+                    "TeleportRdpdrBackend::handle_access_started",
+                    "failed to send DeviceControlResponse to server",
+                )
+            })?;
+
+        Ok(())
+    }
+
+    fn handle_establish_context(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        _call: EstablishContextCall,
+    ) -> PduResult<()> {
+        let ctx = self.contexts.establish();
+
+        self.write_rdpdr_dev_ctl_resp(
+            req,
+            Box::new(EstablishContextReturn::new(ReturnCode::Success, ctx)),
+        )
+        .map_err(|_e| {
+            other_err!(
+                "TeleportRdpdrBackend::handle_establish_context",
+                "failed to send DeviceControlResponse to server",
+            )
+        })?;
+
+        Ok(())
+    }
+
+    fn write_rdpdr_dev_ctl_resp(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        resp: Box<dyn rpce::Encode>,
+    ) -> Result<(), SendError<ClientFunction>> {
+        let resp = DeviceControlResponse::new(req, NtStatus::Success, resp);
+        self.client_handle.blocking_send(ClientFunction::WriteRdpdr(
+            RdpdrPdu::DeviceControlResponse(resp),
+        ))
+    }
 }
 
 impl RdpdrBackend for TeleportRdpdrBackend {
     fn handle_server_device_announce_response(
-        &self,
+        &mut self,
         pdu: ServerDeviceAnnounceResponse,
     ) -> PduResult<()> {
         if !self.active_device_ids.contains(&pdu.device_id) {
@@ -116,39 +178,16 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         Ok(())
     }
 
-    fn handle_scard_access_started_event_call(
-        &self,
+    fn handle_scard_call(
+        &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
-        _call: ScardAccessStartedEventCall,
+        call: ScardCall,
     ) -> PduResult<()> {
-        if req.header.device_id != self.get_scard_device_id()? {
-            return Err(other_err!(
-                "TeleportRdpdrBackend::handle_scard_access_started_event_call",
-                "got ScardAccessStartedEventCall for unknown device_id",
-            ));
+        match call {
+            ScardCall::AccessStartedEventCall(call) => self.handle_access_started(req, call),
+            ScardCall::EstablishContextCall(call) => self.handle_establish_context(req, call),
+            ScardCall::Unsupported => Ok(()),
         }
-
-        let resp = DeviceControlResponse {
-            device_io_reply: DeviceIoResponse {
-                device_id: req.header.device_id,
-                completion_id: req.header.completion_id,
-                io_status: NtStatus::Success,
-            },
-            output_buffer: Box::new(LongReturn::new(ReturnCode::Success)),
-        };
-
-        self.client_handle
-            .blocking_send(ClientFunction::WriteRdpdr(RdpdrPdu::DeviceControlResponse(
-                resp,
-            )))
-            .map_err(|_e| {
-                other_err!(
-                    "TeleportRdpdrBackend::handle_scard_access_started_event_call",
-                    "failed to send DeviceControlResponse to server",
-                )
-            })?;
-
-        Ok(())
     }
 }
 
@@ -2402,14 +2441,14 @@ impl DeviceIoResponseDeprecated {
 #[derive(Debug)]
 struct DeviceControlResponseDeprecated {
     header: DeviceIoResponseDeprecated,
-    output_buffer: Box<dyn Encode>,
+    output_buffer: Box<dyn Encode + Send + Sync>,
 }
 
 impl DeviceControlResponseDeprecated {
     fn new(
         req: &DeviceControlRequestDeprecated,
         io_status: NTSTATUS,
-        output: Box<dyn Encode>,
+        output: Box<dyn Encode + Send + Sync>,
     ) -> Self {
         Self {
             header: DeviceIoResponseDeprecated::new(&req.header, io_status),
