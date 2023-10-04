@@ -17,8 +17,11 @@ limitations under the License.
 package regular
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 
@@ -260,10 +263,44 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrc
 	}
 
 	go func() {
-		t.close(utils.ProxyConn(ctx, ch, conn))
+		t.close(utils.ProxyConn(ctx, &checkedPrefixReader{
+			ReadWriteCloser: ch,
+			// SSH connection MUST start with "SSH-2.0" bytes according to https://datatracker.ietf.org/doc/html/rfc4253#section-4.2
+			requiredPrefix: []byte("SSH-2.0"),
+		}, conn))
 	}()
 
 	return nil
+}
+
+// checkedPrefixReader checks that read data has the specified prefix.
+type checkedPrefixReader struct {
+	io.ReadWriteCloser
+	requiredPrefix []byte
+
+	// upstreamReader reads from the underlying reader.
+	upstreamReader io.Reader
+}
+
+func (c *checkedPrefixReader) Read(b []byte) (int, error) {
+	// connection was already checked, forward upstream:
+	if c.upstreamReader != nil {
+		return c.upstreamReader.Read(b)
+	}
+
+	// make sure first bytes are equal to the required prefix
+	reader := bufio.NewReader(c.ReadWriteCloser)
+	data, err := reader.Peek(len(c.requiredPrefix))
+	if err != nil {
+		return 0, trace.Wrap(err, "failed to peek data")
+	}
+
+	if !bytes.Equal(data, c.requiredPrefix) {
+		return 0, trace.AccessDenied("required prefix %q was not found", string(c.requiredPrefix))
+	}
+
+	c.upstreamReader = reader
+	return c.upstreamReader.Read(b)
 }
 
 func (t *proxySubsys) close(err error) {
