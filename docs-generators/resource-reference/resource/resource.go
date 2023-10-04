@@ -28,7 +28,7 @@ type ReferenceEntry struct {
 // convert it into a ReferenceEntry.
 type DeclarationInfo struct {
 	FilePath    string
-	Decl        *ast.GenDecl
+	Decl        ast.Decl
 	PackageName string
 }
 
@@ -235,17 +235,28 @@ func (y yamlCustomType) formatForTable() string {
 	)
 }
 
+type notAGenDeclError struct{}
+
+func (e notAGenDeclError) Error() string {
+	return "the declaration is not a GenDecl"
+}
+
 // getRawTypes returns the type spec to use for further processing. Returns an
 // error if there is either no type spec or more than one.
 func getRawTypes(decl DeclarationInfo) (rawType, error) {
-	if len(decl.Decl.Specs) == 0 {
+	gendecl, ok := decl.Decl.(*ast.GenDecl)
+	if !ok {
+		return rawType{}, notAGenDeclError{}
+	}
+
+	if len(gendecl.Specs) == 0 {
 		return rawType{}, errors.New("declaration has no specs")
 	}
 
 	// Name the section after the first type declaration found. We expect
 	// there to be one type spec.
 	var t *ast.TypeSpec
-	for _, s := range decl.Decl.Specs {
+	for _, s := range gendecl.Specs {
 		ts, ok := s.(*ast.TypeSpec)
 		if !ok {
 			continue
@@ -267,7 +278,7 @@ func getRawTypes(decl DeclarationInfo) (rawType, error) {
 		return rawType{
 			name: t.Name.Name,
 			// Preserving newlines for downstream processing
-			doc:    decl.Decl.Doc.Text(),
+			doc:    gendecl.Doc.Text(),
 			fields: []rawField{},
 		}, nil
 	}
@@ -300,7 +311,7 @@ func getRawTypes(decl DeclarationInfo) (rawType, error) {
 	result := rawType{
 		name: t.Name.Name,
 		// Preserving newlines for downstream processing
-		doc:    decl.Decl.Doc.Text(),
+		doc:    gendecl.Doc.Text(),
 		fields: rawFields,
 	}
 
@@ -556,7 +567,7 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 			)
 		}
 		e, err := getRawTypes(d)
-		if err != nil {
+		if err != nil || !errors.Is(err, notAGenDeclError{}) {
 			return nil, err
 		}
 
@@ -576,7 +587,7 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 // printing. NewFromDecl uses allResources to look up custom fields.
 func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) (map[PackageInfo]ReferenceEntry, error) {
 	rs, err := getRawTypes(decl)
-	if err != nil {
+	if err != nil || !errors.Is(err, notAGenDeclError{}) {
 		return nil, err
 	}
 
@@ -663,15 +674,15 @@ type MethodInfo struct {
 	FieldAssignments map[string]string
 }
 
-func getMethodInfo(decls []ast.Decl, packageName string) (map[PackageInfo][]MethodInfo, error) {
+func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error) {
 	if decls == nil || len(decls) == 0 {
 		return map[PackageInfo][]MethodInfo{}, nil
 	}
 
 	result := make(map[PackageInfo][]MethodInfo)
 
-	for _, d := range decls {
-		f, ok := d.(*ast.FuncDecl)
+	for _, decl := range decls {
+		f, ok := decl.Decl.(*ast.FuncDecl)
 		if !ok {
 			continue
 		}
@@ -683,14 +694,14 @@ func getMethodInfo(decls []ast.Decl, packageName string) (map[PackageInfo][]Meth
 
 		if len(f.Recv.List) != 1 {
 			return nil, fmt.Errorf("method %v.%v has an unexpected number of receivers",
-				packageName,
+				decl.PackageName,
 				f.Name.Name,
 			)
 		}
 
 		if len(f.Recv.List[0].Names) != 1 {
 			return nil, fmt.Errorf("method %v.%v has an unexpected number of receiver names",
-				packageName,
+				decl.PackageName,
 				f.Name.Name,
 			)
 
@@ -702,7 +713,7 @@ func getMethodInfo(decls []ast.Decl, packageName string) (map[PackageInfo][]Meth
 			d, ok := t.X.(*ast.Ident)
 			if !ok {
 				return nil, fmt.Errorf("method %v.%v has a receiver type with a star expression but no identifier",
-					packageName,
+					decl.PackageName,
 					f.Name.Name,
 				)
 
@@ -712,7 +723,7 @@ func getMethodInfo(decls []ast.Decl, packageName string) (map[PackageInfo][]Meth
 			i = t
 		}
 		pi := PackageInfo{
-			PackageName: packageName,
+			PackageName: decl.PackageName,
 			TypeName:    i.Name,
 		}
 
