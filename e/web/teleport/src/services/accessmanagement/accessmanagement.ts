@@ -10,7 +10,7 @@ import {
   AccessListOwner,
   IneligibleStatus,
   AddMembersToAccessListRequest,
-} from 'e-teleport/services/accessmanagement';
+} from './types';
 
 export const accessManagementService = {
   fetchAccessListSuggestions(accessRequestId: string): Promise<AccessList[]> {
