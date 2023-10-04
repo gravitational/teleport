@@ -5,7 +5,7 @@ description: How to use Machine ID with Ansible
 
 Ansible is a common tool for managing fleets of Linux hosts via SSH. In order to
 connect to the hosts, it requires a form of authentication. Machine ID can be
-used to provide short-lived certificates to Ansible that allows it to connect
+used to provide short-lived certificates to Ansible that allow it to connect
 to SSH nodes enrolled in Teleport in a secure and auditable manner.
 
 In this guide, you will configure the Machine ID agent, `tbot`, to produce
@@ -151,7 +151,7 @@ $ tsh ls --format=json | jq -r '.[].spec.hostname' > hosts
 Finally, let's create a simple Ansible playbook, `playbook.yaml`. The example
 playbook below runs `hostname` on all hosts.
 
-```var
+```yaml
 - hosts: all
   remote_user: <Var name="root" />
   tasks:
