@@ -1177,18 +1177,79 @@ func TestMakeSectionName(t *testing.T) {
 func TestGetMethodInfo(t *testing.T) {
 	cases := []struct {
 		description string
-		source      []string
+		source      string
 		expected    map[PackageInfo][]MethodInfo
 	}{
 		{
-			description: "empty input",
-			source:      []string{},
-			expected:    map[PackageInfo][]MethodInfo{},
-		},
-		{
-			description: "nil input",
-			source:      nil,
-			expected:    map[PackageInfo][]MethodInfo{},
+			description: "multiple declarations",
+			source: `package testpkg
+
+import "strings"
+
+type myStruct struct {
+    name string
+}
+
+type otherStruct struct {
+    name string
+    age int
+}
+
+func (m *myStruct) uppercaseName() string {
+    return strings.ToUpper(m.name)
+}
+
+func (m myStruct) assignName() {
+    m.name = nameConst
+}
+
+func notAMethod(s string) string {
+    return "Not a method"
+
+}
+
+func (o *otherStruct) assignAgeAndName(a int) {
+    o.age = a
+    o.name = nameConst
+}
+
+func (o *otherStruct) copyNameFrom(m *myStruct){
+    o.name = *m.name
+}
+`,
+			expected: map[PackageInfo][]MethodInfo{
+				PackageInfo{
+					TypeName:    "myStruct",
+					PackageName: "testpkg",
+				}: []MethodInfo{
+					{
+						Name:             "uppercaseName",
+						FieldAssignments: map[string]string{},
+					},
+					{
+						Name: "assignName",
+						FieldAssignments: map[string]string{
+							"name": "nameConst",
+						},
+					},
+				},
+				PackageInfo{
+					TypeName:    "otherStruct",
+					PackageName: "testpkg",
+				}: []MethodInfo{
+					{
+						Name: "assignAgeAndName",
+						FieldAssignments: map[string]string{
+							"age":  "a",
+							"name": "nameConst",
+						},
+					},
+					{
+						Name:             "copyNameFrom",
+						FieldAssignments: map[string]string{},
+					},
+				},
+			},
 		},
 	}
 
@@ -1196,18 +1257,16 @@ func TestGetMethodInfo(t *testing.T) {
 		t.Run(c.description, func(t *testing.T) {
 			fset := token.NewFileSet()
 			allDecls := []ast.Decl{}
-			for n, dep := range c.source {
-				d, err := parser.ParseFile(fset,
-					fmt.Sprintf("myfile%v.go", n),
-					replaceBackticks(dep),
-					parser.ParseComments,
-				)
-				if err != nil {
-					t.Fatalf("test fixture contains invalid Go source: %v\n", err)
-				}
-				allDecls = append(allDecls, d.Decls...)
+			d, err := parser.ParseFile(fset,
+				"myfile.go",
+				replaceBackticks(c.source),
+				parser.ParseComments,
+			)
+			if err != nil {
+				t.Fatalf("test fixture contains invalid Go source: %v\n", err)
 			}
-			actual, err := getMethodInfo(allDecls)
+			allDecls = append(allDecls, d.Decls...)
+			actual, err := getMethodInfo(allDecls, d.Name.Name)
 			assert.NoError(t, err)
 			assert.Equal(t, c.expected, actual)
 		})
