@@ -9,6 +9,11 @@ HEALTHCHECK CMD etcdctl --insecure-discovery --endpoint=https://etcd0:2379 --key
 
 EXPOSE 2379 2380
 
+USER 0
+RUN mkdir teleportstorage.etcd
+RUN chown 1001 teleportstorage.etcd
+USER 1001
+
 ENTRYPOINT /opt/bitnami/etcd/bin/etcd --name teleportstorage \
     --initial-cluster-state new \
     --cert-file /certs/server-cert.pem \
@@ -16,5 +21,4 @@ ENTRYPOINT /opt/bitnami/etcd/bin/etcd --name teleportstorage \
     --trusted-ca-file /certs/ca-cert.pem \
     --advertise-client-urls=https://127.0.0.1:2379 \
     --listen-client-urls=https://0.0.0.0:2379 \
-    --client-cert-auth \
-    --debug
+    --client-cert-auth

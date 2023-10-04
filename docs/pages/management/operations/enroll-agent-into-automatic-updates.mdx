@@ -1,5 +1,5 @@
 ---
-title: Enroll an agent into automatic updates 
+title: Enroll an agent into automatic updates
 description: How to enroll an agent into automatic updates
 ---
 
@@ -13,7 +13,7 @@ description: How to enroll an agent into automatic updates
 
 Teleport supports automatic agent updates for
 systemd-based Linux distributions using `apt`, `yum`, or `zypper` package
-managers, and Kubernetes clusters. The [automatic updates architecture 
+managers, and Kubernetes clusters. The [automatic updates architecture
 page](../../architecture/agent-update-management.mdx) describes how agent
 updating works.
 
@@ -158,16 +158,16 @@ You can validate the updater is running properly by checking if its pod is ready
 ```code
 $ kubectl get pods
 NAME                               READY   STATUS    RESTARTS   AGE
-my-agent-0                         1/1     Running   0          14m
-my-agent-1                         1/1     Running   0          14m
-my-agent-2                         1/1     Running   0          14m
-my-agent-updater-d9f97f5dd-v57g9   1/1     Running   0          16m
+<your-agent-release>-0                         1/1     Running   0          14m
+<your-agent-release>-1                         1/1     Running   0          14m
+<your-agent-release>-2                         1/1     Running   0          14m
+<your-agent-release>-updater-d9f97f5dd-v57g9   1/1     Running   0          16m
 ```
 
 And by consulting its logs:
 
 ```code
-$ kubectl logs <your-agent-release>-updater
+$ kubectl logs deployment/<your-agent-release>-updater
 2023-04-28T13:13:30Z	INFO	StatefulSet is already up-to-date, not updating.	{"controller": "statefulset", "controllerGroup": "apps", "controllerKind": "StatefulSet", "StatefulSet": {"name":"my-agent","namespace":"agent"}, "namespace": "agent", "name": "my-agent", "reconcileID": "10419f20-a4c9-45d4-a16f-406866b7fc05", "namespacedname": "agent/my-agent", "kind": "StatefulSet", "err": "no new version (current: \"v12.2.3\", next: \"v12.2.3\")"}
 ```
 
@@ -255,7 +255,7 @@ my-agent-updater-d9f97f5dd-v57g9   1/1     Running   0          16m
 And by consulting its logs:
 
 ```code
-$ kubectl logs <your-agent-release>-updater
+$ kubectl logs deployment/<your-agent-release>-updater
 2023-04-28T13:13:30Z	INFO	StatefulSet is already up-to-date, not updating.	{"controller": "statefulset", "controllerGroup": "apps", "controllerKind": "StatefulSet", "StatefulSet": {"name":"my-agent","namespace":"agent"}, "namespace": "agent", "name": "my-agent", "reconcileID": "10419f20-a4c9-45d4-a16f-406866b7fc05", "namespacedname": "agent/my-agent", "kind": "StatefulSet", "err": "no new version (current: \"v12.2.3\", next: \"v12.2.3\")"}
 ```
 
@@ -265,7 +265,7 @@ $ kubectl logs <your-agent-release>-updater
 </Tabs>
 
 ## Troubleshooting
-  
+
 ### Manually running an update
 
 If the agent is not automatically updated, you can:
@@ -285,7 +285,7 @@ $ sudo teleport-upgrade run
 Consult the `teleport-kube-agent-updater` logs:
 
 ```code
-$ kubectl logs <your-agent-release>-updater
+$ kubectl logs deployment/<your-agent-release>-updater
 ```
 
 <Admonition type="note">
@@ -313,7 +313,7 @@ Disable the systemd timer:
 ```code
 $ sudo systemctl disable --now teleport-upgrade.timer
 ```
-  
+
 To enable and start the systemd timer after suspending:
 
 ```code
@@ -326,4 +326,4 @@ Either by setting the `annotations.deployment` value in Helm, or by patching
 the deployment directly with `kubectl`.
 </TabItem>
 </Tabs>
- 
+

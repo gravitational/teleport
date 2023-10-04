@@ -31,6 +31,11 @@ import {
 import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
 import NodeService, { Node } from 'teleport/services/nodes';
 
+import {
+  DiscoverEvent,
+  DiscoverEventStatus,
+} from 'teleport/services/userEvent';
+
 import { ActionButtons, Header } from '../../Shared';
 
 import { CreateEc2IceDialog } from '../CreateEc2Ice/CreateEc2IceDialog';
@@ -57,7 +62,7 @@ const emptyTableData: TableData = {
 };
 
 export function EnrollEc2Instance() {
-  const { agentMeta, emitErrorEvent, nextStep, updateAgentMeta } =
+  const { agentMeta, emitErrorEvent, nextStep, updateAgentMeta, emitEvent } =
     useDiscover();
   const nodeService = new NodeService();
 
@@ -214,6 +219,13 @@ export function EnrollEc2Instance() {
       // it's create-complete and then create the node.
       if (createCompleteEice || createInProgressEice) {
         setExistingEice(createCompleteEice || createInProgressEice);
+        // Since the EICE had already been deployed before the flow, emit an event for EC2DeployEICE as `Skipped`.
+        emitEvent(
+          { stepStatus: DiscoverEventStatus.Skipped },
+          {
+            eventName: DiscoverEvent.EC2DeployEICE,
+          }
+        );
         updateAgentMeta({
           ...(agentMeta as NodeMeta),
           node: selectedInstance,

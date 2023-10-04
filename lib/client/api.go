@@ -3868,11 +3868,6 @@ func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (priv *keys.Privat
 
 // new SSHLogin generates a new SSHLogin using the given login key.
 func (tc *TeleportClient) newSSHLogin(priv *keys.PrivateKey) (SSHLogin, error) {
-	attestationStatement, err := keys.GetAttestationStatement(priv)
-	if err != nil {
-		return SSHLogin{}, trace.Wrap(err)
-	}
-
 	return SSHLogin{
 		ProxyAddr:            tc.WebProxyAddr,
 		PubKey:               priv.MarshalSSHPublicKey(),
@@ -3882,7 +3877,7 @@ func (tc *TeleportClient) newSSHLogin(priv *keys.PrivateKey) (SSHLogin, error) {
 		Compatibility:        tc.CertificateFormat,
 		RouteToCluster:       tc.SiteName,
 		KubernetesCluster:    tc.KubernetesCluster,
-		AttestationStatement: attestationStatement,
+		AttestationStatement: priv.GetAttestationStatement(),
 		ExtraHeaders:         tc.ExtraProxyHeaders,
 	}, nil
 }
@@ -4160,9 +4155,9 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 		return nil, trace.Wrap(err)
 	}
 
-	// If version checking was requested and the server advertises a minimum version.
-	if tc.CheckVersions && pr.MinClientVersion != "" {
-		if err := utils.CheckVersion(teleport.Version, pr.MinClientVersion); err != nil && trace.IsBadParameter(err) {
+	// Verify server->client and client->server compatibility.
+	if tc.CheckVersions {
+		if !utils.MeetsVersion(teleport.Version, pr.MinClientVersion) {
 			fmt.Fprintf(tc.Stderr, `
 			WARNING
 			Detected potentially incompatible client and server versions.
@@ -4170,6 +4165,18 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 			Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
 			Future versions of tsh will fail when incompatible versions are detected.
 			`, pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
+		}
+
+		// Recent `tsh mfa` changes require at least Teleport v15.
+		const minServerVersion = "15.0.0-aa" // "-aa" matches all development versions
+		if !utils.MeetsVersion(pr.ServerVersion, minServerVersion) {
+			fmt.Fprintf(tc.Stderr, `
+			WARNING
+			Detected incompatible client and server versions.
+			Minimum server version supported by tsh is %v but your server is using %v.
+			Please use a tsh version that matches your server.
+			You may use the --skip-version-check flag to bypass this check.
+			`, minServerVersion, pr.ServerVersion)
 		}
 	}
 

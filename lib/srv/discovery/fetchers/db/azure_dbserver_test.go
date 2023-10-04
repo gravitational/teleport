@@ -83,7 +83,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 				{
 					Subscriptions:  []string{subscription1},
 					ResourceGroups: []string{group1},
-					Types:          []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
+					Types:          []string{types.AzureMatcherMySQL, types.AzureMatcherPostgres},
 					Regions:        []string{eastus},
 					ResourceTags:   types.Labels{"env": []string{"prod"}},
 				},
@@ -121,7 +121,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 				{
 					Subscriptions:  []string{"*"},
 					ResourceGroups: []string{"*"},
-					Types:          []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
+					Types:          []string{types.AzureMatcherMySQL, types.AzureMatcherPostgres},
 					Regions:        []string{"*"},
 					ResourceTags:   types.Labels{"env": []string{"prod"}},
 				},
@@ -161,7 +161,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 				{
 					Subscriptions:  []string{subscription1},
 					ResourceGroups: []string{"*"},
-					Types:          []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
+					Types:          []string{types.AzureMatcherMySQL, types.AzureMatcherPostgres},
 					Regions:        []string{eastus},
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
@@ -195,7 +195,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 				{
 					Subscriptions:  []string{subscription1},
 					ResourceGroups: []string{"*"},
-					Types:          []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
+					Types:          []string{types.AzureMatcherMySQL, types.AzureMatcherPostgres},
 					Regions:        []string{eastus},
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
@@ -230,7 +230,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 				{
 					Subscriptions:  []string{subscription1, subscription2},
 					ResourceGroups: []string{"*"},
-					Types:          []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
+					Types:          []string{types.AzureMatcherMySQL, types.AzureMatcherPostgres},
 					Regions:        []string{eastus, westus},
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
@@ -269,7 +269,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 				{
 					Subscriptions:  []string{subscription1},
 					ResourceGroups: []string{"foobar", group1, "baz"},
-					Types:          []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
+					Types:          []string{types.AzureMatcherMySQL, types.AzureMatcherPostgres},
 					Regions:        []string{eastus, westus},
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
@@ -346,7 +346,7 @@ func makeAzureMySQLServer(t *testing.T, name, subscription, group, region string
 
 	database, err := services.NewDatabaseFromAzureServer(azureDBServer)
 	require.NoError(t, err)
-	common.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherMySQL)
+	common.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherMySQL)
 	return server, database
 }
 
@@ -382,7 +382,7 @@ func makeAzurePostgresServer(t *testing.T, name, subscription, group, region str
 
 	database, err := services.NewDatabaseFromAzureServer(azureDBServer)
 	require.NoError(t, err)
-	common.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherPostgres)
+	common.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherPostgres)
 	return server, database
 }
 
