@@ -71,6 +71,7 @@ export class AgentRunner {
       'start',
       `--config=${configFile}`,
       this.settings.isLocalBuild && '--skip-version-check',
+      this.settings.tshd.insecure && '--insecure',
     ].filter(Boolean);
 
     this.logger.info(
