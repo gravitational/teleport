@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/url"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -596,7 +595,7 @@ func TestSuggestAccessLists(t *testing.T) {
 	// - one that is missing access due to a trait mismatch
 	accessListCloseMatch, err := accesslist.NewAccessList(header.Metadata{Name: "close-match"}, accesslist.Spec{
 		Title:              "close match",
-		Audit:              accesslist.Audit{Frequency: time.Hour},
+		Audit:              accesslist.Audit{NextAuditDate: s.clock.Now()},
 		Owners:             []accesslist.Owner{{Name: "reviewer", Description: "reviewer desc"}},
 		MembershipRequires: accesslist.Requires{Roles: []string{requesterRoleName}, Traits: trait.Traits{"preferred_drink": []string{"fanta"}}},
 		Grants:             accesslist.Grants{Roles: []string{"access"}},
@@ -606,7 +605,7 @@ func TestSuggestAccessLists(t *testing.T) {
 	require.NoError(t, err)
 	accessListOverprivileged, err := accesslist.NewAccessList(header.Metadata{Name: "overprivileged"}, accesslist.Spec{
 		Title:              "overprivileged",
-		Audit:              accesslist.Audit{Frequency: time.Hour},
+		Audit:              accesslist.Audit{NextAuditDate: s.clock.Now()},
 		Owners:             []accesslist.Owner{{Name: "reviewer", Description: "reviewer desc"}},
 		MembershipRequires: accesslist.Requires{Roles: []string{requesterRoleName}, Traits: trait.Traits{"preferred_drink": []string{"fanta"}}},
 		Grants:             accesslist.Grants{Roles: []string{"access", "godmode"}},
@@ -616,7 +615,7 @@ func TestSuggestAccessLists(t *testing.T) {
 	require.NoError(t, err)
 	accessListWrongMembershipReq, err := accesslist.NewAccessList(header.Metadata{Name: "wrong-membership-requirements-role"}, accesslist.Spec{
 		Title:              "missing access role",
-		Audit:              accesslist.Audit{Frequency: time.Hour},
+		Audit:              accesslist.Audit{NextAuditDate: s.clock.Now()},
 		Owners:             []accesslist.Owner{{Name: "reviewer", Description: "reviewer desc"}},
 		MembershipRequires: accesslist.Requires{Roles: []string{"godmode"}},
 		Grants:             accesslist.Grants{Roles: []string{"access"}},
@@ -626,7 +625,7 @@ func TestSuggestAccessLists(t *testing.T) {
 	require.NoError(t, err)
 	accessListMissingAccessTrait, err := accesslist.NewAccessList(header.Metadata{Name: "missing-access-trait"}, accesslist.Spec{
 		Title:              "missing access trait",
-		Audit:              accesslist.Audit{Frequency: time.Hour},
+		Audit:              accesslist.Audit{NextAuditDate: s.clock.Now()},
 		Owners:             []accesslist.Owner{{Name: "reviewer", Description: "reviewer desc"}},
 		MembershipRequires: accesslist.Requires{Traits: trait.Traits{"preferred_drink": []string{"coke"}}},
 		Grants:             accesslist.Grants{Roles: []string{"access"}},
@@ -736,7 +735,7 @@ func TestPromoteAccessRequest(t *testing.T) {
 			},
 			accesslist.Spec{
 				Title:              "close match title",
-				Audit:              accesslist.Audit{Frequency: time.Hour},
+				Audit:              accesslist.Audit{NextAuditDate: s.clock.Now()},
 				Owners:             []accesslist.Owner{{Name: "reviewer", Description: "reviewer desc"}},
 				MembershipRequires: accesslist.Requires{},
 				Grants:             accesslist.Grants{Roles: []string{"access"}},
@@ -755,7 +754,7 @@ func TestPromoteAccessRequest(t *testing.T) {
 			},
 			accesslist.Spec{
 				Title:              "no access title",
-				Audit:              accesslist.Audit{Frequency: time.Hour},
+				Audit:              accesslist.Audit{NextAuditDate: s.clock.Now()},
 				Owners:             []accesslist.Owner{{Name: "reviewer", Description: "reviewer desc"}},
 				MembershipRequires: accesslist.Requires{},
 				Grants:             accesslist.Grants{Roles: []string{"nonexistent-role"}},

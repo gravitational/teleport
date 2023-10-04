@@ -20,6 +20,12 @@ import (
 	"github.com/gravitational/teleport/e/lib/web/ui"
 )
 
+var (
+	accessListCmpOpts = cmp.Options{
+		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+	}
+)
+
 func TestGetAccessLists(t *testing.T) {
 	s := newWebSuite(t)
 	webPack := s.newAuthWebPack(t, "foo")
@@ -28,7 +34,7 @@ func TestGetAccessLists(t *testing.T) {
 	ctx := context.Background()
 	accessList1, err := accesslist.NewAccessList(header.Metadata{Name: "accesslist-1"}, accesslist.Spec{
 		Title:             "access list 1",
-		Audit:             accesslist.Audit{Frequency: time.Hour},
+		Audit:             accesslist.Audit{NextAuditDate: s.clock.Now()},
 		Owners:            []accesslist.Owner{{Name: "llama", Description: "llama desc"}},
 		OwnershipRequires: accesslist.Requires{Roles: []string{"admin"}},
 		Grants:            accesslist.Grants{Roles: []string{"access"}},
@@ -57,7 +63,7 @@ func TestGetAccessLists(t *testing.T) {
 
 	accesList2, err := accesslist.NewAccessList(header.Metadata{Name: "accesslist-2"}, accesslist.Spec{
 		Title:             "access list 2",
-		Audit:             accesslist.Audit{Frequency: time.Hour},
+		Audit:             accesslist.Audit{NextAuditDate: s.clock.Now()},
 		Owners:            []accesslist.Owner{{Name: "alpaca", Description: "alpaca desc"}},
 		OwnershipRequires: accesslist.Requires{Roles: []string{"admin"}},
 		Grants:            accesslist.Grants{Roles: []string{"editor"}},
@@ -95,15 +101,18 @@ func TestUpdateAccessList(t *testing.T) {
 
 	accessListId := createTestAccessList(t, webPack, s)
 
-	spec := accesslist.Spec{
+	accessList, err := accesslist.NewAccessList(header.Metadata{
+		Name: "access-list-1",
+	}, accesslist.Spec{
 		Title:              "access list 1",
 		Description:        "access list 1 desc - updated",
 		Owners:             []accesslist.Owner{{Name: "llama 2", Description: "llama 2 desc"}},
 		OwnershipRequires:  accesslist.Requires{Roles: []string{"admin"}, Traits: trait.Traits{}},
 		Grants:             accesslist.Grants{Roles: []string{"access"}, Traits: trait.Traits{}},
 		MembershipRequires: accesslist.Requires{Traits: trait.Traits{}},
-		Audit:              accesslist.Audit{Frequency: time.Hour},
-	}
+		Audit:              accesslist.Audit{NextAuditDate: s.clock.Now()},
+	})
+	require.NoError(t, err)
 
 	accessListMember := accesslist.AccessListMemberSpec{
 		Name:    "llama",
@@ -130,11 +139,11 @@ func TestUpdateAccessList(t *testing.T) {
 	}
 
 	// Add one member. The list should have one member.
-	updateAccessList(t, webPack, s, accessListId, spec, accessListMember)
+	updateAccessList(t, webPack, s, accessListId, accessList.Spec, accessListMember)
 	// Add another member. The list should have two members.
-	updateAccessList(t, webPack, s, accessListId, spec, accessListMember, accessListMember2)
+	updateAccessList(t, webPack, s, accessListId, accessList.Spec, accessListMember, accessListMember2)
 	// Add different member. The previous members should be removed, and this member should be the only one.
-	updateAccessList(t, webPack, s, accessListId, spec, accessListMember3)
+	updateAccessList(t, webPack, s, accessListId, accessList.Spec, accessListMember3)
 }
 
 func updateAccessList(t *testing.T, webPack *authWebPack, s *webSuite, accessListId string, spec accesslist.Spec, accessListMember ...accesslist.AccessListMemberSpec) {
@@ -148,7 +157,7 @@ func updateAccessList(t *testing.T, webPack *authWebPack, s *webSuite, accessLis
 
 	var accessListResp ui.AccessListResponse
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &accessListResp))
-	require.Empty(t, cmp.Diff(spec, accessListResp.AccessList.Spec, cmpopts.EquateEmpty()))
+	require.Empty(t, cmp.Diff(spec, accessListResp.AccessList.Spec, accessListCmpOpts))
 	require.Equal(t, accessListId, accessListResp.AccessList.Metadata.Name)
 	require.Len(t, accessListResp.AccessList.Members, len(accessListMember))
 	for i, member := range accessListResp.AccessList.Members {
@@ -163,7 +172,7 @@ func TestGetAccessList(t *testing.T) {
 
 	accessList, err := accesslist.NewAccessList(header.Metadata{Name: "accesslist-1"}, accesslist.Spec{
 		Title: "access list 1",
-		Audit: accesslist.Audit{Frequency: time.Hour},
+		Audit: accesslist.Audit{NextAuditDate: s.clock.Now()},
 		Owners: []accesslist.Owner{
 			{
 				Name:        "llama",
@@ -207,7 +216,7 @@ func TestGetAccessList(t *testing.T) {
 	createdMember.Spec.IneligibleStatus = member.Spec.IneligibleStatus
 
 	accessListResp := getAccessList(t, webPack, s, createdAccessList.GetName())
-	require.Empty(t, cmp.Diff(createdAccessList, accessListResp.AccessList.AccessList, cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(createdAccessList, accessListResp.AccessList.AccessList, accessListCmpOpts))
 
 	// Members are returned by the API.
 	require.Len(t, accessListResp.AccessList.Members, 1)
@@ -221,7 +230,7 @@ func TestDeleteAccessList(t *testing.T) {
 
 	accesList, err := accesslist.NewAccessList(header.Metadata{Name: "accesslist-1"}, accesslist.Spec{
 		Title:             "access list 1",
-		Audit:             accesslist.Audit{Frequency: time.Hour},
+		Audit:             accesslist.Audit{NextAuditDate: s.clock.Now()},
 		Owners:            []accesslist.Owner{{Name: "llama", Description: "llama desc"}},
 		OwnershipRequires: accesslist.Requires{Roles: []string{"admin"}},
 		Grants:            accesslist.Grants{Roles: []string{"access"}},
@@ -277,24 +286,28 @@ func addMemberToAccessList(t *testing.T, webPack *authWebPack, s *webSuite, acce
 func createTestAccessList(t *testing.T, webPack *authWebPack, s *webSuite) string {
 	t.Helper()
 
-	spec := accesslist.Spec{
+	accessList, err := accesslist.NewAccessList(header.Metadata{
+		Name: "name",
+	}, accesslist.Spec{
 		Title:              "access list 1",
 		Owners:             []accesslist.Owner{{Name: "llama", Description: "llama desc"}},
 		OwnershipRequires:  accesslist.Requires{Roles: []string{"admin"}, Traits: trait.Traits{}},
 		Grants:             accesslist.Grants{Roles: []string{"access"}, Traits: trait.Traits{}},
 		MembershipRequires: accesslist.Requires{Traits: trait.Traits{}},
-		Audit:              accesslist.Audit{Frequency: time.Hour},
-	}
+		Audit:              accesslist.Audit{NextAuditDate: time.Now()},
+	})
+	require.NoError(t, err)
 
 	endpoint := webPack.clt.Endpoint("enterprise", "accesslist")
 	resp, err := webPack.clt.PostJSON(s.ctx, endpoint, ui.UpsertAccessListRequest{
-		Spec: spec,
+		Spec: accessList.Spec,
 	})
 	require.NoError(t, err)
 
 	var accessListResp ui.AccessListResponse
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &accessListResp))
-	require.Equal(t, spec, accessListResp.AccessList.Spec)
+	require.Empty(t, cmp.Diff(accessList.Spec, accessListResp.AccessList.Spec,
+		accessListCmpOpts))
 
 	return accessListResp.AccessList.Metadata.Name
 }

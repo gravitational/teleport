@@ -56,8 +56,6 @@ const (
 // cmpOpts are general cmpOpts for all comparisons.
 var cmpOpts = []cmp.Option{
 	cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
-	// TODO(mdwn): Remove this EquateEmpty once members has been properly removed from the OSS repo.
-	cmpopts.EquateEmpty(),
 	cmpopts.SortSlices(func(a, b *accesslist.AccessList) bool {
 		return a.GetName() < b.GetName()
 	}),
@@ -228,7 +226,7 @@ func TestService_UpsertAccessList(t *testing.T) {
 	})
 
 	// Owner should be able to modify the audit.
-	a2.Spec.Audit.Frequency = 2080 * time.Hour
+	a2.Spec.Audit.NextAuditDate = clock.Now().AddDate(100, 0, 0)
 	_, err = svc.UpsertAccessList(ownerCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
 	require.NoError(t, err)
 	expectEvent(t, events.AccessListUpdateSuccessCode, emitter, func(event *apievents.AccessListUpdate) {
@@ -1204,7 +1202,6 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency:     time.Hour * 8760,
 				NextAuditDate: clock.Now().Add(time.Hour * 8700),
 			},
 			MembershipRequires: accesslist.Requires{

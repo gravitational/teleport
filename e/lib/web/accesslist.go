@@ -154,8 +154,8 @@ func (p *Plugin) upsertAccessList(_ http.ResponseWriter, r *http.Request, params
 		members = append(members, memberToAccessListMember(accessListId, member))
 	}
 
-	accessLlistClient := clt.AccessListClient()
-	createdAccessList, updatedMembers, err := accessLlistClient.UpsertAccessListWithMembers(r.Context(), accessList, members)
+	accessListClient := clt.AccessListClient()
+	createdAccessList, updatedMembers, err := accessListClient.UpsertAccessListWithMembers(r.Context(), accessList, members)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
