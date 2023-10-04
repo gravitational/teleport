@@ -472,8 +472,8 @@ func (s *Server) trackUserConnections(delta int32) int32 {
 func (s *Server) TrackUserConnection() (release func()) {
 	s.trackUserConnections(1)
 
+	var once sync.Once
 	return func() {
-		var once sync.Once
 		once.Do(func() {
 			s.trackUserConnections(-1)
 		})
