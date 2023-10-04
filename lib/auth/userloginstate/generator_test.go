@@ -365,7 +365,6 @@ func newAccessList(t *testing.T, clock clockwork.Clock, name string, roles []str
 	}, accesslist.Spec{
 		Title: "title",
 		Audit: accesslist.Audit{
-			Frequency:     time.Hour * 8760, // Roughly a year
 			NextAuditDate: clock.Now().Add(time.Hour * 48),
 		},
 		Owners: []accesslist.Owner{
