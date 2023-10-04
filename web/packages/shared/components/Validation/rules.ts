@@ -17,15 +17,15 @@ limitations under the License.
 /**
  * The result of validating a field.
  */
-export type ValidationResult = {
+export interface ValidationResult {
   valid: boolean;
   message?: string;
-};
+}
 
 /**
  * A function to validate a field value.
  */
-export type Rule<T> = (value: T) => () => ValidationResult;
+export type Rule<T, R = ValidationResult> = (value: T) => () => R;
 
 /**
  * requiredField checks for empty strings and arrays.
@@ -120,29 +120,36 @@ const requiredRoleArn: Rule<string> = (roleArn: string) => () => {
   };
 };
 
+export interface EmailValidationResult extends ValidationResult {
+  kind?: 'empty' | 'invalid';
+}
+
 // requiredEmailLike ensures a string contains a plausible email, i.e. that it
 // contains an '@' and some characters on each side.
-const requiredEmailLike: Rule<string> = (email: string) => () => {
-  if (!email) {
-    return {
-      valid: false,
-      message: 'Email address is required',
-    };
-  }
+const requiredEmailLike: Rule<string, EmailValidationResult> =
+  (email: string) => () => {
+    if (!email) {
+      return {
+        valid: false,
+        kind: 'empty',
+        message: 'Email address is required',
+      };
+    }
 
-  // Must contain an @, i.e. 2 entries, and each must be nonempty.
-  let parts = email.split('@');
-  if (parts.length !== 2 || !parts[0] || !parts[1]) {
-    return {
-      valid: false,
-      message: `Email address '${email}' is invalid`,
-    };
-  }
+    // Must contain an @, i.e. 2 entries, and each must be nonempty.
+    let parts = email.split('@');
+    if (parts.length !== 2 || !parts[0] || !parts[1]) {
+      return {
+        valid: false,
+        kind: 'invalid',
+        message: `Email address '${email}' is invalid`,
+      };
+    }
 
-  return {
-    valid: true,
+    return {
+      valid: true,
+    };
   };
-};
 
 export {
   requiredToken,
