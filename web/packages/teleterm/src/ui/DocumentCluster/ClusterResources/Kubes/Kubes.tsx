@@ -25,6 +25,7 @@ import { Danger } from 'design/Alert';
 import { SearchPanel, SearchPagination } from 'shared/components/Search';
 
 import { makeKube } from 'teleterm/ui/services/clusters';
+import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
 import { getEmptyTableText } from '../getEmptyTableText';
@@ -51,7 +52,13 @@ function KubeList(props: State) {
   } = props;
   const kubes = fetchAttempt.data?.agentsList.map(makeKube) || [];
   const disabled = fetchAttempt.status === 'processing';
-  const emptyText = getEmptyTableText(fetchAttempt.status, 'kubes');
+  const loggedInUser = useWorkspaceLoggedInUser();
+  const emptyText = getEmptyTableText(
+    fetchAttempt.status,
+    'kubes',
+    agentFilter.search || agentFilter.query,
+    loggedInUser?.acl?.tokens.create
+  );
 
   return (
     <>

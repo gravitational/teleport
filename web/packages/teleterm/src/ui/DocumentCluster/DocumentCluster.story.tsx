@@ -25,6 +25,7 @@ import {
 } from 'teleterm/ui/services/clusters';
 import { routing } from 'teleterm/ui/uri';
 import {
+  makeLoggedInUser,
   makeRootCluster,
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
@@ -54,12 +55,56 @@ const leafClusterDoc = {
   title: 'sample',
 };
 
-export const OnlineEmptyResources = () => {
+export const OnlineEmptyResourcesAndCanAddResources = () => {
   const state = createClusterServiceState();
   state.clusters.set(
     rootClusterDoc.clusterUri,
     makeRootCluster({
       uri: rootClusterDoc.clusterUri,
+      loggedInUser: makeLoggedInUser({
+        acl: {
+          tokens: {
+            create: true,
+            list: true,
+            edit: true,
+            pb_delete: true,
+            read: true,
+            use: true,
+          },
+        },
+      }),
+    })
+  );
+
+  return renderState({
+    state,
+    doc: rootClusterDoc,
+    fetchServersPromise: Promise.resolve({
+      agentsList: [],
+      totalCount: 0,
+      startKey: '',
+    }),
+  });
+};
+
+export const OnlineEmptyResourcesAndCannotAddResources = () => {
+  const state = createClusterServiceState();
+  state.clusters.set(
+    rootClusterDoc.clusterUri,
+    makeRootCluster({
+      uri: rootClusterDoc.clusterUri,
+      loggedInUser: makeLoggedInUser({
+        acl: {
+          tokens: {
+            create: false,
+            list: true,
+            edit: true,
+            pb_delete: true,
+            read: true,
+            use: true,
+          },
+        },
+      }),
     })
   );
 

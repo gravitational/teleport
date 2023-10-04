@@ -29,6 +29,7 @@ import { IAppContext } from 'teleterm/ui/types';
 import { GatewayProtocol } from 'teleterm/services/tshd/types';
 import { makeDatabase } from 'teleterm/ui/services/clusters';
 import { DatabaseUri } from 'teleterm/ui/uri';
+import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
 import { getEmptyTableText } from '../getEmptyTableText';
@@ -55,7 +56,13 @@ function DatabaseList(props: State) {
   } = props;
   const dbs = fetchAttempt.data?.agentsList.map(makeDatabase) || [];
   const disabled = fetchAttempt.status === 'processing';
-  const emptyText = getEmptyTableText(fetchAttempt.status, 'databases');
+  const loggedInUser = useWorkspaceLoggedInUser();
+  const emptyText = getEmptyTableText(
+    fetchAttempt.status,
+    'databases',
+    agentFilter.search || agentFilter.query,
+    loggedInUser?.acl?.tokens.create
+  );
 
   return (
     <>

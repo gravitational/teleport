@@ -16,6 +16,8 @@
 
 import { AttemptStatus } from 'shared/hooks/useAsync';
 
+import { assertUnreachable } from 'teleterm/ui/utils';
+
 /**
  *  `getEmptyTableText` returns text to be used in an async resource table
  *
@@ -28,7 +30,9 @@ import { AttemptStatus } from 'shared/hooks/useAsync';
  */
 export function getEmptyTableText(
   status: AttemptStatus,
-  pluralResourceNoun: string
+  pluralResourceNoun: string,
+  searchQuery: string | undefined,
+  canAddResources: boolean
 ) {
   switch (status) {
     case 'error':
@@ -37,7 +41,31 @@ export function getEmptyTableText(
       return 'Searching…';
     case 'processing':
       return 'Searching…';
-    case 'success':
-      return `No ${pluralResourceNoun} found.`;
+    case 'success': {
+      let message = `No ${pluralResourceNoun} found.`;
+      // We don't want to inform the user about being able to add new resources if they're actively
+      // looking for a resource by using search.
+      const isSearchQueryEmpty = !searchQuery || searchQuery.trim() === '';
+
+      if (isSearchQueryEmpty && canAddResources) {
+        // TODO(ravicious): It'd be nice to include a link to Discover. However, all external links
+        // opened by the browser need to be allowlisted (see setWindowOpenHandler), so we should
+        // allow opening links only to the currently active cluster and its leafs.
+        //
+        // However, the main process which does allowlisting doesn't know which clusters the user is
+        // logged into. It cannot get this info from the renderer because the renderer could be
+        // compromised.
+        //
+        // Instead, the renderer should notify the main process that the cluster list has changed
+        // and the main process should get a list of clusters from the tsh daemon.
+        //
+        // This is time consuming to set up, so for now we're skipping the link.
+        message += ' You can add them in the Teleport Web UI.';
+      }
+      return message;
+    }
+    default: {
+      assertUnreachable(status);
+    }
   }
 }

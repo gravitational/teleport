@@ -16,7 +16,7 @@
 
 import React from 'react';
 
-import { Text, Indicator, Box } from 'design';
+import { Text, Indicator, Box, Flex } from 'design';
 import * as Icons from 'design/Icon';
 
 import { StyledTable, StyledPanel, StyledTableWrapper } from './StyledTable';
@@ -338,19 +338,23 @@ const EmptyIndicator = ({
   <tfoot>
     <tr>
       <td colSpan={colSpan}>
-        <Text
-          typography="paragraph"
+        <Flex
           m="4"
-          color="text.main"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+          gap={2}
+          flexWrap="nowrap"
+          alignItems="center"
+          justifyContent="center"
         >
-          <Icons.Database mr={2} />
-          {emptyText}
-        </Text>
+          <Icons.Database color="text.main" />
+          <Text
+            textAlign="center"
+            typography="paragraph"
+            m="0"
+            color="text.main"
+          >
+            {emptyText}
+          </Text>
+        </Flex>
       </td>
     </tr>
   </tfoot>

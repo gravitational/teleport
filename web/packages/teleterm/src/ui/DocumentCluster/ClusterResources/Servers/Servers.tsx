@@ -24,6 +24,7 @@ import { MenuLogin } from 'shared/components/MenuLogin';
 import { SearchPanel, SearchPagination } from 'shared/components/Search';
 
 import { makeServer } from 'teleterm/ui/services/clusters';
+import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
 import { getEmptyTableText } from '../getEmptyTableText';
@@ -51,7 +52,13 @@ function ServerList(props: State) {
   } = props;
   const servers = fetchAttempt.data?.agentsList.map(makeServer) || [];
   const disabled = fetchAttempt.status === 'processing';
-  const emptyText = getEmptyTableText(fetchAttempt.status, 'servers');
+  const loggedInUser = useWorkspaceLoggedInUser();
+  const emptyText = getEmptyTableText(
+    fetchAttempt.status,
+    'servers',
+    agentFilter.search || agentFilter.query,
+    loggedInUser?.acl?.tokens.create
+  );
 
   return (
     <>
