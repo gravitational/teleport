@@ -15,9 +15,14 @@
 package lib
 
 import (
+	"context"
+	"github.com/gravitational/teleport/integrations/lib/credentials"
+	"google.golang.org/grpc"
+	grpcbackoff "google.golang.org/grpc/backoff"
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -26,40 +31,46 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/stringset"
 )
 
+const (
+	// grpcBackoffMaxDelay is a maximum time gRPC client waits before reconnection attempt.
+	grpcBackoffMaxDelay = time.Second * 2
+	// initTimeout is used to bound execution time of health check and teleport version check.
+	initTimeout = time.Second * 10
+)
+
 // TeleportConfig stores config options for where
 // the Teleport's Auth server is listening, and what certificates to
 // use to authenticate in it.
 type TeleportConfig struct {
+	// AuthServer specifies the address that the client should connect to.
+	// Deprecated: replaced by Addr
 	AuthServer string `toml:"auth_server"`
 	Addr       string `toml:"addr"`
-	Identity   string `toml:"identity"`
-	ClientKey  string `toml:"client_key"`
-	ClientCrt  string `toml:"client_crt"`
-	RootCAs    string `toml:"root_cas"`
-}
 
-func (cfg TeleportConfig) GetAddrs() []string {
-	if cfg.Addr != "" {
-		return []string{cfg.Addr}
-	} else if cfg.AuthServer != "" {
-		return []string{cfg.AuthServer}
-	}
-	return nil
+	ClientKey string `toml:"client_key"`
+	ClientCrt string `toml:"client_crt"`
+	RootCAs   string `toml:"root_cas"`
+
+	Identity                string        `toml:"identity"`
+	RefreshIdentity         bool          `toml:"refresh_identity"`
+	RefreshIdentityInterval time.Duration `toml:"refresh_identity_interval"`
 }
 
 func (cfg *TeleportConfig) CheckAndSetDefaults() error {
-	if cfg.Addr == "" && cfg.AuthServer == "" {
-		cfg.Addr = "localhost:3025"
-	} else if cfg.AuthServer != "" {
-		log.Warn("Configuration setting `auth_server` is deprecated, consider to change it to `addr`")
-	}
-
 	if err := cfg.CheckTLSConfig(); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if cfg.Identity != "" && cfg.ClientCrt != "" {
 		return trace.BadParameter("configuration setting `identity` is mutually exclusive with all the `client_crt`, `client_key` and `root_cas` settings")
+	}
+
+	// Default to refreshing identity minutely.
+	if cfg.RefreshIdentityInterval == 0 {
+		cfg.RefreshIdentityInterval = time.Minute
+	}
+	if cfg.RefreshIdentity && cfg.Identity == "" {
+		return trace.BadParameter("`refresh_identity` requires that `identity` be set")
 	}
 
 	return nil
@@ -98,31 +109,69 @@ func (cfg *TeleportConfig) CheckTLSConfig() error {
 	return nil
 }
 
-func (cfg TeleportConfig) Credentials() []client.Credentials {
-	switch true {
-	case cfg.Identity != "":
-		return []client.Credentials{client.LoadIdentityFile(cfg.Identity)}
-	case cfg.ClientCrt != "" && cfg.ClientKey != "" && cfg.RootCAs != "":
-		return []client.Credentials{client.LoadKeyPair(cfg.ClientCrt, cfg.ClientKey, cfg.RootCAs)}
-	default:
-		return nil
+func (cfg TeleportConfig) NewClient(ctx context.Context) (*client.Client, error) {
+	addr := "localhost:3025"
+	switch {
+	case cfg.Addr != "":
+		addr = cfg.Addr
+	case cfg.AuthServer != "":
+		log.Warn("Configuration setting `auth_server` is deprecated, consider to change it to `addr`")
+		addr = cfg.AuthServer
 	}
+
+	var creds []client.Credentials
+	switch {
+	case cfg.Identity != "":
+		creds = []client.Credentials{client.LoadIdentityFile(cfg.Identity)}
+	case cfg.ClientCrt != "" && cfg.ClientKey != "" && cfg.RootCAs != "":
+		creds = []client.Credentials{client.LoadKeyPair(cfg.ClientCrt, cfg.ClientKey, cfg.RootCAs)}
+	default:
+		return nil, trace.BadParameter("no credentials configured")
+	}
+
+	if validCred, err := credentials.CheckIfExpired(creds); err != nil {
+		log.Warn(err)
+		if !validCred {
+			return nil, trace.BadParameter(
+				"No valid credentials found, this likely means credentials are expired. In this case, please sign new credentials and increase their TTL if needed.",
+			)
+		}
+		log.Info("At least one non-expired credential has been found, continuing startup")
+	}
+
+	bk := grpcbackoff.DefaultConfig
+	bk.MaxDelay = grpcBackoffMaxDelay
+	clt, err := client.New(ctx, client.Config{
+		Addrs:       []string{addr},
+		Credentials: creds,
+		DialOpts: []grpc.DialOption{
+			grpc.WithConnectParams(grpc.ConnectParams{Backoff: bk, MinConnectTimeout: initTimeout}),
+			grpc.WithReturnConnectionError(),
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return clt, nil
 }
 
 // ReadPassword reads password from file or env var, trims and returns
 func ReadPassword(filename string) (string, error) {
 	f, err := os.Open(filename)
-	if os.IsNotExist(err) {
-		return "", trace.BadParameter("Error reading password from %v", filename)
-	}
 	if err != nil {
+		if os.IsNotExist(err) {
+			return "", trace.BadParameter("Error reading password from %v", filename)
+		}
 		return "", trace.Wrap(err)
 	}
+
 	pass := make([]byte, 2000)
 	l, err := f.Read(pass)
 	if err != nil && err != io.EOF {
 		return "", err
 	}
+
 	pass = pass[:l] // truncate \0
 	return strings.TrimSpace(string(pass)), nil
 }
