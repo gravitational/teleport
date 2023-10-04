@@ -253,7 +253,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		mux, err := multiplexer.New(multiplexer.Config{
 			Context:             process.ExitContext(),
 			Listener:            listener,
-			PROXYProtocolMode:   cfg.Proxy.PROXYProtocolMode,
+			PROXYProtocolMode:   multiplexer.PROXYProtocolOff, // Desktop service never should process unsigned PROXY headers.
 			ID:                  teleport.Component(teleport.ComponentWindowsDesktop),
 			CertAuthorityGetter: accessPoint.GetCertAuthority,
 			LocalClusterName:    clusterName,
