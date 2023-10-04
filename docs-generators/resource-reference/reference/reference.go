@@ -8,7 +8,6 @@ import (
 	"go/token"
 	"io"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -97,14 +96,18 @@ type GeneratorConfig struct {
 // shouldProcess indicates whether we should generate reference entries from d,
 // that is, whether s has any field types in
 func shouldProcess(d resource.DeclarationInfo, types []TypeInfo) bool {
-	if len(d.Decl.Specs) == 0 {
+	gendecl, ok := d.Decl.(*ast.GenDecl)
+	if !ok {
+		return false
+	}
+	if len(gendecl.Specs) == 0 {
 		return false
 	}
 
 	// Name the section after the first type declaration found. We expect
 	// there to be one type spec.
 	var t *ast.TypeSpec
-	for _, s := range d.Decl.Specs {
+	for _, s := range gendecl.Specs {
 		ts, ok := s.(*ast.TypeSpec)
 		if !ok {
 			continue
@@ -176,7 +179,8 @@ func shouldProcess(d resource.DeclarationInfo, types []TypeInfo) bool {
 }
 
 func Generate(out io.Writer, conf GeneratorConfig) error {
-	allDecls := make(map[resource.PackageInfo]resource.DeclarationInfo)
+	typeDecls := make(map[resource.PackageInfo]resource.DeclarationInfo)
+	possibleFuncDecls := []resource.DeclarationInfo{}
 	result := ReferenceContent{
 		Resources: map[resource.PackageInfo]ResourceSection{},
 		Fields:    map[resource.PackageInfo]resource.ReferenceEntry{},
@@ -200,9 +204,16 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		if err != nil {
 			return err
 		}
+
 		for _, decl := range file.Decls {
+			di := resource.DeclarationInfo{
+				Decl:        decl,
+				FilePath:    info.Name(),
+				PackageName: file.Name.Name,
+			}
 			l, ok := decl.(*ast.GenDecl)
 			if !ok {
+				possibleFuncDecls = append(possibleFuncDecls, di)
 				continue
 			}
 			if len(l.Specs) != 1 {
@@ -213,7 +224,7 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 				continue
 			}
 
-			allDecls[resource.PackageInfo{
+			typeDecls[resource.PackageInfo{
 				TypeName:    spec.Name.Name,
 				PackageName: file.Name.Name,
 			}] = resource.DeclarationInfo{
@@ -226,22 +237,40 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		return nil
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "can't load Go source files: %v", err)
-		os.Exit(1)
+		return fmt.Errorf("can't load Go source files: %v", err)
 	}
 
-	for k, decl := range allDecls {
+	methods, err := resource.GetMethodInfo(possibleFuncDecls)
+	if err != nil {
+		return err
+	}
+
+	for k, decl := range typeDecls {
 		if !shouldProcess(decl, conf.RequiredTypes) {
 			continue
 		}
-		entries, err := resource.NewFromDecl(decl, allDecls)
+		entries, err := resource.NewFromDecl(decl, typeDecls)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "issue creating a reference entry for declaration %v.%v in file %v: %v", k.PackageName, k.TypeName, decl.FilePath, err)
-			os.Exit(1)
+			return fmt.Errorf("issue creating a reference entry for declaration %v.%v in file %v: %v", k.PackageName, k.TypeName, decl.FilePath, err)
 		}
 
 		for pi, e := range entries {
-			result[pi] = e
+			entryMethods, ok := methods[pi]
+			// TODO: populate the final ReferenceContent based on
+			// looking up relevant methods.
+			//			if ok {
+			//				for _, m := range entryMethods {
+			//					// By convention, we set each resource's version and
+			//					// kind via a method called "setStaticFields".
+			//					if m.Name == "setStaticFields" {
+			//						result.Resources[pi] = ResourceSection{
+			//							Version: m.FieldAssignments["Version"],
+			//							Kind:    m.FieldAssignments["Kind"],
+			//						}
+			//					}
+			//				}
+			//			}
+			//			result[pi] = e
 		}
 	}
 

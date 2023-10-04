@@ -1300,7 +1300,7 @@ func (o *otherStruct) copyNameFrom(m *myStruct){
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
 			fset := token.NewFileSet()
-			allDecls := []ast.Decl{}
+			allDecls := []DeclarationInfo{}
 			d, err := parser.ParseFile(fset,
 				"myfile.go",
 				replaceBackticks(c.source),
@@ -1309,8 +1309,15 @@ func (o *otherStruct) copyNameFrom(m *myStruct){
 			if err != nil {
 				t.Fatalf("test fixture contains invalid Go source: %v\n", err)
 			}
-			allDecls = append(allDecls, d.Decls...)
-			actual, err := getMethodInfo(allDecls, d.Name.Name)
+
+			for _, l := range d.Decls {
+				allDecls = append(allDecls, DeclarationInfo{
+					FilePath:    "myfile.go",
+					Decl:        l,
+					PackageName: d.Name.Name,
+				})
+			}
+			actual, err := GetMethodInfo(allDecls)
 			assert.NoError(t, err)
 			assert.Equal(t, c.expected, actual)
 		})
