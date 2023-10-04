@@ -909,7 +909,7 @@ test-e2e:
 
 .PHONY: run-etcd
 run-etcd:
-	docker build -f .github/services/Dockerfile.etcd -t etcdbox --build-arg=ETCD_VERSION=3.5.9 .
+	docker build -f .github/services/Dockerfile.etcd -t etcdbox --build-arg=ETCD_VERSION=3.3.9 .
 	docker run -it --rm -p'2379:2379' etcdbox
 
 #
