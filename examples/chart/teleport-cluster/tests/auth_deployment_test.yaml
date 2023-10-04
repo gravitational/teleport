@@ -319,6 +319,7 @@ tests:
     template: auth/deployment.yaml
     set:
       extraContainers: []
+      clusterName: helm-lint.example.com
     asserts:
       - isNotNull:
           path: spec.template.spec.containers[0]

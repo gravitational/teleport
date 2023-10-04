@@ -287,6 +287,9 @@ tests:
     template: deployment.yaml
     set:
       extraContainers: []
+      proxyAddr: helm-lint.example.com
+      kubeClusterName: helm-lint.example.com
+      unitTestUpgrade: true
     asserts:
       - isNotNull:
           path: spec.template.spec.containers[0]
@@ -295,6 +298,8 @@ tests:
 
   - it: should add one more container when `extraContainers` is set in values
     template: deployment.yaml
+    set:
+      unitTestUpgrade: true
     values:
       - ../.lint/extra-containers.yaml
     asserts:
