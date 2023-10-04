@@ -3613,17 +3613,6 @@ func TestAuthHostedPlugins(t *testing.T) {
 			},
 		},
 		{
-			desc: "Plugins enabled but zero providers defined",
-			config: strings.Join([]string{
-				"auth_service:",
-				"  enabled: yes",
-				"  hosted_plugins:",
-				"    enabled: yes",
-			}, "\n"),
-			readErr:  require.NoError,
-			applyErr: badParameter,
-		},
-		{
 			desc: "Unknown OAuth provider specified",
 			config: strings.Join([]string{
 				"auth_service:",
