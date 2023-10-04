@@ -14,9 +14,26 @@ import (
 	"text/template"
 )
 
-// Intended to be executed with a []ReferenceEntry
-var referenceTemplate string = strings.ReplaceAll(`{{ range . }}
-## {{ .SectionName }}
+type ReferenceContent struct {
+	Resources map[resource.PackageInfo]ResourceSection
+	Fields    map[resource.PackageInfo]resource.ReferenceEntry
+}
+
+type ResourceSection struct {
+	Version string
+	Kind    string
+	resource.ReferenceEntry
+}
+
+// Intended to be executed with a ReferenceContent
+var referenceTemplate string = strings.ReplaceAll(`
+## Resources
+
+{{ range .Resources }}
+### {{ .SectionName }}
+
+**Kind**: {{ .Kind }}
+**Version**: {{ .Version}}
 
 {{ .Description }}
 
@@ -35,7 +52,32 @@ Example:
 &&&yaml
 {{ .YAMLExample }}
 &&&
-{{ end }}`, "&", "`")
+{{ end }}
+
+## Resource fields
+
+{{ range .Fields }}
+### {{ .SectionName }}
+
+{{ .Description }}
+
+{/*Automatically generated from: {{ .SourcePath}}*/}
+
+{{ if gt (len .Fields) 0 }}
+|Field Name|Description|Type|
+|---|---|---|
+{{ range .Fields -}}
+|{{.Name}}|{{.Description}}|&{{.Type}}&|
+{{ end }} 
+{{ end }}
+
+Example:
+
+&&&yaml
+{{ .YAMLExample }}
+&&&
+{{ end }}
+`, "&", "`")
 
 type TypeInfo struct {
 	// Go package path (not a file path)
@@ -135,7 +177,10 @@ func shouldProcess(d resource.DeclarationInfo, types []TypeInfo) bool {
 
 func Generate(out io.Writer, conf GeneratorConfig) error {
 	allDecls := make(map[resource.PackageInfo]resource.DeclarationInfo)
-	result := make(map[resource.PackageInfo]resource.ReferenceEntry)
+	result := ReferenceContent{
+		Resources: map[resource.PackageInfo]ResourceSection{},
+		Fields:    map[resource.PackageInfo]resource.ReferenceEntry{},
+	}
 
 	// Load each file in the source directory individually. Not using
 	// packages.Load here since the resulting []*Package does not expose
