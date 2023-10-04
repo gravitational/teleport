@@ -20,7 +20,7 @@ import { render, screen } from 'design/utils/testing';
 
 import { generatePath, Router } from 'react-router';
 
-import { createMemoryHistory } from 'history';
+import { createMemoryHistory, MemoryHistory } from 'history';
 
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import TeleportContext from 'teleport/teleportContext';
@@ -31,7 +31,7 @@ import { NavigationItem } from 'teleport/Navigation/NavigationItem';
 import { NavigationItemSize } from 'teleport/Navigation/common';
 import { makeUserContext } from 'teleport/services/user';
 
-class MockFeature implements TeleportFeature {
+class MockUserFeature implements TeleportFeature {
   category = NavigationCategory.Resources;
 
   route = {
@@ -55,32 +55,50 @@ class MockFeature implements TeleportFeature {
   };
 }
 
+class MockAccessListFeature implements TeleportFeature {
+  category = NavigationCategory.Resources;
+
+  route = {
+    title: 'Users',
+    path: '/web/cluster/:clusterId/feature',
+    exact: true,
+    component: () => <div>Test!</div>,
+  };
+
+  hasAccess() {
+    return true;
+  }
+
+  navigationItem = {
+    title: NavTitle.AccessLists,
+    icon: <div />,
+    exact: true,
+    getLink(clusterId: string) {
+      return generatePath('/web/cluster/:clusterId/feature', { clusterId });
+    },
+  };
+}
+
 describe('navigation items', () => {
-  it('should render the feature link correctly', () => {
-    const history = createMemoryHistory({
+  let ctx: TeleportContext;
+  let history: MemoryHistory;
+
+  beforeEach(() => {
+    history = createMemoryHistory({
       initialEntries: ['/web/cluster/root/feature'],
     });
 
-    const ctx = new TeleportContext();
+    ctx = new TeleportContext();
     ctx.storeUser.state = makeUserContext({
       cluster: {
         name: 'test-cluster',
         lastConnected: Date.now(),
       },
     });
+  });
 
-    render(
-      <TeleportContextProvider ctx={ctx}>
-        <Router history={history}>
-          <NavigationItem
-            feature={new MockFeature()}
-            size={NavigationItemSize.Large}
-            transitionDelay={100}
-            visible={true}
-          />
-        </Router>
-      </TeleportContextProvider>
-    );
+  it('should render the feature link correctly', () => {
+    render(getNavigationItem({ ctx, history }));
 
     expect(screen.getByText('Users').closest('a')).toHaveAttribute(
       'href',
@@ -89,30 +107,7 @@ describe('navigation items', () => {
   });
 
   it('should change the feature link to the leaf cluster when navigating to a leaf cluster', () => {
-    const history = createMemoryHistory({
-      initialEntries: ['/web/cluster/root/feature'],
-    });
-
-    const ctx = new TeleportContext();
-    ctx.storeUser.state = makeUserContext({
-      cluster: {
-        name: 'test-cluster',
-        lastConnected: Date.now(),
-      },
-    });
-
-    render(
-      <TeleportContextProvider ctx={ctx}>
-        <Router history={history}>
-          <NavigationItem
-            feature={new MockFeature()}
-            size={NavigationItemSize.Large}
-            transitionDelay={100}
-            visible={true}
-          />
-        </Router>
-      </TeleportContextProvider>
-    );
+    render(getNavigationItem({ ctx, history }));
 
     expect(screen.getByText('Users').closest('a')).toHaveAttribute(
       'href',
@@ -126,4 +121,54 @@ describe('navigation items', () => {
       '/web/cluster/leaf/feature'
     );
   });
+
+  it('rendeirng of attention dot for access list', () => {
+    const { rerender } = render(
+      getNavigationItem({ ctx, history, feature: new MockAccessListFeature() })
+    );
+
+    expect(
+      screen.queryByTestId('nav-item-attention-dot')
+    ).not.toBeInTheDocument();
+
+    // Add in some notifications
+    ctx.storeNotifications.setNotifications([
+      {
+        kind: 'access-lists',
+        id: 'abc',
+        resourceName: 'banana',
+        date: new Date(),
+        route: '',
+      },
+    ]);
+
+    rerender(
+      getNavigationItem({ ctx, history, feature: new MockAccessListFeature() })
+    );
+
+    expect(screen.getByTestId('nav-item-attention-dot')).toBeInTheDocument();
+  });
 });
+
+function getNavigationItem({
+  ctx,
+  history,
+  feature = new MockUserFeature(),
+}: {
+  ctx: TeleportContext;
+  history: MemoryHistory;
+  feature?: TeleportFeature;
+}) {
+  return (
+    <TeleportContextProvider ctx={ctx}>
+      <Router history={history}>
+        <NavigationItem
+          feature={feature}
+          size={NavigationItemSize.Large}
+          transitionDelay={100}
+          visible={true}
+        />
+      </Router>
+    </TeleportContextProvider>
+  );
+}

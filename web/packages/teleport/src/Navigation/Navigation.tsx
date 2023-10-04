@@ -176,7 +176,15 @@ export function Navigation({
         <NavigationSwitcher
           onChange={handleCategoryChange}
           value={view}
-          items={NAVIGATION_CATEGORIES}
+          items={[
+            {
+              category: NavigationCategory.Management,
+              requiresAttention: ctx.storeNotifications
+                .getNotifications()
+                .some(n => n.kind === 'access-lists'),
+            },
+            { category: NavigationCategory.Resources },
+          ]}
         />
       )}
 
