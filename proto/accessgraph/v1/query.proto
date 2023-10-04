@@ -29,6 +29,8 @@ message Node {
   string kind = 2;
   string sub_kind = 3;
   string name = 4;
+  map<string, string> labels = 5;
+  string hostname = 6;
 }
 
 // Edge is an edge in the access graph.
