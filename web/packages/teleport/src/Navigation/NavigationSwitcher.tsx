@@ -21,10 +21,15 @@ import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
 
 import { NavigationCategory } from 'teleport/Navigation/categories';
 
+type NavigationItems = {
+  category: NavigationCategory;
+  requiresAttention?: boolean;
+};
+
 interface NavigationSwitcherProps {
   onChange: (value: NavigationCategory) => void;
   value: NavigationCategory;
-  items: NavigationCategory[];
+  items: NavigationItems[];
 }
 
 interface OpenProps {
@@ -117,7 +122,10 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
   const activeValueRef = useRef<HTMLDivElement>();
   const firstValueRef = useRef<HTMLDivElement>();
 
-  const activeItem = props.items.find(item => item === props.value);
+  const activeItem = props.items.find(item => item.category === props.value);
+  const requiresAttentionButNotActive = props.items.some(
+    item => item.requiresAttention && item.category !== activeItem.category
+  );
 
   const handleClickOutside = useCallback(
     (event: MouseEvent) => {
@@ -219,28 +227,35 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
     items.push(
       <DropdownItem
         ref={index === 0 ? firstValueRef : null}
-        onKeyDown={event => handleKeyDownLink(event, item)}
+        onKeyDown={event => handleKeyDownLink(event, item.category)}
         tabIndex={open ? 0 : -1}
-        onClick={() => handleChange(item)}
+        onClick={() => handleChange(item.category)}
         key={index}
         open={open}
-        active={item === props.value}
+        active={item.category === props.value}
       >
-        {item}
+        {item.category}
+        {item.requiresAttention && item.category !== activeItem.category && (
+          <DropDownItemAttentionDot data-testid="dd-item-attention-dot" />
+        )}
       </DropdownItem>
     );
   }
 
   return (
     <Container ref={ref}>
+      {requiresAttentionButNotActive && (
+        <NavSwitcherAttentionDot data-testid="nav-switch-attention-dot" />
+      )}
       <ActiveValue
         ref={activeValueRef}
         onClick={() => setOpen(!open)}
         open={open}
         tabIndex={0}
         onKeyDown={handleKeyDown}
+        data-testid="nav-switch-button"
       >
-        {activeItem}
+        {activeItem.category}
 
         <Arrow open={open}>
           <ChevronDownIcon />
@@ -251,3 +266,24 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
     </Container>
   );
 }
+
+const NavSwitcherAttentionDot = styled.div`
+  position: absolute;
+  background-color: ${props => props.theme.colors.error.main};
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  right: -3px;
+  top: -4px;
+  z-index: 100;
+`;
+
+const DropDownItemAttentionDot = styled.div`
+  display: inline-block;
+  margin-left: 10px;
+  margin-top: 2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: ${props => props.theme.colors.error.main};
+`;
