@@ -49,11 +49,15 @@ The type of identity issued to a machine in Teleport is known as a Bot. Like
 human users, a Bot's access is controlled through roles and their access is
 subject to the same rich auditing.
 
+TODO
+
 The main difference between a human user and a bot is that a bot does not
 "log in" using a static username and password. Instead, Teleport's join token
 mechanism is used. This allows a machine to exchange one form of identity
 (e.g AWS IAM) for a Teleport identity and this exchange process eliminates the
 use of long-lived secrets for authentication.
+
+TODO
 
 Machine ID is used through an agent called `tbot`. `tbot` authenticates
 with the Teleport cluster and then writes short-lived credentials and
@@ -61,7 +65,6 @@ configuration files (known as artifacts) to configured destinations (such as a
 directory). These credentials can then be used by other tools to access a
 Teleport cluster and its resources. In daemon mode, `tbot` continually renews
 the short-lived credentials before they expire.
-
 
 For a more in-depth overview, check out the
 [architecture page](./architecture.mdx). This covers the behind-the-scenes
