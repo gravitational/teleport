@@ -1,5 +1,7 @@
 import React from 'react';
 
+import { requestRolePending } from 'e-teleport/Workflow/fixtures';
+
 import RequestReview from './RequestReview';
 
 export default {
@@ -35,7 +37,7 @@ const props = {
   attempt: { status: '' as any },
   submitReview: () => null,
   shortTermDuration: '12 hours',
-  requestingUser: 'Sam',
+  request: requestRolePending,
   longTermAccess: {
     suggestedAccessLists: [],
     error: '',

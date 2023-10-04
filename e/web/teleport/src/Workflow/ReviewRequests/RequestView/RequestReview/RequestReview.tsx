@@ -18,7 +18,7 @@ import { Option } from 'shared/components/Select';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { RequestState } from 'e-teleport/services/workflow';
+import { AccessRequest, RequestState } from 'e-teleport/services/workflow';
 import { makeTraitLabel } from 'e-teleport/AccessListManagement/Traits';
 import { AccessList } from 'e-teleport/services/accessmanagement';
 
@@ -37,10 +37,10 @@ export default function RequestReview({
   user,
   longTermAccess,
   shortTermDuration,
-  requestingUser,
+  request,
 }: Props) {
   const [reviewStateOptions] = useState<ReviewStateOption[]>(() =>
-    makeReviewStateOptions(longTermAccess, shortTermDuration)
+    makeReviewStateOptions(longTermAccess, shortTermDuration, request)
   );
 
   const [suggestedAccessListOptions] = useState<SuggestedAcessListOption[]>(
@@ -112,9 +112,9 @@ export default function RequestReview({
                   <FieldSelect
                     ml={1}
                     width="600px"
-                    label={`Select a suggested Access List to add ${requestingUser} as a member to`}
+                    label={`Select a suggested Access List to add ${request.user} as a member to`}
                     rule={requiredField('Required')}
-                    placeholder={`Select a suggested Access List to add ${requestingUser} as a member to`}
+                    placeholder={`Select a suggested Access List to add ${request.user} as a member to`}
                     value={
                       selectedAccessList
                         ? {
@@ -181,7 +181,7 @@ export type Props = {
   shortTermDuration: string;
   user: string;
   attempt: Attempt;
-  requestingUser: string;
+  request: AccessRequest;
 };
 
 // TODO(lisa): move this to 'shared/ToolTip' package
@@ -284,7 +284,8 @@ function makeSuggestedAccessListOptions(
 
 function makeReviewStateOptions(
   longTermAccess: LongTermAccess,
-  shortTermDuration: string
+  shortTermDuration: string,
+  request: AccessRequest
 ): ReviewStateOption[] {
   // TODO(lisa): teleterm uses the same components, temporary hack
   // to "disable" promoting for teleterm until feature is ready in teleterm.
@@ -295,7 +296,7 @@ function makeReviewStateOptions(
         value: 'APPROVED',
         label: (
           <>
-            Approve short-term access
+            Approve request
             {shortTermDuration ? ` (${shortTermDuration})` : ''}
           </>
         ),
@@ -304,23 +305,21 @@ function makeReviewStateOptions(
   }
 
   const promotedTxt =
-    'Approve long-term access via Access List with the requested roles';
+    'Approve long-term access via Access List with the requested resources';
 
   let promotedContent;
 
   if (longTermAccess.suggestedAccessLists.length > 0) {
     promotedContent = <Text>{promotedTxt}</Text>;
   } else {
+    let msg = 'No Access Lists will grant the requested resources';
+    if (longTermAccess.error) {
+      msg = `Error: ${longTermAccess.error}`;
+    } else if (request.resources.length === 0) {
+      msg = 'Only supported for resource based access requests';
+    }
     promotedContent = (
-      <ToolTipText
-        tipContent={
-          <>
-            {longTermAccess.error
-              ? `Error: ${longTermAccess.error}`
-              : 'No Access Lists will grant the requested resources'}
-          </>
-        }
-      >
+      <ToolTipText tipContent={<>{msg}</>}>
         <Flex alignItems="center">
           <Text>{promotedTxt}</Text>
           {longTermAccess.error && (

@@ -199,7 +199,7 @@ export function RequestView({
                   attempt={reviewAttempt}
                   longTermAccess={longTermAccess}
                   shortTermDuration={request.maxDurationText}
-                  requestingUser={request.user}
+                  request={request}
                 />
               )}
             </TimelineCommentAndReviewsContainer>
@@ -572,8 +572,8 @@ export function SuggestedAccessListTimestamp({
       </Box>
       <Box>
         <Text>
-          <BrandName>Teleport</BrandName> identified {accessLists.length}{' '}
-          long-term access lists which grants similar requested resources:
+          <BrandName>Teleport</BrandName> identified {accessLists.length} access
+          lists which grants similar requested resources:
         </Text>
         <Flex gap={2} flexWrap="wrap">
           {accessLists.map(acl => (

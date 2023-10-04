@@ -2121,7 +2121,7 @@ exports[`loaded pending role based request state 1`] = `
                           <div
                             class="c34"
                           >
-                            Approve long-term access via Access List with the requested roles
+                            Approve long-term access via Access List with the requested resources
                           </div>
                           
                         </div>
@@ -3138,7 +3138,7 @@ exports[`loaded pending search based request state 1`] = `
                           <div
                             class="c37"
                           >
-                            Approve long-term access via Access List with the requested roles
+                            Approve long-term access via Access List with the requested resources
                           </div>
                           
                         </div>
