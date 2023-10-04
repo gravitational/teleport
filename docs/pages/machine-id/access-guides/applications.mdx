@@ -5,12 +5,12 @@ description: How to use Machine ID to access applications
 
 (!docs/pages/includes/machine-id/v2-config-warning.mdx!)
 
-Teleport Application Access protects and controls access to HTTP and TCP
+Teleport protects and controls access to HTTP and TCP
 applications. Machine ID can be used to grant machines secure, short-lived
 access to these applications.
 
 In this guide, you will configure `tbot` to produce credentials that can be
-used to access an application configured in Teleport Application Access.
+used to access an application enrolled in your Teleport cluster.
 
 ## Prerequisites
 
@@ -48,8 +48,8 @@ will need access to.
 
 ## Step 2/3. Configure an application `tbot` output
 
-Now, `tbot` needs to be configured with an output that to produce the
-credentials needed for Application Access. To do this, the `application` output
+Now, `tbot` needs to be configured with an output to produce the
+credentials needed to access applications in your infrastructure. To do this, the `application` output
 type is used.
 
 The application you want the credentials to have access to must be specified
@@ -78,7 +78,7 @@ outputs:
     path: /opt/machine-id
 ```
 
-Ensure you replace `grafana` with the name of the application as registered in
+Ensure you replace `dumper` with the name of the application you registered in
 Teleport.
 
 If operating `tbot` as a background service, restart it. If running `tbot` in
@@ -100,6 +100,7 @@ address. Given the debug application named `dumper` and a Teleport Proxy at
 `https://dumper.example.teleport.sh:443`.
 
 For example, to access the application using `curl`:
+
 ```code
 $ curl \
   --cert /opt/machine-id/tlscert \
@@ -118,7 +119,7 @@ will be redirected to the Teleport login page when attempting to access the app.
 
 For cases where the client you wish to use to connect to the application does not
 support client certificates, it is possible to open an authenticated tunnel.
-This will listen on a local port and automatically attach the credentials
+This will listen on a local port and automatically attach the credentials,
 meaning that the client itself does not need to support them.
 
 To open an authenticated tunnel to the `dumper` application on port 1234, run:
