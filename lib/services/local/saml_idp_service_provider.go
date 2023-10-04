@@ -72,12 +72,12 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
-	if err != nil {
+	if err := validateSAMLIdPServiceProvider(sp); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := s.ensureEntityDescriptorMatchesEntityID(sp); err != nil {
+	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -87,7 +87,7 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 				return trace.Wrap(err)
 			}
 
-			_, err = backend.Create(ctx, item)
+			_, err := backend.Create(ctx, item)
 			if trace.IsAlreadyExists(err) {
 				return trace.AlreadyExists("%s %q already exists", types.KindSAMLIdPServiceProvider, sp.GetName())
 			}
@@ -97,12 +97,12 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 
 // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
-	if err != nil {
+	if err := validateSAMLIdPServiceProvider(sp); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := s.ensureEntityDescriptorMatchesEntityID(sp); err != nil {
+	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -112,7 +112,7 @@ func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context
 				return trace.Wrap(err)
 			}
 
-			_, err = backend.Update(ctx, item)
+			_, err := backend.Update(ctx, item)
 			if trace.IsNotFound(err) {
 				return trace.NotFound("%s %q doesn't exist", types.KindSAMLIdPServiceProvider, sp.GetName())
 			}
@@ -159,9 +159,9 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 	return nil
 }
 
-// ensureEntityDescriptorMatchesEntityID ensures that the entity ID in the entity descriptor is the same as the entity ID
-// in the SAMLIdPServiceProvider object.
-func (s *SAMLIdPServiceProviderService) ensureEntityDescriptorMatchesEntityID(sp types.SAMLIdPServiceProvider) error {
+// validateSAMLIdPServiceProvider ensures that the entity ID in the entity descriptor is the same as the entity ID
+// in the [types.SAMLIdPServiceProvider] and that all AssertionConsumerServices defined are valid HTTPS endpoints.
+func validateSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
 	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
 	if err != nil {
 		return trace.Wrap(err)
@@ -169,6 +169,14 @@ func (s *SAMLIdPServiceProviderService) ensureEntityDescriptorMatchesEntityID(sp
 
 	if ed.EntityID != sp.GetEntityID() {
 		return trace.BadParameter("entity ID parsed from the entity descriptor does not match the entity ID in the SAML IdP service provider object")
+	}
+
+	for _, descriptor := range ed.SPSSODescriptors {
+		for _, acs := range descriptor.AssertionConsumerServices {
+			if err := services.ValidateAssertionConsumerServicesEndpoint(acs.Location); err != nil {
+				return trace.Wrap(err)
+			}
+		}
 	}
 
 	return nil

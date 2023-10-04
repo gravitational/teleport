@@ -81,6 +81,9 @@ export enum DiscoverEvent {
   DesktopActiveDirectoryToolsInstall = 'tp.ui.discover.desktop.activeDirectory.tools.install',
   DesktopActiveDirectoryConfigure = 'tp.ui.discover.desktop.activeDirectory.configure',
   AutoDiscoveredResources = 'tp.ui.discover.autoDiscoveredResources',
+  EC2InstanceSelection = 'tp.ui.discover.selectedEC2Instance',
+  EC2DeployEICE = 'tp.ui.discover.deployEICE',
+  CreateNode = 'tp.ui.discover.createNode',
   PrincipalsConfigure = 'tp.ui.discover.principals.configure',
   TestConnection = 'tp.ui.discover.testConnection',
   Completed = 'tp.ui.discover.completed',
@@ -131,6 +134,8 @@ export enum DiscoverEventResource {
   ApplicationHttp = 'DISCOVER_RESOURCE_APPLICATION_HTTP',
   ApplicationTcp = 'DISCOVER_RESOURCE_APPLICATION_TCP',
   WindowsDesktop = 'DISCOVER_RESOURCE_WINDOWS_DESKTOP',
+
+  Ec2Instance = 'DISCOVER_RESOURCE_EC2_INSTANCE',
 
   SamlApplication = 'DISCOVER_RESOURCE_SAML_APPLICATION',
 }

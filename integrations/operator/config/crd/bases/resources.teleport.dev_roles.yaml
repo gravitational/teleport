@@ -963,8 +963,7 @@ spec:
                         mode:
                           description: Mode is the type of extension to be used --
                             currently critical-option is not supported
-                          format: int32
-                          type: integer
+                          x-kubernetes-int-or-string: true
                         name:
                           description: Name specifies the key to be used in the cert
                             extension.
@@ -972,8 +971,7 @@ spec:
                         type:
                           description: Type represents the certificate type being
                             extended, only ssh is supported at this time.
-                          format: int32
-                          type: integer
+                          x-kubernetes-int-or-string: true
                         value:
                           description: Value specifies the value to be used in the
                             cert extension.
@@ -1006,8 +1004,7 @@ spec:
                   create_host_user_mode:
                     description: CreateHostUserMode allows users to be automatically
                       created on a host when not set to off
-                    format: int32
-                    type: integer
+                    x-kubernetes-int-or-string: true
                   desktop_clipboard:
                     description: DesktopClipboard indicates whether clipboard sharing
                       is allowed between the user's workstation and the remote desktop.
@@ -1118,8 +1115,7 @@ spec:
                   require_session_mfa:
                     description: RequireMFAType is the type of MFA requirement enforced
                       for this user.
-                    format: int32
-                    type: integer
+                    x-kubernetes-int-or-string: true
                   ssh_file_copy:
                     description: SSHFileCopy indicates whether remote file operations
                       via SCP or SFTP are allowed over an SSH session. It defaults
@@ -2160,8 +2156,7 @@ spec:
                         mode:
                           description: Mode is the type of extension to be used --
                             currently critical-option is not supported
-                          format: int32
-                          type: integer
+                          x-kubernetes-int-or-string: true
                         name:
                           description: Name specifies the key to be used in the cert
                             extension.
@@ -2169,8 +2164,7 @@ spec:
                         type:
                           description: Type represents the certificate type being
                             extended, only ssh is supported at this time.
-                          format: int32
-                          type: integer
+                          x-kubernetes-int-or-string: true
                         value:
                           description: Value specifies the value to be used in the
                             cert extension.
@@ -2203,8 +2197,7 @@ spec:
                   create_host_user_mode:
                     description: CreateHostUserMode allows users to be automatically
                       created on a host when not set to off
-                    format: int32
-                    type: integer
+                    x-kubernetes-int-or-string: true
                   desktop_clipboard:
                     description: DesktopClipboard indicates whether clipboard sharing
                       is allowed between the user's workstation and the remote desktop.
@@ -2315,8 +2308,7 @@ spec:
                   require_session_mfa:
                     description: RequireMFAType is the type of MFA requirement enforced
                       for this user.
-                    format: int32
-                    type: integer
+                    x-kubernetes-int-or-string: true
                   ssh_file_copy:
                     description: SSHFileCopy indicates whether remote file operations
                       via SCP or SFTP are allowed over an SSH session. It defaults

@@ -23,7 +23,7 @@ import { TshAbortSignal } from './types';
 
 export function createFileTransferStream(
   stream: ClientReadableStream<FileTransferProgress>,
-  abortSignal?: TshAbortSignal
+  abortSignal: TshAbortSignal
 ): FileTransferListeners {
   abortSignal.addEventListener(() => stream.cancel());
 

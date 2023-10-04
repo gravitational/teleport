@@ -38,6 +38,7 @@ func MarshalNamespace(resource types.Namespace, opts ...MarshalOption) ([]byte, 
 		// to prevent unexpected data races
 		copy := resource
 		copy.SetResourceID(0)
+		copy.SetRevision("")
 		resource = copy
 	}
 	return utils.FastMarshal(resource)
@@ -67,6 +68,9 @@ func UnmarshalNamespace(data []byte, opts ...MarshalOption) (*types.Namespace, e
 
 	if cfg.ID != 0 {
 		namespace.Metadata.ID = cfg.ID
+	}
+	if cfg.Revision != "" {
+		namespace.SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
 		namespace.Metadata.Expires = &cfg.Expires

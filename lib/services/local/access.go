@@ -54,7 +54,7 @@ func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
 	out := make([]types.Role, 0, len(result.Items))
 	for _, item := range result.Items {
 		role, err := services.UnmarshalRole(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			// Try to get the role name for the error, it allows admins to take action
 			// against the "bad" role.
@@ -132,7 +132,7 @@ func (s *AccessService) GetRole(ctx context.Context, name string) (types.Role, e
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalRole(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // DeleteRole deletes a role from the backend
@@ -161,7 +161,7 @@ func (s *AccessService) GetLock(ctx context.Context, name string) (types.Lock, e
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalLock(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	return services.UnmarshalLock(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
@@ -174,7 +174,7 @@ func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets 
 
 	out := []types.Lock{}
 	for _, item := range result.Items {
-		lock, err := services.UnmarshalLock(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		lock, err := services.UnmarshalLock(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

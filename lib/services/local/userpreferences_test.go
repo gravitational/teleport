@@ -43,7 +43,7 @@ func newUserPreferencesService(t *testing.T) *local.UserPreferencesService {
 	return local.NewUserPreferencesService(backend)
 }
 
-func TestUserPreferencesCRUD2(t *testing.T) {
+func TestUserPreferencesCRUD(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -82,6 +82,7 @@ func TestUserPreferencesCRUD2(t *testing.T) {
 					},
 					Onboard: &userpreferencesv1.OnboardUserPreferences{
 						PreferredResources: []userpreferencesv1.Resource{},
+						MarketingParams:    &userpreferencesv1.MarketingParams{},
 					},
 				},
 			},
@@ -118,6 +119,12 @@ func TestUserPreferencesCRUD2(t *testing.T) {
 				Preferences: &userpreferencesv1.UserPreferences{
 					Onboard: &userpreferencesv1.OnboardUserPreferences{
 						PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_DATABASES},
+						MarketingParams: &userpreferencesv1.MarketingParams{
+							Campaign: "c_1",
+							Source:   "s_1",
+							Medium:   "m_1",
+							Intent:   "i_1",
+						},
 					},
 				},
 			},
@@ -126,6 +133,12 @@ func TestUserPreferencesCRUD2(t *testing.T) {
 				Theme:  defaultPref.Theme,
 				Onboard: &userpreferencesv1.OnboardUserPreferences{
 					PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_DATABASES},
+					MarketingParams: &userpreferencesv1.MarketingParams{
+						Campaign: "c_1",
+						Source:   "s_1",
+						Medium:   "m_1",
+						Intent:   "i_1",
+					},
 				},
 			},
 		},
@@ -140,6 +153,12 @@ func TestUserPreferencesCRUD2(t *testing.T) {
 					},
 					Onboard: &userpreferencesv1.OnboardUserPreferences{
 						PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_KUBERNETES},
+						MarketingParams: &userpreferencesv1.MarketingParams{
+							Campaign: "c_2",
+							Source:   "s_2",
+							Medium:   "m_2",
+							Intent:   "i_2",
+						},
 					},
 				},
 			},
@@ -151,6 +170,12 @@ func TestUserPreferencesCRUD2(t *testing.T) {
 				},
 				Onboard: &userpreferencesv1.OnboardUserPreferences{
 					PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_KUBERNETES},
+					MarketingParams: &userpreferencesv1.MarketingParams{
+						Campaign: "c_2",
+						Source:   "s_2",
+						Medium:   "m_2",
+						Intent:   "i_2",
+					},
 				},
 			},
 		},

@@ -27,6 +27,7 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import Logger, { NullService } from 'teleterm/logger';
+import * as useResourcesContext from 'teleterm/ui/DocumentCluster/resourcesContext';
 
 import * as connectMyComputerContext from '../connectMyComputerContext';
 
@@ -40,7 +41,7 @@ beforeEach(() => {
   jest.restoreAllMocks();
 });
 
-describe('connectMyComputerSetup', () => {
+describe('setup of DocumentConnectMyComputer', () => {
   const tests: Array<{
     name: string;
     expectedStatus: AttemptStatus;
@@ -69,61 +70,10 @@ describe('connectMyComputerSetup', () => {
     },
   ];
   test.each(tests)('$name', async ({ expectedStatus, mockAppContext }) => {
-    const cluster = makeRootCluster({
-      loggedInUser: makeLoggedInUser({
-        acl: {
-          tokens: {
-            create: true,
-            list: true,
-            read: true,
-            edit: true,
-            pb_delete: true,
-            use: true,
-          },
-        },
-      }),
-    });
-    const appContext = new MockAppContext({});
-    appContext.clustersService.state.clusters.set(cluster.uri, cluster);
-    appContext.workspacesService.setState(draftState => {
-      draftState.rootClusterUri = cluster.uri;
-      draftState.workspaces[cluster.uri] = {
-        localClusterUri: cluster.uri,
-        documents: [],
-        location: undefined,
-        accessRequests: undefined,
-      };
-    });
-
-    jest
-      .spyOn(appContext.mainProcessClient, 'isAgentConfigFileCreated')
-      .mockResolvedValue(false);
-    jest
-      .spyOn(appContext.connectMyComputerService, 'createRole')
-      .mockResolvedValue({ certsReloaded: false });
-    jest
-      .spyOn(appContext.connectMyComputerService, 'createAgentConfigFile')
-      .mockResolvedValue({ token: '1234' });
-    jest
-      .spyOn(appContext.connectMyComputerService, 'runAgent')
-      .mockResolvedValue();
-    jest
-      .spyOn(appContext.connectMyComputerService, 'waitForNodeToJoin')
-      .mockResolvedValue(makeServer());
-
+    const { appContext, elementToRender } = setupAppContext();
     mockAppContext?.(appContext);
 
-    render(
-      <MockAppContextProvider appContext={appContext}>
-        <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
-          <connectMyComputerContext.ConnectMyComputerContextProvider
-            rootClusterUri={cluster.uri}
-          >
-            <DocumentConnectMyComputerSetup />
-          </connectMyComputerContext.ConnectMyComputerContextProvider>
-        </MockWorkspaceContextProvider>
-      </MockAppContextProvider>
-    );
+    render(elementToRender);
 
     screen.getByText('Connect').click();
 
@@ -135,4 +85,97 @@ describe('connectMyComputerSetup', () => {
       { container: step }
     );
   });
+
+  it('calls requestResourcesRefresh after setup is done', async () => {
+    const mockResourcesContext = {
+      requestResourcesRefresh: jest.fn(),
+      onResourcesRefreshRequest: jest.fn(),
+    };
+    jest
+      .spyOn(useResourcesContext, 'useResourcesContext')
+      .mockImplementation(() => mockResourcesContext);
+
+    const { elementToRender } = setupAppContext();
+
+    render(elementToRender);
+
+    // Start the setup.
+    screen.getByText('Connect').click();
+
+    // Wait for the setup to finish.
+    const step = await screen.findByTestId('Joining the cluster');
+    await waitFor(
+      () => expect(step).toHaveAttribute('data-teststatus', 'success'),
+      { container: step }
+    );
+
+    expect(mockResourcesContext.requestResourcesRefresh).toHaveBeenCalledTimes(
+      1
+    );
+  });
 });
+
+function setupAppContext(): {
+  elementToRender: React.ReactElement;
+  appContext: MockAppContext;
+} {
+  const cluster = makeRootCluster({
+    loggedInUser: makeLoggedInUser({
+      acl: {
+        tokens: {
+          create: true,
+          list: true,
+          read: true,
+          edit: true,
+          pb_delete: true,
+          use: true,
+        },
+      },
+    }),
+  });
+  const appContext = new MockAppContext({
+    appVersion: cluster.proxyVersion,
+  });
+  appContext.clustersService.state.clusters.set(cluster.uri, cluster);
+  appContext.workspacesService.setState(draftState => {
+    draftState.rootClusterUri = cluster.uri;
+    draftState.workspaces[cluster.uri] = {
+      localClusterUri: cluster.uri,
+      documents: [],
+      location: undefined,
+      accessRequests: undefined,
+    };
+  });
+
+  jest
+    .spyOn(appContext.mainProcessClient, 'isAgentConfigFileCreated')
+    .mockResolvedValue(false);
+  jest
+    .spyOn(appContext.connectMyComputerService, 'createRole')
+    .mockResolvedValue({ certsReloaded: false });
+  jest
+    .spyOn(appContext.connectMyComputerService, 'createAgentConfigFile')
+    .mockResolvedValue({ token: '1234' });
+  jest
+    .spyOn(appContext.connectMyComputerService, 'runAgent')
+    .mockResolvedValue();
+  jest
+    .spyOn(appContext.connectMyComputerService, 'waitForNodeToJoin')
+    .mockResolvedValue(makeServer());
+
+  const elementToRender = (
+    <MockAppContextProvider appContext={appContext}>
+      <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
+        <useResourcesContext.ResourcesContextProvider>
+          <connectMyComputerContext.ConnectMyComputerContextProvider
+            rootClusterUri={cluster.uri}
+          >
+            <DocumentConnectMyComputerSetup />
+          </connectMyComputerContext.ConnectMyComputerContextProvider>
+        </useResourcesContext.ResourcesContextProvider>
+      </MockWorkspaceContextProvider>
+    </MockAppContextProvider>
+  );
+
+  return { elementToRender, appContext };
+}

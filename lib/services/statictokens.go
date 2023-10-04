@@ -46,6 +46,9 @@ func UnmarshalStaticTokens(bytes []byte, opts ...MarshalOption) (types.StaticTok
 	if cfg.ID != 0 {
 		staticTokens.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		staticTokens.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		staticTokens.SetExpiry(cfg.Expires)
 	}
@@ -70,6 +73,7 @@ func MarshalStaticTokens(staticToken types.StaticTokens, opts ...MarshalOption) 
 			// to prevent unexpected data races
 			copy := *staticToken
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			staticToken = &copy
 		}
 		return utils.FastMarshal(staticToken)

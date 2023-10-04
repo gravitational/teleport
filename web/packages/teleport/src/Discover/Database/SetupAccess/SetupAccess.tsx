@@ -281,8 +281,8 @@ function DbEngineInstructions({
               >
                 host-based authentication
               </Link>{' '}
-              file named <Mark>pg_hba.conf</Mark>, so that PostgreSQL require's
-              client CA from clients connecting over TLS:
+              file named <Mark>pg_hba.conf</Mark>, so that PostgreSQL requires
+              client certificates from clients connecting over TLS:
             </Text>
             <TextSelectCopyMulti
               bash={false}

@@ -47,7 +47,7 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 					DBProxyTargetPort: 9999,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRDSProxy, "us-east-1", wildcardLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRDSProxy, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{rdsProxyDatabaseVpc1, rdsProxyDatabaseVpc2, rdsProxyEndpointDatabaseVpc1, rdsProxyEndpointDatabaseVpc2},
 		},
 		{
@@ -59,7 +59,7 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 					DBProxyTargetPort: 9999,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRDSProxy, "us-east-1", map[string]string{"vpc-id": "vpc1"}),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRDSProxy, "us-east-1", map[string]string{"vpc-id": "vpc1"}),
 			wantDatabases: types.Databases{rdsProxyDatabaseVpc1, rdsProxyEndpointDatabaseVpc1},
 		},
 	}
@@ -70,7 +70,7 @@ func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rds.DBProxy, types
 	rdsProxy := mocks.RDSProxy(name, region, vpcID)
 	rdsProxyDatabase, err := services.NewDatabaseFromRDSProxy(rdsProxy, 9999, nil)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(rdsProxyDatabase, services.AWSMatcherRDSProxy)
+	common.ApplyAWSDatabaseNameSuffix(rdsProxyDatabase, types.AWSMatcherRDSProxy)
 	return rdsProxy, rdsProxyDatabase
 }
 
@@ -78,6 +78,6 @@ func makeRDSProxyCustomEndpoint(t *testing.T, rdsProxy *rds.DBProxy, name, regio
 	rdsProxyEndpoint := mocks.RDSProxyCustomEndpoint(rdsProxy, name, region)
 	rdsProxyEndpointDatabase, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint, 9999, nil)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(rdsProxyEndpointDatabase, services.AWSMatcherRDSProxy)
+	common.ApplyAWSDatabaseNameSuffix(rdsProxyEndpointDatabase, types.AWSMatcherRDSProxy)
 	return rdsProxyEndpoint, rdsProxyEndpointDatabase
 }

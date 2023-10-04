@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -235,7 +236,7 @@ func (fs *FSKeyStore) DeleteKey(idx KeyIndex) error {
 		fs.tlsCertPath(idx),
 	}
 	for _, fn := range files {
-		if err := os.Remove(fn); err != nil {
+		if err := utils.RemoveSecure(fn); err != nil {
 			return trace.ConvertSystemError(err)
 		}
 	}
@@ -243,11 +244,11 @@ func (fs *FSKeyStore) DeleteKey(idx KeyIndex) error {
 	// but it may not exist when upgrading from v9 -> v10 and logging into an existing cluster.
 	// as such, deletion should be best-effort and not generate an error if it fails.
 	if runtime.GOOS == constants.WindowsOS {
-		_ = os.Remove(fs.ppkFilePath(idx))
+		_ = utils.RemoveSecure(fs.ppkFilePath(idx))
 	}
 
 	// And try to delete kube credentials lockfile in case it exists
-	err := os.Remove(fs.kubeCredLockfilePath(idx))
+	err := utils.RemoveSecure(fs.kubeCredLockfilePath(idx))
 	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
 		log.Debugf("Could not remove kube credentials file: %v", err)
 	}
@@ -266,7 +267,7 @@ func (fs *FSKeyStore) DeleteKey(idx KeyIndex) error {
 func (fs *FSKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) error {
 	for _, o := range opts {
 		certPath := o.certPath(fs.KeyDir, idx)
-		if err := os.RemoveAll(certPath); err != nil {
+		if err := utils.RemoveAllSecure(certPath); err != nil {
 			return trace.ConvertSystemError(err)
 		}
 	}
@@ -289,13 +290,13 @@ func (fs *FSKeyStore) DeleteKeys() error {
 			continue
 		}
 		if file.IsDir() {
-			err := os.RemoveAll(filepath.Join(fs.KeyDir, file.Name()))
+			err := utils.RemoveAllSecure(filepath.Join(fs.KeyDir, file.Name()))
 			if err != nil {
 				return trace.ConvertSystemError(err)
 			}
 			continue
 		}
-		err := os.Remove(filepath.Join(fs.KeyDir, file.Name()))
+		err := utils.RemoveAllSecure(filepath.Join(fs.KeyDir, file.Name()))
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}

@@ -61,6 +61,32 @@ func TestSAMLIdPServiceProviderMarshal(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
+func TestValidateAssertionConsumerServicesEndpoint(t *testing.T) {
+	cases := []struct {
+		location  string
+		assertion require.ErrorAssertionFunc
+	}{
+		{
+			location:  "https://sptest.iamshowcase.com/acs",
+			assertion: require.NoError,
+		},
+		{
+			location:  "http://sptest.iamshowcase.com/acs",
+			assertion: require.Error,
+		},
+		{
+			location:  "javascript://sptest.iamshowcase.com/acs",
+			assertion: require.Error,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.location, func(t *testing.T) {
+			test.assertion(t, ValidateAssertionConsumerServicesEndpoint(test.location))
+		})
+	}
+}
+
 var samlIDPServiceProviderYAML = `---
 kind: saml_idp_service_provider
 version: v1

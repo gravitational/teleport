@@ -22,7 +22,7 @@ option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib
 
 message AccessRequest {
   string id = 1;
-  // the request state of Access Request. option of PENDING, APPROVED, DENIED, NONE
+  // the request state of Access Request. option of PENDING, APPROVED, DENIED, PROMOTED, NONE
   string state = 2;
   string resolve_reason = 3;
   string request_reason = 4;
@@ -40,6 +40,9 @@ message AccessRequest {
   // a list of resourceIDs requested in the AccessRequest
   repeated ResourceID resource_ids = 12;
   repeated Resource resources = 13;
+  // promoted_access_list_title is the title of the access
+  // list that this access request was promoted to.
+  string promoted_access_list_title = 14;
 }
 
 message AccessRequestReview {
@@ -52,6 +55,9 @@ message AccessRequestReview {
   // reason is why the request was approved or denied
   string reason = 4;
   google.protobuf.Timestamp created = 5;
+  // promoted_access_list_title is the title of the access
+  // list that the access request was promoted to.
+  string promoted_access_list_title = 6;
 }
 
 message ResourceID {

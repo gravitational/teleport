@@ -32,7 +32,7 @@ authentication:
   connector_name: passwordless
   device_trust:
     mode: "off"
-proxyListenerMode: separate
+proxyListenerMode: "multiplex"
 auth:
   teleportConfig:
     version: v3
@@ -43,7 +43,7 @@ auth:
           output: json
       storage:
         type: etcd
-        peers: [https://etcd.etcd.svc.cluster.local:2379]
+        peers: [http://etcd.etcd.svc.cluster.local:2379]
         insecure: true
         prefix: teleport
       connection_limits:

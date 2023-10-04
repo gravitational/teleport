@@ -267,7 +267,8 @@
             },
             {
               "title": "GitHub",
-              "slug": "/access-controls/sso/github-sso/"
+              "slug": "/access-controls/sso/github-sso/",
+              "forScopes": ["oss", "team", "enterprise", "cloud"]
             },
             {
               "title": "GitLab",
@@ -424,7 +425,7 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Role Requests in OSS Teleport",
+              "title": "Teleport Community Edition Role Access Requests",
               "slug": "/access-controls/access-requests/oss-role-requests/",
               "forScopes": ["oss"]
             }
@@ -453,6 +454,11 @@
             {
               "title": "Opsgenie",
               "slug": "/access-controls/access-request-plugins/opsgenie/",
+              "forScopes": ["cloud"]
+            },
+            {
+              "title": "ServiceNow",
+              "slug": "/access-controls/access-request-plugins/servicenow/",
               "forScopes": ["cloud"]
             },
             {
@@ -606,12 +612,24 @@
           ]
         },
         {
-          "title": "Security",
+          "title": "Secure Practices",
           "slug": "/management/security/",
           "entries": [
             {
+              "title": "Privilege Elevation",
+              "slug": "/management/security/privilege-elevation/"
+            },
+            {
               "title": "Reducing the Blast Radius of Attacks",
               "slug": "/management/security/reduce-blast-radius/"
+            },
+            {
+              "title": "PROXY Protocol",
+              "slug": "/management/security/proxy-protocol/",
+              "forScopes": [
+                "enterprise",
+                "oss"
+              ]
             }
           ]
         },
@@ -879,7 +897,7 @@
         {
           "title": "Troubleshooting Application Access",
           "slug": "/application-access/troubleshooting-apps/"
-        },           
+        },
         {
           "title": "Reference",
           "slug": "/application-access/reference/"
@@ -908,7 +926,11 @@
             },
             {
               "title": "Agentless OpenSSH Integration",
-              "slug": "/server-access/guides/openssh/"
+              "slug": "/server-access/guides/openssh/openssh/"
+            },
+            {
+              "title": "Agentless OpenSSH Integration (Manual Install)",
+              "slug": "/server-access/guides/openssh/openssh-manual-install/"
             },
             {
               "title": "Recording Proxy Mode",
@@ -1628,7 +1650,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "13.3.9",
+      "version": "13.4.0",
       "major_version": "13",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -2793,6 +2815,11 @@
     {
       "source": "/management/guides/terraform-provider/",
       "destination": "/management/dynamic-resources/terraform-provider/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/openssh/",
+      "destination": "/server-access/guides/openssh/openssh/",
       "permanent": true
     }
   ]

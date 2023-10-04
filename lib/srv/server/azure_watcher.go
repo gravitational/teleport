@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -52,6 +53,8 @@ type AzureInstances struct {
 	Parameters []string
 	// Instances is a list of discovered Azure virtual machines.
 	Instances []*armcompute.VirtualMachine
+	// ClientID is the client ID of the managed identity to use for installation.
+	ClientID string
 }
 
 // MakeEvents generates MakeEvents for these instances.
@@ -118,6 +121,7 @@ type azureInstanceFetcher struct {
 	ResourceGroup     string
 	Labels            types.Labels
 	Parameters        map[string]string
+	ClientID          string
 }
 
 func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
@@ -135,6 +139,7 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 			"scriptName":      cfg.Matcher.Params.ScriptName,
 			"publicProxyAddr": cfg.Matcher.Params.PublicProxyAddr,
 		}
+		ret.ClientID = cfg.Matcher.Params.Azure.ClientID
 	}
 
 	return ret
@@ -151,8 +156,11 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 		return nil, trace.Wrap(err)
 	}
 	instancesByRegion := make(map[string][]*armcompute.VirtualMachine)
-	for _, region := range f.Regions {
-		instancesByRegion[region] = []*armcompute.VirtualMachine{}
+	allowAllRegions := slices.Contains(f.Regions, types.Wildcard)
+	if !allowAllRegions {
+		for _, region := range f.Regions {
+			instancesByRegion[region] = []*armcompute.VirtualMachine{}
+		}
 	}
 
 	vms, err := client.ListVirtualMachines(ctx, f.ResourceGroup)
@@ -162,7 +170,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 
 	for _, vm := range vms {
 		location := aws.StringValue(vm.Location)
-		if _, ok := instancesByRegion[location]; !ok {
+		if _, ok := instancesByRegion[location]; !ok && !allowAllRegions {
 			continue
 		}
 		vmTags := make(map[string]string, len(vm.Tags))
@@ -186,6 +194,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 				ScriptName:      f.Parameters["scriptName"],
 				PublicProxyAddr: f.Parameters["publicProxyAddr"],
 				Parameters:      []string{f.Parameters["token"]},
+				ClientID:        f.ClientID,
 			}})
 		}
 	}

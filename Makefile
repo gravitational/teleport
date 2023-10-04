@@ -710,7 +710,7 @@ test-go: test-go-prepare test-go-unit test-go-libfido2 test-go-touch-id test-go-
 
 #
 # Runs a test to ensure no environment variable leak into build binaries.
-# This is typically done as part of the bloat test in CI, but this 
+# This is typically done as part of the bloat test in CI, but this
 # target exists for local testing.
 #
 .PHONY: test-env-leakage
@@ -909,7 +909,7 @@ test-e2e:
 
 .PHONY: run-etcd
 run-etcd:
-	docker build -f .github/services/Dockerfile.etcd -t etcdbox --build-arg=ETCD_VERSION=3.3.9 .
+	docker build -f .github/services/Dockerfile.etcd -t etcdbox --build-arg=ETCD_VERSION=3.5.9 .
 	docker run -it --rm -p'2379:2379' etcdbox
 
 #
@@ -1075,13 +1075,13 @@ lint-helm:
 				export HELM_TEMP=$$(mktemp); \
 				echo -n "Using values from '$${VALUES}': "; \
 				yamllint -c examples/chart/.lint-config.yaml $${VALUES} || { cat -en $${VALUES}; exit 1; }; \
-				helm lint --strict $${CHART} -f $${VALUES} || exit 1; \
+				helm lint --quiet --strict $${CHART} -f $${VALUES} || exit 1; \
 				helm template test $${CHART} -f $${VALUES} 1>$${HELM_TEMP} || exit 1; \
 				yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
 			done \
 		else \
 			export HELM_TEMP=$$(mktemp); \
-			helm lint --strict $${CHART} || exit 1; \
+			helm lint --quiet --strict $${CHART} || exit 1; \
 			helm template test $${CHART} 1>$${HELM_TEMP} || exit 1; \
 			yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
 		fi; \

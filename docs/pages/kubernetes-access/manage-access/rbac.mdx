@@ -231,7 +231,7 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --set authToken=<Var name="token" /> \
   --set labels.region=local --set labels.platform=minikube \
   --create-namespace \
-  --namespace=teleport \
+  --namespace=teleport-agent \
   --version (=teleport.version=)
 ```
 
@@ -242,7 +242,7 @@ these to configure access controls for the cluster later in this guide.
 Verify that the `teleport` pod is running in your cluster:
 
 ```code
-$ kubectl -n teleport get pods
+$ kubectl -n teleport-agent get pods
 ```
 
 You can check that the Teleport Kubernetes Service registered itself with your

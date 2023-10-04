@@ -1145,7 +1145,7 @@ func ConvertAuthorizerError(ctx context.Context, log logrus.FieldLogger, err err
 		// unaltered so that they know to reauthenticate with a valid key.
 		return trace.Unwrap(err)
 	default:
-		log.Warn(trace.DebugReport(err))
+		log.WithError(err).Warn("Suppressing unknown authz error.")
 	}
 	return trace.AccessDenied("access denied")
 }
@@ -1392,7 +1392,23 @@ func IsLocalUser(authContext Context) bool {
 	return ok
 }
 
+// IsLocalOrRemoteUser checks if the identity is either a local or remote user.
+func IsLocalOrRemoteUser(authContext Context) bool {
+	switch authContext.Identity.(type) {
+	case LocalUser, RemoteUser:
+		return true
+	default:
+		return false
+	}
+}
+
 // IsCurrentUser checks if the identity is a local user matching the given username
 func IsCurrentUser(authContext Context, username string) bool {
 	return IsLocalUser(authContext) && authContext.User.GetName() == username
+}
+
+// IsRemoteUser checks if the identity is a remote user.
+func IsRemoteUser(authContext Context) bool {
+	_, ok := authContext.Identity.(RemoteUser)
+	return ok
 }

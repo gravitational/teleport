@@ -17,14 +17,7 @@ limitations under the License.
 import React, { useEffect, useState } from 'react';
 
 import styled from 'styled-components';
-import {
-  Box,
-  Indicator,
-  Flex,
-  ButtonLink,
-  ButtonSecondary,
-  Text,
-} from 'design';
+import { Box, Flex, ButtonLink, ButtonSecondary, Text } from 'design';
 import { Magnifier } from 'design/Icon';
 
 import { Danger } from 'design/Alert';
@@ -45,10 +38,9 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { useUrlFiltering, useInfiniteScroll } from 'teleport/components/hooks';
-
 import { UnifiedResource } from 'teleport/services/agents';
 
-import { ResourceCard, LoadingCard, resourceName } from './ResourceCard';
+import { ResourceCard, LoadingCard } from './ResourceCard';
 import SearchPanel from './SearchPanel';
 import { FilterPanel } from './FilterPanel';
 import './unifiedStyles.css';
@@ -167,13 +159,10 @@ export function Resources() {
         ))}
         {/* Using index as key here is ok because these elements never change order */}
         {attempt.status === 'processing' &&
-          loadingCardArray.map((_, i) => <LoadingCard key={i} />)}
+          loadingCardArray.map((_, i) => <LoadingCard delay="short" key={i} />)}
       </ResourcesContainer>
       <div ref={setScrollDetector} />
       <ListFooter>
-        <IndicatorContainer status={attempt.status}>
-          <Indicator size={INDICATOR_SIZE} />
-        </IndicatorContainer>
         {attempt.status === 'failed' && resources.length > 0 && (
           <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
         )}
@@ -192,8 +181,21 @@ export function Resources() {
   );
 }
 
-function resourceKey(resource: UnifiedResource) {
-  return `${resource.kind}/${resourceName(resource)}`;
+export function resourceKey(resource: UnifiedResource) {
+  if (resource.kind === 'node') {
+    return `${resource.hostname}/node`;
+  }
+  return `${resource.name}/${resource.kind}`;
+}
+
+export function resourceName(resource: UnifiedResource) {
+  if (resource.kind === 'app' && resource.friendlyName) {
+    return resource.friendlyName;
+  }
+  if (resource.kind === 'node') {
+    return resource.hostname;
+  }
+  return resource.name;
 }
 
 function NoResults({ query }: { query: string }) {
@@ -251,13 +253,6 @@ const ListFooter = styled.div`
   margin-top: ${props => props.theme.space[2]}px;
   min-height: ${INDICATOR_SIZE};
   text-align: center;
-`;
-
-// Line height is set to 0 to prevent the layout engine from adding extra pixels
-// to the element's height.
-const IndicatorContainer = styled(Box)`
-  display: ${props => (props.status === 'processing' ? 'block' : 'none')};
-  line-height: 0;
 `;
 
 const emptyStateInfo: EmptyStateInfo = {
