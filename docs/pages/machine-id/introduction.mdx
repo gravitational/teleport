@@ -39,9 +39,21 @@ machine access, including:
 
 ## Overview
 
-Machine ID works by issuing machines short-lived certificates in the same way
-that these certificates are issued to users when they sign in. These
-certificates
+At its core, Machine ID is about providing machines with an identity that is
+compatible with the Teleport cluster. As with human users, this identity is
+encoded into an x.509 certificate which is signed by the Teleport Auth Server.
+This certificate then allows the machine to access resources through Teleport
+and for this access to be tied to this identity.
+
+The type of identity issued to a machine in Teleport is known as a Bot. Like
+human users, a Bot's access is controlled through roles and their access is
+subject to the same rich auditing.
+
+The main difference between a human user and a bot is that a bot does not
+"log in" using a static username and password. Instead, Teleport's join token
+mechanism is used. This allows a machine to exchange one form of identity
+(e.g AWS IAM) for a Teleport identity and this exchange process eliminates the
+use of long-lived secrets for authentication.
 
 Machine ID is used through an agent called `tbot`. `tbot` authenticates
 with the Teleport cluster and then writes short-lived credentials and
@@ -50,11 +62,6 @@ directory). These credentials can then be used by other tools to access a
 Teleport cluster and its resources. In daemon mode, `tbot` continually renews
 the short-lived credentials before they expire.
 
-`tbot` authenticates with the Teleport cluster using a join token which grants
-access to a Bot User. A Bot User is similar to a normal Teleport user but is
-only accessible via a join token and cannot be "logged into" like a normal
-user. A Bot User holds a single role, known as the Bot Role. This role gives
-`tbot` the ability to generate certificates for specified Teleport roles.
 
 For a more in-depth overview, check out the
 [architecture page](./architecture.mdx). This covers the behind-the-scenes
