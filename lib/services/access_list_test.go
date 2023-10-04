@@ -744,7 +744,6 @@ spec:
   review_date: 2023-01-01T00:00:00Z
   notes: "Some notes"
   changes:
-    frequency_changed: 300s
     membership_requirements_changed:
       roles:
       - role1
@@ -759,4 +758,6 @@ spec:
     removed_members:
     - member1
     - member2
+    review_frequency_changed: 3 months
+    review_day_of_month_changed: "15"
 `

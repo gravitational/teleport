@@ -450,7 +450,7 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	_, err = service.UpsertAccessListMember(ctx, accessList2Member2)
 	require.NoError(t, err)
 
-	// There should be no access list reveiws for either list.
+	// There should be no access list reviews for either list.
 	reviews, _, err := service.ListAccessListReviews(ctx, accessList1.GetName(), 0, "")
 	require.NoError(t, err)
 	require.Empty(t, reviews)
@@ -815,8 +815,8 @@ func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Revi
 					"member1",
 					"member2",
 				},
-				ReviewFrequencyChanged:  accesslist.ReviewFrequency(accesslist.ThreeMonths),
-				ReviewDayOfMonthChanged: accesslist.ReviewDayOfMonth(accesslist.FifteenthDayOfMonth),
+				ReviewFrequencyChanged:  accesslist.ThreeMonths,
+				ReviewDayOfMonthChanged: accesslist.FifteenthDayOfMonth,
 			},
 		},
 	)
