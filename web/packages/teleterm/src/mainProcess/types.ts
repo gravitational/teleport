@@ -23,7 +23,10 @@ import { FileStorage } from 'teleterm/services/fileStorage';
 import { ConfigService } from '../services/config';
 
 export type RuntimeSettings = {
+  // TODO: Add comments.
   dev: boolean;
+  debug: boolean;
+  insecure: boolean;
   userDataDir: string;
   sessionDataDir: string;
   tempDataDir: string;
@@ -39,7 +42,6 @@ export type RuntimeSettings = {
   platform: Platform;
   agentBinaryPath: string;
   tshd: {
-    insecure: boolean;
     requestedNetworkAddress: string;
     binaryPath: string;
     homeDir: string;

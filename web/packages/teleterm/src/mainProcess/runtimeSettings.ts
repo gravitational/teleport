@@ -43,11 +43,9 @@ const TSH_BIN_DEFAULT_PATH_FOR_DEV = path.resolve(
   'teleport', 'build', 'tsh',
 );
 
-const dev = env.NODE_ENV === 'development' || env.DEBUG_PROD === 'true';
-
-// Allows running tsh in insecure mode (development)
-const isInsecure = argv.includes('--insecure');
-const isDebug = argv.includes('--debug');
+const dev = env.NODE_ENV === 'development';
+const debug = argv.includes('--debug') || dev;
+const insecure = argv.includes('--insecure') || !!env.CONNECT_INSECURE;
 
 export function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
@@ -70,7 +68,6 @@ export function getRuntimeSettings(): RuntimeSettings {
   const agentsDir = getAgentsDir(userDataDir);
 
   const tshd = {
-    insecure: isInsecure,
     binaryPath: tshBinPath,
     homeDir: getTshHomeDir(),
     requestedNetworkAddress: tshAddress,
@@ -102,15 +99,17 @@ export function getRuntimeSettings(): RuntimeSettings {
   // A workaround is to read the version from `process.env.npm_package_version`.
   const appVersion = dev ? process.env.npm_package_version : app.getVersion();
 
-  if (isInsecure) {
+  if (insecure) {
     tshd.flags.unshift('--insecure');
   }
-  if (dev || isDebug) {
+  if (debug) {
     tshd.flags.unshift('--debug');
   }
 
   return {
     dev,
+    debug,
+    insecure,
     tshd,
     sharedProcess,
     tshdEvents,
