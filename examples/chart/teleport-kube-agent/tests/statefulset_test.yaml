@@ -221,6 +221,8 @@ tests:
     template: statefulset.yaml
     set:
       extraContainers: []
+      proxyAddr: helm-lint.example.com
+      kubeClusterName: helm-lint.example.com
     asserts:
       - isNotNull:
           path: spec.template.spec.containers[0]

@@ -336,6 +336,7 @@ tests:
     template: proxy/deployment.yaml
     set:
       extraContainers: []
+      clusterName: helm-lint.example.com
     asserts:
       - isNotNull:
           path: spec.template.spec.containers[0]
