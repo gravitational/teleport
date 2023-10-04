@@ -29,6 +29,7 @@
     "react": "16.14.0",
     "**/minimist": "^1.2.5",
     "**/@types/react": "^16.8.19",
+    "**/trim": "0.0.3",
     "webpack": "^5.76.2",
     "x-default-browser": "^0.5.2"
   },
