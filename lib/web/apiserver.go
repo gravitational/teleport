@@ -280,8 +280,8 @@ type Config struct {
 	// sessions.
 	PresenceChecker PresenceChecker
 
-	// AccessGraphAddr is the address of the Access Graph service HTTP API
-	AccessGraphAddr string
+	// AccessGraphAddr is the address of the Access Graph service GRPC API
+	AccessGraphAddr utils.NetAddr
 }
 
 // SetDefaults ensures proper default values are set if
@@ -998,7 +998,7 @@ func (h *Handler) PublicProxyAddr() string {
 }
 
 // AccessGraphAddr returns the TAG API address
-func (h *Handler) AccessGraphAddr() string {
+func (h *Handler) AccessGraphAddr() utils.NetAddr {
 	return h.cfg.AccessGraphAddr
 }
 
