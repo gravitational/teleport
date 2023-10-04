@@ -3,38 +3,15 @@ run-name: Lint UI - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
   pull_request:
-    paths:
-      - 'web/**'
   merge_group:
-    paths:
-      - 'web/**'
 
+# TODO(zmb3): remove this workflow completely after it is no longer
+# marked as a required check
 jobs:
   lint:
-    name: Prettier, ESLint, & TSC
+    name: no-op
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout OSS Teleport
-        uses: actions/checkout@v4
-
-      - name: Determine Toolchain Versions
+      - name: No-op
         run: |
-          echo NODE_VERSION=$(make -s -C build.assets print-node-version) >> $GITHUB_ENV
-
-      - name: Print versions
-        run: |
-          echo "node: ${NODE_VERSION}"
-
-      - name: Setup Node Toolchain
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install Yarn dependencies
-        run: yarn --frozen-lockfile
-
-      - name: Run lint
-        run: yarn lint
-
-      - name: Run Type Check
-        run: yarn type-check
+          echo "Linting for web has been moved to the lint workflow"

@@ -956,13 +956,6 @@ e2e-aws: $(TEST_LOG_DIR) ensure-gotestsum
 .PHONY: lint
 lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-actions
 
-#
-# Lints everything but Go sources.
-# Similar to lint.
-#
-.PHONY: lint-no-actions
-lint-no-actions: lint-sh lint-helm lint-license lint-rust
-
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport
 
