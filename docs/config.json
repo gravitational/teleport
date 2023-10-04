@@ -267,7 +267,8 @@
             },
             {
               "title": "GitHub",
-              "slug": "/access-controls/sso/github-sso/"
+              "slug": "/access-controls/sso/github-sso/",
+              "forScopes": ["oss", "team", "enterprise", "cloud"]
             },
             {
               "title": "GitLab",
@@ -896,7 +897,7 @@
         {
           "title": "Troubleshooting Application Access",
           "slug": "/application-access/troubleshooting-apps/"
-        },           
+        },
         {
           "title": "Reference",
           "slug": "/application-access/reference/"
@@ -1649,7 +1650,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "13.3.9",
+      "version": "13.4.0",
       "major_version": "13",
       "sla": {
         "monthly_percentage": "99.9%",

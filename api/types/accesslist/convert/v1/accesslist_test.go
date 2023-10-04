@@ -150,7 +150,6 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency:     time.Hour,
 				NextAuditDate: time.Now(),
 			},
 			MembershipRequires: accesslist.Requires{
