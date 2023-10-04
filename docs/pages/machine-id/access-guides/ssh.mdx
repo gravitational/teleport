@@ -81,8 +81,8 @@ outputs:
 ```
 
 If operating `tbot` as a background service, restart it. If running `tbot` in
-one-shot mode, it must be executed before you attempt to execute the Ansible
-playbook.
+one-shot mode, it must be executed before you attempt to use the credentials
+produced by `tbot` to connect to nodes via SSH.
 
 ## Step 3/3. Using the output credentials
 
@@ -90,16 +90,18 @@ Once `tbot` has been run or restarted, you should now see several files under
 `/opt/machine-id`:
 
 - `identity`: this is a bundle of credentials that can be used by `tsh` to
- authenticate.
+  authenticate.
 - `ssh_config`: this can be used with OpenSSH and other tools to configure them
-to use the Teleport Proxy Service with the correct credentials when making connections.
+  to use the Teleport Proxy Service with the correct credentials when making
+  connections.
 - `known_hosts`: this contains the Teleport SSH host CAs and allows the SSH
-client to validate a host's certificate.
+  client to validate a host's certificate.
 - `key-cert.pub`: this is an SSH certificate signed by the Teleport SSH user
-CA.
+  CA.
 - `key`: this is the private key needed to use the SSH certificate.
 
-These credentials can be used with Teleport's CLI `tsh` or with OpenSSH client tools like `ssh` and `sftp`.
+These credentials can be used with Teleport's CLI `tsh` or with OpenSSH client
+tools like `ssh` and `sftp`.
 
 ### Connecting using `tsh`
 
