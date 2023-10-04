@@ -1179,7 +1179,18 @@ func TestGetMethodInfo(t *testing.T) {
 		description string
 		source      []string
 		expected    map[PackageInfo][]MethodInfo
-	}{}
+	}{
+		{
+			description: "empty input",
+			source:      []string{},
+			expected:    map[PackageInfo][]MethodInfo{},
+		},
+		{
+			description: "nil input",
+			source:      nil,
+			expected:    map[PackageInfo][]MethodInfo{},
+		},
+	}
 
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {

@@ -664,5 +664,8 @@ type MethodInfo struct {
 }
 
 func getMethodInfo(decls []ast.Decl) (map[PackageInfo][]MethodInfo, error) {
+	if decls == nil || len(decls) == 0 {
+		return map[PackageInfo][]MethodInfo{}, nil
+	}
 	return nil, nil
 }
