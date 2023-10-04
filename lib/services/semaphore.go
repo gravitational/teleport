@@ -301,6 +301,9 @@ func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (types.Semaphore, e
 	if cfg.ID != 0 {
 		semaphore.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		semaphore.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		semaphore.SetExpiry(cfg.Expires)
 	}
@@ -325,6 +328,7 @@ func MarshalSemaphore(semaphore types.Semaphore, opts ...MarshalOption) ([]byte,
 			// to prevent unexpected data races
 			copy := *semaphore
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			semaphore = &copy
 		}
 		return utils.FastMarshal(semaphore)

@@ -45,6 +45,9 @@ func UnmarshalUIConfig(data []byte, opts ...MarshalOption) (types.UIConfig, erro
 	if cfg.ID != 0 {
 		uiconfig.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		uiconfig.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		uiconfig.SetExpiry(cfg.Expires)
 	}
@@ -67,6 +70,7 @@ func MarshalUIConfig(uiconfig types.UIConfig, opts ...MarshalOption) ([]byte, er
 			// to prevent unexpected data races
 			copy := *uiconfig
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			uiconfig = &copy
 		}
 		return utils.FastMarshal(uiconfig)

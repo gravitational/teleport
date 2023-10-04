@@ -96,6 +96,10 @@ export class MockMainProcessClient implements MainProcessClient {
     return Promise.resolve(false);
   }
 
+  openAgentLogsDirectory() {
+    return Promise.resolve();
+  }
+
   killAgent(): Promise<void> {
     return Promise.resolve();
   }
@@ -108,8 +112,16 @@ export class MockMainProcessClient implements MainProcessClient {
     return { status: 'not-started' };
   }
 
+  getAgentLogs(): string {
+    return '';
+  }
+
   subscribeToAgentUpdate() {
     return { cleanup: () => undefined };
+  }
+
+  removeAgentDirectory() {
+    return Promise.resolve();
   }
 }
 

@@ -65,6 +65,9 @@ func UnmarshalPluginData(raw []byte, opts ...MarshalOption) (types.PluginData, e
 	if cfg.ID != 0 {
 		data.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		data.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		data.SetExpiry(cfg.Expires)
 	}

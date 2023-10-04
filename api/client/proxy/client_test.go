@@ -30,9 +30,11 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -677,4 +679,58 @@ func TestClusterCredentials(t *testing.T) {
 			require.Equal(t, test.expectedClusterName, c.get())
 		})
 	}
+}
+
+func TestNewDialerForGRPCClient(t *testing.T) {
+	t.Run("Check that PROXYHeaderGetter if present sends PROXY header as first bytes on the connection", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, listener.Close())
+		})
+
+		prefix := []byte("FAKEPROXY")
+		proxyHeaderGetter := func() ([]byte, error) {
+			return prefix, nil
+		}
+
+		ctx := context.Background()
+		cfg := &ClientConfig{
+			PROXYHeaderGetter: proxyHeaderGetter,
+		}
+		dialer := newDialerForGRPCClient(ctx, cfg)
+
+		resultChan := make(chan bool)
+		// Start listening, emulating receiving end of connection
+		go func() {
+			conn, err := listener.Accept()
+			if err != nil {
+				assert.Fail(t, err.Error())
+				return
+			}
+
+			buf := make([]byte, len(prefix))
+			_, err = conn.Read(buf)
+			assert.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, conn.Close())
+			})
+
+			// On the received connection first bytes should be our PROXY prefix
+			resultChan <- slices.Equal(buf, prefix)
+		}()
+
+		conn, err := dialer(ctx, listener.Addr().String())
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, conn.Close())
+		})
+
+		select {
+		case res := <-resultChan:
+			require.True(t, res, "Didn't receive required prefix as first bytes on the connection")
+		case <-time.After(time.Second):
+			require.Fail(t, "Timed out waiting for connection")
+		}
+	})
 }

@@ -34,10 +34,13 @@ type Resolution struct {
 }
 type ResolutionTag string
 
-const Unresolved = ResolutionTag("")
-const ResolvedApproved = ResolutionTag("approved")
-const ResolvedDenied = ResolutionTag("denied")
-const ResolvedExpired = ResolutionTag("expired")
+const (
+	Unresolved       = ResolutionTag("")
+	ResolvedApproved = ResolutionTag("approved")
+	ResolvedDenied   = ResolutionTag("denied")
+	ResolvedExpired  = ResolutionTag("expired")
+	ResolvedPromoted = ResolutionTag("promoted")
+)
 
 type RequestData struct {
 	User          string

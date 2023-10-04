@@ -450,6 +450,10 @@ func (a *SessionWriter) processEvents() {
 				a.log.Debugf("Recovered stream in %v.", time.Since(start))
 			}
 		case <-a.stream.Done():
+			if a.closeCtx.Err() != nil {
+				// don't attempt recovery if we're closing
+				return
+			}
 			a.log.Debugf("Stream was closed by the server, attempting to recover.")
 			if err := a.recoverStream(); err != nil {
 				a.log.WithError(err).Warningf("Failed to recover stream.")

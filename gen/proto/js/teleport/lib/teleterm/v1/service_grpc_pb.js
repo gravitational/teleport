@@ -160,6 +160,28 @@ function deserialize_teleport_lib_teleterm_v1_DeleteAccessRequestRequest(buffer_
   return teleport_lib_teleterm_v1_service_pb.DeleteAccessRequestRequest.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerNodeRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerNodeRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerNodeResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerNodeResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenRequest(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest');
@@ -290,6 +312,28 @@ function serialize_teleport_lib_teleterm_v1_GetClusterRequest(arg) {
 
 function deserialize_teleport_lib_teleterm_v1_GetClusterRequest(buffer_arg) {
   return teleport_lib_teleterm_v1_service_pb.GetClusterRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_GetConnectMyComputerNodeNameRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_GetConnectMyComputerNodeNameRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_GetConnectMyComputerNodeNameResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_GetConnectMyComputerNodeNameResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_teleport_lib_teleterm_v1_GetDatabasesRequest(arg) {
@@ -620,6 +664,28 @@ function serialize_teleport_lib_teleterm_v1_UpdateTshdEventsServerAddressRespons
 
 function deserialize_teleport_lib_teleterm_v1_UpdateTshdEventsServerAddressResponse(buffer_arg) {
   return teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 
@@ -1042,6 +1108,47 @@ deleteConnectMyComputerToken: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenResponse,
+  },
+  // WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
+// that the Connect My Computer node for the particular cluster has joined the cluster (the
+// OpPut event).
+//
+// This RPC times out by itself after a minute to prevent the request from hanging forever, in
+// case the client didn't set a deadline or doesn't abort the request.
+waitForConnectMyComputerNodeJoin: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/WaitForConnectMyComputerNodeJoin',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinResponse,
+  },
+  // DeleteConnectMyComputerNode deletes the Connect My Computer node.
+deleteConnectMyComputerNode: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerNode',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerNodeRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerNodeRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerNodeResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerNodeResponse,
+  },
+  // GetConnectMyComputerNodeName reads the Connect My Computer node name (UUID) from a disk.
+getConnectMyComputerNodeName: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/GetConnectMyComputerNodeName',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_GetConnectMyComputerNodeNameRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_GetConnectMyComputerNodeNameRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_GetConnectMyComputerNodeNameResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_GetConnectMyComputerNodeNameResponse,
   },
 };
 

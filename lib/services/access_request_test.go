@@ -267,6 +267,7 @@ func TestReviewThresholds(t *testing.T) {
 	const (
 		approve = types.RequestState_APPROVED
 		deny    = types.RequestState_DENIED
+		promote = types.RequestState_PROMOTED
 	)
 
 	type review struct {
@@ -577,64 +578,76 @@ func TestReviewThresholds(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc:      "promoted skips the threshold check",
+			requestor: "bob",
+			reviews: []review{
+				{ // status should be set to promoted despite the approval threshold not being met
+					author:  g.user(t, "intelligentsia"),
+					propose: promote,
+					expect:  promote,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tts {
-
-		if len(tt.roles) == 0 {
-			tt.roles = []string{"dictator"}
-		}
-
-		// create a request for the specified author
-		req, err := types.NewAccessRequest("some-id", tt.requestor, tt.roles...)
-		require.NoError(t, err, "scenario=%q", tt.desc)
-
-		clock := clockwork.NewFakeClock()
-		identity := tlsca.Identity{
-			Expires: clock.Now().UTC().Add(8 * time.Hour),
-		}
-
-		// perform request validation (necessary in order to initialize internal
-		// request variables like annotations and thresholds).
-		validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, ExpandVars(true))
-		require.NoError(t, err, "scenario=%q", tt.desc)
-
-		require.NoError(t, validator.Validate(context.Background(), req, identity), "scenario=%q", tt.desc)
-
-	Inner:
-		for ri, rt := range tt.reviews {
-			if rt.expect.IsNone() {
-				rt.expect = types.RequestState_PENDING
+		t.Run(tt.desc, func(t *testing.T) {
+			if len(tt.roles) == 0 {
+				tt.roles = []string{"dictator"}
 			}
 
-			checker, err := NewReviewPermissionChecker(context.TODO(), g, rt.author)
-			require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
+			// create a request for the specified author
+			req, err := types.NewAccessRequest("some-id", tt.requestor, tt.roles...)
+			require.NoError(t, err, "scenario=%q", tt.desc)
 
-			canReview, err := checker.CanReviewRequest(req)
-			require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
-
-			if rt.noReview {
-				require.False(t, canReview, "scenario=%q, rev=%d", tt.desc, ri)
-				continue Inner
+			clock := clockwork.NewFakeClock()
+			identity := tlsca.Identity{
+				Expires: clock.Now().UTC().Add(8 * time.Hour),
 			}
 
-			rev := types.AccessReview{
-				Author:        rt.author,
-				ProposedState: rt.propose,
+			// perform request validation (necessary in order to initialize internal
+			// request variables like annotations and thresholds).
+			validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, ExpandVars(true))
+			require.NoError(t, err, "scenario=%q", tt.desc)
+
+			require.NoError(t, validator.Validate(context.Background(), req, identity), "scenario=%q", tt.desc)
+
+		Inner:
+			for ri, rt := range tt.reviews {
+				if rt.expect.IsNone() {
+					rt.expect = types.RequestState_PENDING
+				}
+
+				checker, err := NewReviewPermissionChecker(context.TODO(), g, rt.author)
+				require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
+
+				canReview, err := checker.CanReviewRequest(req)
+				require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
+
+				if rt.noReview {
+					require.False(t, canReview, "scenario=%q, rev=%d", tt.desc, ri)
+					continue Inner
+				}
+
+				rev := types.AccessReview{
+					Author:        rt.author,
+					ProposedState: rt.propose,
+				}
+
+				author, ok := users[rt.author]
+				require.True(t, ok, "scenario=%q, rev=%d", tt.desc, ri)
+
+				err = ApplyAccessReview(req, rev, author)
+				if rt.errCheck != nil {
+					rt.errCheck(t, err)
+					continue
+				}
+
+				require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
+				require.Equal(t, rt.expect.String(), req.GetState().String(), "scenario=%q, rev=%d", tt.desc, ri)
 			}
-
-			author, ok := users[rt.author]
-			require.True(t, ok, "scenario=%q, rev=%d", tt.desc, ri)
-
-			err = ApplyAccessReview(req, rev, author)
-			if rt.errCheck != nil {
-				rt.errCheck(t, err)
-				continue
-			}
-
-			require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
-			require.Equal(t, rt.expect.String(), req.GetState().String(), "scenario=%q, rev=%d", tt.desc, ri)
-		}
+		})
 	}
 }
 
