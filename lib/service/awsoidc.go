@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"path"
 	"strings"
 	"time"
 
@@ -45,12 +44,6 @@ const (
 
 	// maxConcurrentUpdates specifies the maximum number of concurrent updates
 	maxConcurrentUpdates = 3
-
-	// awsOIDCAccessDenied specifies the id for an aws oidc access denied alert
-	awsOIDCAccessDenied = "aws_oidc_access_denied"
-
-	// awsOIDCTTL specifies the time to live for an access denied error
-	awsOIDCAlertTTL = time.Hour * 24
 )
 
 func (process *TeleportProcess) initDeployServiceUpdater() error {
@@ -330,85 +323,8 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgent(ctx context.Contex
 			// re-run the deploy service iam configuration script and update the
 			// permissions.
 			updater.Log.WithError(err).Warning("Re-run deploy service configuration script to update permissions.")
-			if err := updater.ensureClusterAlert(ctx, integration, awsRegion); err != nil {
-				updater.Log.WithError(err).Warning("Failed to ensure cluster alert.")
-			}
 		}
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// ensureClusterAlert ensures a cluster alert is created if deploy service permissions
-// need to be reconfigured.
-func (updater *DeployServiceUpdater) ensureClusterAlert(ctx context.Context, integration types.Integration, awsRegion string) error {
-	// Acquire semaphore lease before attempting to create a cluster alert.
-	// If the lease cannot be acquired, a cluster alert is already being created by another instance.
-	semLock, err := updater.AuthClient.AcquireSemaphore(ctx, types.AcquireSemaphoreRequest{
-		SemaphoreKind: types.SemaphoreKindConnection,
-		SemaphoreName: "aws_oidc_access_denied_alert",
-		MaxLeases:     1,
-		Expires:       updater.Clock.Now().Add(updateDeployAgentsInterval),
-		Holder:        "aws_oidc_access_denied_alert",
-	})
-	if err != nil {
-		if strings.Contains(err.Error(), teleport.MaxLeases) {
-			updater.Log.WithError(err).Debug("Cluster alert is already being created.")
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-	defer func() {
-		if err := updater.AuthClient.CancelSemaphoreLease(ctx, *semLock); err != nil {
-			updater.Log.WithError(err).Error("Failed to cancel semaphore lease.")
-		}
-	}()
-
-	alertLabels := map[string]string{
-		types.AlertAWSOIDCAccessDenied: "yes",
-		types.AlertOnLogin:             "yes",
-		types.AlertVerbPermit:          fmt.Sprintf("%s:%s", types.KindInstance, types.VerbRead),
-	}
-
-	alerts, err := updater.AuthClient.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-		Labels:           alertLabels,
-		WithAcknowledged: true,
-		WithUntargeted:   true,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Do not create another alert if an alert has already been created
-	if len(alerts) > 0 {
-		return nil
-	}
-
-	clusterConfig, err := updater.AuthClient.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	scriptURL, err := url.Parse(fmt.Sprintf("https://%s/webapi/scripts/integrations/configure/deployservice-iam.sh", clusterConfig.GetClusterName()))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	values := scriptURL.Query()
-	values.Add("integrationName", integration.GetName())
-	values.Add("awsRegion", awsRegion)
-	values.Add("role", path.Base(integration.GetAWSOIDCIntegrationSpec().RoleARN))
-	values.Add("taskRole", "TASK_ROLE") // The task role needs to be supplied by the user
-	scriptURL.RawQuery = values.Encode()
-
-	cmd := fmt.Sprintf(`bash -c "$(curl '%s')"`, scriptURL)
-	message := fmt.Sprintf("Open Amazon CloudShell and copy/paste the following command to reconfigure integration. Replace TASK_ROLE with desired deploy service task role name: %s", cmd)
-
-	alert, err := types.NewClusterAlert(awsOIDCAccessDenied, message, types.WithAlertSeverity(types.AlertSeverity_LOW))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	alert.Metadata.Labels = alertLabels
-	alert.SetExpiry(updater.Clock.Now().Add(awsOIDCAlertTTL))
-
-	return trace.Wrap(updater.AuthClient.UpsertClusterAlert(ctx, alert))
 }
