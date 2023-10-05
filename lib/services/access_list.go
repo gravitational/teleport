@@ -357,6 +357,9 @@ func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.
 	if cfg.ID != 0 {
 		review.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		review.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		review.SetExpiry(cfg.Expires)
 	}
