@@ -247,11 +247,6 @@ func (b *Buffer[T]) ensureSlot() {
 	b.ring[int(b.pos%b.cfg.Capacity)] = entry[T]{}
 	b.pos++
 	b.len--
-
-	// if this is the first overflow item, set the time
-	if b.overflowStart.IsZero() {
-		b.overflowStart = b.cfg.Clock.Now()
-	}
 }
 
 func (b *Buffer[T]) read(fn func()) {
