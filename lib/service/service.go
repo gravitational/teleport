@@ -104,6 +104,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
@@ -275,13 +276,13 @@ type Connector struct {
 
 // TunnelProxyResolver if non-nil, indicates that the client is connected to the Auth Server
 // through the reverse SSH tunnel proxy
-func (c *Connector) TunnelProxyResolver() reversetunnel.Resolver {
+func (c *Connector) TunnelProxyResolver() reversetunnelclient.Resolver {
 	if c.Client == nil || c.Client.Dialer() == nil {
 		return nil
 	}
 
 	switch dialer := c.Client.Dialer().(type) {
-	case *reversetunnel.TunnelAuthDialer:
+	case *reversetunnelclient.TunnelAuthDialer:
 		return dialer.Resolver
 	default:
 		return nil
@@ -2925,7 +2926,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
-			utils.NetAddr{Addr: reversetunnel.LocalKubernetes},
+			utils.NetAddr{Addr: reversetunnelclient.LocalKubernetes},
 		)
 		addrs = append(addrs, process.Config.Proxy.SSHPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.TunnelPublicAddrs...)
@@ -2970,7 +2971,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
-			utils.NetAddr{Addr: reversetunnel.LocalKubernetes},
+			utils.NetAddr{Addr: reversetunnelclient.LocalKubernetes},
 		)
 		addrs = append(addrs, process.Config.Kube.PublicAddrs...)
 	case types.RoleApp, types.RoleOkta:
@@ -2980,7 +2981,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
-			utils.NetAddr{Addr: reversetunnel.LocalWindowsDesktop},
+			utils.NetAddr{Addr: reversetunnelclient.LocalWindowsDesktop},
 			utils.NetAddr{Addr: desktop.WildcardServiceDNS},
 		)
 		addrs = append(addrs, process.Config.WindowsDesktop.PublicAddrs...)
@@ -3539,7 +3540,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
-	var tsrv reversetunnel.Server
+	var tsrv reversetunnelclient.Server
 	var peerClient *peer.Client
 
 	if !process.Config.Proxy.DisableReverseTunnel {
@@ -3594,7 +3595,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		process.RegisterCriticalFunc("proxy.reversetunnel.server", func() error {
+		process.RegisterCriticalFunc("proxy.reversetunnelclient.Server", func() error {
 			log.Infof("Starting %s:%s on %v using %v", teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr, process.Config.CachePolicy)
 			if err := tsrv.Start(); err != nil {
 				log.Error(err)
@@ -4196,12 +4197,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		// really guaranteed to be capable to serve new requests if we're
 		// halfway through a shutdown, and double closing a listener is fine.
 		listeners.Close()
-		rcWatcher.Close()
 		if payload == nil {
 			log.Infof("Shutting down immediately.")
 			if tsrv != nil {
 				warnOnErr(tsrv.Close(), log)
 			}
+			warnOnErr(rcWatcher.Close(), log)
 			if proxyServer != nil {
 				warnOnErr(proxyServer.Close(), log)
 			}
@@ -4245,6 +4246,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if tsrv != nil {
 				warnOnErr(tsrv.Shutdown(ctx), log)
 			}
+			warnOnErr(rcWatcher.Close(), log)
 			if proxyServer != nil {
 				warnOnErr(proxyServer.Shutdown(), log)
 			}
@@ -4375,7 +4377,7 @@ func kubeDialAddr(config ProxyConfig, mode types.ProxyListenerMode) utils.NetAdd
 	return config.Kube.ListenAddr
 }
 
-func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnel.Server, accessPoint auth.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
+func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnelclient.Server, accessPoint auth.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
 	cfg := process.Config
 	var tlsConfig *tls.Config
 	acmeCfg := process.Config.Proxy.ACME
@@ -5112,9 +5114,9 @@ func (process *TeleportProcess) initDebugApp() {
 	})
 }
 
-// SingleProcessModeResolver returns the reversetunnel.Resolver that should be used when running all components needed
+// SingleProcessModeResolver returns the reversetunnelclient.Resolver that should be used when running all components needed
 // within the same process. It's used for development and demo purposes.
-func (process *TeleportProcess) SingleProcessModeResolver(mode types.ProxyListenerMode) reversetunnel.Resolver {
+func (process *TeleportProcess) SingleProcessModeResolver(mode types.ProxyListenerMode) reversetunnelclient.Resolver {
 	return func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
 		addr, ok := process.singleProcessMode(mode)
 		if !ok {

@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -127,18 +128,18 @@ func (p *clusterPeers) GetLastConnected() time.Time {
 	return peer.GetLastConnected()
 }
 
-func (p *clusterPeers) DialAuthServer(DialParams) (net.Conn, error) {
+func (p *clusterPeers) DialAuthServer(reversetunnelclient.DialParams) (net.Conn, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to dial to auth server, this proxy has not been discovered yet, try again later")
 }
 
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
-func (p *clusterPeers) Dial(params DialParams) (conn net.Conn, err error) {
+func (p *clusterPeers) Dial(params reversetunnelclient.DialParams) (conn net.Conn, err error) {
 	return p.DialTCP(params)
 }
 
-func (p *clusterPeers) DialTCP(params DialParams) (conn net.Conn, err error) {
+func (p *clusterPeers) DialTCP(params reversetunnelclient.DialParams) (conn net.Conn, err error) {
 	return nil, trace.ConnectionProblem(nil, "unable to dial, this proxy has not been discovered yet, try again later")
 }
 
@@ -234,7 +235,7 @@ func (s *clusterPeer) GetLastConnected() time.Time {
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
-func (s *clusterPeer) Dial(params DialParams) (conn net.Conn, err error) {
+func (s *clusterPeer) Dial(params reversetunnelclient.DialParams) (conn net.Conn, err error) {
 	return nil, trace.ConnectionProblem(nil, "unable to dial, this proxy %v has not been discovered yet, try again later", s)
 }
 

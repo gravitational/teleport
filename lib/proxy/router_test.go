@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -293,27 +293,27 @@ func serverResolver(srv types.Server, err error) serverResolverFn {
 }
 
 type tunnel struct {
-	reversetunnel.Tunnel
+	reversetunnelclient.Tunnel
 
-	site reversetunnel.RemoteSite
+	site reversetunnelclient.RemoteSite
 	err  error
 }
 
-func (t tunnel) GetSite(cluster string) (reversetunnel.RemoteSite, error) {
+func (t tunnel) GetSite(cluster string) (reversetunnelclient.RemoteSite, error) {
 	return t.site, t.err
 }
 
 type testRemoteSite struct {
-	reversetunnel.RemoteSite
+	reversetunnelclient.RemoteSite
 	conn net.Conn
 	err  error
 }
 
-func (r testRemoteSite) Dial(reversetunnel.DialParams) (net.Conn, error) {
+func (r testRemoteSite) Dial(reversetunnelclient.DialParams) (net.Conn, error) {
 	return r.conn, r.err
 }
 
-func (r testRemoteSite) DialAuthServer(reversetunnel.DialParams) (net.Conn, error) {
+func (r testRemoteSite) DialAuthServer(reversetunnelclient.DialParams) (net.Conn, error) {
 	return r.conn, r.err
 }
 

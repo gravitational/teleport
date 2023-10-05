@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
@@ -103,7 +104,7 @@ type Server struct {
 	cloudLabels labels.Importer
 
 	proxyMode        bool
-	proxyTun         reversetunnel.Tunnel
+	proxyTun         reversetunnelclient.Tunnel
 	proxyAccessPoint auth.ReadProxyAccessPoint
 	peerAddr         string
 
@@ -444,7 +445,7 @@ func SetShell(shell string) ServerOption {
 }
 
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
+func SetProxyMode(peerAddr string, tsrv reversetunnelclient.Tunnel, ap auth.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
@@ -909,8 +910,13 @@ func (s *Server) getNamespace() string {
 	return types.ProcessNamespace(s.namespace)
 }
 
-func (s *Server) tunnelWithAccessChecker(ctx *srv.ServerContext) reversetunnel.Tunnel {
-	return reversetunnel.NewTunnelWithRoles(s.proxyTun, ctx.Identity.AccessChecker, s.proxyAccessPoint)
+func (s *Server) tunnelWithAccessChecker(ctx *srv.ServerContext) (reversetunnelclient.Tunnel, error) {
+	clusterName, err := s.GetAccessPoint().GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return reversetunnelclient.NewTunnelWithRoles(s.proxyTun, clusterName.GetClusterName(), ctx.Identity.AccessChecker, s.proxyAccessPoint), nil
 }
 
 // Context returns server shutdown context
