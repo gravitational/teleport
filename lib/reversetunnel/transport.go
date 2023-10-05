@@ -400,6 +400,15 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 		}
 
 		p.log.Debugf("Returning direct dialed connection to %q.", addr)
+
+		// Requests to get a connection to the remote auth server do not provide a ConnType,
+		// and since an empty ConnType is converted to [types.NodeTunnel] in CheckAndSetDefaults,
+		// we need to check the address of the request to prevent auth connections from being
+		// counted as a proxied ssh session.
+		if r.ConnType == types.NodeTunnel && r.Address != reversetunnelclient.RemoteAuthServer {
+			return proxy.NewProxiedMetricConn(conn), false, nil
+		}
+
 		return conn, false, nil
 	}
 
