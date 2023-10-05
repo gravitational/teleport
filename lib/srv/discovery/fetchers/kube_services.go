@@ -166,7 +166,7 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 		service := service
 
 		// Skip service if it has type annotation and it's not 'app'
-		if v, ok := service.GetAnnotations()[types.DiscoveryTypeLabel]; ok && v != services.KubernetesMatchersApp {
+		if v, ok := service.GetAnnotations()[types.DiscoveryTypeLabel]; ok && v != types.KubernetesMatchersApp {
 			continue
 		}
 

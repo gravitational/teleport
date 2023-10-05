@@ -76,14 +76,15 @@ func TestConfig_SetFromURL(t *testing.T) {
 		},
 		{
 			name: "params to querier - part 2",
-			url:  "athena://db.tbl/?getQueryResultsInterval=200ms&limiterRefillAmount=2&&limiterRefillTime=2s&limiterBurst=3",
+			url:  "athena://db.tbl/?getQueryResultsInterval=200ms&limiterRefillAmount=2&&limiterRefillTime=2s&limiterBurst=3&disableSearchCostOptimization=true",
 			want: Config{
-				TableName:               "tbl",
-				Database:                "db",
-				GetQueryResultsInterval: 200 * time.Millisecond,
-				LimiterRefillAmount:     2,
-				LimiterRefillTime:       2 * time.Second,
-				LimiterBurst:            3,
+				TableName:                     "tbl",
+				Database:                      "db",
+				GetQueryResultsInterval:       200 * time.Millisecond,
+				LimiterRefillAmount:           2,
+				LimiterRefillTime:             2 * time.Second,
+				LimiterBurst:                  3,
+				DisableSearchCostOptimization: true,
 			},
 		},
 		{

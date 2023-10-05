@@ -57,7 +57,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 					TagsByARN:         elasticacheTagsByARN,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherElastiCache, "us-east-1", wildcardLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherElastiCache, "us-east-1", wildcardLabels),
 			wantDatabases: append(elasticacheDatabasesProd, elasticacheDatabasesQA...),
 		},
 		{
@@ -68,7 +68,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 					TagsByARN:         elasticacheTagsByARN,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherElastiCache, "us-east-1", envProdLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherElastiCache, "us-east-1", envProdLabels),
 			wantDatabases: elasticacheDatabasesProd,
 		},
 		{
@@ -79,7 +79,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 					TagsByARN:         elasticacheTagsByARN,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherElastiCache, "us-east-1", wildcardLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherElastiCache, "us-east-1", wildcardLabels),
 			wantDatabases: elasticacheDatabasesProd,
 		},
 		{
@@ -90,7 +90,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 					TagsByARN:         elasticacheTagsByARN,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherElastiCache, "us-east-1", wildcardLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherElastiCache, "us-east-1", wildcardLabels),
 			wantDatabases: elasticacheDatabasesProd,
 		},
 	}
@@ -109,14 +109,14 @@ func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func
 	if aws.BoolValue(cluster.ClusterEnabled) {
 		database, err := services.NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
 		require.NoError(t, err)
-		common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherElastiCache)
+		common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherElastiCache)
 		return cluster, types.Databases{database}, tags
 	}
 
 	databases, err := services.NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels)
 	require.NoError(t, err)
 	for _, database := range databases {
-		common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherElastiCache)
+		common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherElastiCache)
 	}
 	return cluster, databases, tags
 }
