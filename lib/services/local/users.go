@@ -330,9 +330,6 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 	existingItem := backend.Item{
 		Key:      backend.Key(webPrefix, usersPrefix, existing.GetName(), paramsPrefix),
 		Value:    existingValue,
-		Expires:  existing.Expiry(),
-		ID:       existing.GetResourceID(),
-		Revision: existing.GetRevision(),
 	}
 
 	_, err = s.CompareAndSwap(ctx, existingItem, newItem)
