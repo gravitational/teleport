@@ -35,6 +35,7 @@ var _ AccessLists = (*accesslistclient.Client)(nil)
 // AccessListsGetter defines an interface for reading access lists.
 type AccessListsGetter interface {
 	AccessListMembersGetter
+	AccessListReviewsGetter
 
 	// GetAccessLists returns a list of all access lists.
 	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
@@ -48,6 +49,7 @@ type AccessListsGetter interface {
 type AccessLists interface {
 	AccessListsGetter
 	AccessListMembers
+	AccessListReviews
 
 	// UpsertAccessList creates or updates an access list resource.
 	UpsertAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
@@ -308,15 +310,14 @@ type AccessListReviewsGetter interface {
 type AccessListReviews interface {
 	AccessListReviewsGetter
 
-	// CreateAccessListReview will create a new review for an access list. It will also modify the original access list
-	// and its members depending on the details of the review.
-	CreateAccessListReview(ctx context.Context, review *accesslist.Review) (reviewName string, nextAuditDate time.Time, err error)
+	// CreateAccessListReview will create a new review for an access list.
+	CreateAccessListReview(ctx context.Context, review *accesslist.Review) (updatedReview *accesslist.Review, err error)
 
 	// DeleteAccessListReview will delete an access list review from the backend.
-	DeleteAccessListReview(ctx context.Context, accessList, name string) error
+	DeleteAccessListReview(ctx context.Context, accessListName, reviewName string) error
 
 	// DeleteAllAccessListReviews will delete all access list reviews.
-	DeleteAllAccessListReviews(ctx context.Context, accessList string) error
+	DeleteAllAccessListReviews(ctx context.Context, accessListName string) error
 }
 
 // MarshalAccessListReview marshals the access list review resource to JSON.

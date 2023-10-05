@@ -30,6 +30,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -336,63 +337,74 @@ func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessLis
 	return reviews, nextToken, nil
 }
 
-// CreateAccessListReview will create a new review for an access list. It will also modify the original access list
-// and its members depending on the details of the review.
-func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (reviewName string, nextAuditDate time.Time, err error) {
+// CreateAccessListReview will create a new review for an access list.
+func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (updatedReview *accesslist.Review, err error) {
+	reviewName := strings.ToLower(uuid.New().String())
+	updatedReview, err = accesslist.NewReview(header.Metadata{
+		Name: reviewName,
+	}, accesslist.ReviewSpec{
+		AccessList: review.Spec.AccessList,
+		Reviewers:  review.Spec.Reviewers,
+		ReviewDate: review.Spec.ReviewDate,
+		Changes:    review.Spec.Changes,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	err = a.service.RunWhileLocked(ctx, lockName(review.Spec.AccessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		accessList, err := a.service.GetResource(ctx, review.Spec.AccessList)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if review.Spec.Changes.MembershipRequirementsChanged != nil {
-			if accessListRequiresEqual(*review.Spec.Changes.MembershipRequirementsChanged, accessList.Spec.MembershipRequires) {
-				review.Spec.Changes.MembershipRequirementsChanged = nil
+		if updatedReview.Spec.Changes.MembershipRequirementsChanged != nil {
+			if accessListRequiresEqual(*updatedReview.Spec.Changes.MembershipRequirementsChanged, accessList.Spec.MembershipRequires) {
+				updatedReview.Spec.Changes.MembershipRequirementsChanged = nil
 			} else {
 				accessList.Spec.MembershipRequires = *review.Spec.Changes.MembershipRequirementsChanged
 			}
 		}
 
-		if review.Spec.Changes.ReviewFrequencyChanged != 0 {
-			if review.Spec.Changes.ReviewFrequencyChanged == accessList.Spec.Audit.Recurrence.Frequency {
-				review.Spec.Changes.ReviewFrequencyChanged = 0
+		if updatedReview.Spec.Changes.ReviewFrequencyChanged != 0 {
+			if updatedReview.Spec.Changes.ReviewFrequencyChanged == accessList.Spec.Audit.Recurrence.Frequency {
+				updatedReview.Spec.Changes.ReviewFrequencyChanged = 0
 			} else {
 				accessList.Spec.Audit.Recurrence.Frequency = review.Spec.Changes.ReviewFrequencyChanged
 			}
 		}
 
-		if review.Spec.Changes.ReviewDayOfMonthChanged != 0 {
-			if review.Spec.Changes.ReviewDayOfMonthChanged == accessList.Spec.Audit.Recurrence.DayOfMonth {
-				review.Spec.Changes.ReviewDayOfMonthChanged = 0
+		if updatedReview.Spec.Changes.ReviewDayOfMonthChanged != 0 {
+			if updatedReview.Spec.Changes.ReviewDayOfMonthChanged == accessList.Spec.Audit.Recurrence.DayOfMonth {
+				updatedReview.Spec.Changes.ReviewDayOfMonthChanged = 0
 			} else {
 				accessList.Spec.Audit.Recurrence.DayOfMonth = review.Spec.Changes.ReviewDayOfMonthChanged
 			}
 		}
 
-		reviewName = strings.ToLower(uuid.New().String())
 		review.SetName(reviewName)
-		if err := a.reviewService.WithPrefix(review.Spec.AccessList).CreateResource(ctx, review); err != nil {
+		if err := a.reviewService.WithPrefix(review.Spec.AccessList).CreateResource(ctx, updatedReview); err != nil {
 			return trace.Wrap(err)
 		}
 
 		accessList.Spec.Audit.NextAuditDate = services.SelectNextReviewDate(accessList)
 
 		for _, removedMember := range review.Spec.Changes.RemovedMembers {
-			if err := a.memberService.WithPrefix(review.Spec.AccessList).DeleteResource(ctx, removedMember); err != nil {
+			if err := a.memberService.WithPrefix(updatedReview.Spec.AccessList).DeleteResource(ctx, removedMember); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
 		if err := a.service.UpdateResource(ctx, accessList); err != nil {
-			return trace.Wrap(err, "error updating audit date in access list")
+			return trace.Wrap(err, "updating audit date in access list")
 		}
 
 		return nil
 	})
 	if err != nil {
-		return "", time.Time{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return reviewName, nextAuditDate, nil
+	return updatedReview, nil
 }
 
 // accessListRequiresEqual returns true if two access lists are equal.
@@ -434,13 +446,13 @@ func accessListRequiresEqual(a, b accesslist.Requires) bool {
 }
 
 // DeleteAccessListReview will delete an access list review from the backend.
-func (a *AccessListService) DeleteAccessListReview(ctx context.Context, accessList, name string) error {
-	err := a.service.RunWhileLocked(ctx, lockName(accessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		_, err := a.service.GetResource(ctx, accessList)
+func (a *AccessListService) DeleteAccessListReview(ctx context.Context, accessListName, reviewName string) error {
+	err := a.service.RunWhileLocked(ctx, lockName(accessListName), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		_, err := a.service.GetResource(ctx, accessListName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(a.reviewService.WithPrefix(accessList).DeleteResource(ctx, name))
+		return trace.Wrap(a.reviewService.WithPrefix(accessListName).DeleteResource(ctx, reviewName))
 	})
 	return trace.Wrap(err)
 }

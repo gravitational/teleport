@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestAccessListCRUD tests backend operations with access list resources.
@@ -414,7 +415,8 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	var service services.AccessLists
+	service, err = NewAccessListService(backend.NewSanitizer(mem), clock)
 	require.NoError(t, err)
 
 	// Create a couple access lists.
@@ -473,9 +475,8 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	accessList2Review1.Spec.Changes.ReviewDayOfMonthChanged = 0
 
 	// Add access list review.
-	reviewName, _, err := service.CreateAccessListReview(ctx, accessList1Review1)
+	accessList1Review1, err = service.CreateAccessListReview(ctx, accessList1Review1)
 	require.NoError(t, err)
-	accessList1Review1.SetName(reviewName)
 
 	// Verify changes to access list.
 	accessList1Updated, err := service.GetAccessList(ctx, accessList1.GetName())
@@ -494,9 +495,8 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 
 	// Add another review
-	reviewName, _, err = service.CreateAccessListReview(ctx, accessList1Review2)
+	accessList1Review2, err = service.CreateAccessListReview(ctx, accessList1Review2)
 	require.NoError(t, err)
-	accessList1Review2.SetName(reviewName)
 
 	// Verify changes to the access list again.
 	accessList1Updated, err = service.GetAccessList(ctx, accessList1.GetName())
@@ -517,9 +517,8 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	require.Equal(t, accessList1Review1.Spec.Changes.ReviewDayOfMonthChanged, accessList1Updated.Spec.Audit.Recurrence.DayOfMonth)
 
 	// Review that doesn't change anything
-	reviewName, _, err = service.CreateAccessListReview(ctx, accessList2Review1)
+	accessList2Review1, err = service.CreateAccessListReview(ctx, accessList2Review1)
 	require.NoError(t, err)
-	accessList2Review1.SetName(reviewName)
 
 	accessList2Updated, err := service.GetAccessList(ctx, accessList2.GetName())
 	require.NoError(t, err)
