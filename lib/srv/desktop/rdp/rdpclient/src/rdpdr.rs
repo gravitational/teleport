@@ -35,7 +35,10 @@ use consts::{
     SMARTCARD_CAPABILITY_VERSION_01, TDP_FALSE, U32_SIZE, U8_SIZE, VERSION_MAJOR, VERSION_MINOR,
 };
 use ironrdp_pdu::{custom_err, other_err, PduResult};
-use ironrdp_rdpdr::pdu::esc::{rpce, EstablishContextCall, EstablishContextReturn, ScardCall};
+use ironrdp_rdpdr::pdu::esc::{
+    rpce, EstablishContextCall, EstablishContextReturn, ListReadersCall, ListReadersReturn,
+    ScardCall,
+};
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::{
     pdu::{
@@ -133,6 +136,28 @@ impl TeleportRdpdrBackend {
         )
     }
 
+    fn handle_list_readers(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        _call: ListReadersCall,
+    ) -> PduResult<()> {
+        self.write_rdpdr_dev_ctl_resp(
+            req,
+            Box::new(ListReadersReturn::new(
+                ReturnCode::Success,
+                vec!["Teleport".to_string()],
+            )),
+        )
+        .map_err(|_e| {
+            other_err!(
+                "TeleportRdpdrBackend::handle_list_readers",
+                "failed to send DeviceControlResponse to server",
+            )
+        })?;
+
+        Ok(())
+    }
+
     fn write_rdpdr_dev_ctl_resp(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
@@ -186,6 +211,7 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         match call {
             ScardCall::AccessStartedEventCall(call) => self.handle_access_started(req, call),
             ScardCall::EstablishContextCall(call) => self.handle_establish_context(req, call),
+            ScardCall::ListReadersCall(call) => self.handle_list_readers(req, call),
             ScardCall::Unsupported => Ok(()),
         }
     }
@@ -532,8 +558,6 @@ impl Client {
             rdp_req.device_io_request.completion_id,
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryInfoResponse| -> RdpResult<Messages> {
-                    let rdp_req = rdp_req;
-
                     match res.err_code {
                         TdpErrCode::Failed | TdpErrCode::AlreadyExists => {
                             return Err(try_error(&format!(
