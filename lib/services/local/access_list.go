@@ -338,9 +338,9 @@ func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessLis
 }
 
 // CreateAccessListReview will create a new review for an access list.
-func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (createdReview *accesslist.Review, err error) {
-	reviewName := strings.ToLower(uuid.New().String())
-	createdReview, err = accesslist.NewReview(header.Metadata{
+func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (*accesslist.Review, error) {
+	reviewName := uuid.New().String()
+	createdReview, err := accesslist.NewReview(header.Metadata{
 		Name: reviewName,
 	}, accesslist.ReviewSpec{
 		AccessList: review.Spec.AccessList,
@@ -390,7 +390,7 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 		accessList.Spec.Audit.NextAuditDate = services.SelectNextReviewDate(accessList)
 
 		for _, removedMember := range review.Spec.Changes.RemovedMembers {
-			if err := a.memberService.WithPrefix(createdReview.Spec.AccessList).DeleteResource(ctx, removedMember); err != nil {
+			if err := a.memberService.WithPrefix(review.Spec.AccessList).DeleteResource(ctx, removedMember); err != nil {
 				return trace.Wrap(err)
 			}
 		}

@@ -583,6 +583,8 @@ func TestAccessListReviewCRUD(t *testing.T) {
 }
 
 func TestAccessListRequiresEqual(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		a        accesslist.Requires

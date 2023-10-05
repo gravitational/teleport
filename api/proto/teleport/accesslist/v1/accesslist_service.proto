@@ -228,10 +228,10 @@ message CreateAccessListReviewResponse {
 
 // DeleteAccessListReviewRequest is the request for deleting an access list review.
 message DeleteAccessListReviewRequest {
-  // review_name is the name of the access list to delete.
+  // review_name is the name of the review to delete.
   string review_name = 1;
 
-  // acces_list_name is the name of the access list to delete the access list from.
+  // access_list_name is the name of the access list to delete the review from.
   string access_list_name = 2;
 }
 

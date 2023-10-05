@@ -1159,9 +1159,9 @@ type DeleteAccessListReviewRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// review_name is the name of the access list to delete.
+	// review_name is the name of the review to delete.
 	ReviewName string `protobuf:"bytes,1,opt,name=review_name,json=reviewName,proto3" json:"review_name,omitempty"`
-	// acces_list_name is the name of the access list to delete the access list from.
+	// access_list_name is the name of the access list to delete the review from.
 	AccessListName string `protobuf:"bytes,2,opt,name=access_list_name,json=accessListName,proto3" json:"access_list_name,omitempty"`
 }
 
