@@ -322,7 +322,7 @@ func TestAccessMySQL(t *testing.T) {
 			// Execute a query.
 			result, err := mysqlConn.Execute("select 1")
 			require.NoError(t, err)
-			require.Equal(t, mysql.MakeTestQueryResponse(), result)
+			require.Equal(t, mysql.TestQueryResponse, result)
 
 			// Disconnect.
 			err = mysqlConn.Close()
@@ -679,7 +679,7 @@ func TestGCPRequireSSL(t *testing.T) {
 	// Execute a query.
 	mysqlResult, err := mysqlConn.Execute("select 1")
 	require.NoError(t, err)
-	require.Equal(t, mysql.MakeTestQueryResponse(), mysqlResult)
+	require.Equal(t, mysql.TestQueryResponse, mysqlResult)
 
 	// Disconnect.
 	err = mysqlConn.Close()
