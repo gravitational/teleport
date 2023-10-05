@@ -9,12 +9,12 @@ set -e
 # Connect to the second proxy server in the ASG: ./connect.sh proxy 1
 # Connect to deployed example node: ./connect.sh node
 if [[ "$1" != "" ]]; then
-    INSTANCE_TYPE=$1
+    INSTANCE_TYPE="$1"
 else
     INSTANCE_TYPE="auth"
 fi
 if [[ "$2" != "" ]]; then
-    INSTANCE_ID=$2
+    INSTANCE_ID="$2"
 else
     INSTANCE_ID="0"
 fi
@@ -37,5 +37,4 @@ fi
 
 KEYPAIR_NAME="$(terraform output -raw key_name)"
 echo "Keypair name: ${KEYPAIR_NAME?}"
-# shellcheck disable=SC2086
-ssh -i ${KEYPAIR_NAME?}.pem -o ProxyCommand="ssh -i ${KEYPAIR_NAME?}.pem -W '[%h]:%p' ec2-user@${BASTION_IP?}" ec2-user@${SERVER_IP?}
+ssh -i "${KEYPAIR_NAME?}.pem" -o ProxyCommand="ssh -i \"${KEYPAIR_NAME?}.pem\" -W '[%h]:%p' \"ec2-user@${BASTION_IP?}\"" "ec2-user@${SERVER_IP?}"
