@@ -16,6 +16,7 @@ package hsm
 
 import (
 	"context"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 func TestMain(m *testing.M) {
@@ -83,8 +85,12 @@ func etcdBackendConfig(t *testing.T) *backend.Config {
 	t.Cleanup(func() {
 		bk, err := etcdbk.New(context.Background(), cfg.Params)
 		require.NoError(t, err)
-		require.NoError(t, bk.DeleteRange(context.Background(), append([]byte("/"), []byte(prefix)...),
-			backend.RangeEnd([]byte(prefix))),
+
+		// Based on [backend.Sanitizer] these define the possible range that
+		// needs to be cleaned up at the end of the test.
+		firstPossibleKey := []byte("+")
+		lastPossibleKey := backend.RangeEnd([]byte("z"))
+		require.NoError(t, bk.DeleteRange(context.Background(), firstPossibleKey, lastPossibleKey),
 			"failed to clean up etcd backend")
 	})
 	return cfg
@@ -183,14 +189,18 @@ func TestHSMRotation(t *testing.T) {
 	require.NoError(t, allServices.waitForRestart(ctx))
 }
 
-func getAdminClient(t *testing.T, authDataDir string, authAddr string) *auth.Client {
+func getAdminClient(authDataDir string, authAddr string) (*auth.Client, error) {
 	identity, err := auth.ReadLocalIdentity(
 		filepath.Join(authDataDir, teleport.ComponentProcess),
 		auth.IdentityID{Role: types.RoleAdmin})
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	tlsConfig, err := identity.TLSConfig(nil /*cipherSuites*/)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	clt, err := auth.NewClient(client.Config{
 		Addrs: []string{authAddr},
@@ -199,15 +209,17 @@ func getAdminClient(t *testing.T, authDataDir string, authAddr string) *auth.Cli
 		},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
-	require.NoError(t, err)
-
-	return clt
+	return clt, trace.Wrap(err)
 }
 
 func testAdminClient(t *testing.T, authDataDir string, authAddr string) {
 	var errs []error
 	require.Eventually(t, func() bool {
-		clt := getAdminClient(t, authDataDir, authAddr)
+		clt, err := getAdminClient(authDataDir, authAddr)
+		if err != nil {
+			errs = append(errs, err)
+			return false
+		}
 		// Make sure it succeeds twice in a row, we might be hitting a load
 		// balancer in front of two auths, this gives a better chance of testing
 		// both
@@ -218,7 +230,7 @@ func testAdminClient(t *testing.T, authDataDir string, authAddr string) {
 			}
 		}
 		return true
-	}, 10*time.Second, time.Second, "admin client failed test call to GetClusterName, observed errors: %v", errs)
+	}, 10*time.Second, time.Second, "admin client failed test call to GetClusterName, observed errors: %v", errors.Join(errs...))
 }
 
 // Tests multiple CA rotations and rollbacks with 2 HSM auth servers in an HA configuration
