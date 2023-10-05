@@ -315,14 +315,14 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgent(ctx context.Contex
 			// The updater checks each integration/region combination, so
 			// there will be regions where there is no ECS cluster deployed
 			// for the integration.
-			updater.Log.WithError(err).Debugf("Integration %s does not manage any services within region %s.", integration.GetName(), awsRegion)
+			updater.Log.Debugf("Integration %s does not manage any services within region %s.", integration.GetName(), awsRegion)
 			return nil
 		case trace.IsAccessDenied(awslib.ConvertIAMv2Error(trace.Unwrap(err))):
 			// The aws oidc role may lack permissions due to changes in teleport.
 			// In this situation users should be notified that they will need to
 			// re-run the deploy service iam configuration script and update the
 			// permissions.
-			updater.Log.WithError(err).Warning("Re-run deploy service configuration script to update permissions.")
+			updater.Log.WithError(err).Warning("Update integration role and add missing permissions.")
 		}
 		return trace.Wrap(err)
 	}

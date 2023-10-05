@@ -99,7 +99,9 @@ func UpdateDeployServiceAgent(ctx context.Context, clt DeployServiceClient, req 
 	// Update service with new task definition
 	_, err = updateServiceOrRollback(ctx, clt, service, registerTaskDefinitionOut.TaskDefinition)
 	if err != nil {
-		// If update failed, then rollback task definition
+		// If update failed, then rollback task definition.
+		// The update will be re-attempted during the next interval if it is still
+		// within the upgrade window or the critical upgrade flag is still enabled.
 		_, rollbackErr := clt.DeregisterTaskDefinition(ctx, &ecs.DeregisterTaskDefinitionInput{
 			TaskDefinition: registerTaskDefinitionOut.TaskDefinition.TaskDefinitionArn,
 		})
@@ -199,7 +201,7 @@ func updateServiceOrRollback(ctx context.Context, clt DeployServiceClient, servi
 	// then rollback service with previous task definition
 	rollbackServiceOut, rollbackErr := clt.UpdateService(ctx, generateServiceWithTaskDefinition(service, aws.ToString(service.TaskDefinition)))
 	if rollbackErr != nil {
-		return nil, trace.Wrap(err, "failed to rollback service: %v", err)
+		return nil, trace.NewAggregate(err, trace.Wrap(rollbackErr, "failed to rollback service"))
 	}
 
 	rollbackErr = serviceStableWaiter.Wait(ctx, &ecs.DescribeServicesInput{
@@ -207,7 +209,7 @@ func updateServiceOrRollback(ctx context.Context, clt DeployServiceClient, servi
 		Cluster:  updateServiceOut.Service.ClusterArn,
 	}, waitDuration)
 	if rollbackErr != nil {
-		return nil, trace.Wrap(err, "failed to rollback service: %v", err)
+		return nil, trace.NewAggregate(err, trace.Wrap(rollbackErr, "failed to rollback service"))
 	}
 
 	return nil, trace.Wrap(err)
