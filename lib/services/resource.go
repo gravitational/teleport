@@ -30,11 +30,14 @@ import (
 
 // MarshalConfig specifies marshaling options
 type MarshalConfig struct {
-	// Version specifies particular version we should marshal resources with
+	// Version specifies a particular version we should marshal resources with
 	Version string
 
 	// ID is a record ID to assign
 	ID int64
+
+	// Revision of the resource to assign.
+	Revision string
 
 	// PreserveResourceID preserves resource IDs in resource
 	// specs when marshaling
@@ -77,6 +80,14 @@ func AddOptions(opts []MarshalOption, add ...MarshalOption) []MarshalOption {
 func WithResourceID(id int64) MarshalOption {
 	return func(c *MarshalConfig) error {
 		c.ID = id
+		return nil
+	}
+}
+
+// WithRevision assigns Revision to the resource
+func WithRevision(rev string) MarshalOption {
+	return func(c *MarshalConfig) error {
+		c.Revision = rev
 		return nil
 	}
 }
@@ -506,14 +517,14 @@ func init() {
 		if !ok {
 			return nil, trace.BadParameter("expected GithubConnector, got %T", resource)
 		}
-		bytes, err := marshalGithubConnector(githubConnector, opts...)
+		bytes, err := MarshalOSSGithubConnector(githubConnector, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return bytes, nil
 	})
 	RegisterResourceUnmarshaler(types.KindGithubConnector, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
-		githubConnector, err := unmarshalGithubConnector(bytes) // XXX: Does not support marshal options.
+		githubConnector, err := UnmarshalOSSGithubConnector(bytes, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

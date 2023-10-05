@@ -18,11 +18,13 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -56,6 +58,9 @@ type AccessLists interface {
 
 	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
 	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
+
+	// AccessRequestPromote promotes an access request to an access list.
+	AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error)
 }
 
 // MarshalAccessList marshals the access list resource to JSON.
@@ -72,6 +77,7 @@ func MarshalAccessList(accessList *accesslist.AccessList, opts ...MarshalOption)
 	if !cfg.PreserveResourceID {
 		copy := *accessList
 		copy.SetResourceID(0)
+		copy.SetRevision("")
 		accessList = &copy
 	}
 	return utils.FastMarshal(accessList)
@@ -86,7 +92,7 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var accessList *accesslist.AccessList
+	var accessList accesslist.AccessList
 	if err := utils.FastUnmarshal(data, &accessList); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
@@ -96,10 +102,13 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 	if cfg.ID != 0 {
 		accessList.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		accessList.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		accessList.SetExpiry(cfg.Expires)
 	}
-	return accessList, nil
+	return &accessList, nil
 }
 
 // AccessListMembersGetter defines an interface for reading access list members.
@@ -138,6 +147,7 @@ func MarshalAccessListMember(member *accesslist.AccessListMember, opts ...Marsha
 	if !cfg.PreserveResourceID {
 		copy := *member
 		copy.SetResourceID(0)
+		copy.SetRevision("")
 		member = &copy
 	}
 	return utils.FastMarshal(member)
@@ -152,7 +162,7 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var member *accesslist.AccessListMember
+	var member accesslist.AccessListMember
 	if err := utils.FastUnmarshal(data, &member); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
@@ -162,10 +172,13 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 	if cfg.ID != 0 {
 		member.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		member.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		member.SetExpiry(cfg.Expires)
 	}
-	return member, nil
+	return &member, nil
 }
 
 // IsAccessListOwner will return true if the user is an owner for the current list.
@@ -237,7 +250,7 @@ func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires
 		}
 	}
 
-	// Assemble traits for easy lookyp.
+	// Assemble traits for easy lookup.
 	userTraitsMap := map[string]map[string]struct{}{}
 	for k, values := range identity.Traits {
 		if _, ok := userTraitsMap[k]; !ok {
@@ -264,4 +277,23 @@ func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires
 
 	// The user meets all requirements.
 	return true
+}
+
+// SelectNextReviewDate will select the next review date for the access list.
+func SelectNextReviewDate(accessList *accesslist.AccessList) time.Time {
+	numMonths := int(accessList.Spec.Audit.Recurrence.Frequency)
+	dayOfMonth := int(accessList.Spec.Audit.Recurrence.DayOfMonth)
+
+	// If the last day of the month has been specified, use the 0 day of the
+	// next month, which will result in the last day of the target month.
+	if dayOfMonth == int(accesslist.LastDayOfMonth) {
+		numMonths += 1
+		dayOfMonth = 0
+	}
+
+	currentReviewDate := accessList.Spec.Audit.NextAuditDate
+	nextDate := time.Date(currentReviewDate.Year(), currentReviewDate.Month()+time.Month(numMonths), dayOfMonth,
+		0, 0, 0, 0, time.UTC)
+
+	return nextDate
 }

@@ -61,6 +61,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -81,7 +82,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mlock"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -799,8 +799,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyDB.Arg("db", "The name of the database to start local proxy for").StringVar(&cf.DatabaseService)
 	proxyDB.Flag("port", "Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
-	proxyDB.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
-	proxyDB.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
+	proxyDB.Flag("db-user", "Database user to log in as.").StringVar(&cf.DatabaseUser)
+	proxyDB.Flag("db-name", "Database name to log in to.").StringVar(&cf.DatabaseName)
 	proxyDB.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	proxyDB.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	proxyDB.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
@@ -844,8 +844,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").StringVar(&cf.DatabaseService)
 	dbLogin.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	dbLogin.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
-	dbLogin.Flag("db-user", "Optional database user to configure as default.").StringVar(&cf.DatabaseUser)
-	dbLogin.Flag("db-name", "Optional database name to configure as default.").StringVar(&cf.DatabaseName)
+	dbLogin.Flag("db-user", "Database user to configure as default.").StringVar(&cf.DatabaseUser)
+	dbLogin.Flag("db-name", "Database name to configure as default.").StringVar(&cf.DatabaseName)
 	dbLogout := db.Command("logout", "Remove database credentials.")
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
 	dbLogout.Flag("labels", labelHelp).StringVar(&cf.Labels)
@@ -867,8 +867,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)).Short('f').EnumVar(&cf.Format, dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)
 	dbConnect := db.Command("connect", "Connect to a database.")
 	dbConnect.Arg("db", "Database service name to connect to.").StringVar(&cf.DatabaseService)
-	dbConnect.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
-	dbConnect.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
+	dbConnect.Flag("db-user", "Database user to log in as.").StringVar(&cf.DatabaseUser)
+	dbConnect.Flag("db-name", "Database name to log in to.").StringVar(&cf.DatabaseName)
 	dbConnect.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	dbConnect.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 
@@ -1903,13 +1903,13 @@ func onLogin(cf *CLIConf) error {
 	// "authoritative" source.
 	cf.Username = tc.Username
 
-	proxyClient, rootAuthClient, err := tc.ConnectToRootCluster(cf.Context, key)
+	clusterClient, rootAuthClient, err := tc.ConnectToRootCluster(cf.Context, key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
 		rootAuthClient.Close()
-		proxyClient.Close()
+		clusterClient.Close()
 	}()
 
 	// TODO(fspmarshall): Refactor access request & cert reissue logic to allow
@@ -2017,7 +2017,7 @@ func onLogin(cf *CLIConf) error {
 	// don't use the alert API very heavily. If we start to make more use of it, we
 	// could probably add a separate `tsh alerts ls` command, and truncate the list
 	// with a message like "run 'tsh alerts ls' to view N additional alerts".
-	if err := common.ShowClusterAlerts(cf.Context, proxyClient.CurrentCluster(), os.Stderr, map[string]string{
+	if err := common.ShowClusterAlerts(cf.Context, clusterClient.CurrentCluster(), os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",
 	}, types.AlertSeverity_LOW); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
@@ -2030,7 +2030,7 @@ func onLogin(cf *CLIConf) error {
 func onLogout(cf *CLIConf) error {
 	// Extract all clusters the user is currently logged into.
 	active, available, err := cf.FullProfileStatus()
-	if err != nil {
+	if err != nil && !trace.IsCompareFailed(err) {
 		if trace.IsNotFound(err) {
 			fmt.Printf("All users logged out.\n")
 			return nil
@@ -2061,7 +2061,7 @@ func onLogout(cf *CLIConf) error {
 
 		// Load profile for the requested proxy/user.
 		profile, err := tc.ProfileStatus()
-		if err != nil && !trace.IsNotFound(err) {
+		if err != nil && !trace.IsNotFound(err) && !trace.IsCompareFailed(err) {
 			return trace.Wrap(err)
 		}
 
@@ -3389,7 +3389,7 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 	profile, profileError := c.GetProfile(c.ClientStore, proxy)
 	if profileError == nil {
 		if err := tc.LoadKeyForCluster(ctx, profile.SiteName); err != nil {
-			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
+			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
 				return nil, trace.Wrap(err)
 			}
 			log.WithError(err).Infof("Could not load key for %s into the local agent.", cf.SiteName)

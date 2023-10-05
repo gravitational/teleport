@@ -89,6 +89,16 @@ func (s *Sanitizer) Update(ctx context.Context, i Item) (*Lease, error) {
 	return s.backend.Update(ctx, i)
 }
 
+// ConditionalUpdate updates the value in the backend if the revision of the [Item] matches
+// the stored revision.
+func (s *Sanitizer) ConditionalUpdate(ctx context.Context, i Item) (*Lease, error) {
+	if !isKeySafe(i.Key) {
+		return nil, trace.BadParameter(errorMessage, i.Key)
+	}
+
+	return s.backend.ConditionalUpdate(ctx, i)
+}
+
 // Get returns a single item or not found error
 func (s *Sanitizer) Get(ctx context.Context, key []byte) (*Item, error) {
 	if !isKeySafe(key) {
@@ -113,6 +123,14 @@ func (s *Sanitizer) Delete(ctx context.Context, key []byte) error {
 		return trace.BadParameter(errorMessage, key)
 	}
 	return s.backend.Delete(ctx, key)
+}
+
+// ConditionalDelete deletes the item by key if the revision matches the stored revision.
+func (s *Sanitizer) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
+	if !isKeySafe(key) {
+		return trace.BadParameter(errorMessage, key)
+	}
+	return s.backend.ConditionalDelete(ctx, key, revision)
 }
 
 // DeleteRange deletes range of items

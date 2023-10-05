@@ -46,6 +46,7 @@ import type { ResourceLabel } from 'teleport/services/agents';
 import type { ResourceSpec } from './SelectResource';
 import type {
   AwsRdsDatabase,
+  Ec2InstanceConnectEndpoint,
   Integration,
 } from 'teleport/services/integrations';
 
@@ -465,6 +466,8 @@ type BaseMeta = {
 // that needs to be preserved throughout the flow.
 export type NodeMeta = BaseMeta & {
   node: Node;
+  integration?: Integration;
+  ec2Ice?: Ec2InstanceConnectEndpoint;
 };
 
 // DbMeta describes the fields for a db resource

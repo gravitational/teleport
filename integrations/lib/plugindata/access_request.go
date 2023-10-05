@@ -30,6 +30,7 @@ const (
 	ResolvedApproved = ResolutionTag("APPROVED")
 	ResolvedDenied   = ResolutionTag("DENIED")
 	ResolvedExpired  = ResolutionTag("EXPIRED")
+	ResolvedPromoted = ResolutionTag("PROMOTED")
 )
 
 // AccessRequestData represents generic plugin data required for access request processing

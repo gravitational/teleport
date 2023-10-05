@@ -1361,9 +1361,21 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Discovery.DiscoveryGroup = fc.Discovery.DiscoveryGroup
 	cfg.Discovery.PollInterval = fc.Discovery.PollInterval
 	for _, matcher := range fc.Discovery.AWSMatchers {
-		installParams, err := matcher.InstallParams.Parse()
-		if err != nil {
-			return trace.Wrap(err)
+		var err error
+		var installParams *types.InstallerParams
+		if matcher.InstallParams != nil {
+			installParams, err = matcher.InstallParams.parse()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		var assumeRole *types.AssumeRole
+		if matcher.AssumeRoleARN != "" || matcher.ExternalID != "" {
+			assumeRole = &types.AssumeRole{
+				RoleARN:    matcher.AssumeRoleARN,
+				ExternalID: matcher.ExternalID,
+			}
 		}
 
 		for _, region := range matcher.Regions {
@@ -1377,68 +1389,96 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
-		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers,
-			types.AWSMatcher{
-				Types:   matcher.Types,
-				Regions: matcher.Regions,
-				AssumeRole: &types.AssumeRole{
-					RoleARN:    matcher.AssumeRoleARN,
-					ExternalID: matcher.ExternalID,
-				},
-				Tags:   matcher.Tags,
-				Params: &installParams,
-				SSM:    &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
-			})
+		serviceMatcher := types.AWSMatcher{
+			Types:      matcher.Types,
+			Regions:    matcher.Regions,
+			AssumeRole: assumeRole,
+			Tags:       matcher.Tags,
+			Params:     installParams,
+			SSM:        &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+		}
+		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers, serviceMatcher)
 	}
 
 	for _, matcher := range fc.Discovery.AzureMatchers {
-		m := types.AzureMatcher{
+		var installerParams *types.InstallerParams
+		if matcher.InstallParams != nil {
+			installerParams = &types.InstallerParams{
+				JoinMethod:      matcher.InstallParams.JoinParams.Method,
+				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
+				ScriptName:      matcher.InstallParams.ScriptName,
+				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
+			}
+			if matcher.InstallParams.Azure != nil {
+				installerParams.Azure = &types.AzureInstallerParams{
+					ClientID: matcher.InstallParams.Azure.ClientID,
+				}
+			}
+		}
+
+		serviceMatcher := types.AzureMatcher{
 			Subscriptions:  matcher.Subscriptions,
 			ResourceGroups: matcher.ResourceGroups,
 			Types:          matcher.Types,
 			Regions:        matcher.Regions,
 			ResourceTags:   matcher.ResourceTags,
+			Params:         installerParams,
+		}
+		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
 		}
 
+		cfg.Discovery.AzureMatchers = append(cfg.Discovery.AzureMatchers, serviceMatcher)
+	}
+
+	for _, matcher := range fc.Discovery.GCPMatchers {
+		var installerParams *types.InstallerParams
 		if matcher.InstallParams != nil {
-			m.Params = &types.InstallerParams{
+			installerParams = &types.InstallerParams{
 				JoinMethod:      matcher.InstallParams.JoinParams.Method,
 				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
 				ScriptName:      matcher.InstallParams.ScriptName,
 				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
 			}
 		}
-		cfg.Discovery.AzureMatchers = append(cfg.Discovery.AzureMatchers, m)
-	}
-
-	for _, matcher := range fc.Discovery.GCPMatchers {
-		m := types.GCPMatcher{
+		serviceMatcher := types.GCPMatcher{
 			Types:           matcher.Types,
 			Locations:       matcher.Locations,
 			Labels:          matcher.Labels,
 			Tags:            matcher.Tags,
 			ProjectIDs:      matcher.ProjectIDs,
 			ServiceAccounts: matcher.ServiceAccounts,
+			Params:          installerParams,
 		}
-		if matcher.InstallParams != nil {
-			m.Params = &types.InstallerParams{
-				JoinMethod:      matcher.InstallParams.JoinParams.Method,
-				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
-				ScriptName:      matcher.InstallParams.ScriptName,
-				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
-			}
+		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
 		}
-		cfg.Discovery.GCPMatchers = append(cfg.Discovery.GCPMatchers, m)
+
+		cfg.Discovery.GCPMatchers = append(cfg.Discovery.GCPMatchers, serviceMatcher)
 	}
 
+	if len(fc.Discovery.KubernetesMatchers) > 0 {
+		if fc.Discovery.DiscoveryGroup == "" {
+			// TODO(anton): add link to documentation when it's available
+			return trace.BadParameter(`parameter 'discovery_group' should be defined for discovery service if
+kubernetes matchers are present`)
+		}
+	}
 	for _, matcher := range fc.Discovery.KubernetesMatchers {
-		cfg.Discovery.KubernetesMatchers = append(cfg.Discovery.KubernetesMatchers,
-			types.KubernetesMatcher{
-				Types:      matcher.Types,
-				Namespaces: matcher.Namespaces,
-				Labels:     matcher.Labels,
-			},
-		)
+		serviceMatcher := types.KubernetesMatcher{
+			Types:      matcher.Types,
+			Namespaces: matcher.Namespaces,
+			Labels:     matcher.Labels,
+		}
+		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		cfg.Discovery.KubernetesMatchers = append(cfg.Discovery.KubernetesMatchers, serviceMatcher)
 	}
 
 	return nil

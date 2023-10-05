@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  completions: 1
+  parallelism: 1
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Release.Name }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - image: "{{ $.Values.image.repository }}:{{ default $.Chart.AppVersion $.Values.image.tag }}"
+          name: soaktest
+          command: [ "bash", "/etc/teleport-config/entrypoint.sh" ]
+          env:
+            - name: PROXY
+              value: {{ required "'proxy' value is required" .Values.proxy | quote }}
+            - name: TOKEN
+              value: {{ required "'token' value is required" .Values.token | quote }}
+            - name: NODE
+              value: {{ required "'node' value is required" .Values.node | quote }}
+            - name: LABEL
+              value: {{ required "'label' value is required" .Values.label | quote }}
+            - name: DURATION
+              value: {{ required "'duration' value is required" .Values.duration | quote }}
+          volumeMounts:
+            - mountPath: /etc/teleport-config
+              name: config
+              readOnly: true
+      volumes:
+        - configMap:
+            name: {{ .Release.Name }}
+            defaultMode: 0766
+          name: config
