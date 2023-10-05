@@ -93,6 +93,9 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-errc:
 			errors++
+			if errors == 2 {
+				return
+			}
 		}
 	}
 }
