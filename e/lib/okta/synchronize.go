@@ -52,7 +52,7 @@ func (s *Service) synchronizeLoop(ctx context.Context) {
 
 Loop:
 	for {
-		timeoutCtx, cancel := context.WithTimeout(ctx, s.timeBetweenSyncs)
+		timeoutCtx, cancel := context.WithTimeout(ctx, timeBetweenSyncs)
 		if err := s.synchronize(timeoutCtx); err != nil {
 			s.log.Errorf("Error while synchronizing Okta resources with Teleport: %v", err)
 
