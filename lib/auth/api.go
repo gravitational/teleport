@@ -797,7 +797,7 @@ type ReadOktaAccessPoint interface {
 	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
 	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
 
-	// GetOktaAssignment treturns the specified Okta assignment resources.
+	// GetOktaAssignment returns the specified Okta assignment resource.
 	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
 
 	// GetApplicationServers returns all registered application servers.
