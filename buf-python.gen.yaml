@@ -1,17 +1,8 @@
 version: v1
 plugins:
-  # https://github.com/protocolbuffers/protobuf/tree/v3.20.1/js
   - name: python
     strategy: all
     out: gen/proto/py/
 
-#  - name: python-grpc
-#    path: grpc_python_plugin
-
   - plugin: buf.build/grpc/python:v1.58.1
     out: gen/proto/py/
-#  - name: grpc
-#    strategy: all
-#    out: gen/proto/python
-#    opt: grpc_python
-#    path: grpc_tools_python_protoc_plugin
