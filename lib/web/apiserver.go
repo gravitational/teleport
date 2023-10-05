@@ -2632,6 +2632,9 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker)
 			unifiedResources = append(unifiedResources, kube)
+		case types.KubeServer:
+			kube := ui.MakeKubeCluster(r.GetCluster(), accessChecker)
+			unifiedResources = append(unifiedResources, kube)
 		default:
 			return nil, trace.Errorf("UI Resource has unknown type: %T", resource)
 		}
