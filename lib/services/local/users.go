@@ -221,6 +221,7 @@ func (s *IdentityService) UpdateUserWithContext(ctx context.Context, user types.
 		}
 	}
 	user.SetRevision(lease.Revision)
+	user.SetResourceID(lease.ID)
 	return user, nil
 }
 
