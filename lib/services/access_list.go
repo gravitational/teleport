@@ -333,6 +333,7 @@ func MarshalAccessListReview(review *accesslist.Review, opts ...MarshalOption) (
 	if !cfg.PreserveResourceID {
 		copy := *review
 		copy.SetResourceID(0)
+		copy.SetRevision("")
 		review = &copy
 	}
 	return utils.FastMarshal(review)
