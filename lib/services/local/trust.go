@@ -39,7 +39,12 @@ func NewCAService(b backend.Backend) *CA {
 
 // DeleteAllCertAuthorities deletes all certificate authorities of a certain type
 func (s *CA) DeleteAllCertAuthorities(caType types.CertAuthType) error {
-	startKey := backend.Key(authoritiesPrefix, string(caType))
+	// The backend stores CAs like /authorities/<caType>/<name>, so caType is a
+	// prefix.
+	// If we do not use ExactKey here, then if a caType is a prefix of another
+	// caType, it will delete both, e.g.: DeleteAllCertAuthorities("foo") would
+	// also delete all authorities of caType "foo_some_suffix".
+	startKey := backend.ExactKey(authoritiesPrefix, string(caType))
 	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 
@@ -266,7 +271,12 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 	}
 
 	// Get all items in the bucket.
-	startKey := backend.Key(authoritiesPrefix, string(caType))
+	// The backend stores CAs like /authorities/<caType>/<name>, so caType is a
+	// prefix.
+	// If we do not use ExactKey here, then if a caType is a prefix of another
+	// caType, it will get both, e.g.: GetCertAuthorities("foo") would
+	// also get authorities of caType "foo_some_suffix".
+	startKey := backend.ExactKey(authoritiesPrefix, string(caType))
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
