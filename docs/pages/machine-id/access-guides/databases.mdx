@@ -5,11 +5,11 @@ description: How to use Machine ID to access database servers
 
 (!docs/pages/includes/machine-id/v2-config-warning.mdx!)
 
-Teleport Database Access protects and controls access to databases. Machine ID
+Teleport protects and controls access to databases. Machine ID
 can be used to grant machines secure, short-lived access to these databases.
 
 In this guide, you will configure `tbot` to produce credentials that can be
-used to access a database configured in Teleport Database Access.
+used to access a database configured in Teleport.
 
 <Figure align="left" bordered caption="Machine ID and Database Access Deployment">
 ![Machine ID and Database Access Deployment](../../../img/machine-id/machine-id-database-access.svg)
@@ -69,15 +69,15 @@ This rule will allow the bot to do two things:
   label selector) as the user `alice`.
 - Discover information about database resources in Teleport.
 
-The `'*': '*'` grants access to any database server configured in Teleport.
+The `'*': '*'` label selector grants access to any database server configured in Teleport.
 In production, consider restricting the bot's access using a more specific
 label selector; see the
-[Database Access RBAC guide](../../database-access/rbac.mdx) for more info.
+[Database Access RBAC guide](../../database-access/rbac/configuring-access) for a full reference of database-related role options.
 
 ## Step 2/4. Configure a database `tbot` output
 
 Now, `tbot` needs to be configured with an output that will produce the
-credentials needed for Database Access. To do this, the `database` output
+credentials needed for database access. To do this, the `database` output
 type is used.
 
 The database you wish to generate credentials for is configured as part of the
@@ -123,8 +123,7 @@ outputs:
   database: example
   username: alice
   # Specify a format to use for the output credentials. For most databases,
-  # this configuration field can be omitted. See the table below for the
-  # databases that require a value to be specified here.
+  # this configuration field can be omitted.
   # format: mongo
 ```
 
@@ -132,12 +131,12 @@ If operating `tbot` as a background service, restart it. If running `tbot` in
 one-shot mode, it must be executed before you attempt to execute the Ansible
 playbook.
 
-## Step 3/4. Configure the database access local proxy
+## Step 3/4. Configure the local database access proxy
 
 Now that `tbot` has produced the database access credentials, a local proxy
 should be set up to forward the database connections from your database client
-to the Teleport Proxy through a TLS connection. This is necessary as the TLS
-connection allows the Teleport Proxy to identify the protocol and intended
+to the Teleport Proxy Service through a TLS connection. This is necessary as the TLS
+connection allows the Teleport Proxy Service to identify the protocol and intended
 recipient.
 
 In addition, this local proxy needs to be running as long as the client needs to
