@@ -102,9 +102,6 @@ type Buffer[T any] struct {
 	// ring is the fixed-size circular buffer that serves as our primary storage location.
 	ring []entry[T]
 
-	// overflowStart is the time at which we began needing to overflow items.
-	overflowStart time.Time
-
 	// overflow is a variable length buffer of items that still need to be observed.
 	overflow []overflowEntry[T]
 }
