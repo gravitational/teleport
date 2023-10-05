@@ -1329,6 +1329,7 @@ message IsMFARequiredResponse {
   bool Required = 1;
   // MFARequired informs whether MFA is required to access the corresponding
   // resource.
+  // TODO(codingllama): Address redundancy between Required and MFARequired.
   MFARequired MFARequired = 2;
 }
 

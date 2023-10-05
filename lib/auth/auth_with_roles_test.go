@@ -36,6 +36,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
@@ -2602,8 +2603,9 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 	}
 }
 
-// TestIsMFARequiredMFADB tests isMFARequest logic per database protocol where different role matchers are used.
-func TestIsMFARequiredMFADB(t *testing.T) {
+// TestIsMFARequired_databaseProtocols tests the MFA requirement logic per
+// database protocol where different role matchers are used.
+func TestIsMFARequired_databaseProtocols(t *testing.T) {
 	const (
 		databaseName = "test-database"
 		userName     = "test-username"
@@ -2611,12 +2613,11 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 
 	type modifyRoleFunc func(role types.Role)
 	tests := []struct {
-		name               string
-		userRoleRequireMFA bool
-		checkMFA           require.BoolAssertionFunc
-		modifyRoleFunc     modifyRoleFunc
-		dbProtocol         string
-		req                *proto.IsMFARequiredRequest
+		name           string
+		modifyRoleFunc modifyRoleFunc
+		dbProtocol     string
+		req            *proto.IsMFARequiredRequest
+		want           proto.MFARequired
 	}{
 		{
 			name:       "RequireSessionMFA on MySQL protocol doesn't match database name",
@@ -2640,7 +2641,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 				role.SetDatabaseNames(types.Allow, nil)
 			},
-			checkMFA: require.True,
+			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 		{
 			name:       "RequireSessionMFA off",
@@ -2664,7 +2665,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 				role.SetDatabaseNames(types.Allow, nil)
 			},
-			checkMFA: require.False,
+			want: proto.MFARequired_MFA_REQUIRED_NO,
 		},
 		{
 			name:       "RequireSessionMFA on Postgres protocol database name doesn't match",
@@ -2688,7 +2689,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 				role.SetDatabaseNames(types.Allow, nil)
 			},
-			checkMFA: require.False,
+			want: proto.MFARequired_MFA_REQUIRED_NO,
 		},
 		{
 			name:       "RequireSessionMFA on Postgres protocol database name matches",
@@ -2712,7 +2713,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 				role.SetDatabaseNames(types.Allow, []string{"example"})
 			},
-			checkMFA: require.True,
+			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 	}
 
@@ -2776,7 +2777,8 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 
 			resp, err := cl.IsMFARequired(ctx, tc.req)
 			require.NoError(t, err)
-			tc.checkMFA(t, resp.GetRequired())
+			assert.Equal(t, tc.want, resp.MFARequired, "MFARequired mismatch")
+			assert.Equal(t, MFARequiredToBool(tc.want), resp.Required, "Required mismatch")
 		})
 	}
 }
