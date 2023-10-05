@@ -98,7 +98,7 @@ func NewService[T types.Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
 
 // GetResources returns a list of all resources.
 func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
-	rangeStart := backend.Key(s.backendPrefix, "")
+	rangeStart := backend.ExactKey(s.backendPrefix)
 	rangeEnd := backend.RangeEnd(rangeStart)
 
 	// no filter provided get the range directly
@@ -122,7 +122,7 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 // ListResources returns a paginated list of resources.
 func (s *Service[T]) ListResources(ctx context.Context, pageSize int, pageToken string) ([]T, string, error) {
 	rangeStart := backend.Key(s.backendPrefix, pageToken)
-	rangeEnd := backend.RangeEnd(backend.Key(s.backendPrefix, ""))
+	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
 
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > int(s.pageLimit) {
@@ -225,7 +225,7 @@ func (s *Service[T]) DeleteResource(ctx context.Context, name string) error {
 
 // DeleteAllResources removes all resources.
 func (s *Service[T]) DeleteAllResources(ctx context.Context) error {
-	startKey := backend.Key(s.backendPrefix, "")
+	startKey := backend.ExactKey(s.backendPrefix)
 	return trace.Wrap(s.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
