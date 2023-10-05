@@ -110,6 +110,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -132,7 +133,7 @@ type WebSuite struct {
 
 	node        *regular.Server
 	proxy       *regular.Server
-	proxyTunnel reversetunnel.Server
+	proxyTunnel reversetunnelclient.Server
 	srvID       string
 
 	user       string
@@ -7856,7 +7857,7 @@ type testProxy struct {
 	clock   clockwork.FakeClock
 	client  auth.ClientI
 	auth    *auth.TestTLSServer
-	revTun  reversetunnel.Server
+	revTun  reversetunnelclient.Server
 	node    *regular.Server
 	proxy   *regular.Server
 	handler *APIHandler
@@ -8415,7 +8416,7 @@ func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...kubeCluste
 type startKubeOptions struct {
 	clusters    []kubeClusterConfig
 	authServer  *auth.TestTLSServer
-	revTunnel   reversetunnel.Server
+	revTunnel   reversetunnelclient.Server
 	serviceType kubeproxy.KubeServiceType
 }
 

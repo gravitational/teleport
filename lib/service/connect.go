@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/openssh"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1267,19 +1267,19 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 }
 
 func (process *TeleportProcess) newClientThroughTunnel(addr string, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
-	resolver := reversetunnel.WebClientResolver(&webclient.Config{
+	resolver := reversetunnelclient.WebClientResolver(&webclient.Config{
 		Context:   process.ExitContext(),
 		ProxyAddr: addr,
 		Insecure:  lib.IsInsecureDevMode(),
 		Timeout:   process.Config.ClientTimeout,
 	})
 
-	resolver, err := reversetunnel.CachingResolver(process.ExitContext(), resolver, process.Clock)
+	resolver, err := reversetunnelclient.CachingResolver(process.ExitContext(), resolver, process.Clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	dialer, err := reversetunnel.NewTunnelAuthDialer(reversetunnel.TunnelAuthDialerConfig{
+	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              resolver,
 		ClientConfig:          sshConfig,
 		Log:                   process.log,
