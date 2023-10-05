@@ -55,6 +55,13 @@ export const Buttons = () => (
     </Flex>
 
     <Flex gap={3}>
+      <ButtonPrimary gap={2}>
+        <AddUsers />
+        Add users
+      </ButtonPrimary>
+    </Flex>
+
+    <Flex gap={3}>
       <ButtonLink href="">Button Link</ButtonLink>
       <ButtonText>Button Text</ButtonText>
     </Flex>
