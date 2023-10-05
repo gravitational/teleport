@@ -242,9 +242,9 @@ func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, p
 }
 
 // CreateAccessListReview will create a new review for an access list.
-func (c *Client) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (updatedReview *accesslist.Review, err error) {
+func (c *Client) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (*accesslist.Review, error) {
 	resp, err := c.grpcClient.CreateAccessListReview(ctx, &accesslistv1.CreateAccessListReviewRequest{
-		Review: conv.ToReviewProto(updatedReview),
+		Review: conv.ToReviewProto(review),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -262,7 +262,7 @@ func (c *Client) DeleteAccessListReview(ctx context.Context, accessListName, rev
 	return trace.Wrap(err)
 }
 
-// DeleteAllAccessListReviews will delete all access list reviews.
+// DeleteAllAccessListReviews will delete all access list reviews from an access list.
 func (c *Client) DeleteAllAccessListReviews(ctx context.Context, accessListName string) error {
 	return trace.NotImplemented("DeleteAllAccessListReviews is not supported in the gRPC client")
 }

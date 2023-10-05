@@ -338,9 +338,9 @@ func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessLis
 }
 
 // CreateAccessListReview will create a new review for an access list.
-func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (updatedReview *accesslist.Review, err error) {
+func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (createdReview *accesslist.Review, err error) {
 	reviewName := strings.ToLower(uuid.New().String())
-	updatedReview, err = accesslist.NewReview(header.Metadata{
+	createdReview, err = accesslist.NewReview(header.Metadata{
 		Name: reviewName,
 	}, accesslist.ReviewSpec{
 		AccessList: review.Spec.AccessList,
@@ -358,39 +358,39 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 			return trace.Wrap(err)
 		}
 
-		if updatedReview.Spec.Changes.MembershipRequirementsChanged != nil {
-			if accessListRequiresEqual(*updatedReview.Spec.Changes.MembershipRequirementsChanged, accessList.Spec.MembershipRequires) {
-				updatedReview.Spec.Changes.MembershipRequirementsChanged = nil
+		if createdReview.Spec.Changes.MembershipRequirementsChanged != nil {
+			if accessListRequiresEqual(*createdReview.Spec.Changes.MembershipRequirementsChanged, accessList.Spec.MembershipRequires) {
+				createdReview.Spec.Changes.MembershipRequirementsChanged = nil
 			} else {
 				accessList.Spec.MembershipRequires = *review.Spec.Changes.MembershipRequirementsChanged
 			}
 		}
 
-		if updatedReview.Spec.Changes.ReviewFrequencyChanged != 0 {
-			if updatedReview.Spec.Changes.ReviewFrequencyChanged == accessList.Spec.Audit.Recurrence.Frequency {
-				updatedReview.Spec.Changes.ReviewFrequencyChanged = 0
+		if createdReview.Spec.Changes.ReviewFrequencyChanged != 0 {
+			if createdReview.Spec.Changes.ReviewFrequencyChanged == accessList.Spec.Audit.Recurrence.Frequency {
+				createdReview.Spec.Changes.ReviewFrequencyChanged = 0
 			} else {
 				accessList.Spec.Audit.Recurrence.Frequency = review.Spec.Changes.ReviewFrequencyChanged
 			}
 		}
 
-		if updatedReview.Spec.Changes.ReviewDayOfMonthChanged != 0 {
-			if updatedReview.Spec.Changes.ReviewDayOfMonthChanged == accessList.Spec.Audit.Recurrence.DayOfMonth {
-				updatedReview.Spec.Changes.ReviewDayOfMonthChanged = 0
+		if createdReview.Spec.Changes.ReviewDayOfMonthChanged != 0 {
+			if createdReview.Spec.Changes.ReviewDayOfMonthChanged == accessList.Spec.Audit.Recurrence.DayOfMonth {
+				createdReview.Spec.Changes.ReviewDayOfMonthChanged = 0
 			} else {
 				accessList.Spec.Audit.Recurrence.DayOfMonth = review.Spec.Changes.ReviewDayOfMonthChanged
 			}
 		}
 
 		review.SetName(reviewName)
-		if err := a.reviewService.WithPrefix(review.Spec.AccessList).CreateResource(ctx, updatedReview); err != nil {
+		if err := a.reviewService.WithPrefix(review.Spec.AccessList).CreateResource(ctx, createdReview); err != nil {
 			return trace.Wrap(err)
 		}
 
 		accessList.Spec.Audit.NextAuditDate = services.SelectNextReviewDate(accessList)
 
 		for _, removedMember := range review.Spec.Changes.RemovedMembers {
-			if err := a.memberService.WithPrefix(updatedReview.Spec.AccessList).DeleteResource(ctx, removedMember); err != nil {
+			if err := a.memberService.WithPrefix(createdReview.Spec.AccessList).DeleteResource(ctx, removedMember); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -404,7 +404,7 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return updatedReview, nil
+	return createdReview, nil
 }
 
 // accessListRequiresEqual returns true if two access lists are equal.
@@ -457,7 +457,7 @@ func (a *AccessListService) DeleteAccessListReview(ctx context.Context, accessLi
 	return trace.Wrap(err)
 }
 
-// DeleteAllAccessListReviews will delete all access list reviews.
+// DeleteAllAccessListReviews will delete all access list reviews from an access list.
 func (a *AccessListService) DeleteAllAccessListReviews(ctx context.Context, accessList string) error {
 	err := a.service.RunWhileLocked(ctx, lockName(accessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		_, err := a.service.GetResource(ctx, accessList)
