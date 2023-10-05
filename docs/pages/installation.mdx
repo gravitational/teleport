@@ -184,8 +184,8 @@ We also provide the following images for FIPS builds of Teleport Enterprise:
 
 | Image name | Includes troubleshooting tools | Image base |
 | - | - | - |
-| `gravitational/teleport-ent-fips-distroless` | No | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
-| `gravitational/teleport-ent-fips-distroless-debug` | Yes | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+| `public.ecr.aws/gravitational/teleport-ent-fips-distroless:(=teleport.version=)` | No | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+| `public.ecr.aws/gravitational/teleport-ent-fips-distroless-debug(=teleport.version=)` | Yes | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
 
 For testing, we always recommend that you use the latest release version of
 Teleport Enterprise, which is currently `(=teleport.latest_ent_docker_image=)`.
