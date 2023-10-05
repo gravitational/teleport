@@ -1045,9 +1045,11 @@ message MFAAuthenticateChallenge {
   // registered by the user).
   webauthn.CredentialAssertion WebauthnChallenge = 3;
   // MFRequired indicates whether proceeding with the MFA ceremony will
-  // grant access to the resource. If `MFA_REQUIRED_NO` is returned by the
-  // server then the stream will be terminated to prevent a fruitless MFA ceremony from
-  // proceeding.
+  // grant access to the resource.
+  //
+  // If `MFA_REQUIRED_NO` is returned then the server may opt to end ongoing
+  // communications, in case of streaming RPCs. It may also return empty
+  // challenges for all other fields.
   MFARequired MFARequired = 4;
 }
 
@@ -1323,7 +1325,11 @@ message NodeLogin {
 
 // IsMFARequiredResponse is a response for MFA requirement check.
 message IsMFARequiredResponse {
+  // Required is a simplified view over [MFARequired].
   bool Required = 1;
+  // MFARequired informs whether MFA is required to access the corresponding
+  // resource.
+  MFARequired MFARequired = 2;
 }
 
 // SingleUseUserCert is a single-use user certificate, either SSH or TLS.
@@ -1725,6 +1731,16 @@ message CreateAuthenticateChallengeRequest {
     // required).
     Passwordless Passwordless = 4 [(gogoproto.jsontag) = "passwordless,omitempty"];
   }
+  // MFARequiredCheck, if set, is used to verify if MFA is necessary for the
+  // request. It's akin to a call to [AuthService.IsMFARequired].
+  //
+  // If MFA is not required, then no challenges are issued in the
+  // [MFAAuthenticateResponse].
+  //
+  // MFA verification should run in the cluster that holds the target resource.
+  // If you are issuing challenges from the root cluster, but accessing a leaf,
+  // call [AuthService.IsMFARequired] in the leaf instead of setting this field.
+  IsMFARequiredRequest MFARequiredCheck = 5 [(gogoproto.jsontag) = "mfa_required_check,omitempty"];
 }
 
 // CreatePrivilegeTokenRequest defines a request to obtain a privilege token.
