@@ -850,7 +850,6 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	cfg.Auth.LoadAllCAs = fc.Auth.LoadAllCAs
 
-
 	cfg.Auth.HostedPlugins.Enabled = true
 	cfg.Auth.HostedPlugins.OAuthProviders, err = fc.Auth.HostedPlugins.OAuthProviders.Parse()
 	if err != nil {
