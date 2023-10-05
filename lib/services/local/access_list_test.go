@@ -48,8 +48,8 @@ func TestAccessListCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a couple access lists.
-	accessList1 := newAccessList(t, "accessList1")
-	accessList2 := newAccessList(t, "accessList2")
+	accessList1 := newAccessList(t, "accessList1", clock)
+	accessList2 := newAccessList(t, "accessList2", clock)
 
 	// Initially we expect no access lists.
 	out, err := service.GetAccessLists(ctx)
@@ -126,7 +126,7 @@ func TestAccessListCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	// Try to create an access list with duplicate owners.
-	accessListDuplicateOwners := newAccessList(t, "accessListDuplicateOwners")
+	accessListDuplicateOwners := newAccessList(t, "accessListDuplicateOwners", clock)
 	accessListDuplicateOwners.Spec.Owners = append(accessListDuplicateOwners.Spec.Owners, accessListDuplicateOwners.Spec.Owners[0])
 
 	_, err = service.UpsertAccessList(ctx, accessListDuplicateOwners)
@@ -147,7 +147,7 @@ func TestAccessListDedupeOwnersBackwardsCompat(t *testing.T) {
 	require.NoError(t, err)
 
 	// Put an unduplicated owners access list in the backend.
-	accessListDuplicateOwners := newAccessList(t, "accessListDuplicateOwners")
+	accessListDuplicateOwners := newAccessList(t, "accessListDuplicateOwners", clock)
 	accessListDuplicateOwners.Spec.Owners = append(accessListDuplicateOwners.Spec.Owners, accessListDuplicateOwners.Spec.Owners[0])
 	require.Len(t, accessListDuplicateOwners.Spec.Owners, 3)
 
@@ -176,7 +176,7 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a couple access lists.
-	accessList1 := newAccessList(t, "accessList1")
+	accessList1 := newAccessList(t, "accessList1", clock)
 
 	cmpOpts := []cmp.Option{
 		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
@@ -252,8 +252,8 @@ func TestAccessListMembersCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a couple access lists.
-	accessList1 := newAccessList(t, "accessList1")
-	accessList2 := newAccessList(t, "accessList2")
+	accessList1 := newAccessList(t, "accessList1", clock)
+	accessList2 := newAccessList(t, "accessList2", clock)
 
 	cmpOpts := []cmp.Option{
 		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
@@ -403,7 +403,7 @@ func TestAccessListMembersCRUD(t *testing.T) {
 	require.ErrorIs(t, err, trace.NotFound("access_list %q doesn't exist", accessList2.GetName()))
 }
 
-func newAccessList(t *testing.T, name string) *accesslist.AccessList {
+func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist.AccessList {
 	t.Helper()
 
 	accessList, err := accesslist.NewAccessList(
@@ -424,7 +424,7 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency: time.Hour,
+				NextAuditDate: clock.Now(),
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
