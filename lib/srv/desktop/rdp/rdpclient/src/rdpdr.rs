@@ -373,8 +373,6 @@ impl Client {
             rdp_req.device_io_request.completion_id,
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryInfoResponse| -> RdpResult<Messages> {
-                    let rdp_req = rdp_req;
-
                     match res.err_code {
                         TdpErrCode::Failed | TdpErrCode::AlreadyExists => {
                             return Err(try_error(&format!(
