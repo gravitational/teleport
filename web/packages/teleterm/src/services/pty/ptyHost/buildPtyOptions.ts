@@ -108,7 +108,7 @@ export function getPtyProcessOptions(
         escapedBinaryPath,
         `--proxy=${cmd.rootClusterId}`,
         `kube login ${cmd.kubeId} --cluster=${cmd.clusterName}`,
-        settings.tshd.insecure && '--insecure',
+        settings.insecure && '--insecure',
       ]
         .filter(Boolean)
         .join(' ');
