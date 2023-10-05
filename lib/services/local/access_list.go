@@ -382,7 +382,6 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 			}
 		}
 
-		review.SetName(reviewName)
 		if err := a.reviewService.WithPrefix(review.Spec.AccessList).CreateResource(ctx, createdReview); err != nil {
 			return trace.Wrap(err)
 		}
