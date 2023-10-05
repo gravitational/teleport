@@ -7562,6 +7562,7 @@ type IsMFARequiredResponse struct {
 	Required bool `protobuf:"varint,1,opt,name=Required,proto3" json:"Required,omitempty"`
 	// MFARequired informs whether MFA is required to access the corresponding
 	// resource.
+	// TODO(codingllama): Address redundancy between Required and MFARequired.
 	MFARequired          MFARequired `protobuf:"varint,2,opt,name=MFARequired,proto3,enum=proto.MFARequired" json:"MFARequired,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
 	XXX_unrecognized     []byte      `json:"-"`
