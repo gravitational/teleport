@@ -43,13 +43,17 @@ TF_VAR_enable_mysql_listener ?= false
 # This will be ignored if TF_VAR_use_tls_routing=true
 TF_VAR_enable_postgres_listener ?= false
 
-# Bucket name to store encrypted Let's Encrypt certificates.
+# Bucket name to store Teleport session recordings.
 TF_VAR_s3_bucket_name ?=
+
+# AWS instance type to provision for running this Teleport cluster
+TF_VAR_cluster_instance_type = "t3.micro"
 
 # Email of your support org, used for Let's Encrypt cert registration process.
 TF_VAR_email ?=
 
 # Set to true to use Let's Encrypt to provision certificates
+# Note: Let's Encrypt will be automatically disabled if using ACM
 TF_VAR_use_letsencrypt ?= true
 
 # Set to true to use ACM (Amazon Certificate Manager) to provision certificates
