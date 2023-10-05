@@ -86,14 +86,14 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	go replicate(dconn, sconn)
 
 	// Wait until done, error, or 10 second.
-	errors := 0
+	numFinished := 0
 	for {
 		select {
 		case <-time.After(10 * time.Second):
 			return
 		case <-errc:
-			errors++
-			if errors == 2 {
+			numFinished++
+			if numFinished == 2 {
 				return
 			}
 		}
