@@ -289,7 +289,7 @@ type Config struct {
 	authServers []utils.NetAddr
 }
 
-// Option allows to customize default behaviour of service initialization defined by Config
+// Option allows to customize default behavior of service initialization defined by Config
 type Option interface {
 	Apply(any) error
 }
