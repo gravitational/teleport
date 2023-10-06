@@ -180,7 +180,7 @@ export const Ec2InstanceList = ({
                     href="https://console.aws.amazon.com/cloudshell/home"
                     target="_blank"
                   >
-                    Amazon CloudShell
+                    AWS CloudShell
                   </Link>{' '}
                   to configure your IAM permissions. Then press the refresh
                   button above.
