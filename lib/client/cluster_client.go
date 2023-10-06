@@ -298,7 +298,7 @@ func performMFACeremony(ctx context.Context, params performMFACeremonyParams) (*
 	// If connecting to a host in a leaf cluster and MFA failed check to see
 	// if the leaf cluster requires MFA. If it doesn't return an error indicating
 	// that MFA was not required instead of the error received from the root cluster.
-	if !params.mfaAgainstRoot {
+	if mfaRequiredReq != nil && !params.mfaAgainstRoot {
 		mfaRequiredResp, err := currentClient.IsMFARequired(ctx, mfaRequiredReq)
 		log.Debugf("MFA requirement acquired from leaf, MFARequired=%s", mfaRequiredResp.GetMFARequired())
 		switch {
