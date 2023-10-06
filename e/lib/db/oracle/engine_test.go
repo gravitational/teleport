@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/db/oracle/protocol"
 	"github.com/gravitational/teleport/e/lib/db/oracle/protocol/testdata"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -73,7 +74,8 @@ func TestOracleEngine(t *testing.T) {
 		},
 		Database: &types.DatabaseV3{
 			Spec: types.DatabaseSpecV3{
-				URI: listener.Addr().String(),
+				URI:      listener.Addr().String(),
+				Protocol: defaults.ProtocolOracle,
 			},
 		},
 		Identity: tlsca.Identity{
@@ -134,24 +136,11 @@ func TestOracleEngine(t *testing.T) {
 		require.Contains(t, err.Error(), "match between TLS identity database name and Oracle Connect Packet ServerName")
 	})
 
-	t.Run("access denied database name", func(t *testing.T) {
-		client, engineConn := net.Pipe()
-		defer client.Close()
-		defer engineConn.Close()
-		session.DatabaseName = "DB2"
-		session.DatabaseUser = "alice"
-		err := engine.InitializeConnection(engineConn, session)
-		require.NoError(t, err)
-
-		err = engine.HandleConnection(context.Background(), session)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err))
-	})
-
 	t.Run("access denied database username", func(t *testing.T) {
 		client, engineConn := net.Pipe()
 		defer client.Close()
 		defer engineConn.Close()
+		session.Identity.RouteToDatabase.Database = "XE"
 		session.DatabaseName = "XE"
 		session.DatabaseUser = "bob"
 		err := engine.InitializeConnection(engineConn, session)
@@ -194,11 +183,14 @@ type checkerMock struct {
 }
 
 func (c checkerMock) GetAccessState(authPref types.AuthPreference) services.AccessState {
+	c.t.Helper()
 	return services.AccessState{}
 }
 
 func (c checkerMock) CheckAccess(r services.AccessCheckable, state services.AccessState, matchers ...services.RoleMatcher) error {
-	require.Len(c.t, matchers, 2)
+	c.t.Helper()
+	// only db-user check is enforced for Oracle.
+	require.Len(c.t, matchers, 1)
 	for _, m := range matchers {
 		ok, err := m.Match(&c.role, types.Allow)
 		require.NoError(c.t, err)
