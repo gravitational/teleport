@@ -420,6 +420,11 @@ type TeleportProcess struct {
 
 	// SSHD is used to execute commands to update or validate OpenSSH config.
 	SSHD openssh.SSHD
+
+	// multiplexIgnoreSelfConnections is used for tests, it makes multiplexer ignore the fact that it's self
+	// connection (coming from same IP as the listening address) when deciding if it should drop connection with
+	// missing required PROXY header. This is needed since all connections in tests are self connections.
+	multiplexIgnoreSelfConnections bool
 }
 
 type keyPairKey struct {
@@ -778,9 +783,21 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 	return newSrv, nil
 }
 
+// Option is a functional option for TeleportProcess.
+type Option func(*TeleportProcess)
+
+// WithMultiplexerIgnoreSelfConnections is used for tests, it makes multiplexer ignore the fact that it's self
+// connection (coming from same IP as the listening address) when deciding if it should drop connection with
+// missing required PROXY header. This is needed since all connections in tests are self connections.
+func WithMultiplexerIgnoreSelfConnections() Option {
+	return func(process *TeleportProcess) {
+		process.multiplexIgnoreSelfConnections = true
+	}
+}
+
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object.
-func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
+func NewTeleport(cfg *servicecfg.Config, opts ...Option) (*TeleportProcess, error) {
 	var err error
 
 	// auth and proxy benefit from precomputing keys since they can experience spikes in key
@@ -942,6 +959,10 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		keyPairs:               make(map[keyPairKey]KeyPair),
 		cloudLabels:            cloudLabels,
 		TracingProvider:        tracing.NoopProvider(),
+	}
+
+	for _, opt := range opts {
+		opt(process)
 	}
 
 	process.registerExpectedServices(cfg)
@@ -4453,13 +4474,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 			log.Infof("Starting Kube proxy on %v.", kubeListenAddr)
 
-			var mopts []kubeproxy.MultiplexerConfigOption
-			for _, opt := range cfg.Options {
-				if muxOption, ok := opt.(servicecfg.KubeMultiplexerConfigOption); ok {
-					mopts = append(mopts, func(config *multiplexer.Config) error {
-						return muxOption(config)
-					})
-				}
+			var mopts []kubeproxy.ServeOption
+			if process.multiplexIgnoreSelfConnections {
+				mopts = append(mopts, kubeproxy.WithMultiplexerIgnoreSelfConnections())
 			}
 
 			err := kubeServer.Serve(listeners.kube, mopts...)

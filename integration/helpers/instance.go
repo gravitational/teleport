@@ -569,20 +569,20 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 //
 // Unlike Create() it allows for greater customization because it accepts
 // a full Teleport config structure
-func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets, tconf *servicecfg.Config) error {
+func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets, tconf *servicecfg.Config, opts ...service.Option) error {
 	tconf, err := i.GenerateConfig(t, trustedSecrets, tconf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return i.CreateWithConf(t, tconf)
+	return i.CreateWithConf(t, tconf, opts...)
 }
 
 // CreateWithConf creates a new instance of Teleport using the supplied config
-func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) error {
+func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config, opts ...service.Option) error {
 	i.Config = tconf
 	var err error
-	i.Process, err = service.NewTeleport(tconf)
+	i.Process, err = service.NewTeleport(tconf, opts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}

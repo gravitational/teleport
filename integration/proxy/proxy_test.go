@@ -616,15 +616,16 @@ func TestKubePROXYProtocol(t *testing.T) {
 			tconf.Kube.ListenAddr = utils.MustParseAddr(
 				helpers.NewListener(t, service.ListenerKube, &tconf.FileDescriptors))
 
-			// Force Proxy kube server multiplexer to check required PROXY lines on all connections
-			tconf.Options = []servicecfg.Option{servicecfg.NewKubeMultiplexerConfigOption(true)}
-
 			kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
 			require.NoError(t, err)
 
 			testCluster.AddUserWithRole(username, kubeRole)
 
-			require.NoError(t, testCluster.CreateEx(t, nil, tconf))
+			require.NoError(t, testCluster.CreateEx(
+				t,
+				nil,
+				// Force Proxy kube server multiplexer to check required PROXY lines on all connections
+				tconf, service.WithMultiplexerIgnoreSelfConnections()))
 			require.NoError(t, testCluster.Start())
 			t.Cleanup(func() {
 				require.NoError(t, testCluster.StopAll())

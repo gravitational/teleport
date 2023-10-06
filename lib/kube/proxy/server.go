@@ -269,10 +269,20 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	return server, nil
 }
 
-type MultiplexerConfigOption func(*multiplexer.Config) error
+// ServeOption is a functional option for the multiplexer.
+type ServeOption func(*multiplexer.Config)
+
+// WithMultiplexerIgnoreSelfConnections is used for tests, it makes multiplexer ignore the fact that it's self
+// connection (coming from same IP as the listening address) when deciding if it should drop connection with
+// missing required PROXY header. This is needed since all connections in tests are self connections.
+func WithMultiplexerIgnoreSelfConnections() ServeOption {
+	return func(cfg *multiplexer.Config) {
+		cfg.IgnoreSelfConnections = true
+	}
+}
 
 // Serve takes TCP listener, upgrades to TLS using config and starts serving
-func (t *TLSServer) Serve(listener net.Listener, options ...MultiplexerConfigOption) error {
+func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 	caGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 		return t.CachingAuthClient.GetCertAuthority(ctx, id, loadKeys)
 	}
@@ -291,10 +301,7 @@ func (t *TLSServer) Serve(listener net.Listener, options ...MultiplexerConfigOpt
 		ReadDeadline: 10 * time.Second,
 	}
 	for _, opt := range options {
-		err := opt(&muxConfig)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		opt(&muxConfig)
 	}
 
 	// Wrap listener with a multiplexer to get PROXY Protocol support.
