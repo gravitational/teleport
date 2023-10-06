@@ -114,7 +114,10 @@ const props: RequestCheckoutProps = {
   selectedResourceRequestRoles: ['admin', 'access'],
   setSelectedResourceRequestRoles: () => null,
   fetchStatus: 'loaded',
-  durationOptions: [],
-  maxDuration: { value: 0, label: '' },
+  durationOptions: [{ value: 0, label: '' }],
+  maxDuration: { value: 0, label: '12 hours' },
   setMaxDuration: () => null,
+  requestTTLDurationOptions: [{ value: 0, label: '' }],
+  requestTTL: { value: 0, label: '1 hour' },
+  setRequestTTL: () => null,
 };

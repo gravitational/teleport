@@ -6,7 +6,10 @@ import { formatDuration } from 'date-fns';
 
 import { Option } from 'shared/components/Select';
 
-import { middleValues } from 'teleport/AccessRequests/utils';
+import {
+  middleValues,
+  requestTtlMiddleValues,
+} from 'teleport/AccessRequests/utils';
 
 import Ctx from 'e-teleport/teleportContextE';
 
@@ -38,8 +41,12 @@ export function useRequestCheckout({
   const [fetchStatus, setFetchStatus] = useState<LoadingStatus>('loading');
 
   const [maxDuration, setMaxDuration] = useState<Option<number>>();
+  const [requestTTL, setRequestTTL] = useState<Option<number>>();
 
   const [durationOptions, setDurationOptions] = useState<Option<number>[]>([]);
+  const [requestTTLDurationOptions, setRequestTTLDurationOptions] = useState<
+    Option<number>[]
+  >([]);
 
   // Format data suitable for table listing.
   const data: {
@@ -67,7 +74,7 @@ export function useRequestCheckout({
     // duration is set to the max - 7 days
     const maxAccessDuration = new Date(Date.now() + SEVEN_DAYS_IN_MS);
 
-    createAccessRequest('', [], maxAccessDuration, true)
+    createAccessRequest('', [], maxAccessDuration, null, true)
       .then((resp: AccessRequest) => {
         // sessionTTL and maxDuration were introduced in v13.3.0.
         // Older backends will not return these values.
@@ -88,6 +95,19 @@ export function useRequestCheckout({
         if (values.length >= 1) {
           setMaxDuration(values[0]);
         }
+        const requestTTLValues = requestTtlMiddleValues(
+          new Date(resp.created),
+          new Date(resp.sessionTTL)
+        ).map(e => ({
+          value: e.timestamp,
+          label: formatDuration(e.duration),
+        }));
+
+        setRequestTTLDurationOptions(requestTTLValues);
+        if (requestTTLValues.length >= 1) {
+          setRequestTTL(requestTTLValues[0]);
+        }
+
         setFetchStatus('loaded');
         // setAttemptStatus();
       })
@@ -102,6 +122,7 @@ export function useRequestCheckout({
     reason = '',
     suggestedReviewers?: string[],
     maxDuration?: Date,
+    requestTTL?: Date,
     dryRun?: boolean
   ): Promise<AccessRequest> {
     // field 'roles' is expected as just a list of strings
@@ -125,6 +146,7 @@ export function useRequestCheckout({
       roles,
       suggestedReviewers,
       maxDuration,
+      requestTTL,
       dryRun,
     });
   }
@@ -133,10 +155,17 @@ export function useRequestCheckout({
     reason = '',
     suggestedReviewers?: string[],
     maxDuration?: Date,
+    requestTTL?: Date,
     dryRun?: boolean
   ) {
     createAttempt.setAttempt({ status: 'processing' });
-    createAccessRequest(reason, suggestedReviewers, maxDuration, dryRun)
+    createAccessRequest(
+      reason,
+      suggestedReviewers,
+      maxDuration,
+      requestTTL,
+      dryRun
+    )
       .then(() => {
         createAttempt.setAttempt({ status: 'success' });
         setNumRequestedResources(data.length);
@@ -198,6 +227,9 @@ export function useRequestCheckout({
     durationOptions,
     maxDuration,
     setMaxDuration,
+    requestTTLDurationOptions,
+    requestTTL,
+    setRequestTTL,
   };
 }
 

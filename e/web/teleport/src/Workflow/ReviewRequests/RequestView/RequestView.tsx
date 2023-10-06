@@ -156,6 +156,11 @@ export function RequestView({
                 flexWrap="wrap-reverse"
                 flex="1"
               >
+                {request.requestTTLDuration && request.state === 'PENDING' && (
+                  <RequestTtlLabel ml={4} fontSize={0}>
+                    Request expires in {request.requestTTLDuration}
+                  </RequestTtlLabel>
+                )}
                 <ButtonBorder
                   disabled={!flags.canDelete}
                   onClick={toggleConfirmDelete}
@@ -607,4 +612,8 @@ export const TimelineCommentAndReviewsContainer = styled.div`
   padding-top: 0;
   border-bottom-left-radius: ${p => p.theme.radii[4]}px;
   border-bottom-right-radius: ${p => p.theme.radii[4]}px;
+`;
+
+const RequestTtlLabel = styled(Text)`
+  font-style: italic;
 `;

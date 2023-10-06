@@ -53,6 +53,8 @@ test('correct formatting of access request json response', async () => {
     createdDuration: '',
     maxDuration: undefined,
     maxDurationText: '',
+    requestTTL: undefined,
+    requestTTLDuration: '',
     sessionTTL: undefined,
     sessionTTLDuration: '',
     roles: ['dev', 'admin'],

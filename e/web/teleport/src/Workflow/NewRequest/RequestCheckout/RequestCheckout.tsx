@@ -26,6 +26,8 @@ import Select, { Option } from 'shared/components/Select';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'shared/utils/text';
 
+import { ToolTipInfo } from 'shared/components/ToolTip';
+
 import cfg from 'e-teleport/config';
 import useTeleportE from 'e-teleport/useTeleportE';
 
@@ -108,6 +110,9 @@ export function RequestCheckout({
   durationOptions,
   maxDuration,
   setMaxDuration,
+  requestTTLDurationOptions,
+  requestTTL,
+  setRequestTTL,
 }: RequestCheckoutProps) {
   const [reason, setReason] = useState('');
   const ref = useRef<HTMLDivElement>();
@@ -139,7 +144,8 @@ export function RequestCheckout({
     createRequest(
       reason,
       selectedReviewers.map(r => r.value),
-      maxDuration ? new Date(maxDuration.value) : null
+      maxDuration ? new Date(maxDuration.value) : null,
+      requestTTL ? new Date(requestTTL.value) : null
     );
   }
 
@@ -303,23 +309,51 @@ export function RequestCheckout({
                     setSelectedReviewers={setSelectedReviewers}
                   />
                 </Box>
-                {durationOptions.length > 0 && (
-                  <Box mt={7}>
-                    <LabelInput typography="body2" color="text.slightlyMuted">
-                      Max Access Duration
-                    </LabelInput>
-                    <Select
-                      options={durationOptions}
-                      onChange={(option: Option<number>) =>
-                        setMaxDuration(option)
-                      }
-                      value={maxDuration}
-                    />
-                  </Box>
-                )}
                 <Validation>
                   {({ validator }) => (
-                    <>
+                    <Flex mt={4} flexDirection="column" gap={1}>
+                      {durationOptions.length > 0 && (
+                        <LabelInput
+                          typography="body2"
+                          color="text.slightlyMuted"
+                        >
+                          <Flex alignItems="center">
+                            <Text mr={1}>Max Access Duration</Text>
+                            <ToolTipInfo>
+                              How long access should be granted for.
+                            </ToolTipInfo>
+                          </Flex>
+
+                          <Select
+                            options={durationOptions}
+                            onChange={(option: Option<number>) =>
+                              setMaxDuration(option)
+                            }
+                            value={maxDuration}
+                          />
+                        </LabelInput>
+                      )}
+                      {requestTTLDurationOptions.length > 0 && (
+                        <LabelInput
+                          typography="body2"
+                          color="text.slightlyMuted"
+                        >
+                          <Flex alignItems="center">
+                            <Text mr={1}>Request Expiry</Text>
+                            <ToolTipInfo>
+                              The amount of time this request will be in the
+                              PENDING state before it expires.
+                            </ToolTipInfo>
+                          </Flex>
+                          <Select
+                            options={requestTTLDurationOptions}
+                            onChange={(option: Option<number>) =>
+                              setRequestTTL(option)
+                            }
+                            value={requestTTL}
+                          />
+                        </LabelInput>
+                      )}
                       <TextBox
                         reason={reason}
                         updateReason={updateReason}
@@ -343,7 +377,7 @@ export function RequestCheckout({
                           Submit Request
                         </ButtonPrimary>
                       </Box>
-                    </>
+                    </Flex>
                   )}
                 </Validation>
               </>
@@ -499,8 +533,8 @@ function TextBox({
   const placeholder = `Describe your request...${optionalText}`;
 
   return (
-    <Box mt={2}>
-      <LabelInput hasError={hasError}>{labelText}</LabelInput>
+    <LabelInput hasError={hasError}>
+      {labelText}
       <Box
         as="textarea"
         height="80px"
@@ -528,7 +562,7 @@ function TextBox({
           }
         `}
       />
-    </Box>
+    </LabelInput>
   );
 }
 

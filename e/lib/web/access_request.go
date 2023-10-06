@@ -96,6 +96,7 @@ func createAccessRequest(ctx context.Context, clt accessRequestGetCreator, reque
 
 	req.SetRequestReason(request.Reason)
 	req.SetSuggestedReviewers(request.SuggestedReviewers)
+	req.SetExpiry(request.RequestTTL)
 	req.SetMaxDuration(request.MaxDuration)
 	req.SetDryRun(request.DryRun)
 
@@ -443,6 +444,9 @@ type accessRequestParameters struct {
 	ResourceIDs []ui.ResourceID `json:"resourceIds"`
 	// MaxDuration is the maximum duration for which the request is valid.
 	MaxDuration time.Time `json:"maxDuration,omitempty"`
+	// RequestTTL is the expiration time of the request (how long it will await
+	// approval).
+	RequestTTL time.Time `json:"requestTTL,omitempty"`
 	// DryRun is a flag that indicates whether the request is a dry run to check and set defaults,
 	// and return before actually creating the request in the backend.
 	DryRun bool `json:"dryRun,omitempty"`

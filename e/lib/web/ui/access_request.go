@@ -31,6 +31,9 @@ type AccessRequest struct {
 	// MaxDuration is the duration for how long the access should be granted.
 	// This value can be nil if the request does not have a max duration.
 	MaxDuration *time.Time `json:"maxDuration,omitempty"`
+	// RequestTTL is the expiration time of the request (how long it will await
+	// approval).
+	RequestTTL time.Time `json:"requestTTL,omitempty"`
 	// SessionTTL is the duration for how long the generated certificate will be valid.
 	SessionTTL time.Time `json:"sessionTTL,omitempty"`
 	// Reviews are reviews applied to this access request.
@@ -155,6 +158,7 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 		Roles:                   request.GetRoles(),
 		Created:                 request.GetCreationTime(),
 		MaxDuration:             maxDuration,
+		RequestTTL:              request.Expiry(),
 		SessionTTL:              request.GetSessionTLL(),
 		Expires:                 request.GetAccessExpiry(),
 		Reviews:                 reviews,

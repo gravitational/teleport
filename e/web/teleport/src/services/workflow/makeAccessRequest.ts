@@ -22,6 +22,8 @@ export default function makeAccessRequest(json?): AccessRequest {
     createdDuration: getDurationAgoText(json.created),
     maxDuration: json.maxDuration,
     maxDurationText: getDurationText(json.maxDuration),
+    requestTTL: json.requestTTL,
+    requestTTLDuration: getDurationText(json.requestTTL),
     sessionTTL: json.sessionTTL,
     sessionTTLDuration: getDurationText(json.sessionTTL),
     roles: json.roles || [],

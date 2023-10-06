@@ -124,11 +124,18 @@ export function AccessRequestCheckout() {
             isResourceRequest={data[0]?.kind !== 'role'}
             durationOptions={[]}
             fetchStatus={'loaded'}
+            // TODO(atburke): add max duration and request TTL to connect
             maxDuration={{
               value: 0,
               label: '',
             }}
             setMaxDuration={() => null}
+            requestTTLDurationOptions={[]}
+            requestTTL={{
+              value: 0,
+              label: '',
+            }}
+            setRequestTTL={() => null}
           />
         )}
       </Transition>

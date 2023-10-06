@@ -19,6 +19,8 @@ export interface AccessRequest {
   createdDuration: string;
   maxDuration: Date;
   maxDurationText: string;
+  requestTTL: Date;
+  requestTTLDuration: string;
   sessionTTL: Date;
   sessionTTLDuration: string;
   roles: string[];
@@ -77,6 +79,7 @@ export interface CreateAccessRequest {
   resourceIds?: ResourceId[];
   suggestedReviewers?: string[];
   maxDuration?: Date;
+  requestTTL?: Date;
   dryRun?: boolean;
 }
 
