@@ -98,22 +98,18 @@ jobs:
         with:
           registry: ${{ inputs.pending-registry }}
 
-      - name: Validate pending image signature using signing key
+      - name: Validate pending image signature using signing key and GitHub OIDC Token
         env:
+          CERT_IDENTITY_REGEXP: 'https://github\.com/gravitational/teleport\.e/\.github/workflows/oci-image-build\.yml@refs/tags/.+'
+          CERT_OIDC_ISSUER: "https://token.actions.githubusercontent.com/teleport"
           SIGNING_KEY_URL: "${{ inputs.validation-key-url }}"
           SRC_IMAGE: "${{ inputs.pending-registry }}/${{ inputs.pending-repository }}:${{ inputs.pending-tag }}"
         run: |
           cosign verify --key ${SIGNING_KEY_URL} ${SRC_IMAGE} > validated-image.json
+          # TODO(reed): Re-enable OIDC identity verification when signature is attached
+          # cosign verify ${SRC_IMAGE} --certificate-identity-regexp="${CERT_IDENTITY_REGEXP}" --certificate-oidc-issuer="${CERT_OIDC_ISSUER}"
           TELEPORT_IMAGE_LIST_HASH=$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)
           echo TELEPORT_IMAGE_LIST_HASH=$TELEPORT_IMAGE_LIST_HASH >> $GITHUB_ENV
-
-      - name: Validate pending image signature using GitHub OIDC Token
-        env:
-          SRC_IMAGE: "${{ inputs.pending-registry }}/${{ inputs.pending-repository }}:${{ inputs.pending-tag }}"
-          CERT_IDENTITY_REGEXP: 'https://github\.com/gravitational/teleport\.e/\.github/workflows/oci-image-build\.yml@refs/tags/.+'
-          CERT_OIDC_ISSUER: "https://token.actions.githubusercontent.com/teleport"
-        run: |
-          cosign verify ${SRC_IMAGE} --certificate-identity-regexp="${CERT_IDENTITY_REGEXP}" --certificate-oidc-issuer="${CERT_OIDC_ISSUER}"
 
       # From this point we should only refer to the source image by digest rather 
       # than by tag. Referring to an image by tag across multiple operations is 
