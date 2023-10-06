@@ -14,53 +14,68 @@
  * limitations under the License.
  */
 
-import { Notice, StoreNotifications } from './storeNotifications';
+import {
+  Notification,
+  NotificationKind,
+  StoreNotifications,
+} from './storeNotifications';
 
 test('get/set/update notifications', async () => {
   const store = new StoreNotifications();
 
   expect(store.getNotifications()).toStrictEqual([]);
+  expect(store.hasNotificationsByKind(NotificationKind.AccessList)).toBeFalsy();
 
   // set some notifications, sorted by earliest date.
-  const newerNote: Notice = {
-    kind: 'access-lists',
+  const newerNote: Notification = {
+    item: {
+      kind: NotificationKind.AccessList,
+      resourceName: 'apple',
+      route: '',
+    },
     id: '111',
-    resourceName: 'apple',
     date: new Date('2023-10-04T09:09:22-07:00'),
-    route: '',
   };
-  const olderNote: Notice = {
-    kind: 'access-lists',
+  const olderNote: Notification = {
+    item: {
+      kind: NotificationKind.AccessList,
+      resourceName: 'banana',
+      route: '',
+    },
     id: '222',
-    resourceName: 'banana',
     date: new Date('2023-10-01T09:09:22-07:00'),
-    route: '',
   };
 
   store.setNotifications([newerNote, olderNote]);
   expect(store.getNotifications()).toStrictEqual([olderNote, newerNote]);
 
   // Update notes, sorted by earliest date.
-  const newestNote: Notice = {
-    kind: 'access-lists',
+  const newestNote: Notification = {
+    item: {
+      kind: NotificationKind.AccessList,
+      resourceName: 'carrot',
+      route: '',
+    },
     id: '333',
-    resourceName: 'carrot',
     date: new Date('2023-11-23T09:09:22-07:00'),
-    route: '',
   };
-  const newestOlderNote: Notice = {
-    kind: 'access-lists',
+  const newestOlderNote: Notification = {
+    item: {
+      kind: NotificationKind.AccessList,
+      resourceName: 'carrot',
+      route: '',
+    },
     id: '444',
-    resourceName: 'carrot',
     date: new Date('2023-10-03T09:09:22-07:00'),
-    route: '',
   };
-  const newestOldestNote: Notice = {
-    kind: 'access-lists',
+  const newestOldestNote: Notification = {
+    item: {
+      kind: NotificationKind.AccessList,
+      resourceName: 'carrot',
+      route: '',
+    },
     id: '444',
-    resourceName: 'carrot',
     date: new Date('2023-10-01T09:09:22-07:00'),
-    route: '',
   };
   store.setNotifications([newestNote, newestOldestNote, newestOlderNote]);
   expect(store.getNotifications()).toStrictEqual([
@@ -68,4 +83,9 @@ test('get/set/update notifications', async () => {
     newestOlderNote,
     newestNote,
   ]);
+
+  // Test has notifications
+  expect(
+    store.hasNotificationsByKind(NotificationKind.AccessList)
+  ).toBeTruthy();
 });

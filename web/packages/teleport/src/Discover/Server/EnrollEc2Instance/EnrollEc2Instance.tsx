@@ -19,7 +19,7 @@ import { Box, Text } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { getErrMessage } from 'shared/utils/errorType';
+import { getErrMessage } from 'shared/utils/error';
 
 import cfg from 'teleport/config';
 import { NodeMeta, useDiscover } from 'teleport/Discover/useDiscover';
