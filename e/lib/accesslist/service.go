@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -82,6 +83,9 @@ type ServiceConfig struct {
 	// AccessLists is the access list service to use.
 	AccessLists services.AccessLists
 
+	// AccessListReviews is the access list reviews service to use.
+	AccessListReviews services.AccessListReviews
+
 	// Emitter is the event emitter to use.
 	Emitter apievents.Emitter
 
@@ -110,6 +114,10 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 
 	if c.AccessLists == nil {
 		return trace.BadParameter("accesslists service is missing")
+	}
+
+	if c.AccessListReviews == nil {
+		return trace.BadParameter("accesslistreviews service is missing")
 	}
 
 	if c.Emitter == nil {
@@ -146,14 +154,15 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 type Service struct {
 	accesslistv1.UnimplementedAccessListServiceServer
 
-	log         logrus.FieldLogger
-	authorizer  authz.Authorizer
-	accessLists services.AccessLists
-	usageEvents UsageEventsClient
-	emitter     apievents.Emitter
-	clock       clockwork.Clock
-	cachedUsers UsersService
-	authServer  AuthServer
+	log               logrus.FieldLogger
+	authorizer        authz.Authorizer
+	accessLists       services.AccessLists
+	accessListReviews services.AccessListReviews
+	usageEvents       UsageEventsClient
+	emitter           apievents.Emitter
+	clock             clockwork.Clock
+	cachedUsers       UsersService
+	authServer        AuthServer
 }
 
 // NewService creates a new Access List gRPC service.
@@ -163,14 +172,15 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		log:         cfg.Logger,
-		authorizer:  cfg.Authorizer,
-		accessLists: cfg.AccessLists,
-		usageEvents: cfg.UsageEvents,
-		emitter:     cfg.Emitter,
-		clock:       cfg.Clock,
-		cachedUsers: cfg.CachedUsersServices,
-		authServer:  cfg.AuthServer,
+		log:               cfg.Logger,
+		authorizer:        cfg.Authorizer,
+		accessLists:       cfg.AccessLists,
+		accessListReviews: cfg.AccessListReviews,
+		usageEvents:       cfg.UsageEvents,
+		emitter:           cfg.Emitter,
+		clock:             cfg.Clock,
+		cachedUsers:       cfg.CachedUsersServices,
+		authServer:        cfg.AuthServer,
 	}, nil
 }
 
@@ -1232,6 +1242,132 @@ func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.Ac
 	return &accesslistv1.AccessRequestPromoteResponse{
 		AccessRequest: accessRequest,
 	}, nil
+}
+
+// ListAccessListReviews will list access list reviews for a particular access list.
+func (s *Service) ListAccessListReviews(ctx context.Context, req *accesslistv1.ListAccessListReviewsRequest) (*accesslistv1.ListAccessListReviewsResponse, error) {
+	if err := s.authOrIsOwner(ctx, req.AccessList, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	reviews, nextToken, err := s.accessListReviews.ListAccessListReviews(ctx, req.AccessList, int(req.PageSize), req.NextToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &accesslistv1.ListAccessListReviewsResponse{
+		Reviews:   make([]*accesslistv1.Review, len(reviews)),
+		NextToken: nextToken,
+	}
+
+	for i, review := range reviews {
+		resp.Reviews[i] = conv.ToReviewProto(review)
+	}
+
+	return resp, nil
+}
+
+// CreateAccessListReview will create a new review for an access list. It will also modify the original access list
+// and its members depending on the details of the review.
+func (s *Service) CreateAccessListReview(ctx context.Context, req *accesslistv1.CreateAccessListReviewRequest) (*accesslistv1.CreateAccessListReviewResponse, error) {
+	review, err := conv.FromReviewProto(req.Review)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.authOrIsOwner(ctx, review.Spec.AccessList, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	user, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	username := user.GetIdentity().Username
+
+	resp, createErr := s.createAccessListReview(ctx, review, username)
+
+	s.emitCreateAccessListReview(ctx, username, review.Spec.AccessList, review.Spec.Notes, createErr)
+
+	return resp, trace.Wrap(createErr)
+}
+
+// createAccessListReview is a helper for creating the access list review that returns the response and an error.
+func (s *Service) createAccessListReview(ctx context.Context, review *accesslist.Review, username string) (*accesslistv1.CreateAccessListReviewResponse, error) {
+	// Make sure the reviewers reflect the current user and the review date is recorded as now.
+	review.Spec.Reviewers = []string{username}
+	review.Spec.ReviewDate = s.clock.Now()
+
+	updatedReview, err := s.accessListReviews.CreateAccessListReview(ctx, review)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessList, err := s.accessLists.GetAccessList(ctx, review.Spec.AccessList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &accesslistv1.CreateAccessListReviewResponse{
+		ReviewName:    updatedReview.GetName(),
+		NextAuditDate: timestamppb.New(accessList.Spec.Audit.NextAuditDate),
+	}, nil
+}
+
+// emitCreateAccessListReview will emit the create event for an access list review.
+func (s *Service) emitCreateAccessListReview(ctx context.Context, username, accessListName, reviewMessage string, createErr error) {
+	code := events.AccessListReviewSuccessCode
+	var errorMsg string
+	if createErr != nil {
+		errorMsg = createErr.Error()
+		code = events.AccessListReviewFailureCode
+	}
+
+	event := &apievents.AccessListReview{
+		Metadata: apievents.Metadata{
+			Type: events.AccessListReviewEvent,
+			Code: code,
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      accessListName,
+			UpdatedBy: username,
+		},
+		// TODO(mdwn): Expand the access list review metadata, this isn't quite enough.
+		AccessListReviewMetadata: apievents.AccessListReviewMetadata{
+			Message: reviewMessage,
+		},
+		Status: apievents.Status{
+			Success: createErr == nil,
+			Error:   errorMsg,
+		},
+	}
+
+	if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
+		s.log.WithError(emitErr).Warnf("Failed to emit access list review create: %v", event)
+	}
+}
+
+// DeleteAccessListReview will delete an access list review from the backend.
+func (s *Service) DeleteAccessListReview(ctx context.Context, req *accesslistv1.DeleteAccessListReviewRequest) (*emptypb.Empty, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := &services.Context{
+		User: authCtx.User,
+	}
+
+	_, err = authz.AuthorizeContextWithVerbs(ctx, s.log, authCtx, true, ruleCtx, types.KindAccessList, types.VerbDelete)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.accessListReviews.DeleteAccessListReview(ctx, req.AccessListName, req.ReviewName); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 // Check if the user is either authorized for the access list or owns this access list.

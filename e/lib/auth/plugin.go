@@ -218,6 +218,7 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	accessListSvc, err := accesslist.NewService(accesslist.ServiceConfig{
 		Authorizer:          p.authServer.Authorizer,
 		AccessLists:         accessListStorage,
+		AccessListReviews:   accessListStorage,
 		Emitter:             p.authServer.Emitter,
 		UsageEvents:         p.authServer.AuthServer,
 		Clock:               p.authServer.AuthServer.GetClock(),

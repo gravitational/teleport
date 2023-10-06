@@ -59,6 +59,9 @@ var cmpOpts = []cmp.Option{
 	cmpopts.SortSlices(func(a, b *accesslist.AccessList) bool {
 		return a.GetName() < b.GetName()
 	}),
+	cmpopts.SortSlices(func(a, b *accesslist.Review) bool {
+		return a.GetName() < b.GetName()
+	}),
 }
 
 func TestService_GetAccessLists(t *testing.T) {
@@ -650,6 +653,7 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 	svc, err = NewService(ServiceConfig{
 		Authorizer:          authorizer,
 		AccessLists:         storage,
+		AccessListReviews:   storage,
 		Emitter:             emitter,
 		UsageEvents:         usageEvents,
 		Clock:               clock,
@@ -1144,6 +1148,72 @@ func TestBatchAccessListMemberMetadata(t *testing.T) {
 	}
 }
 
+func TestService_ListAccessListReviews(t *testing.T) {
+	t.Parallel()
+
+	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
+
+	a1 := newAccessList(t, "1", clock)
+	a2 := newAccessList(t, "2", clock)
+
+	createAccessListsAndMembers(t, ctx, svc, emitter, nil, []*accesslist.AccessList{a1, a2}, nil)
+
+	require.Empty(t, listAllAccessListReviews(ctx, t, svc, a1.GetName(), 1))
+	require.Empty(t, listAllAccessListReviews(ctx, t, svc, a2.GetName(), 1))
+
+	review1ForA1 := newAccessListReview(t, a1.GetName())
+	review2ForA1 := newAccessListReview(t, a1.GetName())
+	review3ForA1 := newAccessListReview(t, a1.GetName())
+	review1ForA2 := newAccessListReview(t, a2.GetName())
+	review2ForA2 := newAccessListReview(t, a2.GetName())
+
+	createReviews(ctx, t, svc, emitter, review1ForA1, review2ForA1, review3ForA1)
+	createReviews(ownerCtx, t, svc, emitter, review1ForA2, review2ForA2)
+
+	reviews := listAllAccessListReviews(ctx, t, svc, a1.GetName(), 1)
+	require.Empty(t, cmp.Diff([]*accesslist.Review{review1ForA1, review2ForA1, review3ForA1}, reviews, cmpOpts...))
+	reviews = listAllAccessListReviews(ctx, t, svc, a2.GetName(), 1)
+	require.Empty(t, cmp.Diff([]*accesslist.Review{review1ForA2, review2ForA2}, reviews, cmpOpts...))
+}
+
+func TestService_DeleteAccessListReviews(t *testing.T) {
+	t.Parallel()
+
+	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
+
+	a1 := newAccessList(t, "1", clock)
+	a2 := newAccessList(t, "2", clock)
+
+	createAccessListsAndMembers(t, ctx, svc, emitter, nil, []*accesslist.AccessList{a1, a2}, nil)
+
+	require.Empty(t, listAllAccessListReviews(ctx, t, svc, a1.GetName(), 1))
+	require.Empty(t, listAllAccessListReviews(ctx, t, svc, a2.GetName(), 1))
+
+	review1ForA1 := newAccessListReview(t, a1.GetName())
+	review2ForA1 := newAccessListReview(t, a1.GetName())
+	review3ForA1 := newAccessListReview(t, a1.GetName())
+	review1ForA2 := newAccessListReview(t, a2.GetName())
+	review2ForA2 := newAccessListReview(t, a2.GetName())
+
+	createReviews(ctx, t, svc, emitter, review1ForA1, review2ForA1, review3ForA1)
+	createReviews(ownerCtx, t, svc, emitter, review1ForA2, review2ForA2)
+
+	_, err := svc.DeleteAccessListReview(ownerCtx, &accesslistv1.DeleteAccessListReviewRequest{
+		AccessListName: review1ForA1.Spec.AccessList,
+		ReviewName:     review1ForA1.GetName(),
+	})
+	require.True(t, trace.IsAccessDenied(err))
+
+	_, err = svc.DeleteAccessListReview(ctx, &accesslistv1.DeleteAccessListReviewRequest{
+		AccessListName: review1ForA1.Spec.AccessList,
+		ReviewName:     review1ForA1.GetName(),
+	})
+	require.NoError(t, err)
+
+	reviews := listAllAccessListReviews(ctx, t, svc, a1.GetName(), 1)
+	require.Empty(t, cmp.Diff([]*accesslist.Review{review2ForA1, review3ForA1}, reviews, cmpOpts...))
+}
+
 func listAllAccessListMembers(ctx context.Context, t *testing.T, service *Service, accessListName string, pageSize int) []*accesslist.AccessListMember {
 	t.Helper()
 
@@ -1168,6 +1238,56 @@ func listAllAccessListMembers(ctx context.Context, t *testing.T, service *Servic
 	}
 
 	return members
+}
+
+func createReviews(ctx context.Context, t *testing.T, svc *Service, emitter *eventstest.ChannelEmitter, reviews ...*accesslist.Review) {
+	t.Helper()
+
+	user, err := authz.UserFromContext(ctx)
+	require.NoError(t, err)
+	username := user.GetIdentity().Username
+
+	for _, review := range reviews {
+		resp, err := svc.CreateAccessListReview(ctx, &accesslistv1.CreateAccessListReviewRequest{
+			Review: conv.ToReviewProto(review),
+		})
+		require.NoError(t, err)
+
+		expectEvent(t, events.AccessListReviewSuccessCode, emitter, func(event *apievents.AccessListReview) {
+			require.True(t, event.Success)
+		})
+
+		// Update info for the review.
+		review.Spec.Reviewers = []string{username}
+		review.Spec.ReviewDate = svc.clock.Now()
+		review.SetName(resp.ReviewName)
+	}
+}
+
+func listAllAccessListReviews(ctx context.Context, t *testing.T, service *Service, accessListName string, pageSize int) []*accesslist.Review {
+	t.Helper()
+
+	var nextToken string
+	var reviews []*accesslist.Review
+	for {
+		resp, err := service.ListAccessListReviews(ctx, &accesslistv1.ListAccessListReviewsRequest{
+			PageSize:   int32(pageSize),
+			NextToken:  nextToken,
+			AccessList: accessListName,
+		})
+		require.NoError(t, err)
+
+		for _, review := range resp.Reviews {
+			reviews = append(reviews, mustFromReviewProto(t, review))
+		}
+
+		nextToken = resp.NextToken
+		if nextToken == "" {
+			break
+		}
+	}
+
+	return reviews
 }
 
 func genUserContext(ctx context.Context, username string, groups []string, traits map[string][]string) context.Context {
@@ -1280,6 +1400,15 @@ func mustFromMemberProto(t *testing.T, member *accesslistv1.Member, opts ...conv
 	return out
 }
 
+func mustFromReviewProto(t *testing.T, review *accesslistv1.Review) *accesslist.Review {
+	t.Helper()
+
+	out, err := conv.FromReviewProto(review)
+	require.NoError(t, err)
+
+	return out
+}
+
 func mustFromProtoAll(t *testing.T, accessLists ...*accesslistv1.AccessList) []*accesslist.AccessList {
 	t.Helper()
 
@@ -1322,6 +1451,24 @@ func createAccessListsAndMembers(t *testing.T, ctx context.Context, service *Ser
 			}
 		})
 	}
+}
+
+func newAccessListReview(t *testing.T, accessListName string) *accesslist.Review {
+	t.Helper()
+
+	review, err := accesslist.NewReview(
+		header.Metadata{
+			Name: "dummy", // This will be overwritten by the service.
+		},
+		accesslist.ReviewSpec{
+			AccessList: accessListName,
+			Reviewers:  []string{"dummy"}, // This will be overwritten as well.
+			ReviewDate: time.Now(),        // This will be overwritten by the service.
+		},
+	)
+	require.NoError(t, err)
+
+	return review
 }
 
 func expectEvent[T apievents.AuditEvent](t *testing.T, code string, emitter *eventstest.ChannelEmitter, fn func(T)) {
