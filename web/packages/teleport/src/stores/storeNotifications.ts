@@ -15,19 +15,26 @@
  */
 
 import { Store } from 'shared/libs/stores';
+import { assertUnreachable } from 'shared/utils/error';
 
-type NoticeKinds = 'access-lists';
+export enum NotificationKind {
+  AccessList = 'access-list',
+}
 
-export type Notice = {
-  kind: NoticeKinds;
-  id: string;
+type AccessListNotification = {
+  kind: NotificationKind.AccessList;
   resourceName: string;
-  date: Date;
   route: string;
 };
 
+export type Notification = {
+  item: AccessListNotification;
+  id: string;
+  date: Date;
+};
+
 export type NotificationState = {
-  notices: Notice[];
+  notices: Notification[];
 };
 
 const defaultNotificationState: NotificationState = {
@@ -41,7 +48,7 @@ export class StoreNotifications extends Store<NotificationState> {
     return this.state.notices;
   }
 
-  setNotifications(notices: Notice[]) {
+  setNotifications(notices: Notification[]) {
     // Sort by earliest dates.
     const sortedNotices = notices.sort((a, b) => {
       return a.date.getTime() - b.date.getTime();
@@ -49,13 +56,27 @@ export class StoreNotifications extends Store<NotificationState> {
     this.setState({ notices: [...sortedNotices] });
   }
 
-  updateNotificationsByKind(notices: Notice[], kind: NoticeKinds) {
+  updateNotificationsByKind(notices: Notification[], kind: NotificationKind) {
     switch (kind) {
-      case 'access-lists':
+      case NotificationKind.AccessList:
         const filtered = this.state.notices.filter(
-          n => n.kind !== 'access-lists'
+          n => n.item.kind !== NotificationKind.AccessList
         );
         this.setNotifications([...filtered, ...notices]);
+        return;
+      default:
+        assertUnreachable(kind);
+    }
+  }
+
+  hasNotificationsByKind(kind: NotificationKind) {
+    switch (kind) {
+      case NotificationKind.AccessList:
+        return this.getNotifications().some(
+          n => n.item.kind === NotificationKind.AccessList
+        );
+      default:
+        assertUnreachable(kind);
     }
   }
 }

@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+/**
+ * @deprecated Import assertUnreachable from `shared/utils/error` instead.
+ */
 export function assertUnreachable(x: never): never {
   throw new Error(`Unhandled case: ${x}`);
 }

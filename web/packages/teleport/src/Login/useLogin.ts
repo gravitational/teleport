@@ -17,7 +17,7 @@
 import { useState } from 'react';
 import { useAttempt } from 'shared/hooks';
 import { AuthProvider } from 'shared/services';
-import { isPrivateKeyRequiredError } from 'shared/utils/errorType';
+import { isPrivateKeyRequiredError } from 'shared/utils/error';
 
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';

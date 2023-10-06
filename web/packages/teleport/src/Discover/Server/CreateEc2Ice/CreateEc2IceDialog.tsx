@@ -26,7 +26,7 @@ import {
 import * as Icons from 'design/Icon';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
 
-import { getErrMessage } from 'shared/utils/errorType';
+import { getErrMessage } from 'shared/utils/error';
 
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 

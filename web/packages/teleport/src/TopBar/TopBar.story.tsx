@@ -24,6 +24,7 @@ import TeleportContext from 'teleport/teleportContext';
 import { makeUserContext } from 'teleport/services/user';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
+import { NotificationKind } from 'teleport/stores/storeNotifications';
 
 import { TopBar } from './TopBar';
 
@@ -70,25 +71,31 @@ export function TopBarWithNotifications() {
   ctx.storeNotifications.state = {
     notices: [
       {
-        kind: 'access-lists',
+        item: {
+          kind: NotificationKind.AccessList,
+          resourceName: 'banana',
+          route: '',
+        },
         id: '111',
-        resourceName: 'banana',
         date: new Date(),
-        route: '',
       },
       {
-        kind: 'access-lists',
+        item: {
+          kind: NotificationKind.AccessList,
+          resourceName: 'apple',
+          route: '',
+        },
         id: '222',
-        resourceName: 'apple',
         date: new Date(),
-        route: '',
       },
       {
-        kind: 'access-lists',
+        item: {
+          kind: NotificationKind.AccessList,
+          resourceName: 'carrot',
+          route: '',
+        },
         id: '333',
-        resourceName: 'carrot',
         date: new Date(),
-        route: '',
       },
     ],
   };

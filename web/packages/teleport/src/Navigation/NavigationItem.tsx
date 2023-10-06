@@ -28,14 +28,11 @@ import {
   LinkContent,
   NavigationItemSize,
 } from 'teleport/Navigation/common';
-
 import useStickyClusterId from 'teleport/useStickyClusterId';
-
 import localStorage from 'teleport/services/localStorage';
-
 import { useTeleport } from 'teleport';
-
 import { NavTitle, RecommendationStatus } from 'teleport/types';
+import { NotificationKind } from 'teleport/stores/storeNotifications';
 
 import type {
   TeleportFeatureNavigationItem,
@@ -161,9 +158,9 @@ export function NavigationItem(props: NavigationItemProps) {
   // renderHighlightFeature returns red dot component if the feature recommendation state is 'NOTIFY'
   function renderHighlightFeature(featureName: NavTitle): JSX.Element {
     if (featureName === NavTitle.AccessLists) {
-      const hasNotifications = ctx.storeNotifications
-        .getNotifications()
-        .some(n => n.kind === 'access-lists');
+      const hasNotifications = ctx.storeNotifications.hasNotificationsByKind(
+        NotificationKind.AccessList
+      );
 
       if (hasNotifications) {
         return <AttentionDot />;
