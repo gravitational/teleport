@@ -236,6 +236,7 @@ func newAuthConfig(t *testing.T, log utils.Logger) *servicecfg.Config {
 	config.Log = log
 	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	config.MaxRetryPeriod = 25 * time.Millisecond
+	config.PollingPeriod = 2 * time.Second
 
 	config.Auth.Enabled = true
 	config.Auth.NoAudit = true
@@ -278,6 +279,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, log utils.Logger) *ser
 	config.Log = log
 	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	config.MaxRetryPeriod = 25 * time.Millisecond
+	config.PollingPeriod = 2 * time.Second
 
 	config.Proxy.Enabled = true
 	config.Proxy.DisableWebInterface = true
