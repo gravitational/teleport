@@ -36,8 +36,8 @@ use consts::{
 };
 use ironrdp_pdu::{custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::esc::{
-    rpce, EstablishContextCall, EstablishContextReturn, ListReadersCall, ListReadersReturn,
-    ScardCall,
+    rpce, CardStateFlags, EstablishContextCall, EstablishContextReturn, GetStatusChangeCall,
+    GetStatusChangeReturn, ListReadersCall, ListReadersReturn, ReaderStateCommonCall, ScardCall,
 };
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::{
@@ -145,9 +145,129 @@ impl TeleportRdpdrBackend {
             req,
             Box::new(ListReadersReturn::new(
                 ReturnCode::Success,
-                vec!["Teleport".to_string()],
+                vec![scard::TELEPORT_READER_NAME.to_string()],
             )),
         )
+    }
+
+    fn handle_get_status_change(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        call: GetStatusChangeCall,
+    ) -> PduResult<()> {
+        let timeout = call.timeout;
+        let context_id = call.context.value;
+
+        if timeout != scard::TIMEOUT_INFINITE && timeout != scard::TIMEOUT_IMMEDIATE {
+            // We've never seen one of these but we log a warning here in case we ever come
+            // across one and need to debug a related issue.
+            warn!(
+                "logic for a non-infinite/non-immediate timeout [{}] is not implemented",
+                timeout
+            );
+        }
+
+        let get_status_change_ret = Self::create_get_status_change_return(call);
+
+        // We have no status change to report, cache a response
+        // for later in case we get an SCARD_IOCTL_CANCEL.
+        if Self::has_no_change(&get_status_change_ret) {
+            if timeout != scard::TIMEOUT_INFINITE {
+                return Err(other_err!(
+                    "TeleportRdpdrBackend::handle_list_readers",
+                    "got no change for non-infinite timeout",
+                ));
+            }
+
+            // Received a GetStatusChangeCall with an infinite timeout, so we're adding
+            // a corresponding DeviceControlResponse holding a GetStatusChangeReturn
+            // with its return code set to SCARD_E_CANCELLED to this Context. This value will
+            // be returned when we get an SCARD_IOCTL_CANCEL call for this Context.
+            self.contexts.set_scard_cancel_response(
+                context_id,
+                DeviceControlResponse::new(
+                    req,
+                    NtStatus::Success,
+                    Box::new(GetStatusChangeReturn::new(
+                        ReturnCode::Cancelled,
+                        get_status_change_ret.into_inner().reader_states,
+                    )),
+                ),
+            )?;
+
+            debug!("blocking GetStatusChange call indefinitely (since our status never changes) until we receive an SCARD_IOCTL_CANCEL");
+
+            return Ok(());
+        }
+
+        // We have some status change to report, send it to the server.
+        self.write_rdpdr_dev_ctl_resp(req, Box::new(get_status_change_ret))
+            .map_err(|_e| {
+                other_err!(
+                    "TeleportRdpdrBackend::handle_list_readers",
+                    "failed to send DeviceControlResponse to server",
+                )
+            })?;
+
+        Ok(())
+    }
+
+    fn create_get_status_change_return(
+        call: GetStatusChangeCall,
+    ) -> rpce::Pdu<GetStatusChangeReturn> {
+        let mut reader_states = vec![];
+        for state in call.states {
+            match state.reader.as_str() {
+                // PnP is Plug-and-Play. This special reader "name" is used to monitor for
+                // new readers being plugged in.
+                "\\\\?PnP?\\Notification" => {
+                    reader_states.push(ReaderStateCommonCall {
+                        current_state: state.common.current_state,
+                        event_state: state.common.current_state,
+                        atr_length: state.common.atr_length,
+                        atr: state.common.atr,
+                    });
+                }
+                // This is our actual emulated smartcard reader. We always advertise its state as
+                // "present".
+                scard::TELEPORT_READER_NAME => {
+                    let (atr_length, atr) = scard::padded_atr::<36>();
+                    reader_states.push(ReaderStateCommonCall {
+                        current_state: state.common.current_state,
+                        event_state: CardStateFlags::SCARD_STATE_CHANGED
+                            | CardStateFlags::SCARD_STATE_PRESENT,
+                        atr_length,
+                        atr,
+                    });
+                }
+                // All other reader names are unknown and unexpected.
+                _ => {
+                    warn!(
+                        "got unexpected reader name [{}], ignoring",
+                        state.reader.as_str()
+                    );
+                    reader_states.push(ReaderStateCommonCall {
+                        current_state: state.common.current_state,
+                        event_state: CardStateFlags::SCARD_STATE_CHANGED
+                            | CardStateFlags::SCARD_STATE_UNKNOWN
+                            | CardStateFlags::SCARD_STATE_IGNORE,
+                        atr_length: state.common.atr_length,
+                        atr: state.common.atr,
+                    });
+                }
+            }
+        }
+
+        GetStatusChangeReturn::new(ReturnCode::Success, reader_states)
+    }
+
+    fn has_no_change(pdu: &rpce::Pdu<GetStatusChangeReturn>) -> bool {
+        for state in &pdu.into_inner_ref().reader_states {
+            if state.current_state != state.event_state {
+                return false;
+            }
+        }
+        true
     }
 
     fn write_rdpdr_dev_ctl_resp(
@@ -204,6 +324,7 @@ impl RdpdrBackend for TeleportRdpdrBackend {
             ScardCall::AccessStartedEventCall(call) => self.handle_access_started(req, call),
             ScardCall::EstablishContextCall(call) => self.handle_establish_context(req, call),
             ScardCall::ListReadersCall(call) => self.handle_list_readers(req, call),
+            ScardCall::GetStatusChangeCall(call) => self.handle_get_status_change(req, call),
             ScardCall::Unsupported => Ok(()),
         }
     }
