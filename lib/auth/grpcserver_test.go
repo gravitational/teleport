@@ -1726,7 +1726,6 @@ func TestIsMFARequired(t *testing.T) {
 
 	for _, authPrefRequireMFAType := range requireMFATypes {
 		t.Run(fmt.Sprintf("authPref=%v", authPrefRequireMFAType.String()), func(t *testing.T) {
-
 			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 				Type:           constants.Local,
 				SecondFactor:   constants.SecondFactorOptional,
@@ -1773,16 +1772,25 @@ func TestIsMFARequired(t *testing.T) {
 
 					// If auth pref or role require session MFA, and MFA is not already
 					// verified according to private key policy, expect MFA required.
-					expectRequired := (role.GetOptions().RequireMFAType.IsSessionMFARequired() || authPref.GetRequireMFAType().IsSessionMFARequired()) &&
-						!role.GetPrivateKeyPolicy().MFAVerified() && !authPref.GetPrivateKeyPolicy().MFAVerified()
-					require.Equal(t, expectRequired, resp.Required, "Expected IsMFARequired to return %v but got %v", expectRequired, resp.Required)
+					wantRequired :=
+						(role.GetOptions().RequireMFAType.IsSessionMFARequired() || authPref.GetRequireMFAType().IsSessionMFARequired()) &&
+							!role.GetPrivateKeyPolicy().MFAVerified() &&
+							!authPref.GetPrivateKeyPolicy().MFAVerified()
+					var wantMFARequired proto.MFARequired
+					if wantRequired {
+						wantMFARequired = proto.MFARequired_MFA_REQUIRED_YES
+					} else {
+						wantMFARequired = proto.MFARequired_MFA_REQUIRED_NO
+					}
+					assert.Equal(t, wantRequired, resp.Required, "Required mismatch")
+					assert.Equal(t, wantMFARequired, resp.MFARequired, "IsMFARequired mismatch")
 				})
 			}
 		})
 	}
 }
 
-func TestIsMFARequiredUnauthorized(t *testing.T) {
+func TestIsMFARequired_unauthorized(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -1854,8 +1862,9 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 			Node:  "node1",
 		}},
 	})
-	require.NoError(t, err)
-	require.True(t, resp.Required)
+	require.NoError(t, err, "IsMFARequired")
+	assert.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, resp.MFARequired, "MFARequired mismatch")
+	assert.True(t, resp.Required, "Required mismatch")
 
 	// Call the endpoint for an unauthorized login.
 	resp, err = cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
@@ -1864,13 +1873,12 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 			Node:  "node1",
 		}},
 	})
-
-	// When unauthorized, expect a silent `false`.
-	require.NoError(t, err)
-	require.False(t, resp.Required)
+	require.NoError(t, err, "IsMFARequired silent failure wanted")
+	assert.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, resp.MFARequired, "MFARequired mismatch")
+	assert.False(t, resp.Required, "Required mismatch")
 }
 
-func TestIsMFARequired_NodeMatch(t *testing.T) {
+func TestIsMFARequired_nodeMatch(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 
 	ctx := context.Background()
@@ -1907,61 +1915,64 @@ func TestIsMFARequired_NodeMatch(t *testing.T) {
 	for _, tc := range []struct {
 		desc string
 		// IsMFARequired only expects a host name or ip without the port.
-		node        string
-		expectMatch require.BoolAssertionFunc
+		node string
+		want proto.MFARequired
 	}{
 		{
-			desc:        "OK uuid match",
-			node:        node.GetName(),
-			expectMatch: require.True,
+			desc: "OK uuid match",
+			node: node.GetName(),
+			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 		{
-			desc:        "OK host name match",
-			node:        node.GetHostname(),
-			expectMatch: require.True,
+			desc: "OK host name match",
+			node: node.GetHostname(),
+			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 		{
-			desc:        "OK addr match",
-			node:        node.GetAddr(),
-			expectMatch: require.True,
+			desc: "OK addr match",
+			node: node.GetAddr(),
+			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 		{
-			desc:        "OK public addr 1 match",
-			node:        "node.example.com",
-			expectMatch: require.True,
+			desc: "OK public addr 1 match",
+			node: "node.example.com",
+			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 		{
-			desc:        "OK public addr 2 match",
-			node:        "localhost",
-			expectMatch: require.True,
+			desc: "OK public addr 2 match",
+			node: "localhost",
+			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 		{
-			desc:        "NOK label match",
-			node:        "foo",
-			expectMatch: require.False,
+			desc: "NOK label match",
+			node: "foo",
+			want: proto.MFARequired_MFA_REQUIRED_NO,
 		},
 		{
-			desc:        "NOK unknown ip",
-			node:        "1.2.3.4",
-			expectMatch: require.False,
+			desc: "NOK unknown ip",
+			node: "1.2.3.4",
+			want: proto.MFARequired_MFA_REQUIRED_NO,
 		},
 		{
-			desc:        "NOK unknown addr",
-			node:        "unknown.example.com",
-			expectMatch: require.False,
+			desc: "NOK unknown addr",
+			node: "unknown.example.com",
+			want: proto.MFARequired_MFA_REQUIRED_NO,
 		},
 	} {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
+
 			resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
 					Login: user.GetName(),
 					Node:  tc.node,
 				}},
 			})
-			require.NoError(t, err)
-			tc.expectMatch(t, resp.Required)
+			require.NoError(t, err, "IsMFARequired")
+
+			assert.Equal(t, tc.want, resp.MFARequired, "MFARequired mismatch")
+			assert.Equal(t, MFARequiredToBool(tc.want), resp.Required, "Required mismatch")
 		})
 	}
 }

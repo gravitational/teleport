@@ -161,8 +161,13 @@
           "forScopes": ["oss", "enterprise"],
           "entries": [
             {
-              "title": "AWS Terraform",
-              "slug": "/deploy-a-cluster/deployments/aws-terraform/",
+              "title": "AWS HA Terraform",
+              "slug": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
+              "forScopes": ["oss", "enterprise"]
+            },
+            {
+              "title": "AWS Single-Instance Terraform",
+              "slug": "/deploy-a-cluster/deployments/aws-starter-cluster-terraform/",
               "forScopes": ["oss", "enterprise"]
             },
             {
@@ -616,8 +621,8 @@
           "slug": "/management/security/",
           "entries": [
             {
-              "title": "Privilege Elevation",
-              "slug": "/management/security/privilege-elevation/"
+              "title": "Restrict Access for Privileged Accounts",
+              "slug": "/management/security/restrict-privileges/"
             },
             {
               "title": "Reducing the Blast Radius of Attacks",
@@ -1650,7 +1655,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "13.4.0",
+      "version": "13.4.2",
       "major_version": "13",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -1819,7 +1824,12 @@
     },
     {
       "source": "/aws-terraform-guide/",
-      "destination": "/deploy-a-cluster/deployments/aws-terraform/",
+      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/aws-terraform/",
+      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
       "permanent": true
     },
     {
@@ -2154,7 +2164,7 @@
     },
     {
       "source": "/setup/deployments/aws-terraform/",
-      "destination": "/deploy-a-cluster/deployments/aws-terraform/",
+      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
       "permanent": true
     },
     {

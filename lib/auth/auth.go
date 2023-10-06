@@ -5165,7 +5165,25 @@ func (a *Server) ExportUpgradeWindows(ctx context.Context, req proto.ExportUpgra
 	return rsp, nil
 }
 
-func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+// MFARequiredToBool translates a [proto.MFARequired] value to a simple
+// "required bool".
+func MFARequiredToBool(m proto.MFARequired) (required bool) {
+	switch m {
+	case proto.MFARequired_MFA_REQUIRED_NO:
+		return false
+	default: // _UNSPECIFIED or _YES are both treated as required.
+		return true
+	}
+}
+
+func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (resp *proto.IsMFARequiredResponse, err error) {
+	// Assign Required as a function of MFARequired.
+	defer func() {
+		if resp != nil {
+			resp.Required = MFARequiredToBool(resp.MFARequired)
+		}
+	}()
+
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5173,9 +5191,13 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 	switch state := checker.GetAccessState(authPref); state.MFARequired {
 	case services.MFARequiredAlways:
-		return &proto.IsMFARequiredResponse{Required: true}, nil
+		return &proto.IsMFARequiredResponse{
+			MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+		}, nil
 	case services.MFARequiredNever:
-		return &proto.IsMFARequiredResponse{Required: false}, nil
+		return &proto.IsMFARequiredResponse{
+			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		}, nil
 	}
 
 	var noMFAAccessErr, notFoundErr error
@@ -5208,7 +5230,9 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			// private network IP), and MFA check was actually required, the
 			// Node itself will check the cert extensions and reject the
 			// connection.
-			return &proto.IsMFARequiredResponse{Required: false}, nil
+			return &proto.IsMFARequiredResponse{
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			}, nil
 		}
 
 		// Check RBAC against all matching nodes and return the first error.
@@ -5316,7 +5340,9 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	// No error means that MFA is not required for this resource by
 	// AccessChecker.
 	if noMFAAccessErr == nil {
-		return &proto.IsMFARequiredResponse{Required: false}, nil
+		return &proto.IsMFARequiredResponse{
+			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		}, nil
 	}
 	// Errors other than ErrSessionMFARequired mean something else is wrong,
 	// most likely access denied.
@@ -5328,12 +5354,16 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		// Mask the access denied errors by returning false to prevent resource
 		// name oracles. Auth will be denied (and generate an audit log entry)
 		// when the client attempts to connect.
-		return &proto.IsMFARequiredResponse{Required: false}, nil
+		return &proto.IsMFARequiredResponse{
+			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		}, nil
 	}
 	// If we reach here, the error from AccessChecker was
 	// ErrSessionMFARequired.
 
-	return &proto.IsMFARequiredResponse{Required: true}, nil
+	return &proto.IsMFARequiredResponse{
+		MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+	}, nil
 }
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices

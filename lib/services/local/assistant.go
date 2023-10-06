@@ -129,7 +129,7 @@ func (s *AssistService) DeleteAssistantConversation(ctx context.Context, req *as
 
 // deleteAllMessages deletes all messages in a conversation.
 func (s *AssistService) deleteAllMessages(ctx context.Context, username, conversationID string) error {
-	startKey := backend.Key(assistantMessagePrefix, username, conversationID)
+	startKey := backend.ExactKey(assistantMessagePrefix, username, conversationID)
 	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -179,7 +179,7 @@ func (s *AssistService) GetAssistantConversations(ctx context.Context, req *assi
 	if req.Username == "" {
 		return nil, trace.BadParameter("missing username")
 	}
-	startKey := backend.Key(assistantConversationPrefix, req.Username)
+	startKey := backend.ExactKey(assistantConversationPrefix, req.Username)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -218,7 +218,7 @@ func (s *AssistService) GetAssistantMessages(ctx context.Context, req *assist.Ge
 		return nil, trace.BadParameter("missing conversation ID")
 	}
 
-	startKey := backend.Key(assistantMessagePrefix, req.Username, req.ConversationId)
+	startKey := backend.ExactKey(assistantMessagePrefix, req.Username, req.ConversationId)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
