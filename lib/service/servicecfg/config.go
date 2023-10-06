@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -290,26 +289,22 @@ type Config struct {
 	authServers []utils.NetAddr
 }
 
-// Option applies an option value for a Config.
+// Option allows to customize default behaviour of service initialization defined by Config
 type Option interface {
 	Apply(any) error
 }
 
-// KubeMultiplexerConfigOption allows to modify multiplexer config for Kube Proxy TLS server's listener
-type KubeMultiplexerConfigOption func(any) error
+// KubeMultiplexerIgnoreSelfConnectionsOption signals that Proxy TLS server's listener should
+// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
+// connections there.
+type KubeMultiplexerIgnoreSelfConnectionsOption struct{}
 
-func (f KubeMultiplexerConfigOption) Apply(input any) error {
-	return f(input)
+func (k KubeMultiplexerIgnoreSelfConnectionsOption) Apply(input any) error {
+	return nil
 }
 
-func NewKubeMultiplexerConfigOption(val bool) KubeMultiplexerConfigOption {
-	return func(input any) error {
-		if cfg, ok := input.(*multiplexer.Config); ok {
-			cfg.IgnoreSelfConnections = val
-			return nil
-		}
-		return trace.BadParameter("unexpected option type - expected %T, got %T", &multiplexer.Config{}, input)
-	}
+func WithKubeMultiplexerIgnoreSelfConnectionsOption() KubeMultiplexerIgnoreSelfConnectionsOption {
+	return KubeMultiplexerIgnoreSelfConnectionsOption{}
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.

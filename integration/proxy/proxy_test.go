@@ -617,7 +617,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 				helpers.NewListener(t, service.ListenerKube, &tconf.FileDescriptors))
 
 			// Force Proxy kube server multiplexer to check required PROXY lines on all connections
-			tconf.Options = []servicecfg.Option{servicecfg.NewKubeMultiplexerConfigOption(true)}
+			tconf.Options = []servicecfg.Option{servicecfg.WithKubeMultiplexerIgnoreSelfConnectionsOption()}
 
 			kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
 			require.NoError(t, err)
