@@ -56,7 +56,7 @@ The top bar of Teleport Connect consists of:
   between them.
 - The **search bar** (in the middle), which allows you to search for resources across clusters.
 - The **cluster selector** (to the left of the search bar), which shows up only if you have set up
-  Trusted Clusters and there are leaf clusters connected to the root cluster. It lets you browse
+  trusted clusters and there are leaf clusters connected to the root cluster. It lets you browse
   leaf cluster resources. Also, the "Open new terminal" action will bind new terminal tabs to the selected cluster.
 - The **additional actions menu** (to the left of the profile selector), containing options such as
   opening a config file or creating an access request in an Enterprise cluster.
@@ -85,7 +85,7 @@ this by setting the environment variables `TELEPORT_PROXY` and `TELEPORT_CLUSTER
 Additionally, Teleport Connect prepends the `PATH`/`Path` environment variable in the session with the
 directory containing the tsh binary, even if [tsh is not globally available](#using-tsh-outside-of-teleport-connect).
 
-When using [Trusted Clusters](../management/admin/trustedclusters.mdx), the cluster selector allows
+When using [trusted clusters](../management/admin/trustedclusters.mdx), the cluster selector allows
 you to determine which cluster the shell session will be bound to. The selected cluster will be
 reflected in both the tab title and the status bar.
 
@@ -297,18 +297,18 @@ and follow the *Submit a Bug* link.
 Be sure to attach logs, which can be found under `~/Library/Application Support/Teleport Connect/logs`.
 The version of the app can be found in the app menu under the About Teleport Connect menu item.
 
-To get more detailed logs, run Teleport Connect with the `--debug` flag:
+To get more detailed logs, run Teleport Connect with the `--connect-debug` flag:
 
-(!docs/pages/connect-your-client/includes/launch-connect-with-flags-macos.mdx flags="--debug"!)
+(!docs/pages/connect-your-client/includes/launch-connect-with-flags-macos.mdx flags="--connect-debug"!)
 </TabItem>
 <TabItem label="Linux">
 Be sure to attach logs, which can be found under `~/.config/Teleport Connect/logs`. The app version
 can be found by pressing `Alt` to access the app menu, then -> Help -> About Teleport Connect.
 
-To get more detailed logs, run Teleport Connect with the `--debug` flag:
+To get more detailed logs, run Teleport Connect with the `--connect-debug` flag:
 
 ```code
-$ teleport-connect --debug
+$ teleport-connect --connect-debug
 ````
 </TabItem>
 <TabItem label="Windows">
@@ -317,10 +317,10 @@ You may need to adjust File Explorer to [view hidden files and folders](https://
 The app version can be found by pressing `Alt` to access the app menu -> Help -> About Teleport Connect.
 
 
-To get more detailed logs, open Teleport Connect from the Command Prompt with the `--debug` flag:
+To get more detailed logs, open Teleport Connect from the Command Prompt with the `--connect-debug` flag:
 
 ```code
-$ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --debug
+$ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --connect-debug
 ````
 </TabItem>
 </Tabs>

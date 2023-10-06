@@ -57,14 +57,17 @@ type ReviewSpec struct {
 
 // ReviewChanges are the changes that were made as part of the review.
 type ReviewChanges struct {
-	// FrequencyChanged  is populated if the audit frequency was changed.
-	FrequencyChanged time.Duration `json:"frequency_changed" yaml:"frequency_changed"`
-
 	// MembershipRequirementsChanged is populated if the requirements were changed as part of this review.
 	MembershipRequirementsChanged *Requires `json:"membership_requirements_changed" yaml:"membership_requirements_changed"`
 
 	// RemovedMembers contains the members that were removed as part of this review.
 	RemovedMembers []string `json:"removed_members" yaml:"removed_members"`
+
+	// ReviewFrequencyChanged is populated if the review frequency has changed.
+	ReviewFrequencyChanged ReviewFrequency `json:"review_frequency_changed" yaml:"review_frequency_changed"`
+
+	// ReviewDayOfMonthChanged changed is populated if the review day of month has changed.
+	ReviewDayOfMonthChanged ReviewDayOfMonth `json:"review_day_of_month_changed" yaml:"review_day_of_month_changed"`
 }
 
 // NewReview will create a new access list review.
@@ -145,7 +148,8 @@ func (r ReviewSpec) MarshalJSON() ([]byte, error) {
 func (r *ReviewChanges) UnmarshalJSON(data []byte) error {
 	type Alias ReviewChanges
 	review := struct {
-		FrequencyChanged string `json:"frequency_changed"`
+		ReviewFrequencyChanged  string `json:"review_frequency_changed"`
+		ReviewDayOfMonthChanged string `json:"review_day_of_month_changed"`
 		*Alias
 	}{
 		Alias: (*Alias)(r),
@@ -153,22 +157,20 @@ func (r *ReviewChanges) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &review); err != nil {
 		return trace.Wrap(err)
 	}
-
-	var err error
-	r.FrequencyChanged, err = time.ParseDuration(review.FrequencyChanged)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	r.ReviewFrequencyChanged = parseReviewFrequency(review.ReviewFrequencyChanged)
+	r.ReviewDayOfMonthChanged = parseReviewDayOfMonth(review.ReviewDayOfMonthChanged)
 	return nil
 }
 
 func (r ReviewChanges) MarshalJSON() ([]byte, error) {
 	type Alias ReviewChanges
 	return json.Marshal(&struct {
-		FrequencyChanged string `json:"frequency_changed"`
+		ReviewFrequencyChanged  string `json:"review_frequency_changed"`
+		ReviewDayOfMonthChanged string `json:"review_day_of_month_changed"`
 		Alias
 	}{
-		Alias:            (Alias)(r),
-		FrequencyChanged: r.FrequencyChanged.String(),
+		Alias:                   (Alias)(r),
+		ReviewFrequencyChanged:  r.ReviewFrequencyChanged.String(),
+		ReviewDayOfMonthChanged: r.ReviewDayOfMonthChanged.String(),
 	})
 }

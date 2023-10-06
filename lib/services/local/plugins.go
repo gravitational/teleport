@@ -73,7 +73,7 @@ func (s *PluginsService) DeletePlugin(ctx context.Context, name string) error {
 
 // DeleteAllPlugins implements service.Plugins
 func (s *PluginsService) DeleteAllPlugins(ctx context.Context) error {
-	startKey := backend.Key(pluginsPrefix, "")
+	startKey := backend.ExactKey(pluginsPrefix)
 	err := s.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)
@@ -131,7 +131,7 @@ func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey st
 	maxLimit := limit + 1
 
 	startKeyBytes := backend.Key(pluginsPrefix, startKey)
-	endKey := backend.RangeEnd(backend.Key(pluginsPrefix, ""))
+	endKey := backend.RangeEnd(backend.ExactKey(pluginsPrefix))
 	result, err := s.backend.GetRange(ctx, startKeyBytes, endKey, maxLimit)
 	if err != nil {
 		return nil, "", trace.Wrap(err)

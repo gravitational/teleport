@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package teleport.accesslist.v1;
 
-import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/resourceheader.proto";
 import "teleport/trait/v1/trait.proto";
@@ -80,11 +79,40 @@ message AccessListOwner {
 
 // AccessListAudit describes the audit configuration for an access list.
 message AccessListAudit {
-  // frequency is a duration that describes how often an access list must be audited.
-  google.protobuf.Duration frequency = 1;
+  reserved 1;
+  reserved "frequency";
 
   // next_audit_date is when the next audit date should be done by.
   google.protobuf.Timestamp next_audit_date = 2;
+
+  // recurrence is the recurrence definition
+  Recurrence recurrence = 3;
+}
+
+// ReviewFrequency is the frequency of reviews.
+enum ReviewFrequency {
+  REVIEW_FREQUENCY_UNSPECIFIED = 0;
+  REVIEW_FREQUENCY_ONE_MONTH = 1;
+  REVIEW_FREQUENCY_THREE_MONTHS = 3;
+  REVIEW_FREQUENCY_SIX_MONTHS = 6;
+  REVIEW_FREQUENCY_ONE_YEAR = 12;
+}
+
+// ReviewDayOfMonth is the day of month that reviews will repeat on.
+enum ReviewDayOfMonth {
+  REVIEW_DAY_OF_MONTH_UNSPECIFIED = 0;
+  REVIEW_DAY_OF_MONTH_FIRST = 1;
+  REVIEW_DAY_OF_MONTH_FIFTEENTH = 15;
+  REVIEW_DAY_OF_MONTH_LAST = 31;
+}
+
+// Recurrence is the definition for when reviews will be scheduled.
+message Recurrence {
+  // frequency is the frequency of reviews.
+  ReviewFrequency frequency = 1;
+
+  // day_of_month is the day of month that reviews will be scheduled on.
+  ReviewDayOfMonth day_of_month = 2;
 }
 
 // AccessListRequires describes a requirement section for an access list. A user must
@@ -187,12 +215,18 @@ message ReviewSpec {
 
 // ReviewChanges are the changes that were made as part of the review.
 message ReviewChanges {
-  // audit_frequency_changed is populated if the audit frequency was changed.
-  google.protobuf.Duration frequency_changed = 1;
+  reserved 1;
+  reserved "frequency_changed";
 
   // membership_requirements_changed is populated if the requirements were changed as part of this review.
   AccessListRequires membership_requirements_changed = 2;
 
   // removed_members contains the members that were removed as part of this review.
   repeated string removed_members = 3;
+
+  // review_frequency_changed is populated if the review frequency has changed.
+  ReviewFrequency review_frequency_changed = 4;
+
+  // review_day_of_month changed is populated if the review day of month has changed.
+  ReviewDayOfMonth review_day_of_month_changed = 5;
 }

@@ -191,7 +191,7 @@ func TestApplyAWSDatabaseNameSuffix(t *testing.T) {
 					resource: database,
 					renameFn: func(r types.ResourceWithLabels) {
 						db := r.(types.Database)
-						ApplyAWSDatabaseNameSuffix(db, services.AWSMatcherRDS)
+						ApplyAWSDatabaseNameSuffix(db, types.AWSMatcherRDS)
 					},
 					originalName:      tt.dbName,
 					nameOverrideLabel: overrideLabel,
@@ -220,7 +220,7 @@ func TestApplyAzureDatabaseNameSuffix(t *testing.T) {
 			region:         "East US", // we normalize regions, so this should become "eastus".
 			resourceGroup:  "Some Group",
 			subscriptionID: "11111111-2222-3333-4444-555555555555",
-			matcherType:    services.AzureMatcherMySQL,
+			matcherType:    types.AzureMatcherMySQL,
 			wantRename:     "some-db-mysql-eastus-Some-Group-11111111-2222-3333-4444-555555555555",
 			makeDBFunc:     makeAzureMySQLFlexDatabase,
 		},
@@ -230,7 +230,7 @@ func TestApplyAzureDatabaseNameSuffix(t *testing.T) {
 			region:         "eastus", // use the normalized region.
 			resourceGroup:  "(parens are invalid)",
 			subscriptionID: "11111111-2222-3333-4444-555555555555",
-			matcherType:    services.AzureMatcherMySQL,
+			matcherType:    types.AzureMatcherMySQL,
 			wantRename:     "some-db-mysql-eastus-11111111-2222-3333-4444-555555555555",
 			makeDBFunc:     makeAzureMySQLFlexDatabase,
 		},
@@ -240,7 +240,7 @@ func TestApplyAzureDatabaseNameSuffix(t *testing.T) {
 			region:         "eastus",
 			resourceGroup:  "Some Group",
 			subscriptionID: "11111111-2222-3333-4444-555555555555",
-			matcherType:    services.AzureMatcherRedis,
+			matcherType:    types.AzureMatcherRedis,
 			wantRename:     "some-db-redis-eastus-Some-Group-11111111-2222-3333-4444-555555555555",
 			makeDBFunc:     makeAzureRedisDB,
 		},
@@ -250,7 +250,7 @@ func TestApplyAzureDatabaseNameSuffix(t *testing.T) {
 			region:         "eastus",
 			resourceGroup:  "Some Group",
 			subscriptionID: "11111111-2222-3333-4444-555555555555",
-			matcherType:    services.AzureMatcherRedis,
+			matcherType:    types.AzureMatcherRedis,
 			wantRename:     "some-db-redis-enterprise-eastus-Some-Group-11111111-2222-3333-4444-555555555555",
 			makeDBFunc:     makeAzureRedisEnterpriseDB,
 		},

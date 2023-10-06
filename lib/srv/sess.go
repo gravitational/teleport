@@ -1377,6 +1377,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder
 	// Nodes discard events in cases when proxies are already recording them.
 	if s.registry.Srv.Component() == teleport.ComponentNode &&
 		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+		s.log.WithField("session_id", s.ID()).Trace("session will be recorded at proxy")
 		return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
 	}
 

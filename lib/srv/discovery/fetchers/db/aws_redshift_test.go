@@ -46,7 +46,7 @@ func TestRedshiftFetcher(t *testing.T) {
 					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Dev},
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRedshift, "us-east-1", wildcardLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRedshift, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{redshiftDatabaseUse1Prod, redshiftDatabaseUse1Dev},
 		},
 		{
@@ -56,7 +56,7 @@ func TestRedshiftFetcher(t *testing.T) {
 					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Dev},
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRedshift, "us-east-1", envProdLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRedshift, "us-east-1", envProdLabels),
 			wantDatabases: types.Databases{redshiftDatabaseUse1Prod},
 		},
 		{
@@ -66,7 +66,7 @@ func TestRedshiftFetcher(t *testing.T) {
 					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Unavailable, redshiftUse1UnknownStatus},
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRedshift, "us-east-1", wildcardLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRedshift, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{redshiftDatabaseUse1Prod, redshiftDatabaseUnknownStatus},
 		},
 	}
@@ -78,7 +78,7 @@ func makeRedshiftCluster(t *testing.T, region, env string, opts ...func(*redshif
 
 	database, err := services.NewDatabaseFromRedshiftCluster(cluster)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRedshift)
+	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRedshift)
 	return cluster, database
 }
 

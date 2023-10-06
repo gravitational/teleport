@@ -43,11 +43,19 @@ const TSH_BIN_DEFAULT_PATH_FOR_DEV = path.resolve(
   'teleport', 'build', 'tsh',
 );
 
-const dev = env.NODE_ENV === 'development' || env.DEBUG_PROD === 'true';
-
-// Allows running tsh in insecure mode (development)
-const isInsecure = argv.includes('--insecure');
-const isDebug = argv.includes('--debug');
+// Refer to the docs of RuntimeSettings type for an explanation behind dev, debug and insecure.
+const dev = env.NODE_ENV === 'development';
+// --debug is reserved by Node, so we have to use another flag.
+const debug = argv.includes('--connect-debug') || dev;
+const insecure =
+  argv.includes('--insecure') ||
+  // --insecure is already in our docs, but let's add --connect-insecure too in case Node or
+  // Electron reserves it one day.
+  argv.includes('--connect-insecure') ||
+  // The flag is needed because it's not easy to pass a flag to the app in dev mode. `yarn
+  // start-term` causes a bunch of package scripts to be executed and each would have to pass the
+  // flag one level down.
+  (dev && !!env.CONNECT_INSECURE);
 
 export function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
@@ -70,7 +78,6 @@ export function getRuntimeSettings(): RuntimeSettings {
   const agentsDir = getAgentsDir(userDataDir);
 
   const tshd = {
-    insecure: isInsecure,
     binaryPath: tshBinPath,
     homeDir: getTshHomeDir(),
     requestedNetworkAddress: tshAddress,
@@ -94,7 +101,7 @@ export function getRuntimeSettings(): RuntimeSettings {
   };
 
   // To start the app in dev mode, we run `electron path_to_main.js`. It means
-  //  that the app is run without package.json context, so it can not read the version
+  // that the app is run without package.json context, so it can not read the version
   // from it.
   // The way we run Electron can be changed (`electron .`), but it has one major
   // drawback - dev app and bundled app will use the same app data directory.
@@ -102,15 +109,17 @@ export function getRuntimeSettings(): RuntimeSettings {
   // A workaround is to read the version from `process.env.npm_package_version`.
   const appVersion = dev ? process.env.npm_package_version : app.getVersion();
 
-  if (isInsecure) {
+  if (insecure) {
     tshd.flags.unshift('--insecure');
   }
-  if (dev || isDebug) {
+  if (debug) {
     tshd.flags.unshift('--debug');
   }
 
   return {
     dev,
+    debug,
+    insecure,
     tshd,
     sharedProcess,
     tshdEvents,
