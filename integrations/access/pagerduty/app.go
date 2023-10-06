@@ -236,9 +236,7 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 		switch {
 		case req.GetState().IsPending():
 			err = a.onPendingRequest(ctx, req)
-		case req.GetState().IsApproved():
-			err = a.onResolvedRequest(ctx, req)
-		case req.GetState().IsDenied():
+		case req.GetState().IsResolved():
 			err = a.onResolvedRequest(ctx, req)
 		default:
 			log.WithField("event", event).Warn("Unknown request state")
@@ -301,6 +299,8 @@ func (a *App) onResolvedRequest(ctx context.Context, req types.AccessRequest) er
 		resolution.Tag = ResolvedApproved
 	case types.RequestState_DENIED:
 		resolution.Tag = ResolvedDenied
+	case types.RequestState_PROMOTED:
+		resolution.Tag = ResolvedPromoted
 	}
 	err := trace.Wrap(a.resolveIncident(ctx, req.GetName(), resolution))
 	return trace.NewAggregate(notifyErr, err)

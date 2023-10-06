@@ -42,7 +42,7 @@ type ResolutionTag string
 // Unresolved is added to alerts that are yet to be resolved.
 const Unresolved = ResolutionTag("")
 
-// ReolvedApproved is added to alerts that are approved.
+// ResolvedApproved is added to alerts that are approved.
 const ResolvedApproved = ResolutionTag("approved")
 
 // ResolvedDenied is added to alerts that are denied.
@@ -50,6 +50,9 @@ const ResolvedDenied = ResolutionTag("denied")
 
 // ResolvedExpired is added to alerts that are expired.
 const ResolvedExpired = ResolutionTag("expired")
+
+// ResolvedPromoted is added to alerts that are promoted to an access list.
+const ResolvedPromoted = ResolutionTag("promoted")
 
 // RequestData stores a slice of some request fields in a convenient format.
 type RequestData struct {
