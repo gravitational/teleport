@@ -1216,10 +1216,24 @@
             {
               "title": "RBAC",
               "slug": "/database-access/rbac/configuring-access/"
+            }
+          ]
+        },
+        {
+          "title": "Automatic User Provisioning",
+          "slug": "/database-access/auto-user-provisioning/",
+          "entries": [
+            {
+              "title": "MariaDB",
+              "slug": "/database-access/auto-user-provisioning/mariadb/"
             },
             {
-              "title": "Automatic User Provisioning ",
-              "slug": "/database-access/rbac/configuring-auto-user-provisioning/"
+              "title": "MySQL",
+              "slug": "/database-access/auto-user-provisioning/mysql/"
+            },
+            {
+              "title": "PostgreSQL",
+              "slug": "/database-access/auto-user-provisioning/postgres/"
             }
           ]
         },
@@ -2830,6 +2844,11 @@
     {
       "source": "/server-access/guides/openssh/",
       "destination": "/server-access/guides/openssh/openssh/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/rbac/configuring-auto-user-provisioning/",
+      "destination": "/database-access/auto-user-provisioning/",
       "permanent": true
     }
   ]

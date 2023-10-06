@@ -1,0 +1,10 @@
+Now, log into your Teleport cluster and connect to the database:
+
+```
+$ tsh login --proxy=teleport.example.com
+$ tsh db connect --db-name <database> example
+```
+
+If using a GUI database client like {{gui}}, make sure to use your Teleport
+username as a database username. `tsh db connect` will default to it
+automatically when connecting to a database with user provisioning enabled.
