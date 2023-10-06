@@ -64,7 +64,7 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		trace.WriteError(w, trace.AccessDenied("unable to hijack connection"))
 		return
 	}
-	sconn, _, err := hj.Hijack()
+	sconn, buf, err := hj.Hijack()
 	if err != nil {
 		trace.WriteError(w, err)
 		return
@@ -83,7 +83,7 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		errc <- err
 	}
 	go replicate(sconn, dconn)
-	go replicate(dconn, sconn)
+	go replicate(dconn, io.MultiReader(buf, sconn))
 
 	// Wait until done, error, or 10 second.
 	select {
