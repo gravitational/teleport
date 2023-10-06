@@ -334,6 +334,7 @@ func newCheckedPrefixWriter(conn net.Conn, requiredPrefix []byte) *checkedPrefix
 	}
 }
 
+// Write writes data into connection, checking if it has required prefix. Not safe for concurrent calls.
 func (c *checkedPrefixWriter) Write(p []byte) (int, error) {
 	// If pointer reached end of required prefix the check is done
 	if len(c.requiredPrefix) == c.requiredPointer {
