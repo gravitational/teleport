@@ -1,8 +1,9 @@
-After a database session has been uploaded you can view the
-session activity in the Audit Log and with the command `tsh play`.
+You can view database session activity in the Audit Log
+and after upoading retrieve with the command `tsh play`.
 
 ```code
 # Database session ID will be in a UUID format (ex: 307b49d6-56c7-4d20-8cf0-5bc5348a7101)
+# See the audit log to get a sessions id with a key of sid
 $ tsh play --format json <Var name="database.session" />
 ```
 
