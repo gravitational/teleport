@@ -314,11 +314,13 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		return nil, trace.Wrap(err)
 	}
 
-	return NewProxiedMetricConn(&checkedPrefixWriter{
+	conn = &checkedPrefixWriter{
 		Conn: conn,
 		// SSH connection MUST start with "SSH-2.0" bytes according to https://datatracker.ietf.org/doc/html/rfc4253#section-4.2
 		requiredPrefix: []byte("SSH-2.0"),
-	}), trace.Wrap(err)
+	}
+	
+	return NewProxiedMetricConn(conn), trace.Wrap(err)
 }
 
 // checkedPrefixWriter checks that first data written into it has the specified prefix.
