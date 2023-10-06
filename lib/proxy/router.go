@@ -15,6 +15,7 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -334,7 +335,32 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		return nil, trace.Wrap(err)
 	}
 
-	return NewProxiedMetricConn(conn), trace.Wrap(err)
+	return NewProxiedMetricConn(&checkedPrefixWriter{
+		Conn: conn,
+		// SSH connection MUST start with "SSH-2.0" bytes according to https://datatracker.ietf.org/doc/html/rfc4253#section-4.2
+		requiredPrefix: []byte("SSH-2.0"),
+	}), trace.Wrap(err)
+}
+
+// checkedPrefixWriter checks that first data written into it has the specified prefix.
+type checkedPrefixWriter struct {
+	net.Conn
+
+	requiredPrefix []byte
+	checked        bool
+}
+
+func (c *checkedPrefixWriter) Write(p []byte) (n int, err error) {
+	if c.checked {
+		return c.Conn.Write(p)
+	}
+
+	// It is assumed that required prefix is small enough to always fit into data provided on the first write.
+	if !bytes.HasPrefix(p, c.requiredPrefix) {
+		return 0, trace.AccessDenied("required prefix %q was not found", c.requiredPrefix)
+	}
+	c.checked = true
+	return c.Conn.Write(p)
 }
 
 // getRemoteCluster looks up the provided clusterName to determine if a remote site exists with

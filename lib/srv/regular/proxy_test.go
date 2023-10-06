@@ -17,8 +17,6 @@ limitations under the License.
 package regular
 
 import (
-	"bytes"
-	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -127,46 +125,4 @@ func TestParseBadRequests(t *testing.T) {
 			require.Nil(t, subsystem, "test case: %q", tt.input)
 		})
 	}
-}
-
-func TestCheckedPrefixReader(t *testing.T) {
-	getMockReadWriteCloser := func(data []byte) io.ReadWriteCloser {
-		buf := bytes.NewBuffer(data)
-		return struct {
-			io.ReadWriter
-			io.Closer
-		}{
-			ReadWriter: buf,
-			Closer:     io.NopCloser(buf),
-		}
-	}
-
-	testData := []byte("test data")
-	t.Run("missing prefix", func(t *testing.T) {
-		cr := checkedPrefixReader{
-			ReadWriteCloser: getMockReadWriteCloser(testData),
-			requiredPrefix:  []byte("wrong"),
-		}
-
-		_, err := io.ReadAll(&cr)
-		require.Error(t, err)
-	})
-	t.Run("success", func(t *testing.T) {
-		cr := checkedPrefixReader{
-			ReadWriteCloser: getMockReadWriteCloser(testData),
-			requiredPrefix:  []byte("test"),
-		}
-
-		res, err := io.ReadAll(&cr)
-		require.NoError(t, err)
-		require.Equal(t, testData, res)
-
-		secondData := []byte("second data")
-		_, err = cr.Write(secondData)
-		require.NoError(t, err)
-
-		res, err = io.ReadAll(&cr)
-		require.NoError(t, err)
-		require.Equal(t, secondData, res)
-	})
 }
