@@ -2,13 +2,14 @@ You can view database session activity in the audit log.
 After a session is uploaded, you can play back the audit data
 with the `tsh play` command.
 
+Database session ID will be in a UUID format (ex: `307b49d6-56c7-4d20-8cf0-5bc5348a7101`)
+See the audit log to get a database session ID with a key of `sid`.
+
+Example:
 ```code
-# Database session ID will be in a UUID format (ex: 307b49d6-56c7-4d20-8cf0-5bc5348a7101)
-# See the audit log to get a session ID with a key of sid
 $ tsh play --format json <Var name="database.session" />
 ```
 
-Example output:
 ```json
     {
         "cluster_name": "teleport.example.com",
