@@ -4449,12 +4449,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 			log.Infof("Starting Kube proxy on %v.", kubeListenAddr)
 
-			var mopts []kubeproxy.MultiplexerConfigOption
+			var mopts []kubeproxy.ServeOption
 			for _, opt := range cfg.Options {
-				if muxOption, ok := opt.(servicecfg.KubeMultiplexerConfigOption); ok {
-					mopts = append(mopts, func(config *multiplexer.Config) error {
-						return muxOption(config)
-					})
+				if _, ok := opt.(servicecfg.KubeMultiplexerIgnoreSelfConnectionsOption); ok {
+					mopts = append(mopts, kubeproxy.WithMultiplexerIgnoreSelfConnections())
+					break
 				}
 			}
 
