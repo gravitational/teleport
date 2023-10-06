@@ -367,34 +367,63 @@ func (o *mockConn) Close() error {
 func TestCheckedPrefixWriter(t *testing.T) {
 	testData := []byte("test data")
 	t.Run("missing prefix", func(t *testing.T) {
-		cpw := checkedPrefixWriter{
-			Conn:           &mockConn{},
-			requiredPrefix: []byte("wrong"),
-		}
+		t.Run("single write", func(t *testing.T) {
+			cpw := newCheckedPrefixWriter(&mockConn{}, []byte("wrong"))
 
-		_, err := cpw.Write(testData)
-		require.Error(t, err)
+			_, err := cpw.Write(testData)
+			require.Error(t, err)
+		})
+		t.Run("two writes", func(t *testing.T) {
+			cpw := newCheckedPrefixWriter(&mockConn{}, append(testData, []byte("wrong")...))
+
+			_, err := cpw.Write(testData)
+			require.NoError(t, err)
+
+			_, err = cpw.Write(testData)
+			require.Error(t, err)
+		})
 	})
 	t.Run("success", func(t *testing.T) {
-		cpw := checkedPrefixWriter{
-			Conn:           &mockConn{},
-			requiredPrefix: []byte("test"),
-		}
+		t.Run("single write", func(t *testing.T) {
+			cpw := newCheckedPrefixWriter(&mockConn{}, []byte("test"))
 
-		// First write with correct prefix should be successful
-		_, err := cpw.Write(testData)
-		require.NoError(t, err)
+			// First write with correct prefix should be successful
+			_, err := cpw.Write(testData)
+			require.NoError(t, err)
 
-		// Write second time
-		secondData := []byte("second data")
-		_, err = cpw.Write(secondData)
-		require.NoError(t, err)
+			// Write some additional data
+			secondData := []byte("second data")
+			_, err = cpw.Write(secondData)
+			require.NoError(t, err)
 
-		// Resulting read should contain data from both writes
-		buf := make([]byte, len(testData)+len(secondData))
-		_, err = cpw.Read(buf)
-		require.NoError(t, err)
-		require.Equal(t, append(testData, secondData...), buf)
+			// Resulting read should contain data from both writes
+			buf := make([]byte, len(testData)+len(secondData))
+			_, err = cpw.Read(buf)
+			require.NoError(t, err)
+			require.Equal(t, append(testData, secondData...), buf)
+		})
+		t.Run("two writes", func(t *testing.T) {
+			cpw := newCheckedPrefixWriter(&mockConn{}, []byte("test"))
+
+			// First write gives part of correct prefix
+			_, err := cpw.Write(testData[:3])
+			require.NoError(t, err)
+
+			// Second write gives the rest of correct prefix
+			_, err = cpw.Write(testData[3:])
+			require.NoError(t, err)
+
+			// Write some additional data
+			secondData := []byte("second data")
+			_, err = cpw.Write(secondData)
+			require.NoError(t, err)
+
+			// Resulting read should contain all written data
+			buf := make([]byte, len(testData)+len(secondData))
+			_, err = cpw.Read(buf)
+			require.NoError(t, err)
+			require.Equal(t, append(testData, secondData...), buf)
+		})
 	})
 }
 

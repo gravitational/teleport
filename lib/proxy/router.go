@@ -335,12 +335,8 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		return nil, trace.Wrap(err)
 	}
 
-	conn = &checkedPrefixWriter{
-		Conn: conn,
-		// SSH connection MUST start with "SSH-2.0" bytes according to https://datatracker.ietf.org/doc/html/rfc4253#section-4.2
-		requiredPrefix: []byte("SSH-2.0"),
-	}
-	
+	// SSH connection MUST start with "SSH-2.0" bytes according to https://datatracker.ietf.org/doc/html/rfc4253#section-4.2
+	conn = newCheckedPrefixWriter(conn, []byte("SSH-2.0"))
 	return NewProxiedMetricConn(conn), trace.Wrap(err)
 }
 
@@ -348,21 +344,40 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 type checkedPrefixWriter struct {
 	net.Conn
 
-	requiredPrefix []byte
-	checked        bool
+	requiredPrefix  []byte
+	requiredPointer int
 }
 
-func (c *checkedPrefixWriter) Write(p []byte) (n int, err error) {
-	if c.checked {
+func newCheckedPrefixWriter(conn net.Conn, requiredPrefix []byte) *checkedPrefixWriter {
+	return &checkedPrefixWriter{
+		Conn:           conn,
+		requiredPrefix: requiredPrefix,
+	}
+}
+
+func (c *checkedPrefixWriter) Write(p []byte) (int, error) {
+	// If pointer reached end of required prefix the check is done
+	if len(c.requiredPrefix) == c.requiredPointer {
 		return c.Conn.Write(p)
 	}
 
-	// It is assumed that required prefix is small enough to always fit into data provided on the first write.
-	if !bytes.HasPrefix(p, c.requiredPrefix) {
+	// Decide which is smaller, provided data or remaining portion of the require prefix
+	small := c.requiredPrefix[c.requiredPointer:]
+	big := p
+	if len(small) > len(big) {
+		big = small
+		small = p
+	}
+
+	if !bytes.HasPrefix(big, small) {
 		return 0, trace.AccessDenied("required prefix %q was not found", c.requiredPrefix)
 	}
-	c.checked = true
-	return c.Conn.Write(p)
+	n, err := c.Conn.Write(p)
+	if err == nil {
+		// Advance pointer by confirmed portion (small) of the prefix.
+		c.requiredPointer += len(small)
+	}
+	return n, err
 }
 
 // getRemoteCluster looks up the provided clusterName to determine if a remote site exists with
