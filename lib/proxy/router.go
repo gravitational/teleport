@@ -353,10 +353,8 @@ func (c *checkedPrefixWriter) Write(p []byte) (int, error) {
 		return 0, trace.AccessDenied("required prefix %q was not found", c.requiredPrefix)
 	}
 	n, err := c.Conn.Write(p)
-	if err == nil {
-		// Advance pointer by confirmed portion (small) of the prefix.
-		c.requiredPointer += len(small)
-	}
+	// Advance pointer by confirmed portion of the prefix.
+	c.requiredPrefix = c.requiredPrefix[min(n, len(small)):]
 	return n, err
 }
 
