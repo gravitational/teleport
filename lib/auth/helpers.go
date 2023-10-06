@@ -626,22 +626,36 @@ func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, role
 }
 
 // NewTestTLSServer returns new test TLS server
-func (a *TestAuthServer) NewTestTLSServer() (*TestTLSServer, error) {
+func (a *TestAuthServer) NewTestTLSServer(opts ...TestTLSServerOption) (*TestTLSServer, error) {
 	apiConfig := &APIConfig{
 		AuthServer: a.AuthServer,
 		Authorizer: a.Authorizer,
 		AuditLog:   a.AuditLog,
 		Emitter:    a.AuthServer,
 	}
-	srv, err := NewTestTLSServer(TestTLSServerConfig{
+	cfg := TestTLSServerConfig{
 		APIConfig:     apiConfig,
 		AuthServer:    a,
 		AcceptedUsage: a.AcceptedUsage,
-	})
+	}
+	for _, o := range opts {
+		o(&cfg)
+	}
+	srv, err := NewTestTLSServer(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return srv, nil
+}
+
+// TestTLSServerOption is a functional option passed to NewTestTLSServer
+type TestTLSServerOption func(*TestTLSServerConfig)
+
+// WithLimiterConfig sets connection and request limiter configuration.
+func WithLimiterConfig(config *limiter.Config) TestTLSServerOption {
+	return func(cfg *TestTLSServerConfig) {
+		cfg.Limiter = config
+	}
 }
 
 // NewRemoteClient creates new client to the remote server using identity
