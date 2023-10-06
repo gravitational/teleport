@@ -310,8 +310,8 @@ type AccessListReviews interface {
 	// DeleteAccessListReview will delete an access list review from the backend.
 	DeleteAccessListReview(ctx context.Context, accessListName, reviewName string) error
 
-	// DeleteAllAccessListReviews will delete all access list reviews from an access list.
-	DeleteAllAccessListReviews(ctx context.Context, accessListName string) error
+	// DeleteAllAccessListReviews will delete all access list reviews.
+	DeleteAllAccessListReviews(ctx context.Context) error
 }
 
 // MarshalAccessListReview marshals the access list review resource to JSON.

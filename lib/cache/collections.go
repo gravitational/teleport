@@ -174,6 +174,7 @@ type cacheCollections struct {
 
 	accessLists              collectionReader[services.AccessListsGetter]
 	accessListMembers        collectionReader[services.AccessListMembersGetter]
+	accessListReviews        collectionReader[services.AccessListReviews]
 	apps                     collectionReader[services.AppGetter]
 	nodes                    collectionReader[nodeGetter]
 	tunnelConnections        collectionReader[tunnelConnectionGetter]
@@ -616,6 +617,12 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.accessListMembers = &genericCollection[*accesslist.AccessListMember, services.AccessListMembersGetter, accessListMembersExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.accessListMembers
+		case types.KindAccessListReview:
+			if c.AccessListReviews == nil {
+				return nil, trace.BadParameter("missing parameter AccessListReviews")
+			}
+			collections.accessListReviews = &genericCollection[*accesslist.Review, services.AccessListReviews, accessListReviewsExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.accessListReviews
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -2503,3 +2510,76 @@ func (accessListMembersExecutor) getReader(cache *Cache, cacheOK bool) services.
 }
 
 var _ executor[*accesslist.AccessListMember, services.AccessListMembersGetter] = accessListMembersExecutor{}
+
+type accessListReviewsExecutor struct{}
+
+func (accessListReviewsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.Review, error) {
+	// Get all access lists
+	var accessLists []*accesslist.AccessList
+	var nextToken string
+	for {
+		var page []*accesslist.AccessList
+		var err error
+
+		page, nextToken, err = cache.AccessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		accessLists = append(accessLists, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+
+	// Get the reviews of each access list.
+	var reviews []*accesslist.Review
+	for _, accessList := range accessLists {
+		for {
+			var page []*accesslist.Review
+			var err error
+
+			page, nextToken, err = cache.AccessListReviews.ListAccessListReviews(ctx, accessList.GetName(), 0 /* default page size */, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			reviews = append(reviews, page...)
+
+			if nextToken == "" {
+				break
+			}
+		}
+	}
+	return reviews, nil
+}
+
+func (accessListReviewsExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.Review) error {
+	// Reviews can't be updated, so we'll only support create.
+	_, err := cache.accessListsCache.CreateAccessListReview(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (accessListReviewsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.accessListsCache.DeleteAllAccessListReviews(ctx)
+}
+
+func (accessListReviewsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	review, ok := resource.(*accesslist.Review)
+	if !ok {
+		return trace.BadParameter("expected *accesslist.AccessListReview, got %T", resource)
+	}
+	return cache.accessListsCache.DeleteAccessListReview(ctx, review.Spec.AccessList, review.GetName())
+}
+
+func (accessListReviewsExecutor) isSingleton() bool { return false }
+
+func (accessListReviewsExecutor) getReader(cache *Cache, cacheOK bool) services.AccessListReviews {
+	if cacheOK {
+		return cache.accessListsCache
+	}
+	return cache.AccessListReviews
+}
+
+var _ executor[*accesslist.Review, services.AccessListReviews] = accessListReviewsExecutor{}

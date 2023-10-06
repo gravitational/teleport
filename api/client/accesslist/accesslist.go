@@ -262,7 +262,7 @@ func (c *Client) DeleteAccessListReview(ctx context.Context, accessListName, rev
 	return trace.Wrap(err)
 }
 
-// DeleteAllAccessListReviews will delete all access list reviews from an access list.
-func (c *Client) DeleteAllAccessListReviews(ctx context.Context, accessListName string) error {
+// DeleteAllAccessListReviews will delete all access list reviews.
+func (c *Client) DeleteAllAccessListReviews(ctx context.Context) error {
 	return trace.NotImplemented("DeleteAllAccessListReviews is not supported in the gRPC client")
 }

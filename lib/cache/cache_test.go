@@ -95,6 +95,7 @@ type testPack struct {
 	accessLists             services.AccessLists
 	userLoginStates         services.UserLoginStates
 	accessListMembers       services.AccessListMembers
+	accessListReviews       services.AccessListReviews
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -252,6 +253,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.accessLists = alSvc
 	p.accessListMembers = alSvc
+	p.accessListReviews = alSvc
 
 	ulsSvc, err := local.NewUserLoginStateService(p.backend)
 	if err != nil {
@@ -297,6 +299,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
 		AccessLists:             p.accessLists,
+		AccessListReviews:       p.accessLists,
 		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
@@ -693,6 +696,7 @@ func TestCompletenessInit(t *testing.T) {
 			Okta:                    p.okta,
 			Integrations:            p.integrations,
 			AccessLists:             p.accessLists,
+			AccessListReviews:       p.accessLists,
 			UserLoginStates:         p.userLoginStates,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
@@ -763,6 +767,7 @@ func TestCompletenessReset(t *testing.T) {
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
 		AccessLists:             p.accessLists,
+		AccessListReviews:       p.accessLists,
 		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
@@ -945,6 +950,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
 		AccessLists:             p.accessLists,
+		AccessListReviews:       p.accessLists,
 		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
@@ -1026,6 +1032,7 @@ func initStrategy(t *testing.T) {
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
 		AccessLists:             p.accessLists,
+		AccessListReviews:       p.accessLists,
 		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
@@ -2181,12 +2188,68 @@ func TestAccessListMembers(t *testing.T) {
 	})
 }
 
+// TestAccessListReviews tests that CRUD operations on access list reviews are
+// replicated from the backend to the cache.
+func TestAccessListReviews(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	const accessListName = "test-access-list"
+
+	clock := clockwork.NewFakeClock()
+
+	p.accessLists.UpsertAccessList(context.Background(), newAccessList(t, accessListName, clock))
+
+	testResources(t, p, testFuncs[*accesslist.Review]{
+		newResource: func(_ string) (*accesslist.Review, error) {
+			return newAccessListReview(t, accessListName), nil
+		},
+		create: func(ctx context.Context, review *accesslist.Review) error {
+			_, err := p.accessListReviews.CreateAccessListReview(ctx, review)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		},
+		list: func(ctx context.Context) ([]*accesslist.Review, error) {
+			reviews, _, err := p.accessListReviews.ListAccessListReviews(ctx, accessListName, 0, "")
+			return reviews, trace.Wrap(err)
+		},
+		cacheGet: func(ctx context.Context, reviewName string) (*accesslist.Review, error) {
+			reviews, _, err := p.accessListReviews.ListAccessListReviews(ctx, accessListName, 0, "")
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			for _, review := range reviews {
+				if review.GetName() == reviewName {
+					{
+						return review, nil
+					}
+				}
+			}
+			return nil, trace.NotFound("unable to find review %s", reviewName)
+		},
+		cacheList: func(ctx context.Context) ([]*accesslist.Review, error) {
+			reviews, _, err := p.cache.ListAccessListReviews(ctx, accessListName, 0, "")
+			return reviews, trace.Wrap(err)
+		},
+		// Reviews can't be updated.
+		update: nil,
+		deleteAll: func(ctx context.Context) error {
+			return trace.Wrap(p.accessListReviews.DeleteAllAccessListReviews(ctx))
+		},
+	})
+}
+
 // testResources is a generic tester for resources.
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
 
 	// Create a resource.
-	r, err := funcs.newResource("test-sp")
+	r, err := funcs.newResource("test-resource")
 	require.NoError(t, err)
 	r.SetExpiry(time.Now().Add(30 * time.Minute))
 
@@ -2220,23 +2283,25 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	}
 
 	// Update the resource and upsert it into the backend again.
-	r.SetExpiry(r.Expiry().Add(30 * time.Minute))
-	err = funcs.update(ctx, r)
-	require.NoError(t, err)
+	if funcs.update != nil {
+		r.SetExpiry(r.Expiry().Add(30 * time.Minute))
+		err = funcs.update(ctx, r)
+		require.NoError(t, err)
 
-	// Check that the resource is in the backend and only one exists (so an
-	// update occurred).
-	out, err = funcs.list(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+		// Check that the resource is in the backend and only one exists (so an
+		// update occurred).
+		out, err = funcs.list(ctx)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
-	// Check that information has been replicated to the cache.
-	require.Eventually(t, func() bool {
-		// Make sure the cache has a single resource in it.
-		out, err = funcs.cacheList(ctx)
-		assert.NoError(t, err)
-		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
-	}, time.Second*2, time.Millisecond*250)
+		// Check that information has been replicated to the cache.
+		require.Eventually(t, func() bool {
+			// Make sure the cache has a single resource in it.
+			out, err = funcs.cacheList(ctx)
+			assert.NoError(t, err)
+			return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
+		}, time.Second*2, time.Millisecond*250)
+	}
 
 	// Remove all service providers from the backend.
 	err = funcs.deleteAll(ctx)
@@ -2637,6 +2702,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAccessList:              newAccessList(t, "access-list", clock),
 		types.KindUserLoginState:          newUserLoginState(t, "user-login-state"),
 		types.KindAccessListMember:        newAccessListMember(t, "access-list", "member"),
+		types.KindAccessListReview:        newAccessListReview(t, "access-list"),
 	}
 
 	for name, cfg := range cases {
@@ -2924,6 +2990,21 @@ func newAccessListMember(t *testing.T, accessListName, memberName string) *acces
 	)
 	require.NoError(t, err)
 	return member
+}
+
+func newAccessListReview(t *testing.T, accessListName string) *accesslist.Review {
+	t.Helper()
+
+	review, err := accesslist.NewReview(
+		header.Metadata{},
+		accesslist.ReviewSpec{
+			AccessList: accessListName,
+			Reviewers:  []string{"dummy"},
+			ReviewDate: time.Now(),
+		},
+	)
+	require.NoError(t, err)
+	return review
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {

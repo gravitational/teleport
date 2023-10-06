@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -88,6 +89,13 @@ func NewReview(metadata header.Metadata, spec ReviewSpec) (*Review, error) {
 func (r *Review) CheckAndSetDefaults() error {
 	r.SetKind(types.KindAccessListReview)
 	r.SetVersion(types.V1)
+
+	// If the name is not a UUID, generate a random UUID.
+	// TODO(mdwn): Update the tests that use identical review names to use unique names and then
+	//             this can be removed.
+	if _, err := uuid.Parse(r.Metadata.Name); err != nil {
+		r.Metadata.Name = uuid.NewString()
+	}
 
 	if err := r.ResourceHeader.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)

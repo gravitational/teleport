@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -30,7 +29,6 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -246,7 +244,6 @@ func (a *AccessListService) DeleteAllAccessListMembersForAccessList(ctx context.
 
 // DeleteAllAccessListMembers hard deletes all access list members.
 func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) error {
-
 	// Locks are not used here as this operation is more likely to be used by the cache.
 	return trace.Wrap(a.memberService.DeleteAllResources(ctx))
 }
@@ -339,15 +336,7 @@ func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessLis
 
 // CreateAccessListReview will create a new review for an access list.
 func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (*accesslist.Review, error) {
-	reviewName := uuid.New().String()
-	createdReview, err := accesslist.NewReview(header.Metadata{
-		Name: reviewName,
-	}, accesslist.ReviewSpec{
-		AccessList: review.Spec.AccessList,
-		Reviewers:  review.Spec.Reviewers,
-		ReviewDate: review.Spec.ReviewDate,
-		Changes:    review.Spec.Changes,
-	})
+	createdReview, err := accesslist.NewReview(review.ResourceHeader.Metadata, review.Spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -456,16 +445,10 @@ func (a *AccessListService) DeleteAccessListReview(ctx context.Context, accessLi
 	return trace.Wrap(err)
 }
 
-// DeleteAllAccessListReviews will delete all access list reviews from an access list.
-func (a *AccessListService) DeleteAllAccessListReviews(ctx context.Context, accessList string) error {
-	err := a.service.RunWhileLocked(ctx, lockName(accessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		_, err := a.service.GetResource(ctx, accessList)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(a.reviewService.WithPrefix(accessList).DeleteAllResources(ctx))
-	})
-	return trace.Wrap(err)
+// DeleteAllAccessListReviews will delete all access list reviews.
+func (a *AccessListService) DeleteAllAccessListReviews(ctx context.Context) error {
+	// Locks are not used here as this operation is more likely to be used by the cache.
+	return trace.Wrap(a.reviewService.DeleteAllResources(ctx))
 }
 
 func lockName(accessListName string) string {

@@ -569,12 +569,8 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	err = service.DeleteAccessListReview(ctx, accessList2.GetName(), "no-review")
 	require.ErrorIs(t, err, trace.NotFound("access_list_review \"no-review\" doesn't exist"))
 
-	// Try to delete all reviews from a non-existent list.
-	err = service.DeleteAllAccessListReviews(ctx, "non-existent-list")
-	require.ErrorIs(t, err, trace.NotFound("access_list \"non-existent-list\" doesn't exist"))
-
 	// Delete all access list reviews.
-	err = service.DeleteAllAccessListReviews(ctx, accessList1.GetName())
+	err = service.DeleteAllAccessListReviews(ctx)
 	require.NoError(t, err)
 
 	// Verify that access lists reviews are gone.

@@ -119,6 +119,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessList},
 		{Kind: types.KindUserLoginState},
 		{Kind: types.KindAccessListMember},
+		{Kind: types.KindAccessListReview},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -632,6 +633,8 @@ type Config struct {
 	Integrations services.Integrations
 	// AccessLists is the access list service.
 	AccessLists services.AccessLists
+	// AccessListReviews is the access list reviews service.
+	AccessListReviews services.AccessListReviews
 	// UserLoginStates is the user login state service.
 	UserLoginStates services.UserLoginStates
 	// Backend is a backend for local cache
@@ -2555,6 +2558,19 @@ func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memb
 	}
 	defer rg.Release()
 	return rg.reader.GetAccessListMember(ctx, accessList, memberName)
+}
+
+// ListAccessListReviews will list access list reviews for a particular access list.
+func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListReviews")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListReviews)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListAccessListReviews(ctx, accessList, pageSize, pageToken)
 }
 
 // GetUserLoginState returns the specified user login state resource.

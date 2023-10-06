@@ -136,5 +136,7 @@ message Event {
     teleport.accesslist.v1.Member AccessListMember = 47;
     // DiscoveryConfig contains a list of matchers to be loaded dynamically by Discovery Services.
     teleport.discoveryconfig.v1.DiscoveryConfig DiscoveryConfig = 48;
+    // AccessListReview is an access list review resource.
+    teleport.accesslist.v1.Review AccessListReview = 49;
   }
 }

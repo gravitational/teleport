@@ -2196,6 +2196,8 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		return nil, trace.Wrap(err)
 	}
 
+	accessListClient := cfg.services.AccessListClient()
+
 	return cache.New(cfg.setup(cache.Config{
 		Context:                 process.ExitContext(),
 		Backend:                 reporter,
@@ -2219,7 +2221,8 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		SAMLIdPServiceProviders: cfg.services,
 		UserGroups:              cfg.services,
 		Okta:                    cfg.services.OktaClient(),
-		AccessLists:             cfg.services.AccessListClient(),
+		AccessLists:             accessListClient,
+		AccessListReviews:       accessListClient,
 		UserLoginStates:         cfg.services.UserLoginStateClient(),
 		Integrations:            cfg.services,
 		WebSession:              cfg.services.WebSessions(),
