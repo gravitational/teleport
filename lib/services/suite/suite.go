@@ -559,7 +559,7 @@ func (s *ServicesTestSuite) WebSessionCRUD(t *testing.T) {
 
 	out, err := s.WebS.WebSessions().Get(ctx, req)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, ws))
+	require.Empty(t, cmp.Diff(out, ws, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	ws1, err := types.NewWebSession("sid1", types.KindWebSession,
 		types.WebSessionSpecV2{
@@ -575,7 +575,7 @@ func (s *ServicesTestSuite) WebSessionCRUD(t *testing.T) {
 
 	out2, err := s.WebS.WebSessions().Get(ctx, req)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out2, ws1))
+	require.Empty(t, cmp.Diff(out2, ws1, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	require.NoError(t, s.WebS.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
 		User:      req.User,

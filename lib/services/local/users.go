@@ -200,6 +200,7 @@ func (s *IdentityService) UpdateUserWithContext(ctx context.Context, user types.
 		return nil, trace.Wrap(err)
 	}
 
+	rev := user.GetRevision()
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -209,7 +210,7 @@ func (s *IdentityService) UpdateUserWithContext(ctx context.Context, user types.
 		Value:    value,
 		Expires:  user.Expiry(),
 		ID:       user.GetResourceID(),
-		Revision: user.GetRevision(),
+		Revision: rev,
 	}
 	lease, err := s.Update(ctx, item)
 	if err != nil {
@@ -272,6 +273,7 @@ func (s *IdentityService) UpsertUserWithContext(ctx context.Context, user types.
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := user.GetRevision()
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -281,7 +283,7 @@ func (s *IdentityService) UpsertUserWithContext(ctx context.Context, user types.
 		Value:    value,
 		Expires:  user.Expiry(),
 		ID:       user.GetResourceID(),
-		Revision: user.GetRevision(),
+		Revision: rev,
 	}
 	lease, err := s.Put(ctx, item)
 	if err != nil {
@@ -308,6 +310,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 	if !ok {
 		return trace.BadParameter("Invalid user type %T", new)
 	}
+	rev := new.GetRevision()
 	newValue, err := services.MarshalUser(newRaw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -317,7 +320,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 		Value:    newValue,
 		Expires:  new.Expiry(),
 		ID:       new.GetResourceID(),
-		Revision: new.GetRevision(),
+		Revision: rev,
 	}
 
 	existingRaw, ok := existing.WithoutSecrets().(types.User)
@@ -937,13 +940,15 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 		}
 	}
 
+	rev := d.GetRevision()
 	value, err := json.Marshal(d)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:   backend.Key(webPrefix, usersPrefix, user, mfaDevicePrefix, d.Id),
-		Value: value,
+		Key:      backend.Key(webPrefix, usersPrefix, user, mfaDevicePrefix, d.Id),
+		Value:    value,
+		Revision: rev,
 	}
 
 	if _, err := s.Put(ctx, item); err != nil {
@@ -1004,15 +1009,17 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 
 // UpsertOIDCConnector upserts OIDC Connector
 func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error {
+	rev := connector.GetRevision()
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
-		ID:      connector.GetResourceID(),
+		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
+		Revision: rev,
 	}
 	_, err = s.Put(ctx, item)
 	if err != nil {
@@ -1119,14 +1126,16 @@ func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector typ
 	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := connector.GetRevision()
 	value, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
+		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		Revision: rev,
 	}
 	_, err = s.Put(ctx, item)
 	if err != nil {
@@ -1296,15 +1305,17 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 	if err := connector.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := connector.GetRevision()
 	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
-		ID:      connector.GetResourceID(),
+		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
+		Revision: rev,
 	}
 	_, err = s.Put(ctx, item)
 	if err != nil {

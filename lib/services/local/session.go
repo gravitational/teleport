@@ -60,7 +60,7 @@ func (s *IdentityService) getSession(ctx context.Context, keyParts ...string) (t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := services.UnmarshalWebSession(item.Value)
+	session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -86,7 +86,7 @@ func (s *IdentityService) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 
 	out := make([]types.WebSession, len(result.Items))
 	for i, item := range result.Items {
-		session, err := services.UnmarshalWebSession(item.Value)
+		session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -124,7 +124,7 @@ func (s *IdentityService) listSessions(ctx context.Context, pageSize int, pageTo
 
 		out = make([]types.WebSession, 0, len(result.Items))
 		for _, item := range result.Items {
-			session, err := services.UnmarshalWebSession(item.Value)
+			session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
@@ -138,7 +138,7 @@ func (s *IdentityService) listSessions(ctx context.Context, pageSize int, pageTo
 					break
 				}
 
-				session, err := services.UnmarshalWebSession(item.Value)
+				session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
 				if err != nil {
 					return false, trace.Wrap(err)
 				}
@@ -181,14 +181,16 @@ func (s *IdentityService) UpsertSAMLIdPSession(ctx context.Context, session type
 
 // upsertSession creates a web session.
 func (s *IdentityService) upsertSession(ctx context.Context, session types.WebSession, keyPrefix ...string) error {
+	rev := session.GetRevision()
 	value, err := services.MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(append(keyPrefix, session.GetName())...),
-		Value:   value,
-		Expires: session.GetExpiryTime(),
+		Key:      backend.Key(append(keyPrefix, session.GetName())...),
+		Value:    value,
+		Expires:  session.GetExpiryTime(),
+		Revision: rev,
 	}
 
 	if _, err = s.Put(ctx, item); err != nil {
@@ -316,7 +318,7 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := services.UnmarshalWebSession(item.Value)
+	session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -332,7 +334,7 @@ func (r *webSessions) List(ctx context.Context) (out []types.WebSession, err err
 		return nil, trace.Wrap(err)
 	}
 	for _, item := range result.Items {
-		session, err := services.UnmarshalWebSession(item.Value)
+		session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -349,15 +351,17 @@ func (r *webSessions) List(ctx context.Context) (out []types.WebSession, err err
 
 // Upsert updates the existing or inserts a new web session.
 func (r *webSessions) Upsert(ctx context.Context, session types.WebSession) error {
+	rev := session.GetRevision()
 	value, err := services.MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	sessionMetadata := session.GetMetadata()
 	item := backend.Item{
-		Key:     webSessionKey(session.GetName()),
-		Value:   value,
-		Expires: backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry()),
+		Key:      webSessionKey(session.GetName()),
+		Value:    value,
+		Expires:  backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry()),
+		Revision: rev,
 	}
 	_, err = r.backend.Put(ctx, item)
 	if err != nil {
@@ -397,7 +401,7 @@ func (r *webSessions) listLegacySessions(ctx context.Context) ([]types.WebSessio
 		if suffix != sessionsPrefix {
 			continue
 		}
-		session, err := services.UnmarshalWebSession(item.Value)
+		session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -425,7 +429,7 @@ func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (type
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, err := services.UnmarshalWebToken(item.Value)
+	token, err := services.UnmarshalWebToken(item.Value, services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -440,7 +444,7 @@ func (r *webTokens) List(ctx context.Context) (out []types.WebToken, err error) 
 		return nil, trace.Wrap(err)
 	}
 	for _, item := range result.Items {
-		token, err := services.UnmarshalWebToken(item.Value)
+		token, err := services.UnmarshalWebToken(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -451,15 +455,17 @@ func (r *webTokens) List(ctx context.Context) (out []types.WebToken, err error) 
 
 // Upsert updates the existing or inserts a new web token.
 func (r *webTokens) Upsert(ctx context.Context, token types.WebToken) error {
+	rev := token.GetRevision()
 	bytes, err := services.MarshalWebToken(token, services.WithVersion(types.V3))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	metadata := token.GetMetadata()
 	item := backend.Item{
-		Key:     webTokenKey(token.GetToken()),
-		Value:   bytes,
-		Expires: metadata.Expiry(),
+		Key:      webTokenKey(token.GetToken()),
+		Value:    bytes,
+		Expires:  metadata.Expiry(),
+		Revision: rev,
 	}
 	_, err = r.backend.Put(ctx, item)
 	if err != nil {
