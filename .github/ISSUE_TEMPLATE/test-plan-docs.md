@@ -15,14 +15,8 @@ new major version of Teleport:
 - [ ] Verify that `gravitational/docs/.gitmodules` contains the latest release
 
 - [ ] Ensure that submodule directories in `gravitational/docs` correspond to
-    those in `.gitmodules`.
-
-    Remove the directory of the EOL release and create one for the next release
-    using a command similar to the following:
-
-    ```bash
-    git submodule add https://github.com/gravitational/teleport content/<VERSION>.x
-    ```
+    those in `.gitmodules` (remove the directory of the EOL release and create
+    one for the next release)
 
 ## Is the docs site up to date with the new release?
 
