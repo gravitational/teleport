@@ -48,6 +48,7 @@ type AccessListsGetter interface {
 type AccessLists interface {
 	AccessListsGetter
 	AccessListMembers
+	AccessListReviews
 
 	// UpsertAccessList creates or updates an access list resource.
 	UpsertAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
@@ -296,4 +297,67 @@ func SelectNextReviewDate(accessList *accesslist.AccessList) time.Time {
 		0, 0, 0, 0, time.UTC)
 
 	return nextDate
+}
+
+// AccessListReviews defines an interface for managing Access List reviews.
+type AccessListReviews interface {
+	// ListAccessListReviews will list access list reviews for a particular access list.
+	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
+
+	// CreateAccessListReview will create a new review for an access list.
+	CreateAccessListReview(ctx context.Context, review *accesslist.Review) (updatedReview *accesslist.Review, err error)
+
+	// DeleteAccessListReview will delete an access list review from the backend.
+	DeleteAccessListReview(ctx context.Context, accessListName, reviewName string) error
+
+	// DeleteAllAccessListReviews will delete all access list reviews from an access list.
+	DeleteAllAccessListReviews(ctx context.Context, accessListName string) error
+}
+
+// MarshalAccessListReview marshals the access list review resource to JSON.
+func MarshalAccessListReview(review *accesslist.Review, opts ...MarshalOption) ([]byte, error) {
+	if err := review.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !cfg.PreserveResourceID {
+		copy := *review
+		copy.SetResourceID(0)
+		copy.SetRevision("")
+		review = &copy
+	}
+	return utils.FastMarshal(review)
+}
+
+// UnmarshalAccessListReview unmarshals the access list review resource from JSON.
+func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.Review, error) {
+	if len(data) == 0 {
+		return nil, trace.BadParameter("missing access list review data")
+	}
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var review accesslist.Review
+	if err := utils.FastUnmarshal(data, &review); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+	if err := review.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if cfg.ID != 0 {
+		review.SetResourceID(cfg.ID)
+	}
+	if cfg.Revision != "" {
+		review.SetRevision(cfg.Revision)
+	}
+	if !cfg.Expires.IsZero() {
+		review.SetExpiry(cfg.Expires)
+	}
+	return &review, nil
 }

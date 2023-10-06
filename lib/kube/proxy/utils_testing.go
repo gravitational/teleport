@@ -122,7 +122,21 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
-	testCtx.TLSServer, err = authServer.NewTestTLSServer()
+	testCtx.TLSServer, err = authServer.NewTestTLSServer(
+		// This test context is used by a test that stalls the LockWatcher to
+		// simulate the enforcement of the strict lock mode. When the test fakes
+		// the stall, the LockWatcher will enter a loop that constantly tries to
+		// pull locks from the backend to recover from the stall. This context causes
+		// the LockWatcher to hit the connection rate limit and fail with an error
+		// different from the expected one. We setup a custom rate limiter to avoid
+		// this issue.
+		auth.WithLimiterConfig(
+			&limiter.Config{
+				MaxConnections:   100000,
+				MaxNumberOfUsers: 1000,
+			},
+		),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testCtx.TLSServer.Close()) })
 

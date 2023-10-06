@@ -23,7 +23,29 @@ import { FileStorage } from 'teleterm/services/fileStorage';
 import { ConfigService } from '../services/config';
 
 export type RuntimeSettings = {
+  /**
+   * dev controls whether the app runs in development mode. This mostly controls what kind of URL
+   * the Electron app opens after launching and affects the expectations of the app wrt the
+   * environment its being executed in.
+   */
   dev: boolean;
+  /**
+   * debug controls the level of logs emitted by tshd and gates access to devtools. In a packaged
+   * app it's false by default, but it can be enabled by executing the packaged app with the
+   * --connect-debug flag.
+   *
+   * dev implies debug.
+   */
+  debug: boolean;
+  /**
+   * insecure controls whether tsh invocations and Connect My Computer agents are run in insecure
+   * mode. This typically skips the cert checks when talking to the proxy.
+   *
+   * False by default in both packaged apps and in development mode. It can be turned on by:
+   * - Starting a packaged version of the app with the --insecure flag.
+   * - Starting the app in dev mode with the CONNECT_INSECURE env var.
+   */
+  insecure: boolean;
   userDataDir: string;
   sessionDataDir: string;
   tempDataDir: string;
@@ -39,7 +61,6 @@ export type RuntimeSettings = {
   platform: Platform;
   agentBinaryPath: string;
   tshd: {
-    insecure: boolean;
     requestedNetworkAddress: string;
     binaryPath: string;
     homeDir: string;
