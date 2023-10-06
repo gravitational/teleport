@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 )
@@ -35,7 +35,7 @@ type hostPolicyCheckerConfig struct {
 	// clt is used to get the list of registered applications
 	clt app.Getter
 	// tun is a reverse tunnel
-	tun reversetunnel.Tunnel
+	tun reversetunnelclient.Tunnel
 	// clusterName is a name of this cluster
 	clusterName string
 }

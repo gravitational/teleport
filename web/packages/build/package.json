@@ -96,5 +96,8 @@
     "webpack-bundle-analyzer": "^4.6.1",
     "webpack-cli": "^4.10.0",
     "webpack-dev-server": "^4.9.3"
+  },
+  "devDependencies": {
+    "msw-storybook-addon": "^1.8.0"
   }
 }

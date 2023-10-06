@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
@@ -61,7 +61,7 @@ func (h *Handler) desktopConnectHandle(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	site reversetunnel.RemoteSite,
+	site reversetunnelclient.RemoteSite,
 ) (interface{}, error) {
 	desktopName := p.ByName("desktopName")
 	if desktopName == "" {
@@ -95,7 +95,7 @@ func (h *Handler) createDesktopConnection(
 	clusterName string,
 	log *logrus.Entry,
 	sctx *SessionContext,
-	site reversetunnel.RemoteSite,
+	site reversetunnelclient.RemoteSite,
 ) error {
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -317,7 +317,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 type connector struct {
 	log           *logrus.Entry
 	clt           auth.ClientI
-	site          reversetunnel.RemoteSite
+	site          reversetunnelclient.RemoteSite
 	clientSrcAddr net.Addr
 	clientDstAddr net.Addr
 }
@@ -352,7 +352,7 @@ func (c *connector) tryConnect(clusterName, desktopServiceID string) (net.Conn, 
 
 	*c.log = *c.log.WithField("windows-service-uuid", service.GetName())
 	*c.log = *c.log.WithField("windows-service-addr", service.GetAddr())
-	return c.site.DialTCP(reversetunnel.DialParams{
+	return c.site.DialTCP(reversetunnelclient.DialParams{
 		From:                  c.clientSrcAddr,
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
 		ConnType:              types.WindowsDesktopTunnel,

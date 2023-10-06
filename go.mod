@@ -120,7 +120,7 @@ require (
 	github.com/miekg/pkcs11 v1.1.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/term v0.0.0-20221205130635-1aeaba878587
-	github.com/okta/okta-sdk-golang/v2 v2.17.0
+	github.com/okta/okta-sdk-golang/v2 v2.20.0
 	github.com/opensearch-project/opensearch-go/v2 v2.2.0
 	github.com/pavlo-v-chernykh/keystore-go/v4 v4.4.1
 	github.com/pelletier/go-toml v1.9.5
@@ -257,6 +257,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.1 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.4 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
+	github.com/go-jose/go-jose/v3 v3.0.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-logr/zapr v1.2.4 // indirect
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect

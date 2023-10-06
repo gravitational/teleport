@@ -79,7 +79,14 @@ const Background = styled.div`
   background: rgba(0, 0, 0, 0.6);
 `;
 
-export function TopBar() {
+type TopBarProps = {
+  // hidePopup indicates if the popup should be hidden based on parent component states.
+  // if true, another modal is present; and we do not want to display the assist popup.
+  // if false or absent, display as pre normal logical rules.
+  hidePopup?: boolean;
+};
+
+export function TopBar({ hidePopup = false }: TopBarProps) {
   const theme = useTheme();
 
   const ctx = useTeleport();
@@ -153,11 +160,10 @@ export function TopBar() {
             <AssistButton onClick={() => setShowAssist(true)}>
               <BrainIcon />
             </AssistButton>
-
-            {showAssistPopup && (
+            {showAssistPopup && !hidePopup && (
               <>
                 <Background />
-                <Popup>
+                <Popup data-testid="assistPopup">
                   <PopupTitle>
                     <PopupTitleBackground>New!</PopupTitleBackground>
                   </PopupTitle>{' '}

@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -377,7 +377,7 @@ func (f *Forwarder) remoteClusterDiater(clusterName string) dialContextFunc {
 			return nil, trace.Wrap(err)
 		}
 
-		return targetCluster.DialTCP(reversetunnel.DialParams{
+		return targetCluster.DialTCP(reversetunnelclient.DialParams{
 			// Send a sentinel value to the remote cluster because this connection
 			// will be used to forward multiple requests to the remote cluster from
 			// different users.
@@ -388,7 +388,7 @@ func (f *Forwarder) remoteClusterDiater(clusterName string) dialContextFunc {
 			// and the targetKubernetes cluster endpoint is determined from the identity
 			// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
 			// `kube.teleport.cluster.local` value to indicate this is a Kubernetes proxy request
-			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalKubernetes},
+			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalKubernetes},
 			ConnType: types.KubeTunnel,
 		})
 	}
@@ -461,7 +461,7 @@ func (f *Forwarder) localClusterDiater(kubeClusterName string) dialContextFunc {
 			// It is a combination of the server's hostname and the cluster name.
 			// <host_id>.<cluster_name>
 			serverID := fmt.Sprintf("%s.%s", s.GetHostID(), f.cfg.ClusterName)
-			if conn, err := localCluster.DialTCP(reversetunnel.DialParams{
+			if conn, err := localCluster.DialTCP(reversetunnelclient.DialParams{
 				// Send a sentinel value to the remote cluster because this connection
 				// will be used to forward multiple requests to the remote cluster from
 				// different users.

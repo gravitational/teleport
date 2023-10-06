@@ -111,6 +111,7 @@ func MakeServer(clusterName string, server types.Server, accessChecker services.
 			Region:      awsMetadata.Region,
 			Integration: awsMetadata.Integration,
 			SubnetID:    awsMetadata.SubnetID,
+			VPCID:       awsMetadata.VPCID,
 		}
 	}
 

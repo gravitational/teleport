@@ -85,6 +85,9 @@ var _ ClientI = &Client{}
 // functionality that hasn't been ported to the new client yet.
 func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
 	cfg.DialInBackground = true
+
+	cfg.CircuitBreakerConfig.TrippedErrorMessage = "Unable to communicate with the Teleport Auth Service"
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -873,13 +876,13 @@ type ClientI interface {
 	OktaClient() services.Okta
 
 	// AccessListClient returns an access list client.
-	// Clients connecting to  older Teleport versions, still get an access list client
+	// Clients connecting to older Teleport versions still get an access list client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	AccessListClient() services.AccessLists
 
 	// UserLoginStateClient returns a user login state client.
-	// Clients connecting to  older Teleport versions, still get a user login state client
+	// Clients connecting to older Teleport versions still get a user login state client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	UserLoginStateClient() services.UserLoginStates

@@ -22,6 +22,9 @@ import { Ellipsis } from 'design/Icon';
 import { MenuProps, AnchorProps } from './types';
 
 export default class MenuActionIcon extends React.Component<Props> {
+  static defaultProps = {
+    Icon: Ellipsis,
+  };
   anchorEl = null;
 
   state = {
@@ -44,7 +47,7 @@ export default class MenuActionIcon extends React.Component<Props> {
 
   render() {
     const { open } = this.state;
-    const { children, buttonIconProps, menuProps } = this.props;
+    const { children, buttonIconProps, menuProps, Icon } = this.props;
     return (
       <>
         <ButtonIcon
@@ -53,7 +56,7 @@ export default class MenuActionIcon extends React.Component<Props> {
           onClick={this.onOpen}
           data-testid="button"
         >
-          <Ellipsis />
+          <Icon />
         </ButtonIcon>
         <Menu
           menuListCss={menuListCss}
@@ -104,4 +107,5 @@ type Props = MenuProps & {
   defaultOpen?: boolean;
   buttonIconProps?: AnchorProps;
   menuProps?: MenuProps;
+  Icon?: React.ComponentType;
 };

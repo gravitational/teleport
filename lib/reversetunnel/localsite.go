@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -117,7 +118,7 @@ func newLocalSite(srv *server, domainName string, authServers []string, opts ...
 	if s.certificateCache == nil {
 		// instantiate a cache of host certificates for the forwarding server. the
 		// certificate cache is created in each site (instead of creating it in
-		// reversetunnel.server and passing it along) so that the host certificate
+		// reversetunnelclient.Server and passing it along) so that the host certificate
 		// is signed by the correct certificate authority.
 		certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, srv.localAuthClient)
 		if err != nil {
@@ -220,7 +221,7 @@ func (s *localSite) GetLastConnected() time.Time {
 	return s.clock.Now()
 }
 
-func (s *localSite) DialAuthServer(params DialParams) (net.Conn, error) {
+func (s *localSite) DialAuthServer(params reversetunnelclient.DialParams) (net.Conn, error) {
 	if len(s.authServers) == 0 {
 		return nil, trace.ConnectionProblem(nil, "no auth servers available")
 	}
@@ -238,7 +239,26 @@ func (s *localSite) DialAuthServer(params DialParams) (net.Conn, error) {
 	return conn, nil
 }
 
-func (s *localSite) Dial(params DialParams) (net.Conn, error) {
+// shouldDialAndForward returns whether a connection should be proxied
+// and forwarded or not.
+func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types.SessionRecordingConfig) bool {
+	// connection is already being tunneled, do not forward
+	if params.FromPeerProxy {
+		return false
+	}
+	// the node is an agentless node, the connection must be forwarded
+	if params.TargetServer != nil && params.TargetServer.IsOpenSSHNode() {
+		return true
+	}
+	// proxy session recording mode is being used and an SSH session
+	// is being requested, the connection must be forwarded
+	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
+		return true
+	}
+	return false
+}
+
+func (s *localSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
 	recConfig, err := s.accessPoint.GetSessionRecordingConfig(s.srv.Context)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -264,7 +284,7 @@ func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, version s
 		dstAddr == nil)
 }
 
-func (s *localSite) maybeSendSignedPROXYHeader(params DialParams, conn net.Conn, useTunnel, checkVersion bool) error {
+func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialParams, conn net.Conn, useTunnel, checkVersion bool) error {
 	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, params.TeleportVersion, useTunnel, checkVersion, params.IsAgentlessNode, params.From, params.OriginalClientDstAddr) {
 		return nil
 	}
@@ -282,7 +302,7 @@ func (s *localSite) maybeSendSignedPROXYHeader(params DialParams, conn net.Conn,
 }
 
 // TODO(awly): unit test this
-func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
+func (s *localSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, error) {
 	s.log.Debugf("Dialing %v.", params)
 
 	conn, useTunnel, err := s.getConn(params)
@@ -337,7 +357,7 @@ func (s *localSite) adviseReconnect(ctx context.Context) {
 	}
 }
 
-func (s *localSite) dialAndForward(params DialParams) (_ net.Conn, retErr error) {
+func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
 	if params.GetUserAgent == nil && !params.IsAgentlessNode {
 		return nil, trace.BadParameter("agentless node require an agent getter")
 	}
@@ -441,7 +461,7 @@ func (s *localSite) dialTunnel(dreq *sshutils.DialReq) (net.Conn, error) {
 
 // tryProxyPeering determines whether the node should try to be reached over
 // a peer proxy.
-func (s *localSite) tryProxyPeering(params DialParams) bool {
+func (s *localSite) tryProxyPeering(params reversetunnelclient.DialParams) bool {
 	if s.peerClient == nil {
 		return false
 	}
@@ -456,7 +476,7 @@ func (s *localSite) tryProxyPeering(params DialParams) bool {
 }
 
 // skipDirectDial determines if a direct dial attempt should be made.
-func (s *localSite) skipDirectDial(params DialParams) (bool, error) {
+func (s *localSite) skipDirectDial(params reversetunnelclient.DialParams) (bool, error) {
 	// Connections to application and database servers should never occur
 	// over a direct dial.
 	switch params.ConnType {
@@ -475,14 +495,14 @@ func (s *localSite) skipDirectDial(params DialParams) (bool, error) {
 
 	// This node can only be reached over a tunnel, don't attempt to dial
 	// directly.
-	if params.To == nil || params.To.String() == "" || params.To.String() == LocalNode {
+	if params.To == nil || params.To.String() == "" || params.To.String() == reversetunnelclient.LocalNode {
 		return true, nil
 	}
 
 	return false, nil
 }
 
-func getTunnelErrorMessage(params DialParams, connStr string, err error) string {
+func getTunnelErrorMessage(params reversetunnelclient.DialParams, connStr string, err error) string {
 	errorMessageTemplate := `Teleport proxy failed to connect to %q agent %q over %s:
 
   %v
@@ -549,7 +569,14 @@ func (s *localSite) setupTunnelForOpenSSHEICENode(ctx context.Context, targetSer
 	return openTunnelResp, nil
 }
 
-func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, err error) {
+func stringOrEmpty(addr net.Addr) string {
+	if addr == nil {
+		return ""
+	}
+	return addr.String()
+}
+
+func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Conn, useTunnel bool, err error) {
 	dialStart := s.srv.Clock.Now()
 
 	// Creates a connection to the target EC2 instance using its private IP.
