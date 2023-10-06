@@ -80,14 +80,27 @@ Service access to AWS credentials.
 
 (!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
 
-## Step 5/7. Create an ElastiCache IAM user (optional)
+## Step 5/6. Configure authentication for ElastiCache or MemoryDB users
+
+There are a few authentication options when creating an ElastiCache or MemoryDB
+user.
 
 If your ElastiCache for Redis cluster supports IAM authentication, the
 Teleport Database Service can connect to your ElastiCache cluster using a
 short-lived AWS IAM authentication token.
 AWS IAM authentication is available for ElastiCache for Redis version 7.0 or
 above. [Redis ACL](https://redis.io/docs/manual/security/acl/) must be enabled
-as well.
+as well. IAM authentication is the preferred method for authentication.
+
+The second option is to allow Teleport to manage ElastiCache or MemoryDB users.
+The Teleport Database Service constantly rotates any passwords managed by
+Teleport, saves these passwords in AWS Secrets Manager, and automatically sends
+an `AUTH` command with the saved password when connecting the client to the
+Redis server.
+
+<Tabs>
+<TabItem label="ElastiCache IAM user">
+
 To enable Redis ACL, please see [Authenticating users with Role-Based Access
 Control for
 ElastiCache](https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/Clusters.RBAC.html).
@@ -137,14 +150,8 @@ to satisfy the requirements for IAM authentication:
 
 ![ElastiCache IAM-enabled User](../../../img/database-access/guides/redis/redis-aws-iam-user@2x.png)
 
-## Step 6/7. Create a Teleport-managed ElastiCache or MemoryDB user (optional)
-
-To provide better security, it is recommended to use [Redis
-ACL](https://redis.io/docs/manual/security/acl/) for authentication with Redis
-and let Teleport manage the users. The Teleport Database Service constantly
-rotates any passwords managed by Teleport, saves these passwords in AWS Secrets
-Manager, and automatically sends an `AUTH` command with the saved password when
-connecting the client to the Redis server.
+</TabItem>
+<TabItem label="Teleport-Managed user">
 
 To enable Redis ACL, please see [Authenticating users with Role-Based Access
 Control for
@@ -161,7 +168,19 @@ The Database Service will automatically discover this user if it is associated
 with a registered database. Keep in mind that it may take the Database Service
 some time (up to 20 minutes) to discover this user once the tag is added.
 
-## Step 7/7. Connect
+</TabItem>
+</Tabs>
+
+If you choose not to use the above options, Teleport will not automatically
+authenticate with the Redis server.
+
+You can either set up a "no password" configuration for your ElastiCache or
+MemoryDB user, or manually enter an `AUTH` command with the password you have
+configured after a successful client connection. However, it is strongly
+advised to use one of the first two options or a strong password for better
+security.
+
+## Step 6/6. Connect
 
 Once the Database Service has started and joined the cluster, log in to see the
 registered databases:
@@ -214,9 +233,9 @@ Now, depending on the authentication configurations, you may need to send an
 
 <Tabs>
   <TabItem label="Redis with ACL">
-    The Database Service automatically authenticates Teleport-managed users
-    with the Redis server. No `AUTH` command is required after successful
-    connection.
+    The Database Service automatically authenticates Teleport-managed and
+    IAM-enabled users with the Redis server. No `AUTH` command is required
+    after successful connection.
 
     If you are connecting as a user that is not managed by Teleport and is not
     IAM-enabled, the connection normally starts as the `default` user.
