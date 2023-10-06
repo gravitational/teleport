@@ -128,7 +128,7 @@ tsh on Windows now supports the `tsh puttyconfig` command, which can easily
 configure saved sessions inside the well-known PuTTY client to connect to
 Teleport SSH services.
 
-For more information, see [docs](docs/pages/connect-your-client/putty.mdx).
+For more information, see [docs](docs/pages/connect-your-client/putty-winscp.mdx).
 
 #### Support for TLS routing in Terraform deployment examples
 
