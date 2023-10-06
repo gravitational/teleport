@@ -439,6 +439,10 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCert
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := validateUserCertsRequest(auth, req); err != nil {
+		g.Entry.Debugf("Validation of user certs request failed: %v", err)
+		return nil, trace.Wrap(err)
+	}
 
 	if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
 		certs, err := g.generateUserSingleUseCertsOneShot(ctx, auth, req)
@@ -452,14 +456,52 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCert
 	return certs, nil
 }
 
+func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) error {
+	switch req.Usage {
+	case authpb.UserCertsRequest_All:
+		if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+			return trace.BadParameter("single-use certificates cannot be issued for all purposes")
+		}
+	case authpb.UserCertsRequest_App:
+		if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+			return trace.BadParameter("single-use certificates cannot be issued for app access")
+		}
+	case authpb.UserCertsRequest_SSH:
+		if req.NodeName == "" {
+			return trace.BadParameter("missing NodeName field in a ssh-only UserCertsRequest")
+		}
+	case authpb.UserCertsRequest_Kubernetes:
+		if req.KubernetesCluster == "" {
+			return trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
+		}
+	case authpb.UserCertsRequest_Database:
+		if req.RouteToDatabase.ServiceName == "" {
+			return trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
+		}
+	case authpb.UserCertsRequest_WindowsDesktop:
+		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
+			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
+		}
+	default:
+		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
+	}
+
+	if req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+		return nil
+	}
+
+	// Single-use certs require current user.
+	if err := actx.currentUserAction(req.Username); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // generateUserSingleUseCertsOneShot generates single-use certificates in a
 // single operation, unlike its streaming counterpart,
 // GenerateUserSingleUseCerts.
 func (g *GRPCServer) generateUserSingleUseCertsOneShot(ctx context.Context, actx *grpcContext, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
-	if err := validateUserSingleUseCertsRequest(ctx, actx, req); err != nil {
-		g.Entry.Debugf("Validation of single-use cert request failed: %v", err)
-		return nil, trace.Wrap(err)
-	}
 	setUserSingleUseCertsTTL(actx, req)
 
 	// We don't do MFA requirement validations here.
@@ -2648,10 +2690,12 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_Genera
 	if initReq == nil {
 		return trace.BadParameter("expected UserCertsRequest, got %T", req.Request)
 	}
-	if err := validateUserSingleUseCertsRequest(ctx, actx, initReq); err != nil {
+	initReq.Purpose = authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
+	if err := validateUserCertsRequest(actx, initReq); err != nil {
 		g.Entry.Debugf("Validation of single-use cert request failed: %v", err)
 		return trace.Wrap(err)
 	}
+
 	setUserSingleUseCertsTTL(actx, initReq)
 
 	// Device trust: authorize device before issuing certificates.
@@ -2713,40 +2757,6 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_Genera
 	}); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
-}
-
-func validateUserSingleUseCertsRequest(ctx context.Context, actx *grpcContext, req *authpb.UserCertsRequest) error {
-	if err := actx.currentUserAction(req.Username); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// TODO(codingllama): Apply validations below to all GenerateUserCerts calls?
-	switch req.Usage {
-	case authpb.UserCertsRequest_SSH:
-		if req.NodeName == "" {
-			return trace.BadParameter("missing NodeName field in a ssh-only UserCertsRequest")
-		}
-	case authpb.UserCertsRequest_Kubernetes:
-		if req.KubernetesCluster == "" {
-			return trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
-		}
-	case authpb.UserCertsRequest_Database:
-		if req.RouteToDatabase.ServiceName == "" {
-			return trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
-		}
-	case authpb.UserCertsRequest_All:
-		return trace.BadParameter("must specify a concrete Usage in UserCertsRequest, one of SSH, Kubernetes or Database")
-	case authpb.UserCertsRequest_App:
-		return trace.BadParameter("app access certificates cannot be issued by GenerateUserSingleUseCerts")
-	case authpb.UserCertsRequest_WindowsDesktop:
-		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
-			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
-		}
-	default:
-		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
-	}
-
 	return nil
 }
 

@@ -884,7 +884,7 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 			req:               appReq,
 			skipLoginCerts:    true,
 			assertErr: func(t *testing.T, err error) {
-				assert.ErrorContains(t, err, "app access certificates", "GenerateUserSingleUseCerts expected to fail for usage=App")
+				assert.ErrorContains(t, err, "app access", "GenerateUserSingleUseCerts expected to fail for usage=App")
 			},
 		},
 		{
@@ -1319,7 +1319,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					NodeName:  "node-a",
 				},
 				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
-					require.ErrorContains(t, err, "concrete Usage")
+					require.ErrorContains(t, err, "all purposes")
 				},
 			},
 		},
