@@ -1,5 +1,6 @@
-You can view database session activity in the Audit Log
-and after the session is uploaded retrieve with the command `tsh play`.
+You can view database session activity in the audit log.
+After a session is uploaded, you can play back the audit data
+with the `tsh play` command.
 
 ```code
 # Database session ID will be in a UUID format (ex: 307b49d6-56c7-4d20-8cf0-5bc5348a7101)
@@ -33,6 +34,6 @@ Example output:
     }
 ```
 
-The Audit Log is viewable in **Activity** under **Management** in the Web UI for users
+The audit log is viewable in **Activity** under **Management** in the Web UI for users
 with permission to the `event` resources. Database sessions do not appear
-in the recorded sessions page.
+in the session recordings page.
