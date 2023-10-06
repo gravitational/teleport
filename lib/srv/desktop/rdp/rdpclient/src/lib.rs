@@ -31,6 +31,7 @@ use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::io::Cursor;
 use std::os::raw::c_char;
+use std::string::FromUtf8Error;
 use std::{mem, ptr, time};
 
 use ironrdp_session::image::DecodedImage;
@@ -46,6 +47,7 @@ use rdpdr::tdp::{
 use util::{encode_png, from_c_string, from_go_array};
 
 use crate::client::{Client, ClientFunction};
+use crate::cliprdr::ClipboardFunction;
 
 pub mod client;
 mod cliprdr;
@@ -131,8 +133,17 @@ pub unsafe extern "C" fn client_update_clipboard(
     data: *mut u8,
     len: u32,
 ) -> CGOErrCode {
-    warn!("unimplemented: client_update_clipboard");
-    CGOErrCode::ErrCodeSuccess
+    let data = from_go_array(data, len);
+    match String::from_utf8(data) {
+        Ok(s) => call_function_on_handle(
+            cgo_handle,
+            ClientFunction::HandleClipboard(ClipboardFunction::Update(s)),
+        ),
+        Err(e) => {
+            error!("can't convert clipboard data: {}", e);
+            CGOErrCode::ErrCodeFailure
+        }
+    }
 }
 
 /// client_handle_tdp_sd_announce announces a new drive that's ready to be

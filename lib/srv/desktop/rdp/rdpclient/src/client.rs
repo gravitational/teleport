@@ -1,38 +1,46 @@
-pub mod global;
-use crate::rdpdr::consts::SCARD_DEVICE_ID;
-use crate::rdpdr::TeleportRdpdrBackend;
-use crate::{
-    handle_fastpath_pdu, handle_rdp_channel_ids, CGOErrCode, CGOKeyboardEvent,
-    CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
-};
+use std::io::Error as IoError;
+use std::io::ErrorKind::ConnectionRefused;
+use std::net::ToSocketAddrs;
+use std::sync::{Arc, Mutex, MutexGuard};
+
+use bitflags::Flags;
 use bytes::BytesMut;
-use ironrdp_connector::{Config, ConnectorError};
+use ironrdp_cliprdr::pdu::{ClipboardFormat, ClipboardFormatId, FormatDataResponse};
+use ironrdp_cliprdr::Cliprdr;
+use ironrdp_connector::{Config, ConnectionResult, ConnectorError};
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
 use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::MousePdu;
 use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
-use ironrdp_pdu::PduParsing;
+use ironrdp_pdu::{PduError, PduParsing};
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
 use ironrdp_rdpsnd::Rdpsnd;
-use ironrdp_session::x224::Processor as X224Processor;
+use ironrdp_session::x224::{Processor as X224Processor, Processor};
 use ironrdp_session::{reason_err, SessionError, SessionResult};
-use ironrdp_svc::{SvcMessage, SvcProcessorMessages};
+use ironrdp_svc::{StaticVirtualChannelProcessor, SvcMessage, SvcProcessorMessages};
 use ironrdp_tls::TlsStream;
 use ironrdp_tokio::{Framed, TokioStream};
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
-use std::io::Error as IoError;
-use std::net::ToSocketAddrs;
-use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
 use tokio::task::JoinError;
 
-// Export this for crate level use.
 pub(crate) use global::call_function_on_handle;
+
+use crate::{
+    handle_fastpath_pdu, handle_rdp_channel_ids, handle_remote_copy, util, CGOErrCode,
+    CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
+};
+// Export this for crate level use.
+use crate::cliprdr::{ClipboardFunction, TeleportCliprdrBackend};
+use crate::rdpdr::consts::SCARD_DEVICE_ID;
+use crate::rdpdr::TeleportRdpdrBackend;
+
+pub mod global;
 
 /// The RDP client on the Rust side of things. Each `Client`
 /// corresponds with a Go `Client` specified by `cgo_handle`.
@@ -85,6 +93,9 @@ impl Client {
             .with_server_name(server_addr)
             .with_credssp_network_client(RequestClientFactory)
             .with_static_channel(Rdpsnd::new())
+            .with_static_channel(Cliprdr::new(Box::new(TeleportCliprdrBackend::new(
+                client_handle.clone(),
+            ))))
             .with_static_channel(
                 Rdpdr::new(
                     Box::new(TeleportRdpdrBackend::new(
@@ -206,8 +217,12 @@ impl Client {
             client_handle,
         );
 
-        let mut write_loop_handle =
-            Client::run_write_loop(write_stream, function_receiver, x224_processor);
+        let mut write_loop_handle = Client::run_write_loop(
+            self.cgo_handle,
+            write_stream,
+            function_receiver,
+            x224_processor,
+        );
 
         // Wait for either loop to finish. When one does, abort the other and return the result.
         tokio::select! {
@@ -260,11 +275,13 @@ impl Client {
     }
 
     fn run_write_loop(
+        cgo_handle: CgoHandle,
         mut write_stream: RdpWriteStream,
         mut write_receiver: FunctionReceiver,
         x224_processor: Arc<Mutex<X224Processor>>,
     ) -> tokio::task::JoinHandle<ClientResult<()>> {
         global::TOKIO_RT.spawn(async move {
+            let mut clipboard = String::new();
             loop {
                 match write_receiver.recv().await {
                     Some(write_request) => match write_request {
@@ -282,6 +299,19 @@ impl Client {
                             Client::write_rdpdr(&mut write_stream, x224_processor.clone(), args)
                                 .await?;
                         }
+                        ClientFunction::HandleClipboard(args) => {
+                            if let Some(c) = Self::handle_clipboard(
+                                cgo_handle,
+                                &mut write_stream,
+                                x224_processor.clone(),
+                                &clipboard,
+                                args,
+                            )
+                            .await?
+                            {
+                                clipboard = c;
+                            }
+                        }
                         ClientFunction::Stop => {
                             // Stop this write loop. The read loop will then be stopped by the caller.
                             return Ok(());
@@ -293,6 +323,75 @@ impl Client {
                 }
             }
         })
+    }
+
+    async fn handle_clipboard(
+        cgo_handle: CgoHandle,
+        mut write_stream: &mut RdpWriteStream,
+        x224_processor: Arc<Mutex<Processor>>,
+        clipboard: &str,
+        clipboard_function: ClipboardFunction,
+    ) -> ClientResult<Option<String>> {
+        match clipboard_function {
+            ClipboardFunction::RequestFormatList => {
+                let messages = Self::x224_lock(&x224_processor)?
+                    .get_svc_processor::<Cliprdr>()
+                    .unwrap()
+                    .initiate_copy(&[])?;
+                let encoded =
+                    Client::x224_process_svc_messages(x224_processor.clone(), messages).await?;
+                write_stream.write_all(&encoded).await?;
+            }
+            ClipboardFunction::Update(data) => {
+                let clipboard = data.clone();
+
+                let messages = Self::x224_lock(&x224_processor)?
+                    .get_svc_processor::<Cliprdr>()
+                    .unwrap()
+                    .initiate_copy(&[ClipboardFormat::new(ClipboardFormatId::CF_UNICODETEXT)])?;
+                let encoded =
+                    Client::x224_process_svc_messages(x224_processor.clone(), messages).await?;
+                write_stream.write_all(&encoded).await?;
+                return Ok(Some(clipboard));
+            }
+            ClipboardFunction::RemoteCopy(data) => {
+                info!("remote copy: {:?}", data);
+                let messages = Self::x224_lock(&x224_processor)?
+                    .get_svc_processor::<Cliprdr>()
+                    .unwrap()
+                    .initiate_paste(ClipboardFormatId::CF_UNICODETEXT)?;
+                let encoded =
+                    Client::x224_process_svc_messages(x224_processor.clone(), messages).await?;
+                write_stream.write_all(&encoded).await?;
+            }
+            ClipboardFunction::FormatDataResponse(data) => unsafe {
+                info!("format data responose: {:?}", data);
+                let mut s = util::from_unicode(data).map_err(|_| ClientError::InternalError)?;
+                let code = handle_remote_copy(cgo_handle, s.as_mut_ptr(), s.len() as u32);
+                ClientResult::from(code)?;
+            },
+            ClipboardFunction::FormatDataRequest(req) => {
+                if req == ClipboardFormatId::CF_UNICODETEXT {
+                    let data = util::to_unicode(&clipboard, true);
+                    let messages = Self::x224_lock(&x224_processor)?
+                        .get_svc_processor::<Cliprdr>()
+                        .unwrap()
+                        .submit_format_data(FormatDataResponse::new_data(data))?;
+                    let encoded =
+                        Client::x224_process_svc_messages(x224_processor.clone(), messages).await?;
+                    write_stream.write_all(&encoded).await?;
+                } else {
+                    let messages = Self::x224_lock(&x224_processor)?
+                        .get_svc_processor::<Cliprdr>()
+                        .unwrap()
+                        .submit_format_data(FormatDataResponse::new_error())?;
+                    let encoded =
+                        Client::x224_process_svc_messages(x224_processor.clone(), messages).await?;
+                    write_stream.write_all(&encoded).await?;
+                }
+            }
+        }
+        Ok(None)
     }
 
     async fn write_rdp_key(
@@ -407,9 +506,9 @@ impl Client {
     /// while waiting for the `x224_processor` lock, or while processing the frame.
     /// This function ensures `x224_processor` is locked only for the necessary duration
     /// of the function call.
-    async fn x224_process_svc_messages(
+    async fn x224_process_svc_messages<C: StaticVirtualChannelProcessor + 'static>(
         x224_processor: Arc<Mutex<X224Processor>>,
-        messages: SvcProcessorMessages<Rdpdr>,
+        messages: SvcProcessorMessages<C>,
     ) -> SessionResult<Vec<u8>> {
         global::TOKIO_RT
             .spawn_blocking(move || {
@@ -449,6 +548,7 @@ pub enum ClientFunction {
     WriteRdpdr(RdpdrPdu),
     /// Aborts the client by stopping both the read and write loops.
     Stop,
+    HandleClipboard(ClipboardFunction),
 }
 
 /// `ClientHandle` is used to dispatch [`ClientFunction`]s calls
@@ -508,6 +608,7 @@ pub struct ConnectParams {
 pub enum ClientError {
     Tcp(IoError),
     Rdp(RdpError),
+    PduError(PduError),
     SessionError(SessionError),
     ConnectorError(ConnectorError),
     CGOErrCode(CGOErrCode),
@@ -555,6 +656,12 @@ impl<T> From<SendError<T>> for ClientError {
 impl From<JoinError> for ClientError {
     fn from(e: JoinError) -> Self {
         ClientError::JoinError(e)
+    }
+}
+
+impl From<PduError> for ClientError {
+    fn from(e: PduError) -> Self {
+        ClientError::PduError(e)
     }
 }
 

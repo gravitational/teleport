@@ -42,7 +42,7 @@ use ironrdp_rdpdr::{
             DeviceControlRequest, DeviceControlResponse, DeviceIoResponse, NtStatus,
             ServerDeviceAnnounceResponse,
         },
-        esc::{LongReturn, ReturnCode, ScardAccessStartedEventCall, ScardIoctlCode},
+        esc::{LongReturn, ReturnCode, ScardAccessStartedEventCall, ScardIoCtlCode},
     },
     RdpdrBackend,
 };
@@ -118,7 +118,7 @@ impl RdpdrBackend for TeleportRdpdrBackend {
 
     fn handle_scard_access_started_event_call(
         &self,
-        req: DeviceControlRequest<ScardIoctlCode>,
+        req: DeviceControlRequest<ScardIoCtlCode>,
         _call: ScardAccessStartedEventCall,
     ) -> PduResult<()> {
         if req.header.device_id != self.get_scard_device_id()? {
