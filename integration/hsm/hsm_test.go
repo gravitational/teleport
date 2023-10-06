@@ -16,7 +16,6 @@ package hsm
 
 import (
 	"context"
-	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -25,6 +24,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -213,24 +213,20 @@ func getAdminClient(authDataDir string, authAddr string) (*auth.Client, error) {
 }
 
 func testAdminClient(t *testing.T, authDataDir string, authAddr string) {
-	var errs []error
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		clt, err := getAdminClient(authDataDir, authAddr)
+		assert.NoError(t, err)
 		if err != nil {
-			errs = append(errs, err)
-			return false
+			return
 		}
 		// Make sure it succeeds twice in a row, we might be hitting a load
 		// balancer in front of two auths, this gives a better chance of testing
 		// both
 		for i := 0; i < 2; i++ {
-			if _, err := clt.GetClusterName(); err != nil {
-				errs = append(errs, err)
-				return false
-			}
+			_, err := clt.GetClusterName()
+			assert.NoError(t, err)
 		}
-		return true
-	}, 10*time.Second, time.Second, "admin client failed test call to GetClusterName, observed errors: %v", errors.Join(errs...))
+	}, 10*time.Second, time.Second, "admin client failed test call to GetClusterName")
 }
 
 // Tests multiple CA rotations and rollbacks with 2 HSM auth servers in an HA configuration
