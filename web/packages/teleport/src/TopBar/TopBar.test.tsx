@@ -16,7 +16,6 @@
 
 import React from 'react';
 import { render, screen, userEvent } from 'design/utils/testing';
-
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 
@@ -27,17 +26,16 @@ import { getOSSFeatures } from 'teleport/features';
 import TeleportContext, {
   disabledFeatureFlags,
 } from 'teleport/teleportContext';
-
 import { makeUserContext } from 'teleport/services/user';
-
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
+import { NotificationKind } from 'teleport/stores/storeNotifications';
 
 import { clusters } from 'teleport/Clusters/fixtures';
 
 import { TopBar } from './TopBar';
 
-let ctx;
+let ctx: TeleportContext;
 
 function setup(): void {
   ctx = new TeleportContext();
@@ -99,11 +97,13 @@ test('notification bell with notification', async () => {
   ctx.storeNotifications.state = {
     notices: [
       {
-        kind: 'access-lists',
+        item: {
+          kind: NotificationKind.AccessList,
+          resourceName: 'banana',
+          route: '',
+        },
         id: 'abc',
-        resourceName: 'banana',
         date: new Date(),
-        route: '',
       },
     ],
   };

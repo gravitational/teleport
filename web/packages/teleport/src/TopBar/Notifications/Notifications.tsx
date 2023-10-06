@@ -18,9 +18,10 @@ import { formatDistanceToNow } from 'date-fns';
 import styled from 'styled-components';
 import { Text } from 'design';
 
-import { Notification, UserList } from 'design/Icon';
+import { Notification as NotificationIcon, UserList } from 'design/Icon';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 import { useStore } from 'shared/libs/stores';
+import { assertUnreachable } from 'shared/utils/error';
 
 import {
   Dropdown,
@@ -32,6 +33,10 @@ import {
   DropdownItemLink,
 } from 'teleport/components/Dropdown';
 import useTeleport from 'teleport/useTeleport';
+import {
+  Notification,
+  NotificationKind,
+} from 'teleport/stores/storeNotifications';
 
 import { ButtonIconContainer } from '../Shared';
 
@@ -46,24 +51,9 @@ export function Notifications() {
   const ref = useRefClickOutside<HTMLDivElement>({ open, setOpen });
 
   let transitionDelay = STARTING_TRANSITION_DELAY;
-  let items = notices.map(notice => {
-    let currentTransitionDelay = transitionDelay;
+  const items = notices.map(notice => {
+    const currentTransitionDelay = transitionDelay;
     transitionDelay += INCREMENT_TRANSITION_DELAY;
-
-    let item;
-    if (notice.kind === 'access-lists') {
-      item = (
-        <NotificationItemButton onClick={() => null}>
-          <DropdownItemIcon>
-            <UserList mt="1px" />
-          </DropdownItemIcon>
-          <Text>
-            Access list <b>{notice.resourceName}</b> needs your review within{' '}
-            {formatDistanceToNow(notice.date)}.
-          </Text>
-        </NotificationItemButton>
-      );
-    }
 
     return (
       <DropdownItem
@@ -71,9 +61,7 @@ export function Notifications() {
         $transitionDelay={currentTransitionDelay}
         key={notice.id}
       >
-        <NotificationLink to={notice.route} onClick={() => setOpen(false)}>
-          {item}
-        </NotificationLink>
+        <NotificationItem notice={notice} close={() => setOpen(false)} />
       </DropdownItem>
     );
   });
@@ -85,7 +73,7 @@ export function Notifications() {
         data-testid="tb-note-button"
       >
         {items.length > 0 && <AttentionDot data-testid="tb-note-attention" />}
-        <Notification />
+        <NotificationIcon />
       </ButtonIconContainer>
 
       <Dropdown
@@ -105,6 +93,33 @@ export function Notifications() {
   );
 }
 
+function NotificationItem({
+  notice,
+  close,
+}: {
+  notice: Notification;
+  close(): void;
+}) {
+  switch (notice.item.kind) {
+    case NotificationKind.AccessList:
+      return (
+        <NotificationLink to={notice.item.route} onClick={close}>
+          <NotificationItemButton>
+            <DropdownItemIcon>
+              <UserList mt="1px" />
+            </DropdownItemIcon>
+            <Text>
+              Access list <b>{notice.item.resourceName}</b> needs your review
+              within {formatDistanceToNow(notice.date)}.
+            </Text>
+          </NotificationItemButton>
+        </NotificationLink>
+      );
+    default:
+      assertUnreachable(notice.item.kind);
+  }
+}
+
 const NotificationButtonContainer = styled.div`
   position: relative;
 `;
@@ -119,11 +134,11 @@ const AttentionDot = styled.div`
   right: 15px;
 `;
 
-export const NotificationItemButton = styled(DropdownItemButton)`
+const NotificationItemButton = styled(DropdownItemButton)`
   align-items: flex-start;
   line-height: 20px;
 `;
 
-export const NotificationLink = styled(DropdownItemLink)`
+const NotificationLink = styled(DropdownItemLink)`
   padding: 0;
 `;

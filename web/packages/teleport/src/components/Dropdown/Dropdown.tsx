@@ -67,7 +67,6 @@ export const DropdownItem = styled.div`
 `;
 
 export const commonDropdownItemStyles = css`
-  opacity: 0.8;
   align-items: center;
   display: flex;
   padding: ${p => p.theme.space[1] * 3}px;

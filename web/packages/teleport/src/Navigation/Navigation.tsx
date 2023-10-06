@@ -17,20 +17,17 @@ limitations under the License.
 import React, { useCallback, useEffect, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { matchPath, useHistory, useLocation } from 'react-router';
-
 import { Image } from 'design';
 
 import { NavigationSwitcher } from 'teleport/Navigation/NavigationSwitcher';
 import cfg from 'teleport/config';
-
 import {
   NAVIGATION_CATEGORIES,
   NavigationCategory,
 } from 'teleport/Navigation/categories';
-
 import { useFeatures } from 'teleport/FeaturesContext';
-
 import { NavigationCategoryContainer } from 'teleport/Navigation/NavigationCategoryContainer';
+import { NotificationKind } from 'teleport/stores/storeNotifications';
 
 import { useTeleport } from '..';
 
@@ -179,9 +176,9 @@ export function Navigation({
           items={[
             {
               category: NavigationCategory.Management,
-              requiresAttention: ctx.storeNotifications
-                .getNotifications()
-                .some(n => n.kind === 'access-lists'),
+              requiresAttention: ctx.storeNotifications.hasNotificationsByKind(
+                NotificationKind.AccessList
+              ),
             },
             { category: NavigationCategory.Resources },
           ]}
