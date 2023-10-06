@@ -341,12 +341,10 @@ func (c *checkedPrefixWriter) Write(p []byte) (int, error) {
 		return c.Conn.Write(p)
 	}
 
-	// Decide which is smaller, provided data or remaining portion of the require prefix
-	small := c.requiredPrefix[c.requiredPointer:]
-	big := p
+	// Decide which is smaller, provided data or remaining portion of the required prefix
+	small, big := c.requiredPrefix[c.requiredPointer:], p
 	if len(small) > len(big) {
-		big = small
-		small = p
+		big, small = small, big
 	}
 
 	if !bytes.HasPrefix(big, small) {
