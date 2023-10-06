@@ -805,8 +805,10 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := checkIfCertsAreAllowedToAccessCluster(k, c.kubeCluster); err != nil && rootClusterName == c.teleportCluster {
-		return trace.Wrap(err)
+	if rootClusterName == c.teleportCluster {
+		if err := checkIfCertsAreAllowedToAccessCluster(k, c.kubeCluster); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	// Cache the new cert on disk for reuse.
 	if err := tc.LocalAgent().AddKubeKey(k); err != nil {
