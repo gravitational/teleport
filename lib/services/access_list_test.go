@@ -473,7 +473,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 func TestAccessListReviewUnmarshal(t *testing.T) {
 	expected, err := accesslist.NewReview(
 		header.Metadata{
-			Name: "test-access-list-review",
+			Name: "1b0988bd-0507-43c9-8ef2-30c82e39160c",
 		},
 		accesslist.ReviewSpec{
 			AccessList: "access-list",
@@ -521,7 +521,7 @@ func TestAccessListReviewUnmarshal(t *testing.T) {
 func TestAccessListReviewMarshal(t *testing.T) {
 	expected, err := accesslist.NewAccessList(
 		header.Metadata{
-			Name: "test-access-list-review",
+			Name: "1b0988bd-0507-43c9-8ef2-30c82e39160c",
 		},
 		accesslist.Spec{
 			Title:       "title",
@@ -735,7 +735,7 @@ var accessListReviewYAML = `---
 kind: access_list_review
 version: v1
 metadata:
-  name: test-access-list-review
+  name: 1b0988bd-0507-43c9-8ef2-30c82e39160c
 spec:
   access_list: access-list
   reviewers:
