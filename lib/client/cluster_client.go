@@ -258,16 +258,48 @@ func (c *ClusterClient) prepareUserCertsRequest(params ReissueParams, key *Key) 
 	}, nil
 }
 
-// performMFACeremony runs the mfa ceremony to completion. If successful the returned
-// [Key] will be authorized to connect to the target.
+// performMFACeremony runs the mfa ceremony to completion.
+// If successful the returned [Key] will be authorized to connect to the target.
 func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *ClusterClient, params ReissueParams, key *Key) (*Key, error) {
-	mfaRequiredReq := params.isMFARequiredRequest(rootClient.tc.HostLogin)
+	certsReq, err := rootClient.prepareUserCertsRequest(params, key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return performMFACeremony(ctx, performMFACeremonyParams{
+		currentAuthClient: c.AuthClient,
+		rootAuthClient:    rootClient.AuthClient,
+		promptMFA:         c.tc.PromptMFA,
+		mfaAgainstRoot:    c.cluster == rootClient.cluster,
+		mfaRequiredReq:    params.isMFARequiredRequest(c.tc.HostLogin),
+		certsReq:          certsReq,
+		key:               key,
+	})
+}
+
+type performMFACeremonyParams struct {
+	currentAuthClient auth.ClientI
+	rootAuthClient    auth.ClientI
+	promptMFA         PromptMFAFunc
+
+	mfaAgainstRoot bool
+	mfaRequiredReq *proto.IsMFARequiredRequest
+	certsReq       *proto.UserCertsRequest
+
+	key *Key
+}
+
+func performMFACeremony(ctx context.Context, params performMFACeremonyParams) (*Key, error) {
+	rootClient := params.rootAuthClient
+	currentClient := params.currentAuthClient
+
+	mfaRequiredReq := params.mfaRequiredReq
 
 	// If connecting to a host in a leaf cluster and MFA failed check to see
 	// if the leaf cluster requires MFA. If it doesn't return an error indicating
 	// that MFA was not required instead of the error received from the root cluster.
-	if c.cluster != rootClient.cluster {
-		mfaRequiredResp, err := c.AuthClient.IsMFARequired(ctx, mfaRequiredReq)
+	if !params.mfaAgainstRoot {
+		mfaRequiredResp, err := currentClient.IsMFARequired(ctx, mfaRequiredReq)
 		log.Debugf("MFA requirement acquired from leaf, MFARequired=%s", mfaRequiredResp.GetMFARequired())
 		switch {
 		case err != nil:
@@ -279,7 +311,7 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *Clus
 	}
 
 	// Acquire MFA challenge.
-	authnChal, err := rootClient.AuthClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+	authnChal, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
@@ -291,24 +323,22 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *Clus
 	}
 
 	// Prompt user for solution (eg, security key touch).
-	authnSolved, err := rootClient.tc.PromptMFA(ctx, authnChal)
+	authnSolved, err := params.promptMFA(ctx, authnChal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Issue certificate.
-	certsReq, err := rootClient.prepareUserCertsRequest(params, key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	certsReq := params.certsReq
 	certsReq.MFAResponse = authnSolved
 	certsReq.Purpose = proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
 	log.Debug("Issuing single-use certificate from unary GenerateUserCerts")
-	newCerts, err := rootClient.AuthClient.GenerateUserCerts(ctx, *certsReq)
+	newCerts, err := rootClient.GenerateUserCerts(ctx, *certsReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	key := params.key
 	switch {
 	case len(newCerts.SSH) > 0:
 		key.Cert = newCerts.SSH
@@ -318,20 +348,20 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *Clus
 			key.KubeTLSCerts[certsReq.KubernetesCluster] = newCerts.TLS
 
 		case proto.UserCertsRequest_Database:
-			dbCert, err := makeDatabaseClientPEM(params.RouteToDatabase.Protocol, newCerts.TLS, key)
+			dbCert, err := makeDatabaseClientPEM(certsReq.RouteToDatabase.Protocol, newCerts.TLS, key)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = dbCert
+			key.DBTLSCerts[certsReq.RouteToDatabase.ServiceName] = dbCert
 
 		case proto.UserCertsRequest_WindowsDesktop:
-			key.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = newCerts.TLS
+			key.WindowsDesktopCerts[certsReq.RouteToWindowsDesktop.WindowsDesktop] = newCerts.TLS
 
 		default:
 			return nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", certsReq.Usage)
 		}
 	}
-	key.ClusterName = params.RouteToCluster
+	key.ClusterName = certsReq.RouteToCluster
 
 	return key, nil
 }
