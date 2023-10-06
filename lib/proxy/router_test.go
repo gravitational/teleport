@@ -15,6 +15,7 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"math/rand"
 	"net"
@@ -344,6 +345,57 @@ func serverResolver(srv types.Server, err error) serverResolverFn {
 	return func(ctx context.Context, host, port string, site site) (types.Server, error) {
 		return srv, err
 	}
+}
+
+type mockConn struct {
+	net.Conn
+	buff bytes.Buffer
+}
+
+func (o *mockConn) Read(p []byte) (n int, err error) {
+	return o.buff.Read(p)
+}
+
+func (o *mockConn) Write(p []byte) (n int, err error) {
+	return o.buff.Write(p)
+}
+
+func (o *mockConn) Close() error {
+	return nil
+}
+
+func TestCheckedPrefixWriter(t *testing.T) {
+	testData := []byte("test data")
+	t.Run("missing prefix", func(t *testing.T) {
+		cpw := checkedPrefixWriter{
+			Conn:           &mockConn{},
+			requiredPrefix: []byte("wrong"),
+		}
+
+		_, err := cpw.Write(testData)
+		require.Error(t, err)
+	})
+	t.Run("success", func(t *testing.T) {
+		cpw := checkedPrefixWriter{
+			Conn:           &mockConn{},
+			requiredPrefix: []byte("test"),
+		}
+
+		// First write with correct prefix should be successful
+		_, err := cpw.Write(testData)
+		require.NoError(t, err)
+
+		// Write second time
+		secondData := []byte("second data")
+		_, err = cpw.Write(secondData)
+		require.NoError(t, err)
+
+		// Resulting read should contain data from both writes
+		buf := make([]byte, len(testData)+len(secondData))
+		_, err = cpw.Read(buf)
+		require.NoError(t, err)
+		require.Equal(t, append(testData, secondData...), buf)
+	})
 }
 
 type tunnel struct {
