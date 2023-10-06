@@ -18,7 +18,6 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -261,119 +260,76 @@ func (c *ClusterClient) prepareUserCertsRequest(params ReissueParams, key *Key) 
 
 // performMFACeremony runs the mfa ceremony to completion. If successful the returned
 // [Key] will be authorized to connect to the target.
-func (c *ClusterClient) performMFACeremony(ctx context.Context, clt *ClusterClient, params ReissueParams, key *Key) (*Key, error) {
-	stream, err := clt.AuthClient.GenerateUserSingleUseCerts(ctx)
-	if err != nil {
-		if trace.IsNotImplemented(err) {
-			// Probably talking to an older server, use the old non-MFA endpoint.
-			log.WithError(err).Debug("Auth server does not implement GenerateUserSingleUseCerts.")
-			// SSH certs can be used without reissuing.
-			if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
-				return key, nil
-			}
+func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *ClusterClient, params ReissueParams, key *Key) (*Key, error) {
+	mfaRequiredReq := params.isMFARequiredRequest(rootClient.tc.HostLogin)
 
-			key, err := clt.reissueUserCerts(ctx, CertCacheKeep, params)
-			return key, trace.Wrap(err)
-		}
-		return nil, trace.Wrap(err)
-	}
-	defer func() {
-		// CloseSend closes the client side of the stream
-		stream.CloseSend()
-		// Recv to wait for the server side of the stream to end, this needs to
-		// be called to ensure the spans are finished properly
-		stream.Recv()
-	}()
-
-	initReq, err := clt.prepareUserCertsRequest(params, key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_Init{
-		Init: initReq,
-	}})
-	if err != nil {
-		return nil, trace.Wrap(trail.FromGRPC(err))
-	}
-
-	resp, err := stream.Recv()
-	if err != nil {
-		err = trail.FromGRPC(err)
-		// If connecting to a host in a leaf cluster and MFA failed check to see
-		// if the leaf cluster requires MFA. If it doesn't return an error indicating
-		// that MFA was not required instead of the error received from the root cluster.
-		if c.cluster != clt.cluster {
-			check, err := c.AuthClient.IsMFARequired(ctx, params.isMFARequiredRequest(clt.tc.HostLogin))
-			if err != nil {
-				return nil, trace.Wrap(MFARequiredUnknown(err))
-			}
-			if !check.Required {
-				return nil, trace.Wrap(services.ErrSessionMFANotRequired)
-			}
-		}
-
-		return nil, trace.Wrap(err)
-	}
-	mfaChal := resp.GetMFAChallenge()
-	if mfaChal == nil {
-		return nil, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected MFAChallenge", resp.Response)
-	}
-
-	switch mfaChal.MFARequired {
-	case proto.MFARequired_MFA_REQUIRED_NO:
-		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
-	case proto.MFARequired_MFA_REQUIRED_UNSPECIFIED:
-		// check if MFA is required with the auth client for this cluster and
-		// not the root client
-		check, err := c.AuthClient.IsMFARequired(ctx, params.isMFARequiredRequest(clt.tc.HostLogin))
-		if err != nil {
+	// If connecting to a host in a leaf cluster and MFA failed check to see
+	// if the leaf cluster requires MFA. If it doesn't return an error indicating
+	// that MFA was not required instead of the error received from the root cluster.
+	if c.cluster != rootClient.cluster {
+		mfaRequiredResp, err := c.AuthClient.IsMFARequired(ctx, mfaRequiredReq)
+		log.Debugf("MFA requirement acquired from leaf, MFARequired=%s", mfaRequiredResp.GetMFARequired())
+		switch {
+		case err != nil:
 			return nil, trace.Wrap(MFARequiredUnknown(err))
-		}
-		if !check.Required {
+		case !mfaRequiredResp.Required:
 			return nil, trace.Wrap(services.ErrSessionMFANotRequired)
 		}
-	case proto.MFARequired_MFA_REQUIRED_YES:
-		// Proceed with the prompt for MFA below.
+		mfaRequiredReq = nil // Already checked, don't check again at root.
 	}
 
-	mfaResp, err := clt.tc.PromptMFA(ctx, mfaChal)
+	// Acquire MFA challenge.
+	authnChal, err := rootClient.AuthClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{},
+		},
+		MFARequiredCheck: mfaRequiredReq,
+	})
+	log.Debugf("MFA requirement from CreateAuthenticateChallenge, MFARequired=%s", authnChal.GetMFARequired())
+	if authnChal.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
+		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+	}
+
+	// Prompt user for solution (eg, security key touch).
+	authnSolved, err := rootClient.tc.PromptMFA(ctx, authnChal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: mfaResp}})
+
+	// Issue certificate.
+	certsReq, err := rootClient.prepareUserCertsRequest(params, key)
 	if err != nil {
-		return nil, trace.Wrap(trail.FromGRPC(err))
+		return nil, trace.Wrap(err)
+	}
+	certsReq.MFAResponse = authnSolved
+	certsReq.Purpose = proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
+	log.Debug("Issuing single-use certificate from unary GenerateUserCerts")
+	newCerts, err := rootClient.AuthClient.GenerateUserCerts(ctx, *certsReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	resp, err = stream.Recv()
-	if err != nil {
-		return nil, trace.Wrap(trail.FromGRPC(err))
-	}
-	certResp := resp.GetCert()
-	if certResp == nil {
-		return nil, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected SingleUseUserCert", resp.Response)
-	}
-	switch crt := certResp.Cert.(type) {
-	case *proto.SingleUseUserCert_SSH:
-		key.Cert = crt.SSH
-	case *proto.SingleUseUserCert_TLS:
-		switch initReq.Usage {
+	switch {
+	case len(newCerts.SSH) > 0:
+		key.Cert = newCerts.SSH
+	case len(newCerts.TLS) > 0:
+		switch certsReq.Usage {
 		case proto.UserCertsRequest_Kubernetes:
-			key.KubeTLSCerts[initReq.KubernetesCluster] = crt.TLS
+			key.KubeTLSCerts[certsReq.KubernetesCluster] = newCerts.TLS
+
 		case proto.UserCertsRequest_Database:
-			dbCert, err := makeDatabaseClientPEM(params.RouteToDatabase.Protocol, crt.TLS, key)
+			dbCert, err := makeDatabaseClientPEM(params.RouteToDatabase.Protocol, newCerts.TLS, key)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = dbCert
+
 		case proto.UserCertsRequest_WindowsDesktop:
-			key.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = crt.TLS
+			key.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = newCerts.TLS
+
 		default:
-			return nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", initReq.Usage)
+			return nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", certsReq.Usage)
 		}
-	default:
-		return nil, trace.BadParameter("server sent a %T SingleUseUserCert in response", certResp.Cert)
 	}
 	key.ClusterName = params.RouteToCluster
 
