@@ -35,6 +35,7 @@ export const sessions: Session[] = [
     resourceName: 'minikube',
     participantModes: ['observer', 'moderator', 'peer'],
     moderated: false,
+    command: 'kubectl get pods',
   },
   {
     kind: 'ssh',
@@ -54,6 +55,7 @@ export const sessions: Session[] = [
     clusterId: 'im-a-cluster-name',
     participantModes: ['observer', 'moderator'],
     moderated: false,
+    command: 'ls -la',
   },
   {
     kind: 'ssh',
@@ -73,6 +75,8 @@ export const sessions: Session[] = [
     clusterId: 'im-a-cluster-name',
     participantModes: ['observer', 'moderator', 'peer'],
     moderated: false,
+    command:
+      'top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid',
   },
   {
     kind: 'ssh',
@@ -92,6 +96,8 @@ export const sessions: Session[] = [
     clusterId: 'im-a-cluster-name',
     participantModes: ['observer'],
     moderated: false,
+    command:
+      'top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid',
   },
   {
     kind: 'desktop',
@@ -111,6 +117,8 @@ export const sessions: Session[] = [
     clusterId: 'im-a-cluster-name',
     participantModes: ['observer', 'moderator', 'peer'],
     moderated: false,
+    command:
+      'top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid',
   },
   {
     kind: 'db',
@@ -130,6 +138,8 @@ export const sessions: Session[] = [
     clusterId: 'im-a-cluster-name',
     participantModes: ['observer'],
     moderated: false,
+    command:
+      'top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid',
   },
   {
     kind: 'app',
@@ -149,5 +159,7 @@ export const sessions: Session[] = [
     clusterId: 'im-a-cluster-name',
     participantModes: ['observer', 'moderator', 'peer'],
     moderated: false,
+    command:
+      'top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid',
   },
 ];

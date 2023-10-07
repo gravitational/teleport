@@ -1195,6 +1195,7 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		Created:           time.Now(),
 		Reason:            s.reason,
 		Invited:           s.invitedUsers,
+		InitialCommand:    s.req.URL.Query()["command"],
 	}
 
 	s.log.Debug("Creating session tracker")

@@ -365,7 +365,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		if err != nil {
 			h.log.WithError(err).Warnf("Invalid SSH proxy address %q, will use default port %v.",
 				cfg.ProxySSHAddr.String(), defaults.SSHProxyListenPort)
-
 		} else {
 			sshPortValue = sshPort
 		}
@@ -3011,6 +3010,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		Moderated:             accessEvaluator.IsModerated(),
 		DatabaseName:          tracker.GetDatabaseName(),
 		Owner:                 tracker.GetHostUser(),
+		Command:               strings.Join(tracker.GetCommand(), " "),
 	}
 }
 
@@ -3695,7 +3695,6 @@ func consumeTokenForAPICall(ctx context.Context, proxyClient auth.ClientI, token
 	}
 
 	return token, nil
-
 }
 
 // checkTokenTTL returns true if the token is still valid.
