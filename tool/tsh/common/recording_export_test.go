@@ -55,9 +55,10 @@ func TestWriteMovieCanBeCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	frames, err := writeMovie(ctx, fs, "test", "test.avi")
+	frames, numberOfFiles, err := writeMovie(ctx, fs, "test", "test.avi")
 	require.Equal(t, context.Canceled, err)
 	require.Equal(t, 0, frames)
+	require.Equal(t, numberOfFiles, 0)
 }
 
 func TestWriteMovieDoesNotSupportSSH(t *testing.T) {
@@ -68,9 +69,10 @@ func TestWriteMovieDoesNotSupportSSH(t *testing.T) {
 	}
 	fs := eventstest.NewFakeStreamer(events, 0)
 
-	frames, err := writeMovie(context.Background(), fs, "test", "test.avi")
+	frames, numberOfFiles, err := writeMovie(context.Background(), fs, "test", "test.avi")
 	require.True(t, trace.IsBadParameter(err), "expected bad paramater error, got %v", err)
 	require.Equal(t, 0, frames)
+	require.Equal(t, numberOfFiles, 0)
 }
 
 // TestWriteMovieMultipleScreenSpecs verifies that the export fails when a session recording
@@ -88,9 +90,10 @@ func TestWriteMovieMultipleScreenSpecs(t *testing.T) {
 
 	fs := eventstest.NewFakeStreamer(events, 0)
 	t.Cleanup(func() { os.RemoveAll("test.avi") })
-	frames, err := writeMovie(context.Background(), fs, session.ID("test"), "test.avi")
+	frames, numberOfFiles, err := writeMovie(context.Background(), fs, session.ID("test"), "test.avi")
 	require.True(t, trace.IsBadParameter(err), "expected bad paramater error, got %v", err)
 	require.Equal(t, 0, frames)
+	require.Equal(t, numberOfFiles, 0)
 }
 
 func TestWriteMovieWritesOneFrame(t *testing.T) {
@@ -105,9 +108,10 @@ func TestWriteMovieWritesOneFrame(t *testing.T) {
 	}
 	fs := eventstest.NewFakeStreamer(events, 0)
 	t.Cleanup(func() { os.RemoveAll("test.avi") })
-	frames, err := writeMovie(context.Background(), fs, session.ID("test"), "test.avi")
+	frames, numberOfFiles, err := writeMovie(context.Background(), fs, session.ID("test"), "test.avi")
 	require.NoError(t, err)
 	require.Equal(t, 1, frames)
+	require.Equal(t, numberOfFiles, 0)
 }
 
 func TestWriteMovieWritesManyFrames(t *testing.T) {
@@ -122,9 +126,10 @@ func TestWriteMovieWritesManyFrames(t *testing.T) {
 	}
 	fs := eventstest.NewFakeStreamer(events, 0)
 	t.Cleanup(func() { os.RemoveAll("test.avi") })
-	frames, err := writeMovie(context.Background(), fs, session.ID("test"), "test.avi")
+	frames, numberOfFiles, err := writeMovie(context.Background(), fs, session.ID("test"), "test.avi")
 	require.NoError(t, err)
 	require.Equal(t, framesPerSecond, frames)
+	require.Equal(t, numberOfFiles, 0)
 }
 
 func tdpEvent(t *testing.T, msg tdp.Message) *apievents.DesktopRecording {
