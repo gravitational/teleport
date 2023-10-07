@@ -136,7 +136,7 @@ type Config struct {
 	// PidFile is a full path of the PID file for teleport daemon
 	PIDFile string
 
-	// Trust is a service that manages users and credentials
+	// Trust is a service that manages certificate authorities
 	Trust services.Trust
 
 	// Presence service is a discovery and heartbeat tracker
@@ -148,7 +148,7 @@ type Config struct {
 	// Provisioner is a service that keeps track of provisioning tokens
 	Provisioner services.Provisioner
 
-	// Trust is a service that manages users and credentials
+	// Identity is a service that manages users and credentials
 	Identity services.Identity
 
 	// Access is a service that controls access

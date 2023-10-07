@@ -1676,6 +1676,14 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 	}
 	clusterName := cfg.Auth.ClusterName.GetClusterName()
+	ident, err := process.storage.ReadIdentity(auth.IdentityCurrent, types.RoleAdmin)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if ident != nil {
+		clusterName = ident.ClusterName
+	}
+
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),
 		Clock:       process.Clock,
@@ -1714,7 +1722,12 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	embeddingsRetriever := ai.NewSimpleRetriever()
-
+	cn, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: clusterName,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	// first, create the AuthServer
 	authServer, err := auth.Init(
 		process.ExitContext(),
@@ -1725,7 +1738,7 @@ func (process *TeleportProcess) initAuthService() error {
 			ClusterAuditConfig:      cfg.Auth.AuditConfig,
 			ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
 			SessionRecordingConfig:  cfg.Auth.SessionRecordingConfig,
-			ClusterName:             cfg.Auth.ClusterName,
+			ClusterName:             cn,
 			AuthServiceName:         cfg.Hostname,
 			DataDir:                 cfg.DataDir,
 			HostUUID:                cfg.HostUUID,
@@ -1984,7 +1997,7 @@ func (process *TeleportProcess) initAuthService() error {
 		// the service has started
 		process.BroadcastEvent(Event{Name: AuthTLSReady, Payload: nil})
 		err := tlsServer.Serve()
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && errors.Is(err, http.ErrServerClosed) {
 			log.Warningf("TLS server exited with error: %v.", err)
 		}
 		return nil
@@ -2719,6 +2732,10 @@ func (process *TeleportProcess) initSSH() error {
 		// Block and wait while the node is running.
 		event, err := process.WaitForEvent(process.ExitContext(), TeleportExitEvent)
 		if err != nil {
+			if process.ExitContext().Err() != nil {
+				// doing a very un-graceful exit
+				return nil
+			}
 			return trace.Wrap(err)
 		}
 
@@ -3593,8 +3610,8 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			}
 		}()
 		return &listeners, nil
-	case cfg.Proxy.PROXYProtocolMode != multiplexer.PROXYProtocolUnspecified && !cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS:
-		process.log.Debugf("Setup Proxy: Proxy protocol is enabled for web service, multiplexing is on.")
+	case cfg.Proxy.PROXYProtocolMode != multiplexer.PROXYProtocolOff && !cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS:
+		process.log.Debug("Setup Proxy: PROXY protocol is enabled for web service, multiplexing is on.")
 		listener, err := process.importOrCreateListener(ListenerProxyWeb, cfg.Proxy.WebAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4661,12 +4678,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		// really guaranteed to be capable to serve new requests if we're
 		// halfway through a shutdown, and double closing a listener is fine.
 		listeners.Close()
-		rcWatcher.Close()
 		if payload == nil {
 			log.Infof("Shutting down immediately.")
 			if tsrv != nil {
 				warnOnErr(tsrv.Close(), log)
 			}
+			warnOnErr(rcWatcher.Close(), log)
 			if proxyServer != nil {
 				warnOnErr(proxyServer.Close(), log)
 			}
@@ -4713,6 +4730,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if tsrv != nil {
 				warnOnErr(tsrv.Shutdown(ctx), log)
 			}
+			warnOnErr(rcWatcher.Close(), log)
 			if proxyServer != nil {
 				warnOnErr(proxyServer.Shutdown(), log)
 			}

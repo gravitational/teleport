@@ -69,9 +69,10 @@ import (
 )
 
 func TestMFADeviceManagement(t *testing.T) {
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	clock := testServer.Clock().(clockwork.FakeClock)
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
-	clock := srv.Clock().(clockwork.FakeClock)
 
 	// Enable MFA support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -83,22 +84,22 @@ func TestMFADeviceManagement(t *testing.T) {
 	})
 	const webOrigin = "https://localhost" // matches RPID above
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPref)
+	err = authServer.SetAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Create a fake user.
-	user, _, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"}, nil)
+	user, _, err := CreateUserAndRole(authServer, "mfa-user", []string{"role"}, nil)
 	require.NoError(t, err)
-	cl, err := srv.NewClient(TestUser(user.GetName()))
+	userClient, err := testServer.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
 	// No MFA devices should exist for a new user.
-	resp, err := cl.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	resp, err := userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
 	require.Empty(t, resp.Devices)
 
 	// Add one device of each kind
-	devs := addOneOfEachMFADevice(t, cl, clock, webOrigin)
+	devs := addOneOfEachMFADevice(t, userClient, clock, webOrigin)
 
 	// Run scenarios beyond adding one of each device, both happy and failures.
 	webKey2, err := mocku2f.Create()
@@ -272,14 +273,14 @@ func TestMFADeviceManagement(t *testing.T) {
 			},
 		},
 	}
-	for _, tt := range addTests {
-		t.Run(tt.desc, func(t *testing.T) {
-			testAddMFADevice(ctx, t, cl, tt.opts)
+	for _, test := range addTests {
+		t.Run(test.desc, func(t *testing.T) {
+			testAddMFADevice(ctx, t, userClient, test.opts)
 		})
 	}
 
 	// Check that all new devices are registered.
-	resp, err = cl.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
 	deviceNames := make([]string, 0, len(resp.Devices))
 	deviceIDs := make(map[string]string)
@@ -292,15 +293,14 @@ func TestMFADeviceManagement(t *testing.T) {
 
 	// Delete several of the MFA devices.
 	deleteTests := []struct {
-		desc string
-		opts mfaDeleteTestOpts
+		desc       string
+		deviceName string
+		opts       mfaDeleteTestOpts
 	}{
 		{
 			desc: "fail to delete an unknown device",
 			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: "unknown-dev",
-				},
+				deviceName:  "unknown-dev",
 				authHandler: devs.totpAuthHandler,
 				checkErr:    require.Error,
 			},
@@ -308,9 +308,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		{
 			desc: "fail a TOTP auth challenge",
 			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: devs.TOTPName,
-				},
+				deviceName: devs.TOTPName,
 				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					require.NotNil(t, req.TOTP)
 
@@ -331,9 +329,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		{
 			desc: "fail a webauthn auth challenge",
 			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: devs.WebName,
-				},
+				deviceName: devs.WebName,
 				authHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					require.NotNil(t, challenge.WebauthnChallenge)
 
@@ -356,9 +352,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		{
 			desc: "delete TOTP device by name",
 			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: devs.TOTPName,
-				},
+				deviceName:  devs.TOTPName,
 				authHandler: devs.totpAuthHandler,
 				checkErr:    require.NoError,
 			},
@@ -366,9 +360,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		{
 			desc: "delete pwdless device by name",
 			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: pwdlessDevName,
-				},
+				deviceName:  pwdlessDevName,
 				authHandler: devs.webAuthHandler,
 				checkErr:    require.NoError,
 			},
@@ -376,9 +368,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		{
 			desc: "delete webauthn device by name",
 			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: devs.WebName,
-				},
+				deviceName:  devs.WebName,
 				authHandler: devs.webAuthHandler,
 				checkErr:    require.NoError,
 			},
@@ -386,9 +376,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		{
 			desc: "delete webauthn device by ID",
 			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: deviceIDs[webDev2Name],
-				},
+				deviceName: deviceIDs[webDev2Name],
 				authHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					resp, err := webKey2.SignAssertion(
 						webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
@@ -403,14 +391,14 @@ func TestMFADeviceManagement(t *testing.T) {
 			},
 		},
 	}
-	for _, tt := range deleteTests {
-		t.Run(tt.desc, func(t *testing.T) {
-			testDeleteMFADevice(ctx, t, cl, tt.opts)
+	for _, test := range deleteTests {
+		t.Run(test.desc, func(t *testing.T) {
+			testDeleteMFADevice(ctx, t, userClient, test.opts)
 		})
 	}
 
-	// Check the remaining number of devices
-	resp, err = cl.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	// Check no remaining devices.
+	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
 	require.Empty(t, resp.Devices)
 }
@@ -419,133 +407,57 @@ type mfaDevices struct {
 	clock     clockwork.Clock
 	webOrigin string
 
-	TOTPName, TOTPSecret string
-	WebName              string
-	WebKey               *mocku2f.Key
+	TOTPName string
+	TOTPDev  *TestDevice
+
+	WebName string
+	WebDev  *TestDevice
 }
 
 func (d *mfaDevices) totpAuthHandler(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-	require.NotNil(t, challenge.TOTP)
+	require.NotNil(t, challenge.TOTP, "nil TOTP challenge")
 
 	if c, ok := d.clock.(clockwork.FakeClock); ok {
 		c.Advance(30 * time.Second)
 	}
-	code, err := totp.GenerateCode(d.TOTPSecret, d.clock.Now())
-	require.NoError(t, err)
-	return &proto.MFAAuthenticateResponse{
-		Response: &proto.MFAAuthenticateResponse_TOTP{
-			TOTP: &proto.TOTPResponse{
-				Code: code,
-			},
-		},
-	}
+
+	mfaResp, err := d.TOTPDev.SolveAuthn(challenge)
+	require.NoError(t, err, "SolveAuthn")
+
+	return mfaResp
 }
 
 func (d *mfaDevices) webAuthHandler(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-	require.NotNil(t, challenge.WebauthnChallenge)
+	require.NotNil(t, challenge.WebauthnChallenge, "nil Webauthn challenge")
 
-	resp, err := d.WebKey.SignAssertion(
-		d.webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
-	require.NoError(t, err)
-	return &proto.MFAAuthenticateResponse{
-		Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
-		},
-	}
+	mfaResp, err := d.WebDev.SolveAuthn(challenge)
+	require.NoError(t, err, "SolveAuthn")
+
+	return mfaResp
 }
 
-func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, origin string) mfaDevices {
+func addOneOfEachMFADevice(t *testing.T, userClient *Client, clock clockwork.Clock, origin string) mfaDevices {
 	const totpName = "totp-dev"
 	const webName = "webauthn-dev"
-	mfaDevs := mfaDevices{
+
+	ctx := context.Background()
+
+	totpDev, err := RegisterTestDevice(
+		ctx, userClient, totpName, proto.DeviceType_DEVICE_TYPE_TOTP, nil /* authenticator */, WithTestDeviceClock(clock))
+	require.NoError(t, err, "RegisterTestDevice(totp)")
+
+	webDev, err := RegisterTestDevice(
+		ctx, userClient, webName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev /* authenticator */)
+	require.NoError(t, err, "RegisterTestDevice(totp)")
+
+	return mfaDevices{
 		clock:     clock,
 		webOrigin: origin,
 		TOTPName:  totpName,
 		WebName:   webName,
+		TOTPDev:   totpDev,
+		WebDev:    webDev,
 	}
-
-	var err error
-	mfaDevs.WebKey, err = mocku2f.Create()
-	require.NoError(t, err)
-	mfaDevs.WebKey.PreferRPID = true
-
-	ctx := context.Background()
-
-	devs := []struct {
-		name string
-		opts mfaAddTestOpts
-	}{
-		{
-			name: "TOTP device",
-			opts: mfaAddTestOpts{
-				deviceName: totpName,
-				deviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
-				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-					// Empty for first device.
-					return &proto.MFAAuthenticateResponse{}
-				},
-				checkAuthErr: require.NoError,
-				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
-					require.NotEmpty(t, challenge.GetTOTP())
-					require.Equal(t, challenge.GetTOTP().Algorithm, otp.AlgorithmSHA1.String())
-
-					mfaDevs.TOTPSecret = challenge.GetTOTP().Secret
-					code, err := totp.GenerateCodeCustom(mfaDevs.TOTPSecret, clock.Now(), totp.ValidateOpts{
-						Period:    uint(challenge.GetTOTP().PeriodSeconds),
-						Digits:    otp.Digits(challenge.GetTOTP().Digits),
-						Algorithm: otp.AlgorithmSHA1,
-					})
-					require.NoError(t, err)
-
-					return &proto.MFARegisterResponse{
-						Response: &proto.MFARegisterResponse_TOTP{
-							TOTP: &proto.TOTPRegisterResponse{
-								Code: code,
-								ID:   challenge.GetTOTP().ID,
-							},
-						},
-					}
-				},
-				checkRegisterErr: require.NoError,
-				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
-					want, err := services.NewTOTPDevice(totpName, mfaDevs.TOTPSecret, clock.Now())
-					want.Id = got.Id
-					require.NoError(t, err)
-					require.Empty(t, cmp.Diff(want, got))
-				},
-			},
-		},
-		{
-			name: "Webauthn device",
-			opts: mfaAddTestOpts{
-				deviceName:   webName,
-				deviceType:   proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-				authHandler:  mfaDevs.totpAuthHandler,
-				checkAuthErr: require.NoError,
-				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
-					require.NotNil(t, challenge.GetWebauthn())
-
-					ccr, err := mfaDevs.WebKey.SignCredentialCreation(origin, wantypes.CredentialCreationFromProto(challenge.GetWebauthn()))
-					require.NoError(t, err)
-					return &proto.MFARegisterResponse{
-						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
-						},
-					}
-				},
-				checkRegisterErr: require.NoError,
-				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
-					// MFADevice device asserted in its entirety by lib/auth/webauthn
-					// tests, a simple check suffices here.
-					require.Equal(t, mfaDevs.WebKey.KeyHandle, got.GetWebauthn().CredentialId)
-				},
-			},
-		},
-	}
-	for _, dev := range devs {
-		testAddMFADevice(ctx, t, cl, dev.opts)
-	}
-	return mfaDevs
 }
 
 type mfaAddTestOpts struct {
@@ -595,147 +507,27 @@ func testAddMFADevice(ctx context.Context, t *testing.T, authClient *Client, opt
 }
 
 type mfaDeleteTestOpts struct {
-	initReq     *proto.DeleteMFADeviceRequestInit
+	deviceName  string
 	authHandler func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
 	checkErr    require.ErrorAssertionFunc
 }
 
-func testDeleteMFADevice(ctx context.Context, t *testing.T, cl *Client, opts mfaDeleteTestOpts) {
-	deleteStream, err := cl.DeleteMFADevice(ctx)
-	require.NoError(t, err)
-	err = deleteStream.Send(&proto.DeleteMFADeviceRequest{Request: &proto.DeleteMFADeviceRequest_Init{Init: opts.initReq}})
-	require.NoError(t, err)
-
-	authChallenge, err := deleteStream.Recv()
-	require.NoError(t, err)
-	authResp := opts.authHandler(t, authChallenge.GetMFAChallenge())
-	err = deleteStream.Send(&proto.DeleteMFADeviceRequest{Request: &proto.DeleteMFADeviceRequest_MFAResponse{MFAResponse: authResp}})
-	require.NoError(t, err)
-
-	deleteAck, err := deleteStream.Recv()
-	opts.checkErr(t, err)
-	if err != nil {
-		return
-	}
-	deleted := deleteAck.GetAck().GetDevice()
-	require.NotNil(t, deleted, "deleted device in ack message is nil")
-	require.NotEmpty(t, deleted.Id, "deleted device.Id in ack message is empty")
-	require.NotEmpty(t, deleted.GetName(), "deleted device.Name in ack message is empty")
-	// opts.initReq.DeviceName can be either the device name or ID, so check if
-	// either matches the deleted device.
-	wantName := []string{
-		deleted.Id,
-		deleted.GetName(),
-	}
-	require.Contains(t, wantName, opts.initReq.DeviceName)
-	require.NoError(t, deleteStream.CloseSend())
-}
-
-func TestDeleteLastMFADevice(t *testing.T) {
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-
-	// Enable MFA support.
-	authSpec := &types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
-		Webauthn: &types.Webauthn{
-			RPID: "localhost",
+func testDeleteMFADevice(ctx context.Context, t *testing.T, authClient *Client, opts mfaDeleteTestOpts) {
+	// Issue and solve authn challenge.
+	authnChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{},
 		},
-	}
-	authPref, err := types.NewAuthPreference(*authSpec)
+	})
+	require.NoError(t, err, "CreateAuthenticateChallenge")
+	authnSolved := opts.authHandler(t, authnChal)
 
-	const webOrigin = "https://localhost" // matches RPID above
-	require.NoError(t, err)
-	auth := srv.Auth()
-	err = auth.SetAuthPreference(ctx, authPref)
-	require.NoError(t, err)
-
-	// Create a fake user.
-	user, _, err := CreateUserAndRole(auth, "mfa-user", []string{"role"}, nil)
-	require.NoError(t, err)
-	cl, err := srv.NewClient(TestUser(user.GetName()))
-	require.NoError(t, err)
-
-	// Add devices
-	devs := addOneOfEachMFADevice(t, cl, srv.Clock(), webOrigin)
-
-	tests := []struct {
-		name         string
-		secondFactor constants.SecondFactorType
-		opts         mfaDeleteTestOpts
-	}{
-		{
-			name:         "NOK sf=OTP trying to delete last OTP device",
-			secondFactor: constants.SecondFactorOTP,
-			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: devs.TOTPName,
-				},
-				authHandler: devs.totpAuthHandler,
-				checkErr:    require.Error,
-			},
-		},
-		{
-			name:         "NOK sf=Webauthn trying to delete last Webauthn device",
-			secondFactor: constants.SecondFactorWebauthn,
-			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: devs.WebName,
-				},
-				authHandler: devs.webAuthHandler,
-				checkErr:    require.Error,
-			},
-		},
-		{
-			name:         "OK delete OTP device",
-			secondFactor: constants.SecondFactorOn,
-			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: devs.TOTPName,
-				},
-				authHandler: devs.totpAuthHandler,
-				checkErr:    require.NoError,
-			},
-		},
-		{
-			name:         "NOK sf=on trying to delete last MFA device",
-			secondFactor: constants.SecondFactorOn,
-			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: devs.WebName,
-				},
-				authHandler: devs.webAuthHandler,
-				checkErr:    require.Error,
-			},
-		},
-		{
-			name:         "OK sf=optional delete last device (webauthn)",
-			secondFactor: constants.SecondFactorOptional,
-			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: devs.WebName,
-				},
-				authHandler: devs.webAuthHandler,
-				checkErr:    require.NoError,
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			// Update second factor settings, if necessary.
-			cap, err := auth.GetAuthPreference(ctx)
-			require.NoError(t, err)
-			if cap.GetSecondFactor() != test.secondFactor {
-				authSpec.SecondFactor = test.secondFactor
-				newCAP, err := types.NewAuthPreference(*authSpec)
-				require.NoError(t, err)
-				require.NoError(t, auth.SetAuthPreference(ctx, newCAP))
-			}
-
-			testDeleteMFADevice(ctx, t, cl, test.opts)
-		})
-	}
+	// Attempt deletion.
+	opts.checkErr(t,
+		authClient.DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
+			DeviceName:          opts.deviceName,
+			ExistingMFAResponse: authnSolved,
+		}))
 }
 
 func TestCreateAppSession_deviceExtensions(t *testing.T) {
@@ -1934,7 +1726,6 @@ func TestIsMFARequired(t *testing.T) {
 
 	for _, authPrefRequireMFAType := range requireMFATypes {
 		t.Run(fmt.Sprintf("authPref=%v", authPrefRequireMFAType.String()), func(t *testing.T) {
-
 			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 				Type:           constants.Local,
 				SecondFactor:   constants.SecondFactorOptional,
@@ -1981,16 +1772,25 @@ func TestIsMFARequired(t *testing.T) {
 
 					// If auth pref or role require session MFA, and MFA is not already
 					// verified according to private key policy, expect MFA required.
-					expectRequired := (role.GetOptions().RequireMFAType.IsSessionMFARequired() || authPref.GetRequireMFAType().IsSessionMFARequired()) &&
-						!role.GetPrivateKeyPolicy().MFAVerified() && !authPref.GetPrivateKeyPolicy().MFAVerified()
-					require.Equal(t, expectRequired, resp.Required, "Expected IsMFARequired to return %v but got %v", expectRequired, resp.Required)
+					wantRequired :=
+						(role.GetOptions().RequireMFAType.IsSessionMFARequired() || authPref.GetRequireMFAType().IsSessionMFARequired()) &&
+							!role.GetPrivateKeyPolicy().MFAVerified() &&
+							!authPref.GetPrivateKeyPolicy().MFAVerified()
+					var wantMFARequired proto.MFARequired
+					if wantRequired {
+						wantMFARequired = proto.MFARequired_MFA_REQUIRED_YES
+					} else {
+						wantMFARequired = proto.MFARequired_MFA_REQUIRED_NO
+					}
+					assert.Equal(t, wantRequired, resp.Required, "Required mismatch")
+					assert.Equal(t, wantMFARequired, resp.MFARequired, "IsMFARequired mismatch")
 				})
 			}
 		})
 	}
 }
 
-func TestIsMFARequiredUnauthorized(t *testing.T) {
+func TestIsMFARequired_unauthorized(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -2062,8 +1862,9 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 			Node:  "node1",
 		}},
 	})
-	require.NoError(t, err)
-	require.True(t, resp.Required)
+	require.NoError(t, err, "IsMFARequired")
+	assert.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, resp.MFARequired, "MFARequired mismatch")
+	assert.True(t, resp.Required, "Required mismatch")
 
 	// Call the endpoint for an unauthorized login.
 	resp, err = cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
@@ -2072,13 +1873,12 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 			Node:  "node1",
 		}},
 	})
-
-	// When unauthorized, expect a silent `false`.
-	require.NoError(t, err)
-	require.False(t, resp.Required)
+	require.NoError(t, err, "IsMFARequired silent failure wanted")
+	assert.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, resp.MFARequired, "MFARequired mismatch")
+	assert.False(t, resp.Required, "Required mismatch")
 }
 
-func TestIsMFARequired_NodeMatch(t *testing.T) {
+func TestIsMFARequired_nodeMatch(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 
 	ctx := context.Background()
@@ -2115,61 +1915,64 @@ func TestIsMFARequired_NodeMatch(t *testing.T) {
 	for _, tc := range []struct {
 		desc string
 		// IsMFARequired only expects a host name or ip without the port.
-		node        string
-		expectMatch require.BoolAssertionFunc
+		node string
+		want proto.MFARequired
 	}{
 		{
-			desc:        "OK uuid match",
-			node:        node.GetName(),
-			expectMatch: require.True,
+			desc: "OK uuid match",
+			node: node.GetName(),
+			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 		{
-			desc:        "OK host name match",
-			node:        node.GetHostname(),
-			expectMatch: require.True,
+			desc: "OK host name match",
+			node: node.GetHostname(),
+			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 		{
-			desc:        "OK addr match",
-			node:        node.GetAddr(),
-			expectMatch: require.True,
+			desc: "OK addr match",
+			node: node.GetAddr(),
+			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 		{
-			desc:        "OK public addr 1 match",
-			node:        "node.example.com",
-			expectMatch: require.True,
+			desc: "OK public addr 1 match",
+			node: "node.example.com",
+			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 		{
-			desc:        "OK public addr 2 match",
-			node:        "localhost",
-			expectMatch: require.True,
+			desc: "OK public addr 2 match",
+			node: "localhost",
+			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 		{
-			desc:        "NOK label match",
-			node:        "foo",
-			expectMatch: require.False,
+			desc: "NOK label match",
+			node: "foo",
+			want: proto.MFARequired_MFA_REQUIRED_NO,
 		},
 		{
-			desc:        "NOK unknown ip",
-			node:        "1.2.3.4",
-			expectMatch: require.False,
+			desc: "NOK unknown ip",
+			node: "1.2.3.4",
+			want: proto.MFARequired_MFA_REQUIRED_NO,
 		},
 		{
-			desc:        "NOK unknown addr",
-			node:        "unknown.example.com",
-			expectMatch: require.False,
+			desc: "NOK unknown addr",
+			node: "unknown.example.com",
+			want: proto.MFARequired_MFA_REQUIRED_NO,
 		},
 	} {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
+
 			resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
 					Login: user.GetName(),
 					Node:  tc.node,
 				}},
 			})
-			require.NoError(t, err)
-			tc.expectMatch(t, resp.Required)
+			require.NoError(t, err, "IsMFARequired")
+
+			assert.Equal(t, tc.want, resp.MFARequired, "MFARequired mismatch")
+			assert.Equal(t, MFARequiredToBool(tc.want), resp.Required, "Required mismatch")
 		})
 	}
 }

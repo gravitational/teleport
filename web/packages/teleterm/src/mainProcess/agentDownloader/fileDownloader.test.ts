@@ -120,7 +120,7 @@ test('rejects a promise when an unexpected error occurs', async () => {
   const result = downloader.run(URL, DOWNLOAD_DIR);
 
   expect(browserWindow.webContents.downloadURL).toHaveBeenCalledWith(URL);
-  await expect(result).rejects.toThrow(`Download failed.`);
+  await expect(result).rejects.toThrow(`Failed to download ${URL}`);
   expect(browserWindow.setProgressBar).toHaveBeenCalledWith(-1, {
     mode: 'error',
   });

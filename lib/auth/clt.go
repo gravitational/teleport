@@ -86,6 +86,8 @@ var _ ClientI = &Client{}
 func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
 	cfg.DialInBackground = true
 
+	cfg.CircuitBreakerConfig.TrippedErrorMessage = "Unable to communicate with the Teleport Auth Service"
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -593,7 +595,7 @@ type IdentityService interface {
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
 	// Deprecated: Use AddMFADeviceSync instead.
 	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
-	// DeleteMFADevice deletes a MFA device for the calling user.
+	// Deprecated: Use DeleteMFADeviceSync instead.
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
 	// AddMFADeviceSync adds a new MFA device (nonstream).
 	AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)

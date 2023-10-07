@@ -1501,113 +1501,6 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 	return node, nil
 }
 
-func (s *ServerWithRoles) MakePaginatedResources(requestType string, resources []types.ResourceWithLabels) ([]*proto.PaginatedResource, error) {
-	paginatedResources := make([]*proto.PaginatedResource, 0, len(resources))
-	for _, resource := range resources {
-		var protoResource *proto.PaginatedResource
-		resourceKind := requestType
-		if requestType == types.KindUnifiedResource {
-			resourceKind = resource.GetKind()
-		}
-		switch resourceKind {
-		case types.KindDatabaseServer:
-			database, ok := resource.(*types.DatabaseServerV3)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}}
-		case types.KindDatabaseService:
-			databaseService, ok := resource.(*types.DatabaseServiceV1)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: databaseService}}
-		case types.KindAppServer:
-			app, ok := resource.(*types.AppServerV3)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}}
-		case types.KindNode:
-			srv, ok := resource.(*types.ServerV2)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}}
-		case types.KindKubeServer:
-			srv, ok := resource.(*types.KubernetesServerV3)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: srv}}
-		case types.KindWindowsDesktop:
-			desktop, ok := resource.(*types.WindowsDesktopV3)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
-		case types.KindWindowsDesktopService:
-			desktopService, ok := resource.(*types.WindowsDesktopServiceV3)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktopService{WindowsDesktopService: desktopService}}
-		case types.KindKubernetesCluster:
-			cluster, ok := resource.(*types.KubernetesClusterV3)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: cluster}}
-		case types.KindUserGroup:
-			userGroup, ok := resource.(*types.UserGroupV1)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_UserGroup{UserGroup: userGroup}}
-		case types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
-			switch appOrSP := resource.(type) {
-			case *types.AppServerV3:
-				protoResource = &proto.PaginatedResource{
-					Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-						AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
-							Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
-								AppServer: appOrSP,
-							},
-						},
-					},
-				}
-			case *types.SAMLIdPServiceProviderV1:
-				protoResource = &proto.PaginatedResource{
-					Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-						AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
-							Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
-								SAMLIdPServiceProvider: appOrSP,
-							},
-						},
-					},
-				}
-			default:
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-		default:
-			return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
-		}
-
-		paginatedResources = append(paginatedResources, protoResource)
-	}
-	return paginatedResources, nil
-}
-
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	// Fetch full list of resources in the backend.
@@ -1629,112 +1522,43 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	}()
 
 	startFetch := time.Now()
-	unifiedResources, err := a.authServer.UnifiedResourceCache.GetUnifiedResources(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	elapsedFetch = time.Since(startFetch)
-
 	startFilter := time.Now()
-	for _, resource := range unifiedResources {
-		switch r := resource.(type) {
-		case types.Server:
-			{
-				if err := a.checkAccessToNode(r); err != nil {
-					if trace.IsAccessDenied(err) {
-						continue
-					}
-
-					return nil, trace.Wrap(err)
-				}
-
-				filteredResources = append(filteredResources, resource)
-			}
-		case types.DatabaseServer:
-			{
-				if err := a.checkAccessToDatabase(r.GetDatabase()); err != nil {
-					if trace.IsAccessDenied(err) {
-						continue
-					}
-
-					return nil, trace.Wrap(err)
-				}
-
-				filteredResources = append(filteredResources, resource)
-			}
-
-		case types.AppServer:
-			{
-				if err := a.checkAccessToApp(r.GetApp()); err != nil {
-					if trace.IsAccessDenied(err) {
-						continue
-					}
-
-					return nil, trace.Wrap(err)
-				}
-
-				filteredResources = append(filteredResources, resource)
-			}
-		case types.SAMLIdPServiceProvider:
-			{
-				if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
-					filteredResources = append(filteredResources, resource)
-				}
-			}
-		case types.KubeServer:
-			kube := r.GetCluster()
-			if err := a.checkAccessToKubeCluster(kube); err != nil {
-				if trace.IsAccessDenied(err) {
-					continue
-				}
-
-				return nil, trace.Wrap(err)
-			}
-
-			filteredResources = append(filteredResources, kube)
-		case types.WindowsDesktop:
-			{
-				if err := a.checkAccessToWindowsDesktop(r); err != nil {
-					if trace.IsAccessDenied(err) {
-						continue
-					}
-
-					return nil, trace.Wrap(err)
-				}
-
-				filteredResources = append(filteredResources, resource)
-			}
-		}
-	}
-	elapsedFilter = time.Since(startFilter)
-
-	if req.SortBy.Field != "" {
-		if err := filteredResources.SortByCustom(req.SortBy); err != nil {
-			return nil, trace.Wrap(err, "sorting unified resources")
-		}
-	}
-
-	// Apply request filters and get pagination info.
-	resp, err := local.FakePaginate(filteredResources, local.FakePaginateParams{
-		Limit:               req.Limit,
+	filter := services.MatchResourceFilter{
 		Labels:              req.Labels,
 		SearchKeywords:      req.SearchKeywords,
 		PredicateExpression: req.PredicateExpression,
-		StartKey:            req.StartKey,
 		Kinds:               req.Kinds,
-	})
+	}
+
+	resourceChecker, err := a.newResourceAccessChecker(types.KindUnifiedResource)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	paginatedResources, err := a.MakePaginatedResources(types.KindUnifiedResource, resp.Resources)
+	unifiedResources, nextKey, err := a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
+		if err := resourceChecker.CanAccess(resource); err != nil {
+			if trace.IsAccessDenied(err) {
+				return false, nil
+			}
+			return false, trace.Wrap(err)
+		}
+		match, err := services.MatchResourceByFilters(resource, filter, nil)
+		return match, trace.Wrap(err)
+	}, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "filtering unified resources")
+	}
+
+	elapsedFetch = time.Since(startFetch)
+	elapsedFilter = time.Since(startFilter)
+
+	paginatedResources, err := services.MakePaginatedResources(types.KindUnifiedResource, unifiedResources)
 	if err != nil {
 		return nil, trace.Wrap(err, "making paginated unified resources")
 	}
 
 	return &proto.ListUnifiedResourcesResponse{
-		NextKey:   resp.NextKey,
+		NextKey:   nextKey,
 		Resources: paginatedResources,
 	}, nil
 }
@@ -2057,7 +1881,7 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode, types.KindKubeServer, types.KindUserGroup:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode, types.KindKubeServer, types.KindUserGroup, types.KindUnifiedResource:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
@@ -5451,7 +5275,18 @@ func (a *ServerWithRoles) AddMFADeviceSync(ctx context.Context, req *proto.AddMF
 
 // DeleteMFADeviceSync is implemented by AuthService.DeleteMFADeviceSync.
 func (a *ServerWithRoles) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error {
-	// The token provides its own authorization and authentication.
+	switch {
+	case req.TokenID != "":
+		// OK. Token holds the user.
+	case req.ExistingMFAResponse != nil:
+		// Sanity check: caller must be an end user.
+		if !authz.IsLocalOrRemoteUser(a.context) {
+			return trace.BadParameter("only end users are allowed to delete devices using an MFA authentication challenge")
+		}
+	default:
+		// Let Server.DeleteMFADeviceSync handle the failure.
+	}
+
 	return a.authServer.DeleteMFADeviceSync(ctx, req)
 }
 
@@ -5475,12 +5310,15 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 	if !hasLocalUserRole(a.context) && !hasRemoteUserRole(a.context) {
 		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
 	}
+
 	// Certain hardware-key based private key policies are treated as MFA verification.
 	if a.context.Identity.GetIdentity().PrivateKeyPolicy.MFAVerified() {
 		return &proto.IsMFARequiredResponse{
-			Required: false,
+			Required:    false,
+			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
 		}, nil
 	}
+
 	return a.authServer.isMFARequired(ctx, a.context.Checker, req)
 }
 
@@ -6252,21 +6090,57 @@ func (a *ServerWithRoles) GetAccountRecoveryToken(ctx context.Context, req *prot
 
 // CreateAuthenticateChallenge is implemented by AuthService.CreateAuthenticateChallenge.
 func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+	isLocalOrRemoteUser := authz.IsLocalOrRemoteUser(a.context)
+
+	// Run preliminary user checks first.
 	switch req.GetRequest().(type) {
 	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
 	case *proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID:
 	case *proto.CreateAuthenticateChallengeRequest_Passwordless:
 	default: // nil or *proto.CreateAuthenticateChallengeRequest_ContextUser:
-		if !authz.IsLocalOrRemoteUser(a.context) {
+		if !isLocalOrRemoteUser {
 			return nil, trace.BadParameter("only end users are allowed to issue authentication challenges using ContextUser")
 		}
 	}
 
-	// No permission check is required b/c this request verifies request by one of the following:
+	// Have we been asked to check if MFA is necessary? Resolve that first.
+	//
+	// We run the check in this layer, instead of under Server.IsMFARequired,
+	// because the ServerWithRoles.IsMFARequired variant adds logic of its own.
+	var mfaRequired proto.MFARequired
+	if req.MFARequiredCheck != nil {
+		// Return a nicer error message.
+		if !isLocalOrRemoteUser {
+			return nil, trace.BadParameter("only end users are allowed to supply MFARequiredCheck")
+		}
+
+		mfaRequiredResp, err := a.IsMFARequired(ctx, req.MFARequiredCheck)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Exit early if we are certain that MFA is not necessary.
+		if !mfaRequiredResp.Required {
+			return &proto.MFAAuthenticateChallenge{
+				// No challenges provided.
+				MFARequired: mfaRequiredResp.MFARequired,
+			}, nil
+		}
+		mfaRequired = mfaRequiredResp.MFARequired
+	}
+
+	// The following serve as means of authentication for this RPC:
 	//   - username + password, anyone who has user's password can generate a sign request
 	//   - token provide its own auth
 	//   - the user extracted from context can create their own challenges
-	return a.authServer.CreateAuthenticateChallenge(ctx, req)
+	authnChal, err := a.authServer.CreateAuthenticateChallenge(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Set MFA requirement queried above, if any.
+	authnChal.MFARequired = mfaRequired
+	return authnChal, nil
 }
 
 // CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.

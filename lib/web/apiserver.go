@@ -1783,6 +1783,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	if installUpdater {
 		repoChannel = stableCloudChannelRepo
 	}
+	azureClientID := r.URL.Query().Get("azure-client-id")
 
 	tmpl := installers.Template{
 		PublicProxyAddr:   h.PublicProxyAddr(),
@@ -1790,6 +1791,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		TeleportPackage:   teleportPackage,
 		RepoChannel:       repoChannel,
 		AutomaticUpgrades: strconv.FormatBool(installUpdater),
+		AzureClientID:     azureClientID,
 	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)
@@ -2649,6 +2651,9 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			unifiedResources = append(unifiedResources, desktop)
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker)
+			unifiedResources = append(unifiedResources, kube)
+		case types.KubeServer:
+			kube := ui.MakeKubeCluster(r.GetCluster(), accessChecker)
 			unifiedResources = append(unifiedResources, kube)
 		default:
 			return nil, trace.Errorf("UI Resource has unknown type: %T", resource)
