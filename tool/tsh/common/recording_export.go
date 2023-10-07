@@ -204,7 +204,7 @@ loop:
 					// get the current size of the file writing to
 					info, err := os.Stat(currentFileName)
 					sizeOfFile := info.Size()
-					log.Debugf(" file size %v of %s", sizeOfFile, currentFileName)
+					log.Debugf("file size %v of %s", sizeOfFile, currentFileName)
 					if err != nil {
 						return frameCount, numberOfFiles, trace.Wrap(err)
 					}
