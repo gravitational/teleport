@@ -4391,6 +4391,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		proxyProtocol := cfg.Proxy.PROXYProtocolMode
+		if clusterNetworkConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
+			// If ProxyListenerMode is MULTIPLEX it means that the ALPN listener handles the PROXY line
+			// and sends the connection to the Proxy Kube listener. When it does, it uses the same net.Conn
+			// and doesn't dial so the PROXY Protocol cannot be present. Under those circumstances,
+			// ProxyProtocol for Proxy Kube listener must be off.
+
+			proxyProtocol = multiplexer.PROXYProtocolOff
+		}
+
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
 				Namespace:                     apidefaults.Namespace,
@@ -4426,7 +4437,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Log:                      log,
 			IngressReporter:          ingressReporter,
 			KubernetesServersWatcher: kubeServerWatcher,
-			PROXYProtocolMode:        cfg.Proxy.PROXYProtocolMode,
+			PROXYProtocolMode:        proxyProtocol,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -4441,7 +4452,16 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				kubeListenAddr = cfg.Proxy.Kube.ListenAddr.Addr
 			}
 			log.Infof("Starting Kube proxy on %v.", kubeListenAddr)
-			err := kubeServer.Serve(listeners.kube)
+
+			var mopts []kubeproxy.ServeOption
+			for _, opt := range cfg.Options {
+				if _, ok := opt.(servicecfg.KubeMultiplexerIgnoreSelfConnectionsOption); ok {
+					mopts = append(mopts, kubeproxy.WithMultiplexerIgnoreSelfConnections())
+					break
+				}
+			}
+
+			err := kubeServer.Serve(listeners.kube, mopts...)
 			if err != nil && err != http.ErrServerClosed {
 				log.Warningf("Kube TLS server exited with error: %v.", err)
 			}
