@@ -303,7 +303,7 @@ func (sas *SAMLAuthService) createSAMLUser(ctx context.Context, p *auth.CreateUs
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := sas.auth.Services.GetUser(p.Username, false)
+	existingUser, err := sas.auth.Services.GetUserWithContext(ctx, p.Username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -322,16 +322,12 @@ func (sas *SAMLAuthService) createSAMLUser(ctx context.Context, p *auth.CreateUs
 			existingUser.GetName(), connectorRef.Type, connectorRef.ID)
 
 		user.SetRevision(existingUser.GetRevision())
-		if err := sas.auth.UpdateUser(ctx, user); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := sas.auth.CreateUser(ctx, user); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		updated, err := sas.auth.UpdateUserWithContext(ctx, user)
+		return updated, trace.Wrap(err)
 	}
 
-	return user, nil
+	created, err := sas.auth.CreateUserWithContext(ctx, user)
+	return created, trace.Wrap(err)
 }
 
 func ParseSAMLInResponseTo(response string) (string, error) {

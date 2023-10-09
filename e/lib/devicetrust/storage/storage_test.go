@@ -3462,11 +3462,11 @@ func TestS_AssignDeviceOwner(t *testing.T) {
 	u1, _ := types.NewUser(user1)
 	u2, _ := types.NewUser(user2)
 	u2.SetTrustedDeviceIDs([]string{devOnlyUser.Id})
-	if err := identity.CreateUser(u1); err != nil {
-		t.Fatalf("CreateUser(%q) failed: %v", u1.GetName(), err)
+	if _, err := identity.CreateUserWithContext(ctx, u1); err != nil {
+		t.Fatalf("CreateUserWithContext(%q) failed: %v", u1.GetName(), err)
 	}
-	if err := identity.CreateUser(u2); err != nil {
-		t.Fatalf("CreateUser(%q) failed: %v", u2.GetName(), err)
+	if _, err := identity.CreateUserWithContext(ctx, u2); err != nil {
+		t.Fatalf("CreateUserWithContext(%q) failed: %v", u2.GetName(), err)
 	}
 
 	tests := []struct {
@@ -3516,7 +3516,7 @@ func TestS_AssignDeviceOwner(t *testing.T) {
 			}
 
 			// Assert user trusted devices.
-			u, err := identity.GetUser(test.user, false /* withSecrets */)
+			u, err := identity.GetUserWithContext(ctx, test.user, false /* withSecrets */)
 			if err != nil {
 				t.Fatalf("GetUser failed: %v", err)
 			}
@@ -3545,11 +3545,11 @@ func TestS_UserTrustedDeviceIDs(t *testing.T) {
 	const user2 = "alpaca"
 	u1, _ := types.NewUser(user1)
 	u2, _ := types.NewUser(user2)
-	if err := identity.CreateUser(u1); err != nil {
-		t.Fatalf("CreateUser(%q) failed: %v", u1.GetName(), err)
+	if _, err := identity.CreateUserWithContext(ctx, u1); err != nil {
+		t.Fatalf("CreateUserWithContext(%q) failed: %v", u1.GetName(), err)
 	}
-	if err := identity.CreateUser(u2); err != nil {
-		t.Fatalf("CreateUser(%q) failed: %v", u2.GetName(), err)
+	if _, err := identity.CreateUserWithContext(ctx, u2); err != nil {
+		t.Fatalf("CreateUserWithContext(%q) failed: %v", u2.GetName(), err)
 	}
 
 	// Create a couple of previously-owned devices.
@@ -3651,7 +3651,7 @@ func TestS_UserTrustedDeviceIDs(t *testing.T) {
 
 			// Sanity check: device is assigned before `fn`.
 			if !test.wantAssigned {
-				storedUser, err := identity.GetUser(user, false /* withSecrets */)
+				storedUser, err := identity.GetUserWithContext(ctx, user, false /* withSecrets */)
 				switch {
 				case err != nil:
 					t.Fatalf("GetUser failed: %v", err)
@@ -3680,7 +3680,7 @@ func TestS_UserTrustedDeviceIDs(t *testing.T) {
 			}
 
 			// Verify user trusted devices.
-			storedUser, err := identity.GetUser(user, false /* withSecrets */)
+			storedUser, err := identity.GetUserWithContext(ctx, user, false /* withSecrets */)
 			if err != nil {
 				t.Fatalf("GetUser failed: %v", err)
 			}

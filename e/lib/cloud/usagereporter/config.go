@@ -77,8 +77,9 @@ type ResourceAPIGetter interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 	// GetDatabaseServers retrieves database servers
 	GetDatabaseServers(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error)
-	// GetUsers retrieves users
-	GetUsers(withSecrets bool) ([]types.User, error)
+	// GetUsersWithContext retrieves users
+	// TODO(tross) remove this once oss and e are converted to using the new signature.
+	GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// GetKubernetesServers retrieves kubernetes servers
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 	// GetApplicationServers retrieves application servers.

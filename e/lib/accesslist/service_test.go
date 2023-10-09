@@ -642,9 +642,12 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 	owner2.SetRoles(ownerRoles)
 	owner2.SetTraits(ownerTraits)
 
-	require.NoError(t, userSvc.CreateUser(user))
-	require.NoError(t, userSvc.CreateUser(owner))
-	require.NoError(t, userSvc.CreateUser(owner2))
+	user, err = userSvc.CreateUserWithContext(ctx, user)
+	require.NoError(t, err)
+	owner, err = userSvc.CreateUserWithContext(ctx, owner)
+	require.NoError(t, err)
+	_, err = userSvc.CreateUserWithContext(ctx, owner2)
+	require.NoError(t, err)
 
 	storage, err := local.NewAccessListService(backend, clock)
 	require.NoError(t, err)
@@ -672,19 +675,22 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 	require.NoError(t, err)
 	member1.SetRoles(memberRoles)
 	member1.SetTraits(memberTraits)
-	require.NoError(t, userSvc.CreateUser(member1))
+	_, err = userSvc.CreateUserWithContext(ctx, member1)
+	require.NoError(t, err)
 
 	member2, err := types.NewUser(member2)
 	require.NoError(t, err)
 	member2.SetRoles(memberRoles)
 	member2.SetTraits(memberTraits)
-	require.NoError(t, userSvc.CreateUser(member2))
+	_, err = userSvc.CreateUserWithContext(ctx, member2)
+	require.NoError(t, err)
 
 	member3, err := types.NewUser(member3)
 	require.NoError(t, err)
 	member3.SetRoles(memberRoles)
 	member3.SetTraits(memberTraits)
-	require.NoError(t, userSvc.CreateUser(member3))
+	_, err = userSvc.CreateUserWithContext(ctx, member3)
+	require.NoError(t, err)
 
 	return genUserContext(ctx, user.GetName(), []string{role.GetName()}, nil),
 		genUserContext(ctx, owner.GetName(), ownerRoles, ownerTraits), svc, clock, emitter, usageEvents

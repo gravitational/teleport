@@ -45,6 +45,7 @@ type MockedResourceGetter struct {
 	MockedGetNodes              func() ([]types.Server, error)
 	MockedGetDatabaseServers    func() ([]types.DatabaseServer, error)
 	MockedGetUsers              func() ([]types.User, error)
+	MockedGetUsersWithContext   func(ctx context.Context) ([]types.User, error)
 	MockedGetKubeServers        func() ([]types.KubeServer, error)
 	MockedGetApplicationServers func() ([]types.AppServer, error)
 	MockedGetRoles              func() ([]types.Role, error)
@@ -74,6 +75,15 @@ func (g *MockedResourceGetter) GetDatabaseServers(ctx context.Context, namespace
 }
 
 func (g *MockedResourceGetter) GetUsers(withSecrets bool) ([]types.User, error) {
+	if g.MockedGetUsers != nil {
+		return g.MockedGetUsers()
+	}
+
+	return nil, trace.NotImplemented("GetUsers is not implemented")
+}
+
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func (g *MockedResourceGetter) GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	if g.MockedGetUsers != nil {
 		return g.MockedGetUsers()
 	}

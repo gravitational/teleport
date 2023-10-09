@@ -581,11 +581,11 @@ func TestSuggestAccessLists(t *testing.T) {
 	require.NoError(t, err)
 
 	// assign the admin role and preferred_drink=fanta to reviewer
-	user, err := authClient.GetUser("reviewer", false)
+	user, err := authClient.GetUserWithContext(ctx, "reviewer", false)
 	require.NoError(t, err)
 	user.SetRoles([]string{requesterRoleName})
 	user.SetTraits(trait.Traits{"preferred_drink": []string{"fanta"}})
-	err = authClient.UpsertUser(user)
+	_, err = authClient.UpsertUserWithContext(ctx, user)
 	require.NoError(t, err)
 
 	// create four access lists:
@@ -775,10 +775,10 @@ func TestPromoteAccessRequest(t *testing.T) {
 		require.NoError(t, err)
 	}
 	assignRole := func(userName string, role string) {
-		user, err := authClient.GetUser(userName, false)
+		user, err := authClient.GetUserWithContext(ctx, userName, false)
 		require.NoError(t, err)
 		user.SetRoles([]string{role})
-		err = authClient.UpsertUser(user)
+		_, err = authClient.UpsertUserWithContext(ctx, user)
 		require.NoError(t, err)
 	}
 

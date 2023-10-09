@@ -82,8 +82,10 @@ func TestGetSession(t *testing.T) {
 
 	user1.AddRole("auditor")
 	user1.AddRole("editor")
-	require.NoError(t, svcs.userService.CreateUser(user1))
-	require.NoError(t, svcs.userService.CreateUser(user2))
+	_, err = svcs.userService.CreateUserWithContext(ctx, user1)
+	require.NoError(t, err)
+	_, err = svcs.userService.CreateUserWithContext(ctx, user2)
+	require.NoError(t, err)
 
 	// Valid user.
 	entityID := "entity-id"

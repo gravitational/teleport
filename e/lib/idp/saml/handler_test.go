@@ -319,14 +319,16 @@ func TestLockUser(t *testing.T) {
 }
 
 func setupUser(t *testing.T, svcs testServices, expireTime time.Time) authz.LocalUser {
+	ctx := context.Background()
 	role, err := types.NewRole("test-group", types.RoleSpecV6{})
 	require.NoError(t, err)
-	require.NoError(t, svcs.accessService.CreateRole(context.Background(), role))
+	require.NoError(t, svcs.accessService.CreateRole(ctx, role))
 
 	user, err := types.NewUser("user1")
 	user.AddRole(role.GetName())
 	require.NoError(t, err)
-	require.NoError(t, svcs.userService.CreateUser(user))
+	user, err = svcs.userService.CreateUserWithContext(ctx, user)
+	require.NoError(t, err)
 
 	identity := tlsca.Identity{
 		Username: user.GetName(),

@@ -85,7 +85,7 @@ var (
 
 // AuthServer represents the [auth.Server] methods used by [Service].
 type AuthServer interface {
-	// AugmentContextCertsFunc augments the context certificate and the supplied
+	// AugmentContextUserCertificates augments the context certificate and the supplied
 	// certificates with device extensions.
 	// All certificates must be valid, issued by the Teleport CA, match each
 	// other, and conform to whatever checks the underlying implementation sees
@@ -104,7 +104,7 @@ type AuthServer interface {
 // UsersService represents the [local.IdentityService] methods used by
 // [Service].
 type UsersService interface {
-	GetUser(user string, withSecrets bool) (types.User, error)
+	GetUserWithContext(ctx context.Context, user string, withSecrets bool) (types.User, error)
 }
 
 // RateLimiter is a subset of [limiter.RateLimiter].

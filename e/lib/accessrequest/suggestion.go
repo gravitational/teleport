@@ -38,7 +38,8 @@ type roleGetter interface {
 }
 
 type AccessListSuggestionClient interface {
-	GetUser(userName string, withSecrets bool) (types.User, error)
+	// TODO(tross) remove this once oss and e are converted to using the new signature.
+	GetUserWithContext(ctx context.Context, userName string, withSecrets bool) (types.User, error)
 	roleGetter
 
 	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
@@ -80,7 +81,7 @@ func GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt 
 	}
 
 	// Filter out access lists that the reviewer cannot modify using in-place truncate.
-	reviewer, err := clt.GetUser(identity.Username, false)
+	reviewer, err := clt.GetUserWithContext(ctx, identity.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -287,7 +288,7 @@ func GenerateAccessRequestPromotions(ctx context.Context, resourceGetter modules
 		return types.NewAccessRequestAllowedPromotions(nil), nil
 	}
 
-	requester, err := resourceGetter.GetUser(accessRequest.GetUser(), false)
+	requester, err := resourceGetter.GetUserWithContext(ctx, accessRequest.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

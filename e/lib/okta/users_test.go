@@ -95,7 +95,8 @@ func TestUserAssignmentCreator(t *testing.T) {
 	user.SetRoles([]string{role.GetName()})
 
 	require.NoError(t, ap.CreateRole(ctx, role))
-	require.NoError(t, ap.CreateUser(user))
+	user, err = ap.CreateUserWithContext(ctx, user)
+	require.NoError(t, err)
 
 	assignments, _, err := ap.ListOktaAssignments(ctx, 0, "")
 	require.NoError(t, err)

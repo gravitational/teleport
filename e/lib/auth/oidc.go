@@ -802,7 +802,7 @@ func (oas *OIDCAuthService) createOIDCUser(ctx context.Context, p *auth.CreateUs
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := oas.auth.Services.GetUser(p.Username, false)
+	existingUser, err := oas.auth.Services.GetUserWithContext(ctx, p.Username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -821,16 +821,12 @@ func (oas *OIDCAuthService) createOIDCUser(ctx context.Context, p *auth.CreateUs
 			existingUser.GetName(), connectorRef.Type, connectorRef.ID)
 
 		user.SetRevision(existingUser.GetRevision())
-		if err := oas.auth.UpdateUser(ctx, user); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := oas.auth.CreateUser(ctx, user); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		created, err := oas.auth.UpdateUserWithContext(ctx, user)
+		return created, trace.Wrap(err)
 	}
 
-	return user, nil
+	created, err := oas.auth.CreateUserWithContext(ctx, user)
+	return created, trace.Wrap(err)
 }
 
 // usernameFromClaims gets the username of the OIDC user based on the claims received. The `username_claim` field in the OIDC

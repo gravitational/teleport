@@ -51,7 +51,7 @@ func (c *authnCeremony) AuthenticateDevice(stream devicepb.DeviceTrustService_Au
 		owner = user
 		backfill = true
 	} else {
-		u, err := c.cachedUsers.GetUser(owner, false /* withSecrets */)
+		u, err := c.cachedUsers.GetUserWithContext(stream.Context(), owner, false /* withSecrets */)
 		backfill = err == nil && !slices.Contains(u.GetTrustedDeviceIDs(), dev.Id)
 	}
 	if backfill {
