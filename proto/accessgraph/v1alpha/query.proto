@@ -14,13 +14,15 @@
 
 syntax = "proto3";
 
-package accessgraph.v1;
+package accessgraph.v1alpha;
 
-option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1;accessgraphv1";
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
 
-// QueryRequest is a request to query the access graph.
-message QueryRequest {
-  string query = 1;
+// AccessGraphService is a service for interacting the access graph service.
+service AccessGraphService {
+  // Query queries the access graph.
+  // Currently only used by WebUI.
+  rpc Query(QueryRequest) returns (QueryResponse);
 }
 
 // Node is a node in the access graph.
@@ -40,14 +42,14 @@ message Edge {
   string type = 3;
 }
 
+// QueryRequest is a request to query the access graph.
+message QueryRequest {
+  // query is a AQSQL query.
+  string query = 1;
+}
+
 // QueryResponse is a response to a query.
 message QueryResponse {
   repeated Node nodes = 1;
   repeated Edge edges = 2;
-}
-
-// QueryService is a service for querying the access graph.
-service QueryService {
-  // Query queries the access graph.
-  rpc Query(QueryRequest) returns (QueryResponse);
 }

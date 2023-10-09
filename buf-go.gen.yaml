@@ -22,4 +22,5 @@ plugins:
       - module=github.com/gravitational/teleport
       # needed by teleport/lib/teleterm/v1/usage_events.proto
       - Mprehog/v1alpha/connect.proto=github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha;prehogv1alpha
-      - Maccessgraph/v1/query.proto=github.com/gravitational/teleport/gen/proto/go/accessgraph/v1;accessgraphv1
+      # needed by Access Graph
+      - Maccessgraph/v1alpha/query.proto=github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha
