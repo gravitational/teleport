@@ -5011,6 +5011,9 @@ message SessionTrackerSpecV1 {
 
   // TargetSubKind is the sub kind of the target server.
   string TargetSubKind = 22 [(gogoproto.jsontag) = "target_sub_kind,omitempty"];
+
+  // InitialCommand is the command that was executed to start this session.
+  repeated string InitialCommand = 23 [(gogoproto.jsontag) = "initial_command,omitempty"];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker
