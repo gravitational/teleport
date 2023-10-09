@@ -7277,24 +7277,26 @@ func TestTraitsPropagation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run command in root.
-	outputRoot, err := runCommand(t, rc, []string{"echo", "hello root"}, helpers.ClientConfig{
-		Login:   me.Username,
-		Cluster: "root.example.com",
-		Host:    Loopback,
-		Port:    helpers.Port(t, rc.SSH),
-	}, 1)
-	require.NoError(t, err)
-	require.Equal(t, "hello root", strings.TrimSpace(outputRoot))
+	require.Eventually(t, func() bool {
+		outputRoot, err := runCommand(t, rc, []string{"echo", "hello root"}, helpers.ClientConfig{
+			Login:   me.Username,
+			Cluster: "root.example.com",
+			Host:    Loopback,
+			Port:    helpers.Port(t, rc.SSH),
+		}, 1)
+		return err == nil && strings.TrimSpace(outputRoot) == "hello root"
+	}, time.Second*30, time.Millisecond*100)
 
 	// Run command in leaf.
-	outputLeaf, err := runCommand(t, rc, []string{"echo", "hello leaf"}, helpers.ClientConfig{
-		Login:   me.Username,
-		Cluster: "leaf.example.com",
-		Host:    Loopback,
-		Port:    helpers.Port(t, lc.SSH),
-	}, 1)
-	require.NoError(t, err)
-	require.Equal(t, "hello leaf", strings.TrimSpace(outputLeaf))
+	require.Eventually(t, func() bool {
+		outputLeaf, err := runCommand(t, rc, []string{"echo", "hello leaf"}, helpers.ClientConfig{
+			Login:   me.Username,
+			Cluster: "leaf.example.com",
+			Host:    Loopback,
+			Port:    helpers.Port(t, lc.SSH),
+		}, 1)
+		return err == nil && strings.TrimSpace(outputLeaf) == "hello leaf"
+	}, time.Second*30, time.Millisecond*100)
 }
 
 // testSessionStreaming tests streaming events from session recordings.
