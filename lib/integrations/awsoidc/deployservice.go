@@ -58,12 +58,6 @@ var (
 )
 
 const (
-	// teleportOSS is the prefix for the image name when deploying the OSS version of Teleport
-	teleportOSS = "teleport"
-
-	// teleportEnt is the prefix for the image name when deploying the Enterprise version of Teleport
-	teleportEnt = "teleport-ent"
-
 	// clusterStatusActive is the string representing an ACTIVE ECS Cluster.
 	clusterStatusActive = "ACTIVE"
 	// clusterStatusInactive is the string representing an INACTIVE ECS Cluster.
@@ -433,9 +427,9 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 
 // upsertTask ensures a TaskDefinition with TaskName exists
 func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest, configB64 string) (*ecsTypes.TaskDefinition, error) {
-	teleportFlavor := teleportOSS
+	teleportFlavor := types.PackageNameOSS
 	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		teleportFlavor = teleportEnt
+		teleportFlavor = types.PackageNameEnt
 	}
 	taskAgentContainerImage := fmt.Sprintf("public.ecr.aws/gravitational/%s-distroless:%s", teleportFlavor, req.TeleportVersionTag)
 
