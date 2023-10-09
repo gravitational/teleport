@@ -850,6 +850,8 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	cfg.Auth.LoadAllCAs = fc.Auth.LoadAllCAs
 
+	// Setting this to true at all times to allow self hosting
+	// of plugins that were previously cloud only.
 	cfg.Auth.HostedPlugins.Enabled = true
 	cfg.Auth.HostedPlugins.OAuthProviders, err = fc.Auth.HostedPlugins.OAuthProviders.Parse()
 	if err != nil {
