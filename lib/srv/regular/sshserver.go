@@ -184,6 +184,9 @@ type Server struct {
 	// wtmpPath is the path to the user accounting s.Logger.
 	wtmpPath string
 
+	// btmpPath is the path to the user accounting failed login log.
+	btmpPath string
+
 	// allowTCPForwarding indicates whether the ssh server is allowed to offer
 	// TCP port forwarding.
 	allowTCPForwarding bool
@@ -212,6 +215,9 @@ type Server struct {
 
 	// users is used to start the automatic user deletion loop
 	users srv.HostUsers
+
+	// sudoers is used to manage sudoers file provisioning
+	sudoers srv.HostSudoers
 
 	// tracerProvider is used to create tracers capable
 	// of starting spans.
@@ -242,7 +248,7 @@ func (s *Server) TargetMetadata() apievents.ServerMetadata {
 		ServerNamespace: s.GetNamespace(),
 		ServerID:        s.ID(),
 		ServerAddr:      s.Addr(),
-		ServerLabels:    s.labels,
+		ServerLabels:    s.getAllLabels(),
 		ServerHostname:  s.hostname,
 	}
 }
@@ -265,9 +271,9 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
 }
 
-// GetUtmpPath returns the optional override of the utmp and wtmp path.
-func (s *Server) GetUtmpPath() (string, string) {
-	return s.utmpPath, s.wtmpPath
+// GetUserAccountingPaths returns the optional override of the utmp, wtmp, and btmp paths.
+func (s *Server) GetUserAccountingPaths() (string, string, string) {
+	return s.utmpPath, s.wtmpPath, s.btmpPath
 }
 
 // GetPAM returns the PAM configuration for this server.
@@ -306,6 +312,15 @@ func (s *Server) GetCreateHostUser() bool {
 // host user provisioning
 func (s *Server) GetHostUsers() srv.HostUsers {
 	return s.users
+}
+
+// GetHostSudoers returns the HostSudoers instance being used to manage
+// sudoers file provisioning
+func (s *Server) GetHostSudoers() srv.HostSudoers {
+	if s.sudoers == nil {
+		return &srv.HostSudoersNotImplemented{}
+	}
+	return s.sudoers
 }
 
 // ServerOption is a functional option passed to the server
@@ -382,7 +397,7 @@ func (s *Server) startPeriodicOperations() {
 	}
 	// If the server allows host user provisioning, this will start an
 	// automatic cleanup process for any temporary leftover users.
-	if s.users != nil {
+	if s.GetCreateHostUser() && s.users != nil {
 		go s.users.UserCleanup()
 	}
 	if s.cloudLabels != nil {
@@ -404,11 +419,12 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	s.srv.HandleConnection(conn)
 }
 
-// SetUtmpPath is a functional server option to override the user accounting database and log path.
-func SetUtmpPath(utmpPath, wtmpPath string) ServerOption {
+// SetUserAccountingPaths is a functional server option to override the user accounting database and log path.
+func SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath string) ServerOption {
 	return func(s *Server) error {
 		s.utmpPath = utmpPath
 		s.wtmpPath = wtmpPath
+		s.btmpPath = btmpPath
 		return nil
 	}
 }
@@ -801,13 +817,10 @@ func New(
 		trace.ComponentFields: logrus.Fields{},
 	})
 
-	if s.createHostUser {
-		users := srv.NewHostUsers(ctx, s.storage, s.ID())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		s.users = users
+	if s.GetCreateHostUser() {
+		s.users = srv.NewHostUsers(ctx, s.storage, s.ID())
 	}
+	s.sudoers = srv.NewHostSudoers(s.ID())
 
 	s.reg, err = srv.NewSessionRegistry(srv.SessionRegistryConfig{
 		Srv:                   s,
@@ -933,6 +946,12 @@ func (s *Server) Addr() string {
 	return s.srv.Addr()
 }
 
+// ActiveConnections returns the number of connections that are
+// being served.
+func (s *Server) ActiveConnections() int32 {
+	return s.srv.ActiveConnections()
+}
+
 // ID returns server ID
 func (s *Server) ID() string {
 	return s.uuid
@@ -1020,6 +1039,18 @@ func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
 		return make(map[string]types.CommandLabelV2)
 	}
 	return types.LabelsToV2(s.dynamicLabels.Get())
+}
+
+// getAllLabels return a combination of static and dynamic labels.
+func (s *Server) getAllLabels() map[string]string {
+	lmap := make(map[string]string)
+	for key, value := range s.getStaticLabels() {
+		lmap[key] = value
+	}
+	for key, cmd := range s.getDynamicLabels() {
+		lmap[key] = cmd.Result
+	}
+	return lmap
 }
 
 // GetInfo returns a services.Server that represents this server.
@@ -1189,12 +1220,13 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 				rejectChannel(nch, ssh.UnknownChannelType, "failed to parse direct-tcpip request")
 				return
 			}
-			ch, _, err := nch.Accept()
+			ch, reqC, err := nch.Accept()
 			if err != nil {
 				s.Logger.Warnf("Unable to accept channel: %v.", err)
 				rejectChannel(nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 				return
 			}
+			go ssh.DiscardRequests(reqC)
 			go s.handleProxyJump(ctx, ccx, identityContext, ch, *req)
 			return
 		// Channels of type "session" handle requests that are involved in running
@@ -1298,12 +1330,13 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 			rejectChannel(nch, ssh.UnknownChannelType, "failed to parse direct-tcpip request")
 			return
 		}
-		ch, _, err := nch.Accept()
+		ch, reqC, err := nch.Accept()
 		if err != nil {
 			s.Logger.Warnf("Unable to accept channel: %v.", err)
 			rejectChannel(nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 			return
 		}
+		go ssh.DiscardRequests(reqC)
 		go s.handleDirectTCPIPRequest(ctx, ccx, identityContext, ch, req)
 	default:
 		rejectChannel(nch, ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType))
@@ -1663,11 +1696,17 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		if err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
 			return trace.Wrap(err)
 		}
+		if err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(serverContext); err != nil {
+			return trace.Wrap(err)
+		}
 		return s.termHandlers.HandleExec(ctx, ch, req, serverContext)
 	case sshutils.PTYRequest:
 		return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
 	case sshutils.ShellRequest:
 		if err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(serverContext); err != nil {
 			return trace.Wrap(err)
 		}
 		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
@@ -1697,6 +1736,10 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// the open ssh proto spec that we implement is here:
 		// http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent
 		if err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
+			s.Logger.Warn(err)
+			return nil
+		}
+		if err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(serverContext); err != nil {
 			s.Logger.Warn(err)
 			return nil
 		}
@@ -1829,7 +1872,7 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 }
 
 func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
-	sb, err := s.parseSubsystemRequest(req, ch, serverContext)
+	sb, err := s.parseSubsystemRequest(req, serverContext)
 	if err != nil {
 		serverContext.Warnf("Failed to parse subsystem request: %v: %v.", req, err)
 		return trace.Wrap(err)
@@ -2062,7 +2105,7 @@ func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
 	}
 }
 
-func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *srv.ServerContext) (srv.Subsystem, error) {
+func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext) (srv.Subsystem, error) {
 	var r sshutils.SubsystemReq
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		return nil, trace.BadParameter("failed to parse subsystem request: %v", err)

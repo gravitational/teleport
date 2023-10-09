@@ -540,11 +540,11 @@ func combineMatchedClusters(matchMap map[string]types.KubeClusters) types.KubeCl
 }
 
 // matchClustersByNames maps each name to the clusters it matches by exact name
-// or by prefix.
+// or by discovered name.
 func matchClustersByNames(clusters types.KubeClusters, names ...string) map[string]types.KubeClusters {
 	matchesForNames := make(map[string]types.KubeClusters)
 	for _, name := range names {
-		matchesForNames[name] = matchClustersByName(name, clusters)
+		matchesForNames[name] = matchClustersByNameOrDiscoveredName(name, clusters)
 	}
 	return matchesForNames
 }

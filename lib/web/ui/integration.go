@@ -255,14 +255,14 @@ type AWSOIDCDeployEC2ICERequest struct {
 	// Region is the AWS Region.
 	Region string `json:"region"`
 	// SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
-	SubnetID string `json:"subnetID"`
+	SubnetID string `json:"subnetId"`
 	// SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
 	// If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
 	SecurityGroupIDs []string `json:"securityGroupIds"`
 }
 
-// AWSOIDCDeployEC2ICEResponse contains a list of AWS Instance Connect Endpoints and a next token if more pages are available.
+// AWSOIDCDeployEC2ICEResponse is the response after creating an AWS EC2 Instance Connect Endpoint.
 type AWSOIDCDeployEC2ICEResponse struct {
-	// Name is the endpoint Name that was created.
+	// Name is the name of the endpoint that was created.
 	Name string `json:"name"`
 }

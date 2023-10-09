@@ -1340,6 +1340,14 @@ message AccessRequestCreate {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "max_duration,omitempty"
   ];
+
+  reserved "PromotedAccessListTitle";
+  reserved 14;
+
+  // PromotedAccessListName is the name of the access list that this request
+  // was promoted to.
+  // This field is only populated when the request is in the PROMOTED state.
+  string PromotedAccessListName = 15 [(gogoproto.jsontag) = "promoted_access_list_name,omitempty"];
 }
 
 // ResourceID is a unique identifier for a teleport resource. This is duplicated

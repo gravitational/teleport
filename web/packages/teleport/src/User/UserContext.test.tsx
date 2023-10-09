@@ -71,7 +71,7 @@ describe('user context - success state', () => {
   });
 
   it('should migrate the previous theme setting from local storage', async () => {
-    let updateBody = {};
+    let updateBody: { theme?: ThemePreference } = {};
 
     server.use(
       rest.put(cfg.api.userPreferencesPath, async (req, res, ctx) => {
@@ -89,11 +89,7 @@ describe('user context - success state', () => {
       </UserContextProvider>
     );
 
-    await waitFor(() =>
-      expect(updateBody).toEqual({
-        theme: ThemePreference.Dark,
-      })
-    );
+    await waitFor(() => expect(updateBody.theme).toEqual(ThemePreference.Dark));
 
     const theme = await screen.findByText(/theme: dark/i);
 

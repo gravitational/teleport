@@ -115,7 +115,7 @@ func (s *Service[T]) WithPrefix(parts ...string) *Service[T] {
 
 // GetResources returns a list of all resources.
 func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
-	rangeStart := backend.Key(s.backendPrefix, "")
+	rangeStart := backend.ExactKey(s.backendPrefix)
 	rangeEnd := backend.RangeEnd(rangeStart)
 
 	// no filter provided get the range directly
@@ -139,7 +139,7 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 // ListResources returns a paginated list of resources.
 func (s *Service[T]) ListResources(ctx context.Context, pageSize int, pageToken string) ([]T, string, error) {
 	rangeStart := backend.Key(s.backendPrefix, pageToken)
-	rangeEnd := backend.RangeEnd(backend.Key(s.backendPrefix, ""))
+	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
 
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > int(s.pageLimit) {
@@ -183,7 +183,7 @@ func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, 
 		return resource, trace.Wrap(err)
 	}
 	resource, err = s.unmarshalFunc(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	return resource, trace.Wrap(err)
 }
 
@@ -217,7 +217,7 @@ func (s *Service[T]) UpdateResource(ctx context.Context, resource T) error {
 	return trace.Wrap(err)
 }
 
-// Upsert upserts a resource.
+// UpsertResource upserts a resource.
 func (s *Service[T]) UpsertResource(ctx context.Context, resource T) error {
 	item, err := s.MakeBackendItem(resource, resource.GetName())
 	if err != nil {
@@ -242,7 +242,7 @@ func (s *Service[T]) DeleteResource(ctx context.Context, name string) error {
 
 // DeleteAllResources removes all resources.
 func (s *Service[T]) DeleteAllResources(ctx context.Context) error {
-	startKey := backend.Key(s.backendPrefix, "")
+	startKey := backend.ExactKey(s.backendPrefix)
 	return trace.Wrap(s.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
@@ -257,7 +257,7 @@ func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, mod
 	}
 
 	resource, err := s.unmarshalFunc(existingItem.Value,
-		services.WithResourceID(existingItem.ID), services.WithExpires(existingItem.Expires))
+		services.WithResourceID(existingItem.ID), services.WithExpires(existingItem.Expires), services.WithRevision(existingItem.Revision))
 	if err != nil {
 		return trace.Wrap(err)
 	}

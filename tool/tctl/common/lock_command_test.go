@@ -59,10 +59,9 @@ func TestLocks(t *testing.T) {
 		err := runLockCommand(t, fileConfig, []string{"--user=bad@actor", "--message=Come see me"})
 		require.NoError(t, err)
 
-		var out []*types.LockV2
 		buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
 		require.NoError(t, err)
-		mustDecodeJSON(t, buf, &out)
+		out := mustDecodeJSON[[]*types.LockV2](t, buf)
 
 		expected, err := types.NewLock("test-lock", types.LockSpecV2{
 			Target: types.LockTarget{

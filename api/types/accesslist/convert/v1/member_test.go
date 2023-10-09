@@ -23,6 +23,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 )
@@ -34,6 +35,24 @@ func TestMemberRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(member, converted))
+}
+
+func TestWithMemberIneligibleStatusField(t *testing.T) {
+	proto := &accesslistv1.Member{
+		Spec: &accesslistv1.MemberSpec{
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_EXPIRED,
+		},
+	}
+
+	alMember := &accesslist.AccessListMember{
+		Spec: accesslist.AccessListMemberSpec{},
+	}
+	require.Empty(t, alMember.Spec.IneligibleStatus)
+
+	fn := WithMemberIneligibleStatusField(proto)
+	fn(alMember)
+
+	require.Equal(t, accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_EXPIRED.Enum().String(), alMember.Spec.IneligibleStatus)
 }
 
 // Make sure that we don't panic if any of the message fields are missing.

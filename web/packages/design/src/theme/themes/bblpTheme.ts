@@ -74,6 +74,16 @@ const colors: ThemeColors = {
 
   brand: '#FFA028',
 
+  interactive: {
+    tonal: {
+      primary: [
+        'rgba(255,160,40, 0.1)',
+        'rgba(255,160,40, 0.18)',
+        'rgba(255,160,40, 0.25)',
+      ],
+    },
+  },
+
   text: {
     main: '#FFFFFF',
     slightlyMuted: '#BEBEBE',

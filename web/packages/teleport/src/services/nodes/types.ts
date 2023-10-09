@@ -15,6 +15,8 @@ limitations under the License.
 */
 import { ResourceLabel } from 'teleport/services/agents';
 
+import { Regions } from '../integrations';
+
 export interface Node {
   kind: 'node';
   id: string;
@@ -25,9 +27,28 @@ export interface Node {
   tunnel: boolean;
   subKind?: string;
   sshLogins: string[];
+  awsMetadata?: AwsMetadata;
 }
 
 export interface BashCommand {
   text: string;
   expires: string;
 }
+
+export type AwsMetadata = {
+  accountId: string;
+  instanceId: string;
+  region: Regions;
+  vpcId: string;
+  integration: string;
+  subnetId: string;
+};
+
+export type CreateNodeRequest = {
+  name: string;
+  subKind: string;
+  hostname: string;
+  addr: string;
+  labels?: ResourceLabel[];
+  aws?: AwsMetadata;
+};

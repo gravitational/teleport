@@ -21,7 +21,6 @@ var eventTypes = []string{
 	"access_request.review",
 	"auth",
 	"bot.join",
-	"bot_token.create",
 	"cert.create",
 	"db.session.query",
 	"db.session.query.failed",

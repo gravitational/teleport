@@ -16,7 +16,6 @@ package pgbk
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -116,26 +115,44 @@ func (b *Backend) backgroundChangeFeed(ctx context.Context) {
 // events. Assumes that b.buf is not initialized but not closed, and will reset
 // it before returning.
 func (b *Backend) runChangeFeed(ctx context.Context) error {
-	// we manually copy the pool configuration and connect because we don't want
-	// to hit a connection limit or mess with the connection pool stats; we need
-	// a separate, long-running connection here anyway.
-	poolConfig := b.pool.Config()
-	if poolConfig.BeforeConnect != nil {
-		if err := poolConfig.BeforeConnect(ctx, poolConfig.ConnConfig); err != nil {
+	connConfig := b.feedConfig.ConnConfig.Copy()
+	if bc := b.feedConfig.BeforeConnect; bc != nil {
+		if err := bc(ctx, connConfig); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	conn, err := pgx.ConnectConfig(ctx, poolConfig.ConnConfig)
+	// TODO(espadolini): use a replication connection if
+	// connConfig.RuntimeParams["replication"] == "database"
+	conn, err := pgx.ConnectConfig(ctx, connConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		closeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
-		if err := conn.Close(ctx); err != nil && ctx.Err() != nil {
+		if err := conn.Close(closeCtx); err != nil && closeCtx.Err() != nil {
 			b.log.WithError(err).Warn("Error closing change feed connection.")
 		}
 	}()
+	if ac := b.feedConfig.AfterConnect; ac != nil {
+		if err := ac(ctx, conn); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// 'kv'::regclass will get the oid for the kv table as searched given the
+	// current search_path, which matches the behavior of any query that refers
+	// to the kv table with no qualifier (like the rest of the pgbk code does)
+	var schemaName string
+	if err := conn.QueryRow(ctx,
+		"SELECT nsp.nspname "+
+			"FROM pg_class AS cl JOIN pg_namespace AS nsp ON cl.relnamespace = nsp.oid "+
+			"WHERE cl.oid = 'kv'::regclass",
+		pgx.QueryExecModeExec,
+	).Scan(&schemaName); err != nil {
+		return trace.Wrap(err)
+	}
+	addTables := wal2jsonEscape(schemaName) + ".kv"
 
 	// reading from a replication slot adds to the postgres log at "log" level
 	// (right below "fatal") for every poll, and we poll every second here, so
@@ -146,33 +163,47 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 		b.log.WithError(err).Debug("Failed to silence log messages for change feed session.")
 	}
 
-	// this can be useful if we're some sort of admin but we haven't gotten the
-	// REPLICATION attribute yet
-	// HACK(espadolini): ALTER ROLE CURRENT_USER REPLICATION just crashes postgres on Azure
-	if _, err := conn.Exec(ctx,
-		fmt.Sprintf("ALTER ROLE %v REPLICATION", pgx.Identifier{poolConfig.ConnConfig.User}.Sanitize()),
-		pgx.QueryExecModeExec,
-	); err != nil {
-		b.log.WithError(err).Debug("Failed to enable replication for the current user.")
+	// this can be useful on Azure if we have azure_pg_admin permissions but not
+	// the REPLICATION attribute; in vanilla Postgres you have to be SUPERUSER
+	// to grant REPLICATION, and if you are SUPERUSER you can do replication
+	// things even without the attribute anyway
+	//
+	// HACK(espadolini): ALTER ROLE CURRENT_USER crashes Postgres on Azure, so
+	// we have to use an explicit username
+	if b.cfg.AuthMode == AzureADAuth && connConfig.User != "" {
+		if _, err := conn.Exec(ctx,
+			fmt.Sprintf("ALTER ROLE %v REPLICATION", pgx.Identifier{connConfig.User}.Sanitize()),
+			pgx.QueryExecModeExec,
+		); err != nil {
+			b.log.WithError(err).Debug("Failed to enable replication for the current user.")
+		}
 	}
 
-	u := uuid.New()
-	slotName := hex.EncodeToString(u[:])
+	// a replication slot must be 1-63 lowercase letters, numbers and
+	// underscores, as per
+	// https://github.com/postgres/postgres/blob/b0ec61c9c27fb932ae6524f92a18e0d1fadbc144/src/backend/replication/slot.c#L193-L194
+	slotName := fmt.Sprintf("teleport_%x", [16]byte(uuid.New()))
 
 	b.log.WithField("slot_name", slotName).Info("Setting up change feed.")
-	if _, err := conn.Exec(ctx,
+
+	// be noisy about pg_create_logical_replication_slot taking too long, since
+	// hanging here leaves the backend non-functional
+	createCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	if _, err := conn.Exec(createCtx,
 		"SELECT * FROM pg_create_logical_replication_slot($1, 'wal2json', true)",
 		pgx.QueryExecModeExec, slotName,
 	); err != nil {
+		cancel()
 		return trace.Wrap(err)
 	}
+	cancel()
 
 	b.log.WithField("slot_name", slotName).Info("Change feed started.")
 	b.buf.SetInit()
 	defer b.buf.Reset()
 
 	for ctx.Err() == nil {
-		messages, err := b.pollChangeFeed(ctx, conn, slotName, b.cfg.ChangeFeedBatchSize)
+		messages, err := b.pollChangeFeed(ctx, conn, addTables, slotName, b.cfg.ChangeFeedBatchSize)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -193,7 +224,7 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 
 // pollChangeFeed will poll the change feed and emit any fetched events, if any.
 // It returns the count of received messages.
-func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, slotName string, batchSize int) (int64, error) {
+func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, addTables, slotName string, batchSize int) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -201,8 +232,8 @@ func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, slotName s
 
 	rows, _ := conn.Query(ctx,
 		"SELECT data FROM pg_logical_slot_get_changes($1, NULL, $2, "+
-			"'format-version', '2', 'add-tables', 'public.kv', 'include-transaction', 'false')",
-		slotName, batchSize)
+			"'format-version', '2', 'add-tables', $3, 'include-transaction', 'false')",
+		slotName, batchSize, addTables)
 
 	var data []byte
 	tag, err := pgx.ForEachRow(rows, []any{(*pgtype.DriverBytes)(&data)}, func() error {

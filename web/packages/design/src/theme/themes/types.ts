@@ -45,6 +45,19 @@ export type ThemeColors = {
 
   brand: string;
 
+  /**
+   * Interactive colors are used to highlight different actions or states
+   * based on intent.
+   *
+   * For example, primary would be used for as selected states,
+   * or hover over primary intent actions.
+   */
+  interactive: {
+    tonal: {
+      primary: string[];
+    };
+  };
+
   text: {
     /** The most important text. */
     main: string;

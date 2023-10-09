@@ -54,8 +54,8 @@ func (rw *HeaderRewriter) Rewrite(req *http.Request) {
 	// Set X-Real-IP header if it is not set to the IP address of the client making the request.
 	maybeSetXRealIP(req)
 
-	// Set X-Forwarded-Proto header if it is not set to the scheme of the request.
-	maybeSetForwardedProto(req)
+	// Set X-Forwarded-* headers if it is not set to the scheme of the request.
+	maybeSetForwarded(req)
 
 	if xfPort := req.Header.Get(XForwardedPort); xfPort == "" {
 		req.Header.Set(XForwardedPort, forwardedPort(req))
@@ -104,9 +104,13 @@ func maybeSetXRealIP(req *http.Request) {
 	}
 }
 
-// maybeSetForwardedProto sets X-Forwarded-Proto header if it is not set to the
+// maybeSetForwarded sets X-Forwarded-* headers if it is not set to the
 // scheme of the request.
-func maybeSetForwardedProto(req *http.Request) {
+func maybeSetForwarded(req *http.Request) {
+	// We need to delete the value because httputil.ReverseProxy
+	// appends to the existing value.
+	req.Header.Del(XForwardedFor)
+
 	if req.Header.Get(XForwardedProto) != "" {
 		return
 	}

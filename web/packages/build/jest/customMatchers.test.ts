@@ -14,20 +14,22 @@
  * limitations under the License.
  */
 
+import { setImmediate } from 'node:timers';
+
 import { toEventuallyBeTrue } from './customMatchers';
 
 describe('toEventuallyBeTrue custom matcher', () => {
   it('marks the test as passed if the condition resolves to true within the timeout', async () => {
     let returnValue = false;
 
-    setTimeout(() => {
+    setImmediate(() => {
       returnValue = true;
-    }, 7);
+    });
 
     const condition = () => returnValue;
 
     await expect(condition).toEventuallyBeTrue({
-      waitFor: 25,
+      waitFor: 250,
       tick: 5,
     });
   });
@@ -38,6 +40,8 @@ describe('toEventuallyBeTrue', () => {
     const condition = () => false;
 
     await expect(
+      // Short waiting time on this test is fine, as we expect toEventuallyBeTrue to return false,
+      // so we want it to fail ASAP.
       toEventuallyBeTrue(condition, { waitFor: 5, tick: 3 })
     ).rejects.toBeUndefined();
   });
@@ -46,13 +50,16 @@ describe('toEventuallyBeTrue', () => {
     const condition = () => true;
 
     const eventuallyPromise = toEventuallyBeTrue(condition, {
-      waitFor: 25,
-      tick: 10,
+      waitFor: 250,
+      tick: 100,
     });
     const timeoutPromise = new Promise((resolve, reject) => {
       setTimeout(() => reject('timeout'), 5);
     });
 
+    // We expect that eventuallyPromise will resolve first. To accomplish this, toEventuallyBeTrue
+    // needs to evaluate the condition before scheduling the first tick, as the tick is scheduled to
+    // be in 100ms while timeoutPromise is going to reject in 5ms.
     await expect(
       Promise.race([eventuallyPromise, timeoutPromise])
     ).resolves.toBeUndefined();

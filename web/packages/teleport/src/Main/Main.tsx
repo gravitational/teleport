@@ -162,6 +162,7 @@ export function Main(props: MainProps) {
   const onboard = localStorage.getOnboardDiscover();
   const requiresOnboarding =
     onboard && !onboard.hasResource && !onboard.notified;
+  const displayOnboardDiscover = requiresOnboarding && showOnboardDiscover;
 
   return (
     <FeaturesContextProvider value={features}>
@@ -176,14 +177,14 @@ export function Main(props: MainProps) {
           <HorizontalSplit>
             <ContentMinWidth>
               <Suspense fallback={null}>
-                <TopBar />
+                <TopBar hidePopup={displayOnboardDiscover} />
                 <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
               </Suspense>
             </ContentMinWidth>
           </HorizontalSplit>
         </MainContainer>
       </BannerList>
-      {requiresOnboarding && showOnboardDiscover && (
+      {displayOnboardDiscover && (
         <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
       )}
       {showOnboardSurvey && (

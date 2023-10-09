@@ -13,7 +13,7 @@ variable "region" {
 variable "instance_class" {
   type        = string
   description = "Database instance machine class."
-  default     = "db.t3.medium"
+  default     = "db.t4g.xlarge"
 }
 
 variable "create_postgres" {
@@ -40,21 +40,16 @@ variable "create_mysql" {
   default     = true
 }
 
-variable "local_ip" {
-  type        = string
-  description = "Local IP address. It is used to create a security group with external access, which is required when Terraform creates the Teleport database user."
-}
-
 variable "database_master_username" {
   type        = string
   description = "Database master username"
-  default     = "postgres"
+  default     = "teleport"
 }
 
 variable "database_name" {
   type        = string
   description = "Database name"
-  default     = "postgres"
+  default     = "teleport"
 }
 
 variable "teleport_database_user" {

@@ -71,14 +71,20 @@ const api = {
             return response
               .json()
               .then(json => resolve(json))
-              .catch(err => reject(new ApiError(err.message, response)));
+              .catch(err =>
+                reject(new ApiError(err.message, response, { cause: err }))
+              );
           } else {
             return response
               .json()
               .then(json => reject(new ApiError(parseError(json), response)))
-              .catch(() => {
+              .catch(err => {
                 reject(
-                  new ApiError(`${response.status} - ${response.url}`, response)
+                  new ApiError(
+                    `${response.status} - ${response.url}`,
+                    response,
+                    { cause: err }
+                  )
                 );
               });
           }

@@ -180,7 +180,15 @@ const storage = {
       return userPreferences.onboard;
     }
 
-    return { preferredResources: [] };
+    return {
+      preferredResources: [],
+      marketingParams: {
+        campaign: '',
+        source: '',
+        medium: '',
+        intent: '',
+      },
+    };
   },
 
   // DELETE IN 15 (ryan)

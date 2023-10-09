@@ -205,7 +205,8 @@ func (c *CircularBuffer) fanOutEvent(r Event) {
 	}
 }
 
-func removeRedundantPrefixes(prefixes [][]byte) [][]byte {
+// RemoveRedundantPrefixes will remove redundant prefixes from the given prefix list.
+func RemoveRedundantPrefixes(prefixes [][]byte) [][]byte {
 	if len(prefixes) == 0 {
 		return prefixes
 	}
@@ -247,7 +248,7 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 	} else {
 		// if watcher's prefixes are redundant, keep only shorter prefixes
 		// to avoid double fan out
-		watch.Prefixes = removeRedundantPrefixes(watch.Prefixes)
+		watch.Prefixes = RemoveRedundantPrefixes(watch.Prefixes)
 	}
 
 	closeCtx, cancel := context.WithCancel(ctx)

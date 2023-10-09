@@ -32,13 +32,15 @@ type Plugin interface {
 
 // Registry is the plugin registry
 type Registry interface {
+	// IsRegistered returns whether a plugin with the give name exists.
+	IsRegistered(name string) bool
 	// Add adds plugin to the registry
 	Add(plugin Plugin) error
 	// RegisterProxyWebHandlers registers Teleport Proxy web handlers
-	RegisterProxyWebHandlers(hander interface{}) error
+	RegisterProxyWebHandlers(handler interface{}) error
 	// RegisterAuthWebHandlers registers Teleport Auth web handlers
 	RegisterAuthWebHandlers(handler interface{}) error
-	// RegisterAuthServices registerse Teleport AuthServer services
+	// RegisterAuthServices registers Teleport AuthServer services
 	RegisterAuthServices(server interface{}) error
 }
 
@@ -53,6 +55,12 @@ type registry struct {
 	plugins map[string]Plugin
 }
 
+// IsRegistered returns whether a plugin with the give name exists.
+func (r *registry) IsRegistered(name string) bool {
+	_, ok := r.plugins[name]
+	return ok
+}
+
 // Add adds plugin to the plugin registry
 func (r *registry) Add(p Plugin) error {
 	if p == nil {
@@ -64,8 +72,7 @@ func (r *registry) Add(p Plugin) error {
 		return trace.BadParameter("missing plugin name")
 	}
 
-	_, exists := r.plugins[name]
-	if exists {
+	if r.IsRegistered(name) {
 		return trace.AlreadyExists("plugin %v already exists", name)
 	}
 
@@ -96,7 +103,7 @@ func (r *registry) RegisterAuthWebHandlers(handler interface{}) error {
 	return nil
 }
 
-// RegisterAuthServices registerse Teleport AuthServer services
+// RegisterAuthServices registers Teleport AuthServer services
 func (r *registry) RegisterAuthServices(server interface{}) error {
 	for _, p := range r.plugins {
 		if err := p.RegisterAuthServices(server); err != nil {

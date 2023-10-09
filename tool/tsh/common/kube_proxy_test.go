@@ -17,7 +17,10 @@ limitations under the License.
 package common
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -25,25 +28,22 @@ import (
 	"path"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/kubectl/pkg/scheme"
 
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func (p *kubeTestPack) testProxyKube(t *testing.T) {
@@ -93,233 +93,6 @@ func (p *kubeTestPack) testProxyKube(t *testing.T) {
 	})
 }
 
-func TestProxyKubeComplexSelectors(t *testing.T) {
-	testenv.WithInsecureDevMode(t, true)
-	testenv.WithResyncInterval(t, 0)
-	kubeFoo := "foo"
-	kubeFooBar := "foo-bar"
-	kubeBaz := "baz-qux"
-	kubeBazEKS := "baz-eks-us-west-1-123456789012"
-	kubeFooLeaf := "foo"
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	s := newTestSuite(t,
-		withRootConfigFunc(func(cfg *servicecfg.Config) {
-			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			cfg.SSH.Enabled = false
-			cfg.Kube.Enabled = true
-			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
-			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, kubeFoo, kubeFooBar, kubeBaz)
-			cfg.Kube.StaticLabels = map[string]string{"env": "root"}
-			cfg.Kube.ResourceMatchers = []services.ResourceMatcher{{
-				Labels: map[string]apiutils.Strings{"*": {"*"}},
-			}}
-		}),
-		withLeafCluster(),
-		withLeafConfigFunc(
-			func(cfg *servicecfg.Config) {
-				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-				cfg.SSH.Enabled = false
-				cfg.Kube.Enabled = true
-				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
-				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, kubeFooLeaf)
-				cfg.Kube.StaticLabels = map[string]string{"env": "leaf"}
-			},
-		),
-		withValidationFunc(func(s *suite) bool {
-			rootClusters, err := s.root.GetAuthServer().GetKubernetesServers(ctx)
-			require.NoError(t, err)
-			leafClusters, err := s.leaf.GetAuthServer().GetKubernetesServers(ctx)
-			require.NoError(t, err)
-			return len(rootClusters) == 3 && len(leafClusters) == 1
-		}),
-	)
-	// setup a fake "discovered" kube cluster by adding a discovered name label
-	// to a dynamic kube cluster.
-	kc, err := types.NewKubernetesClusterV3(
-		types.Metadata{
-			Name: kubeBazEKS,
-			Labels: map[string]string{
-				types.DiscoveredNameLabel: "baz",
-				types.OriginLabel:         types.OriginDynamic,
-			},
-		},
-		types.KubernetesClusterSpecV3{
-			Kubeconfig: newKubeConfig(t, kubeBazEKS),
-		},
-	)
-	require.NoError(t, err)
-	err = s.root.GetAuthServer().CreateKubernetesCluster(ctx, kc)
-	require.NoError(t, err)
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		servers, err := s.root.GetAuthServer().GetKubernetesServers(ctx)
-		assert.NoError(c, err)
-		for _, ks := range servers {
-			if ks.GetName() == kubeBazEKS {
-				return
-			}
-		}
-		assert.Fail(c, "kube server not found")
-	}, time.Second*10, time.Millisecond*500, "failed to find dynamically created kube cluster %v", kubeBazEKS)
-
-	rootClusterName := s.root.Config.Auth.ClusterName.GetClusterName()
-	leafClusterName := s.leaf.Config.Auth.ClusterName.GetClusterName()
-
-	tests := []struct {
-		desc              string
-		makeValidateCmdFn func(*testing.T) func(*exec.Cmd) error
-		args              []string
-		wantErr           string
-	}{
-		{
-			desc: "with full name",
-			makeValidateCmdFn: func(t *testing.T) func(*exec.Cmd) error {
-				return func(cmd *exec.Cmd) error {
-					config := kubeConfigFromCmdEnv(t, cmd)
-					checkKubeLocalProxyConfig(t, s, config, rootClusterName, kubeFoo)
-					return nil
-				}
-			},
-			args: []string{kubeFoo, "--insecure"},
-		},
-		{
-			desc: "with discovered name",
-			makeValidateCmdFn: func(t *testing.T) func(*exec.Cmd) error {
-				return func(cmd *exec.Cmd) error {
-					config := kubeConfigFromCmdEnv(t, cmd)
-					checkKubeLocalProxyConfig(t, s, config, rootClusterName, kubeBazEKS)
-					return nil
-				}
-			},
-			args: []string{"baz", "--insecure"},
-		},
-		{
-			desc: "with prefix name",
-			makeValidateCmdFn: func(t *testing.T) func(*exec.Cmd) error {
-				return func(cmd *exec.Cmd) error {
-					config := kubeConfigFromCmdEnv(t, cmd)
-					checkKubeLocalProxyConfig(t, s, config, rootClusterName, kubeFooBar)
-					return nil
-				}
-			},
-			args: []string{"foo-b", "--insecure"},
-		},
-		{
-			desc: "with labels",
-			makeValidateCmdFn: func(t *testing.T) func(*exec.Cmd) error {
-				return func(cmd *exec.Cmd) error {
-					config := kubeConfigFromCmdEnv(t, cmd)
-					checkKubeLocalProxyConfig(t, s, config, rootClusterName, kubeFoo)
-					checkKubeLocalProxyConfig(t, s, config, rootClusterName, kubeFooBar)
-					checkKubeLocalProxyConfig(t, s, config, rootClusterName, kubeBaz)
-					return nil
-				}
-			},
-			args: []string{"--labels", "env=root", "--insecure"},
-		},
-		{
-			desc: "with query",
-			makeValidateCmdFn: func(t *testing.T) func(*exec.Cmd) error {
-				return func(cmd *exec.Cmd) error {
-					config := kubeConfigFromCmdEnv(t, cmd)
-					checkKubeLocalProxyConfig(t, s, config, rootClusterName, kubeFoo)
-					return nil
-				}
-			},
-			args: []string{"--query", `labels["env"]=="root"`, "--insecure"},
-		},
-		{
-			desc: "with labels, query, and prefix",
-			makeValidateCmdFn: func(t *testing.T) func(*exec.Cmd) error {
-				return func(cmd *exec.Cmd) error {
-					config := kubeConfigFromCmdEnv(t, cmd)
-					checkKubeLocalProxyConfig(t, s, config, rootClusterName, kubeFoo)
-					return nil
-				}
-			},
-			args: []string{
-				"--labels", "env=root",
-				"--query", `name == "foo"`,
-				"f", // prefix of "foo".
-				"--insecure",
-			},
-		},
-		{
-			desc: "in leaf cluster with prefix name",
-			makeValidateCmdFn: func(t *testing.T) func(*exec.Cmd) error {
-				return func(cmd *exec.Cmd) error {
-					config := kubeConfigFromCmdEnv(t, cmd)
-					checkKubeLocalProxyConfig(t, s, config, leafClusterName, kubeFooLeaf)
-					return nil
-				}
-			},
-			args: []string{
-				"--cluster", leafClusterName,
-				"--insecure",
-				"f", // prefix of "foo" kube cluster in leaf teleport cluster.
-			},
-		},
-		{
-			desc: "ambiguous name prefix is an error",
-			args: []string{
-				"f", // prefix of foo, foo-bar in root cluster.
-				"--insecure",
-			},
-			wantErr: `kubernetes cluster "f" matches multiple`,
-		},
-		{
-			desc: "zero name matches is an error",
-			args: []string{
-				"xxx",
-				"--insecure",
-			},
-			wantErr: `kubernetes cluster "xxx" not found`,
-		},
-		{
-			desc: "zero label matches is an error",
-			args: []string{
-				"--labels", "env=nonexistent",
-				"--insecure",
-			},
-			wantErr: `kubernetes cluster with labels "env=nonexistent" not found`,
-		},
-		{
-			desc: "zero query matches is an error",
-			args: []string{
-				"--query", `labels["env"]=="nonexistent"`,
-				"--insecure",
-			},
-			wantErr: `kubernetes cluster with query (labels["env"]=="nonexistent") not found`,
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.desc, func(t *testing.T) {
-			t.Parallel()
-			// login for each parallel test to avoid races when multiple tsh
-			// clients work in the same profile dir.
-			tshHome, _ := mustLogin(t, s)
-			// Set kubeconfig to a non-exist file to avoid loading other things.
-			kubeConfigPath := path.Join(tshHome, "kube-config")
-			var cmdRunner func(*exec.Cmd) error
-			if test.makeValidateCmdFn != nil {
-				cmdRunner = test.makeValidateCmdFn(t)
-			}
-			err := Run(ctx, append([]string{"proxy", "kube", "--port", ports.Pop()}, test.args...),
-				setCmdRunner(cmdRunner),
-				setHomePath(tshHome),
-				setKubeConfigPath(kubeConfigPath),
-			)
-			if test.wantErr != "" {
-				require.ErrorContains(t, err, test.wantErr)
-				return
-			}
-			require.NoError(t, err)
-		})
-	}
-}
-
 func kubeConfigFromCmdEnv(t *testing.T, cmd *exec.Cmd) *clientcmdapi.Config {
 	t.Helper()
 
@@ -364,15 +137,115 @@ func sendRequestToKubeLocalProxy(t *testing.T, config *clientcmdapi.Config, tele
 		KeyData:    config.AuthInfos[contextName].ClientKeyData,
 		ServerName: common.KubeLocalProxySNI(teleportCluster, kubeCluster),
 	}
-
-	client, err := kubernetes.NewForConfig(&rest.Config{
+	restConfig := &rest.Config{
 		Host:            "https://" + teleportCluster,
 		TLSClientConfig: tlsClientConfig,
 		Proxy:           http.ProxyURL(proxyURL),
-	})
+	}
+	client, err := kubernetes.NewForConfig(restConfig)
 	require.NoError(t, err)
 
 	resp, err := client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
 	require.Nil(t, err)
 	require.GreaterOrEqual(t, len(resp.Items), 1)
+
+	runKubectlExec(t, restConfig)
+}
+
+// runKubectlExec runs a kubectl exec command in a dummy pod.
+// The mock Kubernetes API server will return the pod name and the stdin data
+// written to the pod.
+func runKubectlExec(t *testing.T, config *rest.Config) {
+	var (
+		stdinWrite               = &bytes.Buffer{}
+		stdout                   = &bytes.Buffer{}
+		stderr                   = &bytes.Buffer{}
+		podName                  = "teleport"
+		podNamespace             = "default"
+		podContainerName         = "teleportContainer"
+		containerCommmandExecute = []string{"sh"}
+		stdinContent             = []byte("stdin_data")
+	)
+
+	_, err := stdinWrite.Write(stdinContent)
+	require.NoError(t, err)
+
+	streamOpts := remotecommand.StreamOptions{
+		Stdin:  io.NopCloser(stdinWrite),
+		Stdout: stdout,
+		Stderr: stderr,
+		Tty:    false,
+	}
+
+	req, err := generateExecRequest(
+		generateExecRequestConfig{
+			config:        config,
+			podName:       podName,
+			podNamespace:  podNamespace,
+			containerName: podContainerName,
+			cmd:           containerCommmandExecute, // placeholder for commands to execute in the dummy pod
+			options:       streamOpts,
+		},
+	)
+	require.NoError(t, err)
+
+	exec, err := remotecommand.NewSPDYExecutor(config, http.MethodPost, req.URL())
+	require.NoError(t, err)
+
+	err = exec.StreamWithContext(context.Background(), streamOpts)
+	require.NoError(t, err)
+	require.Equal(t, fmt.Sprintf("%s\n%s", podContainerName, string(stdinContent)), stdout.String())
+}
+
+// generateExecRequestConfig is the config for generating a Kube API url for
+// executing commands in pods.
+type generateExecRequestConfig struct {
+	// config is the rest config for the cluster.
+	config *rest.Config
+	// podName is the name of the pod to execute the command in.
+	podName string
+	// podNamespace is the namespace of the pod to execute the command in.
+	podNamespace string
+	// containerName is the name of the container to execute the command in.
+	containerName string
+	// cmd is the command to execute in the container.
+	cmd []string
+	// options are the options for the command execution.
+	options remotecommand.StreamOptions
+}
+
+// generateExecRequest generates a Kube API url for executing commands in pods.
+// The url format is the following:
+// "/api/v1/namespaces/{podNamespace}/pods/{podName}/exec?stderr={stdout}&stdout={stdout}&tty={tty}&reason={reason}&container={containerName}&command={command}"
+func generateExecRequest(config generateExecRequestConfig) (*rest.Request, error) {
+	restClient, err := rest.RESTClientFor(
+		&rest.Config{
+			Host:    config.config.Host,
+			APIPath: "/api",
+			ContentConfig: rest.ContentConfig{
+				GroupVersion:         &corev1.SchemeGroupVersion,
+				NegotiatedSerializer: runtime.NewSimpleNegotiatedSerializer(runtime.SerializerInfo{}),
+			},
+			TLSClientConfig: rest.TLSClientConfig{Insecure: true},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	req := restClient.Post().
+		Resource("pods").
+		Name(config.podName).
+		Namespace(config.podNamespace).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Container: config.containerName,
+			Command:   config.cmd,
+			Stdin:     config.options.Stdin != nil,
+			Stdout:    config.options.Stdout != nil,
+			Stderr:    config.options.Stderr != nil,
+			TTY:       config.options.Tty,
+		}, scheme.ParameterCodec)
+
+	return req, nil
 }

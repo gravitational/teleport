@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -663,7 +662,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 // ReadConfigFromFile reads and parses a YAML config from a file.
 func ReadConfigFromFile(filePath string, manualMigration bool) (*BotConfig, error) {
-	f, err := os.Open(filePath)
+	f, err := utils.OpenFileAllowingUnsafeLinks(filePath)
 	if err != nil {
 		return nil, trace.Wrap(err, fmt.Sprintf("failed to open file: %v", filePath))
 	}

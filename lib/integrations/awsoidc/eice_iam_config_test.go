@@ -128,8 +128,8 @@ type mockEICEIAMConfigClient struct {
 
 // PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 func (m *mockEICEIAMConfigClient) PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
-	noSuchEntityMessage := fmt.Sprintf("role %q does not exist.", *params.RoleName)
 	if !slices.Contains(m.existingRoles, *params.RoleName) {
+		noSuchEntityMessage := fmt.Sprintf("role %q does not exist.", *params.RoleName)
 		return nil, &iamTypes.NoSuchEntityException{
 			Message: &noSuchEntityMessage,
 		}

@@ -17,12 +17,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        branch: [ 'master', 'branch/v11', 'branch/v12', 'branch/v13' ]
+        branch: [ 'master', 'branch/v12', 'branch/v13', 'branch/v14' ]
         language: [ 'go', 'javascript' ]
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         ref: ${{ matrix.branch }}
 
@@ -30,6 +30,7 @@ jobs:
       uses: actions/setup-go@v4
       with:
         cache: false
+        go-version-file: go.mod
       if: ${{ matrix.language == 'go' }}
 
     - name: Initialize the CodeQL tools for scanning

@@ -20,7 +20,16 @@ This Terraform example will configure the following AWS resources:
 - Route53 `A` record
 - Security Groups and IAM roles
 
+It can optionally also configure the following AWS resources:
+
+- Application Load Balancer
+- ACM certificate and validation via Route53
+
 ## Instructions
+
+### Accompanying documentation
+
+- [Teleport Single-Instance Deployment on AWS](https://goteleport.com/docs/deploy-a-cluster/deployments/aws-starter-cluster-terraform/)
 
 ### Build Requirements
 
@@ -37,12 +46,15 @@ This Terraform example will configure the following AWS resources:
 
 File           | Description
 -------------- | ---------------------------------------------------------------------------------------------
+acm.tf         | ACM certificate setup and DNS record.
 cluster.tf     | EC2 instance template and provisioning.
 cluster_iam.tf | IAM role provisioning. Permits ec2 instance to talk to AWS resources (ssm, s3, dynamodb, etc)
+cluster_lb.tf  | Application load balancer setup (when using ACM).
 cluster_sg.tf  | Security Group provisioning. Ingress network rules.
 data.tf        | Misc variables used for provisioning AWS resources.
 data.tpl       | Template for Teleport configuration.
 dynamo.tf      | DynamoDB table provisioning. Tables used for Teleport state and events.
+outputs.tf     | Terraform outputs, used to get cluster information.
 route53.tpl    | Route53 zone creation. Requires a hosted zone to configure SSL.
 s3.tf          | S3 bucket provisioning. Bucket used for session recording storage.
 ssm.tf         | Teleport license distribution (if using Teleport enterprise).
@@ -86,7 +98,7 @@ TF_VAR_license_path ?= "/path/to/license"
 # OSS: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
 # Enterprise: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-TF_VAR_ami_name ?= "gravitational-teleport-ami-ent-13.3.7"
+TF_VAR_ami_name ?= "gravitational-teleport-ami-ent-14.0.1"
 
 # Route 53 hosted zone to use, must be a root zone registered in AWS, e.g. example.com
 TF_VAR_route53_zone ?= "example.com"
@@ -111,8 +123,11 @@ export TF_VAR_enable_mysql_listener="false"
 # This will be ignored if TF_VAR_use_tls_routing=true
 export TF_VAR_enable_postgres_listener="false"
 
-# Bucket name to store encrypted Let's Encrypt certificates.
+# Bucket name to store Teleport session recordings.
 export TF_VAR_s3_bucket_name="teleport.example.com"
+
+# AWS instance type to provision for running this Teleport cluster
+export TF_VAR_cluster_instance_type="t3.micro"
 
 # Email to be used for Let's Encrypt certificate registration process.
 export TF_VAR_email="support@example.com"

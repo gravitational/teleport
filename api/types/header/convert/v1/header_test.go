@@ -23,6 +23,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types/header"
 )
 
@@ -57,4 +58,23 @@ func TestMetadataRoundtrip(t *testing.T) {
 	converted := FromMetadataProto(ToMetadataProto(metadata))
 
 	require.Empty(t, cmp.Diff(metadata, converted))
+}
+
+// TestMetadataZeroTime checks that go's zero time is mapped to the protobuf's
+// zero time and vice-versa.
+func TestMetadataZeroTime(t *testing.T) {
+	// When a proto message without expiration is converted to metadata
+	metadata := &headerv1.Metadata{
+		Expires: nil,
+	}
+	converted := FromMetadataProto(metadata)
+	// IsZero() must be true (as this is how we check if the resource expires
+	// in most places).
+	require.True(t, converted.Expires.IsZero())
+
+	// When a metadata without an expiration is converted to protobuf
+	convertedTwice := ToMetadataProto(converted)
+
+	// The protobuf expiration field must be unset
+	require.Empty(t, cmp.Diff(metadata.Expires, convertedTwice.Expires))
 }

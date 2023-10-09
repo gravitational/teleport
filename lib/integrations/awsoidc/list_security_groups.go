@@ -53,23 +53,23 @@ func (req *ListSecurityGroupsRequest) CheckAndSetDefaults() error {
 type SecurityGroup struct {
 	// Name is the Security Group name.
 	// This is just a friendly name and should not be used for further API calls
-	Name string
+	Name string `json:"name"`
 
 	// ID is the security group ID.
 	// This is the value that should be used when doing further API calls.
-	ID string
+	ID string `json:"id"`
 
 	// Description is a small description of the Security Group.
 	// Might be empty.
-	Description string
+	Description string `json:"description"`
 
 	// InboundRules describe the Security Group Inbound Rules.
 	// The CIDR of each rule represents the source IP that the rule applies to.
-	InboundRules []SecurityGroupRule
+	InboundRules []SecurityGroupRule `json:"inboundRules"`
 
 	// OutboundRules describe the Security Group Outbound Rules.
 	// The CIDR of each rule represents the destination IP that the rule applies to.
-	OutboundRules []SecurityGroupRule
+	OutboundRules []SecurityGroupRule `json:"outboundRules"`
 }
 
 // SecurityGroupRule is a SecurityGroup role.
@@ -79,34 +79,34 @@ type SecurityGroupRule struct {
 	// If the rule applies to all protocols, the "all" value is used.
 	// The IP protocol name ( tcp , udp , icmp , icmpv6 ) or number (see Protocol
 	// Numbers (http://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml)).
-	IPProtocol string
+	IPProtocol string `json:"ipProtocol"`
 
 	// FromPort is the inclusive start of the Port range for the Rule.
-	FromPort int
+	FromPort int `json:"fromPort"`
 
 	// ToPort is the inclusive end of the Port range for the Rule.
-	ToPort int
+	ToPort int `json:"toPort"`
 
 	// CIDRs contains a list of IP ranges that this rule applies to and a description for the value.
-	CIDRs []CIDR
+	CIDRs []CIDR `json:"cidrs"`
 }
 
 // CIDR has a CIDR (IP Range) and a description for the value.
 type CIDR struct {
 	// CIDR is the IP range using CIDR notation.
-	CIDR string
+	CIDR string `json:"cidr"`
 	// Description contains a small text describing the CIDR.
-	Description string
+	Description string `json:"description"`
 }
 
 // ListSecurityGroupsResponse contains a page of SecurityGroups.
 type ListSecurityGroupsResponse struct {
 	// SecurityGroups contains the page of VPC Security Groups.
-	SecurityGroups []SecurityGroup
+	SecurityGroups []SecurityGroup `json:"securityGroups"`
 
 	// NextToken is used for pagination.
 	// If non-empty, it can be used to request the next page.
-	NextToken string
+	NextToken string `json:"nextToken"`
 }
 
 // ListSecurityGroupsClient describes the required methods to List Security Groups a 3rd Party API.

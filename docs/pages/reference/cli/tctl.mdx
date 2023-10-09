@@ -7,7 +7,7 @@ description: Comprehensive reference of subcommands, flags, and arguments for th
 in a cluster, including nodes, users, tokens, certificates, and devices.
 
 `tctl` can also be used to modify the dynamic configuration of the cluster, such as
-creating new user roles or connecting Trusted Clusters.
+creating new user roles or connecting to trusted clusters.
 
 ## Authentication
 
@@ -1364,6 +1364,46 @@ Device "ac3590ec-87d4-4519-8e9e-2f35af0a9f85" removed
 
 $ tctl devices rm --asset-tag=(=devicetrust.asset_tag=)
 Device "(=devicetrust.asset_tag=)" removed
+```
+
+### tctl acl ls
+
+Lists Access Lists on the cluster.
+
+```code
+$ tctl acl ls
+```
+
+### tctl acl get
+
+Gets and displays information about a particular access list.
+
+```code
+$ tctl acl get <id>
+```
+
+### tctl acl users add
+
+Adds a user to an access list.
+
+```code
+$ tctl acl users add <access-list-name> <user> [<expires>] [<reason>]
+```
+
+### tctl acl users rm
+
+Removes a user from an access list.
+
+```code
+$ tctl acl users rm <access-list-name> <user>
+```
+
+### tctl acl users ls
+
+Lists the users in an access list.
+
+```code
+$ tctl acl users ls <access-list-name>
 ```
 
 ## tctl top

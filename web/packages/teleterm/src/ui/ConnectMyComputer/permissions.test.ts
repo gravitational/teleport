@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { createMockConfigService } from 'teleterm/services/config/fixtures/mocks';
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 import { Platform } from 'teleterm/mainProcess/types';
 import {
@@ -22,48 +21,36 @@ import {
   makeLoggedInUser,
 } from 'teleterm/services/tshd/testHelpers';
 
-import { canUseConnectMyComputer } from './permissions';
+import { hasConnectMyComputerPermissions } from './permissions';
 
 const testCases: {
   name: string;
   platform: Platform;
   canCreateToken: boolean;
-  isFeatureFlagEnabled: boolean;
   expect: boolean;
 }[] = [
   {
-    name: 'darwin, can create token, feature flag enabled',
+    name: 'should be true when OS is darwin and can create token',
     platform: 'darwin',
     canCreateToken: true,
-    isFeatureFlagEnabled: true,
     expect: true,
   },
   {
-    name: 'linux, can create token, feature flag enabled',
+    name: 'should be true when OS is  linux and can create token',
     platform: 'linux',
     canCreateToken: true,
-    isFeatureFlagEnabled: true,
     expect: true,
   },
   {
-    name: 'windows, can create token, feature flag enabled',
+    name: 'should be false when OS is windows and can create token',
     platform: 'win32',
     canCreateToken: true,
-    isFeatureFlagEnabled: true,
     expect: false,
   },
   {
-    name: 'darwin, cannot create token, feature flag enabled',
+    name: 'should be false when OS is darwin and cannot create token',
     platform: 'darwin',
     canCreateToken: false,
-    isFeatureFlagEnabled: true,
-    expect: false,
-  },
-  {
-    name: 'darwin, can create token, feature flag not enabled',
-    platform: 'darwin',
-    canCreateToken: true,
-    isFeatureFlagEnabled: false,
     expect: false,
   },
 ];
@@ -83,15 +70,8 @@ test.each(testCases)('$name', testCase => {
       },
     }),
   });
-  const configService = createMockConfigService({
-    'feature.connectMyComputer': testCase.isFeatureFlagEnabled,
-  });
   const runtimeSettings = makeRuntimeSettings({ platform: testCase.platform });
 
-  const isPermitted = canUseConnectMyComputer(
-    cluster,
-    configService,
-    runtimeSettings
-  );
+  const isPermitted = hasConnectMyComputerPermissions(cluster, runtimeSettings);
   expect(isPermitted).toEqual(testCase.expect);
 });

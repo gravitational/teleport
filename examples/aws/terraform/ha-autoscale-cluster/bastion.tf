@@ -20,6 +20,13 @@ resource "aws_instance" "bastion" {
     encrypted = true
   }
 
+  // ignore any changes to name tag
+  lifecycle {
+    ignore_changes = [
+      tags["Name"],
+    ]
+  }
+
   tags = {
     TeleportCluster = var.cluster_name
     TeleportRole    = "bastion"

@@ -46,3 +46,8 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 func UserWithPtyInDatabase(utmpPath string, username string) error {
 	return nil
 }
+
+// LogFailedLogin is a stub function.
+func LogFailedLogin(btmpPath, username, hostname string, remote [4]int32) error {
+	return nil
+}

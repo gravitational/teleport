@@ -28,8 +28,7 @@ TLS extensions.
 
 ## How it works
 
-Starting from version `8.0` Teleport proxy listens for all client connections
-on its `web_listen_addr` by default:
+The Teleport Proxy Service listens for all client connections on its `web_listen_addr` by default:
 
 ```yaml
 proxy_service:
@@ -91,8 +90,8 @@ how it's configured.
 
 ## Reverse tunnels
 
-Reverse tunnel workers within the Teleport Node, Application and Database
-Services, as well as for Trusted Clusters, open a TLS tunnel to the cluster's
+Reverse tunnel workers within the Teleport SSH, Application, and Database
+Services, as well as for trusted clusters, open a TLS tunnel to the cluster's
 Proxy Service with the `teleport-reversetunnel` ALPN protocol. The workers then
 dial SSH over the tunnel, establishing a secure connection.
 
@@ -148,7 +147,7 @@ Teleport proxy's web listener and don't require a local proxy or any special
 ALPN/SNI negotiation. These web connections use standard `http1.1` and `h2`
 protocols for ALPN.
 
-## Working with layer 7 load balancers or reverse proxies (Preview)
+## Working with layer 7 load balancers or reverse proxies 
 
 Starting from version `13.0`, TLS routing can now be enabled allowing the
 Teleport Proxy Service to serve a single port behind a layer 7 load balancer or

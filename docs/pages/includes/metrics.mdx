@@ -206,7 +206,6 @@ The following table identifies all metrics available for incoming connections.
 | - | - | - | - |
 | `process_state` | gauge | Teleport | State of the teleport process: 0 - ok, 1 - recovering, 2 - degraded, 3 - starting. |
 | `certificate_mismatch_total` | counter | Teleport | Number of SSH server login failures due to a certificate mismatch. |
-| `reversetunnel_connected_proxies` | gauge | Teleport | Number of known proxies being sought. |
 | `rx` | counter | Teleport | Number of bytes received during an SSH connection. |
 | `server_interactive_sessions_total` | gauge | Teleport | Number of active sessions. |
 | `teleport_build_info` | gauge | Teleport | Provides build information of Teleport including gitref (git describe --long --tags), Go version, and Teleport version. The value of this gauge will always be 1. |

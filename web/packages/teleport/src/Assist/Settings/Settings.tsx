@@ -156,7 +156,9 @@ export function Settings(props: SettingsProps) {
     window.clearTimeout(savingTimeoutRef.current);
 
     try {
-      await updatePreferences({ assist: settings });
+      await updatePreferences({
+        assist: { ...preferences.assist, ...settings },
+      });
     } catch {
       setErrorMessage('Failed to save settings');
     }

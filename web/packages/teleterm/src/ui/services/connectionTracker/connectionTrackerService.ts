@@ -24,7 +24,9 @@ import {
   WorkspacesService,
 } from 'teleterm/ui/services/workspacesService';
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
+import * as uri from 'teleterm/ui/uri';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { ImmutableStore } from '../immutableStore';
 
@@ -152,7 +154,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     });
   }
 
-  removeItemsBelongingToRootCluster(clusterUri: string): void {
+  removeItemsBelongingToRootCluster(clusterUri: uri.RootClusterUri): void {
     this.setState(draft => {
       draft.connections = draft.connections.filter(i => {
         const { rootClusterUri } =
@@ -160,6 +162,29 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
         return rootClusterUri !== clusterUri;
       });
     });
+  }
+
+  async disconnectAndRemoveItemsBelongingToResource(
+    resourceUri: uri.ResourceUri
+  ): Promise<void> {
+    const connections = this.getConnections().filter(s => {
+      switch (s.kind) {
+        case 'connection.server':
+          return s.serverUri === resourceUri;
+        case 'connection.gateway':
+          return s.targetUri === resourceUri;
+        case 'connection.kube':
+          return s.kubeUri === resourceUri;
+        default:
+          return assertUnreachable(s);
+      }
+    });
+    await Promise.all([
+      connections.map(async connection => {
+        await this.disconnectItem(connection.id);
+        await this.removeItem(connection.id);
+      }),
+    ]);
   }
 
   dispose(): void {

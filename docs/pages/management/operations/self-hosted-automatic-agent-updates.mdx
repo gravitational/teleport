@@ -1,5 +1,5 @@
 ---
-title: Setting up self-hosted automatic agent updates (Preview)
+title: Setting up self-hosted automatic agent updates 
 description: How to setup automatic agent update for self-hosted Teleport
 ---
 
@@ -14,7 +14,7 @@ description: How to setup automatic agent update for self-hosted Teleport
 </Details>
 
 Teleport supports automatic agent updates for
-systemd-based Linux distributions using `apt` or `yum` package managers,
+systemd-based Linux distributions using `apt`, `yum`, and `zypper` package managers,
 and Kubernetes clusters. The [automatic updates architecture 
 page](../../architecture/agent-update-management.mdx) describes how agent
 updating works.
@@ -27,12 +27,9 @@ already done, or you are a Teleport Cloud user, you can directly
 Systemd agents enrolled into automatic updates can only install versions
 present in their package repositories. As Teleport 14 won't be published to
 `stable/v13`, those agents will require manual intervention to be updated to
-the next major version (adding a new apt/yum repo for `stable/v14`).
-
-This limitation will be fixed before Teleport 14. We'll provide a rolling
-update channel for agents to be able to automatically update from one major
-to another. When this will happen, you will have to update the repos of the
-existing agents to point to the new repo.
+the next major version (adding a new APT/YUM/zypper repo for `stable/v14`).
+Alternatively, you can use the `stable/rolling` channel, which contains
+Teleport v13.3.2 forward, including future major releases.
 
 </Admonition>
 

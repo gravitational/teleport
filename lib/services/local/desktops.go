@@ -38,7 +38,7 @@ func NewWindowsDesktopService(backend backend.Backend) *WindowsDesktopService {
 
 // GetWindowsDesktops returns all Windows desktops matching filter.
 func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
-	startKey := backend.Key(windowsDesktopsPrefix, "")
+	startKey := backend.ExactKey(windowsDesktopsPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -47,7 +47,7 @@ func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter t
 	var desktops []types.WindowsDesktop
 	for _, item := range result.Items {
 		desktop, err := services.UnmarshalWindowsDesktop(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -150,7 +150,7 @@ func (s *WindowsDesktopService) DeleteWindowsDesktop(ctx context.Context, hostID
 
 // DeleteAllWindowsDesktops removes all windows desktop resources.
 func (s *WindowsDesktopService) DeleteAllWindowsDesktops(ctx context.Context) error {
-	startKey := backend.Key(windowsDesktopsPrefix, "")
+	startKey := backend.ExactKey(windowsDesktopsPrefix)
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)
@@ -166,7 +166,7 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 	}
 
 	rangeStart := backend.Key(windowsDesktopsPrefix, req.StartKey)
-	rangeEnd := backend.RangeEnd(backend.Key(windowsDesktopsPrefix, ""))
+	rangeEnd := backend.RangeEnd(backend.ExactKey(windowsDesktopsPrefix))
 	filter := services.MatchResourceFilter{
 		ResourceKind:        types.KindWindowsDesktop,
 		Labels:              req.Labels,
@@ -184,7 +184,7 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 			}
 
 			desktop, err := services.UnmarshalWindowsDesktop(item.Value,
-				services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+				services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 			if err != nil {
 				return false, trace.Wrap(err)
 			}
@@ -231,7 +231,7 @@ func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, 
 	}
 
 	rangeStart := backend.Key(windowsDesktopServicesPrefix, req.StartKey)
-	rangeEnd := backend.RangeEnd(backend.Key(windowsDesktopServicesPrefix, ""))
+	rangeEnd := backend.RangeEnd(backend.ExactKey(windowsDesktopServicesPrefix))
 	filter := services.MatchResourceFilter{
 		ResourceKind:        types.KindWindowsDesktopService,
 		Labels:              req.Labels,
@@ -249,7 +249,7 @@ func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, 
 			}
 
 			desktop, err := services.UnmarshalWindowsDesktopService(item.Value,
-				services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+				services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 			if err != nil {
 				return false, trace.Wrap(err)
 			}

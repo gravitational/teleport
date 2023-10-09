@@ -56,6 +56,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		CreateTshdEventsClientCredsFunc: grpcCredentials.tshdEvents,
 		PrehogAddr:                      cfg.PrehogAddr,
 		KubeconfigsDir:                  cfg.KubeconfigsDir,
+		AgentsDir:                       cfg.AgentsDir,
 	})
 	if err != nil {
 		return trace.Wrap(err)

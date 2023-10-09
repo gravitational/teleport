@@ -826,6 +826,7 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 				existingUser.GetName())
 		}
 
+		user.SetRevision(existingUser.GetRevision())
 		if err := a.UpdateUser(ctx, user); err != nil {
 			return nil, trace.Wrap(err)
 		}

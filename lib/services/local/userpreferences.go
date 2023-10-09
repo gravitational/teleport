@@ -43,6 +43,7 @@ func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
 		Theme: userpreferencesv1.Theme_THEME_LIGHT,
 		Onboard: &userpreferencesv1.OnboardUserPreferences{
 			PreferredResources: []userpreferencesv1.Resource{},
+			MarketingParams:    &userpreferencesv1.MarketingParams{},
 		},
 	}
 }
@@ -111,7 +112,7 @@ func (u *UserPreferencesService) getUserPreferences(ctx context.Context, usernam
 		return nil, trace.Wrap(err)
 	}
 
-	// Appy the default values to the existing preferences.
+	// Apply the default values to the existing preferences.
 	// This allows updating the preferences schema without returning empty values
 	// for new fields in the existing preferences.
 	df := DefaultUserPreferences()

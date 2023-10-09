@@ -215,7 +215,7 @@ func withKubeService(t *testing.T, matchers ...services.ResourceMatcher) testOpt
 func withKubeDiscoveryService(t *testing.T, tags types.Labels) testOptionsFunc {
 	t.Helper()
 	return withDiscoveryService(t, "kube-e2e-test", types.AWSMatcher{
-		Types:   []string{services.AWSMatcherEKS},
+		Types:   []string{types.AWSMatcherEKS},
 		Tags:    tags,
 		Regions: []string{os.Getenv(awsRegionEnv)},
 		AssumeRole: &types.AssumeRole{

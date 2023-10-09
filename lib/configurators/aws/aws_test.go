@@ -80,7 +80,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
+						{Types: []string{types.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
@@ -110,7 +110,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
+						{Types: []string{types.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
@@ -174,7 +174,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-2"}},
+						{Types: []string{types.AWSMatcherRedshift}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
@@ -201,7 +201,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-2"}},
+						{Types: []string{types.AWSMatcherRedshift}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
@@ -259,7 +259,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{services.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}},
+						{Types: []string{types.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
@@ -410,7 +410,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{services.AWSMatcherMemoryDB}, Regions: []string{"us-west-2"}},
+						{Types: []string{types.AWSMatcherMemoryDB}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
@@ -545,7 +545,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Service: config.Service{EnabledFlag: "true"},
 					AWSMatchers: []config.AWSMatcher{
 						{
-							Types:   []string{services.AWSMatcherEC2},
+							Types:   []string{types.AWSMatcherEC2},
 							Regions: []string{"eu-central-1"},
 							Tags:    map[string]utils.Strings{"*": []string{"*"}},
 							InstallParams: &config.InstallParams{
@@ -586,7 +586,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
+						{Types: []string{types.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
@@ -597,7 +597,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
+						{Types: []string{types.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
@@ -657,7 +657,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{services.AWSMatcherRedshiftServerless}, Regions: []string{"us-west-2"}},
+						{Types: []string{types.AWSMatcherRedshiftServerless}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
@@ -757,7 +757,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{services.AWSMatcherOpenSearch}, Regions: []string{"us-west-2"}},
+						{Types: []string{types.AWSMatcherOpenSearch}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
@@ -831,8 +831,8 @@ func TestAWSIAMDocuments(t *testing.T) {
 						},
 					},
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}, AssumeRoleARN: role4},
-						{Types: []string{services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}, AssumeRoleARN: roleTarget.String(), ExternalID: "foo"},
+						{Types: []string{types.AWSMatcherRDS}, Regions: []string{"us-west-2"}, AssumeRoleARN: role4},
+						{Types: []string{types.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}, AssumeRoleARN: roleTarget.String(), ExternalID: "foo"},
 					},
 				},
 			},
@@ -880,8 +880,8 @@ func TestAWSIAMDocuments(t *testing.T) {
 						},
 					},
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}, AssumeRoleARN: role4},
-						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}, AssumeRoleARN: role5, ExternalID: "foo"},
+						{Types: []string{types.AWSMatcherRDS}, Regions: []string{"us-west-2"}, AssumeRoleARN: role4},
+						{Types: []string{types.AWSMatcherRDS}, Regions: []string{"us-west-2"}, AssumeRoleARN: role5, ExternalID: "foo"},
 					},
 				},
 			},
@@ -933,7 +933,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
 						AWSMatchers: []config.AWSMatcher{
-							{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
+							{Types: []string{types.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
 						},
 					},
 				},
@@ -951,7 +951,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
 						AWSMatchers: []config.AWSMatcher{
-							{Types: []string{services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
+							{Types: []string{types.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
 						},
 					},
 				},
@@ -969,7 +969,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
 						AWSMatchers: []config.AWSMatcher{
-							{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-2"}},
+							{Types: []string{types.AWSMatcherRedshift}, Regions: []string{"us-west-2"}},
 						},
 					},
 				},
@@ -987,7 +987,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
 						AWSMatchers: []config.AWSMatcher{
-							{Types: []string{services.AWSMatcherRedshiftServerless}, Regions: []string{"us-west-2"}},
+							{Types: []string{types.AWSMatcherRedshiftServerless}, Regions: []string{"us-west-2"}},
 						},
 					},
 				},
@@ -1005,7 +1005,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
 						AWSMatchers: []config.AWSMatcher{
-							{Types: []string{services.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}},
+							{Types: []string{types.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}},
 						},
 					},
 				},
@@ -1023,7 +1023,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
 						AWSMatchers: []config.AWSMatcher{
-							{Types: []string{services.AWSMatcherMemoryDB}, Regions: []string{"us-west-2"}},
+							{Types: []string{types.AWSMatcherMemoryDB}, Regions: []string{"us-west-2"}},
 						},
 					},
 				},
@@ -1041,7 +1041,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
 						AWSMatchers: []config.AWSMatcher{
-							{Types: []string{services.AWSMatcherOpenSearch}, Regions: []string{"us-west-2"}},
+							{Types: []string{types.AWSMatcherOpenSearch}, Regions: []string{"us-west-2"}},
 						},
 					},
 				},
@@ -1059,9 +1059,9 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
 						AWSMatchers: []config.AWSMatcher{
-							{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-1"}},
-							{Types: []string{services.AWSMatcherRedshift, services.AWSMatcherRDS, services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
-							{Types: []string{services.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}, AssumeRoleARN: role1, ExternalID: "foo"},
+							{Types: []string{types.AWSMatcherRedshift}, Regions: []string{"us-west-1"}},
+							{Types: []string{types.AWSMatcherRedshift, types.AWSMatcherRDS, types.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
+							{Types: []string{types.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}, AssumeRoleARN: role1, ExternalID: "foo"},
 						},
 					},
 				},
@@ -1139,7 +1139,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
 						AWSMatchers: []config.AWSMatcher{
-							{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
+							{Types: []string{types.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
 						},
 					},
 				},
@@ -1173,7 +1173,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
 						AWSMatchers: []config.AWSMatcher{
-							{Types: []string{services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
+							{Types: []string{types.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
 						},
 					},
 				},
@@ -1207,7 +1207,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
 						AWSMatchers: []config.AWSMatcher{
-							{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-2"}},
+							{Types: []string{types.AWSMatcherRedshift}, Regions: []string{"us-west-2"}},
 						},
 					},
 				},
@@ -1241,7 +1241,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
 						AWSMatchers: []config.AWSMatcher{
-							{Types: []string{services.AWSMatcherRedshiftServerless}, Regions: []string{"us-west-2"}},
+							{Types: []string{types.AWSMatcherRedshiftServerless}, Regions: []string{"us-west-2"}},
 						},
 					},
 				},
@@ -1265,7 +1265,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
 						AWSMatchers: []config.AWSMatcher{
-							{Types: []string{services.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}},
+							{Types: []string{types.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}},
 						},
 					},
 				},
@@ -1319,7 +1319,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
 						AWSMatchers: []config.AWSMatcher{
-							{Types: []string{services.AWSMatcherMemoryDB}, Regions: []string{"us-west-2"}},
+							{Types: []string{types.AWSMatcherMemoryDB}, Regions: []string{"us-west-2"}},
 						},
 					},
 				},
@@ -1363,7 +1363,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
 						AWSMatchers: []config.AWSMatcher{
-							{Types: []string{services.AWSMatcherOpenSearch}, Regions: []string{"us-west-2"}},
+							{Types: []string{types.AWSMatcherOpenSearch}, Regions: []string{"us-west-2"}},
 						},
 					},
 				},
@@ -1387,9 +1387,9 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Discovery: config.Discovery{
 						Service: config.Service{EnabledFlag: "true"},
 						AWSMatchers: []config.AWSMatcher{
-							{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-1"}},
-							{Types: []string{services.AWSMatcherRedshift, services.AWSMatcherRDS, services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
-							{Types: []string{services.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}, AssumeRoleARN: role1, ExternalID: "foo"},
+							{Types: []string{types.AWSMatcherRedshift}, Regions: []string{"us-west-1"}},
+							{Types: []string{types.AWSMatcherRedshift, types.AWSMatcherRDS, types.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
+							{Types: []string{types.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}, AssumeRoleARN: role1, ExternalID: "foo"},
 						},
 					},
 				},
@@ -1922,7 +1922,7 @@ func TestExtractTargetConfig(t *testing.T) {
 				// check discovery resources are not included
 				Discovery: servicecfg.DiscoveryConfig{
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
+						{Types: []string{types.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
 					},
 				},
 				Databases: servicecfg.DatabasesConfig{
@@ -1933,11 +1933,11 @@ func TestExtractTargetConfig(t *testing.T) {
 						{Name: "db4", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: roleTarget.String()}},
 					},
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role4}},
-						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role5, ExternalID: "foo"}},
-						{Types: []string{services.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role6}},
-						{Types: []string{services.AWSMatcherElastiCache}},
-						{Types: []string{services.AWSMatcherRedshift}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
+						{Types: []string{types.AWSMatcherRDS, types.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role4}},
+						{Types: []string{types.AWSMatcherRDS, types.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role5, ExternalID: "foo"}},
+						{Types: []string{types.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role6}},
+						{Types: []string{types.AWSMatcherElastiCache}},
+						{Types: []string{types.AWSMatcherRedshift}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
 					},
 				},
 			},
@@ -1946,7 +1946,7 @@ func TestExtractTargetConfig(t *testing.T) {
 				assumesAWSRoles: []string{role1},
 				databases:       []*servicecfg.Database{{Name: "db4", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: roleTarget.String()}}},
 				awsMatchers: []types.AWSMatcher{
-					{Types: []string{services.AWSMatcherRedshift}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
+					{Types: []string{types.AWSMatcherRedshift}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
 				},
 			},
 		},
@@ -1956,7 +1956,7 @@ func TestExtractTargetConfig(t *testing.T) {
 			cfg: &servicecfg.Config{
 				Discovery: servicecfg.DiscoveryConfig{
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
+						{Types: []string{types.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
 					},
 				},
 				// check that database service resources are not included.
@@ -1965,7 +1965,7 @@ func TestExtractTargetConfig(t *testing.T) {
 						{Name: "db1", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: roleTarget.String()}},
 					},
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherRedshift}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
+						{Types: []string{types.AWSMatcherRedshift}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
 					},
 				},
 			},
@@ -1973,7 +1973,7 @@ func TestExtractTargetConfig(t *testing.T) {
 				// identity field is ignored in want/got diff, see comment in test loop.
 				assumesAWSRoles: []string{role1},
 				awsMatchers: []types.AWSMatcher{
-					{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
+					{Types: []string{types.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
 				},
 			},
 		},
@@ -1983,7 +1983,7 @@ func TestExtractTargetConfig(t *testing.T) {
 			cfg: &servicecfg.Config{
 				Discovery: servicecfg.DiscoveryConfig{
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
+						{Types: []string{types.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
 					},
 				},
 				// check that database service resources are not included.
@@ -1992,7 +1992,7 @@ func TestExtractTargetConfig(t *testing.T) {
 						{Name: "db1", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: roleTarget.String()}},
 					},
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherRedshift}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
+						{Types: []string{types.AWSMatcherRedshift}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
 					},
 				},
 			},
@@ -2000,7 +2000,7 @@ func TestExtractTargetConfig(t *testing.T) {
 				// identity field is ignored in want/got diff, see comment in test loop.
 				assumesAWSRoles: []string{role1},
 				awsMatchers: []types.AWSMatcher{
-					{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
+					{Types: []string{types.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
 				},
 			},
 		},
@@ -2011,7 +2011,7 @@ func TestExtractTargetConfig(t *testing.T) {
 				// check that discovery service resources are not included.
 				Discovery: servicecfg.DiscoveryConfig{
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherEC2}},
+						{Types: []string{types.AWSMatcherEC2}},
 					},
 				},
 				Databases: servicecfg.DatabasesConfig{
@@ -2022,12 +2022,12 @@ func TestExtractTargetConfig(t *testing.T) {
 					},
 					AWSMatchers: []types.AWSMatcher{
 						// rds/ec2 matcher's assume role should be added because rds assume role is supported.
-						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role4}},
+						{Types: []string{types.AWSMatcherRDS, types.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role4}},
 						// ec2-only matcher's assume role should not be added because it's not supported.
-						{Types: []string{services.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role5}},
-						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role6, ExternalID: "foo"}},
+						{Types: []string{types.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role5}},
+						{Types: []string{types.AWSMatcherRDS, types.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role6, ExternalID: "foo"}},
 						// matcher without assume role should be added to matchers
-						{Types: []string{services.AWSMatcherElastiCache}},
+						{Types: []string{types.AWSMatcherElastiCache}},
 					},
 					ResourceMatchers: []services.ResourceMatcher{
 						// dynamic resources' assume role should be added.
@@ -2040,7 +2040,7 @@ func TestExtractTargetConfig(t *testing.T) {
 				assumesAWSRoles: []string{role1, role2, role3, role4, role6, role7},
 				databases:       []*servicecfg.Database{{Name: "db3"}},
 				awsMatchers: []types.AWSMatcher{
-					{Types: []string{services.AWSMatcherElastiCache}},
+					{Types: []string{types.AWSMatcherElastiCache}},
 				},
 			},
 		},
@@ -2050,9 +2050,9 @@ func TestExtractTargetConfig(t *testing.T) {
 			cfg: &servicecfg.Config{
 				Discovery: servicecfg.DiscoveryConfig{
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: role2}},
-						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: role3, ExternalID: "foo"}},
-						{Types: []string{services.AWSMatcherEC2}},
+						{Types: []string{types.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: role2}},
+						{Types: []string{types.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: role3, ExternalID: "foo"}},
+						{Types: []string{types.AWSMatcherEC2}},
 					},
 				},
 				// check that database service resources are not included.
@@ -2061,7 +2061,7 @@ func TestExtractTargetConfig(t *testing.T) {
 						{Name: "db3"},
 					},
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherElastiCache}, AssumeRole: &types.AssumeRole{RoleARN: role4}},
+						{Types: []string{types.AWSMatcherElastiCache}, AssumeRole: &types.AssumeRole{RoleARN: role4}},
 					},
 				},
 			},
@@ -2069,7 +2069,7 @@ func TestExtractTargetConfig(t *testing.T) {
 				// identity field is ignored in want/got diff, see comment in test loop.
 				assumesAWSRoles: []string{role1, role2, role3},
 				awsMatchers: []types.AWSMatcher{
-					{Types: []string{services.AWSMatcherEC2}},
+					{Types: []string{types.AWSMatcherEC2}},
 				},
 			},
 		},
@@ -2079,7 +2079,7 @@ func TestExtractTargetConfig(t *testing.T) {
 			cfg: &servicecfg.Config{
 				Discovery: servicecfg.DiscoveryConfig{
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
+						{Types: []string{types.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
 					},
 				},
 				Databases: servicecfg.DatabasesConfig{
@@ -2087,15 +2087,15 @@ func TestExtractTargetConfig(t *testing.T) {
 						{Name: "db1", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: role2}},
 					},
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDS}, AssumeRole: &types.AssumeRole{RoleARN: role4}},
-						{Types: []string{services.AWSMatcherEC2}},
+						{Types: []string{types.AWSMatcherRDS}, AssumeRole: &types.AssumeRole{RoleARN: role4}},
+						{Types: []string{types.AWSMatcherEC2}},
 					},
 				},
 			},
 			want: targetConfig{
 				// identity field is ignored in want/got diff, see comment in test loop.
 				awsMatchers: []types.AWSMatcher{
-					{Types: []string{services.AWSMatcherEC2}},
+					{Types: []string{types.AWSMatcherEC2}},
 				},
 				assumesAWSRoles: []string{role1, role2, role4},
 			},
@@ -2106,7 +2106,7 @@ func TestExtractTargetConfig(t *testing.T) {
 			cfg: &servicecfg.Config{
 				Discovery: servicecfg.DiscoveryConfig{
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
+						{Types: []string{types.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
 					},
 				},
 				Databases: servicecfg.DatabasesConfig{
@@ -2114,7 +2114,7 @@ func TestExtractTargetConfig(t *testing.T) {
 						{Name: "db1", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: role2}},
 					},
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role4}},
+						{Types: []string{types.AWSMatcherRDS, types.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role4}},
 					},
 				},
 			},
@@ -2126,12 +2126,12 @@ func TestExtractTargetConfig(t *testing.T) {
 			cfg: &servicecfg.Config{
 				Discovery: servicecfg.DiscoveryConfig{
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
+						{Types: []string{types.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
 					},
 				},
 				Databases: servicecfg.DatabasesConfig{
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role1}},
+						{Types: []string{types.AWSMatcherRDS, types.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role1}},
 					},
 				},
 			},
@@ -2146,19 +2146,19 @@ func TestExtractTargetConfig(t *testing.T) {
 			cfg: &servicecfg.Config{
 				Discovery: servicecfg.DiscoveryConfig{
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDSProxy}},
+						{Types: []string{types.AWSMatcherRDSProxy}},
 					},
 				},
 				Databases: servicecfg.DatabasesConfig{
 					AWSMatchers: []types.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}},
+						{Types: []string{types.AWSMatcherRDS, types.AWSMatcherEC2}},
 					},
 				},
 			},
 			want: targetConfig{
 				// identity field is ignored in want/got diff, see comment in test loop.
 				awsMatchers: []types.AWSMatcher{
-					{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}},
+					{Types: []string{types.AWSMatcherRDS, types.AWSMatcherEC2}},
 				},
 			},
 		},
@@ -2204,7 +2204,7 @@ func TestIsTargetAssumeRole(t *testing.T) {
 		"target in matchers": {
 			target: roleTarget,
 			matchers: []types.AWSMatcher{{
-				Types:      []string{services.AWSMatcherRDS},
+				Types:      []string{types.AWSMatcherRDS},
 				Regions:    []string{"us-west-1"},
 				AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()},
 			}},
@@ -2247,7 +2247,7 @@ func TestIsTargetAssumeRole(t *testing.T) {
 			target: roleTarget,
 			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1},
 			matchers: []types.AWSMatcher{{
-				Types:      []string{services.AWSMatcherRDS},
+				Types:      []string{types.AWSMatcherRDS},
 				Regions:    []string{"us-west-1"},
 				AssumeRole: &types.AssumeRole{RoleARN: role1},
 			}},

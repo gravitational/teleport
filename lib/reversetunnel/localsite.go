@@ -120,7 +120,7 @@ func newLocalSite(srv *server, domainName string, authServers []string, opts ...
 		// certificate cache is created in each site (instead of creating it in
 		// reversetunnel.server and passing it along) so that the host certificate
 		// is signed by the correct certificate authority.
-		certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, srv.localAuthClient)
+		certificateCache, err := newHostCertificateCache(srv.localAuthClient)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -562,9 +562,10 @@ func (s *localSite) setupTunnelForOpenSSHEICENode(ctx context.Context, targetSer
 	}
 
 	openTunnelResp, err := awsoidc.OpenTunnelEC2(ctx, openTunnelClt, awsoidc.OpenTunnelEC2Request{
-		Region:     awsInfo.Region,
-		VPCID:      awsInfo.VPCID,
-		EC2Address: targetServer.GetAddr(),
+		Region:        awsInfo.Region,
+		VPCID:         awsInfo.VPCID,
+		EC2InstanceID: awsInfo.InstanceID,
+		EC2Address:    targetServer.GetAddr(),
 	})
 	if err != nil {
 		return nil, trace.BadParameter("failed to open AWS EC2 Instance Connect Endpoint tunnel: %v", err)
@@ -615,7 +616,6 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 
 		return newMetricConn(conn, dt, dialStart, s.srv.Clock), true, nil
 	}
-	s.log.WithError(tunnelErr).WithField("address", dreq.Address).Debug("Error occurred while dialing through a tunnel.")
 
 	if s.tryProxyPeering(params) {
 		s.log.Info("Dialing over peer proxy")
@@ -625,7 +625,6 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 		if peerErr == nil {
 			return newMetricConn(conn, dialTypePeer, dialStart, s.srv.Clock), true, nil
 		}
-		s.log.WithError(peerErr).WithField("address", dreq.Address).Debug("Error occurred while dialing over peer proxy.")
 	}
 
 	err = trace.NewAggregate(tunnelErr, peerErr)
@@ -649,7 +648,7 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 	conn, directErr = dialer.DialTimeout(s.srv.Context, params.To.Network(), params.To.String(), apidefaults.DefaultIOTimeout)
 	if directErr != nil {
 		directMsg := getTunnelErrorMessage(params, "direct dial", directErr)
-		s.log.WithError(directErr).WithField("address", params.To.String()).Debug("Error occurred while dialing directly.")
+		s.log.WithField("address", params.To.String()).Debugf("All attempted dial methods failed. tunnel=%q, peer=%q, direct=%q", tunnelErr, peerErr, directErr)
 		aggregateErr := trace.NewAggregate(tunnelErr, peerErr, directErr)
 		return nil, false, trace.ConnectionProblem(aggregateErr, directMsg)
 	}
@@ -698,6 +697,15 @@ func (s *localSite) fanOutProxies(proxies []types.Server) {
 // if the agent has missed several heartbeats in a row, Proxy marks
 // the connection as invalid.
 func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
+	sshutils.DiscardChannelData(ch)
+	if ch != nil {
+		defer func() {
+			if err := ch.Close(); err != nil {
+				s.log.Warnf("Failed to close heartbeat channel: %v", err)
+			}
+		}()
+	}
+
 	logger := s.log.WithFields(log.Fields{
 		"serverID": rconn.nodeID,
 		"addr":     rconn.conn.RemoteAddr().String(),

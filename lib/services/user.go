@@ -56,7 +56,7 @@ func ValidateUserRoles(ctx context.Context, u types.User, roleGetter RoleGetter)
 func UsersEquals(u types.User, other types.User) bool {
 	return cmp.Equal(u, other,
 		ignoreProtoXXXFields(),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		cmpopts.SortSlices(func(a, b *types.MFADevice) bool {
 			return a.Metadata.Name < b.Metadata.Name
 		}),
@@ -105,6 +105,9 @@ func UnmarshalUser(bytes []byte, opts ...MarshalOption) (types.User, error) {
 		if cfg.ID != 0 {
 			u.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			u.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			u.SetExpiry(cfg.Expires)
 		}
@@ -132,6 +135,7 @@ func MarshalUser(user types.User, opts ...MarshalOption) ([]byte, error) {
 			// to prevent unexpected data races
 			copy := *user
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			user = &copy
 		}
 		return utils.FastMarshal(user)

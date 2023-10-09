@@ -89,8 +89,10 @@ func TestRewriter(t *testing.T) {
 		expected   http.Header
 	}{
 		{
-			desc:       "set x-real-ip",
-			reqHeaders: http.Header{},
+			desc: "set x-real-ip",
+			reqHeaders: http.Header{
+				XForwardedFor: []string{"1.2.3.4"},
+			},
 			tlsReq:     true,
 			hostReq:    "teleport.dev:3543",
 			remoteAddr: "1.2.3.4:1234",
@@ -105,7 +107,8 @@ func TestRewriter(t *testing.T) {
 		{
 			desc: "trust x-real-ip",
 			reqHeaders: http.Header{
-				XRealIP: []string{"5.6.7.8"},
+				XRealIP:       []string{"5.6.7.8"},
+				XForwardedFor: []string{"1.2.3.4"},
 			},
 			tlsReq:     false,
 			hostReq:    "teleport.dev:3543",

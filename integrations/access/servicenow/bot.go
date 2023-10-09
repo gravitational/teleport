@@ -29,7 +29,7 @@ import (
 )
 
 // Bot is a serviceNow client that works with AccessRequests.
-// It's responsible for formatting and ServiceNow alerts when an
+// It's responsible for formatting and ServiceNow incidents when an
 // action occurs with an access request: a new request popped up, or a
 // request is processed/updated.
 type Bot struct {
@@ -42,7 +42,7 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 	return trace.Wrap(b.client.CheckHealth(ctx))
 }
 
-// Broadcast creates an alert for the provided rotas
+// Broadcast creates a ServiceNow incident.
 func (b *Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data common.SentMessages, err error) {
 	serviceNowReqData := RequestData{
 		User:          reqData.User,
@@ -62,7 +62,7 @@ func (b *Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqI
 	return data, nil
 }
 
-// PostReviewReply posts an alert note.
+// PostReviewReply posts an incident work note.
 func (b *Bot) PostReviewReply(ctx context.Context, _ string, incidentID string, review types.AccessReview) error {
 	return trace.Wrap(b.client.PostReviewNote(ctx, incidentID, review))
 }
@@ -93,11 +93,7 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 	return trace.NewAggregate(errs...)
 }
 
-// FetchRecipient returns the recipient for the given raw recipient.
+// FetchRecipient isn't used by the ServicenoPlugin
 func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
-	return &common.Recipient{
-		Name: recipient,
-		ID:   recipient,
-		Kind: common.RecipientKindRotation,
-	}, nil
+	return nil, trace.NotImplemented("ServiceNow plugin does not use recipients")
 }

@@ -697,14 +697,14 @@ Teleport supports creating clusters of servers located behind firewalls
 **without any open listening TCP ports**.  This works by creating reverse SSH
 tunnels from behind-firewall environments into a Teleport Proxy Service you have access to.
 
-These features are called **Trusted Clusters**. Refer to [the Trusted Clusters guide](../management/admin/trustedclusters.mdx)
-to learn how a Trusted Cluster can be configured.
+To learn more about setting up a trust relationship between clusters behind firewalls, see
+[Configure Trusted Clusters](../management/admin/trustedclusters.mdx).
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
-Assuming the Teleport Proxy Server called `work` is configured with a few Trusted
-Clusters, a user may use the `tsh clusters` command to see a list of all Trusted Clusters on the server:
+Assuming the Teleport Proxy Server called `work` is configured with a few trusted
+clusters, you can use the `tsh clusters` command to see a list of all the trusted clusters on the server:
 
 ```code
 $ tsh --proxy=work clusters
@@ -843,8 +843,8 @@ The `<alias>` can only be a top-level subcommand. In other words, you can define
 
 `tsh` loads two kinds of configuration files:
 
-- global: by default `/etc/tsh.yaml`, unless overridden by  the `$TELEPORT_GLOBAL_TSH_CONFIG` env var.
-- user-specific: `$TELEPORT_HOME/config/config.yaml`, which by defaults resolves to `~/.tsh/config/config.yaml`.
+- global: set via the `$TELEPORT_GLOBAL_TSH_CONFIG` env var if not provided it will default to `/etc/tsh.yaml` on non-Windows operating systems.
+- user-specific: `$TELEPORT_HOME/config/config.yaml`, which by default resolves to `~/.tsh/config/config.yaml`.
 
 `tsh` merges the user-specific config with the global config. In case of conflicts (i.e. same alias defined in both files), the user-specific config has higher priority.
 

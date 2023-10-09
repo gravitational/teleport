@@ -38,7 +38,7 @@ func NewDatabasesService(backend backend.Backend) *DatabaseService {
 
 // GetDatabases returns all database resources.
 func (s *DatabaseService) GetDatabases(ctx context.Context) ([]types.Database, error) {
-	startKey := backend.Key(databasesPrefix)
+	startKey := backend.ExactKey(databasesPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -46,7 +46,7 @@ func (s *DatabaseService) GetDatabases(ctx context.Context) ([]types.Database, e
 	databases := make([]types.Database, len(result.Items))
 	for i, item := range result.Items {
 		database, err := services.UnmarshalDatabase(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -65,7 +65,7 @@ func (s *DatabaseService) GetDatabase(ctx context.Context, name string) (types.D
 		return nil, trace.Wrap(err)
 	}
 	database, err := services.UnmarshalDatabase(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -130,7 +130,7 @@ func (s *DatabaseService) DeleteDatabase(ctx context.Context, name string) error
 
 // DeleteAllDatabases removes all database resources.
 func (s *DatabaseService) DeleteAllDatabases(ctx context.Context) error {
-	startKey := backend.Key(databasesPrefix)
+	startKey := backend.ExactKey(databasesPrefix)
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)
