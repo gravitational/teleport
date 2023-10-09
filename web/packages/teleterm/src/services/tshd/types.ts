@@ -260,6 +260,11 @@ export type TshClient = {
     params: UpdateHeadlessAuthenticationStateParams,
     abortSignal?: TshAbortSignal
   ) => Promise<void>;
+
+  listUnifiedResources: (
+    params: apiService.ListUnifiedResourcesRequest.AsObject,
+    abortSignal?: TshAbortSignal
+  ) => Promise<ListUnifiedResourcesResponse>;
 };
 
 export type TshAbortController = {
@@ -356,6 +361,11 @@ export type WaitForConnectMyComputerNodeJoinResponse =
   apiService.WaitForConnectMyComputerNodeJoinResponse.AsObject & {
     server: Server;
   };
+
+export type ListUnifiedResourcesRequest =
+  apiService.ListUnifiedResourcesRequest.AsObject;
+export type ListUnifiedResourcesResponse =
+  apiService.ListUnifiedResourcesResponse.AsObject;
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;
