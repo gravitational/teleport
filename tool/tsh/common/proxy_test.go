@@ -481,12 +481,12 @@ func TestWithRsync(t *testing.T) {
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			err = cmd.Run()
-			if !assert.NoError(t, err) {
-				var exitErr *exec.ExitError
-				if errors.As(err, &exitErr) {
-					t.Logf("exit code: %d", exitErr.ExitCode())
-				}
+			var msg string
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				msg = fmt.Sprintf("exit code: %d", exitErr.ExitCode())
 			}
+			require.NoError(t, err, msg)
 
 			// verify that dst exists and that its contents match src
 			dstContents, err := os.ReadFile(dstPath)
