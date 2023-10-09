@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -38,12 +37,41 @@ type ClusterClient struct {
 	AuthClient  auth.ClientI
 	Tracer      oteltrace.Tracer
 	cluster     string
+	root        string
 }
 
 // ClusterName returns the name of the cluster that the client
 // is connected to.
 func (c *ClusterClient) ClusterName() string {
 	return c.cluster
+}
+
+// CurrentCluster returns an authenticated auth server client for the local cluster.
+// The returned auth server client does not need to be closed, it will be closed
+// when the ClusterClient is closed.
+func (c *ClusterClient) CurrentCluster() auth.ClientI {
+	// The auth.ClientI is wrapped in an sharedAuthClient to prevent callers from
+	// being able to close the client. The auth.ClientI is only to be closed
+	// when the ClusterClient is closed.
+	return sharedAuthClient{ClientI: c.AuthClient}
+}
+
+// ConnectToRootCluster connects to the auth server of the root cluster
+// via proxy. It returns connected and authenticated auth server client.
+func (c *ClusterClient) ConnectToRootCluster(ctx context.Context) (auth.ClientI, error) {
+	root, err := c.ConnectToCluster(ctx, c.root)
+	return root, trace.Wrap(err)
+}
+
+// ConnectToCluster connects to the auth server of the given cluster via proxy. It returns connected and authenticated auth server client
+func (c *ClusterClient) ConnectToCluster(ctx context.Context, clusterName string) (auth.ClientI, error) {
+	if c.cluster == clusterName {
+		return c.CurrentCluster(), nil
+	}
+
+	clientConfig := c.ProxyClient.ClientConfig(ctx, clusterName)
+	authClient, err := auth.NewClient(clientConfig)
+	return authClient, trace.Wrap(err)
 }
 
 // Close terminates the connections to Auth and Proxy.
@@ -97,6 +125,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 			AuthClient:  authClient,
 			Tracer:      c.Tracer,
 			cluster:     rootClusterName,
+			root:        rootClusterName,
 		}
 		// only close the new auth client and not the copied cluster client.
 		defer authClient.Close()
@@ -210,11 +239,6 @@ func (c *ClusterClient) prepareUserCertsRequest(params ReissueParams, key *Key) 
 		params.AccessRequests = activeRequests.AccessRequests
 	}
 
-	attestationStatement, err := keys.GetAttestationStatement(key.PrivateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &proto.UserCertsRequest{
 		PublicKey:             key.MarshalSSHPublicKey(),
 		Username:              tlsCert.Subject.CommonName,
@@ -231,7 +255,7 @@ func (c *ClusterClient) prepareUserCertsRequest(params ReissueParams, key *Key) 
 		Format:                c.tc.CertificateFormat,
 		RequesterName:         params.RequesterName,
 		SSHLogin:              c.tc.HostLogin,
-		AttestationStatement:  attestationStatement.ToProto(),
+		AttestationStatement:  key.PrivateKey.GetAttestationStatement().ToProto(),
 	}, nil
 }
 

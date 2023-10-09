@@ -144,7 +144,7 @@ func (a *BaseApp) onWatcherEvent(ctx context.Context, event types.Event) error {
 		switch {
 		case req.GetState().IsPending():
 			err = a.onPendingRequest(ctx, req)
-		case req.GetState().IsApproved(), req.GetState().IsDenied():
+		case req.GetState().IsResolved():
 			err = a.onResolvedRequest(ctx, req)
 		default:
 			log.WithField("event", event).Warn("Unknown request state")
@@ -296,6 +296,8 @@ func (a *BaseApp) onResolvedRequest(ctx context.Context, req types.AccessRequest
 		tag = pd.ResolvedApproved
 	case types.RequestState_DENIED:
 		tag = pd.ResolvedDenied
+	case types.RequestState_PROMOTED:
+		tag = pd.ResolvedPromoted
 	default:
 		logger.Get(ctx).Warningf("Unknown state %v (%s)", state, state.String())
 		return replyErr
@@ -390,7 +392,12 @@ func (a *BaseApp) getMessageRecipients(ctx context.Context, req types.AccessRequ
 	recipientSet := NewRecipientSet()
 
 	switch a.Conf.GetPluginType() {
-	case types.PluginTypeOpsgenie, types.PluginTypeServiceNow:
+	case types.PluginTypeServiceNow:
+		// The ServiceNow plugin does not use recipients currently and create incidents in the incident table directly.
+		// Recipients just needs to be non empty.
+		recipientSet.Add(Recipient{})
+		return recipientSet.ToSlice()
+	case types.PluginTypeOpsgenie:
 		if recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
 			for _, recipient := range recipients {
 				rec, err := a.bot.FetchRecipient(ctx, recipient)

@@ -100,7 +100,7 @@ func (s *ProvisioningService) GetToken(ctx context.Context, token string) (types
 		return nil, trace.Wrap(err)
 	}
 
-	return services.UnmarshalProvisionToken(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	return services.UnmarshalProvisionToken(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // DeleteToken deletes a token by ID
@@ -117,7 +117,7 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 
 // GetTokens returns all active (non-expired) provisioning tokens
 func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
-	startKey := backend.Key(tokensPrefix)
+	startKey := backend.ExactKey(tokensPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -128,6 +128,7 @@ func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionT
 			item.Value,
 			services.WithResourceID(item.ID),
 			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)

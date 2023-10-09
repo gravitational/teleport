@@ -90,6 +90,18 @@ type AccessRequest interface {
 	GetReviews() []AccessReview
 	// SetReviews sets the list of currently applied access reviews (internal use only).
 	SetReviews([]AccessReview)
+	// GetPromotedAccessListName returns the access list name that this access request
+	// was promoted to.
+	GetPromotedAccessListName() string
+	// SetPromotedAccessListName sets the access list name that this access request
+	// was promoted to.
+	SetPromotedAccessListName(name string)
+	// GetPromotedAccessListTitle returns the access list title that this access request
+	// was promoted to.
+	GetPromotedAccessListTitle() string
+	// SetPromotedAccessListTitle sets the access list title that this access request
+	// was promoted to.
+	SetPromotedAccessListTitle(string)
 	// GetSuggestedReviewers gets the suggested reviewer list.
 	GetSuggestedReviewers() []string
 	// SetSuggestedReviewers sets the suggested reviewer list.
@@ -302,6 +314,38 @@ func (r *AccessRequestV3) GetSuggestedReviewers() []string {
 // SetSuggestedReviewers sets the suggested reviewer list.
 func (r *AccessRequestV3) SetSuggestedReviewers(reviewers []string) {
 	r.Spec.SuggestedReviewers = reviewers
+}
+
+// GetPromotedAccessListName returns PromotedAccessListName.
+func (r *AccessRequestV3) GetPromotedAccessListName() string {
+	if r.Spec.AccessList == nil {
+		return ""
+	}
+	return r.Spec.AccessList.Name
+}
+
+// SetPromotedAccessListName sets PromotedAccessListName.
+func (r *AccessRequestV3) SetPromotedAccessListName(name string) {
+	if r.Spec.AccessList == nil {
+		r.Spec.AccessList = &PromotedAccessList{}
+	}
+	r.Spec.AccessList.Name = name
+}
+
+// GetPromotedAccessListTitle returns PromotedAccessListTitle.
+func (r *AccessRequestV3) GetPromotedAccessListTitle() string {
+	if r.Spec.AccessList == nil {
+		return ""
+	}
+	return r.Spec.AccessList.Title
+}
+
+// SetPromotedAccessListTitle sets PromotedAccessListTitle.
+func (r *AccessRequestV3) SetPromotedAccessListTitle(title string) {
+	if r.Spec.AccessList == nil {
+		r.Spec.AccessList = &PromotedAccessList{}
+	}
+	r.Spec.AccessList.Title = title
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -526,6 +570,22 @@ func (s AccessReview) Check() error {
 	return nil
 }
 
+// GetAccessListName returns the access list name used for the promotion.
+func (s AccessReview) GetAccessListName() string {
+	if s.AccessList == nil {
+		return ""
+	}
+	return s.AccessList.Name
+}
+
+// GetAccessListTitle returns the access list title used for the promotion.
+func (s AccessReview) GetAccessListTitle() string {
+	if s.AccessList == nil {
+		return ""
+	}
+	return s.AccessList.Title
+}
+
 // AccessRequestUpdate encompasses the parameters of a
 // SetAccessRequestState call.
 type AccessRequestUpdate struct {
@@ -603,11 +663,12 @@ func (s RequestStrategy) RequireReason() bool {
 
 // stateVariants allows iteration of the expected variants
 // of RequestState.
-var stateVariants = [4]RequestState{
+var stateVariants = [5]RequestState{
 	RequestState_NONE,
 	RequestState_PENDING,
 	RequestState_APPROVED,
 	RequestState_DENIED,
+	RequestState_PROMOTED,
 }
 
 // Parse attempts to interpret a value as a string representation
@@ -642,9 +703,14 @@ func (s RequestState) IsDenied() bool {
 	return s == RequestState_DENIED
 }
 
+// IsPromoted returns true is the request in the PROMOTED state.
+func (s RequestState) IsPromoted() bool {
+	return s == RequestState_PROMOTED
+}
+
 // IsResolved request state
 func (s RequestState) IsResolved() bool {
-	return s.IsApproved() || s.IsDenied()
+	return s.IsApproved() || s.IsDenied() || s.IsPromoted()
 }
 
 // key values for map encoding of request filter
@@ -730,3 +796,14 @@ func (a AccessRequests) Less(i, j int) bool { return a[i].GetName() < a[j].GetNa
 
 // Swap swaps two access requests.
 func (a AccessRequests) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+// NewAccessRequestAllowedPromotions returns a new AccessRequestAllowedPromotions resource.
+func NewAccessRequestAllowedPromotions(promotions []*AccessRequestAllowedPromotion) *AccessRequestAllowedPromotions {
+	if promotions == nil {
+		promotions = make([]*AccessRequestAllowedPromotion, 0)
+	}
+
+	return &AccessRequestAllowedPromotions{
+		Promotions: promotions,
+	}
+}

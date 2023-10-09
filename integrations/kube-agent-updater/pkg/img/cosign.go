@@ -21,7 +21,7 @@ import (
 	"crypto"
 	"encoding/hex"
 
-	"github.com/docker/distribution/reference"
+	"github.com/distribution/reference"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/gravitational/trace"
 	"github.com/opencontainers/go-digest"

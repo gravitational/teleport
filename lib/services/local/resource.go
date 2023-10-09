@@ -141,6 +141,7 @@ func itemToUser(item backend.Item) (types.User, error) {
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

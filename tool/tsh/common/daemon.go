@@ -46,6 +46,7 @@ func onDaemonStart(cf *CLIConf) error {
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		PrehogAddr:         cf.DaemonPrehogAddr,
 		KubeconfigsDir:     cf.DaemonKubeconfigsDir,
+		AgentsDir:          cf.DaemonAgentsDir,
 	})
 	if err != nil {
 		return trace.Wrap(err)

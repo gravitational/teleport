@@ -25,6 +25,7 @@ import {
   makeKube,
   makeServer,
   makeLabelsList,
+  makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 
@@ -295,27 +296,21 @@ const SearchResultItems = () => {
     },
     {
       kind: 'cluster-filter',
-      resource: {
+      resource: makeRootCluster({
         name: 'teleport-local',
         uri: clusterUri,
-        authClusterId: '',
-        connected: true,
-        leaf: false,
         proxyHost: 'teleport-local.dev:3090',
-      },
+      }),
       nameMatch: '',
       score: 0,
     },
     {
       kind: 'cluster-filter',
-      resource: {
+      resource: makeRootCluster({
         name: 'teleport-very-long-cluster-name-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c',
         uri: longClusterUri,
-        authClusterId: '',
-        connected: true,
-        leaf: false,
         proxyHost: 'teleport-local.dev:3090',
-      },
+      }),
       nameMatch: '',
       score: 0,
     },

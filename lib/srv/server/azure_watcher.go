@@ -53,6 +53,8 @@ type AzureInstances struct {
 	Parameters []string
 	// Instances is a list of discovered Azure virtual machines.
 	Instances []*armcompute.VirtualMachine
+	// ClientID is the client ID of the managed identity to use for installation.
+	ClientID string
 }
 
 // MakeEvents generates MakeEvents for these instances.
@@ -119,6 +121,7 @@ type azureInstanceFetcher struct {
 	ResourceGroup     string
 	Labels            types.Labels
 	Parameters        map[string]string
+	ClientID          string
 }
 
 func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
@@ -136,6 +139,7 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 			"scriptName":      cfg.Matcher.Params.ScriptName,
 			"publicProxyAddr": cfg.Matcher.Params.PublicProxyAddr,
 		}
+		ret.ClientID = cfg.Matcher.Params.Azure.ClientID
 	}
 
 	return ret
@@ -190,6 +194,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 				ScriptName:      f.Parameters["scriptName"],
 				PublicProxyAddr: f.Parameters["publicProxyAddr"],
 				Parameters:      []string{f.Parameters["token"]},
+				ClientID:        f.ClientID,
 			}})
 		}
 	}

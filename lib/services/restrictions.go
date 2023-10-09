@@ -67,6 +67,9 @@ func UnmarshalNetworkRestrictions(bytes []byte, opts ...MarshalOption) (types.Ne
 		if cfg.ID != 0 {
 			nr.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			nr.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			nr.SetExpiry(cfg.Expires)
 		}
@@ -93,6 +96,7 @@ func MarshalNetworkRestrictions(restrictions types.NetworkRestrictions, opts ...
 			// to prevent unexpected data races
 			copy := *restrictions
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			restrictions = &copy
 		}
 		return utils.FastMarshal(restrictions)

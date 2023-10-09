@@ -3,11 +3,6 @@ title: Database Access with Oracle
 description: How to configure Teleport database access with Oracle.
 ---
 
-<Admonition type="warning" title="Audit logging">
-  Query audit logging is currently not supported in Oracle access and will be
-  implemented in a future release.
-</Admonition>
-
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="Oracle" dbConfigure="Oracle with mutual TLS authentication" dbName="Oracle" !)
 
 <Tabs>
@@ -27,7 +22,7 @@ description: How to configure Teleport database access with Oracle.
 - The `sqlcl` [Oracle client](https://www.oracle.com/pl/database/sqldeveloper/technologies/sqlcl/) installed and added to your system's `PATH` environment variable or any GUI client that supports JDBC
   Oracle thin client.
 
-## Step 1/5. Create a Teleport token and user
+## Step 1/6. Create a Teleport token and user
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -60,7 +55,7 @@ $ tctl users add \
 For more detailed information about database access controls and how to restrict
 access see [RBAC](../../database-access/rbac.mdx) documentation.
 
-## Step 2/5. Create a certificate/key pair and Teleport Oracle Wallet
+## Step 2/6. Create a certificate/key pair and Teleport Oracle Wallet
 
 (!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
 
@@ -80,7 +75,7 @@ Service can reach the Oracle server.
 If `tctl` finds the Orapki tool in your local environment, the `tctl auth sign --format=oracle --host=db.example.com --out=server --ttl=2190h` command will produce an Oracle Wallet and
 instructions how to configure the Oracle TCPS listener with Teleport Oracle Wallet. Otherwise the `tctl auth sign --format=oracle` command  will produce a `p12` certificate and instructions on how to create an Oracle Wallet on your Oracle Database instance.
 
-## Step 3/5. Configure Oracle Database
+## Step 3/6. Configure Oracle Database
 
 In order to enable the Teleport Oracle integration you will need to configure the TCPS Oracle listener and use the Teleport Oracle Wallet created in the previous step.
 
@@ -116,7 +111,7 @@ Additionally, your Oracle Database user accounts must be configured to require a
 CREATE USER alice IDENTIFIED EXTERNALLY AS 'CN=alice';
 GRANT CREATE SESSION TO alice;
 ```
-## Step 4/5. Configure and Start the Database Service
+## Step 4/6. Configure and Start the Database Service
 Install and configure Teleport where you will run the Teleport Database Service:
 
 <Tabs>
@@ -132,63 +127,79 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
   (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-  <Tabs>
-  <TabItem label="Teleport Enterprise" scope={["enterprise"]}>
-  Install the Teleport Kube Agent into your Kubernetes Cluster
-  with the Teleport Database Service configuration.
-  
-  ```code
-  $ JOIN_TOKEN=$(cat /tmp/token)
-  $ helm install teleport-kube-agent teleport/teleport-kube-agent \
-    --create-namespace \
-    --namespace teleport-agent \
-    --set roles=db \
-    --set proxyAddr=teleport.example.com:443 \
-    --set authToken=${JOIN_TOKEN?} \
-    --set "databases[0].name=oracle" \
-    --set "databases[0].uri=oracle.example.com:2484" \
-    --set "databases[0].protocol=oracle" \
-    --set "labels.env=dev" \
-    --version (=teleport.version=)
-  ```
-  
-  </TabItem>
-  <TabItem label="Teleport Enterprise Cloud" scope={["cloud"]}>
-  Install the Teleport Kube Agent into your Kubernetes Cluster
-  with the Teleport Database Service configuration.
-  
-  ```code
-  $ JOIN_TOKEN=$(cat /tmp/token)
-  $ helm install teleport-kube-agent teleport/teleport-kube-agent \
-    --create-namespace \
-    --namespace teleport-agent \
-    --set roles=db \
-    --set proxyAddr=mytenant.teleport.sh:443 \
-    --set authToken=${JOIN_TOKEN?} \
-    --set "databases[0].name=oracle" \
-    --set "databases[0].uri=oracle.example.com:2484" \
-    --set "databases[0].protocol=oracle" \
-    --set "labels.env=dev" \
-    --version (=cloud.version=)
-  ```
-  
-  </TabItem>
-  </Tabs>
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="oracle" dbProtocol="oracle" databaseAddress="oracle.example.com:2484" !)
+
 </TabItem>
 </Tabs>
 
 (!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
 
-Make sure that the Teleport agent pod is running. You should see one Teleport
-agent pod pod with a single ready container:
+## Step 5/6. (Optional) Configure Teleport to pull audit logs from Oracle Audit Trail
 
-```code
-$ kubectl -n teleport get pods
-NAME                    READY   STATUS    RESTARTS   AGE
-teleport-kube-agent-0   1/1     Running   0          32s
+Teleport can pull audit logs from Oracle Audit Trail.
+In order to enable this feature, you will need to configure Oracle Audit Trail and create a dedicated Teleport
+user that will be used to fetch audit events from Oracle Audit Trail.
+
+Create an internal Oracle `teleport` user that will fetch
+audit events from Oracle Audit Trail:
+
+```sql
+CREATE USER teleport IDENTIFIED EXTERNALLY AS 'CN=teleport';
+GRANT CREATE SESSION TO teleport;
+GRANT SELECT ON dba_audit_trail TO teleport;
+GRANT SELECT ON V_$SESSION TO teleport;
 ```
 
-## Step 5/5. Connect
+Enable the table in Oracle Audit Trail:
+```
+ALTER system SET audit_trail=db,extended scope=spfile;
+```
+
+Restart your Oracle instance to propagate audit trail changes.
+
+Enable Oracle auditing for the `alice` user:
+```sql
+AUDIT ALL STATEMENTS by alice BY access;
+```
+
+You must enable auditing for each Teleport user that will be used to connect to Oracle.
+Additionally you can create a different audit policy for each user.
+
+Configure the Teleport Database Service to pull audit logs from Oracle Audit Trail:
+
+<Tabs>
+<TabItem label="Static config">
+```yaml
+db_service:
+  enabled: "yes"
+  databases:
+  - name: "oracle"
+    protocol: "oracle"
+    uri: oracle.example.com:2484"
+    oracle:
+      audit_user: "teleport"
+```
+</TabItem>
+<TabItem label="Dynamic resource">
+```yaml
+kind: db
+version: v3
+metadata:
+  name: oracle
+spec:
+  protocol: "oracle"
+  uri: "oracle.example.com:2484"
+  oracle:
+    audit_user: "teleport"
+```
+</TabItem>
+</Tabs>
+
+
+Teleport doesn't clean up audit trail events from Oracle Audit Trail.
+Make sure to configure an Oracle Audit Trail cleanup policy to avoid running out of disk space.
+
+## Step 6/6. Connect
 
 Once the Database Service has joined the cluster, log in to see the available
 databases:
@@ -232,4 +243,5 @@ $ tsh db logout
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
 
 - Learn more about  `sqlnet.ora` and `listener.ora` configuration from the [Parameters for the sqlnet.ora File](https://docs.oracle.com/en/database/oracle/oracle-database/18/netrf/parameters-for-the-sqlnet-ora-file.html#GUID-28040885-6832-4FFC-9258-0EF19FE9A3AC) and [Oracle Net Listener Parameters in the listener.ora File](https://docs.oracle.com/en/database/oracle/oracle-database/18/netrf/Oracle-Net-Listener-parameters-in-listener-ora-file.html#GUID-F9FA0DF5-2FAF-45CA-B6A1-F0166C7BFE54) Oracle documentation.
+- [Oracle Audit Trail](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/AUDIT-Traditional-Auditing.html#GUID-ADF45B07-547A-4096-8144-50241FA2D8DD)
 

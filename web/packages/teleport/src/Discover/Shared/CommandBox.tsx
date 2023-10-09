@@ -28,16 +28,23 @@ const Container = styled(Box)`
 
 interface CommandBoxProps {
   header?: React.ReactNode;
+  // hasTtl when true means that the command has an expiry TTL, otherwise the command
+  // is valid forever.
+  hasTtl?: boolean;
 }
 
-export function CommandBox(props: React.PropsWithChildren<CommandBoxProps>) {
+export function CommandBox({
+  header,
+  children,
+  hasTtl = true,
+}: React.PropsWithChildren<CommandBoxProps>) {
   return (
     <Container p={3} borderRadius={3} mb={3}>
-      {props.header || <Text bold>Command</Text>}
+      {header || <Text bold>Command</Text>}
       <Box mt={3} mb={3}>
-        {props.children}
+        {children}
       </Box>
-      This script is valid for 4 hours.
+      {hasTtl && `This script is valid for 4 hours.`}
     </Container>
   );
 }

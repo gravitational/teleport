@@ -575,9 +575,18 @@ func serializeKubeSessions(sessions []types.SessionTracker, format string) (stri
 }
 
 func printSessions(output io.Writer, sessions []types.SessionTracker) {
-	table := asciitable.MakeTable([]string{"ID", "State", "Created", "Hostname", "Address", "Login", "Reason"})
+	table := asciitable.MakeTable([]string{"ID", "State", "Created", "Hostname", "Address", "Login", "Reason", "Command"})
 	for _, s := range sessions {
-		table.AddRow([]string{s.GetSessionID(), s.GetState().String(), s.GetCreated().Format(time.RFC3339), s.GetHostname(), s.GetAddress(), s.GetLogin(), s.GetReason()})
+		table.AddRow([]string{
+			s.GetSessionID(),
+			s.GetState().String(),
+			s.GetCreated().Format(time.RFC3339),
+			s.GetHostname(),
+			s.GetAddress(),
+			s.GetLogin(),
+			s.GetReason(),
+			strings.Join(s.GetCommand(), " "),
+		})
 	}
 
 	tableOutput := table.AsBuffer().String()

@@ -969,7 +969,7 @@ func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 			return
 		}
 		if err != nil {
-			c.Logger.WithError(err).Warn("Re-init the cache on error")
+			c.Logger.Warnf("Re-init the cache on error: %v", err)
 		}
 
 		// events cache should be closed as well
@@ -1956,7 +1956,7 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 }
 
 // GetUser is a part of auth.Cache implementation.
-func (c *Cache) GetUser(name string, withSecrets bool) (user types.User, err error) {
+func (c *Cache) GetUser(name string, withSecrets bool) (types.User, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetUser")
 	defer span.End()
 
@@ -1969,7 +1969,7 @@ func (c *Cache) GetUser(name string, withSecrets bool) (user types.User, err err
 	}
 	defer rg.Release()
 
-	user, err = rg.reader.GetUser(name, withSecrets)
+	user, err := rg.reader.GetUser(name, withSecrets)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
@@ -1982,8 +1982,14 @@ func (c *Cache) GetUser(name string, withSecrets bool) (user types.User, err err
 	return user, trace.Wrap(err)
 }
 
+// GetUserWithContext is a part of auth.Cache implementation.
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func (c *Cache) GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error) {
+	return c.GetUser(name, withSecrets)
+}
+
 // GetUsers is a part of auth.Cache implementation
-func (c *Cache) GetUsers(withSecrets bool) (users []types.User, err error) {
+func (c *Cache) GetUsers(withSecrets bool) ([]types.User, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetUsers")
 	defer span.End()
 
@@ -1996,6 +2002,12 @@ func (c *Cache) GetUsers(withSecrets bool) (users []types.User, err error) {
 	}
 	defer rg.Release()
 	return rg.reader.GetUsers(withSecrets)
+}
+
+// GetUsersWithContext is a part of auth.Cache implementation
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func (c *Cache) GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error) {
+	return c.GetUsers(withSecrets)
 }
 
 // GetTunnelConnections is a part of auth.Cache implementation

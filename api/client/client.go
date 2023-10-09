@@ -43,6 +43,7 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
+	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/userloginstate"
@@ -52,6 +53,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -836,6 +838,18 @@ func (c *Client) CreateUser(ctx context.Context, user types.User) error {
 	return trace.Wrap(err)
 }
 
+// CreateUserWithContext creates a new user from the specified descriptor.
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func (c *Client) CreateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
+	err := c.CreateUser(ctx, user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := c.GetUserWithContext(ctx, user.GetName(), false)
+	return created, trace.Wrap(err)
+}
+
 // UpdateUser updates an existing user in a backend.
 func (c *Client) UpdateUser(ctx context.Context, user types.User) error {
 	userV2, ok := user.(*types.UserV2)
@@ -845,6 +859,18 @@ func (c *Client) UpdateUser(ctx context.Context, user types.User) error {
 
 	_, err := c.grpc.UpdateUser(ctx, userV2)
 	return trace.Wrap(err)
+}
+
+// UpdateUserWithContext updates an existing user in a backend.
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func (c *Client) UpdateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
+	err := c.UpdateUser(ctx, user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := c.GetUserWithContext(ctx, user.GetName(), false)
+	return updated, trace.Wrap(err)
 }
 
 // GetUser returns a list of usernames registered in the system.
@@ -861,6 +887,13 @@ func (c *Client) GetUser(name string, withSecrets bool) (types.User, error) {
 		return nil, trace.Wrap(err)
 	}
 	return user, nil
+}
+
+// GetUserWithContext returns a list of usernames registered in the system.
+// withSecrets controls whether authentication details are returned.
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func (c *Client) GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error) {
+	return c.GetUser(name, withSecrets)
 }
 
 // GetCurrentUser returns current user as seen by the server.
@@ -906,6 +939,13 @@ func (c *Client) GetUsers(withSecrets bool) ([]types.User, error) {
 		users = append(users, user)
 	}
 	return users, nil
+}
+
+// GetUsersWithContext returns a list of users.
+// withSecrets controls whether authentication details are returned.
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func (c *Client) GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error) {
+	return c.GetUsers(withSecrets)
 }
 
 // DeleteUser deletes a user by name.
@@ -1054,6 +1094,17 @@ func (c *Client) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
 	_, err := c.grpc.DeleteAccessRequest(ctx, &proto.RequestID{ID: reqID})
 	return trace.Wrap(err)
+}
+
+// GetAccessRequestAllowedPromotions returns the list of promotions allowed for the given access request.
+func (c *Client) GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+	resp, err := c.grpc.GetAccessRequestAllowedPromotions(ctx, &proto.AccessRequestAllowedPromotionRequest{
+		AccessRequestID: req.GetName(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.AllowedPromotions, nil
 }
 
 // SetAccessRequestState updates the state of an existing access request.
@@ -1575,7 +1626,9 @@ func (c *Client) DeleteRole(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
+// Deprecated: Use AddMFADeviceSync instead.
 func (c *Client) AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error) {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility testing.
 	stream, err := c.grpc.AddMFADevice(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1583,6 +1636,7 @@ func (c *Client) AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADevi
 	return stream, nil
 }
 
+// Deprecated: Use DeleteMFADeviceSync instead.
 func (c *Client) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error) {
 	stream, err := c.grpc.DeleteMFADevice(ctx)
 	if err != nil {
@@ -1654,13 +1708,39 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 	return oidcConnectors, nil
 }
 
+// CreateOIDCConnector creates an OIDC connector.
+func (c *Client) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	oidcConnector, ok := connector.(*types.OIDCConnectorV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", connector)
+	}
+	conn, err := c.grpc.CreateOIDCConnector(ctx, &proto.CreateOIDCConnectorRequest{Connector: oidcConnector})
+	return conn, trace.Wrap(err)
+}
+
+// UpdateOIDCConnector updates an OIDC connector.
+func (c *Client) UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	oidcConnector, ok := connector.(*types.OIDCConnectorV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", oidcConnector)
+	}
+	conn, err := c.grpc.UpdateOIDCConnector(ctx, &proto.UpdateOIDCConnectorRequest{Connector: oidcConnector})
+	return conn, trace.Wrap(err)
+}
+
 // UpsertOIDCConnector creates or updates an OIDC connector.
 func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OIDCConnector) error {
 	connector, ok := oidcConnector.(*types.OIDCConnectorV3)
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
-	_, err := c.grpc.UpsertOIDCConnector(ctx, connector)
+
+	_, err := c.grpc.UpsertOIDCConnectorV2(ctx, &proto.UpsertOIDCConnectorRequest{Connector: connector})
+	// TODO(tross) DELETE IN 16.0.0
+	if err != nil && trace.IsNotImplemented(err) {
+		_, err := c.grpc.UpsertOIDCConnector(ctx, connector) //nolint:staticcheck // SA1019. Kept for backward compatibility.
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(err)
 }
 
@@ -1719,13 +1799,39 @@ func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]typ
 	return samlConnectors, nil
 }
 
+// CreateSAMLConnector creates a SAML connector.
+func (c *Client) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	samlConnectorV2, ok := connector.(*types.SAMLConnectorV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", connector)
+	}
+	conn, err := c.grpc.CreateSAMLConnector(ctx, &proto.CreateSAMLConnectorRequest{Connector: samlConnectorV2})
+	return conn, trace.Wrap(err)
+}
+
+// UpdateSAMLConnector updates a SAML connector.
+func (c *Client) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	samlConnectorV2, ok := connector.(*types.SAMLConnectorV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", connector)
+	}
+	conn, err := c.grpc.UpdateSAMLConnector(ctx, &proto.UpdateSAMLConnectorRequest{Connector: samlConnectorV2})
+	return conn, trace.Wrap(err)
+}
+
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (c *Client) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
-	samlConnectorV2, ok := connector.(*types.SAMLConnectorV2)
+	samlConnector, ok := connector.(*types.SAMLConnectorV2)
 	if !ok {
 		return trace.BadParameter("invalid type %T", connector)
 	}
-	_, err := c.grpc.UpsertSAMLConnector(ctx, samlConnectorV2)
+
+	_, err := c.grpc.UpsertSAMLConnectorV2(ctx, &proto.UpsertSAMLConnectorRequest{Connector: samlConnector})
+	// TODO(tross) DELETE IN 16.0.0
+	if err != nil && trace.IsNotImplemented(err) {
+		_, err := c.grpc.UpsertSAMLConnector(ctx, samlConnector) //nolint:staticcheck // SA1019. Kept for backward compatibility.
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(err)
 }
 
@@ -1784,13 +1890,38 @@ func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]t
 	return githubConnectors, nil
 }
 
+// CreateGithubConnector creates a Github connector.
+func (c *Client) CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	githubConnector, ok := connector.(*types.GithubConnectorV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", connector)
+	}
+	conn, err := c.grpc.CreateGithubConnector(ctx, &proto.CreateGithubConnectorRequest{Connector: githubConnector})
+	return conn, trace.Wrap(err)
+}
+
+// UpdateGithubConnector updates a Github connector.
+func (c *Client) UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	githubConnector, ok := connector.(*types.GithubConnectorV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", connector)
+	}
+	conn, err := c.grpc.UpdateGithubConnector(ctx, &proto.UpdateGithubConnectorRequest{Connector: githubConnector})
+	return conn, trace.Wrap(err)
+}
+
 // UpsertGithubConnector creates or updates a Github connector.
 func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
 	githubConnector, ok := connector.(*types.GithubConnectorV3)
 	if !ok {
 		return trace.BadParameter("invalid type %T", connector)
 	}
-	_, err := c.grpc.UpsertGithubConnector(ctx, githubConnector)
+	_, err := c.grpc.UpsertGithubConnectorV2(ctx, &proto.UpsertGithubConnectorRequest{Connector: githubConnector})
+	// TODO(tross) DELETE IN 16.0.0
+	if err != nil && trace.IsNotImplemented(err) {
+		_, err := c.grpc.UpsertGithubConnector(ctx, githubConnector) //nolint:staticcheck // SA1019. Kept for backward compatibility testing.
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(err)
 }
 
@@ -4035,6 +4166,14 @@ func (c *Client) OktaClient() *okta.Client {
 // (as per the default gRPC behavior).
 func (c *Client) AccessListClient() *accesslist.Client {
 	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(c.conn))
+}
+
+// DiscoveryConfigClient returns a DiscoveryConfig client.
+// Clients connecting to older Teleport versions, still get an DiscoveryConfig client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+func (c *Client) DiscoveryConfigClient() *discoveryconfig.Client {
+	return discoveryconfig.NewClient(discoveryconfigv1.NewDiscoveryConfigServiceClient(c.conn))
 }
 
 // UserLoginStateClient returns a user login state client.

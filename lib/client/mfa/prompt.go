@@ -31,10 +31,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
 // AdminMFAHintBeforePrompt is a hint used for MFA prompts for admin-level API requests.

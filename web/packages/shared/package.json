@@ -28,7 +28,7 @@
     "react-router-dom": "5.1.1",
     "react-select": "^3.0.8",
     "remark-gfm": "^3.0.1",
-    "tslib": "^2.4.0",
+    "tslib": "^2.6.2",
     "whatwg-fetch": "^3.0.0",
     "@gravitational/design": "1.0.0"
   },
