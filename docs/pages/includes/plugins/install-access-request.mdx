@@ -20,6 +20,25 @@ teleport-{{ name }} v(=teleport.plugin.version=) git:teleport-{{ name }}-v(=tele
 ```
 
 </TabItem>
+<TabItem label="Docker Image">
+
+We currently only provide Docker images for `linux-amd64`. 
+Pull the Docker image for the latest access request plugin by running the following command:
+
+```code
+$ docker pull public.ecr.aws/gravitational/teleport-plugin-{{ name }}:(=teleport.plugin.version=)
+```
+
+Make sure the plugin is installed by running the following command:
+
+```code
+$ docker run public.ecr.aws/gravitational/teleport-plugin-{{ name }}:(=teleport.plugin.version=) version
+teleport-{{ name }} v(=teleport.plugin.version=) git:teleport-{{ name }}-v(=teleport.plugin.version=)-(=teleport.git=) (=teleport.golang=)
+```
+
+For a list of available tags, visit [Amazon ECR Public Gallery](https://gallery.ecr.aws/gravitational/teleport-plugin-{{ name }}).
+
+</TabItem>
 <TabItem label="From Source">
 To install from source you need `git` and `go` installed. If you do not have Go
 installed, visit the Go [downloads page](https://go.dev/dl/).
