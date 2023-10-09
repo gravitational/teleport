@@ -1,12 +1,13 @@
 # This configuration file used for:
 #   - The golden file test TestGenerate in reference/referente_test.go
 #   - Generating a new golden file, which you can do by navigating to the
-#     "resource-reference" directory and running the following command:
+#     "docs-generators/resource-reference/reference" directory and running the
+#     following command:
 # go run gen-resource-ref -config=reference/testdata/conf.yaml
 required_types:
   - package: "typestest"
     name: "ResourceHeader"
   - package: "typestest"
     name: "Metadata"
-source: "reference/testdata/src/"
-destination: "reference/testdata/golden.mdx"
+source: "testdata/src/"
+destination: "testdata/golden.mdx"

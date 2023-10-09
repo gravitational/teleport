@@ -181,10 +181,6 @@ func shouldProcess(d resource.DeclarationInfo, types []TypeInfo) bool {
 func Generate(out io.Writer, conf GeneratorConfig) error {
 	typeDecls := make(map[resource.PackageInfo]resource.DeclarationInfo)
 	possibleFuncDecls := []resource.DeclarationInfo{}
-	result := ReferenceContent{
-		Resources: map[resource.PackageInfo]ResourceSection{},
-		Fields:    map[resource.PackageInfo]resource.ReferenceEntry{},
-	}
 
 	// Load each file in the source directory individually. Not using
 	// packages.Load here since the resulting []*Package does not expose
@@ -296,6 +292,6 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		}
 	}
 
-	err = template.Must(template.New("Main reference").Parse(referenceTemplate)).Execute(out, result)
+	err = template.Must(template.New("Main reference").Parse(referenceTemplate)).Execute(out, content)
 	return nil
 }
