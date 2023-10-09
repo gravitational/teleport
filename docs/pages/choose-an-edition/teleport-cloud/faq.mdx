@@ -138,24 +138,27 @@ The ability to download recordings for offline viewing will be available in a fu
 
 ### Will Teleport be automatically upgraded with each release?
 
-Teleport Team and Teleport Enterprise Cloud follow the Teleport [Upcoming
-Releases](../../upcoming-releases.mdx) timelines.
+Teleport Team and Teleport Enterprise Cloud are upgraded after each Teleport release
+is delivered. You can see the schedule for Teleport releases on [Teleport Upcoming
+Releases](../../upcoming-releases.mdx).
 
-- Major version upgrades for cloud Teleport Auth Service and Teleport Proxy Service occur 
-  after the first minor release (for example (=teleport.major_version=).1.0) of Teleport.
+- Major version upgrades for the Teleport Auth Service and Teleport Proxy Service on 
+  Teleport Cloud occur after the first minor release (for example (=teleport.major_version=).1.0) 
+  of Teleport.
   This typically happens within one month of a new major release of Teleport
   becoming available.
 - After the first minor release, subsequent minor and patch upgrades typically
   occur within a week.
 
-<Admonition type="note" title="Minimum agent version">
-    For major version upgrades (for example, 12.x to 13.x), your Teleport tenant is NOT 
-    automatically upgraded if any Teleport agents connected to the cluster are not compatible 
-    (> 1 major version behind). This version check is done to ensure backwards compatibility. 
-    To get version information for your agents, see [here](#how-can-i-find-version-information-on-connected-agents).
+For major version upgrades (for example, 12.x to 13.x), your Teleport account is NOT 
+automatically upgraded if any Teleport agents connected to the cluster are not compatible 
+(more than one major version behind). This version check is done to ensure backwards compatibility. 
+    
+To get version information for your agents, see [How can I find version information on 
+connected agents?](#how-can-i-find-version-information-on-connected-agents).
 
-    Please reach out to support if you wish to proceed regardless of this compatibility check.
-</Admonition>
+If you want to proceed with an upgrade regardless of this compatibility check, contact 
+[Teleport support](https://goteleport.com/support/).
 
 ### Are upgrades times configurable for Teleport Enterprise Cloud?
 
