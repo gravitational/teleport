@@ -397,7 +397,7 @@ func (u *UIDiscoverDeployEICEEvent) Anonymize(a utils.Anonymizer) prehogv1a.Subm
 }
 
 // UIDiscoverCreateNodeEvent is emitted when the node is created in Teleport.
-type UIDiscoverCreateNodeEvent prehogv1a.UIDiscoverDeployEICEEvent
+type UIDiscoverCreateNodeEvent prehogv1a.UIDiscoverCreateNodeEvent
 
 func (u *UIDiscoverCreateNodeEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
