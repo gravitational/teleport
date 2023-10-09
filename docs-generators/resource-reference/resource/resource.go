@@ -567,7 +567,7 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 			)
 		}
 		e, err := getRawTypes(d)
-		if err != nil || !errors.Is(err, NotAGenDeclError{}) {
+		if err != nil && !errors.Is(err, NotAGenDeclError{}) {
 			return nil, err
 		}
 
