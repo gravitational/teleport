@@ -42,6 +42,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/externalcloudaudit"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -113,6 +114,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindClusterNetworkingConfig:  rc.createClusterNetworkingConfig,
 		types.KindClusterMaintenanceConfig: rc.createClusterMaintenanceConfig,
 		types.KindSessionRecordingConfig:   rc.createSessionRecordingConfig,
+		types.KindExternalCloudAudit:       rc.upsertExternalCloudAudit,
 		types.KindUIConfig:                 rc.createUIConfig,
 		types.KindLock:                     rc.createLock,
 		types.KindNetworkRestrictions:      rc.createNetworkRestrictions,
@@ -563,6 +565,22 @@ func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, cli
 		return trace.Wrap(err)
 	}
 	fmt.Printf("session recording configuration has been updated\n")
+	return nil
+}
+
+// upsertExternalCloudAudit implements `tctl create external_cloud_audit` command.
+func (rc *ResourceCommand) upsertExternalCloudAudit(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	config, err := services.UnmarshalExternalCloudAudit(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	externalAuditClient := client.ExternalCloudAuditClient()
+	_, err = externalAuditClient.UpsertDraftExternalCloudAudit(ctx, config)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("external cloud audit configuration has been updated\n")
 	return nil
 }
 
@@ -1111,6 +1129,18 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("session recording configuration has been reset to defaults\n")
+	case types.KindExternalCloudAudit:
+		if rc.ref.Name == types.MetaNameExternalCloudAuditCluster {
+			if err := client.ExternalCloudAuditClient().DisableClusterExternalCloudAudit(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("cluster external cloud audit configuration has been disabled\n")
+		} else {
+			if err := client.ExternalCloudAuditClient().DeleteDraftExternalCloudAudit(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("draft external cloud audit configuration has been deleted\n")
+		}
 	case types.KindLock:
 		name := rc.ref.Name
 		if rc.ref.SubKind != "" {
@@ -2058,7 +2088,43 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			}
 		}
 		return &userGroupCollection{userGroups: resources}, nil
-
+	case types.KindExternalCloudAudit:
+		out := []*externalcloudaudit.ExternalCloudAudit{}
+		name := rc.ref.Name
+		switch name {
+		case "":
+			cluster, err := client.ExternalCloudAuditClient().GetClusterExternalCloudAudit(ctx)
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					return nil, trace.Wrap(err)
+				}
+			} else {
+				out = append(out, cluster)
+			}
+			draft, err := client.ExternalCloudAuditClient().GetDraftExternalCloudAudit(ctx)
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					return nil, trace.Wrap(err)
+				}
+			} else {
+				out = append(out, draft)
+			}
+			return &externalCloudAuditCollection{externalCloudAudits: out}, nil
+		case types.MetaNameExternalCloudAuditCluster:
+			cluster, err := client.ExternalCloudAuditClient().GetClusterExternalCloudAudit(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &externalCloudAuditCollection{externalCloudAudits: []*externalcloudaudit.ExternalCloudAudit{cluster}}, nil
+		case types.MetaNameExternalCloudAuditDraft:
+			draft, err := client.ExternalCloudAuditClient().GetDraftExternalCloudAudit(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &externalCloudAuditCollection{externalCloudAudits: []*externalcloudaudit.ExternalCloudAudit{draft}}, nil
+		default:
+			return nil, trace.BadParameter("unsupported resource name for external_cloud_audit, valid for get are: '', %q, %q", types.MetaNameExternalCloudAuditDraft, types.MetaNameExternalCloudAuditCluster)
+		}
 	case types.KindIntegration:
 		if rc.ref.Name != "" {
 			ig, err := client.GetIntegration(ctx, rc.ref.Name)

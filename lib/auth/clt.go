@@ -443,6 +443,10 @@ func (c *Client) AccessListClient() services.AccessLists {
 	return c.APIClient.AccessListClient()
 }
 
+func (c *Client) ExternalCloudAuditClient() services.ExternalCloudAudits {
+	return c.APIClient.ExternalCloudAuditClient()
+}
+
 func (c *Client) UserLoginStateClient() services.UserLoginStates {
 	return c.APIClient.UserLoginStateClient()
 }
@@ -863,6 +867,12 @@ type ClientI interface {
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient
+
+	// ExternalCloudAuditClient returns an external cloud audit client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	ExternalCloudAuditClient() services.ExternalCloudAudits
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
