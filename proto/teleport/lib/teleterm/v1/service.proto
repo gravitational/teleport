@@ -144,6 +144,8 @@ service TerminalService {
   rpc DeleteConnectMyComputerNode(DeleteConnectMyComputerNodeRequest) returns (DeleteConnectMyComputerNodeResponse);
   // GetConnectMyComputerNodeName reads the Connect My Computer node name (UUID) from a disk.
   rpc GetConnectMyComputerNodeName(GetConnectMyComputerNodeNameRequest) returns (GetConnectMyComputerNodeNameResponse);
+  // ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
+  rpc ListUnifiedResources(ListUnifiedResourcesRequest) returns (ListUnifiedResourcesResponse);
 }
 
 message EmptyResponse {}
@@ -503,4 +505,47 @@ message GetConnectMyComputerNodeNameRequest {
 
 message GetConnectMyComputerNodeNameResponse {
   string name = 1;
+}
+
+message ListUnifiedResourcesRequest {
+  string cluster_uri = 1;
+  // Kinds is a list of kinds to match against a resource's kind. This can be used in a
+  // unified resource request that can include multiple types.
+  repeated string kinds = 2;
+  // Limit is the maximum amount of resources to retrieve.
+  int32 limit = 3;
+  // StartKey is used to start listing resources from a specific spot. It
+  // should be set to the previous next_key value if using pagination, or
+  // left empty.
+  string start_key = 4;
+  string query = 5;
+  string search = 6;
+  // SortBy describes which resource field and which direction to sort by.
+  SortBy sort_by = 7;
+  // the caller is able to request access to using search_as_roles
+  bool search_as_roles = 8;
+}
+
+message SortBy {
+  // IsDesc is a sort direction flag where if true the direction is descending, else ascending.
+  bool is_desc = 1;
+  // Field is the name of an objects field to sort by.
+  string field = 2;
+}
+
+message ListUnifiedResourcesResponse {
+  // Resources is a list of resource.
+  repeated PaginatedResource resources = 1;
+  // NextKey is the next Key to use as StartKey in a ListResourcesRequest to
+  // continue retrieving pages of resource. If NextKey is empty, there are no
+  // more pages.
+  string next_key = 2;
+}
+
+message PaginatedResource {
+  oneof resource {
+    Database database = 1;
+    Server server = 2;
+    Kube kube = 3;
+  }
 }
