@@ -38,6 +38,7 @@ export type UseTokenState = {
   redirect: () => void;
   success: boolean;
   finishedRegister: () => void;
+  privateKeyPolicyEnabled: boolean;
 };
 
 // Note: QuestionnaireProps is duplicated in Enterprise (e-teleport/Welcome/Questionnaire/Questionnaire)

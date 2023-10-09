@@ -185,6 +185,7 @@ const makeNewCredProps = (
       success: false,
       finishedRegister: () => null,
       recoveryCodes: null,
+      privateKeyPolicyEnabled: false,
       resetToken: {
         user: 'john@example.com',
         tokenId: 'test123',

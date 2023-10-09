@@ -41,6 +41,7 @@ export function Login({
   clearAttempt,
   isPasswordlessEnabled,
   primaryAuthType,
+  privateKeyPolicyEnabled,
   motd,
   showMotd,
   acknowledgeMotd,
@@ -64,6 +65,7 @@ export function Login({
           clearAttempt={clearAttempt}
           isPasswordlessEnabled={isPasswordlessEnabled}
           primaryAuthType={primaryAuthType}
+          privateKeyPolicyEnabled={privateKeyPolicyEnabled}
         />
       )}
     </>

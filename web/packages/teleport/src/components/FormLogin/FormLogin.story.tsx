@@ -34,6 +34,7 @@ const props: Props = {
   auth2faType: 'off',
   primaryAuthType: 'local',
   isPasswordlessEnabled: false,
+  privateKeyPolicyEnabled: false,
 };
 
 export default {

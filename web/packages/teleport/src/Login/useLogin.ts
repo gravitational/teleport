@@ -81,6 +81,7 @@ export default function useLogin() {
     clearAttempt: attemptActions.clear,
     isPasswordlessEnabled: cfg.isPasswordlessEnabled(),
     primaryAuthType: cfg.getPrimaryAuthType(),
+    privateKeyPolicyEnabled: false,
     motd,
     showMotd,
     acknowledgeMotd,
