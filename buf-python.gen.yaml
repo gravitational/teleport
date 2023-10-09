@@ -1,0 +1,8 @@
+version: v1
+plugins:
+  - name: python
+    strategy: all
+    out: gen/proto/py/
+
+  - plugin: buf.build/grpc/python:v1.58.1
+    out: gen/proto/py/

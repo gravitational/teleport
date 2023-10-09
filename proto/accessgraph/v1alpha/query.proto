@@ -1,0 +1,55 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package accessgraph.v1alpha;
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+
+// AccessGraphService is a service for interacting the access graph service.
+service AccessGraphService {
+  // Query queries the access graph.
+  // Currently only used by WebUI.
+  rpc Query(QueryRequest) returns (QueryResponse);
+}
+
+// Node is a node in the access graph.
+message Node {
+  string id = 1;
+  string kind = 2;
+  string sub_kind = 3;
+  string name = 4;
+  map<string, string> labels = 5;
+  string hostname = 6;
+}
+
+// Edge is an edge in the access graph.
+message Edge {
+  string from = 1;
+  string to = 2;
+  string type = 3;
+}
+
+// QueryRequest is a request to query the access graph.
+message QueryRequest {
+  // query is a AQSQL query.
+  string query = 1;
+}
+
+// QueryResponse is a response to a query.
+message QueryResponse {
+  repeated Node nodes = 1;
+  repeated Edge edges = 2;
+}

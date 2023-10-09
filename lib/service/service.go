@@ -4025,9 +4025,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			traceClt = clt
 		}
 
-		var accessGraphAddr string
+		var accessGraphAddr utils.NetAddr
 		if cfg.AccessGraph.Enabled {
-			accessGraphAddr = cfg.AccessGraph.Addr
+			addr, err := utils.ParseAddr(cfg.AccessGraph.Addr)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			accessGraphAddr = *addr
 		}
 
 		webConfig := web.Config{
