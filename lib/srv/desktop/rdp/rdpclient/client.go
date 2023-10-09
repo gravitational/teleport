@@ -185,14 +185,14 @@ func (c *Client) Run(ctx context.Context) error {
 		inputStreamingReturnCh <- c.startInputStreaming(stopCh)
 	}()
 
-	rustRdpReturnCh := make(chan error, 1)
+	rustRDPReturnCh := make(chan error, 1)
 	// Kick off rust RDP loop goroutine
 	go func() {
-		rustRdpReturnCh <- c.startRustRdp(ctx)
+		rustRDPReturnCh <- c.startRustRDP(ctx)
 	}()
 
 	select {
-	case err := <-rustRdpReturnCh:
+	case err := <-rustRDPReturnCh:
 		{
 			// Ensure the startInputStreaming goroutine returns.
 			close(stopCh)
@@ -200,7 +200,7 @@ func (c *Client) Run(ctx context.Context) error {
 		}
 	case err := <-inputStreamingReturnCh:
 		{
-			// Ensure the startRustRdp goroutine returns.
+			// Ensure the startRustRDP goroutine returns.
 			stopErr := c.stopRustRdp()
 			return trace.NewAggregate(err, stopErr)
 		}
@@ -258,7 +258,7 @@ func (c *Client) readClientSize() error {
 	}
 }
 
-func (c *Client) startRustRdp(ctx context.Context) error {
+func (c *Client) startRustRDP(ctx context.Context) error {
 	c.cfg.Log.Info("Rust RDP loop starting")
 	defer c.cfg.Log.Info("Rust RDP loop finished")
 
@@ -308,7 +308,7 @@ func (c *Client) startRustRdp(ctx context.Context) error {
 		},
 	); res.err_code != C.ErrCodeSuccess {
 		if res.message == nil {
-			return trace.Errorf("unknown error")
+			return trace.Errorf("unknown error: %v", res.err_code)
 		}
 		defer C.free_string(res.message)
 		return trace.Errorf("%s", C.GoString(res.message))
@@ -605,22 +605,22 @@ func asRustBackedSlice(data *C.uint8_t, length int) []byte {
 	return unsafe.Slice(uptr, length)
 }
 
-func value(handle C.uintptr_t) (value any, err error) {
+func toClient(handle C.uintptr_t) (value *Client, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = trace.Errorf("panic: %v", r)
 		}
 	}()
-	return cgo.Handle(handle).Value(), nil
+	return cgo.Handle(handle).Value().(*Client), nil
 }
 
 //export handle_png
 func handle_png(handle C.uintptr_t, cb *C.CGOPNG) C.CGOErrCode {
-	v, err := value(handle)
+	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return v.(*Client).handlePNG(cb)
+	return client.handlePNG(cb)
 }
 
 func (c *Client) handlePNG(cb *C.CGOPNG) C.CGOErrCode {
@@ -650,11 +650,11 @@ func (c *Client) handlePNG(cb *C.CGOPNG) C.CGOErrCode {
 //export handle_fastpath_pdu
 func handle_fastpath_pdu(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
 	goData := asRustBackedSlice(data, int(length))
-	v, err := value(handle)
+	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return v.(*Client).handleRDPFastPathPDU(goData)
+	return client.handleRDPFastPathPDU(goData)
 }
 
 func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
@@ -672,11 +672,11 @@ func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
 
 //export handle_rdp_channel_ids
 func handle_rdp_channel_ids(handle C.uintptr_t, io_channel_id C.uint16_t, user_channel_id C.uint16_t) C.CGOErrCode {
-	v, err := value(handle)
+	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return v.(*Client).handleRDPChannelIDs(io_channel_id, user_channel_id)
+	return client.handleRDPChannelIDs(io_channel_id, user_channel_id)
 }
 
 func (c *Client) handleRDPChannelIDs(ioChannelID, userChannelID C.uint16_t) C.CGOErrCode {
@@ -695,11 +695,11 @@ func (c *Client) handleRDPChannelIDs(ioChannelID, userChannelID C.uint16_t) C.CG
 //export handle_remote_copy
 func handle_remote_copy(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
 	goData := C.GoBytes(unsafe.Pointer(data), C.int(length))
-	v, err := value(handle)
+	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return v.(*Client).handleRemoteCopy(goData)
+	return client.handleRemoteCopy(goData)
 }
 
 // handleRemoteCopy is called from Rust when data is copied
@@ -716,11 +716,11 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
 
 //export tdp_sd_acknowledge
 func tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowledge) C.CGOErrCode {
-	v, err := value(handle)
+	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return v.(*Client).sharedDirectoryAcknowledge(tdp.SharedDirectoryAcknowledge{
+	return client.sharedDirectoryAcknowledge(tdp.SharedDirectoryAcknowledge{
 		ErrCode:     uint32(ack.err_code),
 		DirectoryID: uint32(ack.directory_id),
 	})
@@ -742,11 +742,11 @@ func (c *Client) sharedDirectoryAcknowledge(ack tdp.SharedDirectoryAcknowledge) 
 
 //export tdp_sd_info_request
 func tdp_sd_info_request(handle C.uintptr_t, req *C.CGOSharedDirectoryInfoRequest) C.CGOErrCode {
-	v, err := value(handle)
+	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return v.(*Client).sharedDirectoryInfoRequest(tdp.SharedDirectoryInfoRequest{
+	return client.sharedDirectoryInfoRequest(tdp.SharedDirectoryInfoRequest{
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
 		Path:         C.GoString(req.path),
@@ -769,11 +769,11 @@ func (c *Client) sharedDirectoryInfoRequest(req tdp.SharedDirectoryInfoRequest) 
 
 //export tdp_sd_create_request
 func tdp_sd_create_request(handle C.uintptr_t, req *C.CGOSharedDirectoryCreateRequest) C.CGOErrCode {
-	v, err := value(handle)
+	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return v.(*Client).sharedDirectoryCreateRequest(tdp.SharedDirectoryCreateRequest{
+	return client.sharedDirectoryCreateRequest(tdp.SharedDirectoryCreateRequest{
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
 		FileType:     uint32(req.file_type),
@@ -797,11 +797,11 @@ func (c *Client) sharedDirectoryCreateRequest(req tdp.SharedDirectoryCreateReque
 
 //export tdp_sd_delete_request
 func tdp_sd_delete_request(handle C.uintptr_t, req *C.CGOSharedDirectoryDeleteRequest) C.CGOErrCode {
-	v, err := value(handle)
+	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return v.(*Client).sharedDirectoryDeleteRequest(tdp.SharedDirectoryDeleteRequest{
+	return client.sharedDirectoryDeleteRequest(tdp.SharedDirectoryDeleteRequest{
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
 		Path:         C.GoString(req.path),
@@ -824,11 +824,11 @@ func (c *Client) sharedDirectoryDeleteRequest(req tdp.SharedDirectoryDeleteReque
 
 //export tdp_sd_list_request
 func tdp_sd_list_request(handle C.uintptr_t, req *C.CGOSharedDirectoryListRequest) C.CGOErrCode {
-	v, err := value(handle)
+	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return v.(*Client).sharedDirectoryListRequest(tdp.SharedDirectoryListRequest{
+	return client.sharedDirectoryListRequest(tdp.SharedDirectoryListRequest{
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
 		Path:         C.GoString(req.path),
@@ -851,11 +851,11 @@ func (c *Client) sharedDirectoryListRequest(req tdp.SharedDirectoryListRequest) 
 
 //export tdp_sd_read_request
 func tdp_sd_read_request(handle C.uintptr_t, req *C.CGOSharedDirectoryReadRequest) C.CGOErrCode {
-	v, err := value(handle)
+	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return v.(*Client).sharedDirectoryReadRequest(tdp.SharedDirectoryReadRequest{
+	return client.sharedDirectoryReadRequest(tdp.SharedDirectoryReadRequest{
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
 		Path:         C.GoString(req.path),
@@ -880,11 +880,11 @@ func (c *Client) sharedDirectoryReadRequest(req tdp.SharedDirectoryReadRequest) 
 
 //export tdp_sd_write_request
 func tdp_sd_write_request(handle C.uintptr_t, req *C.CGOSharedDirectoryWriteRequest) C.CGOErrCode {
-	v, err := value(handle)
+	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return v.(*Client).sharedDirectoryWriteRequest(tdp.SharedDirectoryWriteRequest{
+	return client.sharedDirectoryWriteRequest(tdp.SharedDirectoryWriteRequest{
 		CompletionID:    uint32(req.completion_id),
 		DirectoryID:     uint32(req.directory_id),
 		Offset:          uint64(req.offset),
@@ -910,11 +910,11 @@ func (c *Client) sharedDirectoryWriteRequest(req tdp.SharedDirectoryWriteRequest
 
 //export tdp_sd_move_request
 func tdp_sd_move_request(handle C.uintptr_t, req *C.CGOSharedDirectoryMoveRequest) C.CGOErrCode {
-	v, err := value(handle)
+	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return v.(*Client).sharedDirectoryMoveRequest(tdp.SharedDirectoryMoveRequest{
+	return client.sharedDirectoryMoveRequest(tdp.SharedDirectoryMoveRequest{
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
 		OriginalPath: C.GoString(req.original_path),
