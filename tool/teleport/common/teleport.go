@@ -31,6 +31,8 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -42,6 +44,7 @@ import (
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/integrations/externalcloudaudit"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/service"
@@ -446,6 +449,15 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	joinOpenSSH.Flag("debug", "Enable verbose logging to stderr.").Short('d').BoolVar(&ccf.Debug)
 
 	integrationCmd := app.Command("integration", "Integration commands")
+	integrationBootstrapCmd := integrationCmd.Command("bootstrap", "Bootstrap an integration")
+	integrationBootstrapCreateExternalCloudAuditCmd := integrationBootstrapCmd.Command("externalcloudaudit", "Bootstraps external cloud audit infrastructure.")
+	integrationBootstrapCreateExternalCloudAuditCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationBootstrapCreateExternalCloudAuditArguments.Region)
+	integrationBootstrapCreateExternalCloudAuditCmd.Flag("event-bucket", "Name of events bucket.").Required().StringVar(&ccf.IntegrationBootstrapCreateExternalCloudAuditArguments.EventBucket)
+	integrationBootstrapCreateExternalCloudAuditCmd.Flag("session-bucket", "Name of events bucket.").Required().StringVar(&ccf.IntegrationBootstrapCreateExternalCloudAuditArguments.SessionBucket)
+	integrationBootstrapCreateExternalCloudAuditCmd.Flag("with-cmk", "Create customer managed kms key").BoolVar(&ccf.IntegrationBootstrapCreateExternalCloudAuditArguments.WithCMK)
+	integrationBootstrapCreateExternalCloudAuditCmd.Flag("kms-key-alias", "Alias of customer managed key").StringVar(&ccf.IntegrationBootstrapCreateExternalCloudAuditArguments.KMSKeyAlias)
+	integrationBootstrapCreateExternalCloudAuditCmd.Flag("kms-key-id", "Id of pre-existing customer managed key").StringVar(&ccf.IntegrationBootstrapCreateExternalCloudAuditArguments.KMSKeyID)
+
 	integrationConfigureCmd := integrationCmd.Command("configure", "Configure an integration")
 	integrationConfDeployServiceCmd := integrationConfigureCmd.Command("deployservice-iam", "Create the required IAM Roles for the AWS OIDC Deploy Service.")
 	integrationConfDeployServiceCmd.Flag("cluster", "Teleport Cluster's name.").Required().StringVar(&ccf.IntegrationConfDeployServiceIAMArguments.Cluster)
@@ -1019,4 +1031,52 @@ func onIntegrationConfExternalAuditCmd(params config.IntegrationConfExternalClou
 		Sts: sts.NewFromConfig(cfg),
 	}
 	return trace.Wrap(awsoidc.ConfigureExternalCloudAudit(ctx, clt, &params))
+}
+
+func onIntegrationBootstrapCreateExternalCloudAuditCmd(params config.IntegrationBootstrapCreateExternalCloudAudit) error {
+	ctx := context.Background()
+
+	if params.WithCMK && params.KMSKeyID != "" {
+		return trace.BadParameter("Specifying a pre-existing kms key is not supported when specifying --with-cmk")
+	}
+
+	cfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(params.Region))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	kmsClient := kms.NewFromConfig(cfg)
+	if params.WithCMK {
+		keyOutput, err := externalcloudaudit.CreateKMSKey(ctx, kmsClient, externalcloudaudit.CreateKMSKeyRequest{
+			Alias: params.KMSKeyAlias,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		params.KMSKeyID = keyOutput.KMSKeyID
+	}
+
+	s3Client := s3.NewFromConfig(cfg)
+	// Create external cloud audit events bucket
+	err = externalcloudaudit.CreateS3Bucket(ctx, s3Client, externalcloudaudit.CreateS3BucketRequest{
+		BucketName: params.EventBucket,
+		Region:     params.Region,
+		KMSKeyID:   params.KMSKeyID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Create external cloud audit sessions bucket
+	err = externalcloudaudit.CreateS3Bucket(ctx, s3Client, externalcloudaudit.CreateS3BucketRequest{
+		BucketName: params.SessionBucket,
+		Region:     params.Region,
+		KMSKeyID:   params.KMSKeyID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

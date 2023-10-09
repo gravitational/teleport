@@ -294,6 +294,24 @@ type IntegrationConfExternalCloudAudit struct {
 	Partition string
 }
 
+// IntegrationBootstrapCreateExternalCloudAuditArguments contains the arguments of
+// `teleport integration bootstrap externalcloudaudit` command
+type IntegrationBootstrapCreateExternalCloudAudit struct {
+	// EventBucket is the name of the events bucket created
+	EventBucket string
+	// SessionBucket is the name of the sessions bucket created
+	SessionBucket string
+	// Region is the AWS Region used to set up the client
+	Region string
+
+	// WithCMK is whether to create a customer managed KMS key
+	WithCMK bool
+	// KMSKeyAlias is optional alias of CMK key
+	KMSKeyAlias string
+	// KMSKeyID is key id of existing CMK key
+	KMSKeyID string
+}
+
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
 // and overrides values in 'cfg' structure
 func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
