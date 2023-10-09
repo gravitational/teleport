@@ -63,7 +63,6 @@ use tdp::{
     SharedDirectoryReadRequest, SharedDirectoryReadResponse, SharedDirectoryWriteRequest,
     SharedDirectoryWriteResponse, TdpErrCode,
 };
-use tokio::sync::mpsc::error::SendError;
 
 #[derive(Debug)]
 pub struct TeleportRdpdrBackend {
@@ -91,9 +90,9 @@ impl TeleportRdpdrBackend {
 
     fn get_scard_device_id(&self) -> PduResult<u32> {
         if self.active_device_ids.is_empty() {
-            return Err(other_err!(
+            return Err(custom_err!(
                 "TeleportRdpdrBackend::get_scard_device_id",
-                "no active devices",
+                TeleportRdpdrBackendError("no active devices".to_string())
             ));
         }
         Ok(self.active_device_ids[0])
@@ -104,10 +103,17 @@ impl TeleportRdpdrBackend {
         req: DeviceControlRequest<ScardIoCtlCode>,
         _call: ScardAccessStartedEventCall,
     ) -> PduResult<()> {
-        if req.header.device_id != self.get_scard_device_id()? {
-            return Err(other_err!(
+        let scard_device_id = self.get_scard_device_id()?;
+        if req.header.device_id != scard_device_id {
+            return Err(custom_err!(
                 "TeleportRdpdrBackend::handle_scard_access_started_event_call",
-                "got ScardAccessStartedEventCall for unknown device_id",
+                TeleportRdpdrBackendError(
+                    format!(
+                        "got ScardAccessStartedEventCall for unknown device_id [{}], expected [{}]",
+                        req.header.device_id, scard_device_id
+                    )
+                    .to_string()
+                ),
             ));
         }
 
@@ -137,14 +143,13 @@ impl TeleportRdpdrBackend {
             .blocking_send(ClientFunction::WriteRdpdr(RdpdrPdu::DeviceControlResponse(
                 resp,
             )))
-            .map_err(|_e| {
+            .map_err(|e| {
                 custom_err!(
-                    "failed to send DeviceControlResponse to server",
+                    "write_rdpdr_dev_ctl_resp",
                     // Due to a long chain of trait dependencies in IronRDP that are impractical to unwind at this point,
                     // we can't put _e in the source field of the error because it isn't Sync (because ClientFunction itself
-                    // isn't sync). We compromise here by just putting a description in the SendError. This is not ideal,
-                    // but nevertheless makes clear that the error is due to channel send failure.
-                    SendError("failed to send DeviceControlResponse to server".to_string())
+                    // isn't sync). We compromise here by just wrapping its Debug output in a TeleportRdpdrBackendError.
+                    TeleportRdpdrBackendError(format!("{:?}", e))
                 )
             })
     }
@@ -185,6 +190,18 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         }
     }
 }
+
+/// A generic error type for the TeleportRdpdrBackend that can contain any arbitrary error message.
+#[derive(Debug)]
+struct TeleportRdpdrBackendError(String);
+
+impl std::fmt::Display for TeleportRdpdrBackendError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#?}", self)
+    }
+}
+
+impl std::error::Error for TeleportRdpdrBackendError {}
 
 /// Client implements a device redirection (RDPDR) client, as defined in
 /// https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
