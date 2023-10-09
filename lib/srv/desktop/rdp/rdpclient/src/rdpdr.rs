@@ -34,7 +34,7 @@ use consts::{
     GENERAL_CAPABILITY_VERSION_02, I64_SIZE, I8_SIZE, NTSTATUS, SCARD_DEVICE_ID,
     SMARTCARD_CAPABILITY_VERSION_01, TDP_FALSE, U32_SIZE, U8_SIZE, VERSION_MAJOR, VERSION_MINOR,
 };
-use ironrdp_pdu::{other_err, PduResult};
+use ironrdp_pdu::{custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::esc::{rpce, EstablishContextCall, EstablishContextReturn, ScardCall};
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::{
@@ -112,14 +112,6 @@ impl TeleportRdpdrBackend {
         }
 
         self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
-            .map_err(|_e| {
-                other_err!(
-                    "TeleportRdpdrBackend::handle_access_started",
-                    "failed to send DeviceControlResponse to server",
-                )
-            })?;
-
-        Ok(())
     }
 
     fn handle_establish_context(
@@ -133,25 +125,28 @@ impl TeleportRdpdrBackend {
             req,
             Box::new(EstablishContextReturn::new(ReturnCode::Success, ctx)),
         )
-        .map_err(|_e| {
-            other_err!(
-                "TeleportRdpdrBackend::handle_establish_context",
-                "failed to send DeviceControlResponse to server",
-            )
-        })?;
-
-        Ok(())
     }
 
     fn write_rdpdr_dev_ctl_resp(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
         resp: Box<dyn rpce::Encode>,
-    ) -> Result<(), SendError<ClientFunction>> {
+    ) -> PduResult<()> {
         let resp = DeviceControlResponse::new(req, NtStatus::Success, resp);
-        self.client_handle.blocking_send(ClientFunction::WriteRdpdr(
-            RdpdrPdu::DeviceControlResponse(resp),
-        ))
+        self.client_handle
+            .blocking_send(ClientFunction::WriteRdpdr(RdpdrPdu::DeviceControlResponse(
+                resp,
+            )))
+            .map_err(|_e| {
+                custom_err!(
+                    "failed to send DeviceControlResponse to server",
+                    // Due to a long chain of trait dependencies in IronRDP that are impractical to unwind at this point,
+                    // we can't put _e in the source field of the error because it isn't Sync (because ClientFunction itself
+                    // isn't sync). We compromise here by just putting a description in the SendError. This is not ideal,
+                    // but nevertheless makes clear that the error is due to channel send failure.
+                    SendError("failed to send DeviceControlResponse to server".to_string())
+                )
+            })
     }
 }
 
