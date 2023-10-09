@@ -16,8 +16,44 @@ limitations under the License.
 
 package types
 
+import (
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+
+	apiutils "github.com/gravitational/teleport/api/utils"
+)
+
+const (
+	// KubernetesMatchersApp is app matcher type for Kubernetes services
+	KubernetesMatchersApp = "app"
+)
+
+// SupportedKubernetesMatchers is a list of Kubernetes matchers supported by
+// Teleport discovery service
+var SupportedKubernetesMatchers = []string{
+	KubernetesMatchersApp,
+}
+
 // CheckAndSetDefaults that the matcher is correct and adds default values.
-func (m KubernetesMatcher) CheckAndSetDefaults() error {
-	// TODO(marco): implement
+func (m *KubernetesMatcher) CheckAndSetDefaults() error {
+	for _, t := range m.Types {
+		if !slices.Contains(SupportedKubernetesMatchers, t) {
+			return trace.BadParameter("Kubernetes discovery does not support %q resource type; supported resource types are: %v",
+				t, SupportedKubernetesMatchers)
+		}
+	}
+
+	if len(m.Types) == 0 {
+		m.Types = []string{KubernetesMatchersApp}
+	}
+
+	if len(m.Namespaces) == 0 {
+		m.Namespaces = []string{Wildcard}
+	}
+
+	if len(m.Labels) == 0 {
+		m.Labels = map[string]apiutils.Strings{Wildcard: {Wildcard}}
+	}
+
 	return nil
 }

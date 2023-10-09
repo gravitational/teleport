@@ -38,7 +38,7 @@ func NewAppService(backend backend.Backend) *AppService {
 
 // GetApps returns all application resources.
 func (s *AppService) GetApps(ctx context.Context) ([]types.Application, error) {
-	startKey := backend.Key(appPrefix)
+	startKey := backend.ExactKey(appPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -130,7 +130,7 @@ func (s *AppService) DeleteApp(ctx context.Context, name string) error {
 
 // DeleteAllApps removes all application resources.
 func (s *AppService) DeleteAllApps(ctx context.Context) error {
-	startKey := backend.Key(appPrefix)
+	startKey := backend.ExactKey(appPrefix)
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)

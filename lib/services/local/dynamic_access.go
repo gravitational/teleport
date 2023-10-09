@@ -232,7 +232,9 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter typ
 		}
 		return []types.AccessRequest{req}, nil
 	}
-	result, err := s.GetRange(ctx, backend.Key(accessRequestsPrefix), backend.RangeEnd(backend.Key(accessRequestsPrefix)), backend.NoLimit)
+	startKey := backend.ExactKey(accessRequestsPrefix)
+	endKey := backend.RangeEnd(startKey)
+	result, err := s.GetRange(ctx, startKey, endKey, backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -268,7 +270,9 @@ func (s *DynamicAccessService) DeleteAccessRequest(ctx context.Context, name str
 }
 
 func (s *DynamicAccessService) DeleteAllAccessRequests(ctx context.Context) error {
-	return trace.Wrap(s.DeleteRange(ctx, backend.Key(accessRequestsPrefix), backend.RangeEnd(backend.Key(accessRequestsPrefix))))
+	startKey := backend.ExactKey(accessRequestsPrefix)
+	endKey := backend.RangeEnd(startKey)
+	return trace.Wrap(s.DeleteRange(ctx, startKey, endKey))
 }
 
 func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req types.AccessRequest) error {
@@ -360,7 +364,7 @@ func (s *DynamicAccessService) getAccessRequestPluginData(ctx context.Context, f
 		}
 		return []types.PluginData{data}, nil
 	}
-	prefix := backend.Key(pluginDataPrefix, types.KindAccessRequest)
+	prefix := backend.ExactKey(pluginDataPrefix, types.KindAccessRequest)
 	result, err := s.GetRange(ctx, prefix, backend.RangeEnd(prefix), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)

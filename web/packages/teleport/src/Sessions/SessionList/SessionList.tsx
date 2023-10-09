@@ -56,6 +56,10 @@ export default function SessionList(props: Props) {
           render: renderUsersCell,
         },
         {
+          key: 'command',
+          headerText: 'Command',
+        },
+        {
           key: 'durationText',
           altSortKey: 'created',
           headerText: 'Duration',

@@ -6047,6 +6047,11 @@ func (f *userGetter) GetUser(name string, _ bool) (types.User, error) {
 	return user, nil
 }
 
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func (f *userGetter) GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error) {
+	return f.GetUser(name, withSecrets)
+}
+
 func TestRoleSetLockingMode(t *testing.T) {
 	t.Parallel()
 	t.Run("empty RoleSet gives default LockingMode", func(t *testing.T) {
