@@ -21,6 +21,7 @@ import { Box, LabelInput } from 'design';
 import { useRule } from 'shared/components/Validation';
 
 import Select, { Props as SelectProps } from '../Select';
+
 import { LabelTip, defaultRule } from './types';
 
 export default function FieldSelect({
