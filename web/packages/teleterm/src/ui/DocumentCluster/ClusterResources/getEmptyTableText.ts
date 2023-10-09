@@ -18,36 +18,60 @@ import { AttemptStatus } from 'shared/hooks/useAsync';
 
 import { assertUnreachable } from 'teleterm/ui/utils';
 
+export type EmptyTableStatus =
+  | { status: 'processing' }
+  | { status: 'error' }
+  | { status: 'no-resources'; showEnrollingResourcesHint: boolean };
+
+export function getEmptyTableStatus(
+  fetchAttemptStatus: AttemptStatus,
+  searchQuery: string | undefined,
+  canAddResources: boolean
+): EmptyTableStatus {
+  switch (fetchAttemptStatus) {
+    case 'error':
+      return { status: 'error' };
+    case '':
+      return { status: 'processing' };
+    case 'processing':
+      return { status: 'processing' };
+    case 'success': {
+      // We don't want to inform the user about being able to add new resources if they're actively
+      // looking for a resource by using search.
+      const isSearchQueryEmpty = !searchQuery || searchQuery.trim() === '';
+      const showEnrollingResourcesHint = isSearchQueryEmpty && canAddResources;
+
+      return { status: 'no-resources', showEnrollingResourcesHint };
+    }
+    default: {
+      assertUnreachable(fetchAttemptStatus);
+    }
+  }
+}
+
 /**
- *  `getEmptyTableText` returns text to be used in an async resource table
+ *  getEmptyTableText returns text to be used in an async resource table.
  *
  *  @example
  *  // Successfully fetched with zero results returned
  *  getEmptyTableText(fetchAttempt.status, "servers"); // "No servers found"
  *
- *  @param status - AttemptStatus from a useAsync request
+ *  @param status - EmptyTableStatus from getEmptyTableStatus
  *  @param pluralResourceNoun - String that represents the plural of a resource, i.e. "servers", "databases"
  */
 export function getEmptyTableText(
-  status: AttemptStatus,
-  pluralResourceNoun: string,
-  searchQuery: string | undefined,
-  canAddResources: boolean
+  status: EmptyTableStatus,
+  pluralResourceNoun: string
 ) {
-  switch (status) {
+  switch (status.status) {
     case 'error':
       return `Failed to fetch ${pluralResourceNoun}.`;
-    case '':
-      return 'Searching…';
     case 'processing':
       return 'Searching…';
-    case 'success': {
+    case 'no-resources': {
       let message = `No ${pluralResourceNoun} found.`;
-      // We don't want to inform the user about being able to add new resources if they're actively
-      // looking for a resource by using search.
-      const isSearchQueryEmpty = !searchQuery || searchQuery.trim() === '';
 
-      if (isSearchQueryEmpty && canAddResources) {
+      if (status.showEnrollingResourcesHint) {
         // TODO(ravicious): It'd be nice to include a link to Discover. However, all external links
         // opened by the browser need to be allowlisted (see setWindowOpenHandler), so we should
         // allow opening links only to the currently active cluster and its leafs.

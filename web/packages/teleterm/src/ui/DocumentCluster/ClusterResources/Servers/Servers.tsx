@@ -27,7 +27,7 @@ import { makeServer } from 'teleterm/ui/services/clusters';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
-import { getEmptyTableText } from '../getEmptyTableText';
+import { getEmptyTableStatus, getEmptyTableText } from '../getEmptyTableText';
 
 import { useServers, State } from './useServers';
 
@@ -53,12 +53,12 @@ function ServerList(props: State) {
   const servers = fetchAttempt.data?.agentsList.map(makeServer) || [];
   const disabled = fetchAttempt.status === 'processing';
   const loggedInUser = useWorkspaceLoggedInUser();
-  const emptyText = getEmptyTableText(
+  const emptyTableStatus = getEmptyTableStatus(
     fetchAttempt.status,
-    'servers',
     agentFilter.search || agentFilter.query,
     loggedInUser?.acl?.tokens.create
   );
+  const emptyText = getEmptyTableText(emptyTableStatus, 'servers');
 
   return (
     <>

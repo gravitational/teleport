@@ -32,7 +32,7 @@ import { DatabaseUri } from 'teleterm/ui/uri';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
-import { getEmptyTableText } from '../getEmptyTableText';
+import { getEmptyTableStatus, getEmptyTableText } from '../getEmptyTableText';
 
 import { useDatabases, State } from './useDatabases';
 
@@ -57,12 +57,12 @@ function DatabaseList(props: State) {
   const dbs = fetchAttempt.data?.agentsList.map(makeDatabase) || [];
   const disabled = fetchAttempt.status === 'processing';
   const loggedInUser = useWorkspaceLoggedInUser();
-  const emptyText = getEmptyTableText(
+  const emptyTableStatus = getEmptyTableStatus(
     fetchAttempt.status,
-    'databases',
     agentFilter.search || agentFilter.query,
     loggedInUser?.acl?.tokens.create
   );
+  const emptyText = getEmptyTableText(emptyTableStatus, 'databases');
 
   return (
     <>
