@@ -203,6 +203,12 @@ func (a *AccessListService) GetAccessListMember(ctx context.Context, accessList 
 	return member, trace.Wrap(err)
 }
 
+// ListAllAccessListMembers returns a paginated list of all access list members across all access lists.
+func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (allMembers []*accesslist.AccessListMember, nextToken string, err error) {
+	allMembers, nextToken, err = a.memberService.ListResources(ctx, pageSize, nextToken)
+	return allMembers, nextToken, trace.Wrap(err)
+}
+
 // UpsertAccessListMember creates or updates an access list member resource.
 func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
 	err := a.service.RunWhileLocked(ctx, lockName(member.Spec.AccessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
@@ -332,6 +338,12 @@ func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessLis
 		return nil, "", trace.Wrap(err)
 	}
 	return reviews, nextToken, nil
+}
+
+// ListAllAccessListReviews returns a paginated list of all access list reviews across all access lists.
+func (a *AccessListService) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) (allReviews []*accesslist.Review, nextToken string, err error) {
+	allReviews, nextToken, err = a.reviewService.ListResources(ctx, pageSize, nextToken)
+	return allReviews, nextToken, trace.Wrap(err)
 }
 
 // CreateAccessListReview will create a new review for an access list.

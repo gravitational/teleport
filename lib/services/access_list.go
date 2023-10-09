@@ -118,6 +118,8 @@ type AccessListMembersGetter interface {
 	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	// ListAllAccessListMembers returns a paginated list of all access list members across all access lists.
+	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 }
 
 // AccessListMembers defines an interface for managing AccessListMembers.
@@ -303,6 +305,9 @@ func SelectNextReviewDate(accessList *accesslist.AccessList) time.Time {
 type AccessListReviews interface {
 	// ListAccessListReviews will list access list reviews for a particular access list.
 	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
+
+	// ListAllAccessListReviews returns a paginated list of all access list reviews across all access lists.
+	ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) (review []*accesslist.Review, nextToken string, err error)
 
 	// CreateAccessListReview will create a new review for an access list.
 	CreateAccessListReview(ctx context.Context, review *accesslist.Review) (updatedReview *accesslist.Review, err error)

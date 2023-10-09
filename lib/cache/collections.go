@@ -2442,42 +2442,22 @@ var _ executor[*userloginstate.UserLoginState, services.UserLoginStatesGetter] =
 type accessListMembersExecutor struct{}
 
 func (accessListMembersExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.AccessListMember, error) {
-	// Get all access lists
-	var accessLists []*accesslist.AccessList
+	// Get the members of every access list.
+	var members []*accesslist.AccessListMember
 	var nextToken string
 	for {
-		var page []*accesslist.AccessList
+		var page []*accesslist.AccessListMember
 		var err error
 
-		page, nextToken, err = cache.AccessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		page, nextToken, err = cache.AccessLists.ListAllAccessListMembers(ctx, 0 /* default page size */, nextToken)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		accessLists = append(accessLists, page...)
+		members = append(members, page...)
 
 		if nextToken == "" {
 			break
-		}
-	}
-
-	// Get the members of each access list.
-	var members []*accesslist.AccessListMember
-	for _, accessList := range accessLists {
-		for {
-			var page []*accesslist.AccessListMember
-			var err error
-
-			page, nextToken, err = cache.AccessLists.ListAccessListMembers(ctx, accessList.GetName(), 0 /* default page size */, nextToken)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			members = append(members, page...)
-
-			if nextToken == "" {
-				break
-			}
 		}
 	}
 	return members, nil
@@ -2514,49 +2494,33 @@ var _ executor[*accesslist.AccessListMember, services.AccessListMembersGetter] =
 type accessListReviewsExecutor struct{}
 
 func (accessListReviewsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.Review, error) {
-	// Get all access lists
-	var accessLists []*accesslist.AccessList
+	// Get the reviews of every access list.
+	var reviews []*accesslist.Review
 	var nextToken string
 	for {
-		var page []*accesslist.AccessList
+		var page []*accesslist.Review
 		var err error
 
-		page, nextToken, err = cache.AccessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		page, nextToken, err = cache.AccessListReviews.ListAllAccessListReviews(ctx, 0 /* default page size */, nextToken)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		accessLists = append(accessLists, page...)
+		reviews = append(reviews, page...)
 
 		if nextToken == "" {
 			break
-		}
-	}
-
-	// Get the reviews of each access list.
-	var reviews []*accesslist.Review
-	for _, accessList := range accessLists {
-		for {
-			var page []*accesslist.Review
-			var err error
-
-			page, nextToken, err = cache.AccessListReviews.ListAccessListReviews(ctx, accessList.GetName(), 0 /* default page size */, nextToken)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			reviews = append(reviews, page...)
-
-			if nextToken == "" {
-				break
-			}
 		}
 	}
 	return reviews, nil
 }
 
 func (accessListReviewsExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.Review) error {
-	// Reviews can't be updated, so we'll only support create.
+	// Attempt to delete first in case the access list review already exists. If it does, we'll delete it. If it doesn't,
+	// we'll ignore the IsNotFound error.
+	if err := cache.accessListsCache.DeleteAccessListReview(ctx, resource.Spec.AccessList, resource.GetName()); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
 	_, err := cache.accessListsCache.CreateAccessListReview(ctx, resource)
 	return trace.Wrap(err)
 }

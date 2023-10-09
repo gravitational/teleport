@@ -139,6 +139,11 @@ func (c *Client) ListAccessListMembers(ctx context.Context, accessList string, p
 	return members, resp.GetNextPageToken(), nil
 }
 
+// ListAllAccessListMembers returns a paginated list of all access list members across all access lists.
+func (c *Client) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	return nil, "", trace.NotImplemented("ListAllAccessListMembers is not supported in the gRPC client")
+}
+
 // GetAccessListMember returns the specified access list member resource.
 func (c *Client) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
 	resp, err := c.grpcClient.GetAccessListMember(ctx, &accesslistv1.GetAccessListMemberRequest{
@@ -239,6 +244,11 @@ func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, p
 	}
 
 	return reviews, resp.GetNextToken(), nil
+}
+
+// ListAllAccessListReviews returns a paginated list of all access list reviews across all access lists.
+func (c *Client) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) (allReviews []*accesslist.Review, nextToken string, err error) {
+	return nil, "", trace.NotImplemented("ListAllAccessListReviews is not supported in the gRPC client")
 }
 
 // CreateAccessListReview will create a new review for an access list.
