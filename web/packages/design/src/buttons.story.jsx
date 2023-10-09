@@ -33,32 +33,33 @@ export default {
 };
 
 export const Buttons = () => (
-  <>
-    <ButtonPrimary mr={3}>Primary</ButtonPrimary>
-    <ButtonSecondary mr={3}>Secondary</ButtonSecondary>
-    <ButtonBorder mr={3}>Border</ButtonBorder>
-    <ButtonWarning mb={5}>Warning</ButtonWarning>
-    <div />
-    <Button size="large" mr={3}>
-      Large
-    </Button>
-    <Button size="medium" mr={3}>
-      Medium
-    </Button>
-    <Button size="small">Small</Button>
-    <Button block mb={3} mt={4}>
-      block = true
-    </Button>
-    <Button mr={3} disabled>
-      Disabled
-    </Button>
-    <Button mb={3} autoFocus>
-      Focused
-    </Button>
-    <div />
-    <ButtonLink href="">Button Link</ButtonLink>
-    <ButtonText>Button Text</ButtonText>
-    <Flex mb={3}>
+  <Flex gap={4} flexDirection="column" alignItems="flex-start">
+    <Flex gap={3}>
+      <ButtonPrimary>Primary</ButtonPrimary>
+      <ButtonSecondary>Secondary</ButtonSecondary>
+      <ButtonBorder>Border</ButtonBorder>
+      <ButtonWarning>Warning</ButtonWarning>
+    </Flex>
+
+    <Flex gap={3} alignItems="center">
+      <Button size="large">Large</Button>
+      <Button size="medium">Medium</Button>
+      <Button size="small">Small</Button>
+    </Flex>
+
+    <Button block>block = true</Button>
+
+    <Flex gap={3}>
+      <Button disabled>Disabled</Button>
+      <Button autoFocus>Focused</Button>
+    </Flex>
+
+    <Flex gap={3}>
+      <ButtonLink href="">Button Link</ButtonLink>
+      <ButtonText>Button Text</ButtonText>
+    </Flex>
+
+    <Flex gap={3}>
       <ButtonIcon size={2}>
         <AddUsers />
       </ButtonIcon>
@@ -69,7 +70,8 @@ export const Buttons = () => (
         <Trash />
       </ButtonIcon>
     </Flex>
-    <Flex mb={4}>
+
+    <Flex gap={3}>
       <ButtonIcon size={1}>
         <AddUsers />
       </ButtonIcon>
@@ -80,7 +82,8 @@ export const Buttons = () => (
         <Trash />
       </ButtonIcon>
     </Flex>
-    <Flex>
+
+    <Flex gap={3}>
       <ButtonIcon size={0}>
         <AddUsers />
       </ButtonIcon>
@@ -91,5 +94,5 @@ export const Buttons = () => (
         <Trash />
       </ButtonIcon>
     </Flex>
-  </>
+  </Flex>
 );
