@@ -3406,7 +3406,40 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 		return trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
-	return a.authServer.UpsertOIDCConnector(ctx, connector)
+	err := a.authServer.UpsertOIDCConnector(ctx, connector)
+	return trace.Wrap(err)
+}
+
+// UpdateOIDCConnector updates an existing OIDC connector.
+func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !modules.GetModules().Features().OIDC {
+		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
+		// we can't currently propagate wrapped errors across the gRPC boundary,
+		// and we want tctl to display a clean user-facing message in this case
+		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
+	}
+
+	updated, err := a.authServer.UpdateOIDCConnector(ctx, connector)
+	return updated, trace.Wrap(err)
+}
+
+// CreateOIDCConnector creates a new OIDC connector.
+func (a *ServerWithRoles) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !modules.GetModules().Features().OIDC {
+		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
+		// we can't currently propagate wrapped errors across the gRPC boundary,
+		// and we want tctl to display a clean user-facing message in this case
+		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
+	}
+
+	creted, err := a.authServer.CreateOIDCConnector(ctx, connector)
+	return creted, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error) {
@@ -3491,7 +3524,36 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.UpsertSAMLConnector(ctx, connector)
+	err := a.authServer.UpsertSAMLConnector(ctx, connector)
+	return trace.Wrap(err)
+}
+
+// CreateSAMLConnector creates a new SAML connector.
+func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	if !modules.GetModules().Features().SAML {
+		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
+	}
+
+	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := a.authServer.CreateSAMLConnector(ctx, connector)
+	return created, trace.Wrap(err)
+}
+
+// UpdateSAMLConnector updates an existing SAML connector
+func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	if !modules.GetModules().Features().SAML {
+		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
+	}
+
+	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := a.authServer.UpdateSAMLConnector(ctx, connector)
+	return updated, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
@@ -3617,7 +3679,33 @@ func (a *ServerWithRoles) UpsertGithubConnector(ctx context.Context, connector t
 	if err := a.checkGithubConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.upsertGithubConnector(ctx, connector)
+
+	err := a.authServer.upsertGithubConnector(ctx, connector)
+	return trace.Wrap(err)
+}
+
+// CreateGithubConnector creates a new Github connector.
+func (a *ServerWithRoles) CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.checkGithubConnector(connector); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	created, err := a.authServer.createGithubConnector(ctx, connector)
+	return created, trace.Wrap(err)
+}
+
+// UpdateGithubConnector updates an existing Github connector.
+func (a *ServerWithRoles) UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.checkGithubConnector(connector); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	updated, err := a.authServer.updateGithubConnector(ctx, connector)
+	return updated, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) GetGithubConnector(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error) {
