@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
+	"github.com/gravitational/teleport/api/client/externalcloudaudit"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/userloginstate"
@@ -54,6 +55,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	externalcloudauditv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -792,6 +794,15 @@ func (c *Client) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 // return "not implemented" errors (as per the default gRPC behavior).
 func (c *Client) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	return samlidppb.NewSAMLIdPServiceClient(c.conn)
+}
+
+// ExternalCloudAuditClient returns an unadorned External Cloud Audit client,
+// using the underlying Auth gRPC connection.
+// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+// still get a external audit client when calling this method, but all RPCs will
+// return "not implemented" errors (as per the default gRPC behavior).
+func (c *Client) ExternalCloudAuditClient() *externalcloudaudit.Client {
+	return externalcloudaudit.NewClient(externalcloudauditv1.NewExternalCloudAuditServiceClient(c.conn))
 }
 
 // TrustClient returns an unadorned Trust client, using the underlying

@@ -77,6 +77,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAuthPreferenceParser()
 		case types.KindSessionRecordingConfig:
 			parser = newSessionRecordingConfigParser()
+		case types.KindExternalCloudAudit:
+			parser = newExternalCloudAuditParser()
 		case types.KindUIConfig:
 			parser = newUIConfigParser()
 		case types.KindClusterName:
@@ -615,6 +617,31 @@ func (p *sessionRecordingConfigParser) parse(event backend.Event) (types.Resourc
 			return nil, trace.Wrap(err)
 		}
 		return ap, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newExternalCloudAuditParser() *externalCloudAuditParser {
+	return &externalCloudAuditParser{
+		baseParser: newBaseParser(backend.Key(externalCloudAuditPrefix)),
+	}
+}
+
+type externalCloudAuditParser struct {
+	baseParser
+}
+
+func (p *externalCloudAuditParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindExternalCloudAudit, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalExternalCloudAudit(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
