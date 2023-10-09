@@ -25,7 +25,6 @@ import type {
   AuthType,
   PreferredMfaType,
   PrimaryAuthType,
-  PrivateKeyPolicy,
 } from 'shared/services';
 
 import type { SortType } from 'teleport/services/agents';
@@ -67,7 +66,6 @@ const cfg = {
     second_factor: 'off' as Auth2faType,
     authType: 'local' as AuthType,
     preferredLocalMfa: '' as PreferredMfaType,
-    privateKeyPolicy: 'none' as PrivateKeyPolicy,
     // motd is message of the day, displayed to users before login.
     motd: '',
   },
@@ -318,10 +316,6 @@ const cfg = {
 
   getLocalAuthFlag() {
     return cfg.auth.localAuthEnabled;
-  },
-
-  getPrivateKeyPolicy() {
-    return cfg.auth.privateKeyPolicy;
   },
 
   isPasswordlessEnabled() {

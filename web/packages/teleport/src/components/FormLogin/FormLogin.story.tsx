@@ -120,10 +120,6 @@ export const LocalWithSsoAndPwdless = () => {
   );
 };
 
-export const PrivateKeyPolicyEnabled = () => (
-  <FormLogin {...props} privateKeyPolicyEnabled={true} />
-);
-
 export const LocalDisabledWithSso = () => {
   const ssoProvider = [
     { name: 'github', type: 'oidc', url: '' } as const,
