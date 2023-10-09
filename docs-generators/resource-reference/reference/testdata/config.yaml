@@ -3,7 +3,7 @@
 #   - Generating a new golden file, which you can do by navigating to the
 #     "docs-generators/resource-reference/reference" directory and running the
 #     following command:
-# go run gen-resource-ref -config=reference/testdata/conf.yaml
+# go run gen-resource-ref -config=testdata/config.yaml
 required_types:
   - package: "typestest"
     name: "ResourceHeader"
