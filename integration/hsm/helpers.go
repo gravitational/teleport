@@ -40,12 +40,13 @@ import (
 // up. Methods are not meant to be called concurrently on the same receiver and
 // are not generally thread safe.
 type teleportService struct {
-	name           string
-	log            utils.Logger
-	config         *servicecfg.Config
-	process        *service.TeleportProcess
-	serviceChannel chan *service.TeleportProcess
-	errorChannel   chan error
+	name              string
+	log               utils.Logger
+	config            *servicecfg.Config
+	process           *service.TeleportProcess
+	processGeneration int
+	serviceChannel    chan *service.TeleportProcess
+	errorChannel      chan error
 }
 
 func newTeleportService(t *testing.T, config *servicecfg.Config, name string) *teleportService {
@@ -77,73 +78,76 @@ func (t *teleportService) start(ctx context.Context) error {
 	// receive all new processes after restarts and write them to a goroutine.
 	go func() {
 		t.errorChannel <- service.Run(ctx, *t.config, func(cfg *servicecfg.Config) (service.Process, error) {
-			t.log.Debugf("(Re)starting %s", t.name)
+			t.log.Debugf("%s gen %d: starting next process generation (gen %d)", t.name, t.processGeneration, t.processGeneration+1)
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
-				t.log.Debugf("Started %s, writing to serviceChannel", t.name)
+				t.log.Debugf("%s gen %d: started, writing to serviceChannel", t.name, t.processGeneration+1)
 				t.serviceChannel <- svc
 			}
 			return svc, trace.Wrap(err)
 		})
 	}()
-	t.log.Debugf("Waiting for %s to start", t.name)
+	t.log.Debugf("%s gen 1: waiting for first start", t.name)
 	if err := t.waitForNewProcess(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	t.log.Debugf("%s started, waiting for it to be ready", t.name)
+	t.log.Debugf("%s gen 1: started, waiting for it to be ready", t.name)
 	return t.waitForReady(ctx)
 }
 
 func (t *teleportService) waitForNewProcess(ctx context.Context) error {
 	select {
 	case t.process = <-t.serviceChannel:
-		t.log.Debugf("received new process for %s from serviceChannel", t.name)
+		t.processGeneration += 1
+		t.log.Debugf("%s gen %d: received new process from serviceChannel", t.name, t.processGeneration)
 	case err := <-t.errorChannel:
 		return trace.Wrap(err)
 	case <-ctx.Done():
-		return trace.Wrap(ctx.Err(), "timed out waiting for %s to restart", t.name)
+		return trace.Wrap(ctx.Err(), "%s gen %d: timed out waiting for restart", t.name, t.processGeneration)
 	}
 	return nil
 }
 
 func (t *teleportService) waitForReady(ctx context.Context) error {
-	t.log.Debugf("Waiting for %s to be ready", t.name)
+	t.log.Debugf("%s gen %d: waiting for TeleportReadyEvent", t.name, t.processGeneration)
 	if _, err := t.process.WaitForEvent(ctx, service.TeleportReadyEvent); err != nil {
-		return trace.Wrap(err, "timed out waiting for %s to be ready", t.name)
+		return trace.Wrap(err, "timed out waiting for %s gen %d to be ready", t.name, t.processGeneration)
 	}
-	// If this is an Auth servier, also wait for AuthIdentityEvent so that we
+	t.log.Debugf("%s gen %d: got TeleportReadyEvent", t.name, t.processGeneration)
+	// If this is an Auth server, also wait for AuthIdentityEvent so that we
 	// can safely read the admin credentials and create a test client.
 	if t.process.GetAuthServer() != nil {
+		t.log.Debugf("%s gen %d: waiting for AuthIdentityEvent", t.name, t.processGeneration)
 		if _, err := t.process.WaitForEvent(ctx, service.AuthIdentityEvent); err != nil {
-			return trace.Wrap(err, "timed out waiting for %s auth identity event", t.name)
+			return trace.Wrap(err, "%s gen %d: timed out waiting AuthIdentityEvent", t.name, t.processGeneration)
 		}
-		t.log.Debugf("%s is ready", t.name)
+		t.log.Debugf("%s gen %d: got AuthIdentityEvent", t.name, t.processGeneration)
 	}
 	return nil
 }
 
 func (t *teleportService) waitForRestart(ctx context.Context) error {
-	t.log.Debugf("Waiting for %s to restart", t.name)
+	t.log.Debugf("%s gen %d: waiting for restart", t.name, t.processGeneration)
 	if err := t.waitForNewProcess(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	t.log.Debugf("%s restarted, waiting for new process to be ready", t.name)
+	t.log.Debugf("%s gen %d: restarted, waiting for new process (gen %d) to be ready", t.name, t.processGeneration-1, t.processGeneration)
 	return trace.Wrap(t.waitForReady(ctx))
 }
 
 func (t *teleportService) waitForShutdown(ctx context.Context) error {
-	t.log.Debugf("Waiting for %s to shut down", t.name)
+	t.log.Debugf("%s gen %d: waiting for shutdown", t.name, t.processGeneration)
 	select {
 	case err := <-t.errorChannel:
 		t.process = nil
 		return trace.Wrap(err)
 	case <-ctx.Done():
-		return trace.Wrap(ctx.Err(), "timed out waiting for %s to shut down", t.name)
+		return trace.Wrap(ctx.Err(), "%s gen %d: timed out waiting for shutdown", t.name, t.processGeneration)
 	}
 }
 
 func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error {
-	t.log.Debugf("Waiting for %s to have local additional keys", t.name)
+	t.log.Debugf("%s gen %d: waiting for local additional keys", t.name, t.processGeneration)
 	clusterName, err := t.process.GetAuthServer().GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -152,7 +156,7 @@ func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error 
 	for {
 		select {
 		case <-ctx.Done():
-			return trace.Wrap(ctx.Err(), "timed out waiting for %s to have local additional keys", t.name)
+			return trace.Wrap(ctx.Err(), "%s gen %d: timed out waiting for local additional keys", t.name, t.processGeneration)
 		case <-time.After(250 * time.Millisecond):
 		}
 		ca, err := t.process.GetAuthServer().GetCertAuthority(ctx, hostCAID, true)
@@ -167,16 +171,16 @@ func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error 
 			break
 		}
 	}
-	t.log.Debugf("%s has local additional keys", t.name)
+	t.log.Debugf("%s gen %d has local additional keys", t.name, t.processGeneration)
 	return nil
 }
 
 func (t *teleportService) waitForPhaseChange(ctx context.Context) error {
-	t.log.Debugf("Waiting for %s to change phase", t.name)
+	t.log.Debugf("%s gen %d: waiting for phase change", t.name, t.processGeneration)
 	if _, err := t.process.WaitForEvent(ctx, service.TeleportPhaseChangeEvent); err != nil {
-		return trace.Wrap(err, "timed out waiting for %s to change phase", t.name)
+		return trace.Wrap(err, "%s gen %d: timed out waiting for phase change", t.name, t.processGeneration)
 	}
-	t.log.Debugf("%s changed phase", t.name)
+	t.log.Debugf("%s gen %d: changed phase", t.name, t.processGeneration)
 	return nil
 }
 
@@ -185,6 +189,12 @@ func (t *teleportService) authAddr(testingT *testing.T) utils.NetAddr {
 	require.NoError(testingT, err)
 
 	return *addr
+}
+
+func (t *teleportService) authAddrString(testingT *testing.T) string {
+	addr, err := t.process.AuthAddr()
+	require.NoError(testingT, err)
+	return addr.String()
 }
 
 type teleportServices []*teleportService
@@ -226,6 +236,7 @@ func newAuthConfig(t *testing.T, log utils.Logger) *servicecfg.Config {
 	config.Log = log
 	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	config.MaxRetryPeriod = 25 * time.Millisecond
+	config.PollingPeriod = 2 * time.Second
 
 	config.Auth.Enabled = true
 	config.Auth.NoAudit = true
@@ -268,6 +279,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, log utils.Logger) *ser
 	config.Log = log
 	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	config.MaxRetryPeriod = 25 * time.Millisecond
+	config.PollingPeriod = 2 * time.Second
 
 	config.Proxy.Enabled = true
 	config.Proxy.DisableWebInterface = true
