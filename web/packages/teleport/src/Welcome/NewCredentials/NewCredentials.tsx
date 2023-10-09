@@ -67,7 +67,7 @@ export function NewCredentials(props: NewCredentialsProps) {
     setDisplayOnboardingQuestionnaire = false,
     Questionnaire = undefined,
     displayInviteCollaborators = false,
-    setDisplayInviteCollaborators = false,
+    setDisplayInviteCollaborators = null,
     InviteCollaborators = undefined,
   } = props;
 
