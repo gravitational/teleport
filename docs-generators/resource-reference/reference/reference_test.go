@@ -133,7 +133,7 @@ func TestGenerate(t *testing.T) {
 	// "docs-generators/resource-reference/reference" directory and run the
 	// following command:
 	//
-	// go run gen-resource-ref -config=reference/testdata/conf.yaml
+	// go run gen-resource-ref -config=testdata/config.yaml
 	cf, err := os.Open(path.Join("testdata", "config.yaml"))
 	if err != nil {
 		t.Fatal(err)
