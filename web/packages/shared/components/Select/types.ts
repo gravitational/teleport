@@ -60,38 +60,11 @@ export type AsyncProps = Omit<Props, 'options'> & {
   noOptionsMessage(): string;
 };
 
-export type CreatableProps = {
-  inputId?: string;
-  hasError?: boolean;
-  isClearable?: boolean;
-  isSimpleValue?: boolean;
-  isSearchable?: boolean;
-  isDisabled?: boolean;
-  menuIsOpen?: boolean;
-  hideSelectedOptions?: boolean;
-  controlShouldRenderValue?: boolean;
-  maxMenuHeight?: number;
-  onChange(e: Option<any, any> | Option<any, any>[]): void;
-  onKeyDown?(e: KeyboardEvent): void;
+/**
+ * Properties specific to `react-select`'s Creatable widget.
+ */
+export type CreatableProps = Omit<Props, 'options'> & {
   onBlur?(e: FocusEvent): void;
-  value: null | Option<any, any> | Option<any, any>[];
-  isMulti?: boolean;
-  autoFocus?: boolean;
-  label?: string;
-  placeholder?: string;
-  width?: string | number;
-  menuPlacement?: string;
-  name?: string;
-  minMenuHeight?: number;
-  components?: any;
-  customProps?: Record<string, any>;
-  menuPosition?: 'fixed' | 'absolute';
-  inputValue?: string;
-  filterOption?(): null | boolean;
-  onInputChange?(value: string, actionMeta: ActionMeta): void;
-  // Whether or not the element is on an elevated platform (such as a dialog).
-  elevated?: boolean;
-  stylesConfig?: StylesConfig;
 };
 
 // Option defines the data type for select dropdown list.
