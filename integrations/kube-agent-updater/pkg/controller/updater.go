@@ -20,7 +20,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/docker/distribution/reference"
+	"github.com/distribution/reference"
 	"github.com/gravitational/trace"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"

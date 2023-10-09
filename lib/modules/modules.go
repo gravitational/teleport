@@ -142,6 +142,8 @@ type AccessResourcesGetter interface {
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 
 	GetUser(userName string, withSecrets bool) (types.User, error)
+	// TODO(tross) remove this once oss and e are converted to using the new signature.
+	GetUserWithContext(ctx context.Context, userName string, withSecrets bool) (types.User, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
 

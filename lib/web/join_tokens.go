@@ -51,9 +51,6 @@ import (
 )
 
 const (
-	teleportOSSPackageName = "teleport"
-	teleportEntPackageName = "teleport-ent"
-
 	stableCloudChannelRepo = "stable/cloud"
 )
 
@@ -384,9 +381,9 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		}
 	}
 
-	packageName := teleportOSSPackageName
+	packageName := types.PackageNameOSS
 	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		packageName = teleportEntPackageName
+		packageName = types.PackageNameEnt
 	}
 
 	// By default, it will use `stable/v<majorVersion>`, eg stable/v12

@@ -816,7 +816,7 @@ tsh bench web sessions --max=5000 --web user ls
 ### AWS
 
 - [ ] Deploy Teleport to AWS. Using DynamoDB & S3
-- [ ] Deploy Teleport Enterprise to AWS. Using HA Setup https://gravitational.com/teleport/docs/aws-terraform-guide/
+- [ ] Deploy Teleport Enterprise to AWS. Using HA Setup https://goteleport.com/docs/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/
 
 ### GCP
 

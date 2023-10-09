@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -507,6 +508,165 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	require.NoError(t, err)
 
 	mustGetKubePod(t, k8Client)
+}
+
+// TestKubePROXYProtocol tests correct behavior of Proxy Kube listener regarding PROXY protocol usage.
+func TestKubePROXYProtocol(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	const (
+		kubeCluster = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
+		k8User      = "alice@example.com"
+		k8RoleName  = "kubemaster"
+	)
+
+	testCases := []struct {
+		desc              string
+		proxyListenerMode types.ProxyListenerMode
+		proxyProtocolMode multiplexer.PROXYProtocolMode
+	}{
+		{
+			desc:              "PROXY protocol on, separate Proxy listeners",
+			proxyProtocolMode: multiplexer.PROXYProtocolOn,
+			proxyListenerMode: types.ProxyListenerMode_Separate,
+		},
+		{
+			desc:              "PROXY protocol off, separate Proxy listeners",
+			proxyProtocolMode: multiplexer.PROXYProtocolOff,
+			proxyListenerMode: types.ProxyListenerMode_Separate,
+		},
+		{
+			desc:              "PROXY protocol unspecified, separate Proxy listeners",
+			proxyProtocolMode: multiplexer.PROXYProtocolUnspecified,
+			proxyListenerMode: types.ProxyListenerMode_Separate,
+		},
+		{
+			desc:              "PROXY protocol on, multiplexed Proxy listeners",
+			proxyProtocolMode: multiplexer.PROXYProtocolOn,
+			proxyListenerMode: types.ProxyListenerMode_Multiplex,
+		},
+		{
+			desc:              "PROXY protocol off, multiplexed Proxy listeners",
+			proxyProtocolMode: multiplexer.PROXYProtocolOff,
+			proxyListenerMode: types.ProxyListenerMode_Multiplex,
+		},
+		{
+			desc:              "PROXY protocol unspecified, multiplexed Proxy listeners",
+			proxyProtocolMode: multiplexer.PROXYProtocolUnspecified,
+			proxyListenerMode: types.ProxyListenerMode_Multiplex,
+		},
+	}
+
+	username := helpers.MustGetCurrentUser(t).Username
+	kubeRoleSpec := types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:           []string{username},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubeGroups:       []string{kube.TestImpersonationGroup},
+			KubeUsers:        []string{k8User},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+				},
+			},
+		},
+	}
+
+	// Create mock kube server to test connection against
+	kubeAPIMockSvrRoot := startKubeAPIMock(t)
+	kubeConfigPathRoot := mustCreateKubeConfigFile(t, k8ClientConfig(kubeAPIMockSvrRoot.URL, kubeCluster))
+
+	for _, tt := range testCases {
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := helpers.InstanceConfig{
+				ClusterName: "root.example.com",
+				HostID:      uuid.New().String(),
+				NodeName:    helpers.Loopback,
+				Log:         utils.NewLoggerForTests(),
+			}
+			tconf := servicecfg.MakeDefaultConfig()
+			if tt.proxyListenerMode == types.ProxyListenerMode_Multiplex {
+				cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
+				tconf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			} else {
+				cfg.Listeners = helpers.StandardListenerSetup(t, &cfg.Fds)
+				tconf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+				tconf.Proxy.DisableALPNSNIListener = true
+				tconf.Proxy.Kube.ListenAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerProxyKube, &cfg.Fds))
+			}
+
+			testCluster := helpers.NewInstance(t, cfg)
+
+			tconf.Version = defaults.TeleportConfigVersionV3
+			tconf.DataDir = t.TempDir()
+			tconf.Auth.Enabled = true
+			tconf.Proxy.Enabled = true
+			tconf.Proxy.DisableWebInterface = true
+			tconf.SSH.Enabled = false
+			tconf.Proxy.Kube.Enabled = true
+
+			tconf.Proxy.PROXYProtocolMode = tt.proxyProtocolMode
+
+			tconf.Kube.Enabled = true
+			tconf.Kube.KubeconfigPath = kubeConfigPathRoot
+			tconf.Kube.ListenAddr = utils.MustParseAddr(
+				helpers.NewListener(t, service.ListenerKube, &tconf.FileDescriptors))
+
+			// Force Proxy kube server multiplexer to check required PROXY lines on all connections
+			tconf.Options = []servicecfg.Option{servicecfg.WithKubeMultiplexerIgnoreSelfConnectionsOption()}
+
+			kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
+			require.NoError(t, err)
+
+			testCluster.AddUserWithRole(username, kubeRole)
+
+			require.NoError(t, testCluster.CreateEx(t, nil, tconf))
+			require.NoError(t, testCluster.Start())
+			t.Cleanup(func() {
+				require.NoError(t, testCluster.StopAll())
+			})
+
+			targetAddr := testCluster.Config.Proxy.WebAddr
+			if tt.proxyListenerMode == types.ProxyListenerMode_Separate {
+				targetAddr = testCluster.Config.Proxy.Kube.ListenAddr
+			}
+
+			// If PROXY protocol is required, create load balancer in front of Teleport cluster
+			if tt.proxyProtocolMode == multiplexer.PROXYProtocolOn {
+				frontend := *utils.MustParseAddr("127.0.0.1:0")
+				lb, err := utils.NewLoadBalancer(context.Background(), frontend)
+				require.NoError(t, err)
+				lb.PROXYHeader = []byte("PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n") // Send fake PROXY header
+				lb.AddBackend(targetAddr)
+				err = lb.Listen()
+				require.NoError(t, err)
+
+				go lb.Serve()
+				t.Cleanup(func() { require.NoError(t, lb.Close()) })
+				targetAddr = *utils.MustParseAddr(lb.Addr().String())
+			}
+
+			// Create kube client that we'll use to test that connection is working correctly.
+			k8Client, _, err := kube.ProxyClient(kube.ProxyConfig{
+				T:                   testCluster,
+				Username:            kubeRoleSpec.Allow.Logins[0],
+				KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
+				KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
+				CustomTLSServerName: kubeCluster,
+				TargetAddress:       targetAddr,
+				RouteToCluster:      testCluster.Secrets.SiteName,
+			})
+			require.NoError(t, err)
+
+			resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
+			require.NoError(t, err)
+			require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
+		})
+	}
 }
 
 func TestKubeIPPinning(t *testing.T) {

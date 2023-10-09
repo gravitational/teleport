@@ -2496,7 +2496,6 @@ func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ ht
 }
 
 func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesRequest, error) {
-
 	values := r.URL.Query()
 
 	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
@@ -2643,6 +2642,9 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			unifiedResources = append(unifiedResources, desktop)
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker)
+			unifiedResources = append(unifiedResources, kube)
+		case types.KubeServer:
+			kube := ui.MakeKubeCluster(r.GetCluster(), accessChecker)
 			unifiedResources = append(unifiedResources, kube)
 		default:
 			return nil, trace.Errorf("UI Resource has unknown type: %T", resource)
@@ -3153,6 +3155,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		Moderated:             accessEvaluator.IsModerated(),
 		DatabaseName:          tracker.GetDatabaseName(),
 		Owner:                 tracker.GetHostUser(),
+		Command:               strings.Join(tracker.GetCommand(), " "),
 	}
 }
 
@@ -3833,7 +3836,6 @@ func consumeTokenForAPICall(ctx context.Context, proxyClient auth.ClientI, token
 	}
 
 	return token, nil
-
 }
 
 // checkTokenTTL returns true if the token is still valid.
