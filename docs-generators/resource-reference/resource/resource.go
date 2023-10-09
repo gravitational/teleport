@@ -699,14 +699,6 @@ func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error
 			)
 		}
 
-		if len(f.Recv.List[0].Names) != 1 {
-			return nil, fmt.Errorf("method %v.%v has an unexpected number of receiver names",
-				decl.PackageName,
-				f.Name.Name,
-			)
-
-		}
-
 		var i *ast.Ident
 		switch t := f.Recv.List[0].Type.(type) {
 		case *ast.StarExpr:
@@ -767,6 +759,12 @@ func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error
 
 			id, ok := sel.X.(*ast.Ident)
 			if !ok {
+				continue
+			}
+
+			// There is no method receiver name to assign to, so we
+			// won't track assignments made in this method.
+			if len(f.Recv.List[0].Names) != 1 {
 				continue
 			}
 
