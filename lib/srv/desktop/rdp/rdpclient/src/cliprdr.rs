@@ -1011,8 +1011,7 @@ mod tests {
 
     #[test]
     fn encodes_large_format_data_response() {
-        let mut data = Vec::new();
-        data.resize(vchan::CHANNEL_CHUNK_LEGNTH + 2, 0);
+        let mut data = vec![0; vchan::CHANNEL_CHUNK_LEGNTH + 2];
         for (i, item) in data.iter_mut().enumerate() {
             *item = (i % 256) as u8;
         }
