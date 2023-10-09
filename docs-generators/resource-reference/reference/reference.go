@@ -245,6 +245,13 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		return err
 	}
 
+	content := ReferenceContent{
+		Resources: make(map[resource.PackageInfo]ResourceSection),
+		Fields:    make(map[resource.PackageInfo]resource.ReferenceEntry),
+	}
+
+	// TODO: Consider testing some of the logic here in a unit test, rather
+	// than the golden file test.
 	for k, decl := range typeDecls {
 		if !shouldProcess(decl, conf.RequiredTypes) {
 			continue
@@ -254,23 +261,38 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 			return fmt.Errorf("issue creating a reference entry for declaration %v.%v in file %v: %v", k.PackageName, k.TypeName, decl.FilePath, err)
 		}
 
+		// Add each reference entry to its appropriate place in the
+		// reference, either as a resource or as a field. Resources
+		// require a version number and `kind` value, so we search the
+		// methods of the resource type for the one that specifies these
+		// values.
 		for pi, e := range entries {
 			entryMethods, ok := methods[pi]
-			// TODO: populate the final ReferenceContent based on
-			// looking up relevant methods.
-			//			if ok {
-			//				for _, m := range entryMethods {
-			//					// By convention, we set each resource's version and
-			//					// kind via a method called "setStaticFields".
-			//					if m.Name == "setStaticFields" {
-			//						result.Resources[pi] = ResourceSection{
-			//							Version: m.FieldAssignments["Version"],
-			//							Kind:    m.FieldAssignments["Kind"],
-			//						}
-			//					}
-			//				}
-			//			}
-			//			result[pi] = e
+			// Can't be a resource since it does not have methods.
+			if !ok {
+				content.Fields[pi] = e
+				continue
+			}
+			var foundMethods bool
+			for _, method := range entryMethods {
+				// TODO: make this a constant or configurable value
+				if method.Name != "setStaticFields" {
+					continue
+				}
+
+				ref := ResourceSection{
+					ReferenceEntry: e,
+					Version:        method.FieldAssignments["Version"],
+					Kind:           method.FieldAssignments["Kind"],
+				}
+
+				content.Resources[pi] = ref
+				foundMethods = true
+				break
+			}
+			if !foundMethods {
+				content.Fields[pi] = e
+			}
 		}
 	}
 
