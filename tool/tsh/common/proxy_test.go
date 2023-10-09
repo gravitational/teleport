@@ -330,7 +330,7 @@ func TestWithRsync(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					pref, err := asrv.GetAuthPreference(ctx)
 					if !assert.NoError(t, err) {
 						return
