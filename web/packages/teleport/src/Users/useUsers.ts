@@ -20,7 +20,7 @@ import { useAttempt } from 'shared/hooks';
 import { User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
 
-export default function useUsers({ inviteCollaborators }: UsersContainerProps) {
+export default function useUsers({ InviteCollaborators }: UsersContainerProps) {
   const ctx = useTeleport();
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
   const [users, setUsers] = useState([] as User[]);
@@ -128,7 +128,7 @@ export default function useUsers({ inviteCollaborators }: UsersContainerProps) {
     onUpdate,
     onReset,
     onInviteCollaboratorsClose,
-    inviteCollaborators,
+    InviteCollaborators,
     inviteCollaboratorsOpen,
   };
 }
@@ -150,7 +150,7 @@ export interface InviteCollaboratorsDialogProps {
 }
 
 export type UsersContainerProps = {
-  inviteCollaborators?: (props: InviteCollaboratorsDialogProps) => ReactElement;
+  InviteCollaborators?: (props: InviteCollaboratorsDialogProps) => ReactElement;
 };
 
 export type State = ReturnType<typeof useUsers>;

@@ -52,6 +52,7 @@ export function Users(props: State) {
     onStartInviteCollaborators,
     onInviteCollaboratorsClose,
     inviteCollaboratorsOpen,
+    InviteCollaborators,
   } = props;
   return (
     <FeatureBox>
@@ -59,12 +60,12 @@ export function Users(props: State) {
         <FeatureHeaderTitle>Users</FeatureHeaderTitle>
         {attempt.isSuccess && (
           <>
-            {!props.inviteCollaborators && (
+            {!InviteCollaborators && (
               <ButtonPrimary ml="auto" width="240px" onClick={onStartCreate}>
                 Create New User
               </ButtonPrimary>
             )}
-            {props.inviteCollaborators && (
+            {InviteCollaborators && (
               <ButtonPrimary
                 ml="auto"
                 width="240px"
@@ -114,8 +115,8 @@ export function Users(props: State) {
           username={operation.user.name}
         />
       )}
-      {props.inviteCollaborators && (
-        <props.inviteCollaborators
+      {InviteCollaborators && (
+        <InviteCollaborators
           open={inviteCollaboratorsOpen}
           onClose={onInviteCollaboratorsClose}
         />
