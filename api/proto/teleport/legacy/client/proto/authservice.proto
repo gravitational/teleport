@@ -243,6 +243,23 @@ message UserCertsRequest {
 
   // AttestationStatement is an attestation statement for the given public key.
   teleport.attestation.v1.AttestationStatement attestation_statement = 20;
+
+  // CertPurpose complements CertUsage by informing Teleport of the intended use
+  // for the certificates.
+  enum CertPurpose {
+    // Purpose not specified.
+    // Interpreted as CERT_PURPOSE_LOGIN_CERTS.
+    CERT_PURPOSE_UNSPECIFIED = 0;
+
+    // Generate login certificates, both SSH and TLS, as well as CA certs.
+    CERT_PURPOSE_LOGIN_CERTS = 1;
+
+    // Generate single-user certificates, either SSH or TLS, depending on the
+    // specified Usage.
+    CERT_PURPOSE_SINGLE_USE_CERTS = 2;
+  }
+  // Purpose is the intended purpose of the certificates.
+  CertPurpose Purpose = 21 [(gogoproto.jsontag) = "purpose,omitempty"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
