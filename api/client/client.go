@@ -1670,13 +1670,39 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 	return oidcConnectors, nil
 }
 
+// CreateOIDCConnector creates an OIDC connector.
+func (c *Client) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	oidcConnector, ok := connector.(*types.OIDCConnectorV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", connector)
+	}
+	conn, err := c.grpc.CreateOIDCConnector(ctx, &proto.CreateOIDCConnectorRequest{Connector: oidcConnector})
+	return conn, trace.Wrap(err)
+}
+
+// UpdateOIDCConnector updates an OIDC connector.
+func (c *Client) UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	oidcConnector, ok := connector.(*types.OIDCConnectorV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", oidcConnector)
+	}
+	conn, err := c.grpc.UpdateOIDCConnector(ctx, &proto.UpdateOIDCConnectorRequest{Connector: oidcConnector})
+	return conn, trace.Wrap(err)
+}
+
 // UpsertOIDCConnector creates or updates an OIDC connector.
 func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OIDCConnector) error {
 	connector, ok := oidcConnector.(*types.OIDCConnectorV3)
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
-	_, err := c.grpc.UpsertOIDCConnector(ctx, connector)
+
+	_, err := c.grpc.UpsertOIDCConnectorV2(ctx, &proto.UpsertOIDCConnectorRequest{Connector: connector})
+	// TODO(tross) DELETE IN 16.0.0
+	if err != nil && trace.IsNotImplemented(err) {
+		_, err := c.grpc.UpsertOIDCConnector(ctx, connector) //nolint:staticcheck // SA1019. Kept for backward compatibility.
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(err)
 }
 
@@ -1735,13 +1761,39 @@ func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]typ
 	return samlConnectors, nil
 }
 
+// CreateSAMLConnector creates a SAML connector.
+func (c *Client) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	samlConnectorV2, ok := connector.(*types.SAMLConnectorV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", connector)
+	}
+	conn, err := c.grpc.CreateSAMLConnector(ctx, &proto.CreateSAMLConnectorRequest{Connector: samlConnectorV2})
+	return conn, trace.Wrap(err)
+}
+
+// UpdateSAMLConnector updates a SAML connector.
+func (c *Client) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	samlConnectorV2, ok := connector.(*types.SAMLConnectorV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", connector)
+	}
+	conn, err := c.grpc.UpdateSAMLConnector(ctx, &proto.UpdateSAMLConnectorRequest{Connector: samlConnectorV2})
+	return conn, trace.Wrap(err)
+}
+
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (c *Client) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
-	samlConnectorV2, ok := connector.(*types.SAMLConnectorV2)
+	samlConnector, ok := connector.(*types.SAMLConnectorV2)
 	if !ok {
 		return trace.BadParameter("invalid type %T", connector)
 	}
-	_, err := c.grpc.UpsertSAMLConnector(ctx, samlConnectorV2)
+
+	_, err := c.grpc.UpsertSAMLConnectorV2(ctx, &proto.UpsertSAMLConnectorRequest{Connector: samlConnector})
+	// TODO(tross) DELETE IN 16.0.0
+	if err != nil && trace.IsNotImplemented(err) {
+		_, err := c.grpc.UpsertSAMLConnector(ctx, samlConnector) //nolint:staticcheck // SA1019. Kept for backward compatibility.
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(err)
 }
 
@@ -1800,13 +1852,38 @@ func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]t
 	return githubConnectors, nil
 }
 
+// CreateGithubConnector creates a Github connector.
+func (c *Client) CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	githubConnector, ok := connector.(*types.GithubConnectorV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", connector)
+	}
+	conn, err := c.grpc.CreateGithubConnector(ctx, &proto.CreateGithubConnectorRequest{Connector: githubConnector})
+	return conn, trace.Wrap(err)
+}
+
+// UpdateGithubConnector updates a Github connector.
+func (c *Client) UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	githubConnector, ok := connector.(*types.GithubConnectorV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", connector)
+	}
+	conn, err := c.grpc.UpdateGithubConnector(ctx, &proto.UpdateGithubConnectorRequest{Connector: githubConnector})
+	return conn, trace.Wrap(err)
+}
+
 // UpsertGithubConnector creates or updates a Github connector.
 func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
 	githubConnector, ok := connector.(*types.GithubConnectorV3)
 	if !ok {
 		return trace.BadParameter("invalid type %T", connector)
 	}
-	_, err := c.grpc.UpsertGithubConnector(ctx, githubConnector)
+	_, err := c.grpc.UpsertGithubConnectorV2(ctx, &proto.UpsertGithubConnectorRequest{Connector: githubConnector})
+	// TODO(tross) DELETE IN 16.0.0
+	if err != nil && trace.IsNotImplemented(err) {
+		_, err := c.grpc.UpsertGithubConnector(ctx, githubConnector) //nolint:staticcheck // SA1019. Kept for backward compatibility testing.
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(err)
 }
 
