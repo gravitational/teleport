@@ -81,7 +81,7 @@ pub enum DeviceType {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d
 #[derive(Debug, FromPrimitive, ToPrimitive, PartialEq, Eq, Clone, Copy)]
 #[allow(non_camel_case_types)]
-pub enum MajorFunction {
+pub enum MajorFunctionDeprecated {
     IRP_MJ_CREATE = 0x00000000,
     IRP_MJ_CLOSE = 0x00000002,
     IRP_MJ_READ = 0x00000003,
