@@ -105,6 +105,5 @@ export default function useToken(tokenId: string): UseTokenState {
     redirect,
     success,
     finishedRegister,
-    privateKeyPolicyEnabled: false,
   };
 }

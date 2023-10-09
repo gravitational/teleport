@@ -53,7 +53,6 @@ const makeProps = (): NewCredentialsProps => {
     redirect: () => {},
     success: false,
     finishedRegister: () => {},
-    privateKeyPolicyEnabled: false,
     resetMode: false,
     isDashboard: false,
   };
