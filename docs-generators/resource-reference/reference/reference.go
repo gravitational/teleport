@@ -1,6 +1,7 @@
 package reference
 
 import (
+	"errors"
 	"fmt"
 	"gen-resource-ref/resource"
 	"go/ast"
@@ -253,6 +254,10 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 			continue
 		}
 		entries, err := resource.NewFromDecl(decl, typeDecls)
+		// Skip to the next declaration
+		if errors.Is(err, resource.NotAGenDeclError{}) {
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("issue creating a reference entry for declaration %v.%v in file %v: %v", k.PackageName, k.TypeName, decl.FilePath, err)
 		}
