@@ -1295,6 +1295,25 @@ func (o *otherStruct) copyNameFrom(m *myStruct){
 				},
 			},
 		},
+		{
+			description: "method with no receiver identifier",
+			source: `package testpkg
+func (mystruct) getMessage() string {
+    return "This does not depend on the receiver"
+}
+`,
+			expected: map[PackageInfo][]MethodInfo{
+				PackageInfo{
+					TypeName:    "mystruct",
+					PackageName: "testpkg",
+				}: []MethodInfo{
+					{
+						Name:             "getMessage",
+						FieldAssignments: map[string]string{},
+					},
+				},
+			},
+		},
 	}
 
 	for _, c := range cases {
