@@ -235,9 +235,9 @@ func (y yamlCustomType) formatForTable() string {
 	)
 }
 
-type notAGenDeclError struct{}
+type NotAGenDeclError struct{}
 
-func (e notAGenDeclError) Error() string {
+func (e NotAGenDeclError) Error() string {
 	return "the declaration is not a GenDecl"
 }
 
@@ -246,7 +246,7 @@ func (e notAGenDeclError) Error() string {
 func getRawTypes(decl DeclarationInfo) (rawType, error) {
 	gendecl, ok := decl.Decl.(*ast.GenDecl)
 	if !ok {
-		return rawType{}, notAGenDeclError{}
+		return rawType{}, NotAGenDeclError{}
 	}
 
 	if len(gendecl.Specs) == 0 {
@@ -567,7 +567,7 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 			)
 		}
 		e, err := getRawTypes(d)
-		if err != nil || !errors.Is(err, notAGenDeclError{}) {
+		if err != nil || !errors.Is(err, NotAGenDeclError{}) {
 			return nil, err
 		}
 
@@ -587,7 +587,7 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 // printing. NewFromDecl uses allResources to look up custom fields.
 func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) (map[PackageInfo]ReferenceEntry, error) {
 	rs, err := getRawTypes(decl)
-	if err != nil || !errors.Is(err, notAGenDeclError{}) {
+	if err != nil {
 		return nil, err
 	}
 
@@ -653,6 +653,9 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 			continue
 		}
 		r, err := NewFromDecl(gd, allDecls)
+		if errors.Is(err, NotAGenDeclError{}) {
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
