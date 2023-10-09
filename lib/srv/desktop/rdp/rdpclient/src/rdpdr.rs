@@ -72,10 +72,10 @@ pub struct TeleportRdpdrBackend {
     active_device_ids: Vec<u32>,
     /// The client handle for this backend, used to send messages to the RDP server.
     client_handle: ClientHandle,
-    // contexts holds all the active contexts for the server, established using
-    // SCARD_IOCTL_ESTABLISHCONTEXT. Some IOCTLs are context-specific and pass it as argument.
-    //
-    // contexts also holds a cache and connected smartcard handles for each context.
+    /// contexts holds all the active contexts for the server, established using
+    /// SCARD_IOCTL_ESTABLISHCONTEXT. Some IOCTLs are context-specific and pass it as argument.
+    ///
+    /// contexts also holds a cache and connected smartcard handles for each context.
     contexts: Contexts,
 }
 
