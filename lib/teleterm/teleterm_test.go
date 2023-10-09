@@ -17,6 +17,7 @@ package teleterm
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -207,7 +208,7 @@ func createValidClientTLSConfig(t *testing.T, certsDir string) *tls.Config {
 	// reach the tsh gRPC server, so we need to use the renderer cert as the client cert.
 	clientCertPath := filepath.Join(certsDir, rendererCertFileName)
 	serverCertPath := filepath.Join(certsDir, tshdCertFileName)
-	clientCert, err := generateAndSaveCert(clientCertPath)
+	clientCert, err := generateAndSaveCert(clientCertPath, x509.ExtKeyUsageClientAuth)
 	require.NoError(t, err)
 
 	tlsConfig, err := createClientTLSConfig(clientCert, serverCertPath)
