@@ -128,9 +128,10 @@ type MyStruct struct{
 
 func TestGenerate(t *testing.T) {
 	// This test reads the file at the destination path and compares the
-	// generated resource reference with it. The test does not regenerate the
-	// file at the destination path. To do so, navigate to the root of the
-	// project directory and run the following command:
+	// generated resource reference with it. The test does not regenerate
+	// the file at the destination path. To do so, navigate to the
+	// "docs-generators/resource-reference/reference" directory and run the
+	// following command:
 	//
 	// go run gen-resource-ref -config=reference/testdata/conf.yaml
 	cf, err := os.Open(path.Join("testdata", "config.yaml"))
