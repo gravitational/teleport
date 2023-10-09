@@ -20,7 +20,8 @@ use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use ironrdp_pdu::{other_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::DeviceControlResponse;
-use ironrdp_rdpdr::pdu::esc::ndr::ScardContext;
+use ironrdp_rdpdr::pdu::esc::ndr::{self, Encode as NdrEncode};
+use ironrdp_rdpdr::pdu::esc::{ScardContext, ScardHandle};
 use iso7816::command::Command as CardCommand;
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::model::data::Message as MessageTrait;
@@ -286,7 +287,7 @@ impl Client {
         let ctx = self
             .contexts
             .get_internal_mut_deprecated(req.common.context.value)?;
-        let handle = ctx.connect(
+        let handle = ctx.connect_deprecated(
             req.common.context,
             self.uuid,
             &self.cert_der,
@@ -2373,6 +2374,20 @@ impl Contexts {
         ctx
     }
 
+    pub fn connect(
+        &mut self,
+        ctx: ScardContext,
+        id: u32,
+        uuid: Uuid,
+        cert_der: &[u8],
+        key_der: &[u8],
+        pin: String,
+    ) -> PduResult<ScardHandle> {
+        let ctx_internal = self.get_internal_mut(id)?;
+        let handle = ctx_internal.connect(ctx, uuid, cert_der, key_der, pin)?;
+        Ok(handle)
+    }
+
     pub fn set_scard_cancel_response(
         &mut self,
         id: u32,
@@ -2456,13 +2471,29 @@ impl ContextInternal {
 
     fn connect(
         &mut self,
+        ctx: ScardContext,
+        uuid: Uuid,
+        cert_der: &[u8],
+        key_der: &[u8],
+        pin: String,
+    ) -> PduResult<ScardHandle> {
+        let card = piv::Card::new(uuid, cert_der, key_der, pin)?;
+        let id = self.next_id;
+        self.next_id += 1;
+        let handle = ScardHandle::new(ctx, id);
+        self.handles.insert(id, card);
+        Ok(handle)
+    }
+
+    fn connect_deprecated(
+        &mut self,
         ctx: ContextDeprecated,
         uuid: Uuid,
         cert_der: &[u8],
         key_der: &[u8],
         pin: String,
     ) -> RdpResult<Handle> {
-        let card = piv::Card::new(uuid, cert_der, key_der, pin)?;
+        let card = piv::Card::new_deprecated(uuid, cert_der, key_der, pin)?;
         let id = self.next_id;
         self.next_id += 1;
         let handle = Handle::new(ctx, id);
@@ -2703,7 +2734,7 @@ mod tests {
             .contexts
             .get_internal_mut_deprecated(context_value)
             .unwrap();
-        ctx.connect(
+        ctx.connect_deprecated(
             ContextDeprecated {
                 length: 4,
                 value: context_value,

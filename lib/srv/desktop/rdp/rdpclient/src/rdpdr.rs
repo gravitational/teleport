@@ -36,8 +36,9 @@ use consts::{
 };
 use ironrdp_pdu::{other_err, PduResult};
 use ironrdp_rdpdr::pdu::esc::{
-    rpce, CardStateFlags, EstablishContextCall, EstablishContextReturn, GetStatusChangeCall,
-    GetStatusChangeReturn, ListReadersCall, ListReadersReturn, ReaderStateCommonCall, ScardCall,
+    rpce, CardProtocol, CardStateFlags, ConnectCall, ConnectReturn, EstablishContextCall,
+    EstablishContextReturn, GetStatusChangeCall, GetStatusChangeReturn, ListReadersCall,
+    ListReadersReturn, ReaderStateCommonCall, ScardCall,
 };
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::{
@@ -67,6 +68,7 @@ use tdp::{
     SharedDirectoryWriteResponse, TdpErrCode,
 };
 use tokio::sync::mpsc::error::SendError;
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct TeleportRdpdrBackend {
@@ -81,14 +83,28 @@ pub struct TeleportRdpdrBackend {
     //
     // contexts also holds a cache and connected smartcard handles for each context.
     contexts: Contexts,
+    uuid: Uuid,
+    cert_der: Vec<u8>,
+    key_der: Vec<u8>,
+    pin: String,
 }
 
 impl TeleportRdpdrBackend {
-    pub fn new(smartcard_device_id: u32, client_handle: ClientHandle) -> Self {
+    pub fn new(
+        smartcard_device_id: u32,
+        client_handle: ClientHandle,
+        cert_der: Vec<u8>,
+        key_der: Vec<u8>,
+        pin: String,
+    ) -> Self {
         Self {
             active_device_ids: vec![smartcard_device_id],
             client_handle,
             contexts: Contexts::new(),
+            uuid: Uuid::new_v4(),
+            cert_der,
+            key_der,
+            pin,
         }
     }
 
@@ -230,6 +246,38 @@ impl TeleportRdpdrBackend {
         Ok(())
     }
 
+    fn handle_connect(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        call: ConnectCall,
+    ) -> PduResult<()> {
+        let handle = self.contexts.connect(
+            call.common.context,
+            call.common.context.value,
+            self.uuid,
+            &self.cert_der,
+            &self.key_der,
+            self.pin.clone(),
+        )?;
+
+        self.write_rdpdr_dev_ctl_resp(
+            req,
+            Box::new(ConnectReturn::new(
+                ReturnCode::Success,
+                handle,
+                CardProtocol::SCARD_PROTOCOL_T1,
+            )),
+        )
+        .map_err(|_e| {
+            other_err!(
+                "TeleportRdpdrBackend::handle_connect",
+                "failed to send DeviceControlResponse to server",
+            )
+        })?;
+
+        Ok(())
+    }
+
     fn create_get_status_change_return(
         call: GetStatusChangeCall,
     ) -> rpce::Pdu<GetStatusChangeReturn> {
@@ -333,6 +381,7 @@ impl RdpdrBackend for TeleportRdpdrBackend {
             ScardCall::EstablishContextCall(call) => self.handle_establish_context(req, call),
             ScardCall::ListReadersCall(call) => self.handle_list_readers(req, call),
             ScardCall::GetStatusChangeCall(call) => self.handle_get_status_change(req, call),
+            ScardCall::ConnectCall(call) => self.handle_connect(req, call),
             ScardCall::Unsupported => Ok(()),
         }
     }
