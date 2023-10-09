@@ -36,6 +36,11 @@ const (
 	// releases on the release server
 	EnterpriseReleaseEndpoint = "teleport-ent"
 
+	// PackageNameOSS is the teleport package name for the OSS version.
+	PackageNameOSS = "teleport"
+	// PackageNameOSS is the teleport package name for the Enterprise version.
+	PackageNameEnt = "teleport-ent"
+
 	// ActionRead grants read access (get, list)
 	ActionRead = "read"
 
