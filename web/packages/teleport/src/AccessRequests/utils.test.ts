@@ -18,6 +18,7 @@ import { Duration } from 'date-fns';
 
 import {
   middleValues,
+  requestTtlMiddleValues,
   roundToNearestTenMinutes,
 } from 'teleport/AccessRequests/utils';
 
@@ -226,6 +227,133 @@ describe('generate middle times', () => {
       expect(result).toEqual(generateResponse(new Date(created), expected));
     }
   );
+});
+
+describe('generate request TTL middle times', () => {
+  const cases: {
+    name: string;
+    created: string;
+    sessionTTL: string;
+    expected: Array<{
+      days: number;
+      hours: number;
+      minutes: number;
+    }>;
+  }[] = [
+    {
+      name: 'max session TTL',
+      created: '2021-09-01T00:00:00.000Z',
+      sessionTTL: '2021-09-02T06:00:00.000Z',
+      expected: [
+        {
+          days: 0,
+          hours: 1,
+          minutes: 0,
+        },
+        {
+          days: 0,
+          hours: 2,
+          minutes: 0,
+        },
+        {
+          days: 0,
+          hours: 3,
+          minutes: 0,
+        },
+        {
+          days: 0,
+          hours: 4,
+          minutes: 0,
+        },
+        {
+          days: 0,
+          hours: 6,
+          minutes: 0,
+        },
+        {
+          days: 0,
+          hours: 8,
+          minutes: 0,
+        },
+        {
+          days: 0,
+          hours: 12,
+          minutes: 0,
+        },
+        {
+          days: 0,
+          hours: 18,
+          minutes: 0,
+        },
+        {
+          days: 1,
+          hours: 0,
+          minutes: 0,
+        },
+        {
+          days: 1,
+          hours: 6,
+          minutes: 0,
+        },
+      ],
+    },
+    {
+      name: 'shortest session TTL',
+      created: '2021-09-01T00:00:00.000Z',
+      sessionTTL: '2021-09-01T00:30:00.000Z',
+      expected: [
+        {
+          days: 0,
+          hours: 0,
+          minutes: 30,
+        },
+      ],
+    },
+    {
+      name: 'session TTL in middle',
+      created: '2021-09-01T00:00:00.000Z',
+      sessionTTL: '2021-09-01T08:30:00.000Z',
+      expected: [
+        {
+          days: 0,
+          hours: 1,
+          minutes: 0,
+        },
+        {
+          days: 0,
+          hours: 2,
+          minutes: 0,
+        },
+        {
+          days: 0,
+          hours: 3,
+          minutes: 0,
+        },
+        {
+          days: 0,
+          hours: 4,
+          minutes: 0,
+        },
+        {
+          days: 0,
+          hours: 6,
+          minutes: 0,
+        },
+        {
+          days: 0,
+          hours: 8,
+          minutes: 0,
+        },
+      ],
+    },
+  ];
+  test.each(cases)('$name', ({ sessionTTL, created, expected }) => {
+    const result = requestTtlMiddleValues(
+      new Date(created),
+      new Date(sessionTTL)
+    );
+    expect(result).toEqual(generateResponse(new Date(created), expected));
+  });
 });
 
 describe('round to nearest 10 minutes', () => {
