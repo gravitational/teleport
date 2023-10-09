@@ -5367,7 +5367,7 @@ message PluginSpecV1 {
     // Settings for OpenAI plugin
     PluginOpenAISettings openai = 3;
     // Settings for the Okta plugin
-    PluginOktaSettings okta = 4;
+    PluginOktaSettingsV2 okta = 4;
     // Settings for device trust jamf plugin
     PluginJamfSettings jamf = 5;
     // Settings for the PagerDuty plugin
@@ -5475,11 +5475,14 @@ message PluginJamfSettings {
 }
 
 // Defines settings for the Okta plugin.
-message PluginOktaSettings {
+message PluginOktaSettingsV2 {
   option (gogoproto.equal) = true;
 
   // OrgUrl is the Okta organization URL to use for API communication.
   string org_url = 1;
+
+  // Version is the version of the Okta settings encoded in this resource.
+  string version = 2;
 }
 
 // Defines a set of discord channel IDs

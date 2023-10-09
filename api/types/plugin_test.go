@@ -207,6 +207,7 @@ func TestPluginOktaValidation(t *testing.T) {
 		settings  *PluginSpecV1_Okta
 		creds     *PluginCredentialsV1
 		assertErr require.ErrorAssertionFunc
+		assert    func(*testing.T, *PluginOktaSettingsV2)
 	}{
 		{
 			name: "no settings",
@@ -222,7 +223,7 @@ func TestPluginOktaValidation(t *testing.T) {
 		{
 			name: "no org URL",
 			settings: &PluginSpecV1_Okta{
-				Okta: &PluginOktaSettings{},
+				Okta: &PluginOktaSettingsV2{},
 			},
 			creds: nil,
 			assertErr: func(t require.TestingT, err error, args ...any) {
@@ -233,7 +234,7 @@ func TestPluginOktaValidation(t *testing.T) {
 		{
 			name: "no credentials inner",
 			settings: &PluginSpecV1_Okta{
-				Okta: &PluginOktaSettings{
+				Okta: &PluginOktaSettingsV2{
 					OrgUrl: "https://test.okta.com",
 				},
 			},
@@ -246,7 +247,7 @@ func TestPluginOktaValidation(t *testing.T) {
 		{
 			name: "invalid credential type (oauth2)",
 			settings: &PluginSpecV1_Okta{
-				Okta: &PluginOktaSettings{
+				Okta: &PluginOktaSettingsV2{
 					OrgUrl: "https://test.okta.com",
 				},
 			},
@@ -261,7 +262,7 @@ func TestPluginOktaValidation(t *testing.T) {
 		{
 			name: "invalid credentials (static credentials)",
 			settings: &PluginSpecV1_Okta{
-				Okta: &PluginOktaSettings{
+				Okta: &PluginOktaSettingsV2{
 					OrgUrl: "https://test.okta.com",
 				},
 			},
@@ -280,7 +281,7 @@ func TestPluginOktaValidation(t *testing.T) {
 		{
 			name: "valid credentials (static credentials)",
 			settings: &PluginSpecV1_Okta{
-				Okta: &PluginOktaSettings{
+				Okta: &PluginOktaSettingsV2{
 					OrgUrl: "https://test.okta.com",
 				},
 			},
@@ -296,6 +297,26 @@ func TestPluginOktaValidation(t *testing.T) {
 			assertErr: func(t require.TestingT, err error, args ...any) {
 				require.NoError(t, err)
 			},
+		}, {
+			name: "version defaults to v1",
+			settings: &PluginSpecV1_Okta{
+				Okta: &PluginOktaSettingsV2{
+					OrgUrl: "https://test.okta.com",
+				},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: require.NoError,
+			assert: func(t *testing.T, settings *PluginOktaSettingsV2) {
+				require.Equal(t, V1, settings.Version)
+			},
 		},
 	}
 
@@ -305,6 +326,9 @@ func TestPluginOktaValidation(t *testing.T) {
 				Settings: tc.settings,
 			}, tc.creds)
 			tc.assertErr(t, plugin.CheckAndSetDefaults())
+			if tc.assert != nil {
+				tc.assert(t, plugin.Spec.GetOkta())
+			}
 		})
 	}
 }
