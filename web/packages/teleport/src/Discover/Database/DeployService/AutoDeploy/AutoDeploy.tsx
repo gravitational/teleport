@@ -326,7 +326,7 @@ const CreateAccessRole = ({
               href="https://console.aws.amazon.com/cloudshell/home"
               target="_blank"
             >
-              Amazon CloudShell
+              AWS CloudShell
             </Link>{' '}
             and copy/paste the following command:
           </Text>
