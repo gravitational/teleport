@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -106,8 +107,13 @@ func (b DiscordBot) CheckHealth(ctx context.Context) error {
 	return nil
 }
 
-// Broadcast posts request info to Discord.
-func (b DiscordBot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (common.SentMessages, error) {
+// AccessListReviewReminder will send a review reminder that an access list needs to be reviewed.
+func (b DiscordBot) AccessListReviewReminder(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+	return trace.NotImplemented("access list review reminder is not yet implemented")
+}
+
+// BroadcastAccessRequestMessage posts request info to Discord.
+func (b DiscordBot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (common.SentMessages, error) {
 	var data common.SentMessages
 	var errors []error
 

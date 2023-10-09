@@ -21,16 +21,20 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-co-op/gocron"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
@@ -42,6 +46,10 @@ const (
 	initTimeout = time.Second * 10
 	// handlerTimeout is used to bound the execution time of watcher event handler.
 	handlerTimeout = time.Second * 5
+	// accessListReviewCron is the cron definition for how often access list review reminders should be sent out.
+	accessListReviewCron = "0 * * * *" // At the top of every hour
+	// oneWeek is the number of hours in a week assuming 24 hours is one day.
+	oneWeek = 24 * time.Hour * 7
 )
 
 // BaseApp is responsible for handling all the access-request logic.
@@ -49,12 +57,16 @@ const (
 // It also handles signals and watches its thread.
 // To instantiate a new BaseApp, use NewApp()
 type BaseApp struct {
-	PluginName string
-	apiClient  teleport.Client
-	bot        MessagingBot
-	mainJob    lib.ServiceJob
-	pluginData *pd.CompareAndSwap[GenericPluginData]
-	Conf       PluginConfiguration
+	PluginName              string
+	apiClient               teleport.Client
+	accessLists             services.AccessListsGetter
+	bot                     MessagingBot
+	mainJob                 lib.ServiceJob
+	alMonitorJob            lib.ServiceJob
+	accessRequestPluginData *pd.CompareAndSwap[GenericPluginData]
+	accessListPluginData    *pd.CompareAndSwap[pd.AccessListNotificationData]
+	Conf                    PluginConfiguration
+	clock                   clockwork.Clock
 
 	*lib.Process
 }
@@ -66,6 +78,7 @@ func NewApp(conf PluginConfiguration, pluginName string) *BaseApp {
 		Conf:       conf,
 	}
 	app.mainJob = lib.NewServiceJob(app.run)
+	app.alMonitorJob = lib.NewServiceJob(app.accessListMonitorRun)
 	return &app
 }
 
@@ -111,6 +124,9 @@ func (a *BaseApp) initTeleport(ctx context.Context, conf PluginConfiguration) (c
 	}
 
 	a.apiClient = clt
+	if a.accessLists = teleport.AccessListClient(clt); a.accessLists == nil {
+		return "", "", trace.BadParameter("provided client has no access list client")
+	}
 	pong, err := a.checkTeleportVersion(ctx)
 	if err != nil {
 		return "", "", trace.Wrap(err)
@@ -172,6 +188,139 @@ func (a *BaseApp) onWatcherEvent(ctx context.Context, event types.Event) error {
 	}
 }
 
+// accessListMonitorRun will monitor access lists and post review reminders.
+func (a *BaseApp) accessListMonitorRun(ctx context.Context) error {
+	s := gocron.NewScheduler(time.UTC).Cron(accessListReviewCron)
+	log := logger.Get(ctx)
+
+	log.Info("Access list monitor is running")
+
+	job, err := s.Do(func() {
+		log.Info("Looking for Access List Review reminders")
+
+		var nextToken string
+		var err error
+		for {
+			var accessLists []*accesslist.AccessList
+			accessLists, nextToken, err = a.accessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+			if err != nil {
+				log.Errorf("error listing access lists: %v", err)
+				return
+			}
+
+			for _, accessList := range accessLists {
+				if err := a.notifyForAccessListReviews(ctx, accessList); err != nil {
+					log.WithError(err).Warn("Error notifying for access list reviews")
+				}
+			}
+
+			if nextToken == "" {
+				break
+			}
+		}
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Start the scheduler.
+	s.StartAsync()
+	a.alMonitorJob.SetReady(true)
+
+	select {
+	case <-ctx.Done():
+		s.Stop()
+	case <-job.Context().Done():
+		return trace.Wrap(job.Error())
+	}
+
+	log.Info("Access list monitor is finished")
+
+	return nil
+}
+
+// notifyForAccessListReviews will notify if access list review dates are getting close. At the moment, this
+// only supports notifying owners.
+func (a *BaseApp) notifyForAccessListReviews(ctx context.Context, accessList *accesslist.AccessList) error {
+	log := logger.Get(ctx)
+	allRecipients := make(map[string]Recipient, len(accessList.Spec.Owners))
+
+	now := a.clock.Now().Add(time.Hour)
+	// Find the current notification window.
+	notificationStart := accessList.Spec.Audit.NextAuditDate
+
+	// If the current time before the notification start time, skip notifications.
+	if now.Before(notificationStart) {
+		log.Infof("Access list %s is not ready for notifications, notifications start at %s", accessList.GetName(), notificationStart.Format(time.RFC3339))
+		return nil
+	}
+
+	// Get the owners from the bot as recipients.
+	for _, owner := range accessList.Spec.Owners {
+		recipient, err := a.bot.FetchRecipient(ctx, owner.Name)
+		if err != nil {
+			log.WithError(err).Debugf("error getting recipient %s", owner.Name)
+			continue
+		}
+		allRecipients[owner.Name] = *recipient
+	}
+
+	if len(allRecipients) == 0 {
+		return trace.NotFound("no recipients could be fetched")
+	}
+
+	// Try to create base notification data with a zero notification date. If these objects already
+	// exist, that's okay.
+	for _, recipient := range allRecipients {
+		owner := recipient.Name
+		_, err := a.accessListPluginData.Create(ctx, accessListOwnerKey(accessList.GetName(), owner), pd.AccessListNotificationData{
+			User:             owner,
+			LastNotification: time.Time{},
+		})
+
+		// Error is okay so long as it's already exists.
+		if err != nil && !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err, "error during create")
+		}
+	}
+
+	windowStart := notificationStart.Add(now.Sub(notificationStart) / oneWeek)
+
+	recipients := []Recipient{}
+	for _, recipient := range allRecipients {
+		_, err := a.accessListPluginData.Update(ctx, accessListOwnerKey(accessList.GetName(), recipient.Name), func(data pd.AccessListNotificationData) (pd.AccessListNotificationData, error) {
+			// If the notification window is before the last notification date, then this user doesn't need a notification.
+			if windowStart.Before(data.LastNotification) {
+				return pd.AccessListNotificationData{}, trace.AlreadyExists("user %s has already been notified", recipient.Name)
+			}
+			return pd.AccessListNotificationData{
+				User:             recipient.Name,
+				LastNotification: now,
+			}, nil
+		})
+		if trace.IsAlreadyExists(err) {
+			log.Infof("User %s does not need to be notified for access list review.", recipient.Name)
+			continue
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		recipients = append(recipients, recipient)
+	}
+
+	if len(recipients) == 0 {
+		log.Infof("Nobody to notify for access list %s", accessList.GetName())
+		return nil
+	}
+
+	return trace.Wrap(a.bot.AccessListReviewReminder(ctx, recipients, accessList))
+}
+
+func accessListOwnerKey(accessListName, owner string) string {
+	return fmt.Sprintf("%s/%s", accessListName, owner)
+}
+
 // run starts the event watcher job and blocks utils it stops
 func (a *BaseApp) run(ctx context.Context) error {
 	log := logger.Get(ctx)
@@ -191,11 +340,18 @@ func (a *BaseApp) run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	a.SpawnCriticalJob(watcherJob)
-	ok, err := watcherJob.WaitReady(ctx)
+	watcherOK, err := watcherJob.WaitReady(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	a.SpawnCriticalJob(a.alMonitorJob)
+	alMonitorOK, err := a.alMonitorJob.WaitReady(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ok := watcherOK && alMonitorOK
 	a.mainJob.SetReady(ok)
 	if ok {
 		log.Info("Plugin is ready")
@@ -204,8 +360,9 @@ func (a *BaseApp) run(ctx context.Context) error {
 	}
 
 	<-watcherJob.Done()
+	<-a.alMonitorJob.Done()
 
-	return trace.Wrap(watcherJob.Err())
+	return trace.NewAggregate(watcherJob.Err(), a.alMonitorJob.Err())
 }
 
 func (a *BaseApp) init(ctx context.Context) error {
@@ -223,13 +380,25 @@ func (a *BaseApp) init(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	a.pluginData = pd.NewCAS(
+	a.accessRequestPluginData = pd.NewCAS(
 		a.apiClient,
 		a.PluginName,
 		types.KindAccessRequest,
 		EncodePluginData,
 		DecodePluginData,
 	)
+
+	a.accessListPluginData = pd.NewCAS(
+		a.apiClient,
+		a.PluginName,
+		types.KindAccessList,
+		pd.EncodeAccessListNotificationData,
+		pd.DecodeAccessListNotificationData,
+	)
+
+	if a.clock == nil {
+		a.clock = clockwork.NewRealClock()
+	}
 
 	log.Debug("Starting API health check...")
 	if err = a.bot.CheckHealth(ctx); err != nil {
@@ -259,12 +428,12 @@ func (a *BaseApp) onPendingRequest(ctx context.Context, req types.AccessRequest)
 		SuggestedReviewers: req.GetSuggestedReviewers(),
 	}
 
-	_, err = a.pluginData.Create(ctx, reqID, GenericPluginData{AccessRequestData: reqData})
+	_, err = a.accessRequestPluginData.Create(ctx, reqID, GenericPluginData{AccessRequestData: reqData})
 	switch {
 	case err == nil:
 		// This is a new access-request, we have to broadcast it first.
 		if recipients := a.getMessageRecipients(ctx, req); len(recipients) > 0 {
-			if err := a.broadcastMessages(ctx, recipients, reqID, reqData); err != nil {
+			if err := a.broadcastAccessRequestMessages(ctx, recipients, reqID, reqData); err != nil {
 				return trace.Wrap(err)
 			}
 		} else {
@@ -320,10 +489,10 @@ func (a *BaseApp) onDeletedRequest(ctx context.Context, reqID string) error {
 	return a.updateMessages(ctx, reqID, pd.ResolvedExpired, "", nil)
 }
 
-// broadcastMessages sends nessages to each recipient for an access-request.
+// broadcastAccessRequestMessages sends nessages to each recipient for an access-request.
 // This method is only called when for new access-requests.
-func (a *BaseApp) broadcastMessages(ctx context.Context, recipients []Recipient, reqID string, reqData pd.AccessRequestData) error {
-	sentMessages, err := a.bot.Broadcast(ctx, recipients, reqID, reqData)
+func (a *BaseApp) broadcastAccessRequestMessages(ctx context.Context, recipients []Recipient, reqID string, reqData pd.AccessRequestData) error {
+	sentMessages, err := a.bot.BroadcastAccessRequestMessage(ctx, recipients, reqID, reqData)
 	if len(sentMessages) == 0 && err != nil {
 		return trace.Wrap(err)
 	}
@@ -337,7 +506,7 @@ func (a *BaseApp) broadcastMessages(ctx context.Context, recipients []Recipient,
 		logger.Get(ctx).WithError(err).Error("Failed to post one or more messages")
 	}
 
-	_, err = a.pluginData.Update(ctx, reqID, func(existing GenericPluginData) (GenericPluginData, error) {
+	_, err = a.accessRequestPluginData.Update(ctx, reqID, func(existing GenericPluginData) (GenericPluginData, error) {
 		existing.SentMessages = sentMessages
 		return existing, nil
 	})
@@ -350,7 +519,7 @@ func (a *BaseApp) broadcastMessages(ctx context.Context, recipients []Recipient,
 func (a *BaseApp) postReviewReplies(ctx context.Context, reqID string, reqReviews []types.AccessReview) error {
 	var oldCount int
 
-	pd, err := a.pluginData.Update(ctx, reqID, func(existing GenericPluginData) (GenericPluginData, error) {
+	pd, err := a.accessRequestPluginData.Update(ctx, reqID, func(existing GenericPluginData) (GenericPluginData, error) {
 		sentMessages := existing.SentMessages
 		if len(sentMessages) == 0 {
 			// wait for the plugin data to be updated with SentMessages
@@ -447,7 +616,7 @@ func (a *BaseApp) getMessageRecipients(ctx context.Context, req types.AccessRequ
 func (a *BaseApp) updateMessages(ctx context.Context, reqID string, tag pd.ResolutionTag, reason string, reviews []types.AccessReview) error {
 	log := logger.Get(ctx)
 
-	pluginData, err := a.pluginData.Update(ctx, reqID, func(existing GenericPluginData) (GenericPluginData, error) {
+	pluginData, err := a.accessRequestPluginData.Update(ctx, reqID, func(existing GenericPluginData) (GenericPluginData, error) {
 		if len(existing.SentMessages) == 0 {
 			return GenericPluginData{}, trace.NotFound("plugin data not found")
 		}

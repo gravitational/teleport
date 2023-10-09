@@ -2684,6 +2684,13 @@ func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.Plu
 			}
 		}
 		return a.authServer.UpdatePluginData(ctx, params)
+	case types.KindAccessList:
+		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessList, types.VerbRead) != nil {
+			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbUpdate); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return a.authServer.UpdatePluginData(ctx, params)
 	default:
 		return trace.BadParameter("unsupported resource kind %q", params.Kind)
 	}

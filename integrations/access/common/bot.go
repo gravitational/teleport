@@ -20,6 +20,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
@@ -29,8 +30,10 @@ import (
 type MessagingBot interface {
 	// CheckHealth checks if the bot can connect to its messaging service
 	CheckHealth(ctx context.Context) error
-	// Broadcast sends an access request message to a list of Recipient
-	Broadcast(ctx context.Context, recipients []Recipient, reqID string, reqData pd.AccessRequestData) (data SentMessages, err error)
+	// AccessListReviewReminder will send a review reminder that an access list needs to be reviewed.
+	AccessListReviewReminder(ctx context.Context, recipients []Recipient, accessList *accesslist.AccessList) error
+	// BroadcastAccessRequestMessage sends an access request message to a list of Recipient
+	BroadcastAccessRequestMessage(ctx context.Context, recipients []Recipient, reqID string, reqData pd.AccessRequestData) (data SentMessages, err error)
 	// PostReviewReply posts in thread an access request review. This does nothing if the messaging service
 	// does not support threaded replies.
 	PostReviewReply(ctx context.Context, channelID string, threadID string, review types.AccessReview) error

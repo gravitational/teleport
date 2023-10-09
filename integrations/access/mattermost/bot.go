@@ -29,6 +29,7 @@ import (
 	"github.com/mailgun/holster/v3/collections"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -228,8 +229,13 @@ func (b Bot) GetMe(ctx context.Context) (User, error) {
 	return userResult(resp)
 }
 
-// Broadcast posts request info to Mattermost.
-func (b Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (common.SentMessages, error) {
+// AccessListReviewReminder will send a review reminder that an access list needs to be reviewed.
+func (b Bot) AccessListReviewReminder(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+	return trace.NotImplemented("access list review reminder is not yet implemented")
+}
+
+// BroadcastAccessRequestMessage posts request info to Mattermost.
+func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (common.SentMessages, error) {
 	text, err := b.buildPostText(reqID, reqData)
 	if err != nil {
 		return nil, trace.Wrap(err)

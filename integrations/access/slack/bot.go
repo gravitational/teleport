@@ -27,6 +27,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
@@ -94,8 +95,13 @@ func (b Bot) CheckHealth(ctx context.Context) error {
 	return nil
 }
 
-// Broadcast posts request info to Slack with action buttons.
-func (b Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (common.SentMessages, error) {
+// AccessListReviewReminder will send a review reminder that an access list needs to be reviewed.
+func (b Bot) AccessListReviewReminder(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+	return trace.NotImplemented("access list review reminder is not yet implemented")
+}
+
+// BroadcastAccessRequestMessage posts request info to Slack with action buttons.
+func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (common.SentMessages, error) {
 	var data common.SentMessages
 	var errors []error
 
@@ -103,7 +109,7 @@ func (b Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID
 		var result ChatMsgResponse
 		_, err := b.client.NewRequest().
 			SetContext(ctx).
-			SetBody(Message{BaseMessage: BaseMessage{Channel: recipient.ID}, BlockItems: b.slackMsgSections(reqID, reqData)}).
+			SetBody(Message{BaseMessage: BaseMessage{Channel: recipient.ID}, BlockItems: b.slackAccessRequestMsgSections(reqID, reqData)}).
 			SetResult(&result).
 			Post("chat.postMessage")
 		if err != nil {
@@ -156,7 +162,7 @@ func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.Access
 			SetBody(Message{BaseMessage: BaseMessage{
 				Channel:   msg.ChannelID,
 				Timestamp: msg.MessageID,
-			}, BlockItems: b.slackMsgSections(reqID, reqData)}).
+			}, BlockItems: b.slackAccessRequestMsgSections(reqID, reqData)}).
 			Post("chat.update")
 		if err != nil {
 			switch err.Error() {
@@ -201,8 +207,8 @@ func (b Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Reci
 	}, nil
 }
 
-// msgSection builds a Slack message section (obeys markdown).
-func (b Bot) slackMsgSections(reqID string, reqData pd.AccessRequestData) []BlockItem {
+// slackAccessRequestMsgSection builds an access request Slack message section (obeys markdown).
+func (b Bot) slackAccessRequestMsgSections(reqID string, reqData pd.AccessRequestData) []BlockItem {
 	fields := common.MsgFields(reqID, reqData, b.clusterName, b.webProxyURL)
 	statusText := common.MsgStatusText(reqData.ResolutionTag, reqData.ResolutionReason)
 

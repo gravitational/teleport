@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/access/common"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
@@ -42,8 +43,13 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 	return trace.Wrap(b.client.CheckHealth(ctx))
 }
 
-// Broadcast creates a ServiceNow incident.
-func (b *Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data common.SentMessages, err error) {
+// AccessListReviewReminder will send a review reminder that an access list needs to be reviewed.
+func (b Bot) AccessListReviewReminder(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+	return trace.NotImplemented("access list review reminder is not yet implemented")
+}
+
+// BroadcastAccessRequestMessage creates a ServiceNow incident.
+func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data common.SentMessages, err error) {
 	serviceNowReqData := RequestData{
 		User:               reqData.User,
 		Roles:              reqData.Roles,

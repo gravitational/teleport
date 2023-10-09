@@ -17,9 +17,11 @@ package teleport
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // Client aggregates the parts of Teleport API client interface
@@ -33,4 +35,20 @@ type Client interface {
 	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
 	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
+// AccessListClient will return an access list client for the plugin manager.
+func AccessListClient(client Client) services.AccessListsGetter {
+	type accessListClient[T services.AccessListsGetter] interface {
+		AccessListClient() T
+	}
+
+	switch client := client.(type) {
+	case accessListClient[services.AccessLists]:
+		return client.AccessListClient()
+	case accessListClient[*accesslist.Client]:
+		return client.AccessListClient()
+	}
+
+	return nil
 }
