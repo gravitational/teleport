@@ -36,6 +36,7 @@ export function Table<T>({
   state,
   onSort,
   emptyText,
+  emptyButton,
   nextPage,
   prevPage,
   setSearchValue,
@@ -122,7 +123,13 @@ export function Table<T>({
       return <tbody>{rows}</tbody>;
     }
 
-    return <EmptyIndicator emptyText={emptyText} colSpan={columns.length} />;
+    return (
+      <EmptyIndicator
+        emptyText={emptyText}
+        emptyButton={emptyButton}
+        colSpan={columns.length}
+      />
+    );
   };
 
   if (serversideProps) {
@@ -330,9 +337,11 @@ function ServersideTable<T>({
 
 const EmptyIndicator = ({
   emptyText,
+  emptyButton,
   colSpan,
 }: {
   emptyText: string;
+  emptyButton: JSX.Element | undefined;
   colSpan: number;
 }) => (
   <tfoot>
@@ -341,19 +350,28 @@ const EmptyIndicator = ({
         <Flex
           m="4"
           gap={2}
-          flexWrap="nowrap"
+          flexDirection="column"
           alignItems="center"
           justifyContent="center"
         >
-          <Icons.Database color="text.main" />
-          <Text
-            textAlign="center"
-            typography="paragraph"
-            m="0"
-            color="text.main"
+          <Flex
+            gap={2}
+            flexWrap="nowrap"
+            alignItems="center"
+            justifyContent="center"
           >
-            {emptyText}
-          </Text>
+            <Icons.Database color="text.main" />
+            <Text
+              textAlign="center"
+              typography="paragraph"
+              m="0"
+              color="text.main"
+            >
+              {emptyText}
+            </Text>
+          </Flex>
+
+          {emptyButton}
         </Flex>
       </td>
     </tr>

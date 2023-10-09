@@ -32,7 +32,9 @@ import {
 
 import { ResourcesService } from 'teleterm/ui/services/resources';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
 import * as docTypes from 'teleterm/ui/services/workspacesService/documentsService/types';
+import * as tsh from 'teleterm/services/tshd/types';
 
 import DocumentCluster from './DocumentCluster';
 import { ResourcesContextProvider } from './resourcesContext';
@@ -55,13 +57,14 @@ const leafClusterDoc = {
   title: 'sample',
 };
 
-export const OnlineEmptyResourcesAndCanAddResources = () => {
+export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
   const state = createClusterServiceState();
   state.clusters.set(
     rootClusterDoc.clusterUri,
     makeRootCluster({
       uri: rootClusterDoc.clusterUri,
       loggedInUser: makeLoggedInUser({
+        userType: tsh.UserType.USER_TYPE_LOCAL,
         acl: {
           tokens: {
             create: true,
@@ -79,6 +82,7 @@ export const OnlineEmptyResourcesAndCanAddResources = () => {
   return renderState({
     state,
     doc: rootClusterDoc,
+    platform: 'darwin',
     fetchServersPromise: Promise.resolve({
       agentsList: [],
       totalCount: 0,
@@ -86,6 +90,41 @@ export const OnlineEmptyResourcesAndCanAddResources = () => {
     }),
   });
 };
+
+export const OnlineEmptyResourcesAndCanAddResourcesButCannotConnectComputer =
+  () => {
+    const state = createClusterServiceState();
+    state.clusters.set(
+      rootClusterDoc.clusterUri,
+      makeRootCluster({
+        uri: rootClusterDoc.clusterUri,
+        loggedInUser: makeLoggedInUser({
+          userType: tsh.UserType.USER_TYPE_SSO,
+          acl: {
+            tokens: {
+              create: true,
+              list: true,
+              edit: true,
+              pb_delete: true,
+              read: true,
+              use: true,
+            },
+          },
+        }),
+      })
+    );
+
+    return renderState({
+      state,
+      doc: rootClusterDoc,
+      platform: 'win32',
+      fetchServersPromise: Promise.resolve({
+        agentsList: [],
+        totalCount: 0,
+        startKey: '',
+      }),
+    });
+  };
 
 export const OnlineEmptyResourcesAndCannotAddResources = () => {
   const state = createClusterServiceState();
@@ -219,12 +258,15 @@ function renderState({
   state,
   doc,
   fetchServersPromise,
+  platform = 'darwin',
 }: {
   state: ClustersServiceState;
   doc: docTypes.DocumentCluster;
   fetchServersPromise?: ReturnType<ResourcesService['fetchServers']>;
+  platform?: NodeJS.Platform;
+  userType?: tsh.UserType;
 }) {
-  const appContext = new MockAppContext();
+  const appContext = new MockAppContext({ platform });
   appContext.clustersService.state = state;
 
   appContext.workspacesService.setState(draftState => {
@@ -244,11 +286,13 @@ function renderState({
   return (
     <AppContextProvider value={appContext}>
       <MockWorkspaceContextProvider>
-        <ResourcesContextProvider>
-          <Wrapper>
-            <DocumentCluster visible={true} doc={doc} />
-          </Wrapper>
-        </ResourcesContextProvider>
+        <ConnectMyComputerContextProvider rootClusterUri={doc.clusterUri}>
+          <ResourcesContextProvider>
+            <Wrapper>
+              <DocumentCluster visible={true} doc={doc} />
+            </Wrapper>
+          </ResourcesContextProvider>
+        </ConnectMyComputerContextProvider>
       </MockWorkspaceContextProvider>
     </AppContextProvider>
   );

@@ -19,15 +19,20 @@ import Table, {
   ClickableLabelCell,
   StyledTableWrapper,
 } from 'design/DataTable';
+import { ButtonPrimary } from 'design';
 import { Danger } from 'design/Alert';
+import * as icons from 'design/Icon';
 import { MenuLogin } from 'shared/components/MenuLogin';
 import { SearchPanel, SearchPagination } from 'shared/components/Search';
 
 import { makeServer } from 'teleterm/ui/services/clusters';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
 
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
 import { getEmptyTableStatus, getEmptyTableText } from '../getEmptyTableText';
+import { useClusterContext } from '../../clusterContext';
 
 import { useServers, State } from './useServers';
 
@@ -50,15 +55,44 @@ function ServerList(props: State) {
     onAgentLabelClick,
     updateSearch,
   } = props;
+  const { documentsService, rootClusterUri } = useWorkspaceContext();
+  const { clusterUri } = useClusterContext();
+  const loggedInUser = useWorkspaceLoggedInUser();
+  const { canUse: canUseConnectMyComputer } = useConnectMyComputerContext();
+
   const servers = fetchAttempt.data?.agentsList.map(makeServer) || [];
   const disabled = fetchAttempt.status === 'processing';
-  const loggedInUser = useWorkspaceLoggedInUser();
+  const isRootCluster = clusterUri === rootClusterUri;
+
   const emptyTableStatus = getEmptyTableStatus(
     fetchAttempt.status,
     agentFilter.search || agentFilter.query,
     loggedInUser?.acl?.tokens.create
   );
-  const emptyText = getEmptyTableText(emptyTableStatus, 'servers');
+  let emptyText = getEmptyTableText(emptyTableStatus, 'servers');
+  let emptyButton: JSX.Element;
+
+  if (
+    emptyTableStatus.status === 'no-resources' &&
+    emptyTableStatus.showEnrollingResourcesHint &&
+    isRootCluster &&
+    canUseConnectMyComputer
+  ) {
+    emptyText =
+      'No servers found. You can add them in the Teleport Web UI or by connecting your computer to the cluster.';
+    emptyButton = (
+      <ButtonPrimary
+        type="button"
+        gap={2}
+        onClick={() => {
+          documentsService.openConnectMyComputerDocument({ rootClusterUri });
+        }}
+      >
+        <icons.Laptop size={'medium'} />
+        Connect My Computer
+      </ButtonPrimary>
+    );
+  }
 
   return (
     <>
@@ -109,6 +143,7 @@ function ServerList(props: State) {
             ]}
             customSort={customSort}
             emptyText={emptyText}
+            emptyButton={emptyButton}
             data={servers}
           />
           <SearchPagination prevPage={prevPage} nextPage={nextPage} />
