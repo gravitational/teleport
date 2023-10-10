@@ -20,7 +20,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.TELEPORT_USAGE_IAM_ROLE_ARN }}
           aws-region: us-east-1
-      - uses: aws-actions/amazon-ecr-login@v1
+      - uses: aws-actions/amazon-ecr-login@v2
         with:
           registry-type: public
       # Build and publish container image on ECR.
