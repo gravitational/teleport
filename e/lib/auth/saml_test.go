@@ -81,7 +81,7 @@ func TestCreateSAMLUser(t *testing.T) {
 	require.Equal(t, "foo@example.com", user.GetName())
 
 	// Dry-run must not create a user.
-	_, err = a.GetUserWithContext(ctx, "foo@example.com", false)
+	_, err = a.GetUser(ctx, "foo@example.com", false)
 	require.Error(t, err)
 
 	// Create SAML user with 1 minute expiry.
@@ -94,7 +94,7 @@ func TestCreateSAMLUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Within that 1 minute period the user should still exist.
-	user, err = a.GetUserWithContext(ctx, "foo@example.com", false)
+	user, err = a.GetUser(ctx, "foo@example.com", false)
 	require.NoError(t, err)
 
 	// Create the same user again and validate that the user was
@@ -112,7 +112,7 @@ func TestCreateSAMLUser(t *testing.T) {
 
 	// Advance time 2 minutes, the user should be gone.
 	clock.Advance(2 * time.Minute)
-	_, err = a.GetUserWithContext(ctx, "foo@example.com", false)
+	_, err = a.GetUser(ctx, "foo@example.com", false)
 	require.Error(t, err)
 }
 
@@ -707,7 +707,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	require.Empty(t, diff, "diagnostic info does not match expected")
 
 	// make sure no users have been created.
-	users, err := a.GetUsersWithContext(ctx, false)
+	users, err := a.GetUsers(ctx, false)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(users))
 }
@@ -897,10 +897,10 @@ func TestSAMLAuthRequest(t *testing.T) {
 		},
 	}
 
-	user, err := auth.CreateUserWithContext(ctx, srv.Auth(), "dummy")
+	user, err := auth.CreateUser(ctx, srv.Auth(), "dummy")
 	require.NoError(t, err)
 
-	userReader, err := auth.CreateUserWithContext(ctx, srv.Auth(), "dummy-reader", readerRole)
+	userReader, err := auth.CreateUser(ctx, srv.Auth(), "dummy-reader", readerRole)
 	require.NoError(t, err)
 
 	clientReader, err := srv.NewClient(auth.TestUser(userReader.GetName()))
@@ -909,7 +909,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			user.SetRoles(tt.roles)
-			user, err = srv.Auth().UpsertUserWithContext(ctx, user)
+			user, err = srv.Auth().UpsertUser(ctx, user)
 			require.NoError(t, err)
 
 			client, err := srv.NewClient(auth.TestUser(user.GetName()))

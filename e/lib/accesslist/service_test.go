@@ -642,11 +642,11 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 	owner2.SetRoles(ownerRoles)
 	owner2.SetTraits(ownerTraits)
 
-	user, err = userSvc.CreateUserWithContext(ctx, user)
+	user, err = userSvc.CreateUser(ctx, user)
 	require.NoError(t, err)
-	owner, err = userSvc.CreateUserWithContext(ctx, owner)
+	owner, err = userSvc.CreateUser(ctx, owner)
 	require.NoError(t, err)
-	_, err = userSvc.CreateUserWithContext(ctx, owner2)
+	_, err = userSvc.CreateUser(ctx, owner2)
 	require.NoError(t, err)
 
 	storage, err := local.NewAccessListService(backend, clock)
@@ -675,21 +675,21 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 	require.NoError(t, err)
 	member1.SetRoles(memberRoles)
 	member1.SetTraits(memberTraits)
-	_, err = userSvc.CreateUserWithContext(ctx, member1)
+	_, err = userSvc.CreateUser(ctx, member1)
 	require.NoError(t, err)
 
 	member2, err := types.NewUser(member2)
 	require.NoError(t, err)
 	member2.SetRoles(memberRoles)
 	member2.SetTraits(memberTraits)
-	_, err = userSvc.CreateUserWithContext(ctx, member2)
+	_, err = userSvc.CreateUser(ctx, member2)
 	require.NoError(t, err)
 
 	member3, err := types.NewUser(member3)
 	require.NoError(t, err)
 	member3.SetRoles(memberRoles)
 	member3.SetTraits(memberTraits)
-	_, err = userSvc.CreateUserWithContext(ctx, member3)
+	_, err = userSvc.CreateUser(ctx, member3)
 	require.NoError(t, err)
 
 	return genUserContext(ctx, user.GetName(), []string{role.GetName()}, nil),

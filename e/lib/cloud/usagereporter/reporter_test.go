@@ -23,7 +23,7 @@ func TestUsageReport(t *testing.T) {
 		return []types.Server{&types.ServerV2{}}, nil
 	}
 
-	m.apiGetters.MockedGetUsers = func() ([]types.User, error) {
+	m.apiGetters.MockedGetUsers = func(ctx context.Context) ([]types.User, error) {
 		return []types.User{&types.UserV2{}}, nil
 	}
 
@@ -101,7 +101,7 @@ func TestErrors(t *testing.T) {
 		return nil, trace.BadParameter("unable to return servers")
 	}
 
-	m.apiGetters.MockedGetUsers = func() ([]types.User, error) {
+	m.apiGetters.MockedGetUsers = func(ctx context.Context) ([]types.User, error) {
 		return nil, trace.BadParameter("unable to return users")
 	}
 

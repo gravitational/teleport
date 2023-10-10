@@ -68,7 +68,7 @@ func (r *UsageReporter) reportUsage(ctx context.Context) {
 		r.Log.WithError(err).Error("Failed to report number of databases.")
 	}
 
-	users, err := r.ResourceGetter.GetUsersWithContext(ctx, false)
+	users, err := r.ResourceGetter.GetUsers(ctx, false)
 	if err != nil {
 		r.Log.WithError(err).Error("Failed to report number of users.")
 	}

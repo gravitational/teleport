@@ -43,7 +43,7 @@ type testUACAccessPoint struct {
 // GetUserOrLoginState will return the given user or the login state associated with the user.
 func (t *testUACAccessPoint) GetUserOrLoginState(ctx context.Context, username string) (services.UserState, error) {
 	if t.userState == nil {
-		return t.GetUser(username, false)
+		return t.GetUser(ctx, username, false)
 	}
 	return t.userState, nil
 }
@@ -95,7 +95,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	user.SetRoles([]string{role.GetName()})
 
 	require.NoError(t, ap.CreateRole(ctx, role))
-	user, err = ap.CreateUserWithContext(ctx, user)
+	user, err = ap.CreateUser(ctx, user)
 	require.NoError(t, err)
 
 	assignments, _, err := ap.ListOktaAssignments(ctx, 0, "")

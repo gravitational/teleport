@@ -104,7 +104,7 @@ type AuthServer interface {
 // UsersService represents the [local.IdentityService] methods used by
 // [Service].
 type UsersService interface {
-	GetUserWithContext(ctx context.Context, user string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
 }
 
 // RateLimiter is a subset of [limiter.RateLimiter].

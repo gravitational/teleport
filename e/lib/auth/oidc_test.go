@@ -137,7 +137,7 @@ func TestCreateOIDCUser(t *testing.T) {
 	require.Equal(t, "foo@example.com", user.GetName())
 
 	// Dry-run must not create a user.
-	_, err = s.a.GetUserWithContext(ctx, "foo@example.com", false)
+	_, err = s.a.GetUser(ctx, "foo@example.com", false)
 	require.Error(t, err)
 
 	// Create OIDC user with 1 minute expiry.
@@ -150,7 +150,7 @@ func TestCreateOIDCUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Within that 1 minute period the user should still exist.
-	user, err = s.a.GetUserWithContext(ctx, "foo@example.com", false)
+	user, err = s.a.GetUser(ctx, "foo@example.com", false)
 	require.NoError(t, err)
 
 	// Create the same user again and validate that the user was
@@ -168,7 +168,7 @@ func TestCreateOIDCUser(t *testing.T) {
 
 	// Advance time 2 minutes, the user should be gone.
 	s.c.Advance(2 * time.Minute)
-	_, err = s.a.GetUserWithContext(ctx, "foo@example.com", false)
+	_, err = s.a.GetUser(ctx, "foo@example.com", false)
 	require.Error(t, err)
 }
 
@@ -1318,10 +1318,10 @@ func TestOIDCAuthRequest(t *testing.T) {
 		},
 	}
 
-	user, err := auth.CreateUserWithContext(ctx, srv.Auth(), "dummy")
+	user, err := auth.CreateUser(ctx, srv.Auth(), "dummy")
 	require.NoError(t, err)
 
-	userReader, err := auth.CreateUserWithContext(ctx, srv.Auth(), "dummy-reader", readerRole)
+	userReader, err := auth.CreateUser(ctx, srv.Auth(), "dummy-reader", readerRole)
 	require.NoError(t, err)
 
 	clientReader, err := srv.NewClient(auth.TestUser(userReader.GetName()))
@@ -1330,7 +1330,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			user.SetRoles(tt.roles)
-			user, err = srv.Auth().UpsertUserWithContext(ctx, user)
+			user, err = srv.Auth().UpsertUser(ctx, user)
 			require.NoError(t, err)
 
 			client, err := srv.NewClient(auth.TestUser(user.GetName()))

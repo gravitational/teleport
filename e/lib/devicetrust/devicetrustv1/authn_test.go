@@ -597,7 +597,7 @@ func TestService_AuthenticateDevice_backfillOwner(t *testing.T) {
 	}
 
 	user, _ := types.NewUser(testenv.DefaultUser)
-	if _, err := identity.CreateUserWithContext(ctx, user); err != nil {
+	if _, err := identity.CreateUser(ctx, user); err != nil {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
 
@@ -670,7 +670,7 @@ func TestService_AuthenticateDevice_backfillOwner(t *testing.T) {
 				t.Errorf("AuthenticateDevice: Device owner not backfilled, got=%q, want %q", storedDev.Owner, wantOwner)
 			}
 
-			storedUser, err := identity.GetUserWithContext(ctx, wantOwner, false /* withSecrets */)
+			storedUser, err := identity.GetUser(ctx, wantOwner, false /* withSecrets */)
 			switch {
 			case err != nil:
 				t.Fatalf("GetUser failed: %v", err)

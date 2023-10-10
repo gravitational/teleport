@@ -320,7 +320,7 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 		User: types.UserRef{Name: "some-auth-user"},
 	})
 
-	_, err = s.testAuthServer.Auth().CreateUserWithContext(s.ctx, teleUser)
+	_, err = s.testAuthServer.Auth().CreateUser(s.ctx, teleUser)
 	require.NoError(t, err)
 
 	err = s.testAuthServer.Auth().UpsertPassword(user, []byte(pass))

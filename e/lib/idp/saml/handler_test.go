@@ -327,7 +327,7 @@ func setupUser(t *testing.T, svcs testServices, expireTime time.Time) authz.Loca
 	user, err := types.NewUser("user1")
 	user.AddRole(role.GetName())
 	require.NoError(t, err)
-	user, err = svcs.userService.CreateUserWithContext(ctx, user)
+	user, err = svcs.userService.CreateUser(ctx, user)
 	require.NoError(t, err)
 
 	identity := tlsca.Identity{

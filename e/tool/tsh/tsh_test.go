@@ -121,7 +121,7 @@ func TestNodeAccess(t *testing.T) {
 		user, err := types.NewUser(name)
 		user.SetRoles([]string{name})
 		require.NoError(t, err)
-		_, err = authServer.CreateUserWithContext(ctx, user)
+		_, err = authServer.CreateUser(ctx, user)
 		require.NoError(t, err)
 	}
 

@@ -63,8 +63,7 @@ var ignoreFieldsDuringUpsert = []cmp.Option{
 }
 
 type UsersService interface {
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error)
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 }
 
 type AuthServer interface {
@@ -331,7 +330,7 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 	}
 
 	// Get a list of all users, to compute eligibility for owners.
-	users, err := s.cachedUsers.GetUsersWithContext(ctx, false /* without secrets */)
+	users, err := s.cachedUsers.GetUsers(ctx, false /* without secrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -610,7 +609,7 @@ func (s *Service) ListAccessListMembers(ctx context.Context, req *accesslistv1.L
 	}
 
 	// Get a list of all users, to compute eligibility for members.
-	users, err := s.cachedUsers.GetUsersWithContext(ctx, false /* without secrets */)
+	users, err := s.cachedUsers.GetUsers(ctx, false /* without secrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
