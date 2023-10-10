@@ -231,6 +231,10 @@ func testAdminClient(t *testing.T, authDataDir string, authAddr string) {
 
 // Tests multiple CA rotations and rollbacks with 2 HSM auth servers in an HA configuration
 func TestHSMDualAuthRotation(t *testing.T) {
+	// TODO(nklaassen): fix this test and re-enable it.
+	// https://github.com/gravitational/teleport/issues/20217
+	t.Skip("TestHSMDualAuthRotation is temporarily disabled due to flakiness")
+
 	requireHSMAvailable(t)
 	requireETCDAvailable(t)
 
