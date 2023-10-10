@@ -105,8 +105,8 @@ export const Cards: Story = {
                 key={i}
                 resource={res}
                 pinned={false}
-                pinResource={(id: string) => console.log(id)}
-                selectResource={(id: string) => console.log(id)}
+                pinResource={() => {}}
+                selectResource={() => {}}
                 selected={false}
                 pinningNotSupported={false}
               />

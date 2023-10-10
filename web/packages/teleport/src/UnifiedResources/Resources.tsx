@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import styled from 'styled-components';
 import {
@@ -89,11 +89,12 @@ export function Resources() {
 
   const {
     updateClusterPreferences,
-    clusterPreferences,
     preferences,
     updatePreferences,
+    clusterPreferencesAttempt,
+    updateClusterPreferencesAttempt,
   } = useUser();
-  const pinnedResources = clusterPreferences.pinnedResources || [];
+  const pinnedResources = clusterPreferencesAttempt.data?.pinnedResources || [];
 
   const { params, setParams, replaceHistory, pathname, setSort, onLabelClick } =
     useUrlFiltering({
@@ -119,20 +120,17 @@ export function Resources() {
     };
   }, []);
 
-  const handlePinResource = useCallback(
-    (resourceId: string) => {
-      if (pinnedResources.includes(resourceId)) {
-        updateClusterPreferences({
-          pinnedResources: pinnedResources.filter(i => i !== resourceId),
-        });
-        return;
-      }
+  const handlePinResource = (resourceId: string) => {
+    if (pinnedResources.includes(resourceId)) {
       updateClusterPreferences({
-        pinnedResources: [...pinnedResources, resourceId],
+        pinnedResources: pinnedResources.filter(i => i !== resourceId),
       });
-    },
-    [pinnedResources]
-  );
+      return;
+    }
+    updateClusterPreferences({
+      pinnedResources: [...pinnedResources, resourceId],
+    });
+  };
 
   // if every selected resource is already pinned, the bulk action
   // should be to unpin those resources
@@ -152,22 +150,19 @@ export function Resources() {
     setSelectedResources([]);
   }, [clusterId]);
 
-  const handlePinSelected = useCallback(
-    (unpin: boolean) => {
-      let newPinned = [];
-      if (unpin) {
-        newPinned = pinnedResources.filter(i => !selectedResources.includes(i));
-      } else {
-        const combined = [...pinnedResources, ...selectedResources];
-        newPinned = Array.from(new Set(combined));
-      }
+  const handlePinSelected = (unpin: boolean) => {
+    let newPinned = [];
+    if (unpin) {
+      newPinned = pinnedResources.filter(i => !selectedResources.includes(i));
+    } else {
+      const combined = [...pinnedResources, ...selectedResources];
+      newPinned = Array.from(new Set(combined));
+    }
 
-      updateClusterPreferences({
-        pinnedResources: newPinned,
-      });
-    },
-    [pinnedResources, selectedResources]
-  );
+    updateClusterPreferences({
+      pinnedResources: newPinned,
+    });
+  };
 
   const {
     setTrigger: setScrollDetector,
@@ -206,7 +201,7 @@ export function Resources() {
       selectedResources.includes(resourceKey(resource))
     );
 
-  const toggleSelectAll = () => {
+  const toggleSelectVisible = () => {
     if (allSelected) {
       setSelectedResources([]);
       return;
@@ -271,6 +266,16 @@ export function Resources() {
           </ErrorBoxInternal>
         </ErrorBox>
       )}
+      {clusterPreferencesAttempt.status === 'error' && (
+        <ErrorBox>
+          <Danger>{clusterPreferencesAttempt.statusText}</Danger>
+        </ErrorBox>
+      )}
+      {updateClusterPreferencesAttempt.status === 'error' && (
+        <ErrorBox>
+          <Danger>{updateClusterPreferencesAttempt.statusText}</Danger>
+        </ErrorBox>
+      )}
       <FeatureHeader
         css={`
           border-bottom: none;
@@ -311,7 +316,7 @@ export function Resources() {
         setSort={setSort}
         pathname={pathname}
         replaceHistory={replaceHistory}
-        selectAll={toggleSelectAll}
+        selectVisible={toggleSelectVisible}
         selected={allSelected}
         shouldUnpin={shouldUnpin}
       />
@@ -319,33 +324,33 @@ export function Resources() {
         {tabs.map(tab => (
           <ResourceTab
             key={tab.value}
+            onClick={() => selectTab(tab.value)}
             title={tab.label}
-            value={tab.value}
             isSelected={
               params.pinnedOnly
                 ? tab.value === UnifiedTabPreference.Pinned
                 : tab.value === UnifiedTabPreference.All
             }
-            onChange={selectTab}
           />
         ))}
       </Flex>
       <ResourcesContainer className="ResourcesContainer" gap={2}>
-        {resources.map(res => {
-          const key = resourceKey(res);
-          return (
-            <ResourceCard
-              key={key}
-              resource={res}
-              onLabelClick={onLabelClick}
-              pinResource={handlePinResource}
-              pinned={pinnedResources.includes(key)}
-              pinningNotSupported={pinningNotSupported}
-              selected={selectedResources.includes(key)}
-              selectResource={handleSelectResources}
-            />
-          );
-        })}
+        {clusterPreferencesAttempt.status !== 'processing' &&
+          resources.map(res => {
+            const key = resourceKey(res);
+            return (
+              <ResourceCard
+                key={key}
+                resource={res}
+                onLabelClick={onLabelClick}
+                pinResource={handlePinResource}
+                pinned={pinnedResources.includes(key)}
+                pinningNotSupported={pinningNotSupported}
+                selected={selectedResources.includes(key)}
+                selectResource={handleSelectResources}
+              />
+            );
+          })}
         {/* Using index as key here is ok because these elements never change order */}
         {attempt.status === 'processing' &&
           loadingCardArray.map((_, i) => <LoadingCard delay="short" key={i} />)}

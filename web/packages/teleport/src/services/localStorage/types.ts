@@ -23,7 +23,6 @@ export const KeysEnum = {
   SHOW_ASSIST_POPUP: 'grv_teleport_show_assist',
   ASSIST_VIEW_MODE: 'grv_teleport_assist_view_mode',
   USER_PREFERENCES: 'grv_teleport_user_preferences',
-  USER_CLUSTER_PREFERENCES: 'grv_teleport_user_cluster_preferences',
   ONBOARD_SURVEY: 'grv_teleport_onboard_survey',
   RECOMMEND_FEATURE: 'grv_recommend_feature',
   UNIFIED_RESOURCES_DISABLED: 'grv_teleport_unified_resources_disabled',

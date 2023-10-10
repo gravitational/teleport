@@ -18,11 +18,19 @@ import React, {
   createContext,
   PropsWithChildren,
   useContext,
+  useCallback,
   useEffect,
   useState,
+  useRef,
 } from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
+import {
+  useAsync,
+  Attempt,
+  makeSuccessAttempt,
+  makeEmptyAttempt,
+} from 'shared/hooks/useAsync';
 
 import { Indicator } from 'design';
 
@@ -37,10 +45,7 @@ import {
   ThemePreference,
 } from 'teleport/services/userPreferences/types';
 
-import {
-  makeDefaultUserClusterPreferences,
-  makeDefaultUserPreferences,
-} from 'teleport/services/userPreferences/userPreferences';
+import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import type {
@@ -50,11 +55,12 @@ import type {
 
 export interface UserContextValue {
   preferences: UserPreferences;
-  clusterPreferences: UserClusterPreferences;
   updatePreferences: (preferences: Partial<UserPreferences>) => Promise<void>;
   updateClusterPreferences: (
     preferences: Partial<UserClusterPreferences>
-  ) => Promise<void>;
+  ) => void;
+  updateClusterPreferencesAttempt: Attempt<any>; // returns nothing
+  clusterPreferencesAttempt: Attempt<UserClusterPreferences>;
 }
 
 export const UserContext = createContext<UserContextValue>(null);
@@ -63,29 +69,53 @@ export function useUser(): UserContextValue {
   return useContext(UserContext);
 }
 
+const isAbortError = (err: any): boolean =>
+  (err instanceof DOMException && err.name === 'AbortError') ||
+  (err.cause && isAbortError(err.cause));
+
 export function UserContextProvider(props: PropsWithChildren<unknown>) {
   const { attempt, run } = useAttempt('processing');
   const { clusterId } = useStickyClusterId();
+  const clusterAbortRef = useRef(new AbortController());
+
+  const [
+    clusterPreferencesAttempt,
+    clusterPreferencesRun,
+    setClusterPreferencesAttempt,
+  ] = useAsync(
+    useCallback((clusterId: string) => {
+      try {
+        return service.getUserClusterPreferences(
+          clusterId,
+          clusterAbortRef.current.signal
+        );
+      } catch (error) {
+        if (isAbortError(error)) {
+          // ignore CanceledError
+          return;
+        }
+        // throw everything else
+        throw error;
+      }
+    }, [])
+  );
+
+  const [
+    updateClusterPreferencesAttempt,
+    updateClusterPreferencesRun,
+    setUpdateClusterPreferencesAttempt,
+  ] = useAsync(
+    useCallback(
+      (clusterId: string, nextPreferences: Partial<UserPreferences>) => {
+        return service.updateUserClusterPreferences(clusterId, nextPreferences);
+      },
+      []
+    )
+  );
 
   const [preferences, setPreferences] = useState<UserPreferences>(
     makeDefaultUserPreferences()
   );
-
-  const [clusterPreferences, setClusterPreferences] =
-    useState<UserClusterPreferences>(makeDefaultUserClusterPreferences());
-
-  async function loadClusterPreferences() {
-    const storedPreferences = storage.getUserClusterPreferences();
-    try {
-      const preferences = await service.getUserClusterPreferences(clusterId);
-      storage.setUserClusterPreferences(preferences);
-      setClusterPreferences(preferences);
-    } catch (error) {
-      if (storedPreferences) {
-        setClusterPreferences(storedPreferences);
-      }
-    }
-  }
 
   async function loadUserPreferences() {
     const storedPreferences = storage.getUserPreferences();
@@ -144,7 +174,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
         ...preferences.unifiedResourcePreferences,
         ...newPreferences.unifiedResourcePreferences,
       },
-      clusterPreferences,
+      clusterPreferences: clusterPreferencesAttempt.data,
     } as UserPreferences;
 
     setPreferences(nextPreferences);
@@ -157,13 +187,12 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     newPreferences: Partial<UserClusterPreferences>
   ) {
     const nextPreferences = {
-      ...clusterPreferences,
+      ...clusterPreferencesAttempt.data,
       ...newPreferences,
     };
 
-    setClusterPreferences(nextPreferences);
-    storage.setUserClusterPreferences(nextPreferences);
-    return service.updateUserClusterPreferences(clusterId, {
+    setClusterPreferencesAttempt(makeSuccessAttempt(nextPreferences));
+    updateClusterPreferencesRun(clusterId, {
       ...preferences,
       clusterPreferences: nextPreferences,
     });
@@ -188,8 +217,13 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
   }, []);
 
   useEffect(() => {
-    loadClusterPreferences();
-  }, [clusterId]);
+    clusterPreferencesRun(clusterId);
+    setUpdateClusterPreferencesAttempt(makeEmptyAttempt());
+    const current = clusterAbortRef.current;
+    return () => {
+      current.abort();
+    };
+  }, [clusterId, clusterPreferencesRun, setUpdateClusterPreferencesAttempt]);
 
   if (attempt.status === 'processing') {
     return (
@@ -204,8 +238,9 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
       value={{
         preferences,
         updatePreferences,
+        clusterPreferencesAttempt,
         updateClusterPreferences,
-        clusterPreferences,
+        updateClusterPreferencesAttempt,
       }}
     >
       {props.children}

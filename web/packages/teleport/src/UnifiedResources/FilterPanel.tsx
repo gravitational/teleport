@@ -47,7 +47,7 @@ export interface FilterPanelProps {
   params: ResourceFilter;
   setParams: (params: ResourceFilter) => void;
   setSort: (sort: SortType) => void;
-  selectAll: () => void;
+  selectVisible: () => void;
   selected: boolean;
   shouldUnpin: boolean;
 }
@@ -58,7 +58,7 @@ export function FilterPanel({
   params,
   setParams,
   setSort,
-  selectAll,
+  selectVisible,
   selected,
   shouldUnpin,
 }: FilterPanelProps) {
@@ -99,7 +99,7 @@ export function FilterPanel({
         <HoverTooltip
           tipContent={<>{shouldUnpin ? 'Deselect all' : 'Select all'}</>}
         >
-          <StyledCheckbox checked={selected} onChange={selectAll} />
+          <StyledCheckbox checked={selected} onChange={selectVisible} />
         </HoverTooltip>
         <FilterTypesMenu
           onChange={onKindsChanged}

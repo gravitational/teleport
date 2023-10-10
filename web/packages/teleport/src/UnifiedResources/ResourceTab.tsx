@@ -18,15 +18,9 @@ import React from 'react';
 import styled from 'styled-components';
 import { Box, Text } from 'design';
 
-import { UnifiedTabPreference } from 'teleport/services/userPreferences/types';
-
-export const ResourceTab = ({ title, value, isSelected, onChange }: Props) => {
-  const selectTab = () => {
-    onChange(value);
-  };
-
+export const ResourceTab = ({ title, isSelected, onClick }: Props) => {
   return (
-    <TabBox selected={isSelected} onClick={selectTab}>
+    <TabBox onClick={onClick} selected={isSelected}>
       <TabText selected={isSelected}>{title}</TabText>
     </TabBox>
   );
@@ -52,7 +46,6 @@ const TabText = styled(Text)`
 
 type Props = {
   title: string;
-  value: UnifiedTabPreference;
   isSelected: boolean;
-  onChange: (value: UnifiedTabPreference) => void;
+  onClick: () => void;
 };

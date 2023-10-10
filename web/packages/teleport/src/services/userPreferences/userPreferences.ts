@@ -39,9 +39,12 @@ export async function getUserPreferences() {
   return res;
 }
 
-export async function getUserClusterPreferences(clusterId: string) {
+export async function getUserClusterPreferences(
+  clusterId: string,
+  abortSignal: AbortSignal
+) {
   return await api
-    .get(cfg.getUserClusterPreferencesUrl(clusterId))
+    .get(cfg.getUserClusterPreferencesUrl(clusterId), abortSignal)
     .then(res => {
       // TODO (avatus) DELETE IN 15
       // this item is used to disabled the pinned resources button if they
