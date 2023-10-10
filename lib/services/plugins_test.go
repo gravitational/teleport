@@ -96,8 +96,8 @@ func TestMarshalPluginRoundTrip(t *testing.T) {
 			},
 			creds:   staticCreds,
 			marshal: marshalRawPlugin,
-			assert: func(t *testing.T, original, marshalled *types.PluginV1) {
-				s := marshalled.Spec.Settings.(*types.PluginSpecV1_Okta).Okta
+			assert: func(t *testing.T, original, marshaled *types.PluginV1) {
+				s := marshaled.Spec.Settings.(*types.PluginSpecV1_Okta).Okta
 				require.Equal(t, types.V1, s.Version)
 			},
 		},
