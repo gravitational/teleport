@@ -18,6 +18,8 @@ use crate::{piv, Message};
 use crate::{Encode, Payload};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use ironrdp_pdu::{other_err, PduResult};
+use ironrdp_rdpdr::pdu::efs::DeviceControlResponse;
 use ironrdp_rdpdr::pdu::esc::ndr::ScardContext;
 use iso7816::command::Command as CardCommand;
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -169,8 +171,8 @@ impl Client {
         // Fetch the pending SCARD_IOCTL_GETSTATUSCHANGEW response and add it to the responses.
         if let Some(dcr) = self
             .contexts
-            .get(req.context.value)?
-            .scard_cancel_response
+            .get_internal_mut_deprecated(req.context.value)?
+            .scard_cancel_response_deprecated
             .take()
         {
             responses.push(dcr);
@@ -255,8 +257,8 @@ impl Client {
             // be returned when we get an SCARD_IOCTL_CANCEL call for this Context.
             resp.set_return_code(ReturnCode::SCARD_E_CANCELLED);
             self.contexts
-                .get(context_value)?
-                .set_scard_cancel_response(DeviceControlResponseDeprecated::new(
+                .get_internal_mut_deprecated(context_value)?
+                .set_scard_cancel_response_deprecated(DeviceControlResponseDeprecated::new(
                     ioctl,
                     NTSTATUS::STATUS_SUCCESS,
                     Box::new(resp),
@@ -281,7 +283,9 @@ impl Client {
         let req = Connect_Call::decode(input)?;
         debug!("got {:?}", req);
 
-        let ctx = self.contexts.get(req.common.context.value)?;
+        let ctx = self
+            .contexts
+            .get_internal_mut_deprecated(req.common.context.value)?;
         let handle = ctx.connect(
             req.common.context,
             self.uuid,
@@ -308,7 +312,7 @@ impl Client {
         debug!("got {:?}", req);
 
         self.contexts
-            .get(req.handle.context.value)?
+            .get_internal_mut_deprecated(req.handle.context.value)?
             .disconnect(req.handle.value);
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
@@ -393,7 +397,7 @@ impl Client {
 
         let card = self
             .contexts
-            .get(req.handle.context.value)?
+            .get_internal_mut_deprecated(req.handle.context.value)?
             .get(req.handle.value)
             .ok_or_else(|| invalid_data_error("unknown handle ID"))?;
 
@@ -416,7 +420,9 @@ impl Client {
         let req = GetDeviceTypeId_Call::decode(input)?;
         debug!("got {:?}", req);
 
-        let _ctx = self.contexts.get(req.context.value)?;
+        let _ctx = self
+            .contexts
+            .get_internal_mut_deprecated(req.context.value)?;
 
         let resp = GetDeviceTypeId_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
@@ -437,7 +443,7 @@ impl Client {
 
         let val = self
             .contexts
-            .get(req.common.context.value)?
+            .get_internal_mut_deprecated(req.common.context.value)?
             .cache_read(&req.lookup_name);
 
         let resp = ReadCache_Return::new(val);
@@ -458,7 +464,7 @@ impl Client {
         debug!("got {:?}", req);
 
         self.contexts
-            .get(req.common.context.value)?
+            .get_internal_mut_deprecated(req.common.context.value)?
             .cache_write(req.lookup_name, req.common.data);
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
@@ -478,7 +484,9 @@ impl Client {
         let req = GetReaderIcon_Call::decode(input)?;
         debug!("got {:?}", req);
 
-        let _ctx = self.contexts.get(req.context.value)?;
+        let _ctx = self
+            .contexts
+            .get_internal_mut_deprecated(req.context.value)?;
 
         let resp = GetReaderIcon_Return::new(ReturnCode::SCARD_E_UNSUPPORTED_FEATURE);
         debug!("sending {:?}", resp);
@@ -718,8 +726,8 @@ impl Encode for ScardAccessStartedEvent_Call {
     }
 }
 
-const TIMEOUT_INFINITE: u32 = 0xffffffff;
-const TIMEOUT_IMMEDIATE: u32 = 0;
+pub const TIMEOUT_INFINITE: u32 = 0xffffffff;
+pub const TIMEOUT_IMMEDIATE: u32 = 0;
 
 #[derive(Debug, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
@@ -1360,10 +1368,17 @@ const STATIC_ATR: [u8; 11] = [
     0x3B, 0x95, 0x13, 0x81, 0x01, 0x80, 0x73, 0xFF, 0x01, 0x00, 0x0B,
 ];
 
-fn padded_atr(size: usize) -> (u32, Vec<u8>) {
+pub fn padded_atr_deprecated(size: usize) -> (u32, Vec<u8>) {
     let mut atr = STATIC_ATR.to_vec();
     atr.resize(size, 0);
     (STATIC_ATR.len() as u32, atr)
+}
+
+pub fn padded_atr<const SIZE: usize>() -> (u32, [u8; SIZE]) {
+    let mut atr = [0; SIZE];
+    let len = STATIC_ATR.len().min(SIZE);
+    atr[..len].copy_from_slice(&STATIC_ATR[..len]);
+    (len as u32, atr)
 }
 
 #[derive(Debug)]
@@ -1390,7 +1405,7 @@ impl GetStatusChange_Return {
                 // This is our actual emulated smartcard reader. We always advertise its state as
                 // "present".
                 "Teleport" => {
-                    let (atr_length, atr) = padded_atr(36);
+                    let (atr_length, atr) = padded_atr_deprecated(36);
                     reader_states.push(ReaderState_Common_Call {
                         current_state: state.common.current_state,
                         event_state: CardStateFlags::SCARD_STATE_CHANGED
@@ -1742,7 +1757,7 @@ struct Status_Return {
 
 impl Status_Return {
     fn new(return_code: ReturnCode, reader_names: Vec<String>, encoding: StringEncoding) -> Self {
-        let (atr_length, atr) = padded_atr(32);
+        let (atr_length, atr) = padded_atr_deprecated(32);
         Self {
             return_code,
             reader_names,
@@ -2358,10 +2373,24 @@ impl Contexts {
         ctx
     }
 
-    fn get(&mut self, id: u32) -> RdpResult<&mut ContextInternal> {
+    pub fn set_scard_cancel_response(
+        &mut self,
+        id: u32,
+        resp: DeviceControlResponse,
+    ) -> PduResult<()> {
+        self.get_internal_mut(id)?.set_scard_cancel_response(resp)
+    }
+
+    fn get_internal_mut_deprecated(&mut self, id: u32) -> RdpResult<&mut ContextInternal> {
         self.contexts
             .get_mut(&id)
             .ok_or_else(|| invalid_data_error(&format!("unknown context id: {}", id)))
+    }
+
+    fn get_internal_mut(&mut self, id: u32) -> PduResult<&mut ContextInternal> {
+        self.contexts
+            .get_mut(&id)
+            .ok_or_else(|| other_err!("Contexts::get", "unknown context id"))
     }
 
     fn release(&mut self, id: u32) {
@@ -2381,7 +2410,15 @@ struct ContextInternal {
     //
     // This value will be set during the handling of the SCARD_IOCTL_GETSTATUSCHANGEW, so that
     // it can be fetched and returned in response to a SCARD_IOCTL_CANCEL.
-    scard_cancel_response: Option<DeviceControlResponseDeprecated>,
+    scard_cancel_response: Option<DeviceControlResponse>,
+    // If we receive a SCARD_IOCTL_GETSTATUSCHANGEW with an infinite timeout, we need to
+    // return a GetStatusChange_Return (embedded in a DeviceControlResponse) with
+    // its return code set to SCARD_E_CANCELLED in the case that we receive a
+    // SCARD_IOCTL_CANCEL.
+    //
+    // This value will be set during the handling of the SCARD_IOCTL_GETSTATUSCHANGEW, so that
+    // it can be fetched and returned in response to a SCARD_IOCTL_CANCEL.
+    scard_cancel_response_deprecated: Option<DeviceControlResponseDeprecated>,
 }
 
 impl ContextInternal {
@@ -2391,17 +2428,29 @@ impl ContextInternal {
             handles: HashMap::new(),
             cache: HashMap::new(),
             scard_cancel_response: None,
+            scard_cancel_response_deprecated: None,
         }
     }
 
-    fn set_scard_cancel_response(
+    fn set_scard_cancel_response(&mut self, resp: DeviceControlResponse) -> PduResult<()> {
+        if self.scard_cancel_response.is_some() {
+            return Err(other_err!(
+                "ContextInternal::set_scard_cancel_response",
+                "SCARD_IOCTL_CANCEL already received",
+            ));
+        }
+        self.scard_cancel_response = Some(resp);
+        Ok(())
+    }
+
+    fn set_scard_cancel_response_deprecated(
         &mut self,
         response: DeviceControlResponseDeprecated,
     ) -> RdpResult<()> {
-        if self.scard_cancel_response.is_some() {
+        if self.scard_cancel_response_deprecated.is_some() {
             return Err(invalid_data_error("SCARD_IOCTL_CANCEL already received"));
         }
-        self.scard_cancel_response = Some(response);
+        self.scard_cancel_response_deprecated = Some(response);
         Ok(())
     }
 
@@ -2446,6 +2495,8 @@ fn debug_print_payload(payload: &mut Payload) {
     let buf = &payload.into_inner()[from..];
     info!("========== payload {:?}", &buf);
 }
+
+pub const TELEPORT_READER_NAME: &str = "Teleport";
 
 #[cfg(test)]
 mod tests {
@@ -2648,7 +2699,10 @@ mod tests {
     /// way of doing what test_scard_ioctl_connectw does to the Client's
     /// internal state.
     fn connect_scard(c: &mut Client, context_value: u32) {
-        let ctx = c.contexts.get(context_value).unwrap();
+        let ctx = c
+            .contexts
+            .get_internal_mut_deprecated(context_value)
+            .unwrap();
         ctx.connect(
             ContextDeprecated {
                 length: 4,
