@@ -365,7 +365,7 @@ func (s *ClusterConfigurationService) DeleteSessionRecordingConfig(ctx context.C
 
 // GetInstallers retrieves all the install scripts.
 func (s *ClusterConfigurationService) GetInstallers(ctx context.Context) ([]types.Installer, error) {
-	startKey := backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, "")
+	startKey := backend.ExactKey(clusterConfigPrefix, scriptsPrefix, installerPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -439,7 +439,7 @@ func (s *ClusterConfigurationService) DeleteInstaller(ctx context.Context, name 
 
 // DeleteAllInstallers removes all installer resources.
 func (s *ClusterConfigurationService) DeleteAllInstallers(ctx context.Context) error {
-	startKey := backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, "")
+	startKey := backend.ExactKey(clusterConfigPrefix, scriptsPrefix, installerPrefix)
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)

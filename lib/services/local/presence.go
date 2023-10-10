@@ -61,12 +61,16 @@ func NewPresenceService(b backend.Backend) *PresenceService {
 
 // DeleteAllNamespaces deletes all namespaces
 func (s *PresenceService) DeleteAllNamespaces() error {
-	return s.DeleteRange(context.TODO(), backend.Key(namespacesPrefix), backend.RangeEnd(backend.Key(namespacesPrefix)))
+	startKey := backend.ExactKey(namespacesPrefix)
+	endKey := backend.RangeEnd(startKey)
+	return s.DeleteRange(context.TODO(), startKey, endKey)
 }
 
 // GetNamespaces returns a list of namespaces
 func (s *PresenceService) GetNamespaces() ([]types.Namespace, error) {
-	result, err := s.GetRange(context.TODO(), backend.Key(namespacesPrefix), backend.RangeEnd(backend.Key(namespacesPrefix)), backend.NoLimit)
+	startKey := backend.ExactKey(namespacesPrefix)
+	endKey := backend.RangeEnd(startKey)
+	result, err := s.GetRange(context.TODO(), startKey, endKey, backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -228,7 +232,9 @@ func serverInfoKey(subkind, name string) []byte {
 }
 
 func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) ([]types.Server, error) {
-	result, err := s.GetRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
+	startKey := backend.ExactKey(prefix)
+	endKey := backend.RangeEnd(startKey)
+	result, err := s.GetRange(ctx, startKey, endKey, backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -266,7 +272,7 @@ func (s *PresenceService) upsertServer(ctx context.Context, prefix string, serve
 
 // DeleteAllNodes deletes all nodes in a namespace
 func (s *PresenceService) DeleteAllNodes(ctx context.Context, namespace string) error {
-	startKey := backend.Key(nodesPrefix, namespace)
+	startKey := backend.ExactKey(nodesPrefix, namespace)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
@@ -304,7 +310,7 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string) ([]typ
 	}
 
 	// Get all items in the bucket.
-	startKey := backend.Key(nodesPrefix, namespace)
+	startKey := backend.ExactKey(nodesPrefix, namespace)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -376,7 +382,7 @@ func (s *PresenceService) UpsertAuthServer(ctx context.Context, server types.Ser
 
 // DeleteAllAuthServers deletes all auth servers
 func (s *PresenceService) DeleteAllAuthServers() error {
-	startKey := backend.Key(authServersPrefix)
+	startKey := backend.ExactKey(authServersPrefix)
 	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 
@@ -399,7 +405,7 @@ func (s *PresenceService) GetProxies() ([]types.Server, error) {
 
 // DeleteAllProxies deletes all proxies
 func (s *PresenceService) DeleteAllProxies() error {
-	startKey := backend.Key(proxiesPrefix)
+	startKey := backend.ExactKey(proxiesPrefix)
 	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 
@@ -411,7 +417,7 @@ func (s *PresenceService) DeleteProxy(ctx context.Context, name string) error {
 
 // DeleteAllReverseTunnels deletes all reverse tunnels
 func (s *PresenceService) DeleteAllReverseTunnels() error {
-	startKey := backend.Key(reverseTunnelsPrefix)
+	startKey := backend.ExactKey(reverseTunnelsPrefix)
 	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 
@@ -445,7 +451,7 @@ func (s *PresenceService) GetReverseTunnel(name string, opts ...services.Marshal
 
 // GetReverseTunnels returns a list of registered servers
 func (s *PresenceService) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	startKey := backend.Key(reverseTunnelsPrefix)
+	startKey := backend.ExactKey(reverseTunnelsPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -508,7 +514,7 @@ func (s *PresenceService) GetTrustedCluster(ctx context.Context, name string) (t
 
 // GetTrustedClusters returns all TrustedClusters in the backend.
 func (s *PresenceService) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
-	startKey := backend.Key(trustedClustersPrefix)
+	startKey := backend.ExactKey(trustedClustersPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -585,7 +591,7 @@ func (s *PresenceService) GetTunnelConnections(clusterName string, opts ...servi
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cluster name")
 	}
-	startKey := backend.Key(tunnelConnectionsPrefix, clusterName)
+	startKey := backend.ExactKey(tunnelConnectionsPrefix, clusterName)
 	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -605,7 +611,7 @@ func (s *PresenceService) GetTunnelConnections(clusterName string, opts ...servi
 
 // GetAllTunnelConnections returns all tunnel connections
 func (s *PresenceService) GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
-	startKey := backend.Key(tunnelConnectionsPrefix)
+	startKey := backend.ExactKey(tunnelConnectionsPrefix)
 	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -650,7 +656,7 @@ func (s *PresenceService) DeleteTunnelConnections(clusterName string) error {
 
 // DeleteAllTunnelConnections deletes all tunnel connections
 func (s *PresenceService) DeleteAllTunnelConnections() error {
-	startKey := backend.Key(tunnelConnectionsPrefix)
+	startKey := backend.ExactKey(tunnelConnectionsPrefix)
 	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 	return trace.Wrap(err)
 }
@@ -710,7 +716,7 @@ func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.Remo
 
 // GetRemoteClusters returns a list of remote clusters
 func (s *PresenceService) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
-	startKey := backend.Key(remoteClustersPrefix)
+	startKey := backend.ExactKey(remoteClustersPrefix)
 	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -764,7 +770,7 @@ func (s *PresenceService) DeleteRemoteCluster(ctx context.Context, clusterName s
 
 // DeleteAllRemoteClusters deletes all remote clusters
 func (s *PresenceService) DeleteAllRemoteClusters() error {
-	startKey := backend.Key(remoteClustersPrefix)
+	startKey := backend.ExactKey(remoteClustersPrefix)
 	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 	return trace.Wrap(err)
 }
@@ -1041,9 +1047,9 @@ func (s *PresenceService) GetSemaphores(ctx context.Context, filter types.Semaph
 	} else {
 		var startKey []byte
 		if filter.SemaphoreKind != "" {
-			startKey = backend.Key(semaphoresPrefix, filter.SemaphoreKind)
+			startKey = backend.ExactKey(semaphoresPrefix, filter.SemaphoreKind)
 		} else {
-			startKey = backend.Key(semaphoresPrefix)
+			startKey = backend.ExactKey(semaphoresPrefix)
 		}
 		result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 		if err != nil {
@@ -1129,7 +1135,7 @@ func (s *PresenceService) DeleteKubernetesServer(ctx context.Context, hostID, na
 
 // DeleteAllKubernetesServers removes all registered kubernetes servers.
 func (s *PresenceService) DeleteAllKubernetesServers(ctx context.Context) error {
-	startKey := backend.Key(kubeServersPrefix)
+	startKey := backend.ExactKey(kubeServersPrefix)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
@@ -1140,7 +1146,7 @@ func (s *PresenceService) GetKubernetesServers(ctx context.Context) ([]types.Kub
 }
 
 func (s *PresenceService) getKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
-	startKey := backend.Key(kubeServersPrefix)
+	startKey := backend.ExactKey(kubeServersPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1165,7 +1171,7 @@ func (s *PresenceService) GetDatabaseServers(ctx context.Context, namespace stri
 	if namespace == "" {
 		return nil, trace.BadParameter("missing database server namespace")
 	}
-	startKey := backend.Key(dbServersPrefix, namespace)
+	startKey := backend.ExactKey(dbServersPrefix, namespace)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1243,7 +1249,7 @@ func (s *PresenceService) DeleteAllDatabaseServers(ctx context.Context, namespac
 	if namespace == "" {
 		return trace.BadParameter("missing database servers namespace")
 	}
-	startKey := backend.Key(dbServersPrefix, namespace)
+	startKey := backend.ExactKey(dbServersPrefix, namespace)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
@@ -1260,7 +1266,7 @@ func (s *PresenceService) GetApplicationServers(ctx context.Context, namespace s
 }
 
 func (s *PresenceService) getApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
-	startKey := backend.Key(appServersPrefix, namespace)
+	startKey := backend.ExactKey(appServersPrefix, namespace)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1326,7 +1332,7 @@ func (s *PresenceService) DeleteApplicationServer(ctx context.Context, namespace
 
 // DeleteAllApplicationServers removes all registered application servers.
 func (s *PresenceService) DeleteAllApplicationServers(ctx context.Context, namespace string) error {
-	startKey := backend.Key(appServersPrefix, namespace)
+	startKey := backend.ExactKey(appServersPrefix, namespace)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
@@ -1368,7 +1374,7 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 
 // GetWindowsDesktopServices returns all registered Windows desktop services.
 func (s *PresenceService) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
-	startKey := backend.Key(windowsDesktopServicesPrefix, "")
+	startKey := backend.ExactKey(windowsDesktopServicesPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1447,7 +1453,7 @@ func (s *PresenceService) DeleteWindowsDesktopService(ctx context.Context, name 
 
 // DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
 func (s *PresenceService) DeleteAllWindowsDesktopServices(ctx context.Context) error {
-	startKey := backend.Key(windowsDesktopServicesPrefix, "")
+	startKey := backend.ExactKey(windowsDesktopServicesPrefix)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
@@ -1479,7 +1485,7 @@ func (s *PresenceService) GetHostUserInteractionTime(ctx context.Context, name s
 
 // GetUserGroups returns all registered user groups.
 func (s *PresenceService) GetUserGroups(ctx context.Context, opts ...services.MarshalOption) ([]types.UserGroup, error) {
-	startKey := backend.Key(userGroupPrefix)
+	startKey := backend.ExactKey(userGroupPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1547,7 +1553,7 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	}
 
 	rangeStart := backend.Key(append(keyPrefix, req.StartKey)...)
-	rangeEnd := backend.RangeEnd(backend.Key(keyPrefix...))
+	rangeEnd := backend.RangeEnd(backend.ExactKey(keyPrefix...))
 	filter := services.MatchResourceFilter{
 		ResourceKind:        req.ResourceType,
 		Labels:              req.Labels,

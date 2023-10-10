@@ -36,7 +36,7 @@ jobs:
   test:
     name: Integration Tests (Non-root)
     needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }} && needs.changes.outputs.changed == 'true' }}
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-22.04-16core
 
     permissions:

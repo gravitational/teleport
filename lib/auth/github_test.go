@@ -123,7 +123,7 @@ func TestCreateGithubUser(t *testing.T) {
 	tt := setupGithubContext(ctx, t)
 
 	// Dry-run creation of Github user.
-	user, err := tt.a.createGithubUser(context.Background(), &CreateUserParams{
+	user, err := tt.a.createGithubUser(ctx, &CreateUserParams{
 		ConnectorName: "github",
 		Username:      "foo@example.com",
 		Roles:         []string{"admin"},
@@ -137,7 +137,7 @@ func TestCreateGithubUser(t *testing.T) {
 	require.Error(t, err)
 
 	// Create GitHub user with 1 minute expiry.
-	_, err = tt.a.createGithubUser(context.Background(), &CreateUserParams{
+	_, err = tt.a.createGithubUser(ctx, &CreateUserParams{
 		ConnectorName: "github",
 		Username:      "foo",
 		Roles:         []string{"admin"},

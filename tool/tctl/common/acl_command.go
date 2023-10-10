@@ -232,7 +232,7 @@ func displayAccessLists(format string, accessLists ...*accesslist.AccessList) er
 }
 
 func displayAccessListsText(accessLists ...*accesslist.AccessList) error {
-	table := asciitable.MakeTable([]string{"ID", "Audit Frequency", "Granted Roles", "Granted Traits"})
+	table := asciitable.MakeTable([]string{"ID", "Review Frequency", "Review Day Of Month", "Granted Roles", "Granted Traits"})
 	for _, accessList := range accessLists {
 		grantedRoles := strings.Join(accessList.GetGrants().Roles, ",")
 		traitStrings := make([]string, 0, len(accessList.GetGrants().Traits))
@@ -242,7 +242,8 @@ func displayAccessListsText(accessLists ...*accesslist.AccessList) error {
 		grantedTraits := strings.Join(traitStrings, ",")
 		table.AddRow([]string{
 			accessList.GetName(),
-			accessList.GetAuditFrequency().String(),
+			accessList.Spec.Audit.Recurrence.Frequency.String(),
+			accessList.Spec.Audit.Recurrence.DayOfMonth.String(),
 			grantedRoles,
 			grantedTraits,
 		})
