@@ -322,6 +322,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		AccessRequests:          id.ActiveRequests,
 		DisallowReissue:         id.DisallowReissue,
 		AllowedResourceIDs:      events.ResourceIDs(id.AllowedResourceIDs),
+		PrivateKeyPolicy:        string(id.PrivateKeyPolicy),
 	}
 }
 

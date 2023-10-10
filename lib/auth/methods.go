@@ -116,16 +116,7 @@ type SessionCreds struct {
 func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (services.UserState, error) {
 	username := req.Username
 
-	mfaDev, actualUsername, err := s.authenticateUser(ctx, req)
-	// err is handled below.
-	switch {
-	case username != "" && actualUsername != "" && username != actualUsername:
-		log.Warnf("Authenticate user mismatch (%q vs %q). Using request user (%q)", username, actualUsername, username)
-	case username == "" && actualUsername != "":
-		log.Debugf("User %q authenticated via passwordless", actualUsername)
-		username = actualUsername
-	}
-
+	// Log event after authentication (failure or success)
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
@@ -136,6 +127,30 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		},
 		Method: events.LoginMethodLocal,
 	}
+	defer func() {
+		if err := s.emitter.EmitAuditEvent(s.closeCtx, event); err != nil {
+			log.WithError(err).Warn("Failed to emit login event.")
+		}
+	}()
+
+	mfaDev, actualUsername, err := s.authenticateUser(ctx, req)
+	if err != nil {
+		event.Code = events.UserLocalLoginFailureCode
+		event.Status.Success = false
+		event.Status.Error = err.Error()
+		return nil, trace.Wrap(err)
+	}
+
+	switch {
+	case username != "" && actualUsername != "" && username != actualUsername:
+		log.Warnf("Authenticate user mismatch (%q vs %q). Using request user (%q)", username, actualUsername, username)
+	case username == "" && actualUsername != "":
+		log.Debugf("User %q authenticated via passwordless", actualUsername)
+		username = actualUsername
+	}
+
+	event.Code = events.UserLocalLoginCode
+	event.Status.Success = true
 	if mfaDev != nil {
 		m := mfaDeviceEventMetadata(mfaDev)
 		event.MFADevice = &m
@@ -149,36 +164,38 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		}
 	}
 
-	var userState services.UserState
+	user, err := s.GetUser(ctx, username, false /* withSecrets */)
 	if err != nil {
-		event.Code = events.UserLocalLoginFailureCode
-		event.Status.Success = false
-		event.Status.Error = err.Error()
-	} else {
-		event.Code = events.UserLocalLoginCode
-		event.Status.Success = true
-
-		var err error
-		user, err := s.GetUser(ctx, username, false /* withSecrets */)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// After we're sure that the user has been logged in successfully, we should call
-		// the registered login hooks. Login hooks can be registered by other processes to
-		// execute arbitrary operations after a successful login.
-		if err := s.CallLoginHooks(ctx, user); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		userState, err = s.GetUserOrLoginState(ctx, username)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		return nil, trace.Wrap(err)
 	}
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, event); err != nil {
-		log.WithError(err).Warn("Failed to emit login event.")
+
+	// After we're sure that the user has been logged in successfully, we should call
+	// the registered login hooks. Login hooks can be registered by other processes to
+	// execute arbitrary operations after a successful login.
+	if err := s.CallLoginHooks(ctx, user); err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	userState, err := s.GetUserOrLoginState(ctx, user.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Add required key policy to the event.
+	authPref, err := s.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusterName, err := s.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessInfo := services.AccessInfoFromUserState(user)
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	event.RequiredPrivateKeyPolicy = string(checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy()))
 
 	return userState, trace.Wrap(err)
 }
@@ -627,12 +644,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		return nil, trace.Wrap(err)
 	}
 
-	userState, err := s.GetUserOrLoginState(ctx, user.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	accessInfo := services.AccessInfoFromUserState(userState)
+	accessInfo := services.AccessInfoFromUserState(user)
 	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -663,12 +675,12 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 	}
 
 	certReq := certRequest{
-		user:                 userState,
+		user:                 user,
 		ttl:                  req.TTL,
 		publicKey:            req.PublicKey,
 		compatibility:        req.CompatibilityMode,
 		checker:              checker,
-		traits:               userState.GetTraits(),
+		traits:               user.GetTraits(),
 		routeToCluster:       req.RouteToCluster,
 		kubernetesCluster:    req.KubernetesCluster,
 		loginIP:              clientIP,

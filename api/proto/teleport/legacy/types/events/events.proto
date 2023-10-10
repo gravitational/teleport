@@ -87,6 +87,9 @@ message UserMetadata {
   // TrustedDevice contains information about the users' trusted device.
   // Requires a registered and enrolled device to be used during authentication.
   DeviceMetadata TrustedDevice = 8 [(gogoproto.jsontag) = "trusted_device,omitempty"];
+
+  // RequiredPrivateKeyPolicy is the private key policy enforced for this login.
+  string required_private_key_policy = 9;
 }
 
 // Server is a server metadata
@@ -3624,6 +3627,8 @@ message Identity {
   repeated string AzureIdentities = 24 [(gogoproto.jsontag) = "azure_identities,omitempty"];
   // GCPServiceAccounts is a list of allowed GCP service accounts user can assume.
   repeated string GCPServiceAccounts = 25 [(gogoproto.jsontag) = "gcp_service_accounts,omitempty"];
+  // PrivateKeyPolicy is the private key policy of the user's private key.
+  string private_key_policy = 26;
 }
 
 // RouteToApp contains parameters for application access certificate requests.
