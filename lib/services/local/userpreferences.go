@@ -45,6 +45,9 @@ func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
 			PreferredResources: []userpreferencesv1.Resource{},
 			MarketingParams:    &userpreferencesv1.MarketingParams{},
 		},
+		ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
+			PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{},
+		},
 	}
 }
 
@@ -78,19 +81,7 @@ func (u *UserPreferencesService) UpsertUserPreferences(ctx context.Context, user
 		return trace.Wrap(err)
 	}
 
-	preferences, err := u.getUserPreferences(ctx, username)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		preferences = DefaultUserPreferences()
-	}
-
-	if err := overwriteValues(preferences, prefs); err != nil {
-		return trace.Wrap(err)
-	}
-
-	item, err := createBackendItem(username, preferences)
+	item, err := createBackendItem(username, prefs)
 	if err != nil {
 		return trace.Wrap(err)
 	}

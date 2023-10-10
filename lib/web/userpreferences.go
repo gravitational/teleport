@@ -24,6 +24,7 @@ import (
 
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
 // AssistUserPreferencesResponse is the JSON response for the assist user preferences.
@@ -44,14 +45,56 @@ type OnboardUserPreferencesResponse struct {
 	MarketingParams    preferencesMarketingParams   `json:"marketingParams"`
 }
 
-// UserPreferencesResponse is the JSON response for the user preferences.
-type UserPreferencesResponse struct {
-	Assist  AssistUserPreferencesResponse  `json:"assist"`
-	Theme   userpreferencesv1.Theme        `json:"theme"`
-	Onboard OnboardUserPreferencesResponse `json:"onboard"`
+// ClusterUserPreferencesResponse is the JSON response for the user's cluster preferences.
+type ClusterUserPreferencesResponse struct {
+	PinnedResources []string `json:"pinnedResources"`
 }
 
-// getUserPreferences is a handler for GET /webapi/user/preferences
+// UserPreferencesResponse is the JSON response for the user preferences.
+type UserPreferencesResponse struct {
+	Assist             AssistUserPreferencesResponse  `json:"assist"`
+	Theme              userpreferencesv1.Theme        `json:"theme"`
+	Onboard            OnboardUserPreferencesResponse `json:"onboard"`
+	ClusterPreferences ClusterUserPreferencesResponse `json:"clusterPreferences,omitempty"`
+}
+
+func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	authClient, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := authClient.GetUserPreferences(r.Context(), &userpreferencesv1.GetUserPreferencesRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp.Preferences.ClusterPreferences, nil
+}
+
+// updateUserClusterPreferences is a handler for PUT /webapi/user/preferences.
+func (h *Handler) updateUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	req := UserPreferencesResponse{}
+
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authClient, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	preferences := makePreferenceRequest(req)
+
+	if err := authClient.UpsertUserPreferences(r.Context(), preferences); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
+}
+
+// getUserPreferences is a handler for GET /webapi/user/preferences.
 func (h *Handler) getUserPreferences(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
 	authClient, err := sctx.GetClient()
 	if err != nil {
@@ -66,20 +109,8 @@ func (h *Handler) getUserPreferences(_ http.ResponseWriter, r *http.Request, _ h
 	return userPreferencesResponse(resp.Preferences), nil
 }
 
-// updateUserPreferences is a handler for PUT /webapi/user/preferences.
-func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
-	req := UserPreferencesResponse{}
-
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authClient, err := sctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	preferences := &userpreferencesv1.UpsertUserPreferencesRequest{
+func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.UpsertUserPreferencesRequest {
+	return &userpreferencesv1.UpsertUserPreferencesRequest{
 		Preferences: &userpreferencesv1.UserPreferences{
 			Theme: req.Theme,
 			Assist: &userpreferencesv1.AssistUserPreferences{
@@ -95,9 +126,29 @@ func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, 
 					Intent:   req.Onboard.MarketingParams.Intent,
 				},
 			},
+			ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
+				PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
+					ResourceIds: req.ClusterPreferences.PinnedResources,
+				},
+			},
 		},
 	}
+}
 
+// updateUserPreferences is a handler for PUT /webapi/user/preferences.
+func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
+	var req UserPreferencesResponse
+
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authClient, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	preferences := makePreferenceRequest(req)
 	if err := authClient.UpsertUserPreferences(r.Context(), preferences); err != nil {
 		return nil, trace.Wrap(err)
 	}
