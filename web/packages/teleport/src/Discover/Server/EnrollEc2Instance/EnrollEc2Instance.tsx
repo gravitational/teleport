@@ -17,7 +17,8 @@
 import React, { useState } from 'react';
 import { Box, Text } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+import { Danger } from 'design/Alert';
 
 import { getErrMessage } from 'shared/utils/errorType';
 
@@ -41,6 +42,7 @@ import { ActionButtons, Header } from '../../Shared';
 import { CreateEc2IceDialog } from '../CreateEc2Ice/CreateEc2IceDialog';
 
 import { Ec2InstanceList } from './Ec2InstanceList';
+import { ConfigureIamPerms } from './ConfigureIamPerms';
 
 // CheckedEc2Instance is a type to describe that an EC2 instance
 // has been checked to determine whether or not it is already enrolled in the cluster.
@@ -98,6 +100,9 @@ export function EnrollEc2Instance() {
   }
 
   function refreshEc2Instances() {
+    setSelectedInstance(null);
+    setFetchEc2IceAttempt({ status: '' });
+
     // When refreshing, start the table back at page 1.
     fetchEc2Instances({ ...tableData, nextToken: '', items: [], currRegion });
   }
@@ -192,19 +197,25 @@ export function EnrollEc2Instance() {
       return fetchedEc2Ices;
     } catch (err) {
       const errMsg = getErrMessage(err);
-      setFetchEc2InstancesAttempt({ status: 'failed', statusText: errMsg });
+      setFetchEc2IceAttempt({ status: 'failed', statusText: errMsg });
       emitErrorEvent(`ec2 instance connect endpoint fetch error: ${errMsg}`);
     }
   }
 
   function clear() {
     setFetchEc2InstancesAttempt({ status: '' });
+    setFetchEc2IceAttempt({ status: '' });
     setTableData(emptyTableData);
     setSelectedInstance(null);
   }
 
   function handleOnProceed() {
     fetchEc2InstanceConnectEndpoints().then(ec2Ices => {
+      // No response means fetchEc2InstanceConnectEndpoints has failed.
+      if (!ec2Ices) {
+        return;
+      }
+
       const createCompleteEice = ec2Ices.find(
         e => e.state === 'create-complete'
       );
@@ -242,6 +253,27 @@ export function EnrollEc2Instance() {
     });
   }
 
+  let configureIamScript;
+  if (
+    isIamPermError(fetchEc2InstancesAttempt) ||
+    isIamPermError(fetchEc2IceAttempt)
+  ) {
+    configureIamScript = cfg.getEc2InstanceConnectIAMConfigureScriptUrl({
+      region: currRegion,
+
+      // arn's are formatted as `don-care-about-this-part/role-arn`.
+      // We are splitting by slash and getting the last element.
+      awsOidcRoleArn: (agentMeta as NodeMeta).integration.spec.roleArn
+        .split('/')
+        .pop(),
+    });
+  }
+
+  const errorMsg = getOneOfErrorMsg(
+    fetchEc2InstancesAttempt,
+    fetchEc2IceAttempt
+  );
+
   return (
     <Box maxWidth="1000px">
       <Header>Enroll an EC2 instance</Header>
@@ -254,7 +286,8 @@ export function EnrollEc2Instance() {
         clear={clear}
         disableSelector={fetchEc2InstancesAttempt.status === 'processing'}
       />
-      {currRegion && (
+      {!configureIamScript && errorMsg && <Danger>{errorMsg}</Danger>}
+      {!configureIamScript && fetchEc2InstancesAttempt.status === 'success' && (
         <Ec2InstanceList
           attempt={fetchEc2InstancesAttempt}
           items={tableData.items}
@@ -271,14 +304,38 @@ export function EnrollEc2Instance() {
           existingEice={existingEice}
         />
       )}
+      {configureIamScript && (
+        <Box mt={4}>
+          <ConfigureIamPerms scriptUrl={configureIamScript} />
+        </Box>
+      )}
       <ActionButtons
         onProceed={handleOnProceed}
         disableProceed={
           fetchEc2InstancesAttempt.status === 'processing' ||
           fetchEc2IceAttempt.status === 'processing' ||
-          !selectedInstance
+          !selectedInstance ||
+          configureIamScript
         }
       />
     </Box>
   );
+}
+
+function isIamPermError(attempt: Attempt) {
+  return (
+    attempt.status === 'failed' &&
+    attempt.statusText.includes('StatusCode: 403, RequestID:') &&
+    attempt.statusText.includes('operation error')
+  );
+}
+
+function getOneOfErrorMsg(attemptA: Attempt, attemptB: Attempt) {
+  if (attemptA.status === 'failed') {
+    return attemptA.statusText;
+  }
+  if (attemptB.status === 'failed') {
+    return attemptB.statusText;
+  }
+  return '';
 }

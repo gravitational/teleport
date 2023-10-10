@@ -14,17 +14,13 @@
  * limitations under the License.
  */
 
-import React, { useState, useEffect } from 'react';
-import { Box, Link, Text } from 'design';
+import React from 'react';
+import { Text } from 'design';
 import Table from 'design/DataTable';
 import { Danger } from 'design/Alert';
 import { FetchStatus } from 'design/DataTable/types';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import cfg from 'teleport/config';
-
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 import {
   RadioCell,
   DisableableCell as Cell,
@@ -32,7 +28,6 @@ import {
   labelMatcher,
 } from 'teleport/Discover/Shared';
 
-import { NodeMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import { Regions } from 'teleport/services/integrations';
 
 import { CheckedEc2Instance } from './EnrollEc2Instance';
@@ -54,37 +49,13 @@ export const Ec2InstanceList = ({
   fetchNextPage,
   onSelectInstance,
   selectedInstance,
-  region,
 }: Props) => {
-  const [scriptUrl, setScriptUrl] = useState('');
   const hasError = attempt.status === 'failed';
-  const { agentMeta } = useDiscover();
 
   const showConfigureScript =
     hasError &&
     attempt.statusText.includes('StatusCode: 403, RequestID:') &&
     attempt.statusText.includes('operation error');
-
-  // Regenerate the script any time the region changes.
-  useEffect(() => {
-    if (region) {
-      generateAutoConfigScript();
-    }
-  }, [region]);
-
-  function generateAutoConfigScript() {
-    const newScriptUrl = cfg.getEc2InstanceConnectIAMConfigureScriptUrl({
-      region: region,
-
-      // arn's are formatted as `don-care-about-this-part/role-arn`.
-      // We are splitting by slash and getting the last element.
-      awsOidcRoleArn: (agentMeta as NodeMeta).integration.spec.roleArn
-        .split('/')
-        .pop(),
-    });
-
-    setScriptUrl(newScriptUrl);
-  }
 
   const disabledText = `This EC2 instance is already enrolled and is a part of this cluster`;
 
@@ -166,34 +137,6 @@ export const Ec2InstanceList = ({
           fetching={{ onFetchMore: fetchNextPage, fetchStatus }}
           isSearchable
         />
-      )}
-      {showConfigureScript && (
-        <Box mt={4}>
-          <CommandBox
-            header={
-              <>
-                <Text bold>Configure your AWS IAM permissions</Text>
-                <Text typography="subtitle1" mb={3}>
-                  We were unable to list your EC2 instances. Run the command
-                  below on your{' '}
-                  <Link
-                    href="https://console.aws.amazon.com/cloudshell/home"
-                    target="_blank"
-                  >
-                    AWS CloudShell
-                  </Link>{' '}
-                  to configure your IAM permissions. Then press the refresh
-                  button above.
-                </Text>
-              </>
-            }
-            hasTtl={false}
-          >
-            <TextSelectCopyMulti
-              lines={[{ text: `bash -c "$(curl '${scriptUrl}')"` }]}
-            />
-          </CommandBox>
-        </Box>
       )}
     </>
   );

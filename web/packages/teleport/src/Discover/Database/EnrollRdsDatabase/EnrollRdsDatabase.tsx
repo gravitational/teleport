@@ -93,6 +93,8 @@ export function EnrollRdsDatabase() {
   }
 
   function refreshDatabaseList() {
+    setSelectedDb(null);
+
     // When refreshing, start the table back at page 1.
     fetchDatabases({ ...tableData, startKey: '', items: [] });
   }
