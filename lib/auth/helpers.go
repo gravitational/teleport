@@ -430,11 +430,12 @@ func (a *TestAuthServer) Close() error {
 // plain text format, signs it using User Certificate Authority signing key and returns the
 // resulting certificate.
 func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, error) {
-	user, err := a.AuthServer.GetUser(username, false)
+	ctx := context.TODO()
+	user, err := a.AuthServer.GetUser(ctx, username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userState, err := a.AuthServer.GetUserOrLoginState(context.Background(), user.GetName())
+	userState, err := a.AuthServer.GetUserOrLoginState(ctx, user.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -475,6 +476,7 @@ func PrivateKeyToPublicKeyTLS(privateKey []byte) (tlsPublicKey []byte, err error
 // generateCertificate generates certificate for identity,
 // returns private public key pair
 func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []byte, error) {
+	ctx := context.TODO()
 	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -492,11 +494,11 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 
 	switch id := identity.I.(type) {
 	case authz.LocalUser:
-		user, err := authServer.GetUser(id.Username, false)
+		user, err := authServer.GetUser(ctx, id.Username, false)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		userState, err := authServer.GetUserOrLoginState(context.Background(), user.GetName())
+		userState, err := authServer.GetUserOrLoginState(ctx, user.GetName())
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -526,7 +528,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		}
 		return certs.TLS, priv, nil
 	case authz.BuiltinRole:
-		certs, err := authServer.GenerateHostCerts(context.Background(),
+		certs, err := authServer.GenerateHostCerts(ctx,
 			&proto.HostCertsRequest{
 				HostID:       id.Username,
 				NodeName:     id.Username,
@@ -540,7 +542,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		}
 		return certs.TLS, priv, nil
 	case authz.RemoteBuiltinRole:
-		certs, err := authServer.GenerateHostCerts(context.Background(),
+		certs, err := authServer.GenerateHostCerts(ctx,
 			&proto.HostCertsRequest{
 				HostID:       id.Username,
 				NodeName:     id.Username,
@@ -1077,7 +1079,7 @@ func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Iden
 // used to pass different clients in tests
 type clt interface {
 	UpsertRole(context.Context, types.Role) error
-	UpsertUser(types.User) error
+	UpsertUser(context.Context, types.User) (types.User, error)
 }
 
 // CreateRole creates a role without assigning any users. Used in tests.
@@ -1113,7 +1115,7 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (ty
 		return nil, trace.Wrap(err)
 	}
 	user.AddRole(baseRole.GetName())
-	err = clt.UpsertUser(user)
+	_, err = clt.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1152,7 +1154,7 @@ func CreateAccessPluginUser(ctx context.Context, clt clt, username string) (type
 		return nil, trace.Wrap(err)
 	}
 	user.AddRole(role.GetName())
-	if err := clt.UpsertUser(user); err != nil {
+	if _, err := clt.UpsertUser(ctx, user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return user, nil
@@ -1161,29 +1163,26 @@ func CreateAccessPluginUser(ctx context.Context, clt clt, username string) (type
 // CreateUserWithContext creates user and role and assigns role to a user, used in tests
 // TODO(tross) remove this once oss and e are converted to using the new signature.
 func CreateUserWithContext(ctx context.Context, clt clt, username string, roles ...types.Role) (types.User, error) {
-	return CreateUser(clt, username, roles...)
+	return CreateUser(ctx, clt, username, roles...)
 }
 
 // CreateUser creates user and role and assigns role to a user, used in tests
-func CreateUser(clt clt, username string, roles ...types.Role) (types.User, error) {
+func CreateUser(ctx context.Context, clt clt, username string, roles ...types.Role) (types.User, error) {
 	user, err := types.NewUser(username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	for _, role := range roles {
-		err = clt.UpsertRole(context.TODO(), role)
+		err = clt.UpsertRole(ctx, role)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		user.AddRole(role.GetName())
 	}
 
-	err = clt.UpsertUser(user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return user, nil
+	created, err := clt.UpsertUser(ctx, user)
+	return created, trace.Wrap(err)
 }
 
 // CreateUserAndRole creates user and role and assigns role to a user, used in tests
@@ -1209,11 +1208,11 @@ func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRu
 	}
 
 	user.AddRole(role.GetName())
-	err = clt.UpsertUser(user)
+	created, err := clt.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return user, role, nil
+	return created, role, nil
 }
 
 // CreateUserAndRoleWithoutRoles creates user and role, but does not assign user to a role, used in tests
@@ -1235,12 +1234,12 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	}
 
 	user.AddRole(role.GetName())
-	err = clt.UpsertUser(user)
+	created, err := clt.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return user, role, nil
+	return created, role, nil
 }
 
 // noopEmbedder is a no op implementation of the Embedder interface.

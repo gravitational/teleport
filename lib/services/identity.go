@@ -37,7 +37,7 @@ import (
 // UserGetter is responsible for getting users
 type UserGetter interface {
 	// GetUser returns a user by name
-	GetUser(user string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
 	// GetUserWithContext returns a user by name.
 	// TODO(tross) remove this once oss and e are converted to using the new signature.
 	GetUserWithContext(ctx context.Context, user string, withSecrets bool) (types.User, error)
@@ -47,7 +47,7 @@ type UserGetter interface {
 type UsersService interface {
 	UserGetter
 	// UpdateUser updates an existing user.
-	UpdateUser(ctx context.Context, user types.User) error
+	UpdateUser(ctx context.Context, user types.User) (types.User, error)
 	// UpdateUserWithContext updates an existing user.
 	// TODO(tross) remove this once oss and e are converted to using the new signature.
 	UpdateUserWithContext(ctx context.Context, user types.User) (types.User, error)
@@ -57,7 +57,7 @@ type UsersService interface {
 	// Returns the storage user.
 	UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error)
 	// UpsertUser updates parameters about user
-	UpsertUser(user types.User) error
+	UpsertUser(ctx context.Context, user types.User) (types.User, error)
 	// UpsertUser updates parameters about user.
 	// TODO(tross) remove this once oss and e are converted to using the new signature.
 	UpsertUserWithContext(ctx context.Context, user types.User) (types.User, error)
@@ -67,12 +67,12 @@ type UsersService interface {
 	// DeleteUser deletes a user with all the keys from the backend
 	DeleteUser(ctx context.Context, user string) error
 	// GetUsers returns a list of users registered with the local auth server
-	GetUsers(withSecrets bool) ([]types.User, error)
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// GetUsersWithContext returns a list of users registered with the local auth server.
 	// TODO(tross) remove this once oss and e are converted to using the new signature.
 	GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// DeleteAllUsers deletes all users
-	DeleteAllUsers() error
+	DeleteAllUsers(ctx context.Context) error
 	// DeleteAllUsersWithContext deletes all users.
 	// TODO(tross) remove this once oss and e are converted to using the new signature.
 	DeleteAllUsersWithContext(ctx context.Context) error
@@ -81,7 +81,7 @@ type UsersService interface {
 // Identity is responsible for managing user entries and external identities
 type Identity interface {
 	// CreateUser creates user, only if the user entry does not exist
-	CreateUser(user types.User) error
+	CreateUser(ctx context.Context, user types.User) (types.User, error)
 	// CreateUserWithContext creates user, only if the user entry does not exist
 	// TODO(tross) remove this once oss and e are converted to using the new signature.
 	CreateUserWithContext(ctx context.Context, user types.User) (types.User, error)

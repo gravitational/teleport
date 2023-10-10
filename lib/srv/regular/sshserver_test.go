@@ -2590,7 +2590,7 @@ func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string,
 		return nil, trace.Wrap(err)
 	}
 	user.AddRole(role.GetName())
-	err = auth.UpsertUser(user)
+	user, err = auth.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

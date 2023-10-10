@@ -1591,10 +1591,12 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 				roles := user.GetRoles()
 				t.Cleanup(func() {
 					user.SetRoles(roles)
-					require.NoError(t, tt.auth.UpsertUser(user))
+					_, err = tt.auth.UpsertUser(ctx, user)
+					require.NoError(t, err)
 				})
 				user.SetRoles(tt.roles)
-				require.NoError(t, tt.auth.UpsertUser(user))
+				user, err = tt.auth.UpsertUser(ctx, user)
+				require.NoError(t, err)
 			}
 
 			err = Run(ctx, []string{
