@@ -222,7 +222,7 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgents(ctx context.Conte
 	}
 
 	if !utils.MeetsVersion(updater.TeleportClusterVersion, minServerVersion) {
-		updater.Log.Debugf("Server does not meet the minimum required version for agents to be updated: %v.", minServerVersion)
+		updater.Log.Debugf("Skipping update. %v agents will not be compatible with a %v cluster.", stableVersion, updater.TeleportClusterVersion)
 		return nil
 	}
 
