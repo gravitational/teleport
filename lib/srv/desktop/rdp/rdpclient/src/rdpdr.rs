@@ -34,7 +34,7 @@ use consts::{
     GENERAL_CAPABILITY_VERSION_02, I64_SIZE, I8_SIZE, NTSTATUS, SCARD_DEVICE_ID,
     SMARTCARD_CAPABILITY_VERSION_01, TDP_FALSE, U32_SIZE, U8_SIZE, VERSION_MAJOR, VERSION_MINOR,
 };
-use ironrdp_pdu::{other_err, PduResult};
+use ironrdp_pdu::{custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::esc::{
     rpce, CardProtocol, CardStateFlags, ConnectCall, ConnectReturn, EstablishContextCall,
     EstablishContextReturn, GetStatusChangeCall, GetStatusChangeReturn, HCardAndDispositionCall,
@@ -67,7 +67,6 @@ use tdp::{
     SharedDirectoryReadRequest, SharedDirectoryReadResponse, SharedDirectoryWriteRequest,
     SharedDirectoryWriteResponse, TdpErrCode,
 };
-use tokio::sync::mpsc::error::SendError;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -78,10 +77,10 @@ pub struct TeleportRdpdrBackend {
     active_device_ids: Vec<u32>,
     /// The client handle for this backend, used to send messages to the RDP server.
     client_handle: ClientHandle,
-    // contexts holds all the active contexts for the server, established using
-    // SCARD_IOCTL_ESTABLISHCONTEXT. Some IOCTLs are context-specific and pass it as argument.
-    //
-    // contexts also holds a cache and connected smartcard handles for each context.
+    /// contexts holds all the active contexts for the server, established using
+    /// SCARD_IOCTL_ESTABLISHCONTEXT. Some IOCTLs are context-specific and pass it as argument.
+    ///
+    /// contexts also holds a cache and connected smartcard handles for each context.
     contexts: Contexts,
     uuid: Uuid,
     cert_der: Vec<u8>,
@@ -110,9 +109,9 @@ impl TeleportRdpdrBackend {
 
     fn get_scard_device_id(&self) -> PduResult<u32> {
         if self.active_device_ids.is_empty() {
-            return Err(other_err!(
+            return Err(custom_err!(
                 "TeleportRdpdrBackend::get_scard_device_id",
-                "no active devices",
+                TeleportRdpdrBackendError("no active devices".to_string())
             ));
         }
         Ok(self.active_device_ids[0])
@@ -123,22 +122,21 @@ impl TeleportRdpdrBackend {
         req: DeviceControlRequest<ScardIoCtlCode>,
         _call: ScardAccessStartedEventCall,
     ) -> PduResult<()> {
-        if req.header.device_id != self.get_scard_device_id()? {
-            return Err(other_err!(
+        let scard_device_id = self.get_scard_device_id()?;
+        if req.header.device_id != scard_device_id {
+            return Err(custom_err!(
                 "TeleportRdpdrBackend::handle_scard_access_started_event_call",
-                "got ScardAccessStartedEventCall for unknown device_id",
+                TeleportRdpdrBackendError(
+                    format!(
+                        "got ScardAccessStartedEventCall for unknown device_id [{}], expected [{}]",
+                        req.header.device_id, scard_device_id
+                    )
+                    .to_string()
+                ),
             ));
         }
 
         self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
-            .map_err(|_e| {
-                other_err!(
-                    "TeleportRdpdrBackend::handle_access_started",
-                    "failed to send DeviceControlResponse to server",
-                )
-            })?;
-
-        Ok(())
     }
 
     fn handle_establish_context(
@@ -152,14 +150,6 @@ impl TeleportRdpdrBackend {
             req,
             Box::new(EstablishContextReturn::new(ReturnCode::Success, ctx)),
         )
-        .map_err(|_e| {
-            other_err!(
-                "TeleportRdpdrBackend::handle_establish_context",
-                "failed to send DeviceControlResponse to server",
-            )
-        })?;
-
-        Ok(())
     }
 
     fn handle_list_readers(
@@ -174,14 +164,6 @@ impl TeleportRdpdrBackend {
                 vec![scard::TELEPORT_READER_NAME.to_string()],
             )),
         )
-        .map_err(|_e| {
-            other_err!(
-                "TeleportRdpdrBackend::handle_list_readers",
-                "failed to send DeviceControlResponse to server",
-            )
-        })?;
-
-        Ok(())
     }
 
     fn handle_get_status_change(
@@ -236,14 +218,6 @@ impl TeleportRdpdrBackend {
 
         // We have some status change to report, send it to the server.
         self.write_rdpdr_dev_ctl_resp(req, Box::new(get_status_change_ret))
-            .map_err(|_e| {
-                other_err!(
-                    "TeleportRdpdrBackend::handle_list_readers",
-                    "failed to send DeviceControlResponse to server",
-                )
-            })?;
-
-        Ok(())
     }
 
     fn handle_connect(
@@ -268,14 +242,6 @@ impl TeleportRdpdrBackend {
                 CardProtocol::SCARD_PROTOCOL_T1,
             )),
         )
-        .map_err(|_e| {
-            other_err!(
-                "TeleportRdpdrBackend::handle_connect",
-                "failed to send DeviceControlResponse to server",
-            )
-        })?;
-
-        Ok(())
     }
 
     fn handle_begin_transaction(
@@ -284,14 +250,6 @@ impl TeleportRdpdrBackend {
         _call: HCardAndDispositionCall,
     ) -> PduResult<()> {
         self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
-            .map_err(|_e| {
-                other_err!(
-                    "TeleportRdpdrBackend::handle_begin_transaction",
-                    "failed to send DeviceControlResponse to server",
-                )
-            })?;
-
-        Ok(())
     }
 
     fn create_get_status_change_return(
@@ -344,23 +302,31 @@ impl TeleportRdpdrBackend {
     }
 
     fn has_no_change(pdu: &rpce::Pdu<GetStatusChangeReturn>) -> bool {
-        for state in &pdu.into_inner_ref().reader_states {
-            if state.current_state != state.event_state {
-                return false;
-            }
-        }
-        true
+        pdu.into_inner_ref()
+            .reader_states
+            .iter()
+            .all(|state| state.current_state == state.event_state)
     }
 
     fn write_rdpdr_dev_ctl_resp(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
         resp: Box<dyn rpce::Encode>,
-    ) -> Result<(), SendError<ClientFunction>> {
+    ) -> PduResult<()> {
         let resp = DeviceControlResponse::new(req, NtStatus::Success, resp);
-        self.client_handle.blocking_send(ClientFunction::WriteRdpdr(
-            RdpdrPdu::DeviceControlResponse(resp),
-        ))
+        self.client_handle
+            .blocking_send(ClientFunction::WriteRdpdr(RdpdrPdu::DeviceControlResponse(
+                resp,
+            )))
+            .map_err(|e| {
+                custom_err!(
+                    "write_rdpdr_dev_ctl_resp",
+                    // Due to a long chain of trait dependencies in IronRDP that are impractical to unwind at this point,
+                    // we can't put _e in the source field of the error because it isn't Sync (because ClientFunction itself
+                    // isn't sync). We compromise here by just wrapping its Debug output in a TeleportRdpdrBackendError.
+                    TeleportRdpdrBackendError(format!("{:?}", e))
+                )
+            })
     }
 }
 
@@ -410,6 +376,18 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         }
     }
 }
+
+/// A generic error type for the TeleportRdpdrBackend that can contain any arbitrary error message.
+#[derive(Debug)]
+struct TeleportRdpdrBackendError(String);
+
+impl std::fmt::Display for TeleportRdpdrBackendError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#?}", self)
+    }
+}
+
+impl std::error::Error for TeleportRdpdrBackendError {}
 
 /// Client implements a device redirection (RDPDR) client, as defined in
 /// https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
