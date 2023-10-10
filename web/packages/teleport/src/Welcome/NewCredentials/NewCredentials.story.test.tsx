@@ -57,6 +57,14 @@ test('story.SuccessReset', () => {
   const { container } = render(<story.SuccessReset />);
   expect(container.firstChild).toMatchSnapshot();
 });
+test('story.SuccessAndPrivateKeyEnabledRegister', () => {
+  const { container } = render(<story.SuccessAndPrivateKeyEnabledRegister />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+test('story.SuccessAndPrivateKeyEnabledReset', () => {
+  const { container } = render(<story.SuccessAndPrivateKeyEnabledReset />);
+  expect(container.firstChild).toMatchSnapshot();
+});
 test('story.SuccessRegisterDashboard', () => {
   const { container } = render(<story.SuccessRegisterDashboard />);
   expect(container.firstChild).toMatchSnapshot();

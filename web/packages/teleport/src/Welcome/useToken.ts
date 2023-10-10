@@ -32,6 +32,7 @@ export default function useToken(tokenId: string): UseTokenState {
   const [resetToken, setResetToken] = useState<ResetToken>();
   const [recoveryCodes, setRecoveryCodes] = useState<RecoveryCodes>();
   const [success, setSuccess] = useState(false); // TODO rename
+  const [privateKeyPolicyEnabled, setPrivateKeyPolicyEnabled] = useState(false);
 
   const fetchAttempt = useAttempt('');
   const submitAttempt = useAttempt('');
@@ -46,6 +47,9 @@ export default function useToken(tokenId: string): UseTokenState {
   }, []);
 
   function handleResponse(res: ChangedUserAuthn) {
+    if (res.privateKeyPolicyEnabled) {
+      setPrivateKeyPolicyEnabled(true);
+    }
     if (res.recovery.createdDate) {
       setRecoveryCodes(res.recovery);
     } else {
@@ -105,6 +109,6 @@ export default function useToken(tokenId: string): UseTokenState {
     redirect,
     success,
     finishedRegister,
-    privateKeyPolicyEnabled: false,
+    privateKeyPolicyEnabled,
   };
 }
