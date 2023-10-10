@@ -148,14 +148,6 @@ impl TeleportRdpdrBackend {
                 vec!["Teleport".to_string()],
             )),
         )
-        .map_err(|_e| {
-            other_err!(
-                "TeleportRdpdrBackend::handle_list_readers",
-                "failed to send DeviceControlResponse to server",
-            )
-        })?;
-
-        Ok(())
     }
 
     fn write_rdpdr_dev_ctl_resp(
