@@ -471,7 +471,7 @@ func (t *terminal) setOwner() error {
 		return trace.Wrap(err)
 	}
 
-	err = os.Chown(t.tty.Name(), uid, gid)
+	err = os.Lchown(t.tty.Name(), uid, gid)
 	if err != nil {
 		return trace.Wrap(err)
 	}
