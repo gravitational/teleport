@@ -31,20 +31,6 @@ export const Pending = () => {
   return <RequestPending />;
 };
 
-export const PrivateKeyRequired = () => {
-  return (
-    <WaitingRoom
-      {...sample}
-      privateKeyRequirement={{
-        accessRequestId: 'request-id-1234',
-        username: 'llama',
-        clusterId: 'cluster-id-1234',
-        authType: 'local',
-      }}
-    />
-  );
-};
-
 const sample = {
   attempt: {
     isProcessing: false,
@@ -61,6 +47,4 @@ const sample = {
   refresh: null,
   children: null,
   checkerInterval: 0,
-  privateKeyRequirement: null,
-  clearPrivateKeyRequirement: () => null,
 };

@@ -19,7 +19,6 @@ import {
 } from 'design/Icon';
 import { TeleportGearIcon } from 'design/SVGIcon';
 import Table from 'design/DataTable';
-import { PrivateKeyAccessRequestDialogue } from 'teleport/components/PrivateKeyPolicy';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 import {
@@ -54,8 +53,6 @@ export function RequestView({
   submitReview,
   assumeRole,
   reviewAttempt,
-  privateKeyRequirement,
-  clearPrivateKeyRequirement,
   longTermAccess,
 }: State) {
   // Show indicator as soon as user clicks assume button.
@@ -239,12 +236,6 @@ export function RequestView({
           </Box>
         </Box>
       </Flex>
-      {privateKeyRequirement && (
-        <PrivateKeyAccessRequestDialogue
-          onClose={clearPrivateKeyRequirement}
-          {...privateKeyRequirement}
-        />
-      )}
     </>
   );
 }

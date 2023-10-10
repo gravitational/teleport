@@ -2,11 +2,9 @@ import React from 'react';
 import useAttempt from 'shared/hooks/useAttempt';
 import historyService from 'teleport/services/history';
 import { UserContext } from 'teleport/services/user';
-import cfg from 'teleport/config';
 
 import { AccessRequest } from 'e-teleport/services/workflow';
 import TeleportContextE from 'e-teleport/teleportContextE';
-import { usePrivateKeyAccessRequest } from 'e-teleport/hooks/usePrivateKeyRequirement';
 
 export default function useWaitingRoom(ctx: TeleportContextE) {
   const workflowService = ctx.workflowService;
@@ -14,12 +12,6 @@ export default function useWaitingRoom(ctx: TeleportContextE) {
   const accessRequest = ctx.storeAccessRequests.getWaitingRoom();
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
   const [userCtx, setUserCtx] = React.useState<UserContext>();
-  const {
-    privateKeyRequirement,
-    updatePrivateKeyRequirement,
-    clearPrivateKeyRequirement,
-    isPrivateKeyRequiredError,
-  } = usePrivateKeyAccessRequest();
 
   React.useEffect(() => {
     attemptActions.do(() =>
@@ -48,17 +40,6 @@ export default function useWaitingRoom(ctx: TeleportContextE) {
       .fetchAccessRequest(accessRequest.id)
       .then(updateState)
       .catch((err: Error) => {
-        if (isPrivateKeyRequiredError(err)) {
-          attemptActions.clear();
-          updatePrivateKeyRequirement({
-            accessRequestId: accessRequest.id,
-            authType: userCtx?.authType,
-            username: accessRequest.user,
-            clusterId: cfg.proxyCluster,
-          });
-
-          return;
-        }
         attemptActions.error(err);
       });
   }
@@ -85,8 +66,6 @@ export default function useWaitingRoom(ctx: TeleportContextE) {
     strategy: userCtx?.accessStrategy,
     refresh,
     createRequest,
-    privateKeyRequirement,
-    clearPrivateKeyRequirement,
   };
 }
 

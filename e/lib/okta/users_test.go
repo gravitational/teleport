@@ -147,7 +147,9 @@ func TestUserAssignmentCreator(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff([]types.OktaAssignment{expectedAssignment1}, assignments))
+	// Revision will be autofilled with a placeholder value when empty, so we should ignore it here.
+	cmpoptsIgnoreRevision := cmpopts.IgnoreFields(types.OktaAssignmentV1{}, "ResourceHeader.Metadata.Revision")
+	require.Empty(t, cmp.Diff([]types.OktaAssignment{expectedAssignment1}, assignments, cmpoptsIgnoreRevision))
 
 	// We'll add a new app, which should cause a new assignment to be generated and the
 	// old one to be marked as needing cleanup.
@@ -193,7 +195,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff([]types.OktaAssignment{expectedAssignment1, expectedAssignment2}, assignments,
-		cmpopts.SortSlices(assignmentLess)))
+		cmpopts.SortSlices(assignmentLess), cmpoptsIgnoreRevision))
 
 	// We'll add in a group and make sure that triggers a second cleanup and another new assignment.
 	group2 := group(t, "group2", types.OriginOkta, testOrgURL)
@@ -241,7 +243,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff([]types.OktaAssignment{expectedAssignment1, expectedAssignment2, expectedAssignment3}, assignments,
-		cmpopts.SortSlices(assignmentLess)))
+		cmpopts.SortSlices(assignmentLess), cmpoptsIgnoreRevision))
 
 	// We'll delete the old group and ensure that the old assignment is restored.
 	require.NoError(t, ap.DeleteUserGroup(ctx, group2.GetName()))
@@ -256,7 +258,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	expectedAssignment3.SetCleanupTime(clock.Now())
 
 	require.Empty(t, cmp.Diff([]types.OktaAssignment{expectedAssignment1, expectedAssignment2, expectedAssignment3}, assignments,
-		cmpopts.SortSlices(assignmentLess)))
+		cmpopts.SortSlices(assignmentLess), cmpoptsIgnoreRevision))
 
 	// Create an empty user state, which should cause a cleanup of all assignmentssince it has no permissions.
 	ap.userState, err = userloginstate.New(header.Metadata{
@@ -274,7 +276,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	expectedAssignment2.SetCleanupTime(clock.Now())
 
 	require.Empty(t, cmp.Diff([]types.OktaAssignment{expectedAssignment1, expectedAssignment2, expectedAssignment3}, assignments,
-		cmpopts.SortSlices(assignmentLess)))
+		cmpopts.SortSlices(assignmentLess), cmpoptsIgnoreRevision))
 }
 
 func TestAssignmentDiff(t *testing.T) {

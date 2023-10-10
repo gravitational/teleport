@@ -10,12 +10,10 @@ import {
   PromoteAccessRequest,
   UpdateAccessRequest,
 } from 'e-teleport/services/workflow';
-import { usePrivateKeyAccessRequest } from 'e-teleport/hooks/usePrivateKeyRequirement';
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
 import { getBaseRequestFlags } from 'e-teleport/Workflow/Shared';
 
 import type { Attempt } from 'shared/hooks/useAttemptNext';
-import type { PrivateKeyAccessRequest } from 'teleport/components/PrivateKeyPolicy';
 
 import type { LongTermAccess, SubmitReview } from './types';
 
@@ -33,12 +31,6 @@ export default function useRequestView(ctx: TeleportContextE) {
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [flags, setFlags] = useState<Flags>(null);
-  const {
-    privateKeyRequirement,
-    updatePrivateKeyRequirement,
-    clearPrivateKeyRequirement,
-    isPrivateKeyRequiredError,
-  } = usePrivateKeyAccessRequest();
 
   useEffect(() => {
     async function initialFetch() {
@@ -130,16 +122,6 @@ export default function useRequestView(ctx: TeleportContextE) {
         history.reload();
       })
       .catch((err: Error) => {
-        if (isPrivateKeyRequiredError(err)) {
-          setAttempt({ status: '' });
-          updatePrivateKeyRequirement({
-            accessRequestId: request.id,
-            authType: ctx.storeUser.state.authType,
-            username: request.user,
-            clusterId: ctx.storeUser.state.cluster.clusterId,
-          });
-          return;
-        }
         setAttempt({ status: 'failed', statusText: err.message });
       });
   }
@@ -154,8 +136,6 @@ export default function useRequestView(ctx: TeleportContextE) {
     toggleConfirmDelete,
     submitReview,
     assumeRole,
-    privateKeyRequirement,
-    clearPrivateKeyRequirement,
     longTermAccess,
   };
 }
@@ -191,7 +171,5 @@ export type State = {
   toggleConfirmDelete(): void;
   submitReview(s: SubmitReview);
   assumeRole(): void;
-  privateKeyRequirement?: PrivateKeyAccessRequest;
-  clearPrivateKeyRequirement?(): void;
   longTermAccess: LongTermAccess;
 };

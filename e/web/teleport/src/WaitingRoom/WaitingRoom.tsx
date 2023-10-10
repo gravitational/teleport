@@ -3,8 +3,6 @@ import { Indicator } from 'design';
 import { useStore } from 'shared/libs/stores';
 import { AppVerticalSplit } from 'teleport/components/Layout';
 import AjaxPoller from 'teleport/components/AjaxPoller';
-import { PrivateKeyAccessRequestDialogue } from '@gravitational/teleport/src/components/PrivateKeyPolicy';
-import session from 'teleport/services/websession';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 
@@ -33,7 +31,6 @@ export const WaitingRoom: React.FC<State & Partial<Props>> = props => {
     createRequest,
     refresh,
     checkerInterval = 5000,
-    privateKeyRequirement,
   } = props;
 
   if (attempt.isProcessing) {
@@ -48,16 +45,6 @@ export const WaitingRoom: React.FC<State & Partial<Props>> = props => {
 
   if (attempt.isFailed) {
     return <RequestError err={attempt.message} />;
-  }
-
-  if (privateKeyRequirement) {
-    return (
-      <PrivateKeyAccessRequestDialogue
-        {...privateKeyRequirement}
-        onClose={() => session.logout()}
-        btnText="Logout"
-      />
-    );
   }
 
   // render access request
