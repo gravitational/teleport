@@ -154,11 +154,17 @@ func newClusterSchemaBuilder(client *kubernetes.Clientset) (serializer.CodecFact
 			// the namespace where the resource is located.
 			// This means that we need to map the resource to the namespace kind.
 			supportedResources[resourceKey] = utils.KubeCustomResource
-
+			// create the group version kind for the resource
+			gvk := groupVersion.WithKind(apiResource.Kind)
+			// check if the resource is already registered in the scheme
+			// if it is, we don't need to register it again.
+			if _, err := kubeScheme.New(gvk); err == nil {
+				continue
+			}
 			// register the resource with the scheme to be able to decode it
 			// into an unstructured object
 			kubeScheme.AddKnownTypeWithName(
-				groupVersion.WithKind(apiResource.Kind),
+				gvk,
 				&unstructured.Unstructured{},
 			)
 			// register the resource list with the scheme to be able to decode it
