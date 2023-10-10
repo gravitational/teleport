@@ -38,7 +38,10 @@ type ReadStatFS interface {
 func CompressTarGzArchive(files []string, fileReader ReadStatFS) (*bytes.Buffer, error) {
 	archiveBytes := &bytes.Buffer{}
 
-	gzipWriter := gzip.NewWriter(archiveBytes)
+	gzipWriter, err := gzip.NewWriterLevel(archiveBytes, gzip.BestSpeed)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	defer gzipWriter.Close()
 
 	tarWriter := tar.NewWriter(gzipWriter)

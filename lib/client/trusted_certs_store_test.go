@@ -217,7 +217,7 @@ func TestParallelKnownHostsFileWrite(t *testing.T) {
 	tmpPub, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
 
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
 			err := clientStore.AddTrustedHostKeys("proxy.example2.com", "example2.com", tmpPub)

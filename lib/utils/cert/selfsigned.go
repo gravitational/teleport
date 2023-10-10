@@ -39,7 +39,7 @@ import (
 // verifier and not in Go.
 const macMaxTLSCertValidityPeriod = 825 * 24 * time.Hour
 
-// Credentials keeps the typical 3 components of a proper HTTPS configuration
+// Credentials keeps the typical 3 components of a proper TLS configuration
 type Credentials struct {
 	// PublicKey in PEM format
 	PublicKey []byte
@@ -49,8 +49,16 @@ type Credentials struct {
 }
 
 // GenerateSelfSignedCert generates a self-signed certificate that
-// is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
-func GenerateSelfSignedCert(hostNames []string, ipAddresses []string) (*Credentials, error) {
+// is valid for given domain names and IPs. If extended key usage
+// is not specified, the cert will be generated for server auth.
+func GenerateSelfSignedCert(hostNames []string, ipAddresses []string, eku ...x509.ExtKeyUsage) (*Credentials, error) {
+	if len(eku) == 0 {
+		// if not specified, assume this cert is for server auth,
+		// which is required for validation on macOS:
+		// https://support.apple.com/en-in/HT210176
+		eku = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+	}
+
 	priv, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -77,6 +85,7 @@ func GenerateSelfSignedCert(hostNames []string, ipAddresses []string) (*Credenti
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage:           eku,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
 	}

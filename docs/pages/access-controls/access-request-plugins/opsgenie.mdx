@@ -22,7 +22,6 @@ Opsgenie.
 
 - An Opsgenie account with the ability to create API keys with the 'read' and
   'create and update' access rights.
-- The Opsgenie integration is currently only available in Teleport Cloud.
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Create services
@@ -84,10 +83,9 @@ Then select 'Create New User' and create a user with the requester role.
 Generate an API key that the Opsgenie plugin will use to create and modify
 alerts as well as list users, services, and on-call policies.
 
-In your Opsgenie dashboard, go to **SETTINGS → API SETTINGS** and click
-**API key management**. Enable 'read' and 'create and update'.
+In your Opsgenie dashboard, go to **SETTINGS → INTEGRATIONS**
 
-![Create API key](../../../img/enterprise/plugins/opsgenie/opsgenie-api-key.png)
+See https://support.atlassian.com/opsgenie/docs/create-a-default-api-integration/ for more details.
 
 ## Step 4/5. Configure the Opsgenie plugin
 

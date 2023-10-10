@@ -1,22 +1,25 @@
 ---
-title: Using PuTTY to connect to SSH nodes via Teleport
-description: This reference shows you how to use PuTTY to connect to SSH nodes through Teleport
+title: Using PuTTY and WinSCP with Teleport
+description: This reference shows you how to use PuTTY to connect to SSH nodes and WinSCP to transfer files through Teleport
 ---
 
 This guide will show you how to use the Teleport client tool `tsh` to add saved sessions for use
 with [PuTTY](https://www.putty.org/), and then how to use PuTTY as a client to connect to SSH nodes.
 
+It will also show you how to optionally use these saved sessions with [WinSCP](https://winscp.net) to transfer
+files from SSH nodes using SFTP.
+
 You will learn how to:
 
 - Generate saved PuTTY sessions for SSH nodes attached to a Teleport cluster.
 - Log in to an interactive shell using these saved PuTTY sessions.
-
+- (optional) Import a saved PuTTY session into WinSCP, then start an SFTP session to transfer files from an SSH node.
 
 ## Prerequisites
 
 - A client machine running Windows 10 or higher. You can only use `tsh` to save PuTTY sessions on Windows.
 
-- The Teleport `tsh.exe` client, version 14.0.0 or higher. To download the `tsh.exe` client, run the following command:
+- The Teleport `tsh.exe` client, version 14.0.3 or higher. To download the `tsh.exe` client, run the following command:
 
   ```code
   $ curl.exe -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-windows-amd64-bin.zip
@@ -26,6 +29,7 @@ You will learn how to:
 
 - PuTTY for Windows version 0.78 or higher. You can download the latest version of PuTTY from the [PuTTY download page](https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html).
 
+- (optional) WinSCP for Windows version 6.2 or higher. You can download the latest version of WinSCP from the [WinSCP download page](https://winscp.net/eng/download.php)
 
 ## Summary
 
@@ -156,6 +160,64 @@ Root clusters: `<login>@<hostname> [proxy:<proxy address>]`
 
 Leaf clusters: `<login>@<hostname> [leaf:<leaf cluster name>,proxy:<proxy address>]`
 
+
+## Using WinSCP to transfer files over SFTP
+
+You can import a saved session from PuTTY to WinSCP, which allows you to connect to an SSH node
+transfer files to and from it.
+
+1. Start WinSCP.
+
+If you don't see the Site Manager "Login" dialog appear with a list of sessions to connect to when WinSCP starts,
+click the **Tabs** menu, choose **Sites**, then **Site Manager...** to show it.
+
+<Figure width="626" height="422" caption="WinSCP Site Manager window">
+![WinSCP Site Manager window](../../img/connect-your-client/winscp-1.png)
+</Figure>
+
+2. Click the **Tools** button at the bottom left, and choose **Import Sites**.
+
+<Figure width="226" height="237" caption="Click 'Tools', then choose 'Import Sites...'">
+![Click 'Tools', then choose 'Import Sites...'](../../img/connect-your-client/winscp-2.png)
+</Figure>
+
+3. Check the box next to any saved PuTTY sessions that you wish to import into WinSCP for use, then click the "OK" button.
+
+If you don't see sessions matching the hosts that you want to connect to, close this box and run `tsh puttyconfig <user>@<host>`
+from a terminal [as described above](#summary) to add the sessions, then repeat this step.
+
+<Figure width="374" height="301" caption="Choose PuTTY sessions to import and click OK">
+![Choose PuTTY sessions to import and click OK](../../img/connect-your-client/winscp-3.png)
+</Figure>
+
+4. To tell WinSCP it should trust and load saved Host CAs from PuTTY, click **Tools** again at the bottom left,
+then choose **Preferences...**
+
+<Admonition type="tip" title="Skip remaining steps if you've done this before">
+  You can skip steps 4 and 5 if you've completed the process as this user on this PC before.
+</Admonition>
+
+<Figure width="226" height="245" caption="Click 'Tools', then choose 'Preferences...'">
+![Click 'Tools', then choose 'Preferences...'](../../img/connect-your-client/winscp-4.png)
+</Figure>
+
+5. Click the **Security** section at the left, then check the **Load authorities from PuTTY** checkbox under
+the *Trusted host certification authorities* section and click **OK** to exit.
+
+<Figure width="545" height="495" caption="Click 'Security', Check 'Load authorities from PuTTY' then click OK">
+![Click 'Security', Check 'Load authorities from PuTTY' then click OK](../../img/connect-your-client/winscp-5.png)
+</Figure>
+
+6. Choose the host to connect to from the list at the left-hand side and click **Login**. You can also start the session
+by double clicking on its name if you like.
+
+<Figure width="625" height="422" caption="Choose the host from the list and click Login">
+![Choose the host from the list and click Login](../../img/connect-your-client/winscp-6.png)
+</Figure>
+
+Uploading or downloading files using WinSCP through Teleport will generate audit events.
+
+
 ## Frequently asked questions
 
 ### Do I need administrator rights on my machine to run `tsh puttyconfig`?
@@ -196,10 +258,7 @@ and cannot provide support for forked versions.
 
 ### Can I use my saved Teleport PuTTY sessions with WinSCP?
 
-At the time of writing, WinSCP doesn't support validation using host certificates. Because Teleport requires host
-certificate validation, you can't yet use WinSCP to connect to a host through Teleport.
-
-You can track the status of this feature request and vote for it on the WinSCP bug tracker: https://winscp.net/tracker/2145
+Yes, WinSCP version 6.2 and higher support validation using SSH host certificates which is needed to connect using Teleport.
 
 ### Can I use an alternative Teleport authentication method (`tsh login --auth`) with saved sessions?
 
