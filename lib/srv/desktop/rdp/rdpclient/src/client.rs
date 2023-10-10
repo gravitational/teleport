@@ -22,6 +22,7 @@ use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessorMessages};
 use ironrdp_tls::TlsStream;
 use ironrdp_tokio::{Framed, TokioStream};
+use rand::{Rng, SeedableRng};
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
 use std::io::Error as IoError;
 use std::net::ToSocketAddrs;
@@ -75,10 +76,15 @@ impl Client {
         // Create a framed stream for use by connect_begin
         let mut framed = ironrdp_tokio::TokioFramed::new(stream);
 
-        let connector_config = create_config(params);
+        let connector_config =
+            create_config(params.screen_width, params.screen_height, params.username);
 
         // Create a channel for sending/receiving function calls to/from the Client.
         let (client_handle, function_receiver) = channel(100);
+
+        // Generate a random 8-digit PIN for our smartcard.
+        let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
+        let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
 
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
             .with_server_addr(server_socket_addr)
@@ -90,6 +96,9 @@ impl Client {
                     Box::new(TeleportRdpdrBackend::new(
                         SCARD_DEVICE_ID,
                         client_handle.clone(),
+                        params.cert_der,
+                        params.key_der,
+                        pin,
                     )),
                     "IronRDP".to_string(),
                 )
@@ -463,14 +472,11 @@ pub type FunctionReceiver = Receiver<ClientFunction>;
 type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
 type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
-fn create_config(params: ConnectParams) -> Config {
+fn create_config(width: u16, height: u16, username: String) -> Config {
     Config {
-        desktop_size: ironrdp_connector::DesktopSize {
-            width: params.screen_width,
-            height: params.screen_height,
-        },
+        desktop_size: ironrdp_connector::DesktopSize { width, height },
         security_protocol: SecurityProtocol::HYBRID_EX,
-        username: params.username,
+        username,
         password: std::env::var("RDP_PASSWORD").unwrap(), //todo(isaiah)
         domain: None,
         client_build: 0,

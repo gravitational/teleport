@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use crate::errors::invalid_data_error;
+use ironrdp_pdu::{other_err, PduResult};
 use iso7816::aid::Aid;
 use iso7816::command::instruction::Instruction;
 use iso7816::command::Command;
@@ -53,7 +54,26 @@ pub struct Card<const S: usize> {
 }
 
 impl<const S: usize> Card<S> {
-    pub fn new(uuid: Uuid, cert_der: &[u8], key_der: &[u8], pin: String) -> RdpResult<Self> {
+    pub fn new(uuid: Uuid, cert_der: &[u8], key_der: &[u8], pin: String) -> PduResult<Self> {
+        let piv_auth_key = RsaPrivateKey::from_pkcs1_der(key_der)
+            .map_err(|e| other_err!("piv::Card", "failed to parse private key from DER"))?;
+
+        Ok(Self {
+            chuid: Self::build_chuid(uuid),
+            piv_auth_cert: Self::build_piv_auth_cert(cert_der),
+            piv_auth_key,
+            pin,
+            pending_command: None,
+            pending_response: None,
+        })
+    }
+
+    pub fn new_deprecated(
+        uuid: Uuid,
+        cert_der: &[u8],
+        key_der: &[u8],
+        pin: String,
+    ) -> RdpResult<Self> {
         let piv_auth_key = RsaPrivateKey::from_pkcs1_der(key_der).map_err(|e| {
             invalid_data_error(&format!("failed to parse private key from DER: {e:?}"))
         })?;
