@@ -1519,7 +1519,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			"elapsed_filter": elapsedFilter,
 		}).Debugf(
 			"ListUnifiedResources(%v->%v) in %v.",
-			len(unifiedResources), len(filteredResources), elapsedFetch+elapsedFilter)
+			len(unifiedResources), len(unifiedResources), elapsedFetch+elapsedFilter)
 	}()
 
 	filter := services.MatchResourceFilter{
