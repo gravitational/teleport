@@ -17,11 +17,25 @@ limitations under the License.
 package utils
 
 import (
+	"fmt"
+
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 )
 
 var MinIPPropagationVersion = semver.New(VersionBeforeAlpha("12.1.0")).String()
+
+// MeetsVersion returns true if gotVer is empty or at least minVer.
+func MeetsVersion(gotVer, minVer string) bool {
+	if gotVer == "" {
+		return true // Ignore empty versions.
+	}
+
+	err := CheckVersion(gotVer, minVer)
+
+	// Non BadParameter errors are semver parsing errors.
+	return !trace.IsBadParameter(err)
+}
 
 // CheckVersion compares a version with a minimum version supported.
 func CheckVersion(currentVersion, minVersion string) error {
@@ -56,6 +70,16 @@ func MinVerWithoutPreRelease(currentVersion, minVersion string) (bool, error) {
 	minSemver.PreRelease = ""
 
 	return !currentSemver.LessThan(*minSemver), nil
+}
+
+// MajorSemver returns the major version as a semver string.
+// Ex: 13.4.3 -> 13.0.0
+func MajorSemver(version string) (string, error) {
+	ver, err := semver.NewVersion(version)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return fmt.Sprintf("%d.0.0", ver.Major), nil
 }
 
 func versionStringToSemver(ver1, ver2 string) (*semver.Version, *semver.Version, error) {

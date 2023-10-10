@@ -16,7 +16,75 @@ limitations under the License.
 
 package utils
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestMeetsVersion_emptyOrInvalid(t *testing.T) {
+	// See TestVersions for more comprehensive tests.
+
+	if !MeetsVersion("", "v1.2.3") {
+		t.Error("MeetsVersion with an empty gotVer should always succeed")
+	}
+
+	if !MeetsVersion("banana", "v1.2.3") {
+		t.Error("MeetsVersion with an invalid version should always succeed")
+	}
+	if !MeetsVersion("v1.2.3", "banana") {
+		t.Error("MeetsVersion with an invalid version should always succeed")
+	}
+}
+
+func TestMajorSemver(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		version  string
+		expected string
+		want     bool
+		wantErr  bool
+	}{
+		{
+			name:     "simple semver",
+			version:  "13.4.2",
+			expected: "13.0.0",
+			want:     true,
+		},
+		{
+			name:     "ignores suffix",
+			version:  "13.4.2-dev",
+			expected: "13.0.0",
+			want:     true,
+		},
+		{
+			name:     "empty version is rejected",
+			version:  "",
+			expected: "",
+			wantErr:  true,
+		},
+		{
+			name:     "incorrect version is rejected",
+			version:  "13.4", // missing patch
+			expected: "13.0.0",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := MajorSemver(tt.version)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.Equal(t, tt.expected, got)
+			}
+		})
+	}
+}
 
 func TestMinVerWithoutPreRelease(t *testing.T) {
 	t.Parallel()
