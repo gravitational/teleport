@@ -64,6 +64,7 @@ func MarshalDiscoveryConfig(discoveryConfig *discoveryconfig.DiscoveryConfig, op
 	if !cfg.PreserveResourceID {
 		copy := *discoveryConfig
 		copy.SetResourceID(0)
+		copy.SetRevision("")
 		discoveryConfig = &copy
 	}
 	return utils.FastMarshal(discoveryConfig)
@@ -87,6 +88,9 @@ func UnmarshalDiscoveryConfig(data []byte, opts ...MarshalOption) (*discoverycon
 	}
 	if cfg.ID != 0 {
 		discoveryConfig.SetResourceID(cfg.ID)
+	}
+	if cfg.Revision != "" {
+		discoveryConfig.SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
 		discoveryConfig.SetExpiry(cfg.Expires)

@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// Installer is an installer script rseource
+// Installer is an installer script resource
 type Installer interface {
 	Resource
 

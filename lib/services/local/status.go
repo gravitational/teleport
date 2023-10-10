@@ -126,15 +126,17 @@ func (s *StatusService) UpsertClusterAlert(ctx context.Context, alert types.Clus
 		alert.Metadata.SetExpiry(alert.Spec.Created.Add(time.Hour * 24))
 	}
 
+	rev := alert.GetRevision()
 	val, err := utils.FastMarshal(&alert)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	_, err = s.Backend.Put(ctx, backend.Item{
-		Key:     backend.Key(clusterAlertPrefix, alert.Metadata.Name),
-		Value:   val,
-		Expires: alert.Metadata.Expiry(),
+		Key:      backend.Key(clusterAlertPrefix, alert.Metadata.Name),
+		Value:    val,
+		Expires:  alert.Metadata.Expiry(),
+		Revision: rev,
 	})
 	return trace.Wrap(err)
 }

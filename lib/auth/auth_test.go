@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -233,7 +234,7 @@ func TestSessions(t *testing.T) {
 	out, err := s.a.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.NoError(t, err)
 	ws.SetPriv(nil)
-	require.Equal(t, ws, out)
+	require.Empty(t, cmp.Diff(ws, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.a.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
 		User:      user,
