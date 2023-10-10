@@ -267,15 +267,15 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	if cfg.UID != nil && cfg.GID != nil {
-		err := os.Chown(cfg.DataDir, *cfg.UID, *cfg.GID)
+		err := os.Lchown(cfg.DataDir, *cfg.UID, *cfg.GID)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
-		err = os.Chown(sessionDir, *cfg.UID, *cfg.GID)
+		err = os.Lchown(sessionDir, *cfg.UID, *cfg.GID)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
-		err = os.Chown(al.playbackDir, *cfg.UID, *cfg.GID)
+		err = os.Lchown(al.playbackDir, *cfg.UID, *cfg.GID)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
