@@ -63,6 +63,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -84,7 +85,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -1591,10 +1591,12 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 				roles := user.GetRoles()
 				t.Cleanup(func() {
 					user.SetRoles(roles)
-					require.NoError(t, tt.auth.UpsertUser(user))
+					_, err = tt.auth.UpsertUser(ctx, user)
+					require.NoError(t, err)
 				})
 				user.SetRoles(tt.roles)
-				require.NoError(t, tt.auth.UpsertUser(user))
+				user, err = tt.auth.UpsertUser(ctx, user)
+				require.NoError(t, err)
 			}
 
 			err = Run(ctx, []string{

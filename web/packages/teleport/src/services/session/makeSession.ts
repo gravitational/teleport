@@ -39,6 +39,7 @@ export default function makeSession(json): Session {
     parties,
     participantModes,
     moderated,
+    command,
   } = json;
 
   const createdDate = created ? new Date(created) : null;
@@ -60,6 +61,7 @@ export default function makeSession(json): Session {
     addr: server_addr ? server_addr.replace(PORT_REGEX, '') : '',
     participantModes: participantModes ?? [],
     moderated,
+    command: command ?? '',
   };
 }
 

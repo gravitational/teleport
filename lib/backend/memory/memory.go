@@ -386,9 +386,10 @@ func (m *Memory) CompareAndSwap(ctx context.Context, expected backend.Item, repl
 }
 
 func (m *Memory) ConditionalDelete(ctx context.Context, key []byte, rev string) error {
-	if len(key) == 0 {
-		return trace.BadParameter("missing parameter key")
+	if len(key) == 0 || (rev == "" && !m.Mirror) {
+		return trace.Wrap(backend.ErrIncorrectRevision)
 	}
+
 	m.Lock()
 	defer m.Unlock()
 	m.removeExpired()
@@ -412,9 +413,10 @@ func (m *Memory) ConditionalDelete(ctx context.Context, key []byte, rev string) 
 }
 
 func (m *Memory) ConditionalUpdate(ctx context.Context, i backend.Item) (*backend.Lease, error) {
-	if len(i.Key) == 0 {
-		return nil, trace.BadParameter("missing parameter key")
+	if len(i.Key) == 0 || (i.Revision == "" && !m.Mirror) {
+		return nil, trace.Wrap(backend.ErrIncorrectRevision)
 	}
+
 	m.Lock()
 	defer m.Unlock()
 	m.removeExpired()

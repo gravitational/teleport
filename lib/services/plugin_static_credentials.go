@@ -55,6 +55,7 @@ func MarshalPluginStaticCredentials(pluginStaticCredentials types.PluginStaticCr
 		if !cfg.PreserveResourceID {
 			copy := *pluginStaticCredentials
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			pluginStaticCredentials = &copy
 		}
 		data, err := protojson.Marshal(protoadapt.MessageV2Of(pluginStaticCredentials))
@@ -91,6 +92,9 @@ func UnmarshalPluginStaticCredentials(data []byte, opts ...MarshalOption) (types
 		}
 		if cfg.ID != 0 {
 			pluginStaticCredentials.SetResourceID(cfg.ID)
+		}
+		if cfg.Revision != "" {
+			pluginStaticCredentials.SetRevision(cfg.Revision)
 		}
 		if !cfg.Expires.IsZero() {
 			pluginStaticCredentials.SetExpiry(cfg.Expires)

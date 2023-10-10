@@ -615,7 +615,7 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				return nil, trace.BadParameter("missing parameter AccessLists")
 			}
 			collections.accessListMembers = &genericCollection[*accesslist.AccessListMember, services.AccessListMembersGetter, accessListMembersExecutor]{cache: c, watch: watch}
-			collections.byKind[resourceKind] = collections.accessLists
+			collections.byKind[resourceKind] = collections.accessListMembers
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -1121,15 +1121,16 @@ var _ executor[types.ClusterName, clusterNameGetter] = clusterNameExecutor{}
 type userExecutor struct{}
 
 func (userExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.User, error) {
-	return cache.Users.GetUsers(loadSecrets)
+	return cache.Users.GetUsers(ctx, loadSecrets)
 }
 
 func (userExecutor) upsert(ctx context.Context, cache *Cache, resource types.User) error {
-	return cache.usersCache.UpsertUser(resource)
+	_, err := cache.usersCache.UpsertUser(ctx, resource)
+	return err
 }
 
 func (userExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.usersCache.DeleteAllUsers()
+	return cache.usersCache.DeleteAllUsers(ctx)
 }
 
 func (userExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
@@ -1146,8 +1147,8 @@ func (userExecutor) getReader(cache *Cache, cacheOK bool) userGetter {
 }
 
 type userGetter interface {
-	GetUser(user string, withSecrets bool) (types.User, error)
-	GetUsers(withSecrets bool) ([]types.User, error)
+	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 }
 
 var _ executor[types.User, userGetter] = userExecutor{}

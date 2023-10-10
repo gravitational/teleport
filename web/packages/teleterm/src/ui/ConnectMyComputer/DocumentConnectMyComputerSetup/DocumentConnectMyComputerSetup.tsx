@@ -16,7 +16,7 @@ limitations under the License.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Text } from 'design';
+import { Box, ButtonPrimary, Flex, Text } from 'design';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
 import * as Alerts from 'design/Alert';
@@ -66,22 +66,34 @@ export function DocumentConnectMyComputerSetup() {
 function Information(props: { onSetUpAgentClick(): void }) {
   const { systemUsername, hostname, roleName, clusterName } =
     useAgentProperties();
-  const { isAgentCompatible } = useConnectMyComputerContext();
+  const { agentCompatibility } = useConnectMyComputerContext();
+  const isAgentIncompatible = agentCompatibility === 'incompatible';
+  const isAgentIncompatibleOrUnknown =
+    agentCompatibility === 'incompatible' || agentCompatibility === 'unknown';
 
   return (
     <>
-      {!isAgentCompatible && (
+      {isAgentIncompatible && (
         <>
           <CompatibilityError />
           <Separator mt={3} mb={2} />
         </>
       )}
       <Text>
+        Connect My Computer allows you to add this device to the Teleport
+        cluster with just a few clicks.{' '}
         <ClusterAndHostnameCopy clusterName={clusterName} hostname={hostname} />
         <br />
         <br />
         Cluster users with the role <strong>{roleName}</strong> will be able to
         access your computer as <strong>{systemUsername}</strong>.
+        <br />
+        <br />
+        Note that users with administrator privileges can assign that role to
+        themselves or craft another role which grants access to the node. We
+        recommend using Connect My Computer only in scenarios where no other
+        user could plausibly gain access to the node, such as when exploring a
+        Teleport cluster as its only user or in a home lab.
         <br />
         <br />
         Your computer will be shared while Teleport Connect is open. To stop
@@ -95,7 +107,7 @@ function Information(props: { onSetUpAgentClick(): void }) {
         css={`
           display: block;
         `}
-        disabled={!isAgentCompatible}
+        disabled={isAgentIncompatibleOrUnknown}
         onClick={props.onSetUpAgentClick}
         data-testid="start-setup"
       >
@@ -345,8 +357,8 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
   const { clusterName, hostname } = useAgentProperties();
 
   return (
-    <>
-      <Text mb={3}>
+    <Flex flexDirection="column" alignItems="flex-start" gap={3}>
+      <Text>
         <ClusterAndHostnameCopy clusterName={clusterName} hostname={hostname} />
       </Text>
       <ProgressBar
@@ -361,18 +373,11 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
         }))}
       />
       {hasSetupFailed && (
-        <ButtonPrimary
-          mt={3}
-          mx="auto"
-          css={`
-            display: block;
-          `}
-          onClick={runSteps}
-        >
+        <ButtonPrimary alignSelf="center" onClick={runSteps}>
           Retry
         </ButtonPrimary>
       )}
-    </>
+    </Flex>
   );
 }
 
@@ -398,7 +403,7 @@ function ClusterAndHostnameCopy(props: {
 }): JSX.Element {
   return (
     <>
-      The setup process will download and launch the Teleport agent, making your
+      The setup process will download and launch a Teleport agent, making your
       computer available in the <strong>{props.clusterName}</strong> cluster as{' '}
       <strong>{props.hostname}</strong>.
     </>

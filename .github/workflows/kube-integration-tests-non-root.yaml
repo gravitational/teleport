@@ -2,37 +2,45 @@ name: Kube Integration Tests (Non-root)
 run-name: Kube Integration Tests (Non-root) - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
-  push:
-    branches:
-      - master
-      - branch/*
   pull_request:
-    paths:
-      - '.github/workflows/kube-integration-tests-non-root.yaml'
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
-      - 'Makefile'
+
   merge_group:
-    paths:
-      - '.github/workflows/kube-integration-tests-non-root.yaml'
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
-      - 'Makefile'
 
 env:
   TEST_KUBE: true
   KUBECONFIG: /home/.kube/config
 
 jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'merge_group' }}
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            changed:
+              - '.github/workflows/kube-integration-tests-non-root.yaml'
+              - '**.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+              - 'Makefile'
+
   test:
     name: Kube Integration Tests (Non-root)
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-22.04-16core
 
     permissions:
@@ -65,13 +73,13 @@ jobs:
           cluster_name: kind
           config: fixtures/kind/config.yaml
 
-# The current container where tests run isn't linked to the KinD network and
-# we won't be able to access the KinD control plane without linking them.
-# This step is required because our tests run in teleport-buildbox container
-# and by default the KinD container network isn't exposed to it.
-# Connecting the network allow us to access the control plane using DNS kind-control-plane.
-# It also copies the default kubeconfig and places it in /home/.kube so ci user
-# is able to access it.
+      # The current container where tests run isn't linked to the KinD network and
+      # we won't be able to access the KinD control plane without linking them.
+      # This step is required because our tests run in teleport-buildbox container
+      # and by default the KinD container network isn't exposed to it.
+      # Connecting the network allow us to access the control plane using DNS kind-control-plane.
+      # It also copies the default kubeconfig and places it in /home/.kube so ci user
+      # is able to access it.
       - name: Link test container to KinD network
         run: |
           docker network connect kind $(cat /etc/hostname)

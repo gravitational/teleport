@@ -299,6 +299,47 @@ exports[`render with URL loc state set to "server" 1`] = `
             color="text.slightlyMuted"
             font-size="12px"
           >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c18"
+          >
+            EC2 Instance
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c11"
+      data-testid="4"
+    >
+      <div
+        class="c12"
+      >
+        Guided
+      </div>
+      <div
+        class="c13"
+      >
+        <div
+          class="c14"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c16"
+        >
+          <div
+            class="c17"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
             Server
           </div>
           <div
@@ -929,6 +970,47 @@ exports[`render with all access 1`] = `
             class="c13"
           >
             Aurora PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c14"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c13"
+          >
+            EC2 Instance
           </div>
         </div>
       </div>
@@ -3097,6 +3179,48 @@ exports[`render with no access 1`] = `
         </div>
       </div>
     </a>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c14"
+          >
+            EC2 Instance
+          </div>
+        </div>
+      </div>
+    </div>
     <a
       class="c15 c7"
       data-testid="1"
@@ -4432,6 +4556,47 @@ exports[`render with partial access 1`] = `
             class="c13"
           >
             Application
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c14"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c13"
+          >
+            EC2 Instance
           </div>
         </div>
       </div>

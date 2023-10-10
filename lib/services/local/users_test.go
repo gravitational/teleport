@@ -28,6 +28,7 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -111,7 +112,7 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		// Create a user.
 		userResource := &types.UserV2{}
 		userResource.SetName(username)
-		err := identity.CreateUser(userResource)
+		_, err := identity.CreateUser(ctx, userResource)
 		require.NoError(t, err)
 
 		// Test codes exist for user.
@@ -137,14 +138,14 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		// Create a user.
 		userResource1 := &types.UserV2{}
 		userResource1.SetName(username1)
-		err := identity.CreateUser(userResource1)
+		_, err := identity.CreateUser(ctx, userResource1)
 		require.NoError(t, err)
 
 		// Create another user whose username which is prefixed with
 		// the previous username.
 		userResource2 := &types.UserV2{}
 		userResource2.SetName(username2)
-		err = identity.CreateUser(userResource2)
+		_, err = identity.CreateUser(ctx, userResource2)
 		require.NoError(t, err)
 
 		// Test codes exist for the first user.
@@ -186,7 +187,7 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		// Create a user.
 		userResource := &types.UserV2{}
 		userResource.SetName(username)
-		err := identity.CreateUser(userResource)
+		_, err := identity.CreateUser(ctx, userResource)
 		require.NoError(t, err)
 
 		// Test codes exist for user.
@@ -250,7 +251,7 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 		// Create a user, to test deletion of recovery attempts with user.
 		userResource := &types.UserV2{}
 		userResource.SetName(username)
-		err := identity.CreateUser(userResource)
+		_, err := identity.CreateUser(ctx, userResource)
 		require.NoError(t, err)
 
 		err = identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time3, Expires: time3})
@@ -485,11 +486,11 @@ func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 		las.Webauthn = wal
 		u.SetLocalAuth(las)
 
-		err = identity.UpsertUser(u)
+		_, err = identity.UpsertUser(ctx, u)
 		return err
 	}
 	getViaUser := func(ctx context.Context, user string) (*types.WebauthnLocalAuth, error) {
-		u, err := identity.GetUser(user, true /* withSecrets */)
+		u, err := identity.GetUser(ctx, user, true /* withSecrets */)
 		if err != nil {
 			return nil, err
 		}
@@ -497,15 +498,15 @@ func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 	}
 
 	// Create a user to begin with.
+	ctx := context.Background()
 	const name = "llama"
 	user, err := types.NewUser(name)
 	require.NoError(t, err)
-	err = identity.UpsertUser(user)
+	_, err = identity.UpsertUser(ctx, user)
 	require.NoError(t, err)
 
 	// Try a few empty reads.
-	ctx := context.Background()
-	_, err = identity.GetUser(name, true /* withSecrets */)
+	_, err = identity.GetUser(ctx, name, true /* withSecrets */)
 	require.NoError(t, err) // User read should be fine.
 	_, err = identity.GetWebauthnLocalAuth(ctx, name)
 	require.True(t, trace.IsNotFound(err)) // Direct WAL read should fail.
@@ -515,7 +516,7 @@ func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 	err = identity.UpsertWebauthnLocalAuth(ctx, name, badWAL)
 	require.True(t, trace.IsBadParameter(err))
 	user.SetLocalAuth(&types.LocalAuthSecrets{Webauthn: badWAL})
-	err = identity.UpdateUser(ctx, user)
+	_, err = identity.UpdateUser(ctx, user)
 	require.True(t, trace.IsBadParameter(err))
 
 	// Update/Read tests.
@@ -1049,7 +1050,8 @@ func TestIdentityService_UpdateAndSwapUser(t *testing.T) {
 				var err error
 				before, err = test.makeUser()
 				require.NoError(t, err, "makeUser failed")
-				require.NoError(t, identity.CreateUser(before), "CreateUser failed")
+				_, err = identity.CreateUser(ctx, before)
+				require.NoError(t, err, "CreateUser failed")
 
 				if test.user == "" {
 					test.user = before.GetName()
@@ -1074,14 +1076,14 @@ func TestIdentityService_UpdateAndSwapUser(t *testing.T) {
 			}
 
 			// Assert update response.
-			if diff := cmp.Diff(want, updated); diff != "" {
+			if diff := cmp.Diff(want, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")); diff != "" {
 				t.Errorf("UpdateAndSwapUser return mismatch (-want +got)\n%s", diff)
 			}
 
 			// Assert stored.
-			stored, err := identity.GetUser(test.user, test.withSecrets)
+			stored, err := identity.GetUser(ctx, test.user, test.withSecrets)
 			require.NoError(t, err, "GetUser failed")
-			if diff := cmp.Diff(want, stored); diff != "" {
+			if diff := cmp.Diff(want, stored, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")); diff != "" {
 				t.Errorf("UpdateAndSwapUser storage mismatch (-want +got)\n%s", diff)
 			}
 		})

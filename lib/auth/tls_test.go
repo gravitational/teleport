@@ -1066,7 +1066,7 @@ func TestNopUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// But can not get users or nodes
-	_, err = client.GetUsers(false)
+	_, err = client.GetUsers(ctx, false)
 	require.True(t, trace.IsAccessDenied(err))
 
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
@@ -1118,7 +1118,7 @@ func TestGetCurrentUser(t *testing.T) {
 
 	currentUser, err := client1.GetCurrentUser(ctx)
 	require.NoError(t, err)
-	require.Equal(t, &types.UserV2{
+	require.Empty(t, cmp.Diff(&types.UserV2{
 		Kind:    "user",
 		SubKind: "",
 		Version: "v2",
@@ -1128,12 +1128,11 @@ func TestGetCurrentUser(t *testing.T) {
 			Description: "",
 			Labels:      nil,
 			Expires:     nil,
-			ID:          currentUser.GetMetadata().ID,
 		},
 		Spec: types.UserSpecV2{
 			Roles: []string{"user:user1"},
 		},
-	}, currentUser)
+	}, currentUser, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestGetCurrentUserRoles(t *testing.T) {
@@ -1148,7 +1147,7 @@ func TestGetCurrentUserRoles(t *testing.T) {
 
 	roles, err := client1.GetCurrentUserRoles(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(roles, []types.Role{user1Role}, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+	require.Empty(t, cmp.Diff(roles, []types.Role{user1Role}, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestAuthPreferenceSettings(t *testing.T) {
@@ -1248,16 +1247,17 @@ func TestUsersCRUD(t *testing.T) {
 
 	usr, err := types.NewUser("user1")
 	require.NoError(t, err)
-	require.NoError(t, clt.CreateUser(ctx, usr))
+	_, err = clt.CreateUser(ctx, usr)
+	require.NoError(t, err)
 
-	users, err := clt.GetUsers(false)
+	users, err := clt.GetUsers(ctx, false)
 	require.NoError(t, err)
 	require.Equal(t, len(users), 1)
 	require.Equal(t, users[0].GetName(), "user1")
 
 	require.NoError(t, clt.DeleteUser(ctx, "user1"))
 
-	users, err = clt.GetUsers(false)
+	users, err = clt.GetUsers(ctx, false)
 	require.NoError(t, err)
 	require.Equal(t, len(users), 0)
 }
@@ -1358,7 +1358,7 @@ func TestOTPCRUD(t *testing.T) {
 }
 
 // TestWebSessions tests web sessions flow for web user,
-// that logs in, extends web session and tries to perform administratvie action
+// that logs in, extends web session and tries to perform administrative action
 // but fails
 func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	t.Parallel()
@@ -1791,10 +1791,15 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	web, err := testSrv.NewClientFromWebSession(ws)
 	require.NoError(t, err)
 
-	// Update some traits.
+	// Update some traits and roles.
+	newRoleName := "new-role"
 	newUser.SetLogins([]string{"apple", "banana"})
 	newUser.SetDatabaseUsers([]string{"llama", "alpaca"})
-	require.NoError(t, clt.UpdateUser(ctx, newUser))
+	_, err = CreateRole(ctx, clt, newRoleName, types.RoleSpecV6{})
+	require.NoError(t, err)
+	newUser.AddRole(newRoleName)
+	_, err = clt.UpdateUser(ctx, newUser)
+	require.NoError(t, err)
 
 	// Renew session with the updated traits.
 	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
@@ -1809,8 +1814,11 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	require.NoError(t, err)
 	traits, err := services.ExtractTraitsFromCert(sshcert)
 	require.NoError(t, err)
+	roles, err := services.ExtractRolesFromCert(sshcert)
+	require.NoError(t, err)
 	require.Equal(t, traits[constants.TraitLogins], []string{"apple", "banana"})
 	require.Equal(t, traits[constants.TraitDBUsers], []string{"llama", "alpaca"})
+	require.Contains(t, roles, newRoleName)
 }
 
 func TestExtendWebSessionWithMaxDuration(t *testing.T) {
@@ -1989,7 +1997,7 @@ func TestGetCertAuthority(t *testing.T) {
 	require.NoError(t, err)
 
 	user.AddRole(role.GetName())
-	err = testSrv.Auth().UpsertUser(user)
+	user, err = testSrv.Auth().UpsertUser(ctx, user)
 	require.NoError(t, err)
 
 	userClt, err := testSrv.NewClient(TestUser(user.GetName()))
@@ -2258,7 +2266,7 @@ func TestGenerateCerts(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		superImpersonator, err := CreateUser(srv.Auth(), "superimpersonator", superImpersonatorRole)
+		superImpersonator, err := CreateUser(ctx, srv.Auth(), "superimpersonator", superImpersonatorRole)
 		require.NoError(t, err)
 
 		// Impersonator can generate certificates for super impersonator
@@ -2272,7 +2280,7 @@ func TestGenerateCerts(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		impersonator, err := CreateUser(srv.Auth(), "impersonator", role)
+		impersonator, err := CreateUser(ctx, srv.Auth(), "impersonator", role)
 		require.NoError(t, err)
 
 		iUser := TestUser(impersonator.GetName())
@@ -4089,7 +4097,7 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.token,
 					token,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				))
 			}
 		})
@@ -4256,7 +4264,7 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.token,
 					token,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				))
 			}
 		})
@@ -4346,7 +4354,7 @@ func TestGRPCServer_GetTokens(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					expectTokens,
 					tokens,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				))
 			} else {
 				require.Empty(t, tokens)
@@ -4416,7 +4424,7 @@ func TestGRPCServer_GetToken(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					token,
 					pt,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				))
 			} else {
 				require.Nil(t, token)

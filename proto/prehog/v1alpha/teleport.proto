@@ -332,6 +332,8 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36;
 
   DISCOVER_RESOURCE_SAML_APPLICATION = 37;
+
+  DISCOVER_RESOURCE_EC2_INSTANCE = 38;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -474,6 +476,27 @@ message UIDiscoverAutoDiscoveredResourcesEvent {
   DiscoverResourceMetadata resource = 2;
   DiscoverStepStatus status = 3;
   int64 resources_count = 4;
+}
+
+// UIDiscoverEC2InstanceSelectionEvent is emitted when the user is finished with the step that asks the user to select an EC2 Instance to enroll.
+message UIDiscoverEC2InstanceSelectionEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverDeployEICEEvent is emitted when the user deploys an EC2 Instance Connect Endpoint.
+message UIDiscoverDeployEICEEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverCreateNodeEvent is emitted when the node is created in Teleport.
+message UIDiscoverCreateNodeEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
 }
 
 // UIDiscoverDatabaseConfigureIAMPolicyEvent is emitted when a user is finished with the step that configures IAM policy for an RDS database.
@@ -1028,6 +1051,9 @@ message SubmitEventRequest {
     AccessListMemberUpdateEvent access_list_member_update = 62;
     AccessListMemberDeleteEvent access_list_member_delete = 63;
     AccessListGrantsToUserEvent access_list_grants_to_user = 64;
+    UIDiscoverEC2InstanceSelectionEvent ui_discover_ec2_instance_selection = 65;
+    UIDiscoverDeployEICEEvent ui_discover_deploy_eice = 66;
+    UIDiscoverCreateNodeEvent ui_discover_create_node = 67;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

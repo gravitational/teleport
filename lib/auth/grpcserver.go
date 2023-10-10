@@ -112,6 +112,7 @@ var (
 
 // GRPCServer is gRPC Auth Server API
 type GRPCServer struct {
+	authpb.UnimplementedAuthServiceServer
 	auditlogpb.UnimplementedAuditLogServiceServer
 	*logrus.Entry
 	APIConfig
@@ -229,7 +230,9 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 
 	closeStream := func(eventStream apievents.Stream) {
 		if err := eventStream.Close(auth.CloseContext()); err != nil {
-			g.WithError(err).Warningf("Failed to flush close the stream.")
+			if auth.CloseContext().Err() == nil {
+				g.WithError(err).Warn("Failed to flush close the stream.")
+			}
 		} else {
 			g.Debugf("Flushed and closed the stream.")
 		}
@@ -241,7 +244,9 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			return nil
 		}
 		if err != nil {
-			g.WithError(err).Debugf("Failed to receive stream request.")
+			if stream.Context().Err() == nil {
+				g.WithError(err).Debug("Failed to receive stream request.")
+			}
 			return trace.Wrap(err)
 		}
 		if create := request.GetCreateStream(); create != nil {
@@ -435,11 +440,94 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCert
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := validateUserCertsRequest(auth, req); err != nil {
+		g.Entry.Debugf("Validation of user certs request failed: %v", err)
+		return nil, trace.Wrap(err)
+	}
+
+	if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+		certs, err := g.generateUserSingleUseCertsOneShot(ctx, auth, req)
+		return certs, trace.Wrap(err)
+	}
+
 	certs, err := auth.ServerWithRoles.GenerateUserCerts(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return certs, nil
+}
+
+func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) error {
+	switch req.Usage {
+	case authpb.UserCertsRequest_All:
+		if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+			return trace.BadParameter("single-use certificates cannot be issued for all purposes")
+		}
+	case authpb.UserCertsRequest_App:
+		if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+			return trace.BadParameter("single-use certificates cannot be issued for app access")
+		}
+	case authpb.UserCertsRequest_SSH:
+		if req.NodeName == "" {
+			return trace.BadParameter("missing NodeName field in a ssh-only UserCertsRequest")
+		}
+	case authpb.UserCertsRequest_Kubernetes:
+		if req.KubernetesCluster == "" {
+			return trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
+		}
+	case authpb.UserCertsRequest_Database:
+		if req.RouteToDatabase.ServiceName == "" {
+			return trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
+		}
+	case authpb.UserCertsRequest_WindowsDesktop:
+		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
+			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
+		}
+	default:
+		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
+	}
+
+	if req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+		return nil
+	}
+
+	// Single-use certs require current user.
+	if err := actx.currentUserAction(req.Username); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// generateUserSingleUseCertsOneShot generates single-use certificates in a
+// single operation, unlike its streaming counterpart,
+// GenerateUserSingleUseCerts.
+func (g *GRPCServer) generateUserSingleUseCertsOneShot(ctx context.Context, actx *grpcContext, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
+	setUserSingleUseCertsTTL(actx, req)
+
+	// We don't do MFA requirement validations here.
+	// Callers are supposed to use either use
+	// CreateAuthenticateChallengeRequest.MFARequiredCheck or call IsMFARequired,
+	// as appropriate for their scenario.
+	//
+	// If the request has an MFAAuthenticateResponse, then the caller gets a cert
+	// with device extensions. Otherwise, they don't.
+
+	// Generate the cert
+	singleUseCert, err := userSingleUseCertsGenerate(
+		ctx,
+		actx,
+		*req,
+		nil /* mfaDev handled by generateUserCerts */)
+	if err != nil {
+		g.Entry.Warningf("Failed to generate single-use cert: %v", err)
+		return nil, trace.Wrap(err)
+	}
+
+	return &authpb.Certs{
+		SSH: singleUseCert.GetSSH(),
+		TLS: singleUseCert.GetTLS(),
+	}, nil
 }
 
 func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *authpb.HostCertsRequest) (*authpb.Certs, error) {
@@ -679,7 +767,7 @@ func (g *GRPCServer) GetUser(ctx context.Context, req *authpb.GetUserRequest) (*
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := auth.ServerWithRoles.GetUser(req.Name, req.WithSecrets)
+	user, err := auth.ServerWithRoles.GetUser(ctx, req.Name, req.WithSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -735,7 +823,7 @@ func (g *GRPCServer) GetUsers(req *authpb.GetUsersRequest, stream authpb.AuthSer
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	users, err := auth.ServerWithRoles.GetUsers(req.WithSecrets)
+	users, err := auth.ServerWithRoles.GetUsers(stream.Context(), req.WithSecrets)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -881,6 +969,7 @@ func (g *GRPCServer) GetAccessRequestAllowedPromotions(ctx context.Context, requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &authpb.AccessRequestAllowedPromotionResponse{
 		AllowedPromotions: allowedPromotions,
 	}, nil
@@ -1081,7 +1170,7 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *types.UserV2) (*emptyp
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.ServerWithRoles.CreateUser(ctx, req); err != nil {
+	if _, err := auth.ServerWithRoles.CreateUser(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1105,7 +1194,7 @@ func (g *GRPCServer) UpdateUser(ctx context.Context, req *types.UserV2) (*emptyp
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.ServerWithRoles.UpdateUser(ctx, req); err != nil {
+	if _, err := auth.ServerWithRoles.UpdateUser(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2273,6 +2362,10 @@ func (g *GRPCServer) MaintainSessionPresence(stream authpb.AuthService_MaintainS
 	}
 }
 
+// Deprecated: Use AddMFADeviceSync instead.
+//
+// DELETE IN v16, kept for compatibility with older tsh versions (codingllama).
+// (Don't actually delete it, but instead make it always error.)
 func (g *GRPCServer) AddMFADevice(stream authpb.AuthService_AddMFADeviceServer) error {
 	actx, err := g.authenticate(stream.Context())
 	if err != nil {
@@ -2333,6 +2426,7 @@ func (g *GRPCServer) AddMFADevice(stream authpb.AuthService_AddMFADeviceServer) 
 	return nil
 }
 
+//nolint:staticcheck // SA1019. Kept for compatibility with older tsh versions.
 func addMFADeviceInit(gctx *grpcContext, stream authpb.AuthService_AddMFADeviceServer) (*authpb.AddMFADeviceRequestInit, error) {
 	req, err := stream.Recv()
 	if err != nil {
@@ -2365,6 +2459,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_AddM
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	//nolint:staticcheck // SA1019. Kept for compatibility with older tsh versions.
 	if err := stream.Send(&authpb.AddMFADeviceResponse{
 		Response: &authpb.AddMFADeviceResponse_ExistingMFAChallenge{ExistingMFAChallenge: authChallenge},
 	}); err != nil {
@@ -2388,6 +2483,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_AddM
 	return nil
 }
 
+//nolint:staticcheck // SA1019. Kept for compatibility with older tsh versions.
 func addMFADeviceRegisterChallenge(gctx *grpcContext, stream authpb.AuthService_AddMFADeviceServer, initReq *authpb.AddMFADeviceRequestInit) (*types.MFADevice, error) {
 	auth := gctx.authServer
 	user := gctx.User.GetName()
@@ -2411,6 +2507,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream authpb.AuthService_
 	}
 	regChallenge.Request = res.GetRequest()
 
+	//nolint:staticcheck // SA1019. Kept for compatibility with older tsh versions.
 	if err := stream.Send(&authpb.AddMFADeviceResponse{
 		Response: &authpb.AddMFADeviceResponse_NewMFARegisterChallenge{NewMFARegisterChallenge: regChallenge},
 	}); err != nil {
@@ -2440,6 +2537,10 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream authpb.AuthService_
 	return dev, trace.Wrap(err)
 }
 
+// Deprecated: Use DeleteMFADeviceSync instead.
+//
+// DELETE IN v16, kept for compatibility with older tsh versions (codingllama).
+// (Don't actually delete it, but instead make it always error.)
 func (g *GRPCServer) DeleteMFADevice(stream authpb.AuthService_DeleteMFADeviceServer) error {
 	ctx := stream.Context()
 	actx, err := g.authenticate(ctx)
@@ -2501,6 +2602,7 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_D
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	//nolint:staticcheck // SA1019. Kept for compatibility with older tsh versions.
 	if err := stream.Send(&authpb.DeleteMFADeviceResponse{
 		Response: &authpb.DeleteMFADeviceResponse_MFAChallenge{MFAChallenge: authChallenge},
 	}); err != nil {
@@ -2589,10 +2691,13 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_Genera
 	if initReq == nil {
 		return trace.BadParameter("expected UserCertsRequest, got %T", req.Request)
 	}
-	if err := validateUserSingleUseCertRequest(ctx, actx, initReq); err != nil {
+	initReq.Purpose = authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
+	if err := validateUserCertsRequest(actx, initReq); err != nil {
 		g.Entry.Debugf("Validation of single-use cert request failed: %v", err)
 		return trace.Wrap(err)
 	}
+
+	setUserSingleUseCertsTTL(actx, initReq)
 
 	// Device trust: authorize device before issuing certificates.
 	// We do this here, in addition to the check at generateUserCerts, so users
@@ -2656,55 +2761,21 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_Genera
 	return nil
 }
 
-// validateUserSingleUseCertRequest validates the request for a single-use user
-// cert.
-func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, req *authpb.UserCertsRequest) error {
-	if err := actx.currentUserAction(req.Username); err != nil {
-		return trace.Wrap(err)
-	}
-
-	switch req.Usage {
-	case authpb.UserCertsRequest_SSH:
-		if req.NodeName == "" {
-			return trace.BadParameter("missing NodeName field in a ssh-only UserCertsRequest")
-		}
-	case authpb.UserCertsRequest_Kubernetes:
-		if req.KubernetesCluster == "" {
-			return trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
-		}
-	case authpb.UserCertsRequest_Database:
-		if req.RouteToDatabase.ServiceName == "" {
-			return trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
-		}
-	case authpb.UserCertsRequest_All:
-		return trace.BadParameter("must specify a concrete Usage in UserCertsRequest, one of SSH, Kubernetes or Database")
-	case authpb.UserCertsRequest_App:
-		return trace.BadParameter("app access certificates cannot be issued by GenerateUserSingleUseCerts")
-	case authpb.UserCertsRequest_WindowsDesktop:
-		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
-			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
-		}
-	default:
-		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
-	}
-
+func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
 	if isLocalProxyCertReq(req) {
 		// don't limit the cert expiry to 1 minute for db local proxy tunnel or kube local proxy,
 		// because the certs will be kept in-memory by the client to protect
 		// against cert/key exfiltration. When MFA is required, cert expiration
 		// time is bounded by the lifetime of the local proxy process.
-		return nil
+		return
 	}
 
 	maxExpiry := actx.authServer.GetClock().Now().Add(teleport.UserSingleUseCertTTL)
 	if req.Expires.After(maxExpiry) {
 		req.Expires = maxExpiry
 	}
-	return nil
 }
 
-// isMFARequiredForSingleUseCertRequest validates that mfa is actually required for
-// the target of the single-use user cert.
 func isMFARequiredForSingleUseCertRequest(ctx context.Context, actx *grpcContext, req *authpb.UserCertsRequest) (bool, error) {
 	mfaReq := &authpb.IsMFARequiredRequest{}
 
@@ -2799,10 +2870,14 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req auth
 	// MFA certificates are supposed to be always pinned to IP, but it was decided to turn this off until
 	// IP pinning comes out of preview. Here we would add option to pin the cert, see commit of this comment for restoring.
 	opts := []certRequestOption{
-		certRequestMFAVerified(mfaDev.Id),
 		certRequestPreviousIdentityExpires(actx.Identity.GetIdentity().Expires),
 		certRequestLoginIP(clientIP),
 		certRequestDeviceExtensions(actx.Identity.GetIdentity().DeviceExtensions),
+	}
+	// TODO(codingllama): Drop this once GenerateUserSingleUseCerts doesn't exist
+	//  anymore. We always leave challenge validation to generateUserCerts.
+	if mfaDev != nil {
+		opts = append(opts, certRequestMFAVerified(mfaDev.Id))
 	}
 
 	// Generate the cert.
@@ -4386,7 +4461,7 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 		return nil, trace.Wrap(err)
 	}
 
-	paginatedResources, err := auth.MakePaginatedResources(req.ResourceType, resp.Resources)
+	paginatedResources, err := services.MakePaginatedResources(req.ResourceType, resp.Resources)
 	if err != nil {
 		return nil, trace.Wrap(err, "making paginated resources")
 	}

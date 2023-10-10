@@ -209,35 +209,36 @@ func newUser(name string, roles []string) types.User {
 func (s *ServicesTestSuite) UsersCRUD(t *testing.T) {
 	ctx := context.Background()
 
-	u, err := s.WebS.GetUsers(false)
+	u, err := s.WebS.GetUsers(ctx, false)
 	require.NoError(t, err)
 	require.Equal(t, len(u), 0)
 
 	require.NoError(t, s.WebS.UpsertPasswordHash("user1", []byte("hash")))
 	require.NoError(t, s.WebS.UpsertPasswordHash("user2", []byte("hash2")))
 
-	u, err = s.WebS.GetUsers(false)
+	u, err = s.WebS.GetUsers(ctx, false)
 	require.NoError(t, err)
 	userSlicesEqual(t, u, []types.User{newUser("user1", nil), newUser("user2", nil)})
 
-	out, err := s.WebS.GetUser("user1", false)
+	out, err := s.WebS.GetUser(ctx, "user1", false)
 	require.NoError(t, err)
 	usersEqual(t, out, u[0])
 
 	user := newUser("user1", []string{"admin", "user"})
-	require.NoError(t, s.WebS.UpsertUser(user))
+	user, err = s.WebS.UpsertUser(ctx, user)
+	require.NoError(t, err)
 
-	out, err = s.WebS.GetUser("user1", false)
+	out, err = s.WebS.GetUser(ctx, "user1", false)
 	require.NoError(t, err)
 	usersEqual(t, out, user)
 
-	out, err = s.WebS.GetUser("user1", false)
+	out, err = s.WebS.GetUser(ctx, "user1", false)
 	require.NoError(t, err)
 	usersEqual(t, out, user)
 
 	require.NoError(t, s.WebS.DeleteUser(ctx, "user1"))
 
-	u, err = s.WebS.GetUsers(false)
+	u, err = s.WebS.GetUsers(ctx, false)
 	require.NoError(t, err)
 	userSlicesEqual(t, u, []types.User{newUser("user2", nil)})
 
@@ -245,14 +246,15 @@ func (s *ServicesTestSuite) UsersCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 
 	// bad username
-	err = s.WebS.UpsertUser(newUser("", nil))
+	_, err = s.WebS.UpsertUser(ctx, newUser("", nil))
 	require.True(t, trace.IsBadParameter(err))
 }
 
 func (s *ServicesTestSuite) UsersExpiry(t *testing.T) {
+	ctx := context.Background()
 	expiresAt := s.Clock.Now().Add(1 * time.Minute)
 
-	err := s.WebS.UpsertUser(&types.UserV2{
+	_, err := s.WebS.UpsertUser(ctx, &types.UserV2{
 		Kind:    types.KindUser,
 		Version: types.V2,
 		Metadata: types.Metadata{
@@ -265,14 +267,14 @@ func (s *ServicesTestSuite) UsersExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure the user exists.
-	u, err := s.WebS.GetUser("foo", false)
+	u, err := s.WebS.GetUser(ctx, "foo", false)
 	require.NoError(t, err)
 	require.Equal(t, u.GetName(), "foo")
 
 	s.Clock.Advance(2 * time.Minute)
 
 	// Make sure the user is now gone.
-	_, err = s.WebS.GetUser("foo", false)
+	_, err = s.WebS.GetUser(ctx, "foo", false)
 	require.Error(t, err)
 }
 
@@ -280,7 +282,8 @@ func (s *ServicesTestSuite) LoginAttempts(t *testing.T) {
 	user1 := uuid.NewString()
 
 	user := newUser(user1, []string{"admin", "user"})
-	require.NoError(t, s.WebS.UpsertUser(user))
+	user, err := s.WebS.UpsertUser(context.Background(), user)
+	require.NoError(t, err)
 
 	attempts, err := s.WebS.GetUserLoginAttempts(user.GetName())
 	require.NoError(t, err)
@@ -309,23 +312,22 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 
 	out, err := s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
-	ca.SetResourceID(out.GetResourceID())
-	require.Equal(t, out, ca)
+	require.Empty(t, cmp.Diff(out, ca, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	cas, err := s.CAS.GetCertAuthorities(ctx, types.UserCA, false)
 	require.NoError(t, err)
 	ca2 := ca.Clone().(*types.CertAuthorityV2)
 	ca2.Spec.ActiveKeys.SSH[0].PrivateKey = nil
 	ca2.Spec.ActiveKeys.TLS[0].Key = nil
-	require.Equal(t, cas[0], ca2)
+	require.Empty(t, cmp.Diff(cas[0], ca2, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	cas, err = s.CAS.GetCertAuthorities(ctx, types.UserCA, true)
 	require.NoError(t, err)
-	require.Equal(t, cas[0], ca)
+	require.Empty(t, cmp.Diff(cas[0], ca, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	cas, err = s.CAS.GetCertAuthorities(ctx, types.UserCA, true)
 	require.NoError(t, err)
-	require.Equal(t, cas[0], ca)
+	require.Empty(t, cmp.Diff(cas[0], ca, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.CAS.DeleteCertAuthority(ctx, *ca.ID())
 	require.NoError(t, err)
@@ -349,8 +351,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 
 	out, err = s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
-	newCA.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(&newCA, out, cmpopts.EquateApproxTime(time.Second)))
+	require.Empty(t, cmp.Diff(&newCA, out, cmpopts.EquateApproxTime(time.Second), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 // NewServer creates a new server resource
@@ -382,14 +383,12 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 
 	node, err := s.PresenceS.GetNode(ctx, srv.Metadata.Namespace, srv.GetName())
 	require.NoError(t, err)
-	srv.SetResourceID(node.GetResourceID())
-	require.Empty(t, cmp.Diff(node, srv))
+	require.Empty(t, cmp.Diff(node, srv, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	out, err = s.PresenceS.GetNodes(ctx, srv.Metadata.Namespace)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
-	srv.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(out, []types.Server{srv}))
+	require.Empty(t, cmp.Diff(out, []types.Server{srv}, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.PresenceS.DeleteNode(ctx, srv.Metadata.Namespace, srv.GetName())
 	require.NoError(t, err)
@@ -409,8 +408,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	out, err = s.PresenceS.GetProxies()
 	require.NoError(t, err)
 	require.Len(t, out, 1)
-	proxy.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(out, []types.Server{proxy}))
+	require.Empty(t, cmp.Diff(out, []types.Server{proxy}, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.PresenceS.DeleteProxy(ctx, proxy.GetName())
 	require.NoError(t, err)
@@ -430,8 +428,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	out, err = s.PresenceS.GetAuthServers()
 	require.NoError(t, err)
 	require.Len(t, out, 1)
-	auth.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(out, []types.Server{auth}))
+	require.Empty(t, cmp.Diff(out, []types.Server{auth}, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 // AppServerCRUD tests CRUD functionality for services.Server.
@@ -465,8 +462,7 @@ func (s *ServicesTestSuite) AppServerCRUD(t *testing.T) {
 	out, err = s.PresenceS.GetApplicationServers(ctx, server.GetNamespace())
 	require.NoError(t, err)
 	require.Len(t, out, 1)
-	server.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff([]types.AppServer{server}, out))
+	require.Empty(t, cmp.Diff([]types.AppServer{server}, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// Remove the application.
 	err = s.PresenceS.DeleteApplicationServer(ctx, server.Metadata.Namespace, server.GetHostID(), server.GetName())
@@ -504,8 +500,7 @@ func (s *ServicesTestSuite) ReverseTunnelsCRUD(t *testing.T) {
 	out, err = s.PresenceS.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Len(t, out, 1)
-	tunnel.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(out, []types.ReverseTunnel{tunnel}))
+	require.Empty(t, cmp.Diff(out, []types.ReverseTunnel{tunnel}, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.PresenceS.DeleteReverseTunnel(tunnel.Spec.ClusterName)
 	require.NoError(t, err)
@@ -564,7 +559,7 @@ func (s *ServicesTestSuite) WebSessionCRUD(t *testing.T) {
 
 	out, err := s.WebS.WebSessions().Get(ctx, req)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, ws))
+	require.Empty(t, cmp.Diff(out, ws, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	ws1, err := types.NewWebSession("sid1", types.KindWebSession,
 		types.WebSessionSpecV2{
@@ -580,7 +575,7 @@ func (s *ServicesTestSuite) WebSessionCRUD(t *testing.T) {
 
 	out2, err := s.WebS.WebSessions().Get(ctx, req)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out2, ws1))
+	require.Empty(t, cmp.Diff(out2, ws1, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	require.NoError(t, s.WebS.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
 		User:      req.User,
@@ -699,16 +694,14 @@ func (s *ServicesTestSuite) RolesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	rout, err := s.Access.GetRole(ctx, role.Metadata.Name)
 	require.NoError(t, err)
-	role.SetResourceID(rout.GetResourceID())
-	require.Empty(t, cmp.Diff(rout, &role))
+	require.Empty(t, cmp.Diff(rout, &role, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	role.Spec.Allow.Logins = []string{"bob"}
 	err = s.Access.UpsertRole(ctx, &role)
 	require.NoError(t, err)
 	rout, err = s.Access.GetRole(ctx, role.Metadata.Name)
 	require.NoError(t, err)
-	role.SetResourceID(rout.GetResourceID())
-	require.Empty(t, cmp.Diff(rout, &role))
+	require.Empty(t, cmp.Diff(rout, &role, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.Access.DeleteRole(ctx, role.Metadata.Name)
 	require.NoError(t, err)
@@ -820,13 +813,12 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	out, err = s.PresenceS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
 	require.Equal(t, len(out), 1)
-	conn.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(out[0], conn))
+	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	out, err = s.PresenceS.GetAllTunnelConnections()
 	require.NoError(t, err)
 	require.Equal(t, len(out), 1)
-	require.Empty(t, cmp.Diff(out[0], conn))
+	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	dt = dt.Add(time.Hour)
 	conn.SetLastHeartbeat(dt)
@@ -837,8 +829,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	out, err = s.PresenceS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
 	require.Equal(t, len(out), 1)
-	conn.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(out[0], conn))
+	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.PresenceS.DeleteAllTunnelConnections()
 	require.NoError(t, err)
@@ -857,8 +848,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	out, err = s.PresenceS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
 	require.Equal(t, len(out), 1)
-	conn.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(out[0], conn))
+	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.PresenceS.DeleteTunnelConnection(clusterName, conn.GetName())
 	require.NoError(t, err)
@@ -945,8 +935,7 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
 	out, err = s.PresenceS.GetRemoteClusters()
 	require.NoError(t, err)
 	require.Equal(t, len(out), 1)
-	rc.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(out[0], rc))
+	require.Empty(t, cmp.Diff(out[0], rc, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.PresenceS.DeleteAllRemoteClusters()
 	require.NoError(t, err)
@@ -962,7 +951,7 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
 	out, err = s.PresenceS.GetRemoteClusters()
 	require.NoError(t, err)
 	require.Equal(t, len(out), 1)
-	require.Empty(t, cmp.Diff(out[0], rc))
+	require.Empty(t, cmp.Diff(out[0], rc, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.PresenceS.DeleteRemoteCluster(ctx, clusterName)
 	require.NoError(t, err)
@@ -1027,8 +1016,7 @@ func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
 
 	out, err := s.ConfigS.GetStaticTokens()
 	require.NoError(t, err)
-	staticTokens.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(staticTokens, out))
+	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.ConfigS.DeleteStaticTokens()
 	require.NoError(t, err)
@@ -1074,8 +1062,7 @@ func (s *ServicesTestSuite) ClusterName(t *testing.T, opts ...Option) {
 
 	gotName, err := s.ConfigS.GetClusterName()
 	require.NoError(t, err)
-	clusterName.SetResourceID(gotName.GetResourceID())
-	require.Empty(t, cmp.Diff(clusterName, gotName))
+	require.Empty(t, cmp.Diff(clusterName, gotName, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.ConfigS.DeleteClusterName()
 	require.NoError(t, err)
@@ -1088,8 +1075,7 @@ func (s *ServicesTestSuite) ClusterName(t *testing.T, opts ...Option) {
 
 	gotName, err = s.ConfigS.GetClusterName()
 	require.NoError(t, err)
-	clusterName.SetResourceID(gotName.GetResourceID())
-	require.Empty(t, cmp.Diff(clusterName, gotName))
+	require.Empty(t, cmp.Diff(clusterName, gotName, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 // ClusterNetworkingConfig tests cluster networking configuration.
@@ -1471,10 +1457,10 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 			crud: func(context.Context) types.Resource {
 				user := newUser("user1", []string{constants.DefaultImplicitRole})
-				err := s.Users().UpsertUser(user)
+				user, err := s.Users().UpsertUser(ctx, user)
 				require.NoError(t, err)
 
-				out, err := s.Users().GetUser(user.GetName(), false)
+				out, err := s.Users().GetUser(ctx, user.GetName(), false)
 				require.NoError(t, err)
 
 				require.NoError(t, s.Users().DeleteUser(ctx, user.GetName()))

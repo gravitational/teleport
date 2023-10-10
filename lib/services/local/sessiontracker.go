@@ -72,8 +72,7 @@ func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user str
 			return trace.Wrap(err)
 		}
 
-		err = session.UpdatePresence(user, s.bk.Clock().Now().UTC())
-		if err != nil {
+		if err := session.UpdatePresence(user, s.bk.Clock().Now().UTC()); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -83,9 +82,10 @@ func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user str
 		}
 
 		item := backend.Item{
-			Key:     backend.Key(sessionPrefix, sessionID),
-			Value:   sessionJSON,
-			Expires: session.Expiry(),
+			Key:      backend.Key(sessionPrefix, sessionID),
+			Value:    sessionJSON,
+			Expires:  session.Expiry(),
+			Revision: sessionItem.Revision,
 		}
 		_, err = s.bk.CompareAndSwap(ctx, *sessionItem, item)
 		if trace.IsCompareFailed(err) {
@@ -114,7 +114,7 @@ func (s *sessionTracker) GetSessionTracker(ctx context.Context, sessionID string
 }
 
 func (s *sessionTracker) getActiveSessionTrackers(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
-	prefix := backend.Key(sessionPrefix)
+	prefix := backend.ExactKey(sessionPrefix)
 	result, err := s.bk.GetRange(ctx, prefix, backend.RangeEnd(prefix), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -261,9 +261,10 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 		}
 
 		item := backend.Item{
-			Key:     backend.Key(sessionPrefix, req.SessionID),
-			Value:   sessionJSON,
-			Expires: expiry,
+			Key:      backend.Key(sessionPrefix, req.SessionID),
+			Value:    sessionJSON,
+			Expires:  expiry,
+			Revision: sessionItem.Revision,
 		}
 		_, err = s.bk.CompareAndSwap(ctx, *sessionItem, item)
 		if trace.IsCompareFailed(err) {

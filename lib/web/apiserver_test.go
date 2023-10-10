@@ -722,7 +722,7 @@ func (s *WebSuite) authPackWithMFA(t *testing.T, name string, roles ...types.Rol
 	}
 
 	user.AddRole(userRole.GetName())
-	err = s.server.Auth().CreateUser(s.ctx, user)
+	_, err = s.server.Auth().CreateUser(s.ctx, user)
 	require.NoError(t, err)
 
 	clt := s.client(t)
@@ -810,7 +810,7 @@ func (s *WebSuite) createUser(t *testing.T, user string, login string, pass stri
 	teleUser.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: "some-auth-user"},
 	})
-	err = s.server.Auth().CreateUser(s.ctx, teleUser)
+	_, err = s.server.Auth().CreateUser(s.ctx, teleUser)
 	require.NoError(t, err)
 
 	err = s.server.Auth().UpsertPassword(user, []byte(pass))
@@ -1213,7 +1213,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Equal(t, types.KindNode, res.Items[0].Kind)
+	require.Equal(t, types.KindWindowsDesktop, res.Items[0].Kind)
 
 	// test with no access
 	noAccessRole, err := types.NewRole(services.RoleNameForUser("test-no-access@example.com"), types.RoleSpecV6{})
@@ -2022,20 +2022,22 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "llama", nil /* roles */)
 
-	clt, err := env.server.NewClient(auth.TestUser("llama"))
+	const username = "llama2999"
+	pack := proxy.authPack(t, username, nil /* roles */)
+
+	userClient, err := env.server.NewClient(auth.TestUser(username))
 	require.NoError(t, err)
 
 	cases := []struct {
 		name                      string
-		getAuthPreference         func() types.AuthPreference
-		registerDevice            func() *auth.TestDevice
-		getChallengeResponseBytes func(chals *client.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte
+		getAuthPreference         func(t *testing.T) types.AuthPreference
+		registerDevice            func(t *testing.T) *auth.TestDevice
+		getChallengeResponseBytes func(t *testing.T, chal *client.MFAAuthenticateChallenge, testDev *auth.TestDevice) []byte
 	}{
 		{
 			name: "with webauthn",
-			getAuthPreference: func() types.AuthPreference {
+			getAuthPreference: func(t *testing.T) types.AuthPreference {
 				ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorWebauthn,
@@ -2048,15 +2050,18 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 
 				return ap
 			},
-			registerDevice: func() *auth.TestDevice {
-				webauthnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", authproto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+			registerDevice: func(t *testing.T) *auth.TestDevice {
+				webauthnDev, err := auth.RegisterTestDevice(
+					ctx,
+					userClient,
+					"webauthn", authproto.DeviceType_DEVICE_TYPE_WEBAUTHN, pack.device /* authenticator */)
 				require.NoError(t, err)
 
 				return webauthnDev
 			},
-			getChallengeResponseBytes: func(chals *client.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
-				res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
-					WebauthnChallenge: wantypes.CredentialAssertionToProto(chals.WebauthnChallenge),
+			getChallengeResponseBytes: func(t *testing.T, chal *client.MFAAuthenticateChallenge, testDev *auth.TestDevice) []byte {
+				res, err := testDev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
+					WebauthnChallenge: wantypes.CredentialAssertionToProto(chal.WebauthnChallenge),
 				})
 				require.NoError(t, err)
 
@@ -2075,13 +2080,12 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			},
 		},
 	}
-
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err = env.server.Auth().SetAuthPreference(ctx, tc.getAuthPreference())
+			err = env.server.Auth().SetAuthPreference(ctx, tc.getAuthPreference(t))
 			require.NoError(t, err)
 
-			dev := tc.registerDevice()
+			dev := tc.registerDevice(t)
 
 			// Open a terminal to a new session.
 			ws, _ := proxy.makeTerminal(t, pack, "")
@@ -2093,12 +2097,12 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			var env Envelope
 			require.Nil(t, proto.Unmarshal(raw, &env))
 
-			chals := &client.MFAAuthenticateChallenge{}
-			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chals))
+			chal := &client.MFAAuthenticateChallenge{}
+			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chal))
 
 			// Send response over ws.
 			stream := NewTerminalStream(ctx, ws, utils.NewLoggerForTests())
-			err = stream.ws.WriteMessage(websocket.BinaryMessage, tc.getChallengeResponseBytes(chals, dev))
+			err = stream.ws.WriteMessage(websocket.BinaryMessage, tc.getChallengeResponseBytes(t, chal, dev))
 			require.Nil(t, err)
 
 			// Test we can write.
@@ -5353,7 +5357,8 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	// Creaet a username that is not a valid email format for recovery.
 	teleUser, err := types.NewUser("invalid-name-for-recovery")
 	require.NoError(t, err)
-	require.NoError(t, env.server.Auth().CreateUser(ctx, teleUser))
+	_, err = env.server.Auth().CreateUser(ctx, teleUser)
+	require.NoError(t, err)
 
 	// Create a reset password token and secrets.
 	resetToken, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
@@ -5384,7 +5389,8 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	// Create a user that is valid for recovery.
 	teleUser, err = types.NewUser("valid-username@example.com")
 	require.NoError(t, err)
-	require.NoError(t, env.server.Auth().CreateUser(ctx, teleUser))
+	_, err = env.server.Auth().CreateUser(ctx, teleUser)
+	require.NoError(t, err)
 
 	// Create a reset password token and secrets.
 	resetToken, err = env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
@@ -5444,7 +5450,8 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 	// Create a user that is valid for recovery.
 	teleUser, err := types.NewUser("valid-username@example.com")
 	require.NoError(t, err)
-	require.NoError(t, env.server.Auth().CreateUser(ctx, teleUser))
+	_, err = env.server.Auth().CreateUser(ctx, teleUser)
+	require.NoError(t, err)
 
 	// Create a reset password token and secrets.
 	resetToken, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
@@ -5573,7 +5580,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 
 			user.AddRole(role.GetName())
 
-			err = s.server.Auth().CreateUser(s.ctx, user)
+			user, err = s.server.Auth().CreateUser(s.ctx, user)
 			require.NoError(t, err)
 
 			users[i] = user
@@ -5815,7 +5822,8 @@ func TestGetUserOrResetToken(t *testing.T) {
 	teleUser, err := types.NewUser(username)
 	require.NoError(t, err)
 	teleUser.SetLogins([]string{"login1"})
-	require.NoError(t, env.server.Auth().CreateUser(ctx, teleUser))
+	_, err = env.server.Auth().CreateUser(ctx, teleUser)
+	require.NoError(t, err)
 
 	// Create a reset password token and secrets.
 	resetToken, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
@@ -7209,7 +7217,7 @@ func (mock authProviderMock) MaintainSessionPresence(ctx context.Context) (authp
 	return nil, nil
 }
 
-func (mock authProviderMock) GetUser(_ string, _ bool) (types.User, error) {
+func (mock authProviderMock) GetUser(_ context.Context, _ string, _ bool) (types.User, error) {
 	return nil, nil
 }
 
@@ -7999,6 +8007,9 @@ func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Ro
 		clt:       clt,
 		cookies:   resp.Cookies(),
 		password:  pass,
+		device: &auth.TestDevice{
+			TOTPSecret: otpSecret,
+		},
 	}
 }
 
@@ -8065,7 +8076,7 @@ func (r *testProxy) createUser(ctx context.Context, t *testing.T, user, login, p
 		User: types.UserRef{Name: "some-auth-user"},
 	})
 
-	err = r.auth.Auth().CreateUser(ctx, teleUser)
+	_, err = r.auth.Auth().CreateUser(ctx, teleUser)
 	require.NoError(t, err)
 
 	err = r.auth.Auth().UpsertPassword(user, []byte(pass))
