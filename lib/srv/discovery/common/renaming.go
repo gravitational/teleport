@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // ApplyAWSDatabaseNameSuffix applies the AWS Database Discovery name suffix to
@@ -76,13 +75,13 @@ func ApplyAzureDatabaseNameSuffix(db types.Database, matcherType string) {
 // By subtyping the matcher type, we can ensure these names do not collide.
 func getDBMatcherSubtype(matcherType string, db types.Database) string {
 	switch matcherType {
-	case services.AWSMatcherRDS:
+	case types.AWSMatcherRDS:
 		if db.GetAWS().RDS.InstanceID == "" {
 			// distinguish RDS instances from clusters by subtyping the RDS
 			// matcher as "rds-aurora".
 			return "aurora"
 		}
-	case services.AzureMatcherRedis:
+	case types.AzureMatcherRedis:
 		if db.GetAzure().Redis.ClusteringPolicy != "" {
 			// distinguish Redis databases from Redis Enterprise database by
 			// subtyping the redis matcher as "redis-enterprise".
@@ -103,7 +102,7 @@ func ApplyEKSNameSuffix(cluster types.KubeCluster) {
 	meta := cluster.GetAWSConfig()
 	suffix := makeAWSDiscoverySuffix(kubeClusterNamePartValidator,
 		cluster.GetName(),
-		services.AWSMatcherEKS,
+		types.AWSMatcherEKS,
 		"", // no EKS subtype
 		meta.Region,
 		meta.AccountID,
@@ -123,7 +122,7 @@ func ApplyAKSNameSuffix(cluster types.KubeCluster) {
 	region, _ := cluster.GetLabel(types.DiscoveryLabelRegion)
 	suffix := makeAzureDiscoverySuffix(kubeClusterNamePartValidator,
 		cluster.GetName(),
-		services.AzureMatcherKubernetes,
+		types.AzureMatcherKubernetes,
 		"", // no AKS subtype
 		region,
 		meta.ResourceGroup,
@@ -143,7 +142,7 @@ func ApplyGKENameSuffix(cluster types.KubeCluster) {
 	meta := cluster.GetGCPConfig()
 	suffix := makeGCPDiscoverySuffix(kubeClusterNamePartValidator,
 		cluster.GetName(),
-		services.GCPMatcherKubernetes,
+		types.GCPMatcherKubernetes,
 		"", // no GKE subtype
 		meta.Location,
 		meta.ProjectID,

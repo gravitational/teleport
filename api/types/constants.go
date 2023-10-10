@@ -1121,3 +1121,13 @@ const (
 	// JWTClaimsRewriteNone include neither traits nor roles in the JWT token.
 	JWTClaimsRewriteNone = "none"
 )
+
+const (
+	// DefaultInstallerScriptName is the name of the by default populated, EC2
+	// installer script
+	DefaultInstallerScriptName = "default-installer"
+
+	// DefaultInstallerScriptNameAgentless is the name of the by default populated, EC2
+	// installer script when agentless mode is enabled for a matcher
+	DefaultInstallerScriptNameAgentless = "default-agentless-installer"
+)
