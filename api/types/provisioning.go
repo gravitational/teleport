@@ -183,15 +183,17 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 	if len(p.Spec.Roles) == 0 {
 		return trace.BadParameter("provisioning token is missing roles")
 	}
-	if err := SystemRoles(p.Spec.Roles).Check(); err != nil {
+	roles, err := NewTeleportRoles(SystemRoles(p.Spec.Roles).StringSlice())
+	if err != nil {
 		return trace.Wrap(err)
 	}
+	p.Spec.Roles = roles
 
-	if SystemRoles(p.Spec.Roles).Include(RoleBot) && p.Spec.BotName == "" {
+	if roles.Include(RoleBot) && p.Spec.BotName == "" {
 		return trace.BadParameter("token with role %q must set bot_name", RoleBot)
 	}
 
-	if p.Spec.BotName != "" && !SystemRoles(p.Spec.Roles).Include(RoleBot) {
+	if p.Spec.BotName != "" && !roles.Include(RoleBot) {
 		return trace.BadParameter("can only set bot_name on token with role %q", RoleBot)
 	}
 
@@ -324,7 +326,8 @@ func (p *ProvisionTokenV2) GetVersion() string {
 // that will be granted to the user of the token
 // in the crendentials
 func (p *ProvisionTokenV2) GetRoles() SystemRoles {
-	return p.Spec.Roles
+	// Ensure that roles are case-insensitive.
+	return normalizedSystemRoles(SystemRoles(p.Spec.Roles).StringSlice())
 }
 
 // SetRoles sets teleport roles
