@@ -1820,6 +1820,11 @@ func GetResourceIDsByCluster(r types.AccessRequest) map[string][]types.ResourceI
 	return accessrequest.GetResourceIDsByCluster(r)
 }
 
+// TODO(atburke): Remove this once teleport.e reference is switched over
+func GetResourcesByResourceIDs(ctx context.Context, lister client.ListResourcesClient, resourceIDs []types.ResourceID, opts ...accessrequest.ListResourcesRequestOption) ([]types.ResourceWithLabels, error) {
+	return accessrequest.GetResourcesByResourceIDs(ctx, lister, resourceIDs, opts...)
+}
+
 // resourceMatcherToMatcherSlice returns the resourceMatcher in a RoleMatcher slice
 // if the resourceMatcher is not nil, otherwise returns a nil slice.
 func resourceMatcherToMatcherSlice(resourceMatcher *KubeResourcesMatcher) []RoleMatcher {
