@@ -2,7 +2,7 @@
 
 Make targets in this repo are available to build teleport binaries locally and deploy them to an existing tenant on the Teleport Cloud staging cluster.
 
-The inital implementation is derived from [cloud/RFD-0026](https://github.com/gravitational/cloud/blob/master/rfd/0026-Teleport-Release-Validation.md).
+The initial implementation is derived from [cloud/RFD-0026](https://github.com/gravitational/cloud/blob/master/rfd/0026-Teleport-Release-Validation.md).
 
 ## Pre-requisites
 
@@ -44,7 +44,7 @@ Ensure the following profiles are defined in `~/.aws/config`:
 sso_start_url = https://d-92670253d5.awsapps.com/start
 sso_region = us-west-2
 sso_account_id = 599519581022
-sso_role_name = AWS-TeleportCloud-Stage-ECR
+sso_role_name = tc-stage-ecr-role
 region = us-west-2
 output = json
 
@@ -74,7 +74,7 @@ export AWS_SSO_PROFILE=tc-stage-ro
 
 ### `deploy-cloud-login`
 
-Checks for valid logins and required permissions on platform.teleport.sh teleport cluster, staging kubernetes cluter and AWS ECR (Elastic Container Registry). Interactive steps are invoked only when an existing session is not found. No flags are required with this target.
+Checks for valid logins and required permissions on platform.teleport.sh teleport cluster, staging kubernetes cluster and AWS ECR (Elastic Container Registry). Interactive steps are invoked only when an existing session is not found. No flags are required with this target.
 
 ```
 make deploy-cloud-login
