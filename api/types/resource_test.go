@@ -501,3 +501,59 @@ func TestValidLabelKey(t *testing.T) {
 		require.Equal(t, tc.valid, isValid)
 	}
 }
+
+func TestFriendlyName(t *testing.T) {
+	appNoFriendly, err := NewAppV3(Metadata{
+		Name: "no friendly",
+	}, AppSpecV3{
+		URI: "https://some-uri.com",
+	},
+	)
+	require.NoError(t, err)
+
+	appFriendly, err := NewAppV3(Metadata{
+		Name:        "no friendly",
+		Description: "friendly name",
+		Labels: map[string]string{
+			OriginLabel: OriginOkta,
+		},
+	}, AppSpecV3{
+		URI: "https://some-uri.com",
+	},
+	)
+	require.NoError(t, err)
+
+	node, err := NewServer("node", KindNode, ServerSpecV2{
+		Hostname: "friendly hostname",
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		resource ResourceWithLabels
+		expected string
+	}{
+		{
+			name:     "no friendly name",
+			resource: appNoFriendly,
+			expected: "",
+		},
+		{
+			name:     "friendly app name",
+			resource: appFriendly,
+			expected: "friendly name",
+		},
+		{
+			name:     "friendly node name",
+			resource: node,
+			expected: "friendly hostname",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, FriendlyName(test.resource))
+		})
+	}
+}

@@ -69,25 +69,12 @@ func NewIdentityService(backend backend.Backend) *IdentityService {
 
 // DeleteAllUsers deletes all users
 func (s *IdentityService) DeleteAllUsers(ctx context.Context) error {
-	return trace.Wrap(s.DeleteAllUsersWithContext(ctx))
-}
-
-// DeleteAllUsersWithContext deletes all users.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (s *IdentityService) DeleteAllUsersWithContext(ctx context.Context) error {
 	startKey := backend.ExactKey(webPrefix, usersPrefix)
 	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
 // GetUsers returns a list of users registered with the local auth server
 func (s *IdentityService) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	users, err := s.GetUsersWithContext(ctx, withSecrets)
-	return users, trace.Wrap(err)
-}
-
-// GetUsersWithContext returns a list of users registered with the local auth server
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (s *IdentityService) GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	if withSecrets {
 		return s.getUsersWithSecrets(ctx)
 	}
@@ -137,13 +124,6 @@ func (s *IdentityService) getUsersWithSecrets(ctx context.Context) ([]types.User
 
 // CreateUser creates user if it does not exist.
 func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (types.User, error) {
-	created, err := s.CreateUserWithContext(ctx, user)
-	return created, trace.Wrap(err)
-}
-
-// CreateUserWithContext creates user if it does not exist.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (s *IdentityService) CreateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -184,13 +164,6 @@ func (s *IdentityService) CreateUserWithContext(ctx context.Context, user types.
 
 // UpdateUser updates an existing user.
 func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
-	updated, err := s.UpdateUserWithContext(ctx, user)
-	return updated, trace.Wrap(err)
-}
-
-// UpdateUserWithContext updates an existing user.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (s *IdentityService) UpdateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -263,13 +236,6 @@ func (s *IdentityService) UpdateAndSwapUser(ctx context.Context, user string, wi
 
 // UpsertUser updates parameters about user, or creates an entry if not exist.
 func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
-	upserted, err := s.UpsertUserWithContext(ctx, user)
-	return upserted, trace.Wrap(err)
-}
-
-// UpsertUserWithContext updates parameters about user, or creates an entry if not exist.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (s *IdentityService) UpsertUserWithContext(ctx context.Context, user types.User) (types.User, error) {
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -354,13 +320,6 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 
 // GetUser returns a user by name
 func (s *IdentityService) GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error) {
-	u, err := s.GetUserWithContext(ctx, user, withSecrets)
-	return u, trace.Wrap(err)
-}
-
-// GetUserWithContext returns a user by name.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (s *IdentityService) GetUserWithContext(ctx context.Context, user string, withSecrets bool) (types.User, error) {
 	u, _, err := s.getUser(ctx, user, withSecrets)
 	return u, trace.Wrap(err)
 }

@@ -811,3 +811,20 @@ func TestProvisionTokenV2_GetSafeName(t *testing.T) {
 		require.Equal(t, "12345678", got)
 	})
 }
+
+func TestProvisionTokenV2_CaseInsensitiveRoles(t *testing.T) {
+	t.Parallel()
+	t.Run("via constructor", func(t *testing.T) {
+		tok, err := NewProvisionToken("token", SystemRoles{"nOde", "AuTh"}, time.Now())
+		require.NoError(t, err)
+		require.Equal(t, SystemRoles{RoleNode, RoleAuth}, tok.GetRoles())
+	})
+	t.Run("via struct", func(t *testing.T) {
+		tok := &ProvisionTokenV2{
+			Spec: ProvisionTokenSpecV2{
+				Roles: []SystemRole{"nOdE", "AuTh"},
+			},
+		}
+		require.Equal(t, SystemRoles{RoleNode, RoleAuth}, tok.GetRoles())
+	})
+}

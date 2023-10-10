@@ -2658,17 +2658,6 @@ func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]typ
 	return users, trace.Wrap(err)
 }
 
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (a *ServerWithRoles) GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	return a.GetUsers(ctx, withSecrets)
-}
-
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (a *ServerWithRoles) GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	user, err := a.GetUser(ctx, name, withSecrets)
-	return user, trace.Wrap(err)
-}
-
 func (a *ServerWithRoles) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
@@ -3323,12 +3312,6 @@ func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (type
 	return created, trace.Wrap(err)
 }
 
-// CreateUserWithContext inserts a new user entry in a backend.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (a *ServerWithRoles) CreateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
-	return a.CreateUser(ctx, user)
-}
-
 // UpdateUser updates an existing user in a backend.
 // Captures the auth user who modified the user record.
 func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
@@ -3338,13 +3321,6 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 
 	updated, err := a.authServer.UpdateUserWithContext(ctx, user)
 	return updated, trace.Wrap(err)
-}
-
-// UpdateUserWithContext updates an existing user in a backend.
-// Captures the auth user who modified the user record.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (a *ServerWithRoles) UpdateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
-	return a.UpdateUser(ctx, user)
 }
 
 func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.User, error) {
@@ -3360,11 +3336,6 @@ func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.U
 	}
 	user, err := a.authServer.UpsertUser(ctx, u)
 	return user, trace.Wrap(err)
-}
-
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (a *ServerWithRoles) UpsertUserWithContext(ctx context.Context, u types.User) (types.User, error) {
-	return a.UpsertUser(ctx, u)
 }
 
 // UpdateAndSwapUser exists on [ServerWithRoles] only for compatibility with
@@ -4411,12 +4382,6 @@ func (a *ServerWithRoles) DeleteAllRoles() error {
 
 // DeleteAllUsers not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAllUsers(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUsersWithContext not implemented: can only be called locally.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (a *ServerWithRoles) DeleteAllUsersWithContext(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
