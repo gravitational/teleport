@@ -1,4 +1,9 @@
 version: v1
+# TODO(jakule): I know this is bad, but for my own sanity I'm going to leave it here for now.
+deps:
+  # gogo/protobuf v1.3.2, keep in sync with build.assets/Makefile.
+  - buf.build/gogo/protobuf:b03c65ea87cdc3521ede29f62fe3ce239267c1bc
+  - buf.build/googleapis/googleapis:beb34b4050abfcfff72ff5cc6a28f0afa4043ce0
 lint:
   use:
     - DEFAULT

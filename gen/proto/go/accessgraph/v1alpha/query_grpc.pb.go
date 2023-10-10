@@ -33,8 +33,9 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	AccessGraphService_Query_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/Query"
-	AccessGraphService_GetFile_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/GetFile"
+	AccessGraphService_Query_FullMethodName     = "/accessgraph.v1alpha.AccessGraphService/Query"
+	AccessGraphService_GetFile_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/GetFile"
+	AccessGraphService_SendEvent_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/SendEvent"
 )
 
 // AccessGraphServiceClient is the client API for AccessGraphService service.
@@ -46,6 +47,8 @@ type AccessGraphServiceClient interface {
 	Query(ctx context.Context, in *QueryRequest, opts ...grpc.CallOption) (*QueryResponse, error)
 	// GetFile gets a static UI file from the access graph container.
 	GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (*GetFileResponse, error)
+	// SendEvent sends an event to the access graph service.
+	SendEvent(ctx context.Context, in *SendEventRequest, opts ...grpc.CallOption) (*SendEventResponse, error)
 }
 
 type accessGraphServiceClient struct {
@@ -74,6 +77,15 @@ func (c *accessGraphServiceClient) GetFile(ctx context.Context, in *GetFileReque
 	return out, nil
 }
 
+func (c *accessGraphServiceClient) SendEvent(ctx context.Context, in *SendEventRequest, opts ...grpc.CallOption) (*SendEventResponse, error) {
+	out := new(SendEventResponse)
+	err := c.cc.Invoke(ctx, AccessGraphService_SendEvent_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AccessGraphServiceServer is the server API for AccessGraphService service.
 // All implementations must embed UnimplementedAccessGraphServiceServer
 // for forward compatibility
@@ -83,6 +95,8 @@ type AccessGraphServiceServer interface {
 	Query(context.Context, *QueryRequest) (*QueryResponse, error)
 	// GetFile gets a static UI file from the access graph container.
 	GetFile(context.Context, *GetFileRequest) (*GetFileResponse, error)
+	// SendEvent sends an event to the access graph service.
+	SendEvent(context.Context, *SendEventRequest) (*SendEventResponse, error)
 	mustEmbedUnimplementedAccessGraphServiceServer()
 }
 
@@ -95,6 +109,9 @@ func (UnimplementedAccessGraphServiceServer) Query(context.Context, *QueryReques
 }
 func (UnimplementedAccessGraphServiceServer) GetFile(context.Context, *GetFileRequest) (*GetFileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetFile not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) SendEvent(context.Context, *SendEventRequest) (*SendEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendEvent not implemented")
 }
 func (UnimplementedAccessGraphServiceServer) mustEmbedUnimplementedAccessGraphServiceServer() {}
 
@@ -145,6 +162,24 @@ func _AccessGraphService_GetFile_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessGraphService_SendEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendEventRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessGraphServiceServer).SendEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessGraphService_SendEvent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessGraphServiceServer).SendEvent(ctx, req.(*SendEventRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AccessGraphService_ServiceDesc is the grpc.ServiceDesc for AccessGraphService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -159,6 +194,10 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetFile",
 			Handler:    _AccessGraphService_GetFile_Handler,
+		},
+		{
+			MethodName: "SendEvent",
+			Handler:    _AccessGraphService_SendEvent_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

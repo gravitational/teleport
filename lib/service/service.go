@@ -55,6 +55,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/gravitational/teleport"
@@ -70,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/ai"
@@ -1373,6 +1375,23 @@ func adminCreds() (*int, *int, error) {
 	return &uid, &gid, nil
 }
 
+type tagEventWatcher struct {
+	ctx context.Context
+
+	accessGraphClient accessgraphv1.AccessGraphServiceClient
+}
+
+func (t *tagEventWatcher) Context() context.Context {
+	return t.ctx
+}
+
+func (t *tagEventWatcher) Send(event *proto.Event) error {
+	_, err := t.accessGraphClient.SendEvent(t.ctx, &accessgraphv1.SendEventRequest{
+		Event: event,
+	})
+	return trace.Wrap(err)
+}
+
 // initAuthUploadHandler initializes the auth server's upload handler based upon the configuration.
 // When configured to store session recordings in external storage, this will be an API client for
 // cloud-provider storage. Otherwise a local file-based handler is used which stores the recordings
@@ -1857,6 +1876,52 @@ func (process *TeleportProcess) initAuthService() error {
 			}
 			log.Debugf("Starting embedding processor")
 			return embeddingProcessor.Run(process.GracefulExitContext(), embeddingInitialDelay, embeddingPeriod)
+		})
+	}
+
+	if cfg.AccessGraph.Enabled {
+		log.Debugf("Access Graph integration enabled")
+		//accessGraphProcessor := authz.NewAccessGraphProcessor(authz.AccessGraphProcessorConfig{
+		//	AccessGraph: authServer.AccessGraph,
+		//	Emitter:     authServer,
+		//	Log:         log,
+		//	Jitter:      retryutils.NewFullJitter(),
+		//})
+
+		process.RegisterCriticalFunc("access-graph-service", func() error {
+			log.Debugf("Starting access graph service")
+
+			accessGraphAddr := cfg.AccessGraph.Addr
+			if accessGraphAddr == "" {
+				return trace.NotFound("access graph not enabled for this cluster")
+			}
+
+			var opts []grpc.DialOption
+
+			// TODO(jakule): add TLS support
+			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+			// TODO(jakule): reuse connection
+			conn, err := grpc.Dial(accessGraphAddr, opts...)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			//defer conn.Close()
+
+			accessGraphClient := accessgraphv1.NewAccessGraphServiceClient(conn)
+
+			foo := &tagEventWatcher{
+				ctx:               process.ExitContext(),
+				accessGraphClient: accessGraphClient,
+			}
+			observedKinds := []types.WatchKind{
+				{Kind: types.KindNode},
+				{Kind: types.KindUser},
+				{Kind: types.KindRole},
+				{Kind: types.KindAccessRequest},
+			}
+
+			return auth.WatchEvents(&proto.Watch{Kinds: observedKinds}, foo, "accessgraph", authServer)
 		})
 	}
 

@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package accessgraph.v1alpha;
 
+import "teleport/legacy/client/proto/event.proto";
+
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
 
 // AccessGraphService is a service for interacting the access graph service.
@@ -25,6 +27,9 @@ service AccessGraphService {
   rpc Query(QueryRequest) returns (QueryResponse);
   // GetFile gets a static UI file from the access graph container.
   rpc GetFile(GetFileRequest) returns (GetFileResponse);
+
+  // SendEvent sends an event to the access graph service.
+  rpc SendEvent(SendEventRequest) returns (SendEventResponse);
 }
 
 // Node is a node in the access graph.
@@ -46,7 +51,7 @@ message Edge {
 
 // QueryRequest is a request to query the access graph.
 message QueryRequest {
-  // query is a AQSQL query.
+  // query is a AGSQL query.
   string query = 1;
 }
 
@@ -65,3 +70,11 @@ message GetFileRequest {
 message GetFileResponse {
   bytes data = 1;
 }
+
+// SendEventRequest is a request to send an event to the access graph.
+message SendEventRequest {
+  proto.Event event = 1;
+}
+
+// SendEventResponse is a response to sending an event.
+message SendEventResponse {}
