@@ -17,6 +17,7 @@
 import { useState } from 'react';
 import { useAttempt } from 'shared/hooks';
 import { AuthProvider } from 'shared/services';
+import { isPrivateKeyRequiredError } from 'shared/utils/errorType';
 
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
@@ -24,6 +25,15 @@ import auth, { UserCredentials } from 'teleport/services/auth';
 
 export default function useLogin() {
   const [attempt, attemptActions] = useAttempt({ isProcessing: false });
+  // privateKeyPolicyEnabled can be enabled through cluster wide config,
+  // or through a role setting.
+  // Cluster wide config takes precedence and the user will not
+  // see a login form which prevents login attempts.
+  // Role setting requires the user to try a successful
+  // attempt at logging in to determine if private key policy was enabled.
+  const [privateKeyPolicyEnabled, setPrivateKeyPolicyEnabled] = useState(
+    cfg.getPrivateKeyPolicy() != 'none'
+  );
 
   const authProviders = cfg.getAuthProviders();
   const auth2faType = cfg.getAuth2faType();
@@ -48,6 +58,10 @@ export default function useLogin() {
       .login(email, password, token)
       .then(onSuccess)
       .catch(err => {
+        if (isPrivateKeyRequiredError(err)) {
+          setPrivateKeyPolicyEnabled(true);
+          return;
+        }
         attemptActions.error(err);
       });
   }
@@ -58,6 +72,10 @@ export default function useLogin() {
       .loginWithWebauthn(creds)
       .then(onSuccess)
       .catch(err => {
+        if (isPrivateKeyRequiredError(err)) {
+          setPrivateKeyPolicyEnabled(true);
+          return;
+        }
         attemptActions.error(err);
       });
   }
@@ -81,7 +99,7 @@ export default function useLogin() {
     clearAttempt: attemptActions.clear,
     isPasswordlessEnabled: cfg.isPasswordlessEnabled(),
     primaryAuthType: cfg.getPrimaryAuthType(),
-    privateKeyPolicyEnabled: false,
+    privateKeyPolicyEnabled,
     motd,
     showMotd,
     acknowledgeMotd,

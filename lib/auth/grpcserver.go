@@ -767,7 +767,7 @@ func (g *GRPCServer) GetUser(ctx context.Context, req *authpb.GetUserRequest) (*
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := auth.ServerWithRoles.GetUser(req.Name, req.WithSecrets)
+	user, err := auth.ServerWithRoles.GetUser(ctx, req.Name, req.WithSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -823,7 +823,7 @@ func (g *GRPCServer) GetUsers(req *authpb.GetUsersRequest, stream authpb.AuthSer
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	users, err := auth.ServerWithRoles.GetUsers(req.WithSecrets)
+	users, err := auth.ServerWithRoles.GetUsers(stream.Context(), req.WithSecrets)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1170,7 +1170,7 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *types.UserV2) (*emptyp
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.ServerWithRoles.CreateUser(ctx, req); err != nil {
+	if _, err := auth.ServerWithRoles.CreateUser(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1194,7 +1194,7 @@ func (g *GRPCServer) UpdateUser(ctx context.Context, req *types.UserV2) (*emptyp
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.ServerWithRoles.UpdateUser(ctx, req); err != nil {
+	if _, err := auth.ServerWithRoles.UpdateUser(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

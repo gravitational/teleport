@@ -22,6 +22,7 @@ import { OnboardCard } from 'design/Onboard/OnboardCard';
 import { Box } from 'design';
 
 import RecoveryCodes from 'teleport/components/RecoveryCodes';
+import { PrivateKeyLoginDisabledCard } from 'teleport/components/PrivateKeyPolicy';
 import cfg from 'teleport/config';
 
 import { loginFlows } from 'teleport/Welcome/NewCredentials/constants';
@@ -60,6 +61,7 @@ export function NewCredentials(props: NewCredentialsProps) {
     primaryAuthType,
     success,
     finishedRegister,
+    privateKeyPolicyEnabled,
     isDashboard,
     displayOnboardingQuestionnaire = false,
     setDisplayOnboardingQuestionnaire = false,
@@ -82,6 +84,14 @@ export function NewCredentials(props: NewCredentialsProps) {
 
   if (fetchAttempt.status !== 'success') {
     return null;
+  }
+
+  if (success && privateKeyPolicyEnabled) {
+    return (
+      <PrivateKeyLoginDisabledCard
+        title={resetMode ? 'Reset Complete' : 'Registration Complete'}
+      />
+    );
   }
 
   if (

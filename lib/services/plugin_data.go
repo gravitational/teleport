@@ -41,6 +41,7 @@ func MarshalPluginData(pluginData types.PluginData, opts ...MarshalOption) ([]by
 			// to prevent unexpected data races
 			cp := *pluginData
 			cp.SetResourceID(0)
+			cp.SetRevision("")
 			pluginData = &cp
 		}
 		return utils.FastMarshal(pluginData)

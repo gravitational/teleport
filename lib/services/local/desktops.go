@@ -91,15 +91,17 @@ func (s *WindowsDesktopService) UpdateWindowsDesktop(ctx context.Context, deskto
 	if err := desktop.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := desktop.GetRevision()
 	value, err := services.MarshalWindowsDesktop(desktop)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
-		Value:   value,
-		Expires: desktop.Expiry(),
-		ID:      desktop.GetResourceID(),
+		Key:      backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
+		Value:    value,
+		Expires:  desktop.Expiry(),
+		ID:       desktop.GetResourceID(),
+		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
 	if err != nil {
@@ -113,15 +115,17 @@ func (s *WindowsDesktopService) UpsertWindowsDesktop(ctx context.Context, deskto
 	if err := desktop.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := desktop.GetRevision()
 	value, err := services.MarshalWindowsDesktop(desktop)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
-		Value:   value,
-		Expires: desktop.Expiry(),
-		ID:      desktop.GetResourceID(),
+		Key:      backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
+		Value:    value,
+		Expires:  desktop.Expiry(),
+		ID:       desktop.GetResourceID(),
+		Revision: rev,
 	}
 	_, err = s.Put(ctx, item)
 	if err != nil {

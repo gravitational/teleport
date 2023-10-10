@@ -113,7 +113,7 @@ type AuthorizerAccessPoint interface {
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
-	GetUser(user string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// TODO(tross) remove this once oss and e are converted to using the new signature.
 	GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error)
@@ -320,7 +320,7 @@ func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *C
 func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context, error) {
 	switch user := userI.(type) {
 	case LocalUser:
-		return a.authorizeLocalUser(user)
+		return a.authorizeLocalUser(ctx, user)
 	case RemoteUser:
 		return a.authorizeRemoteUser(ctx, user)
 	case BuiltinRole:
@@ -387,8 +387,8 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 }
 
 // authorizeLocalUser returns authz context based on the username
-func (a *authorizer) authorizeLocalUser(u LocalUser) (*Context, error) {
-	return ContextForLocalUser(u, a.accessPoint, a.clusterName, a.disableDeviceAuthorization)
+func (a *authorizer) authorizeLocalUser(ctx context.Context, u LocalUser) (*Context, error) {
+	return ContextForLocalUser(ctx, u, a.accessPoint, a.clusterName, a.disableDeviceAuthorization)
 }
 
 // authorizeRemoteUser returns checker based on cert authority roles
@@ -982,9 +982,9 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 }
 
 // ContextForLocalUser returns a context with the local user info embedded.
-func ContextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, clusterName string, disableDeviceAuthz bool) (*Context, error) {
+func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint AuthorizerAccessPoint, clusterName string, disableDeviceAuthz bool) (*Context, error) {
 	// User has to be fetched to check if it's a blocked username
-	user, err := accessPoint.GetUser(u.Username, false)
+	user, err := accessPoint.GetUser(ctx, u.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

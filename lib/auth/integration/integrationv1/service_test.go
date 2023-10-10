@@ -303,7 +303,7 @@ func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.Ro
 	user, err := types.NewUser("user-" + uuid.NewString())
 	require.NoError(t, err)
 	user.AddRole(roleName)
-	err = localClient.CreateUser(user)
+	user, err = localClient.CreateUser(ctx, user)
 	require.NoError(t, err)
 
 	return authz.ContextWithUser(ctx, authz.LocalUser{
@@ -316,7 +316,7 @@ func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.Ro
 }
 
 type localClient interface {
-	CreateUser(user types.User) error
+	CreateUser(ctx context.Context, user types.User) (types.User, error)
 	CreateRole(ctx context.Context, role types.Role) error
 	CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error)
 }
