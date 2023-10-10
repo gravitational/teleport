@@ -100,4 +100,6 @@ const session: Session = {
   addr: '1.1.1.1:1111',
   participantModes: ['observer', 'moderator', 'peer'],
   moderated: false,
+  command:
+    'top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid',
 };

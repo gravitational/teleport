@@ -15,7 +15,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Box, Text } from 'design';
+import { Box, Link, Text } from 'design';
 import Table from 'design/DataTable';
 import { Danger } from 'design/Alert';
 import { FetchStatus } from 'design/DataTable/types';
@@ -118,6 +118,15 @@ export const Ec2InstanceList = ({
               },
             },
             {
+              altKey: 'name',
+              headerText: 'Name',
+              render: ({ labels, ec2InstanceExists }) => (
+                <Cell disabledText={disabledText} disabled={ec2InstanceExists}>
+                  {labels.find(label => label.name === 'Name')?.value}
+                </Cell>
+              ),
+            },
+            {
               key: 'hostname',
               headerText: 'Hostname',
               render: ({ hostname, ec2InstanceExists }) => (
@@ -175,8 +184,15 @@ export const Ec2InstanceList = ({
                 <Text bold>Configure your AWS IAM permissions</Text>
                 <Text typography="subtitle1" mb={3}>
                   We were unable to list your EC2 instances. Run the command
-                  below on your AWS CloudShell to configure your IAM
-                  permissions. Then press the refresh button above.
+                  below on your{' '}
+                  <Link
+                    href="https://console.aws.amazon.com/cloudshell/home"
+                    target="_blank"
+                  >
+                    AWS CloudShell
+                  </Link>{' '}
+                  to configure your IAM permissions. Then press the refresh
+                  button above.
                 </Text>
               </>
             }

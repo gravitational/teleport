@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -48,9 +47,6 @@ func FromReviewProto(msg *accesslistv1.Review) (*accesslist.Review, error) {
 
 	var reviewChanges accesslist.ReviewChanges
 	if msg.Spec.Changes != nil {
-		if msg.Spec.Changes.FrequencyChanged != nil {
-			reviewChanges.FrequencyChanged = msg.Spec.Changes.FrequencyChanged.AsDuration()
-		}
 		if msg.Spec.Changes.MembershipRequirementsChanged != nil {
 			reviewChanges.MembershipRequirementsChanged = &accesslist.Requires{
 				Roles:  msg.Spec.Changes.MembershipRequirementsChanged.Roles,
@@ -58,6 +54,8 @@ func FromReviewProto(msg *accesslistv1.Review) (*accesslist.Review, error) {
 			}
 		}
 		reviewChanges.RemovedMembers = msg.Spec.Changes.RemovedMembers
+		reviewChanges.ReviewFrequencyChanged = accesslist.ReviewFrequency(msg.Spec.Changes.ReviewFrequencyChanged)
+		reviewChanges.ReviewDayOfMonthChanged = accesslist.ReviewDayOfMonth(msg.Spec.Changes.ReviewDayOfMonthChanged)
 	}
 
 	member, err := accesslist.NewReview(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.ReviewSpec{
@@ -77,11 +75,6 @@ func FromReviewProto(msg *accesslistv1.Review) (*accesslist.Review, error) {
 // ToReviewProto converts an internal access list review into a v1 access list review object.
 func ToReviewProto(review *accesslist.Review) *accesslistv1.Review {
 	var reviewChanges *accesslistv1.ReviewChanges
-	if review.Spec.Changes.FrequencyChanged > 0 {
-		reviewChanges = &accesslistv1.ReviewChanges{
-			FrequencyChanged: durationpb.New(review.Spec.Changes.FrequencyChanged),
-		}
-	}
 	if review.Spec.Changes.MembershipRequirementsChanged != nil {
 		if reviewChanges == nil {
 			reviewChanges = &accesslistv1.ReviewChanges{}
@@ -98,6 +91,20 @@ func ToReviewProto(review *accesslist.Review) *accesslistv1.Review {
 		}
 
 		reviewChanges.RemovedMembers = review.Spec.Changes.RemovedMembers
+	}
+	if review.Spec.Changes.ReviewFrequencyChanged > 0 {
+		if reviewChanges == nil {
+			reviewChanges = &accesslistv1.ReviewChanges{}
+		}
+
+		reviewChanges.ReviewFrequencyChanged = accesslistv1.ReviewFrequency(review.Spec.Changes.ReviewFrequencyChanged)
+	}
+	if review.Spec.Changes.ReviewDayOfMonthChanged > 0 {
+		if reviewChanges == nil {
+			reviewChanges = &accesslistv1.ReviewChanges{}
+		}
+
+		reviewChanges.ReviewDayOfMonthChanged = accesslistv1.ReviewDayOfMonth(review.Spec.Changes.ReviewDayOfMonthChanged)
 	}
 
 	return &accesslistv1.Review{

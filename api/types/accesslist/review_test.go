@@ -36,7 +36,6 @@ func TestReviewSpecMarshaling(t *testing.T) {
 		ReviewDate: time.Date(2023, 01, 01, 0, 0, 0, 0, time.UTC),
 		Notes:      "Some notes",
 		Changes: ReviewChanges{
-			FrequencyChanged: 300 * time.Second,
 			MembershipRequirementsChanged: &Requires{
 				Roles: []string{
 					"member1",
@@ -57,6 +56,8 @@ func TestReviewSpecMarshaling(t *testing.T) {
 				"member1",
 				"member2",
 			},
+			ReviewFrequencyChanged:  SixMonths,
+			ReviewDayOfMonthChanged: FirstDayOfMonth,
 		},
 	}
 
@@ -64,15 +65,16 @@ func TestReviewSpecMarshaling(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, `{"review_date":"2023-01-01T00:00:00Z","access_list":"access-list","reviewers":["user1","user2"],`+
-		`"notes":"Some notes","changes":{"frequency_changed":"5m0s","membership_requirements_changed":`+
-		`{"roles":["member1","member2"],"traits":{"trait1":["value1","value2"],"trait2":["value1","value2"]}},`+
+		`"notes":"Some notes","changes":{"review_frequency_changed":"6 months","review_day_of_month_changed":"1",`+
+		`"membership_requirements_changed":{"roles":["member1","member2"],"traits":{"trait1":["value1","value2"],"trait2":["value1","value2"]}},`+
 		`"removed_members":["member1","member2"]}}`, string(data))
 
 	raw := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal(data, &raw))
 
 	require.Equal(t, "2023-01-01T00:00:00Z", raw["review_date"])
-	require.Equal(t, "5m0s", raw["changes"].(map[string]interface{})["frequency_changed"])
+	require.Equal(t, SixMonths.String(), raw["changes"].(map[string]interface{})["review_frequency_changed"])
+	require.Equal(t, FirstDayOfMonth.String(), raw["changes"].(map[string]interface{})["review_day_of_month_changed"])
 }
 
 func TestReviewSpecUnmarshaling(t *testing.T) {
@@ -85,7 +87,6 @@ func TestReviewSpecUnmarshaling(t *testing.T) {
 		"review_date": "2023-01-01T00:00:00Z",
 		"notes":       "Some notes",
 		"changes": map[string]interface{}{
-			"frequency_changed": "5m0s",
 			"membership_requirements_changed": map[string]interface{}{
 				"roles": []string{
 					"member1",
@@ -106,6 +107,8 @@ func TestReviewSpecUnmarshaling(t *testing.T) {
 				"member1",
 				"member2",
 			},
+			"review_frequency_changed":    "1 month",
+			"review_day_of_month_changed": "1",
 		},
 	}
 
@@ -116,5 +119,6 @@ func TestReviewSpecUnmarshaling(t *testing.T) {
 	require.NoError(t, json.Unmarshal(data, &reviewSpec))
 
 	require.Equal(t, time.Date(2023, 01, 01, 0, 0, 0, 0, time.UTC), reviewSpec.ReviewDate)
-	require.Equal(t, 300*time.Second, reviewSpec.Changes.FrequencyChanged)
+	require.Equal(t, OneMonth, reviewSpec.Changes.ReviewFrequencyChanged)
+	require.Equal(t, FirstDayOfMonth, reviewSpec.Changes.ReviewDayOfMonthChanged)
 }

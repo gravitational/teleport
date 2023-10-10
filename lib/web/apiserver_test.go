@@ -1202,7 +1202,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Equal(t, types.KindNode, res.Items[0].Kind)
+	require.Equal(t, types.KindWindowsDesktop, res.Items[0].Kind)
 
 	// test with no access
 	noAccessRole, err := types.NewRole(services.RoleNameForUser("test-no-access@example.com"), types.RoleSpecV6{})

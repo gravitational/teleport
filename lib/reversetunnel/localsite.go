@@ -119,7 +119,7 @@ func newLocalSite(srv *server, domainName string, authServers []string, opts ...
 		// certificate cache is created in each site (instead of creating it in
 		// reversetunnel.server and passing it along) so that the host certificate
 		// is signed by the correct certificate authority.
-		certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, srv.localAuthClient)
+		certificateCache, err := newHostCertificateCache(srv.localAuthClient)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -537,9 +537,10 @@ func (s *localSite) setupTunnelForOpenSSHEICENode(ctx context.Context, targetSer
 	}
 
 	openTunnelResp, err := awsoidc.OpenTunnelEC2(ctx, openTunnelClt, awsoidc.OpenTunnelEC2Request{
-		Region:     awsInfo.Region,
-		VPCID:      awsInfo.VPCID,
-		EC2Address: targetServer.GetAddr(),
+		Region:        awsInfo.Region,
+		VPCID:         awsInfo.VPCID,
+		EC2InstanceID: awsInfo.InstanceID,
+		EC2Address:    targetServer.GetAddr(),
 	})
 	if err != nil {
 		return nil, trace.BadParameter("failed to open AWS EC2 Instance Connect Endpoint tunnel: %v", err)
