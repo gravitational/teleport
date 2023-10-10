@@ -67,7 +67,6 @@ use tdp::{
     SharedDirectoryReadRequest, SharedDirectoryReadResponse, SharedDirectoryWriteRequest,
     SharedDirectoryWriteResponse, TdpErrCode,
 };
-use tokio::sync::mpsc::error::SendError;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -243,14 +242,6 @@ impl TeleportRdpdrBackend {
                 CardProtocol::SCARD_PROTOCOL_T1,
             )),
         )
-        .map_err(|_e| {
-            other_err!(
-                "TeleportRdpdrBackend::handle_connect",
-                "failed to send DeviceControlResponse to server",
-            )
-        })?;
-
-        Ok(())
     }
 
     fn create_get_status_change_return(
