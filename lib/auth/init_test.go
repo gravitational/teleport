@@ -818,7 +818,7 @@ func TestPresets(t *testing.T) {
 
 			// Preset Users were created
 			for _, user := range enterpriseUsers {
-				_, err := as.GetUser(user.GetName(), false)
+				_, err := as.GetUser(ctx, user.GetName(), false)
 				require.NoError(t, err)
 			}
 		})
@@ -836,19 +836,19 @@ func TestPresets(t *testing.T) {
 
 			// Set the expectation that all user creations will succeed EXCEPT
 			// for our known system user
-			auth.On("CreateUser", ctx, mock.Anything).
+			auth.On("CreateUser", mock.Anything, mock.Anything).
 				Run(requireSystemResource(t, 1)).
 				Maybe().
-				Return(nil)
+				Return(sysUser, nil)
 
 			// All attempts to upsert should succeed, and record the being upserted
-			upsertedUsers := []string{}
-			auth.On("UpsertUser", mock.Anything).
+			var upsertedUsers []string
+			auth.On("UpsertUser", mock.Anything, mock.Anything).
 				Run(func(args mock.Arguments) {
-					u := args.Get(0).(types.User)
+					u := args.Get(1).(types.User)
 					upsertedUsers = append(upsertedUsers, u.GetName())
 				}).
-				Return(nil)
+				Return(sysUser, nil)
 
 			// WHEN I attempt to create the preset users...
 			err := createPresetUsers(ctx, auth)
@@ -871,31 +871,31 @@ func newMockUserManager(t *testing.T) *mockUserManager {
 	return m
 }
 
-func (m *mockUserManager) CreateUser(ctx context.Context, user types.User) error {
-	type delegateFn = func(types.User) error
+func (m *mockUserManager) CreateUser(ctx context.Context, user types.User) (types.User, error) {
+	type delegateFn = func(context.Context, types.User) (types.User, error)
 	args := m.Called(ctx, user)
 	if delegate, ok := args.Get(0).(delegateFn); ok {
-		return delegate(user)
-	}
-	return args.Error(0)
-}
-
-func (m *mockUserManager) GetUser(username string, withSecrets bool) (types.User, error) {
-	type delegateFn = func(username string, withSecrets bool) (types.User, error)
-	args := m.Called(username, withSecrets)
-	if delegate, ok := args.Get(0).(delegateFn); ok {
-		return delegate(username, withSecrets)
+		return delegate(ctx, user)
 	}
 	return args.Get(0).(types.User), args.Error(1)
 }
 
-func (m *mockUserManager) UpsertUser(user types.User) error {
-	type delegateFn = func(types.User) error
-	args := m.Called(user)
+func (m *mockUserManager) GetUser(ctx context.Context, username string, withSecrets bool) (types.User, error) {
+	type delegateFn = func(ctx context.Context, username string, withSecrets bool) (types.User, error)
+	args := m.Called(ctx, username, withSecrets)
 	if delegate, ok := args.Get(0).(delegateFn); ok {
-		return delegate(user)
+		return delegate(ctx, username, withSecrets)
 	}
-	return args.Error(0)
+	return args.Get(0).(types.User), args.Error(1)
+}
+
+func (m *mockUserManager) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
+	type delegateFn = func(context.Context, types.User) (types.User, error)
+	args := m.Called(ctx, user)
+	if delegate, ok := args.Get(0).(delegateFn); ok {
+		return delegate(ctx, user)
+	}
+	return args.Get(0).(types.User), args.Error(1)
 }
 
 var _ PresetUsers = &mockUserManager{}

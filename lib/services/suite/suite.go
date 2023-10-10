@@ -209,35 +209,36 @@ func newUser(name string, roles []string) types.User {
 func (s *ServicesTestSuite) UsersCRUD(t *testing.T) {
 	ctx := context.Background()
 
-	u, err := s.WebS.GetUsers(false)
+	u, err := s.WebS.GetUsers(ctx, false)
 	require.NoError(t, err)
 	require.Equal(t, len(u), 0)
 
 	require.NoError(t, s.WebS.UpsertPasswordHash("user1", []byte("hash")))
 	require.NoError(t, s.WebS.UpsertPasswordHash("user2", []byte("hash2")))
 
-	u, err = s.WebS.GetUsers(false)
+	u, err = s.WebS.GetUsers(ctx, false)
 	require.NoError(t, err)
 	userSlicesEqual(t, u, []types.User{newUser("user1", nil), newUser("user2", nil)})
 
-	out, err := s.WebS.GetUser("user1", false)
+	out, err := s.WebS.GetUser(ctx, "user1", false)
 	require.NoError(t, err)
 	usersEqual(t, out, u[0])
 
 	user := newUser("user1", []string{"admin", "user"})
-	require.NoError(t, s.WebS.UpsertUser(user))
+	user, err = s.WebS.UpsertUser(ctx, user)
+	require.NoError(t, err)
 
-	out, err = s.WebS.GetUser("user1", false)
+	out, err = s.WebS.GetUser(ctx, "user1", false)
 	require.NoError(t, err)
 	usersEqual(t, out, user)
 
-	out, err = s.WebS.GetUser("user1", false)
+	out, err = s.WebS.GetUser(ctx, "user1", false)
 	require.NoError(t, err)
 	usersEqual(t, out, user)
 
 	require.NoError(t, s.WebS.DeleteUser(ctx, "user1"))
 
-	u, err = s.WebS.GetUsers(false)
+	u, err = s.WebS.GetUsers(ctx, false)
 	require.NoError(t, err)
 	userSlicesEqual(t, u, []types.User{newUser("user2", nil)})
 
@@ -245,14 +246,15 @@ func (s *ServicesTestSuite) UsersCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 
 	// bad username
-	err = s.WebS.UpsertUser(newUser("", nil))
+	_, err = s.WebS.UpsertUser(ctx, newUser("", nil))
 	require.True(t, trace.IsBadParameter(err))
 }
 
 func (s *ServicesTestSuite) UsersExpiry(t *testing.T) {
+	ctx := context.Background()
 	expiresAt := s.Clock.Now().Add(1 * time.Minute)
 
-	err := s.WebS.UpsertUser(&types.UserV2{
+	_, err := s.WebS.UpsertUser(ctx, &types.UserV2{
 		Kind:    types.KindUser,
 		Version: types.V2,
 		Metadata: types.Metadata{
@@ -265,14 +267,14 @@ func (s *ServicesTestSuite) UsersExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure the user exists.
-	u, err := s.WebS.GetUser("foo", false)
+	u, err := s.WebS.GetUser(ctx, "foo", false)
 	require.NoError(t, err)
 	require.Equal(t, u.GetName(), "foo")
 
 	s.Clock.Advance(2 * time.Minute)
 
 	// Make sure the user is now gone.
-	_, err = s.WebS.GetUser("foo", false)
+	_, err = s.WebS.GetUser(ctx, "foo", false)
 	require.Error(t, err)
 }
 
@@ -280,7 +282,8 @@ func (s *ServicesTestSuite) LoginAttempts(t *testing.T) {
 	user1 := uuid.NewString()
 
 	user := newUser(user1, []string{"admin", "user"})
-	require.NoError(t, s.WebS.UpsertUser(user))
+	user, err := s.WebS.UpsertUser(context.Background(), user)
+	require.NoError(t, err)
 
 	attempts, err := s.WebS.GetUserLoginAttempts(user.GetName())
 	require.NoError(t, err)
@@ -1454,10 +1457,10 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 			crud: func(context.Context) types.Resource {
 				user := newUser("user1", []string{constants.DefaultImplicitRole})
-				err := s.Users().UpsertUser(user)
+				user, err := s.Users().UpsertUser(ctx, user)
 				require.NoError(t, err)
 
-				out, err := s.Users().GetUser(user.GetName(), false)
+				out, err := s.Users().GetUser(ctx, user.GetName(), false)
 				require.NoError(t, err)
 
 				require.NoError(t, s.Users().DeleteUser(ctx, user.GetName()))

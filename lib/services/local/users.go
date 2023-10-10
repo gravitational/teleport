@@ -68,8 +68,8 @@ func NewIdentityService(backend backend.Backend) *IdentityService {
 }
 
 // DeleteAllUsers deletes all users
-func (s *IdentityService) DeleteAllUsers() error {
-	return trace.Wrap(s.DeleteAllUsersWithContext(context.TODO()))
+func (s *IdentityService) DeleteAllUsers(ctx context.Context) error {
+	return trace.Wrap(s.DeleteAllUsersWithContext(ctx))
 }
 
 // DeleteAllUsersWithContext deletes all users.
@@ -80,8 +80,8 @@ func (s *IdentityService) DeleteAllUsersWithContext(ctx context.Context) error {
 }
 
 // GetUsers returns a list of users registered with the local auth server
-func (s *IdentityService) GetUsers(withSecrets bool) ([]types.User, error) {
-	users, err := s.GetUsersWithContext(context.TODO(), withSecrets)
+func (s *IdentityService) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
+	users, err := s.GetUsersWithContext(ctx, withSecrets)
 	return users, trace.Wrap(err)
 }
 
@@ -136,9 +136,9 @@ func (s *IdentityService) getUsersWithSecrets(ctx context.Context) ([]types.User
 }
 
 // CreateUser creates user if it does not exist.
-func (s *IdentityService) CreateUser(user types.User) error {
-	_, err := s.CreateUserWithContext(context.TODO(), user)
-	return trace.Wrap(err)
+func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (types.User, error) {
+	created, err := s.CreateUserWithContext(ctx, user)
+	return created, trace.Wrap(err)
 }
 
 // CreateUserWithContext creates user if it does not exist.
@@ -149,7 +149,7 @@ func (s *IdentityService) CreateUserWithContext(ctx context.Context, user types.
 	}
 
 	// Confirm user doesn't exist before creating.
-	_, err := s.GetUser(user.GetName(), false)
+	_, err := s.GetUser(ctx, user.GetName(), false)
 	if !trace.IsNotFound(err) {
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -183,9 +183,9 @@ func (s *IdentityService) CreateUserWithContext(ctx context.Context, user types.
 }
 
 // UpdateUser updates an existing user.
-func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) error {
-	_, err := s.UpdateUserWithContext(ctx, user)
-	return trace.Wrap(err)
+func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
+	updated, err := s.UpdateUserWithContext(ctx, user)
+	return updated, trace.Wrap(err)
 }
 
 // UpdateUserWithContext updates an existing user.
@@ -196,7 +196,7 @@ func (s *IdentityService) UpdateUserWithContext(ctx context.Context, user types.
 	}
 
 	// Confirm user exists before updating.
-	if _, err := s.GetUser(user.GetName(), false); err != nil {
+	if _, err := s.GetUser(ctx, user.GetName(), false); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -261,9 +261,9 @@ func (s *IdentityService) UpdateAndSwapUser(ctx context.Context, user string, wi
 }
 
 // UpsertUser updates parameters about user, or creates an entry if not exist.
-func (s *IdentityService) UpsertUser(user types.User) error {
-	_, err := s.UpsertUserWithContext(context.TODO(), user)
-	return trace.Wrap(err)
+func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
+	upserted, err := s.UpsertUserWithContext(ctx, user)
+	return upserted, trace.Wrap(err)
 }
 
 // UpsertUserWithContext updates parameters about user, or creates an entry if not exist.
@@ -350,8 +350,8 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 }
 
 // GetUser returns a user by name
-func (s *IdentityService) GetUser(user string, withSecrets bool) (types.User, error) {
-	u, err := s.GetUserWithContext(context.TODO(), user, withSecrets)
+func (s *IdentityService) GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error) {
+	u, err := s.GetUserWithContext(ctx, user, withSecrets)
 	return u, trace.Wrap(err)
 }
 
@@ -430,7 +430,7 @@ func (s *IdentityService) upsertLocalAuthSecrets(ctx context.Context, user strin
 // GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
 // user specified with this identity
 func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (types.User, error) {
-	users, err := s.GetUsers(false)
+	users, err := s.GetUsers(context.TODO(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -447,7 +447,7 @@ func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (type
 // GetUserBySAMLIdentity returns a user by it's specified OIDC Identity, returns
 // first user specified with this identity.
 func (s *IdentityService) GetUserBySAMLIdentity(id types.ExternalIdentity) (types.User, error) {
-	users, err := s.GetUsers(false)
+	users, err := s.GetUsers(context.TODO(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -463,7 +463,7 @@ func (s *IdentityService) GetUserBySAMLIdentity(id types.ExternalIdentity) (type
 
 // GetUserByGithubIdentity returns the first found user with specified Github identity
 func (s *IdentityService) GetUserByGithubIdentity(id types.ExternalIdentity) (types.User, error) {
-	users, err := s.GetUsers(false)
+	users, err := s.GetUsers(context.TODO(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -479,7 +479,7 @@ func (s *IdentityService) GetUserByGithubIdentity(id types.ExternalIdentity) (ty
 
 // DeleteUser deletes a user with all the keys from the backend
 func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
-	_, err := s.GetUser(user, false)
+	_, err := s.GetUser(ctx, user, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -496,7 +496,7 @@ func (s *IdentityService) UpsertPasswordHash(username string, hash []byte) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.CreateUser(userPrototype)
+	_, err = s.CreateUser(context.TODO(), userPrototype)
 	if err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)

@@ -159,7 +159,7 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		event.Status.Success = true
 
 		var err error
-		user, err := s.GetUser(username, false /* withSecrets */)
+		user, err := s.GetUser(ctx, username, false /* withSecrets */)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -261,7 +261,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 	}
 	if authenticateFn != nil {
 		var dev *types.MFADevice
-		err := s.WithUserLock(user, func() error {
+		err := s.WithUserLock(ctx, user, func() error {
 			var err error
 			dev, err = authenticateFn()
 			return err
@@ -317,7 +317,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		log.Warningf("MFA bypass attempt by user %q, access denied.", user)
 		return nil, "", trace.AccessDenied("missing second factor")
 	}
-	if err = s.WithUserLock(user, func() error {
+	if err = s.WithUserLock(ctx, user, func() error {
 		return s.checkPasswordWOToken(user, req.Pass.Password)
 	}); err != nil {
 		if fieldErr := getErrorByTraceField(err); fieldErr != nil {
@@ -346,7 +346,7 @@ func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 	// A distinction between passwordless and "plain" MFA is that we can't
 	// acquire the user lock beforehand (or at all on failures!)
 	// We do grab it here so successful logins go through the regular process.
-	if err := s.WithUserLock(user, func() error { return nil }); err != nil {
+	if err := s.WithUserLock(ctx, user, func() error { return nil }); err != nil {
 		log.Debugf("WithUserLock for user %q failed during passwordless authentication: %v", user, err)
 		return nil, user, trace.Wrap(authenticateWebauthnError)
 	}
