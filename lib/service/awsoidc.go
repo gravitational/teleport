@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -86,13 +87,14 @@ func (process *TeleportProcess) initDeployServiceUpdater() error {
 	}
 
 	updater, err := NewDeployServiceUpdater(DeployServiceUpdaterConfig{
-		Log:                 process.log.WithField(trace.Component, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater")),
-		AuthClient:          process.getInstanceClient(),
-		Clock:               process.Clock,
-		TeleportClusterName: clusterNameConfig.GetClusterName(),
-		AWSOIDCProviderAddr: issuer,
-		CriticalEndpoint:    criticalEndpoint,
-		VersionEndpoint:     versionEndpoint,
+		Log:                    process.log.WithField(trace.Component, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater")),
+		AuthClient:             process.getInstanceClient(),
+		Clock:                  process.Clock,
+		TeleportClusterName:    clusterNameConfig.GetClusterName(),
+		TeleportClusterVersion: resp.GetServerVersion(),
+		AWSOIDCProviderAddr:    issuer,
+		CriticalEndpoint:       criticalEndpoint,
+		VersionEndpoint:        versionEndpoint,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -112,6 +114,8 @@ type DeployServiceUpdaterConfig struct {
 	Clock clockwork.Clock
 	// TeleportClusterName specifies the teleport cluster name
 	TeleportClusterName string
+	// TeleportClusterVersion specifies the teleport cluster version
+	TeleportClusterVersion string
 	// AWSOIDCProvderAddr specifies the aws oidc provider address used to generate AWS OIDC tokens
 	AWSOIDCProviderAddr string
 	// CriticalEndpoint specifies the endpoint to check for critical updates
@@ -128,6 +132,10 @@ func (cfg *DeployServiceUpdaterConfig) CheckAndSetDefaults() error {
 
 	if cfg.TeleportClusterName == "" {
 		return trace.BadParameter("teleport cluster name required")
+	}
+
+	if cfg.TeleportClusterVersion == "" {
+		return trace.BadParameter("teleport cluster version required")
 	}
 
 	if cfg.AWSOIDCProviderAddr == "" {
@@ -205,6 +213,18 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgents(ctx context.Conte
 	}
 	// stableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
 	stableVersion = strings.TrimPrefix(stableVersion, "v")
+
+	// minServerVersion specifies the minimum version of the cluster required for
+	// updated agents to remain compatible with the cluster.
+	minServerVersion, err := utils.MajorSemver(stableVersion)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !utils.MeetsVersion(updater.TeleportClusterVersion, minServerVersion) {
+		updater.Log.Debugf("Server does not meet the minimum required version for agents to be updated: %v.", minServerVersion)
+		return nil
+	}
 
 	databases, err := updater.AuthClient.GetDatabases(ctx)
 	if err != nil {
