@@ -357,8 +357,39 @@ allow:
     - resources:
         - token
       verbs: [list, create, read, update, delete]
-
 ```
+
+### Allowing access to token resources
+
+If you configure a role that allows tokens to be created, users assigned to the 
+role can create tokens to provision any type of Teleport resource. 
+For example, you might create a role with the following configuration to enable assigned
+users to enroll servers:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: enroll-servers
+spec:
+  allow:
+    node_labels:
+      'env': 'us-lab'
+    rules:
+      - resources: [token]
+        verbs: [list, create, read, update, delete]
+  deny: {}
+```
+
+With these permissions, users assigned to the role can generate tokens to enroll  
+a server, application, or database, establish a trust relationship between a root 
+cluster and a new Teleport Proxy Service, or add a new leaf cluster.
+
+Because the token resource isn't scoped to a specific context, such as a node or 
+trusted cluster, you should consider any role that provides token permissions to be 
+an administrative role. In particular, you should avoid configuring `allow` rules 
+that grant `create` and `update` permissions on `token` resources to prevent 
+unexpected changes to the configuration or state of your cluster.
 
 ## RBAC for sessions
 
