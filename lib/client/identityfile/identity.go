@@ -768,7 +768,7 @@ func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string)
 		WebProxyAddr:     proxyAddr,
 		SiteName:         key.ClusterName,
 		Username:         key.Username,
-		PrivateKeyPolicy: keys.GetPrivateKeyPolicy(key.PrivateKey),
+		PrivateKeyPolicy: key.PrivateKey.GetPrivateKeyPolicy(),
 	}
 	if err := clientStore.SaveProfile(profile, true); err != nil {
 		return nil, trace.Wrap(err)

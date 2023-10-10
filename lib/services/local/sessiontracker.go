@@ -114,7 +114,7 @@ func (s *sessionTracker) GetSessionTracker(ctx context.Context, sessionID string
 }
 
 func (s *sessionTracker) getActiveSessionTrackers(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
-	prefix := backend.Key(sessionPrefix)
+	prefix := backend.ExactKey(sessionPrefix)
 	result, err := s.bk.GetRange(ctx, prefix, backend.RangeEnd(prefix), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)

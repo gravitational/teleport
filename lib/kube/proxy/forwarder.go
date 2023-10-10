@@ -368,12 +368,20 @@ type Forwarder struct {
 	// use the heartbeat clusters.
 	getKubernetesServersForKubeCluster getKubeServersByNameFunc
 
-	// cachedTransport is a cache of http.Transport objects used to
+	// cachedTransport is a cache of cachedTransportEntry objects used to
 	// connect to Teleport services.
 	// TODO(tigrato): Implement a cache eviction policy using watchers.
 	cachedTransport *ttlmap.TTLMap
 	// cachedTransportMu is a mutex used to protect the cachedTransport.
 	cachedTransportMu sync.Mutex
+}
+
+// cachedTransportEntry is a cached transport entry used to connect to
+// Teleport services. It contains a cached http.RoundTripper and a cached
+// tls.Config.
+type cachedTransportEntry struct {
+	transport http.RoundTripper
+	tlsConfig *tls.Config
 }
 
 // getKubeServersByNameFunc is a function that returns a list of
@@ -1531,7 +1539,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		}
 	}()
 
-	executor, err := f.getExecutor(*ctx, sess, req)
+	executor, err := f.getExecutor(sess, req)
 	if err != nil {
 		execEvent.Code = events.ExecFailureCode
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
@@ -1704,7 +1712,7 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession, request remoteCommandRequest, proxy *remoteCommandProxy) (resp any, err error) {
 	defer proxy.Close()
 
-	executor, err := f.getExecutor(*ctx, sess, req)
+	executor, err := f.getExecutor(sess, req)
 	if err != nil {
 		f.log.WithError(err).Warning("Failed creating executor.")
 		return nil, trace.Wrap(err)
@@ -1769,7 +1777,7 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 		return nil, trace.Wrap(err)
 	}
 
-	dialer, err := f.getSPDYDialer(*authCtx, sess, req)
+	dialer, err := f.getSPDYDialer(sess, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1848,7 +1856,7 @@ const (
 
 func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Request, withImpersonationHeaders bool) error {
 	if withImpersonationHeaders {
-		if err := setupImpersonationHeaders(f.log, sess.authContext, req.Header); err != nil {
+		if err := setupImpersonationHeaders(f.log, sess, req.Header); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1874,12 +1882,14 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 }
 
 // setupImpersonationHeaders sets up Impersonate-User and Impersonate-Group headers
-func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers http.Header) error {
-	if ctx.teleportCluster.isRemote {
+func setupImpersonationHeaders(log logrus.FieldLogger, sess *clusterSession, headers http.Header) error {
+	// If the request is remote or this instance is a proxy,
+	// do not set up impersonation headers.
+	if sess.teleportCluster.isRemote || sess.kubeAPICreds == nil {
 		return nil
 	}
 
-	impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(ctx.kubeUsers, ctx.kubeGroups, headers)
+	impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(sess.kubeUsers, sess.kubeGroups, headers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2067,7 +2077,7 @@ func (f *Forwarder) catchAll(authCtx *authContext, w http.ResponseWriter, req *h
 	}
 }
 
-func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
+func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
 	tlsConfig, useImpersonation, err := f.getTLSConfig(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2075,7 +2085,7 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
-		authCtx:               ctx,
+		sess:                  sess,
 		dialWithContext:       sess.DialWithContext(),
 		tlsConfig:             tlsConfig,
 		pingPeriod:            f.cfg.ConnPingPeriod,
@@ -2100,7 +2110,7 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 // to SPDY protocol.
 // SPDY is a deprecated protocol, but it is still used by kubectl to manage data streams.
 // The dialer uses an HTTP1.1 connection to upgrade to SPDY.
-func (f *Forwarder) getSPDYDialer(ctx authContext, sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
+func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
 	tlsConfig, useImpersonation, err := f.getTLSConfig(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2108,7 +2118,7 @@ func (f *Forwarder) getSPDYDialer(ctx authContext, sess *clusterSession, req *ht
 
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
-		authCtx:               ctx,
+		sess:                  sess,
 		dialWithContext:       sess.DialWithContext(),
 		tlsConfig:             tlsConfig,
 		pingPeriod:            f.cfg.ConnPingPeriod,

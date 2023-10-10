@@ -1742,7 +1742,7 @@ func (a *Server) GetUserOrLoginState(ctx context.Context, username string) (serv
 		return uls, nil
 	}
 
-	user, err := a.GetUser(username, false)
+	user, err := a.GetUser(ctx, username, false)
 	return user, trace.Wrap(err)
 }
 
@@ -2696,8 +2696,8 @@ func (a *Server) getSigningCAs(ctx context.Context, domainName string, caType ty
 // this is done to avoid potential user lockouts due to backend failures
 // In case if user exceeds defaults.MaxLoginAttempts
 // the user account will be locked for defaults.AccountLockInterval
-func (a *Server) WithUserLock(username string, authenticateFn func() error) error {
-	user, err := a.Services.GetUser(username, false)
+func (a *Server) WithUserLock(ctx context.Context, username string, authenticateFn func() error) error {
+	user, err := a.Services.GetUser(ctx, username, false)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// If user is not found, still call authenticateFn. It should
@@ -2758,7 +2758,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	log.Debug(fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
 		username, defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(lockUntil)))
 	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
-	err = a.UpsertUser(user)
+	_, err = a.UpsertUser(ctx, user)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(fnErr)
@@ -2801,7 +2801,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
 		username = req.GetUserCredentials().GetUsername()
 
-		if err := a.WithUserLock(username, func() error {
+		if err := a.WithUserLock(ctx, username, func() error {
 			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
 		}); err != nil {
 			return nil, trace.Wrap(err)
@@ -3052,17 +3052,39 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 
 // DeleteMFADeviceSync implements AuthService.DeleteMFADeviceSync.
 func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error {
-	token, err := a.GetUserToken(ctx, req.GetTokenID())
-	if err != nil {
-		log.Error(trace.DebugReport(err))
-		return trace.AccessDenied("invalid token")
+	var user string
+	switch {
+	case req.TokenID != "":
+		token, err := a.GetUserToken(ctx, req.TokenID)
+		if err != nil {
+			log.Error(trace.DebugReport(err))
+			return trace.AccessDenied("invalid token")
+		}
+		user = token.GetUser()
+
+		if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
+			return trace.Wrap(err)
+		}
+
+	case req.ExistingMFAResponse != nil:
+		var err error
+		user, err = authz.GetClientUsername(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if _, _, err := a.validateMFAAuthResponse(
+			ctx, req.ExistingMFAResponse, user, false, /* passwordless */
+		); err != nil {
+			return trace.Wrap(err)
+		}
+
+	default:
+		return trace.BadParameter(
+			"deleting an MFA device requires either a privilege token or a solved authentication challenge")
 	}
 
-	if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = a.deleteMFADeviceSafely(ctx, token.GetUser(), req.GetDeviceName())
+	_, err := a.deleteMFADeviceSafely(ctx, user, req.DeviceName)
 	return trace.Wrap(err)
 }
 
@@ -3390,7 +3412,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		// We don't call from the cache layer because we want to
 		// retrieve the recently updated user. Otherwise, the cache
 		// returns stale data.
-		user, err := a.Identity.GetUser(req.User, false)
+		user, err := a.Identity.GetUser(ctx, req.User, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3431,7 +3453,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		}
 
 		// Get default/static roles.
-		user, err := a.GetUser(req.User, false)
+		user, err := a.GetUser(ctx, req.User, false)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to switchback")
 		}
@@ -5143,7 +5165,25 @@ func (a *Server) ExportUpgradeWindows(ctx context.Context, req proto.ExportUpgra
 	return rsp, nil
 }
 
-func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+// MFARequiredToBool translates a [proto.MFARequired] value to a simple
+// "required bool".
+func MFARequiredToBool(m proto.MFARequired) (required bool) {
+	switch m {
+	case proto.MFARequired_MFA_REQUIRED_NO:
+		return false
+	default: // _UNSPECIFIED or _YES are both treated as required.
+		return true
+	}
+}
+
+func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (resp *proto.IsMFARequiredResponse, err error) {
+	// Assign Required as a function of MFARequired.
+	defer func() {
+		if resp != nil {
+			resp.Required = MFARequiredToBool(resp.MFARequired)
+		}
+	}()
+
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5151,9 +5191,13 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 	switch state := checker.GetAccessState(authPref); state.MFARequired {
 	case services.MFARequiredAlways:
-		return &proto.IsMFARequiredResponse{Required: true}, nil
+		return &proto.IsMFARequiredResponse{
+			MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+		}, nil
 	case services.MFARequiredNever:
-		return &proto.IsMFARequiredResponse{Required: false}, nil
+		return &proto.IsMFARequiredResponse{
+			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		}, nil
 	}
 
 	var noMFAAccessErr, notFoundErr error
@@ -5186,7 +5230,9 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			// private network IP), and MFA check was actually required, the
 			// Node itself will check the cert extensions and reject the
 			// connection.
-			return &proto.IsMFARequiredResponse{Required: false}, nil
+			return &proto.IsMFARequiredResponse{
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			}, nil
 		}
 
 		// Check RBAC against all matching nodes and return the first error.
@@ -5294,7 +5340,9 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	// No error means that MFA is not required for this resource by
 	// AccessChecker.
 	if noMFAAccessErr == nil {
-		return &proto.IsMFARequiredResponse{Required: false}, nil
+		return &proto.IsMFARequiredResponse{
+			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		}, nil
 	}
 	// Errors other than ErrSessionMFARequired mean something else is wrong,
 	// most likely access denied.
@@ -5306,12 +5354,16 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		// Mask the access denied errors by returning false to prevent resource
 		// name oracles. Auth will be denied (and generate an audit log entry)
 		// when the client attempts to connect.
-		return &proto.IsMFARequiredResponse{Required: false}, nil
+		return &proto.IsMFARequiredResponse{
+			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		}, nil
 	}
 	// If we reach here, the error from AccessChecker was
 	// ErrSessionMFARequired.
 
-	return &proto.IsMFARequiredResponse{Required: true}, nil
+	return &proto.IsMFARequiredResponse{
+		MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+	}, nil
 }
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
@@ -5459,7 +5511,7 @@ func (a *Server) validateMFAAuthResponseForRegister(
 		return false, nil
 	}
 
-	if err := a.WithUserLock(username, func() error {
+	if err := a.WithUserLock(ctx, username, func() error {
 		_, _, err := a.validateMFAAuthResponse(
 			ctx, resp, username, false /* passwordless */)
 		return err

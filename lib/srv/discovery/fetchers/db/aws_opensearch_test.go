@@ -52,7 +52,7 @@ func TestOpenSearchFetcher(t *testing.T) {
 					TagsByARN: tags,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherOpenSearch, "us-east-1", wildcardLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherOpenSearch, "us-east-1", wildcardLabels),
 			wantDatabases: append(append(types.Databases{}, prodDBs...), testDBs...),
 		},
 		{
@@ -63,7 +63,7 @@ func TestOpenSearchFetcher(t *testing.T) {
 					TagsByARN: tags,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherOpenSearch, "us-east-1", envProdLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherOpenSearch, "us-east-1", envProdLabels),
 			wantDatabases: prodDBs,
 		},
 		{
@@ -74,7 +74,7 @@ func TestOpenSearchFetcher(t *testing.T) {
 					TagsByARN: tags,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherOpenSearch, "us-east-1", wildcardLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherOpenSearch, "us-east-1", wildcardLabels),
 			wantDatabases: prodDBs,
 		},
 		{
@@ -85,7 +85,7 @@ func TestOpenSearchFetcher(t *testing.T) {
 					TagsByARN: tags,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherOpenSearch, "us-east-1", map[string]string{"endpoint-type": apiawsutils.OpenSearchDefaultEndpoint}),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherOpenSearch, "us-east-1", map[string]string{"endpoint-type": apiawsutils.OpenSearchDefaultEndpoint}),
 			wantDatabases: types.Databases{prodDBs[0], prodCustomDBs[0]}, // domain with custom endpoint will still have default endpoint populated
 		},
 		{
@@ -96,7 +96,7 @@ func TestOpenSearchFetcher(t *testing.T) {
 					TagsByARN: tags,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherOpenSearch, "us-east-1", map[string]string{"endpoint-type": apiawsutils.OpenSearchCustomEndpoint}),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherOpenSearch, "us-east-1", map[string]string{"endpoint-type": apiawsutils.OpenSearchCustomEndpoint}),
 			wantDatabases: types.Databases{prodCustomDBs[1]}, // domain with custom endpoint will still have default endpoint populated
 		},
 		{
@@ -107,7 +107,7 @@ func TestOpenSearchFetcher(t *testing.T) {
 					TagsByARN: tags,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherOpenSearch, "us-east-1", map[string]string{"endpoint-type": apiawsutils.OpenSearchVPCEndpoint}),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherOpenSearch, "us-east-1", map[string]string{"endpoint-type": apiawsutils.OpenSearchVPCEndpoint}),
 			wantDatabases: prodVPCDBs,
 		},
 	}
@@ -128,7 +128,7 @@ func makeOpenSearchDomain(t *testing.T, tagMap map[string][]*opensearchservice.T
 	require.NoError(t, err)
 
 	for _, db := range databases {
-		common.ApplyAWSDatabaseNameSuffix(db, services.AWSMatcherOpenSearch)
+		common.ApplyAWSDatabaseNameSuffix(db, types.AWSMatcherOpenSearch)
 	}
 	return domain, databases
 }

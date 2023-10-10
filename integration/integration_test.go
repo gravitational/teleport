@@ -157,6 +157,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("IP Propagation", suite.bind(testIPPropagation))
 	t.Run("JumpTrustedClusters", suite.bind(testJumpTrustedClusters))
 	t.Run("JumpTrustedClustersWithLabels", suite.bind(testJumpTrustedClustersWithLabels))
+	t.Run("LeafSessionRecording", suite.bind(testLeafProxySessionRecording))
 	t.Run("List", suite.bind(testList))
 	t.Run("MapRoles", suite.bind(testMapRoles))
 	t.Run("ModeratedSessions", suite.bind(testModeratedSessions))
@@ -1132,6 +1133,152 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 				term.Type("exit\n\r")
 				waitSessionTermination(t, errCh, require.NoError)
 			})
+		})
+	}
+}
+
+func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
+	tests := []struct {
+		rootRecordingMode string
+		leafRecordingMode string
+		rootHasSess       bool
+	}{
+		{
+			rootRecordingMode: types.RecordAtNode,
+			leafRecordingMode: types.RecordAtProxy,
+			rootHasSess:       true,
+		},
+		{
+			rootRecordingMode: types.RecordAtProxy,
+			leafRecordingMode: types.RecordAtNode,
+			rootHasSess:       true,
+		},
+		{
+			rootRecordingMode: types.RecordAtNode,
+			leafRecordingMode: types.RecordAtNode,
+			rootHasSess:       false,
+		},
+		{
+			rootRecordingMode: types.RecordAtProxy,
+			leafRecordingMode: types.RecordAtProxy,
+			rootHasSess:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("root rec mode=%q leaf rec mode=%q",
+			tt.rootRecordingMode,
+			tt.leafRecordingMode,
+		), func(t *testing.T) {
+			// Create and start clusters
+			_, root, leaf := createTrustedClusterPair(t, suite, nil, func(cfg *servicecfg.Config, isRoot bool) {
+				auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+					AuditSessionsURI: t.TempDir(),
+				})
+				require.NoError(t, err)
+
+				recMode := tt.leafRecordingMode
+				if isRoot {
+					recMode = tt.rootRecordingMode
+				}
+				recCfg, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+					Mode: recMode,
+				})
+				require.NoError(t, err)
+
+				cfg.Auth.Enabled = true
+				cfg.Auth.AuditConfig = auditConfig
+				cfg.Auth.SessionRecordingConfig = recCfg
+				cfg.Proxy.Enabled = true
+				cfg.SSH.Enabled = true
+			})
+
+			authSrv := root.Process.GetAuthServer()
+			uploadChan := root.UploadEventsC
+			if !tt.rootHasSess {
+				authSrv = leaf.Process.GetAuthServer()
+				uploadChan = leaf.UploadEventsC
+			}
+
+			tc, err := root.NewClient(helpers.ClientConfig{
+				Login:   suite.Me.Username,
+				Cluster: "leaf-test",
+				Host:    "leaf-zero:0",
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			clt, err := tc.ConnectToCluster(ctx)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, clt.Close())
+			})
+
+			// Create an interactive SSH session to start session recording
+			term := NewTerminal(250)
+			errCh := make(chan error)
+
+			tc.Stdout = term
+			tc.Stdin = term
+
+			go func() {
+				nodeClient, err := tc.ConnectToNode(
+					ctx,
+					clt,
+					client.NodeDetails{Addr: "leaf-zero:0", Namespace: tc.Namespace, Cluster: clt.ClusterName()},
+					tc.Config.HostLogin,
+				)
+				assert.NoError(t, err)
+
+				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil)
+				assert.NoError(t, nodeClient.Close())
+			}()
+
+			var sessionID string
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				trackers, err := authSrv.GetActiveSessionTrackers(ctx)
+				if !assert.NoError(c, err) {
+					return
+				}
+				if !assert.Len(c, trackers, 1) {
+					return
+				}
+				sessionID = trackers[0].GetSessionID()
+			}, time.Second*5, time.Millisecond*100)
+
+			// Send stuff to the session.
+			term.Type("echo Hello\n\r")
+
+			// Guarantee the session hasn't stopped after typing.
+			select {
+			case <-errCh:
+				require.Fail(t, "session was closed before")
+			default:
+			}
+
+			// Wait for the session to terminate without error.
+			term.Type("exit\n\r")
+			require.NoError(t, waitForError(errCh, 5*time.Second))
+
+			// Wait for the session recording to be uploaded and available
+			var uploaded bool
+			timeoutC := time.After(10 * time.Second)
+			for !uploaded {
+				select {
+				case event := <-uploadChan:
+					if event.SessionID == sessionID {
+						uploaded = true
+					}
+				case <-timeoutC:
+					require.Fail(t, "timeout waiting for session recording to be uploaded")
+				}
+			}
+
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				events, err := authSrv.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0)
+				assert.NoError(t, err)
+				assert.NotEmpty(t, events)
+			}, 5*time.Second, 200*time.Millisecond)
 		})
 	}
 }
@@ -3743,7 +3890,7 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	err = main.Process.GetAuthServer().UpsertRole(ctx, adminsRole)
 	require.NoError(t, err)
-	err = main.Process.GetAuthServer().UpsertUser(&types.UserV2{
+	_, err = main.Process.GetAuthServer().UpsertUser(ctx, &types.UserV2{
 		Kind: types.KindUser,
 		Metadata: types.Metadata{
 			Name: username,
@@ -6756,7 +6903,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	}
 
 	// Update user
-	err = authServer.UpsertUser(user)
+	user, err = authServer.UpsertUser(ctx, user)
 	require.NoError(t, err)
 
 	WaitForResource(t, watcher, user.GetKind(), user.GetName())
@@ -7300,7 +7447,9 @@ outer:
 	t.FailNow()
 }
 
-func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *helpers.TeleInstance, *helpers.TeleInstance)) (*client.TeleportClient, *helpers.TeleInstance, *helpers.TeleInstance) {
+type serviceCfgOpt func(cfg *servicecfg.Config, isRoot bool)
+
+func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *helpers.TeleInstance, *helpers.TeleInstance), cfgOpts ...serviceCfgOpt) (*client.TeleportClient, *helpers.TeleInstance, *helpers.TeleInstance) {
 	ctx := context.Background()
 	username := suite.Me.Username
 	name := "test"
@@ -7339,18 +7488,32 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSession},
+					Verbs: []string{
+						types.VerbList,
+						types.VerbRead,
+					},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
 	root.AddUserWithRole(username, role)
 	leaf.AddUserWithRole(username, role)
 
-	makeConfig := func() (*testing.T, []*helpers.InstanceSecrets, *servicecfg.Config) {
+	makeConfig := func(isRoot bool) (*testing.T, []*helpers.InstanceSecrets, *servicecfg.Config) {
 		tconf := suite.defaultServiceConfig()
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
 		tconf.SSH.Enabled = false
 		tconf.CachePolicy.MaxRetryPeriod = time.Millisecond * 500
+
+		for _, opt := range cfgOpts {
+			opt(tconf, isRoot)
+		}
+
 		return t, nil, tconf
 	}
 
@@ -7358,8 +7521,8 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(oldInsecure)
 
-	require.NoError(t, root.CreateEx(makeConfig()))
-	require.NoError(t, leaf.CreateEx(makeConfig()))
+	require.NoError(t, root.CreateEx(makeConfig(true)))
+	require.NoError(t, leaf.CreateEx(makeConfig(false)))
 	require.NoError(t, leaf.Process.GetAuthServer().UpsertRole(ctx, role))
 
 	// Connect leaf to root.
@@ -7614,7 +7777,8 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 
 func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 	for _, proxyProtocolMode := range []multiplexer.PROXYProtocolMode{
-		multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff, multiplexer.PROXYProtocolUnspecified} {
+		multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff, multiplexer.PROXYProtocolUnspecified,
+	} {
 		t.Run(fmt.Sprintf("proxy protocol mode: %v", proxyProtocolMode), func(t *testing.T) {
 			lib.SetInsecureDevMode(true)
 			t.Cleanup(func() { lib.SetInsecureDevMode(false) })
@@ -8727,7 +8891,8 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 		u.SetRoles([]string{"access", role})
 		u.SetLogins([]string{suite.Me.Username, user})
 
-		require.NoError(t, asrv.CreateUser(ctx, u))
+		_, err = asrv.CreateUser(ctx, u)
+		require.NoError(t, err)
 
 		token, err := asrv.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
 			Name: user,

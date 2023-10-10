@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { bool, string } from 'prop-types';
 
-import { space, width, height, alignSelf } from 'design/system';
+import { space, width, height, alignSelf, gap } from 'design/system';
 
 const Button = ({ children, setRef, ...props }) => {
   return (
@@ -86,6 +86,9 @@ const themedStyles = props => {
     ...height(props),
     ...textTransform(props),
     ...alignSelf(props),
+    // Since a Button has `display: inline-flex`, we want to be able to set gap within it in case we
+    // need to use an icon.
+    ...gap(props),
   };
 };
 

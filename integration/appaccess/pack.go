@@ -189,7 +189,7 @@ func (p *Pack) CreateUser(t *testing.T) (types.User, string) {
 
 	user.AddRole(role.GetName())
 	user.SetTraits(map[string][]string{"env": {"production"}, "empty": {}, "nil": nil})
-	err = p.rootCluster.Process.GetAuthServer().CreateUser(context.Background(), user)
+	user, err = p.rootCluster.Process.GetAuthServer().CreateUser(context.Background(), user)
 	require.NoError(t, err)
 
 	err = p.rootCluster.Process.GetAuthServer().UpsertPassword(user.GetName(), []byte(password))

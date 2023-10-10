@@ -41,6 +41,8 @@ export interface Session {
   participantModes: ParticipantMode[];
   // whether this session requires moderation or not. this is NOT if the session is currently being actively moderated
   moderated: boolean;
+  // command is the command that was run to start this session.
+  command: string;
 }
 
 export type SessionMetadata = {

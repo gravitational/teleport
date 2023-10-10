@@ -1412,16 +1412,22 @@ func TestUsers(t *testing.T) {
 		newResource: func(name string) (types.User, error) {
 			return types.NewUser("bob")
 		},
-		create: modifyNoContext(p.usersS.UpsertUser),
+		create: func(ctx context.Context, user types.User) error {
+			_, err := p.usersS.UpsertUser(ctx, user)
+			return err
+		},
 		list: func(ctx context.Context) ([]types.User, error) {
-			return p.usersS.GetUsers(false)
+			return p.usersS.GetUsers(ctx, false)
 		},
 		cacheList: func(ctx context.Context) ([]types.User, error) {
-			return p.cache.GetUsers(false)
+			return p.cache.GetUsers(ctx, false)
 		},
-		update: modifyNoContext(p.usersS.UpsertUser),
-		deleteAll: func(_ context.Context) error {
-			return p.usersS.DeleteAllUsers()
+		update: func(ctx context.Context, user types.User) error {
+			_, err := p.usersS.UpdateUser(ctx, user)
+			return err
+		},
+		deleteAll: func(ctx context.Context) error {
+			return p.usersS.DeleteAllUsers(ctx)
 		},
 	})
 }
@@ -2094,7 +2100,7 @@ func TestAccessLists(t *testing.T) {
 
 	testResources(t, p, testFuncs[*accesslist.AccessList]{
 		newResource: func(name string) (*accesslist.AccessList, error) {
-			return newAccessList(t, name), nil
+			return newAccessList(t, name, p.backend.Clock()), nil
 		},
 		create: func(ctx context.Context, accessList *accesslist.AccessList) error {
 			_, err := p.accessLists.UpsertAccessList(ctx, accessList)
@@ -2148,7 +2154,9 @@ func TestAccessListMembers(t *testing.T) {
 
 	const accessListName = "test-access-list"
 
-	p.accessLists.UpsertAccessList(context.Background(), newAccessList(t, accessListName))
+	clock := clockwork.NewFakeClock()
+
+	p.accessLists.UpsertAccessList(context.Background(), newAccessList(t, accessListName, clock))
 
 	testResources(t, p, testFuncs[*accesslist.AccessListMember]{
 		newResource: func(name string) (*accesslist.AccessListMember, error) {
@@ -2575,6 +2583,8 @@ func newProxyEvents(events types.Events, ignoreKinds []types.WatchKind) *proxyEv
 func TestCacheWatchKindExistsInEvents(t *testing.T) {
 	t.Parallel()
 
+	clock := clockwork.NewFakeClock()
+
 	cases := map[string]Config{
 		"ForAuth":           ForAuth(Config{}),
 		"ForProxy":          ForProxy(Config{}),
@@ -2630,7 +2640,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindOktaAssignment:          &types.OktaAssignmentV1{},
 		types.KindIntegration:             &types.IntegrationV1{},
 		types.KindHeadlessAuthentication:  &types.HeadlessAuthentication{},
-		types.KindAccessList:              newAccessList(t, "access-list"),
+		types.KindAccessList:              newAccessList(t, "access-list", clock),
 		types.KindUserLoginState:          newUserLoginState(t, "user-login-state"),
 		types.KindAccessListMember:        newAccessListMember(t, "access-list", "member"),
 	}
@@ -2673,7 +2683,8 @@ func TestPartialHealth(t *testing.T) {
 
 	user, err := types.NewUser("bob")
 	require.NoError(t, err)
-	require.NoError(t, p.usersS.UpsertUser(user))
+	user, err = p.usersS.UpsertUser(ctx, user)
+	require.NoError(t, err)
 	select {
 	case event := <-p.eventsC:
 		require.Equal(t, EventProcessed, event.Type)
@@ -2683,7 +2694,7 @@ func TestPartialHealth(t *testing.T) {
 	}
 
 	// make sure that the user resource works as normal and gets replicated to cache
-	replicatedUsers, err := p.cache.GetUsers(false)
+	replicatedUsers, err := p.cache.GetUsers(ctx, false)
 	require.NoError(t, err)
 	require.Len(t, replicatedUsers, 1)
 
@@ -2691,10 +2702,11 @@ func TestPartialHealth(t *testing.T) {
 	meta := user.GetMetadata()
 	meta.Labels = map[string]string{"origin": "cache"}
 	user.SetMetadata(meta)
-	require.NoError(t, p.cache.usersCache.UpsertUser(user))
+	_, err = p.cache.usersCache.UpsertUser(ctx, user)
+	require.NoError(t, err)
 
 	// the label on the returned user proves that it came from the cache
-	resultUser, err := p.cache.GetUser("bob", false)
+	resultUser, err := p.cache.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, "cache", resultUser.GetMetadata().Labels["origin"])
 
@@ -2833,7 +2845,7 @@ func TestInvalidDatabases(t *testing.T) {
 	}
 }
 
-func newAccessList(t *testing.T, name string) *accesslist.AccessList {
+func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist.AccessList {
 	t.Helper()
 
 	accessList, err := accesslist.NewAccessList(
@@ -2854,7 +2866,7 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency: time.Hour,
+				NextAuditDate: clock.Now(),
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},

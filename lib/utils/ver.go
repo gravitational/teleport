@@ -21,6 +21,18 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// MeetsVersion returns true if gotVer is empty or at least minVer.
+func MeetsVersion(gotVer, minVer string) bool {
+	if gotVer == "" {
+		return true // Ignore empty versions.
+	}
+
+	err := CheckVersion(gotVer, minVer)
+
+	// Non BadParameter errors are semver parsing errors.
+	return !trace.IsBadParameter(err)
+}
+
 // CheckVersion compares a version with a minimum version supported.
 func CheckVersion(currentVersion, minVersion string) error {
 	currentSemver, minSemver, err := versionStringToSemver(currentVersion, minVersion)

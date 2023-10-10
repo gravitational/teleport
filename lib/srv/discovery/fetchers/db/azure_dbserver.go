@@ -41,10 +41,10 @@ type azureDBServerPlugin struct{}
 
 func (p *azureDBServerPlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.DBServersClient, error) {
 	switch cfg.Type {
-	case services.AzureMatcherMySQL:
+	case types.AzureMatcherMySQL:
 		client, err := cfg.AzureClients.GetAzureMySQLClient(subID)
 		return client, trace.Wrap(err)
-	case services.AzureMatcherPostgres:
+	case types.AzureMatcherPostgres:
 		client, err := cfg.AzureClients.GetAzurePostgresClient(subID)
 		return client, trace.Wrap(err)
 	default:

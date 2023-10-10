@@ -123,7 +123,7 @@ func TestCreateGithubUser(t *testing.T) {
 	tt := setupGithubContext(ctx, t)
 
 	// Dry-run creation of Github user.
-	user, err := tt.a.createGithubUser(context.Background(), &CreateUserParams{
+	user, err := tt.a.createGithubUser(ctx, &CreateUserParams{
 		ConnectorName: "github",
 		Username:      "foo@example.com",
 		Roles:         []string{"admin"},
@@ -133,11 +133,11 @@ func TestCreateGithubUser(t *testing.T) {
 	require.Equal(t, user.GetName(), "foo@example.com")
 
 	// Dry-run must not create a user.
-	_, err = tt.a.GetUser("foo@example.com", false)
+	_, err = tt.a.GetUser(ctx, "foo@example.com", false)
 	require.Error(t, err)
 
 	// Create GitHub user with 1 minute expiry.
-	_, err = tt.a.createGithubUser(context.Background(), &CreateUserParams{
+	_, err = tt.a.createGithubUser(ctx, &CreateUserParams{
 		ConnectorName: "github",
 		Username:      "foo",
 		Roles:         []string{"admin"},
@@ -146,12 +146,12 @@ func TestCreateGithubUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Within that 1 minute period the user should still exist.
-	_, err = tt.a.GetUser("foo", false)
+	_, err = tt.a.GetUser(ctx, "foo", false)
 	require.NoError(t, err)
 
 	// Advance time 2 minutes, the user should be gone.
 	tt.c.Advance(2 * time.Minute)
-	_, err = tt.a.GetUser("foo", false)
+	_, err = tt.a.GetUser(ctx, "foo", false)
 	require.Error(t, err)
 }
 
