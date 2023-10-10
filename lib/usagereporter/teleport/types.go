@@ -1051,7 +1051,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployEice:
-		ret := &UIDiscoverAutoDiscoveredResourcesEvent{
+		ret := &UIDiscoverDeployEICEEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployEice.Metadata, userMD),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDeployEice.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDeployEice.Status),
@@ -1062,7 +1062,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverCreateNode:
-		ret := &UIDiscoverAutoDiscoveredResourcesEvent{
+		ret := &UIDiscoverCreateNodeEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverCreateNode.Metadata, userMD),
 			Resource: discoverResourceToPrehog(e.UiDiscoverCreateNode.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverCreateNode.Status),
