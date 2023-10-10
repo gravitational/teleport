@@ -1881,12 +1881,6 @@ func (process *TeleportProcess) initAuthService() error {
 
 	if cfg.AccessGraph.Enabled {
 		log.Debugf("Access Graph integration enabled")
-		//accessGraphProcessor := authz.NewAccessGraphProcessor(authz.AccessGraphProcessorConfig{
-		//	AccessGraph: authServer.AccessGraph,
-		//	Emitter:     authServer,
-		//	Log:         log,
-		//	Jitter:      retryutils.NewFullJitter(),
-		//})
 
 		process.RegisterCriticalFunc("access-graph-service", func() error {
 			log.Debugf("Starting access graph service")
@@ -1901,12 +1895,11 @@ func (process *TeleportProcess) initAuthService() error {
 			// TODO(jakule): add TLS support
 			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-			// TODO(jakule): reuse connection
 			conn, err := grpc.Dial(accessGraphAddr, opts...)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			//defer conn.Close()
+			defer conn.Close()
 
 			accessGraphClient := accessgraphv1.NewAccessGraphServiceClient(conn)
 
