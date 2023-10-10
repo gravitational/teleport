@@ -233,7 +233,9 @@ Service becomes unavailable.
   type="tip"
   title="Note"
 >
-  Only self-hosted Teleport clusters support Teleport services exposing ports.
+  In Teleport Cloud, the Auth and Proxy Services run in Teleport-owned infrastructure.
+For this reason, Teleport Cloud customers must connect their resources via reverse tunnels.
+Exposing ports for direct dial is only supported in self-hosted deployments.
 </Admonition>
 
 The table below describes the ports that each Teleport Service opens for proxied
