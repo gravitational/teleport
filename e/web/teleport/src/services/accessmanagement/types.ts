@@ -15,6 +15,23 @@ export enum IneligibleStatus {
   Expired = 'INELIGIBLE_STATUS_EXPIRED',
 }
 
+// ReviewFrequency is the frequency of reviews.
+export enum ReviewFrequency {
+  OneMonth = '1 month',
+  ThreeMonths = '3 months',
+  SixMonths = '6 months', // default
+  OneYear = '1 year',
+}
+
+export type ReviewFrequencyBackendParsableValue = '1m' | '3m' | '6m' | '12m';
+
+// ReviewDayOfMonth is the day of month that reviews will repeat on.
+export enum ReviewDayOfMonth {
+  FirstDayOfMonth = '1', // default
+  FifteenthDayOfMonth = '15',
+  LastDayOfMonth = 'last',
+}
+
 export type AccessList = {
   id: string;
   title: string; // friendly name of id
@@ -77,7 +94,7 @@ export type AccessListOwner = {
 // AccessListAudit describes the frequency that this
 // access list must be audited.
 export type AccessListAudit = {
-  frequency: string;
+  recurrence: { frequency: ReviewFrequency; dayOfMonth: ReviewDayOfMonth };
   nextDate: Date;
 };
 
@@ -104,7 +121,13 @@ export type UpsertAccessListRequest = {
   ownership_requires: AccessListRequires;
   membership_requires?: AccessListRequires;
   members?: MemberRequest[];
-  audit: { frequency: string; next_audit_date: Date };
+  audit: {
+    recurrence: {
+      day_of_month: ReviewDayOfMonth;
+      frequency: ReviewFrequencyBackendParsableValue;
+    };
+    next_audit_date: Date;
+  };
 };
 
 export type AddMembersToAccessListRequest = {

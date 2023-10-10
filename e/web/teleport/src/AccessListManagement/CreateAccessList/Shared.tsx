@@ -7,7 +7,7 @@ import {
   EditKind,
   FieldSelectAndCreatableWrapper,
   HybridUserOption,
-} from '../Shared';
+} from '../Shared/Shared';
 
 export function EligibilityOrGrantRolesFieldSelectAndCreate({
   options,

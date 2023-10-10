@@ -9,16 +9,17 @@ import Dialog, {
   DialogFooter,
 } from 'design/Dialog';
 import Validation, { Validator } from 'shared/components/Validation';
-import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
 
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
-import { AuditReviewFrequencySelectField } from 'e-teleport/AccessListManagement/CreateAccessList/SpecSection';
 import {
   CalendarDateSelect,
-  auditFrequencyOpts,
-  calculateMonthsDaysFromDuration,
-} from 'e-teleport/AccessListManagement/Shared';
+  ReviewDayOfMonthOption,
+  ReviewFrequencyOption,
+  ReviewRecurrence,
+  getReviewDayOfMonthOption,
+  getReviewFrequencyOption,
+} from 'e-teleport/AccessListManagement/Shared/Audit';
 
 import { AccessListModified } from '../ViewEditAccessList';
 
@@ -31,14 +32,13 @@ type Props = {
 export function EditAudit({ onClose, accessList, fetchAccessList }: Props) {
   const { audit } = accessList;
   const { attempt, setAttempt } = useAttempt('');
-  const [frequency, setFrequency] = useState<Option>(() => {
-    const { months } = calculateMonthsDaysFromDuration(audit.frequency);
-
-    // Leave field empty if stored frequency doesn't match the
-    // hard coded ones on UI.
-    return auditFrequencyOpts.find(o => o.key === months);
-  });
   const [auditStartDate, setAuditStartDate] = useState<Date>(audit.nextDate);
+  const [frequency, setFrequency] = useState<ReviewFrequencyOption>(() =>
+    getReviewFrequencyOption(audit.recurrence.frequency)
+  );
+  const [dayOfMonth, setDayOfMonth] = useState<ReviewDayOfMonthOption>(() =>
+    getReviewDayOfMonthOption(audit.recurrence.dayOfMonth)
+  );
 
   function handleOnCreate(validator: Validator) {
     if (!validator.validate()) {
@@ -52,7 +52,10 @@ export function EditAudit({ onClose, accessList, fetchAccessList }: Props) {
       .updateAccessList({
         req: {
           audit: {
-            frequency: frequency.value,
+            recurrence: {
+              frequency: frequency.value,
+              dayOfMonth: dayOfMonth.value,
+            },
             nextDate: auditStartDate,
           },
         },
@@ -86,14 +89,18 @@ export function EditAudit({ onClose, accessList, fetchAccessList }: Props) {
             {attempt.status === 'failed' && (
               <Alert kind="danger" children={attempt.statusText} />
             )}
-            <Box width="50%">
-              <AuditReviewFrequencySelectField
+            <Box>
+              <ReviewRecurrence
                 isDisabled={attempt.status === 'processing'}
-                onChangeFrequency={(o: Option) => setFrequency(o)}
+                onChangeFrequency={(o: ReviewFrequencyOption) =>
+                  setFrequency(o)
+                }
+                onChangeDayOfMonth={(o: ReviewDayOfMonthOption) =>
+                  setDayOfMonth(o)
+                }
                 selectedFrequency={frequency}
+                selectedDayOfMonth={dayOfMonth}
               />
-            </Box>
-            <Box width="50%" mb={3}>
               <CalendarDateSelect
                 date={auditStartDate}
                 onChange={(newDate: Date) => setAuditStartDate(newDate)}

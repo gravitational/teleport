@@ -5,7 +5,7 @@ import ResourceService from 'teleport/services/resources';
 import userService from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
 
-import { UserOption } from './Shared';
+import { UserOption } from './Shared/Shared';
 
 // Fetching list of users and roles is a nice to have for
 // users who have perms to do so because it will generate

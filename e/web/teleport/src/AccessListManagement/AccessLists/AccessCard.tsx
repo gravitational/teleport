@@ -6,7 +6,7 @@ import { User } from 'design/Icon';
 
 import cfg from 'e-teleport/config';
 
-import { ToolTipText, TruncatingLabel } from '../Shared';
+import { ToolTipText, TruncatingLabel } from '../Shared/Shared';
 
 import { AccessListWithModifiedGrants } from './AccessLists';
 

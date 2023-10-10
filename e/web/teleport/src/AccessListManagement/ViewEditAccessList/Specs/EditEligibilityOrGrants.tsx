@@ -14,7 +14,7 @@ import {
   AccessList,
   accessManagementService,
 } from 'e-teleport/services/accessmanagement';
-import { EditKind } from 'e-teleport/AccessListManagement/Shared';
+import { EditKind } from 'e-teleport/AccessListManagement/Shared/Shared';
 import { EligibilityOrGrantRolesFieldSelectAndCreate } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
 import {
   TraitConvenience,

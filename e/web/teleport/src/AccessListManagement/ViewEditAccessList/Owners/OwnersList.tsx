@@ -5,7 +5,7 @@ import { Wrench, Add } from 'design/Icon';
 
 import { AccessListOwner } from 'e-teleport/services/accessmanagement';
 
-import { UserOption } from '../../Shared';
+import { UserOption } from '../../Shared/Shared';
 
 import { CustomCell, UserRevokeButtonCell } from '../Shared';
 import { DeleteUserConfirmDialog } from '../DeleteUserConfirmDialog';

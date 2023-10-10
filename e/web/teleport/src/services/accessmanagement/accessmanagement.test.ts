@@ -2,8 +2,17 @@ import api from 'teleport/services/api';
 
 import cfg from 'e-teleport/config';
 
-import { accessManagementService } from './accessmanagement';
-import { AccessList, IneligibleStatus, UpsertAccessListRequest } from './types';
+import {
+  accessManagementService,
+  convertReviewFrequencyIntoBackendParsableValue,
+} from './accessmanagement';
+import {
+  AccessList,
+  IneligibleStatus,
+  ReviewDayOfMonth,
+  ReviewFrequency,
+  UpsertAccessListRequest,
+} from './types';
 
 test('fetch access lists, empty responses does not throw error', async () => {
   jest.spyOn(api, 'get').mockResolvedValue({ accessLists: null });
@@ -26,7 +35,10 @@ test('fetch access lists, empty responses does not throw error', async () => {
         traits: {},
       },
       audit: {
-        frequency: '',
+        recurrence: {
+          dayOfMonth: 0,
+          frequency: 0,
+        },
         nextDate: undefined,
       },
       ownershipRequires: {
@@ -43,7 +55,13 @@ test('fetch access lists, empty responses does not throw error', async () => {
 
 test('fetch an access list, empty response does not throw error', async () => {
   const madeResponse = {
-    audit: { frequency: '', nextDate: undefined },
+    audit: {
+      recurrence: {
+        dayOfMonth: 0,
+        frequency: 0,
+      },
+      nextDate: undefined,
+    },
     description: '',
     grants: { roles: [], traits: {} },
     id: '',
@@ -79,7 +97,10 @@ test('fetch an access list', async () => {
         title: 'some title',
         description: 'some description',
         audit: {
-          frequency: '24h',
+          recurrence: {
+            day_of_month: ReviewDayOfMonth.FifteenthDayOfMonth,
+            frequency: ReviewFrequency.ThreeMonths,
+          },
           next_audit_date: '2023-08-24T17:48:15.78579Z',
         },
         grants: {
@@ -122,7 +143,10 @@ test('fetch an access list', async () => {
     title: 'some title',
     description: 'some description',
     audit: {
-      frequency: '24h',
+      recurrence: {
+        dayOfMonth: ReviewDayOfMonth.FifteenthDayOfMonth,
+        frequency: ReviewFrequency.ThreeMonths,
+      },
       nextDate: new Date('2023-08-24T17:48:15.78579Z'),
     },
     grants: {
@@ -164,7 +188,10 @@ describe('update an access list', () => {
     title: 'some title',
     description: 'some description',
     audit: {
-      frequency: '24h',
+      recurrence: {
+        dayOfMonth: ReviewDayOfMonth.FifteenthDayOfMonth,
+        frequency: ReviewFrequency.ThreeMonths,
+      },
       nextDate: new Date('2023-08-24T17:48:15.78579Z'),
     },
     grants: {
@@ -202,7 +229,12 @@ describe('update an access list', () => {
     title: 'some title',
     description: 'some description',
     audit: {
-      frequency: '24h',
+      recurrence: {
+        day_of_month: ReviewDayOfMonth.FifteenthDayOfMonth,
+        frequency: convertReviewFrequencyIntoBackendParsableValue(
+          ReviewFrequency.ThreeMonths
+        ),
+      },
       next_audit_date: new Date('2023-08-24T17:48:15.78579Z'),
     },
     grants: {
@@ -254,14 +286,20 @@ describe('update an access list', () => {
       reqToUpdate: {
         audit: {
           nextDate: new Date('2024-08-24T17:48:15.78579Z'),
-          frequency: '6h',
+          recurrence: {
+            dayOfMonth: ReviewDayOfMonth.LastDayOfMonth,
+            frequency: ReviewFrequency.OneYear,
+          },
         },
       },
       constructed: {
         ...madeForAccessListUpdate,
         audit: {
           next_audit_date: new Date('2024-08-24T17:48:15.78579Z'),
-          frequency: '6h',
+          recurrence: {
+            day_of_month: ReviewDayOfMonth.LastDayOfMonth,
+            frequency: '12m',
+          },
         },
       },
     },
@@ -369,7 +407,10 @@ describe('update an access list', () => {
         },
         audit: {
           nextDate: new Date('2024-08-24T17:48:15.78579Z'),
-          frequency: '6h',
+          recurrence: {
+            dayOfMonth: ReviewDayOfMonth.FirstDayOfMonth,
+            frequency: ReviewFrequency.OneMonth,
+          },
         },
         owners: [
           {
@@ -386,7 +427,10 @@ describe('update an access list', () => {
         },
         audit: {
           next_audit_date: new Date('2024-08-24T17:48:15.78579Z'),
-          frequency: '6h',
+          recurrence: {
+            day_of_month: ReviewDayOfMonth.FirstDayOfMonth,
+            frequency: '1m',
+          },
         },
         owners: [
           {

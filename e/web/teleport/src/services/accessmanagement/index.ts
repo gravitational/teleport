@@ -1,2 +1,5 @@
-export { accessManagementService } from './accessmanagement';
+export {
+  accessManagementService,
+  convertReviewFrequencyIntoBackendParsableValue,
+} from './accessmanagement';
 export * from './types';

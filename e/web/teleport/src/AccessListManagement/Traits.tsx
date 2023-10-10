@@ -5,7 +5,7 @@ import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import { AllUserTraits } from 'teleport/services/user';
 
-import { EditKind } from './Shared';
+import { EditKind } from './Shared/Shared';
 
 export function TraitsCreator({
   traitLabels = [],

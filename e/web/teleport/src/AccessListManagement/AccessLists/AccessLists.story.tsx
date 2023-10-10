@@ -88,7 +88,7 @@ const mock = [
     spec: {
       title: 'Interns',
       description: 'lorem ipsum description',
-      audit: { frequency: '' },
+      audit: {},
       grants: { roles: ['access', 'editor'] },
       ownership_requires: { roles: [] },
       owners: [],
@@ -101,7 +101,7 @@ const mock = [
         'Really long title to test ellipsis lorem ipsum dolores george washington',
       description:
         'test long description to test ellipsis lorem ipsum descriptionlorem ipsum descriptionlorem ipsum description lorem ipsum description',
-      audit: { frequency: '' },
+      audit: {},
       grants: {
         roles: [
           'access',
@@ -123,7 +123,7 @@ const mock = [
     spec: {
       title: 'All Employees',
       description: 'lorem ipsum some kind of generic description',
-      audit: { frequency: '' },
+      audit: {},
       grants: {
         roles: ['access'],
         traits: { drink: ['banana', 'carrot', 'apple'] },
@@ -138,7 +138,7 @@ const mock = [
     spec: {
       title: 'Design Team',
       description: 'lorem ipsum some kind of generic description',
-      audit: { frequency: '' },
+      audit: {},
       grants: { roles: ['design', 'ux', 'ui', 'llama'] },
       ownership_requires: { roles: [] },
       owners: [],
@@ -149,7 +149,7 @@ const mock = [
     metadata: { name: 'eee' },
     spec: {
       title: 'Test empty description',
-      audit: { frequency: '' },
+      audit: {},
       grants: { roles: ['test'] },
       ownership_requires: { roles: [] },
       owners: [],
@@ -162,7 +162,7 @@ const mock = [
       title: 'Kubernetes Access',
       description:
         'test long description to test ellipsis lorem ipsum descriptionlorem ipsum descriptionlorem ipsum description lorem ipsum description',
-      audit: { frequency: '' },
+      audit: {},
       grants: {
         roles: [
           'reallyreallyobnoxiouslonglabeltesting',

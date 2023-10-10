@@ -10,6 +10,8 @@ import {
   AccessListOwner,
   IneligibleStatus,
   AddMembersToAccessListRequest,
+  ReviewFrequency,
+  ReviewFrequencyBackendParsableValue,
 } from './types';
 
 export const accessManagementService = {
@@ -55,11 +57,21 @@ export const accessManagementService = {
       audit: req.audit
         ? {
             next_audit_date: req.audit.nextDate,
-            frequency: req.audit.frequency,
+            recurrence: {
+              frequency: convertReviewFrequencyIntoBackendParsableValue(
+                req.audit.recurrence.frequency
+              ),
+              day_of_month: req.audit.recurrence.dayOfMonth,
+            },
           }
         : {
             next_audit_date: original.audit.nextDate,
-            frequency: original.audit.frequency,
+            recurrence: {
+              frequency: convertReviewFrequencyIntoBackendParsableValue(
+                original.audit.recurrence.frequency
+              ),
+              day_of_month: original.audit.recurrence.dayOfMonth,
+            },
           },
       grants: req.grants
         ? {
@@ -133,7 +145,10 @@ function makeAccessList(json: any): AccessList {
       traits: makeTraits(spec.grants?.traits),
     },
     audit: {
-      frequency: spec.audit?.frequency || '',
+      recurrence: {
+        frequency: spec.audit?.recurrence?.frequency || 0,
+        dayOfMonth: spec.audit?.recurrence?.day_of_month || 0,
+      },
       nextDate: spec.audit?.next_audit_date
         ? new Date(spec.audit?.next_audit_date)
         : undefined,
@@ -189,4 +204,19 @@ function makeOwners(json: any): AccessListOwner[] {
       ineligibleReason: getIneligibleReason(o.ineligible_status),
     };
   });
+}
+
+export function convertReviewFrequencyIntoBackendParsableValue(
+  frequency: ReviewFrequency
+): ReviewFrequencyBackendParsableValue {
+  switch (frequency) {
+    case ReviewFrequency.OneMonth:
+      return '1m';
+    case ReviewFrequency.ThreeMonths:
+      return '3m';
+    case ReviewFrequency.SixMonths:
+      return '6m';
+    case ReviewFrequency.OneYear:
+      return '12m';
+  }
 }

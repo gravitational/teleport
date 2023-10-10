@@ -4,7 +4,7 @@ import { Option } from 'shared/components/Select';
 import { AllUserTraits } from 'teleport/services/user';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import { HybridUserOption, UserOption } from '../Shared';
+import { HybridUserOption, UserOption } from '../Shared/Shared';
 import {
   TraitLabel,
   TraitsCreator,

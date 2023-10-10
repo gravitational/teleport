@@ -4,8 +4,9 @@ import Table from 'design/DataTable';
 import { UsersTriple, Add } from 'design/Icon';
 
 import { AccessListMember } from 'e-teleport/services/accessmanagement';
+import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
 
-import { UserOption, getFormattedDate } from '../../Shared';
+import { UserOption } from '../../Shared/Shared';
 
 import { CustomCell, UserRevokeButtonCell } from '../Shared';
 import { DeleteUserConfirmDialog } from '../DeleteUserConfirmDialog';

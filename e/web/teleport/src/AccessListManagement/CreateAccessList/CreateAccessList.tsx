@@ -22,17 +22,22 @@ import useTeleport from 'teleport/useTeleport';
 import { Option } from 'shared/components/Select';
 import { AllUserTraits } from 'teleport/services/user';
 
-import { accessManagementService } from 'e-teleport/services/accessmanagement';
+import {
+  ReviewDayOfMonth,
+  ReviewFrequency,
+  accessManagementService,
+  convertReviewFrequencyIntoBackendParsableValue,
+} from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
 
 import { NoAccessState } from '../NoAccessState';
 import {
   HybridUserOption,
   UserOption,
-  auditFrequencyOpts,
   matchRoles,
   matchTraits,
-} from '../Shared';
+} from '../Shared/Shared';
+import { reviewFrequencyOpts, reviewDayOfMonthOpts } from '../Shared/Audit';
 import { useFetchUserAndRoles } from '../useFetchUsersAndRoles';
 import { convertTraitLabelsToAllUserTraits } from '../Traits';
 
@@ -55,13 +60,19 @@ export function CreateAccessList() {
   const { attempt: createAttempt, setAttempt: setCreateAttempt } =
     useAttempt('');
 
-  const [spec, setSpec] = useState<Spec>({
+  const [spec, setSpec] = useState<Spec>(() => ({
     title: '',
     description: '',
-    // Default to the max frequency
-    auditFrequency: auditFrequencyOpts[auditFrequencyOpts.length - 1],
+    // Default first day of month.
+    reviewDayOfMonth: reviewDayOfMonthOpts.find(o => {
+      return o.value === ReviewDayOfMonth.FirstDayOfMonth;
+    }),
+    // Default to 6 months.
+    reviewFrequency: reviewFrequencyOpts.find(
+      o => o.value === ReviewFrequency.SixMonths
+    ),
     auditStartDate: null,
-  });
+  }));
 
   const [grant, setGrant] = useState<Grant>({
     rolesToGrant: [],
@@ -163,7 +174,12 @@ export function CreateAccessList() {
           traits: convertTraitLabelsToAllUserTraits(grant.traitsToGrant),
         },
         audit: {
-          frequency: spec.auditFrequency.value,
+          recurrence: {
+            frequency: convertReviewFrequencyIntoBackendParsableValue(
+              spec.reviewFrequency.value
+            ),
+            day_of_month: spec.reviewDayOfMonth.value,
+          },
           next_audit_date: spec.auditStartDate,
         },
         // owners

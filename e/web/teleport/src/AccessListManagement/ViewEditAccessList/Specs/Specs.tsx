@@ -12,9 +12,12 @@ import { Option } from 'shared/components/Select';
 import {
   TruncatingLabel,
   EditKind,
-  calculateMonthsDaysFromDuration,
-  getFormattedDate,
-} from 'e-teleport/AccessListManagement/Shared';
+} from 'e-teleport/AccessListManagement/Shared/Shared';
+import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
+import {
+  getReviewDayOfMonthOption,
+  getReviewFrequencyOption,
+} from 'e-teleport/AccessListManagement/Shared/Audit';
 
 import { AccessListModified, EditAccess } from '../ViewEditAccessList';
 
@@ -38,16 +41,10 @@ export function Specs({
   const [editPermKind, setEditPermKind] = useState<EditKind>();
   const [showEditAudit, setShowEditAudit] = useState(false);
 
-  let frequencyTxt = '';
-  const { months, days } = calculateMonthsDaysFromDuration(audit.frequency);
-  if (months) {
-    frequencyTxt = `${months} ${months > 1 ? 'months' : 'month'}`;
-    if (days) {
-      frequencyTxt = `${frequencyTxt} and ${days} ${days > 1 ? 'days' : 'day'}`;
-    }
-  } else if (days) {
-    frequencyTxt = `${frequencyTxt} and ${days} ${days > 1 ? 'days' : 'day'}`;
-  }
+  const frequency = getReviewFrequencyOption(audit.recurrence.frequency).label;
+  const dayOfMonth = getReviewDayOfMonthOption(
+    audit.recurrence.dayOfMonth
+  ).label;
 
   return (
     <>
@@ -158,7 +155,7 @@ export function Specs({
               Next Date: {getFormattedDate(audit.nextDate)}
             </Text>
             <Text fontSize={1}>
-              Frequency: {frequencyTxt && `every ${frequencyTxt}`}
+              Frequency: {frequency} {dayOfMonth}
             </Text>
           </Box>
         </Box>

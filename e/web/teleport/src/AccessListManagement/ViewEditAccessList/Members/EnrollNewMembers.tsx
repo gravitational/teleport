@@ -14,8 +14,9 @@ import useTeleport from 'teleport/useTeleport';
 
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
 import { EligibleUsersFieldSelectAndCreate } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
+import { CalendarDateSelect } from 'e-teleport/AccessListManagement/Shared/Audit';
 
-import { CalendarDateSelect, UserOption } from '../../Shared';
+import { UserOption } from '../../Shared/Shared';
 import {
   filterExistingUsersAndConvertToOption,
   getEligibleUsersForAddingNewUsers,

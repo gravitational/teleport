@@ -10,7 +10,12 @@ import {
   AccessListRequires,
 } from 'e-teleport/services/accessmanagement';
 
-import { ToolTipText, matchRoles, matchTraits, UserOption } from '../Shared';
+import {
+  ToolTipText,
+  matchRoles,
+  matchTraits,
+  UserOption,
+} from '../Shared/Shared';
 
 export const CustomCell: React.FC<{ disabled: boolean }> = ({
   disabled,

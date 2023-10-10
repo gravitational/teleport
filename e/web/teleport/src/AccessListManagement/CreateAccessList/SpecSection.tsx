@@ -1,11 +1,14 @@
 import React from 'react';
-import { Box, Flex } from 'design';
+import { Box } from 'design';
 import FieldInput from 'shared/components/FieldInput';
-import FieldSelect from 'shared/components/FieldSelect';
-import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { CalendarDateSelect, auditFrequencyOpts } from '../Shared';
+import {
+  CalendarDateSelect,
+  ReviewDayOfMonthOption,
+  ReviewFrequencyOption,
+  ReviewRecurrence,
+} from '../Shared/Audit';
 
 type Props = {
   spec: Spec;
@@ -16,7 +19,8 @@ type Props = {
 export type Spec = {
   title: string;
   description: string;
-  auditFrequency: Option;
+  reviewDayOfMonth: ReviewDayOfMonthOption;
+  reviewFrequency: ReviewFrequencyOption;
   auditStartDate: Date;
 };
 
@@ -37,49 +41,27 @@ export const SpecSection = ({ spec, setSpec, isDisabled }: Props) => {
         value={spec.description}
         onChange={e => setSpec({ ...spec, description: e.target.value })}
       />
-      <Flex>
-        <Box width="50%" mr={2}>
-          <AuditReviewFrequencySelectField
-            isDisabled={isDisabled}
-            onChangeFrequency={(o: Option) =>
-              setSpec({ ...spec, auditFrequency: o })
-            }
-            selectedFrequency={spec.auditFrequency}
-          />
-        </Box>
-        <Box width="50%" ml={2}>
-          <CalendarDateSelect
-            date={spec.auditStartDate}
-            onChange={(newDate: Date) =>
-              setSpec({ ...spec, auditStartDate: newDate })
-            }
-            rule={requiredField('Review deadline required')}
-            label="Deadline for First Review"
-          />
-        </Box>
-      </Flex>
+      <Box>
+        <ReviewRecurrence
+          isDisabled={isDisabled}
+          onChangeFrequency={(o: ReviewFrequencyOption) =>
+            setSpec({ ...spec, reviewFrequency: o })
+          }
+          onChangeDayOfMonth={(o: ReviewDayOfMonthOption) =>
+            setSpec({ ...spec, reviewDayOfMonth: o })
+          }
+          selectedFrequency={spec.reviewFrequency}
+          selectedDayOfMonth={spec.reviewDayOfMonth}
+        />
+        <CalendarDateSelect
+          date={spec.auditStartDate}
+          onChange={(newDate: Date) =>
+            setSpec({ ...spec, auditStartDate: newDate })
+          }
+          rule={requiredField('Review deadline required')}
+          label="Deadline for First Review"
+        />
+      </Box>
     </>
-  );
-};
-
-export const AuditReviewFrequencySelectField = ({
-  isDisabled,
-  onChangeFrequency,
-  selectedFrequency,
-}: {
-  isDisabled: boolean;
-  onChangeFrequency(o: Option): void;
-  selectedFrequency: Option;
-}) => {
-  return (
-    <FieldSelect
-      label="Review Frequency"
-      isSearchable={true}
-      options={auditFrequencyOpts}
-      isDisabled={isDisabled}
-      onChange={onChangeFrequency}
-      value={selectedFrequency}
-      rule={requiredField('Review frequency required')}
-    />
   );
 };

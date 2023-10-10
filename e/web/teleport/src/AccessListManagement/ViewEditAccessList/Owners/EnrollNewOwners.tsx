@@ -13,7 +13,7 @@ import { Option } from 'shared/components/Select';
 
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
 import { EligibleUsersFieldSelectAndCreate } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
-import { UserOption } from 'e-teleport/AccessListManagement/Shared';
+import { UserOption } from 'e-teleport/AccessListManagement/Shared/Shared';
 
 import {
   filterExistingUsersAndConvertToOption as filterOutExistingUsersAndConvertToOptionType,

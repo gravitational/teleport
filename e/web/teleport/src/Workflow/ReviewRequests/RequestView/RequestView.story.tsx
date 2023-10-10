@@ -1,6 +1,12 @@
 import React from 'react';
 
 import {
+  AccessList,
+  ReviewDayOfMonth,
+  ReviewFrequency,
+} from 'e-teleport/services/accessmanagement';
+
+import {
   requestRoleApproved,
   requestRoleDenied,
   requestRolePending,
@@ -171,13 +177,16 @@ const sample = {
   },
 };
 
-const suggestedAccessLists = [
+const suggestedAccessLists: AccessList[] = [
   {
     id: 'id-123456',
     title: 'Design Team',
     description: 'some description about this design team access list',
     audit: {
-      frequency: '24h',
+      recurrence: {
+        frequency: ReviewFrequency.OneMonth,
+        dayOfMonth: ReviewDayOfMonth.FifteenthDayOfMonth,
+      },
       nextDate: new Date('2023-08-24T17:48:15.78579Z'),
     },
     grants: {
@@ -216,7 +225,10 @@ const suggestedAccessLists = [
     description:
       'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat',
     audit: {
-      frequency: '24h',
+      recurrence: {
+        frequency: ReviewFrequency.OneYear,
+        dayOfMonth: ReviewDayOfMonth.LastDayOfMonth,
+      },
       nextDate: new Date('2023-08-24T17:48:15.78579Z'),
     },
     grants: {

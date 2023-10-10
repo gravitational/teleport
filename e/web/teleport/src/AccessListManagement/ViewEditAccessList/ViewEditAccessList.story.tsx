@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router';
 import { ContextProvider } from 'teleport';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 
+import { IneligibleStatus } from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
 
 import { ViewEditAccessList } from './ViewEditAccessList';
@@ -39,6 +40,38 @@ export const ViewingAsOwner = () => {
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
       return res.once(ctx.json({ accessList: mockAccessList }));
+    })
+  );
+  return (
+    <Provider customAcl={getAcl({ noAccess: true })}>
+      <ViewEditAccessList />
+    </Provider>
+  );
+};
+
+// Note the disabled buttons.
+// Members can't edit and view other members.
+export const ViewingAsMember = () => {
+  worker.use(
+    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
+      return res.once(
+        ctx.json({
+          accessList: {
+            ...mockAccessList,
+            spec: {
+              ...mockAccessList.spec,
+              // No owners
+              owners: [
+                { name: 'owner1', description: 'some description' },
+                {
+                  name: 'george.washington@goteleport.com',
+                  ineligible_status: IneligibleStatus.MissingRequirements,
+                },
+              ],
+            },
+          },
+        })
+      );
     })
   );
   return (
@@ -98,6 +131,28 @@ const Provider = props => {
 
 const mockAccessList = {
   metadata: { name: 'mock-access-list-id' },
+  members: [
+    {
+      name: 'member1',
+      joined: '2023-05-24T17:48:15.78579Z',
+      expires: '0001-01-01T00:00:00Z',
+      reason: 'some reason',
+      added_by: 'lisa@goteleport.com',
+      ineligible_status: IneligibleStatus.Expired,
+    },
+    {
+      name: 'member2',
+      joined: '2023-12-12T17:48:15.78579Z',
+      expires: '0001-01-01T00:00:00Z',
+      added_by: 'llama',
+    },
+    {
+      name: 'member3',
+      joined: '2023-12-12T17:48:15.78579Z',
+      expires: '2024-12-12T17:48:15.78579Z',
+      added_by: 'llama',
+    },
+  ],
   spec: {
     title: 'Mock Access List Title',
     description:
@@ -106,32 +161,11 @@ const mockAccessList = {
       { name: 'owner1', description: 'some description' },
       {
         name: 'george.washington@goteleport.com',
-        ineligibleReason: 'some ineligible reason',
+        ineligible_status: IneligibleStatus.MissingRequirements,
       },
       { name: 'llama' }, // owner
     ],
-    members: [
-      {
-        name: 'member1',
-        joined: '2023-05-24T17:48:15.78579Z',
-        expires: '0001-01-01T00:00:00Z',
-        reason: 'some reason',
-        added_by: 'lisa@goteleport.com',
-        ineligibleReason: 'Some ineligible reason',
-      },
-      {
-        name: 'member2',
-        joined: '2023-12-12T17:48:15.78579Z',
-        expires: '0001-01-01T00:00:00Z',
-        added_by: 'llama',
-      },
-      {
-        name: 'member3',
-        joined: '2023-12-12T17:48:15.78579Z',
-        expires: '2024-12-12T17:48:15.78579Z',
-        added_by: 'llama',
-      },
-    ],
+
     grants: {
       roles: ['access', 'editor'],
       traits: { fruit: ['apple'] },
