@@ -42,11 +42,19 @@ const TSH_BIN_DEFAULT_PATH_FOR_DEV = path.resolve(
   'teleport', 'build', 'tsh',
 );
 
-const dev = env.NODE_ENV === 'development' || env.DEBUG_PROD === 'true';
-
-// Allows running tsh in insecure mode (development)
-const isInsecure = argv.includes('--insecure');
-const isDebug = argv.includes('--debug');
+// Refer to the docs of RuntimeSettings type for an explanation behind dev, debug and insecure.
+const dev = env.NODE_ENV === 'development';
+// --debug is reserved by Node, so we have to use another flag.
+const debug = argv.includes('--connect-debug') || dev;
+const insecure =
+  argv.includes('--insecure') ||
+  // --insecure is already in our docs, but let's add --connect-insecure too in case Node or
+  // Electron reserves it one day.
+  argv.includes('--connect-insecure') ||
+  // The flag is needed because it's not easy to pass a flag to the app in dev mode. `yarn
+  // start-term` causes a bunch of package scripts to be executed and each would have to pass the
+  // flag one level down.
+  (dev && !!env.CONNECT_INSECURE);
 
 function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
@@ -58,7 +66,6 @@ function getRuntimeSettings(): RuntimeSettings {
   const { binDir, tshBinPath } = getBinaryPaths();
 
   const tshd = {
-    insecure: isInsecure,
     binaryPath: tshBinPath,
     homeDir: getTshHomeDir(),
     requestedNetworkAddress: tshAddress,
@@ -79,15 +86,17 @@ function getRuntimeSettings(): RuntimeSettings {
     requestedNetworkAddress: tshdEventsAddress,
   };
 
-  if (isInsecure) {
+  if (insecure) {
     tshd.flags.unshift('--insecure');
   }
-  if (dev || isDebug) {
+  if (debug) {
     tshd.flags.unshift('--debug');
   }
 
   return {
     dev,
+    debug,
+    insecure,
     tshd,
     sharedProcess,
     tshdEvents,

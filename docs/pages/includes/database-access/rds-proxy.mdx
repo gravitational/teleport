@@ -1,10 +1,3 @@
----
-title: Database Access with AWS RDS Proxy
-description: How to configure Teleport database access with AWS RDS Proxy.
----
-
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS RDS proxy" dbConfigure="AWS RDS proxy with IAM authentication" dbName="AWS RDS proxy" !)
-
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access RDS Proxy Self-Hosted](../../../img/database-access/guides/rds-proxy_selfhosted.png)
@@ -17,7 +10,9 @@ description: How to configure Teleport database access with AWS RDS Proxy.
 
 <Admonition type="note" title="Supported Engine Family">
 Teleport currently supports RDS Proxy instances with engine family
-**PostgreSQL**, **MariaDB/MySQL** or **Microsoft SQL Server**.
+[PostgreSQL](../../database-access/guides/rds-proxy-postgres.mdx),
+[MariaDB/MySQL](../../database-access/guides/rds-proxy-postgres.mdx) or
+[Microsoft SQL Server](../../database-access/guides/rds-proxy-sqlserver.mdx).
 </Admonition>
 
 ## Prerequisites
@@ -182,11 +177,6 @@ To retrieve credentials for a database and connect to it:
 $ tsh db connect --db-user=alice --db-name=dev rds-proxy
 ```
 
-<Admonition type="note" title="Note">
-The appropriate database command-line client (`psql`, `mysql`, `mariadb`,
-`sqlcmd`) should be available in `PATH` in order to connect.
-</Admonition>
-
 To log out of the database and remove credentials:
 
 ```code
@@ -207,4 +197,3 @@ $ tsh db logout rds-proxy
   and [Setting up AWS Identity and Access Management (IAM)
   policies](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-setup.html)
   for RDS Proxy
-
