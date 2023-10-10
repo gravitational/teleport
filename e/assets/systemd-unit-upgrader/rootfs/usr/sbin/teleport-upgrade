@@ -369,7 +369,7 @@ do_upgrade() {
         zypper)
             log_info "attempting zypper install $package_name-$target_version"
             zypper refresh --repo="teleport"
-            zypper install --oldpackage --no-confirm --allow-downgrade  --repo="teleport" "$package_name-$target_version"
+            zypper install --oldpackage --no-confirm --repo="teleport" "$package_name-$target_version"
             # restart the service if it is currently running
             systemctl try-restart teleport.service
             return 0
