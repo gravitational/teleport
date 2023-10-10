@@ -626,22 +626,36 @@ func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, role
 }
 
 // NewTestTLSServer returns new test TLS server
-func (a *TestAuthServer) NewTestTLSServer() (*TestTLSServer, error) {
+func (a *TestAuthServer) NewTestTLSServer(opts ...TestTLSServerOption) (*TestTLSServer, error) {
 	apiConfig := &APIConfig{
 		AuthServer: a.AuthServer,
 		Authorizer: a.Authorizer,
 		AuditLog:   a.AuditLog,
 		Emitter:    a.AuthServer,
 	}
-	srv, err := NewTestTLSServer(TestTLSServerConfig{
+	cfg := TestTLSServerConfig{
 		APIConfig:     apiConfig,
 		AuthServer:    a,
 		AcceptedUsage: a.AcceptedUsage,
-	})
+	}
+	for _, o := range opts {
+		o(&cfg)
+	}
+	srv, err := NewTestTLSServer(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return srv, nil
+}
+
+// TestTLSServerOption is a functional option passed to NewTestTLSServer
+type TestTLSServerOption func(*TestTLSServerConfig)
+
+// WithLimiterConfig sets connection and request limiter configuration.
+func WithLimiterConfig(config *limiter.Config) TestTLSServerOption {
+	return func(cfg *TestTLSServerConfig) {
+		cfg.Limiter = config
+	}
 }
 
 // NewRemoteClient creates new client to the remote server using identity
@@ -1144,16 +1158,21 @@ func CreateAccessPluginUser(ctx context.Context, clt clt, username string) (type
 	return user, nil
 }
 
+// CreateUserWithContext creates user and role and assigns role to a user, used in tests
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func CreateUserWithContext(ctx context.Context, clt clt, username string, roles ...types.Role) (types.User, error) {
+	return CreateUser(clt, username, roles...)
+}
+
 // CreateUser creates user and role and assigns role to a user, used in tests
 func CreateUser(clt clt, username string, roles ...types.Role) (types.User, error) {
-	ctx := context.TODO()
 	user, err := types.NewUser(username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	for _, role := range roles {
-		err = clt.UpsertRole(ctx, role)
+		err = clt.UpsertRole(context.TODO(), role)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

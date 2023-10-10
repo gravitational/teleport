@@ -55,6 +55,7 @@
     "ERRO",
     "Elastcsearch",
     "Elasticvue",
+    "Exfiltrate",
     "Exrch",
     "FGHIJ",
     "FIPS",
@@ -284,6 +285,7 @@
     "bjoerger",
     "bluemix",
     "boltdb",
+    "boringcrypto",
     "boto",
     "buildbox",
     "cacerts",
@@ -688,6 +690,7 @@
     "runscript",
     "russellhaering",
     "russjones",
+    "rwxr",
     "sadas",
     "samlauthentication",
     "samltest",
@@ -826,6 +829,7 @@
     "winadj",
     "windowsaccountname",
     "windowsdesktop",
+    "winscp",
     "winserver",
     "workgroups",
     "wtmp",
@@ -851,7 +855,8 @@
     "persistentvolumeclaim",
     "daemonset",
     "certificatesigningrequest",
-    "deletecollection"
+    "deletecollection",
+    "supervillain"
   ],
   "flagWords": [
     "hte"

@@ -96,7 +96,7 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 
 			// Ping failed, close the client and continue the loop.
 			process.log.Debugf("Connected client %v failed to execute test call: %v. Node or proxy credentials are out of sync.", role, pingErr)
-			if err := connector.Client.Close(); err != nil {
+			if err := connector.Close(); err != nil {
 				process.log.Debugf("Failed to close the client: %v.", err)
 			}
 		}

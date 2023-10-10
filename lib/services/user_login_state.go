@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// UserLoginStateGetter is the interface for reading user login states.
+// UserLoginStatesGetter is the interface for reading user login states.
 type UserLoginStatesGetter interface {
 	// GetUserLoginStates returns the all user login state resources.
 	GetUserLoginStates(context.Context) ([]*userloginstate.UserLoginState, error)
@@ -34,7 +34,7 @@ type UserLoginStatesGetter interface {
 	GetUserLoginState(context.Context, string) (*userloginstate.UserLoginState, error)
 }
 
-// UserLoginState is the interface for managing with user login states.
+// UserLoginStates is the interface for managing with user login states.
 type UserLoginStates interface {
 	UserLoginStatesGetter
 
@@ -83,6 +83,9 @@ func UnmarshalUserLoginState(data []byte, opts ...MarshalOption) (*userloginstat
 
 	if cfg.ID != 0 {
 		uls.SetResourceID(cfg.ID)
+	}
+	if cfg.Revision != "" {
+		uls.SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
 		uls.SetExpiry(cfg.Expires)

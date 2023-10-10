@@ -161,8 +161,13 @@
           "forScopes": ["oss", "enterprise"],
           "entries": [
             {
-              "title": "AWS Terraform",
-              "slug": "/deploy-a-cluster/deployments/aws-terraform/",
+              "title": "AWS HA Terraform",
+              "slug": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
+              "forScopes": ["oss", "enterprise"]
+            },
+            {
+              "title": "AWS Single-Instance Terraform",
+              "slug": "/deploy-a-cluster/deployments/aws-starter-cluster-terraform/",
               "forScopes": ["oss", "enterprise"]
             },
             {
@@ -267,7 +272,8 @@
             },
             {
               "title": "GitHub",
-              "slug": "/access-controls/sso/github-sso/"
+              "slug": "/access-controls/sso/github-sso/",
+              "forScopes": ["oss", "team", "enterprise", "cloud"]
             },
             {
               "title": "GitLab",
@@ -424,7 +430,7 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Role Requests in OSS Teleport",
+              "title": "Teleport Community Edition Role Access Requests",
               "slug": "/access-controls/access-requests/oss-role-requests/",
               "forScopes": ["oss"]
             }
@@ -611,9 +617,13 @@
           ]
         },
         {
-          "title": "Security",
+          "title": "Secure Practices",
           "slug": "/management/security/",
           "entries": [
+            {
+              "title": "Restrict Access for Privileged Accounts",
+              "slug": "/management/security/restrict-privileges/"
+            },
             {
               "title": "Reducing the Blast Radius of Attacks",
               "slug": "/management/security/reduce-blast-radius/"
@@ -713,8 +723,8 @@
           "slug": "/connect-your-client/teleport-connect/"
         },
         {
-          "title": "Using PuTTY",
-          "slug": "/connect-your-client/putty/"
+          "title": "Using PuTTY and WinSCP",
+          "slug": "/connect-your-client/putty-winscp/"
         },
         {
           "title": "Database GUI Clients",
@@ -892,7 +902,7 @@
         {
           "title": "Troubleshooting Application Access",
           "slug": "/application-access/troubleshooting-apps/"
-        },           
+        },
         {
           "title": "Reference",
           "slug": "/application-access/reference/"
@@ -921,7 +931,11 @@
             },
             {
               "title": "Agentless OpenSSH Integration",
-              "slug": "/server-access/guides/openssh/"
+              "slug": "/server-access/guides/openssh/openssh/"
+            },
+            {
+              "title": "Agentless OpenSSH Integration (Manual Install)",
+              "slug": "/server-access/guides/openssh/openssh-manual-install/"
             },
             {
               "title": "Recording Proxy Mode",
@@ -973,6 +987,10 @@
         {
           "title": "Access Controls",
           "slug": "/server-access/rbac/"
+        },
+        {
+          "title": "Troubleshooting Server Access",
+          "slug": "/server-access/troubleshooting-server/"
         }
       ]
     },
@@ -1093,8 +1111,16 @@
               "slug": "/database-access/guides/rds/"
             },
             {
-              "title": "AWS RDS Proxy",
-              "slug": "/database-access/guides/rds-proxy/"
+              "title": "AWS RDS Proxy for MariaDB/MySQL",
+              "slug": "/database-access/guides/rds-proxy-mysql/"
+            },
+            {
+              "title": "AWS RDS Proxy for PostgreSQL",
+              "slug": "/database-access/guides/rds-proxy-postgres/"
+            },
+            {
+              "title": "AWS RDS Proxy for SQL Server",
+              "slug": "/database-access/guides/rds-proxy-sqlserver/"
             },
             {
               "title": "AWS Redshift",
@@ -1641,7 +1667,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "13.3.9",
+      "version": "13.4.2",
       "major_version": "13",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -1810,7 +1836,12 @@
     },
     {
       "source": "/aws-terraform-guide/",
-      "destination": "/deploy-a-cluster/deployments/aws-terraform/",
+      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/aws-terraform/",
+      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
       "permanent": true
     },
     {
@@ -2145,7 +2176,7 @@
     },
     {
       "source": "/setup/deployments/aws-terraform/",
-      "destination": "/deploy-a-cluster/deployments/aws-terraform/",
+      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
       "permanent": true
     },
     {
@@ -2806,6 +2837,16 @@
     {
       "source": "/management/guides/terraform-provider/",
       "destination": "/management/dynamic-resources/terraform-provider/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/openssh/",
+      "destination": "/server-access/guides/openssh/openssh/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/putty/",
+      "destination": "/connect-your-client/putty-winscp/",
       "permanent": true
     }
   ]

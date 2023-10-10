@@ -297,9 +297,11 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 	case field.IsTime():
 		prop.Type = "string"
 		prop.Format = "date-time"
-	case field.IsInt32() || field.IsUint32() || field.desc.IsEnum():
+	case field.IsInt32() || field.IsUint32():
 		prop.Type = "integer"
 		prop.Format = "int32"
+	case field.desc.IsEnum():
+		prop.XIntOrString = true
 	case field.IsInt64() || field.IsUint64():
 		prop.Type = "integer"
 		prop.Format = "int64"

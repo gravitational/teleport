@@ -69,5 +69,5 @@ jobs:
         run: mount -t debugfs none /sys/kernel/debug/
 
       - name: Run tests
-        timeout-minutes: 40
-        run: make test-go test-sh test-api
+        timeout-minutes: 20
+        run: make -j"$(nproc)" test-go test-sh test-api

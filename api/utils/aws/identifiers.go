@@ -18,6 +18,7 @@ package aws
 
 import (
 	"regexp"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
@@ -59,6 +60,45 @@ func IsValidRegion(region string) error {
 		return nil
 	}
 	return trace.BadParameter("region %q is invalid", region)
+}
+
+const (
+	arnDelimiter    = ":"
+	arnPrefix       = "arn:"
+	arnSections     = 6
+	sectionService  = 2 // arn:<partition>:<service>:...
+	sectionAccount  = 4 // arn:<partition>:<service>:<region>:<accountid>:...
+	sectionResource = 5 // arn:<partition>:<service>:<region>:<accountid>:<resource>
+	iamServiceName  = "iam"
+)
+
+// CheckRoleARN returns whether a string is a valid IAM Role ARN.
+// Example role ARN: arn:aws:iam::123456789012:role/some-role-name
+func CheckRoleARN(arn string) error {
+	if !strings.HasPrefix(arn, arnPrefix) {
+		return trace.BadParameter("arn: invalid prefix: %q", arn)
+	}
+
+	sections := strings.SplitN(arn, arnDelimiter, arnSections)
+	if len(sections) != arnSections {
+		return trace.BadParameter("arn: not enough sections: %q", arn)
+	}
+
+	resourceParts := strings.SplitN(sections[sectionResource], "/", 2)
+
+	if resourceParts[0] != "role" || sections[sectionService] != iamServiceName {
+		return trace.BadParameter("%q is not an AWS IAM role ARN", arn)
+	}
+
+	if len(resourceParts) < 2 || resourceParts[1] == "" {
+		return trace.BadParameter("%q is missing AWS IAM role name", arn)
+	}
+
+	if err := IsValidAccountID(sections[sectionAccount]); err != nil {
+		return trace.BadParameter("%q invalid account ID: %v", arn, err)
+	}
+
+	return nil
 }
 
 var (

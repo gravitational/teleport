@@ -373,7 +373,7 @@ func (a *AppV3) CheckAndSetDefaults() error {
 
 	if a.Spec.Rewrite != nil {
 		switch a.Spec.Rewrite.JWTClaims {
-		case "", JWTClaimsRewriteRolesAndTraits, JWTClaimsRewriteRoles, JWTClaimsRewriteNone:
+		case "", JWTClaimsRewriteRolesAndTraits, JWTClaimsRewriteRoles, JWTClaimsRewriteNone, JWTClaimsRewriteTraits:
 		default:
 			return trace.BadParameter("app %q has unexpected JWT rewrite value %q", a.GetName(), a.Spec.Rewrite.JWTClaims)
 

@@ -25,12 +25,12 @@ RUN yum groupinstall -y 'Development Tools' && \
     ${DEVTOOLSET}-make && \
     yum clean all
 
-RUN wget https://github.com/git/git/archive/refs/tags/v2.39.1.tar.gz && \
-    tar xf v2.39.1.tar.gz && \
-    cd git-2.39.1/ && \
+RUN wget https://github.com/git/git/archive/refs/tags/v2.42.0.tar.gz && \
+    tar xf v2.42.0.tar.gz && \
+    cd git-2.42.0/ && \
     scl enable ${DEVTOOLSET} "make configure && \
     ./configure --prefix=/usr/local && \
-    make -j6 all && \
+    make -j"$(nproc)" all && \
     DESTDIR=/opt/git make install"
 
 # Create an alias to the assets image. Ref: https://github.com/docker/for-mac/issues/2155
@@ -199,8 +199,8 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum clean all && \
     localedef -c -i en_US -f UTF-8 en_US.UTF-8
 
-# Override the old git installed by yum. We need git 2+ on GitHub Actions.
-COPY --from=git2 /opt/git /usr/local
+# Override the old git in /usr/local installed by yum. We need git 2+ on GitHub Actions.
+COPY --from=git2 /opt/git /
 
 ARG BUILDARCH
 

@@ -486,3 +486,101 @@ func TestMakeDesktopServiceHiddenLabel(t *testing.T) {
 
 	require.Equal(t, labels, desktopService.Labels)
 }
+
+func TestSortedLabels(t *testing.T) {
+	type testCase struct {
+		name           string
+		clusterName    string
+		servers        []types.Server
+		expectedLabels [][]Label
+		roleSet        services.RoleSet
+	}
+
+	testCases := []testCase{
+		{
+			name:        "Server with aws labels pushed to back",
+			clusterName: "cluster1",
+			servers: []types.Server{
+				makeTestServer(t, "server1", map[string]string{
+					"aws/asdfasdf":          "hello",
+					"simple":                "value1",
+					"teleport.internal/app": "app1",
+				}),
+			},
+			expectedLabels: [][]Label{
+				{
+					{
+						Name:  "simple",
+						Value: "value1",
+					},
+					{
+						Name:  "aws/asdfasdf",
+						Value: "hello",
+					},
+				},
+			},
+		},
+		{
+			name:        "database with azure labels pushed to back",
+			clusterName: "cluster1",
+			servers: []types.Server{
+				makeTestServer(t, "server1", map[string]string{
+					"azure/asdfasdf":        "hello",
+					"simple":                "value1",
+					"anotherone":            "value2",
+					"teleport.internal/app": "app1",
+				}),
+			},
+			expectedLabels: [][]Label{
+				{
+					{
+						Name:  "anotherone",
+						Value: "value2",
+					},
+					{
+						Name:  "simple",
+						Value: "value1",
+					},
+					{
+						Name:  "azure/asdfasdf",
+						Value: "hello",
+					},
+				},
+			},
+		},
+		{
+			name:        "Server with gcp labels pushed to back",
+			clusterName: "cluster1",
+			servers: []types.Server{
+				makeTestServer(t, "server1", map[string]string{
+					"gcp/asdfasdf":          "hello",
+					"simple":                "value1",
+					"teleport.internal/app": "app1",
+				}),
+			},
+			expectedLabels: [][]Label{
+				{
+					{
+						Name:  "simple",
+						Value: "value1",
+					},
+					{
+						Name:  "gcp/asdfasdf",
+						Value: "hello",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", tc.roleSet)
+			servers, err := MakeServers(tc.clusterName, tc.servers, accessChecker)
+			require.NoError(t, err)
+			for i, server := range servers {
+				require.Equal(t, tc.expectedLabels[i], server.Labels)
+			}
+		})
+	}
+}
