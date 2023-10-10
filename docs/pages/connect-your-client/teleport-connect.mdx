@@ -6,7 +6,7 @@ description: Using Teleport Connect
 Teleport Connect provides easy and secure access to SSH servers, databases, and Kubernetes clusters,
 with support for other resources coming in the future.
 
-![resources tab in Teleport Connect](../../img/use-teleport/connect-cluster.png)
+![resources tab in Teleport Connect](../../img/use-teleport/connect-cluster@2x.png)
 
 ## Installation & upgrade
 
@@ -46,7 +46,7 @@ $ "Teleport Connect Setup-(=teleport.version=).exe" /S
 
 ## User interface
 
-![user interface of Teleport Connect](../../img/use-teleport/connect-ui-overview.png)
+![user interface of Teleport Connect](../../img/use-teleport/connect-ui-overview@2x.png)
 
 The top bar of Teleport Connect consists of:
 
@@ -69,12 +69,12 @@ which cluster the current tab is bound to, and the **Share Feedback** button in 
 Connect My Computer makes it possible to add your personal machine to a Teleport cluster in just a
 couple of clicks.
 
-It is the easiest way to add a computer to the cluster, whether you're just exploring the
-capabilities of Teleport or want your computer to be available in a Teleport-powered home lab.
+It is the easiest way to add a computer to the cluster, whether you're exploring the capabilities of
+Teleport or want your computer to be available in a Teleport-powered home lab.
 
 Connect My Computer sets up a Teleport agent managed completely by Teleport Connect, without having
 to use the terminal to get the job done and without the need for tools like `systemctl` to control
-agent lifecycle.
+the lifecycle of the agent.
 
 ### Prerequisites
 
@@ -91,6 +91,8 @@ as logging in as other system users or [host user creation](../server-access/gui
 
 To begin the setup, click on the laptop icon in the top left and select "Connect My Computer". The
 new tab will guide you through an interaction-free setup. Click "Connect" to start the setup.
+
+![Connect My Computer in the top bar](../../img/use-teleport/connect-my-computer-top-bar@2x.png)
 
 The setup creates a new role in the cluster which grants access to your device as the current system
 user. The role is then added to your user object.
@@ -110,9 +112,13 @@ Next, the setup downloads a Teleport agent for your platform and runs `teleport 
 pointed at the current cluster. Once that is done, Connect My Computer starts the agent and waits
 for it to show up in the cluster as an SSH node.
 
+![Connect My Computer setup](../../img/use-teleport/connect-my-computer-setup@2x.png)
+
 After the agent joins the cluster, the tab transitions to showing the status of the agent. From
 here, you can connect to the node made available by the agent, stop and start the agent, as well as
 completely remove it. Manually logging out of the cluster will remove the agent as well.
+
+![Connect My Computer status](../../img/use-teleport/connect-my-computer-status@2x.png)
 
 Your computer will be shared while Teleport Connect is open. To stop sharing, close Teleport Connect
 or stop the agent through the Connect My Computer tab. Sharing will resume on app restart, unless
