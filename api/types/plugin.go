@@ -439,7 +439,7 @@ func (s *PluginSlackAccessSettings) CheckAndSetDefaults() error {
 }
 
 // CheckAndSetDefaults validates and set the default values.
-func (s *PluginOktaSettingsV2) CheckAndSetDefaults() error {
+func (s *PluginOktaSettings) CheckAndSetDefaults() error {
 	if s.Version == "" {
 		s.Version = V1
 	}

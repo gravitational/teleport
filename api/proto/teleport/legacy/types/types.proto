@@ -5367,7 +5367,7 @@ message PluginSpecV1 {
     // Settings for OpenAI plugin
     PluginOpenAISettings openai = 3;
     // Settings for the Okta plugin
-    PluginOktaSettingsV2 okta = 4;
+    PluginOktaSettings okta = 4;
     // Settings for device trust jamf plugin
     PluginJamfSettings jamf = 5;
     // Settings for the PagerDuty plugin
@@ -5475,7 +5475,7 @@ message PluginJamfSettings {
 }
 
 // Defines settings for the Okta plugin.
-message PluginOktaSettingsV2 {
+message PluginOktaSettings {
   option (gogoproto.equal) = true;
 
   // OrgUrl is the Okta organization URL to use for API communication.

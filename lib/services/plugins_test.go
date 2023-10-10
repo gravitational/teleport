@@ -75,7 +75,7 @@ func TestMarshalPluginRoundTrip(t *testing.T) {
 			plugin: types.PluginTypeOkta,
 			spec: &types.PluginSpecV1{
 				Settings: &types.PluginSpecV1_Okta{
-					Okta: &types.PluginOktaSettingsV2{
+					Okta: &types.PluginOktaSettings{
 						Version: types.V2,
 						OrgUrl:  "https://tenant.example.com",
 					},
@@ -85,11 +85,11 @@ func TestMarshalPluginRoundTrip(t *testing.T) {
 			marshal: MarshalPlugin,
 			assert:  requireIdenticalPlugins,
 		}, {
-			name:   "okta v1 adds version string on load",
+			name:   "unversioned okta adds version string on load",
 			plugin: types.PluginTypeOkta,
 			spec: &types.PluginSpecV1{
 				Settings: &types.PluginSpecV1_Okta{
-					Okta: &types.PluginOktaSettingsV2{
+					Okta: &types.PluginOktaSettings{
 						OrgUrl: "https://tenant.example.com",
 					},
 				},

@@ -207,7 +207,7 @@ func TestPluginOktaValidation(t *testing.T) {
 		settings  *PluginSpecV1_Okta
 		creds     *PluginCredentialsV1
 		assertErr require.ErrorAssertionFunc
-		assert    func(*testing.T, *PluginOktaSettingsV2)
+		assert    func(*testing.T, *PluginOktaSettings)
 	}{
 		{
 			name: "no settings",
@@ -223,7 +223,7 @@ func TestPluginOktaValidation(t *testing.T) {
 		{
 			name: "no org URL",
 			settings: &PluginSpecV1_Okta{
-				Okta: &PluginOktaSettingsV2{},
+				Okta: &PluginOktaSettings{},
 			},
 			creds: nil,
 			assertErr: func(t require.TestingT, err error, args ...any) {
@@ -234,7 +234,7 @@ func TestPluginOktaValidation(t *testing.T) {
 		{
 			name: "no credentials inner",
 			settings: &PluginSpecV1_Okta{
-				Okta: &PluginOktaSettingsV2{
+				Okta: &PluginOktaSettings{
 					OrgUrl: "https://test.okta.com",
 				},
 			},
@@ -247,7 +247,7 @@ func TestPluginOktaValidation(t *testing.T) {
 		{
 			name: "invalid credential type (oauth2)",
 			settings: &PluginSpecV1_Okta{
-				Okta: &PluginOktaSettingsV2{
+				Okta: &PluginOktaSettings{
 					OrgUrl: "https://test.okta.com",
 				},
 			},
@@ -262,7 +262,7 @@ func TestPluginOktaValidation(t *testing.T) {
 		{
 			name: "invalid credentials (static credentials)",
 			settings: &PluginSpecV1_Okta{
-				Okta: &PluginOktaSettingsV2{
+				Okta: &PluginOktaSettings{
 					OrgUrl: "https://test.okta.com",
 				},
 			},
@@ -281,7 +281,7 @@ func TestPluginOktaValidation(t *testing.T) {
 		{
 			name: "valid credentials (static credentials)",
 			settings: &PluginSpecV1_Okta{
-				Okta: &PluginOktaSettingsV2{
+				Okta: &PluginOktaSettings{
 					OrgUrl: "https://test.okta.com",
 				},
 			},
@@ -300,7 +300,7 @@ func TestPluginOktaValidation(t *testing.T) {
 		}, {
 			name: "version defaults to v1",
 			settings: &PluginSpecV1_Okta{
-				Okta: &PluginOktaSettingsV2{
+				Okta: &PluginOktaSettings{
 					OrgUrl: "https://test.okta.com",
 				},
 			},
@@ -314,7 +314,7 @@ func TestPluginOktaValidation(t *testing.T) {
 				},
 			},
 			assertErr: require.NoError,
-			assert: func(t *testing.T, settings *PluginOktaSettingsV2) {
+			assert: func(t *testing.T, settings *PluginOktaSettings) {
 				require.Equal(t, V1, settings.Version)
 			},
 		},
