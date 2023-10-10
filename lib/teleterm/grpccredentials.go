@@ -99,7 +99,7 @@ func createClientTLSConfig(clientKeyPair tls.Certificate, serverCertPath string)
 	}, nil
 }
 
-func generateAndSaveCert(targetPath string) (tls.Certificate, error) {
+func generateAndSaveCert(targetPath string, eku ...x509.ExtKeyUsage) (tls.Certificate, error) {
 	// The cert is first saved under a temp path and then renamed to targetPath. This prevents other
 	// processes from reading a half-written file.
 	tempFile, err := os.CreateTemp(filepath.Dir(targetPath), filepath.Base(targetPath))
@@ -108,7 +108,7 @@ func generateAndSaveCert(targetPath string) (tls.Certificate, error) {
 	}
 	defer os.Remove(tempFile.Name())
 
-	cert, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil)
+	cert, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, eku...)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "failed to generate the certificate")
 	}

@@ -75,13 +75,14 @@ export const makeRuntimeSettings = (
 ): RuntimeSettings => ({
   platform: 'darwin' as const,
   dev: true,
+  debug: true,
+  insecure: true,
   userDataDir: '',
   binDir: '',
   certsDir: '',
   kubeConfigsDir: '',
   defaultShell: '',
   tshd: {
-    insecure: true,
     requestedNetworkAddress: '',
     binaryPath: '',
     homeDir: '',

@@ -123,6 +123,13 @@ spec:
         modes: ['moderator', 'observer']
 ```
 
+Users who are assigned a role with a `join_sessions` allow policy are
+implicitly allowed to list the sessions that the policy gives them permission 
+to join. If there's a `deny` rule that prevents listing sessions, the 
+`join_sessions` policy overrides the `deny` rule for the sessions the 
+policy allows the user to join. Outside of this exception for joining 
+sessions, `deny` statements take precedent. 
+
 ### Filters
 
 Filter expressions allow for more detailed control over the scope of an allow
