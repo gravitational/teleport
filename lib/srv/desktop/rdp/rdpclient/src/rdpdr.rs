@@ -262,12 +262,10 @@ impl TeleportRdpdrBackend {
     }
 
     fn has_no_change(pdu: &rpce::Pdu<GetStatusChangeReturn>) -> bool {
-        for state in &pdu.into_inner_ref().reader_states {
-            if state.current_state != state.event_state {
-                return false;
-            }
-        }
-        true
+        pdu.into_inner_ref()
+            .reader_states
+            .iter()
+            .all(|state| state.current_state == state.event_state)
     }
 
     fn write_rdpdr_dev_ctl_resp(
