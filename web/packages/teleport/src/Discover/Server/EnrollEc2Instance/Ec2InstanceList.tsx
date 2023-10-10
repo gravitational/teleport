@@ -118,6 +118,15 @@ export const Ec2InstanceList = ({
               },
             },
             {
+              altKey: 'name',
+              headerText: 'Name',
+              render: ({ labels, ec2InstanceExists }) => (
+                <Cell disabledText={disabledText} disabled={ec2InstanceExists}>
+                  {labels.find(label => label.name === 'Name')?.value}
+                </Cell>
+              ),
+            },
+            {
               key: 'hostname',
               headerText: 'Hostname',
               render: ({ hostname, ec2InstanceExists }) => (
