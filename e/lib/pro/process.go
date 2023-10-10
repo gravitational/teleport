@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/licensefile"
+	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/prehog"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -99,5 +100,10 @@ func NewTeleport(cfg Config) (*Process, error) {
 		prehog.ClearAggregatingUsageReportingAlert(process.TeleportProcess)
 	}
 
+	if cfg.AuthPlugin.HostedPlugins.Enabled {
+		if err := plugins.RegisterPluginManager(cfg.AuthPlugin.HostedPlugins.OAuthProviders, process.TeleportProcess); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	return process, nil
 }

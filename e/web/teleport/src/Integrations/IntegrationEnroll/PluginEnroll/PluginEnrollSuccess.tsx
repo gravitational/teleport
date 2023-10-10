@@ -5,7 +5,7 @@ import pamSuccess from 'design/assets/images/icons/success.png';
 
 import cfg from 'e-teleport/config';
 
-import { HostedPlugin } from './plugins';
+import { CloudHostablePlugin } from './plugins';
 
 import { OAuthPluginRegistered } from './PluginEnroll';
 
@@ -19,7 +19,7 @@ export function PluginEnrollSuccess(props: State) {
         {plugin.name} is integrated successfully
       </Text>
       <Box maxWidth="500px" textAlign="center">
-        {plugin.hosted && plugin.NextSteps && (
+        {plugin.cloudHostable && plugin.NextSteps && (
           <plugin.NextSteps successData={oauthSuccessData} />
         )}
       </Box>
@@ -37,6 +37,6 @@ export function PluginEnrollSuccess(props: State) {
 }
 
 type State = {
-  plugin: HostedPlugin;
+  plugin: CloudHostablePlugin;
   oauthSuccessData?: OAuthPluginRegistered;
 };

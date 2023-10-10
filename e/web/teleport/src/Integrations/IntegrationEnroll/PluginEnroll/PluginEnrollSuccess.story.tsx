@@ -3,7 +3,7 @@ import { MemoryRouter, Route } from 'react-router';
 
 import cfg from 'teleport/config';
 
-import { pluginMap, HostedPlugin } from './plugins';
+import { pluginMap, CloudHostablePlugin } from './plugins';
 import { PluginEnrollSuccess } from './PluginEnrollSuccess';
 
 export default {
@@ -15,7 +15,10 @@ export const SuccessfullyEnrolledOkta = () => {
   return (
     <MemoryRouter initialEntries={[pathname]}>
       <Route path={cfg.routes.integrationEnroll}>
-        <PluginEnrollSuccess plugin={pluginMap['okta'] as HostedPlugin} />;
+        <PluginEnrollSuccess
+          plugin={pluginMap['okta'] as CloudHostablePlugin}
+        />
+        ;
       </Route>
     </MemoryRouter>
   );

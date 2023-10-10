@@ -16,7 +16,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/prehog"
-	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -143,32 +142,10 @@ func NewTeleport(cfg Config) (*Process, error) {
 	go usageReporter.Run(process.ExitContext())
 
 	if cfg.AuthPlugin.HostedPlugins.Enabled {
-		// Start plugin manager
-		authorizers := plugins.NewAuthorizerSetFromConfig(cfg.AuthPlugin.HostedPlugins.OAuthProviders)
-		pluginsService := local.NewPluginsService(process.GetBackend())
-		pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(process.GetBackend())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		pluginManager, err := plugins.NewManager(plugins.ManagerConfig{
-			Authorizers:             authorizers,
-			Plugins:                 pluginsService,
-			PluginStaticCredentials: pluginStaticCredentialsService,
-			Events:                  process.GetAuthServer().Services,
-			TeleportClient:          process.GetAuthServer(),
-			ParentProcess:           process.TeleportProcess,
-
-			Log: logrus.WithFields(logrus.Fields{
-				trace.Component: teleport.ComponentPluginManager,
-			}),
-		})
-		if err != nil {
+		if err := plugins.RegisterPluginManager(cfg.AuthPlugin.HostedPlugins.OAuthProviders, process.TeleportProcess); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		process.Supervisor.RegisterFunc(teleport.ComponentPluginManager, func() error {
-			return trace.Wrap(pluginManager.Run(process.GracefulExitContext()))
-		})
 	}
 
 	if err := prehog.InitStreamingUsageReporting(

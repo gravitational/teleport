@@ -122,7 +122,7 @@ export function PluginEnroll() {
   }, []);
 
   const plugin = pluginMap[selectedPluginType];
-  if (!plugin || !plugin.hosted) {
+  if (!plugin || !plugin.cloudHostable) {
     return (
       <NotFound
         message={`plugin type ${selectedPluginType} is either not \

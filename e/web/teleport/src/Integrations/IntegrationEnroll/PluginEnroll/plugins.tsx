@@ -53,15 +53,38 @@ export type PluginBase = {
   // isOAuth describes a plugin that are authenticated
   // via OAuth.
   isOAuth?: boolean;
+
+  /**
+   * Describes whether the plugin can be hosted by Teleport Cloud.
+   */
+  cloudHostable: boolean;
+
+  /**
+   * Describes whether the plugin can be self hosted.
+   */
+  selfHostable: boolean;
+
+  disableForTeam?: boolean;
 };
 
+/**
+ * SelfHostedPlugin describes a plugin that can be self hosted.
+ */
 export type SelfHostedPlugin = PluginBase & {
-  hosted: false;
+  cloudHostable: false;
+  selfHostable: true;
   disableForTeam?: true;
 };
 
-export type HostedPlugin = PluginBase & {
-  hosted: true;
+/**
+ * CloudHostablePlugin describes a plugin that can be hosted by Teleport Cloud.
+ * CloudHostablePlugins might also be self hostable, determined by the `selfHostable`
+ * field.
+ */
+export type CloudHostablePlugin = PluginBase & {
+  cloudHostable: true;
+  /** selfHostable is true for cloud plugins that can be self hosted as well. */
+  selfHostable: boolean;
 
   // For each hosted plugin, these describe additional elements in the enroll page.
   fullName: string;
@@ -73,15 +96,16 @@ export type HostedPlugin = PluginBase & {
   disableForTeam?: boolean;
 };
 
-export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
+export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'slack',
     isOAuth: true,
     name: 'Slack',
     icon: slackIcon,
     url: 'https://github.com/gravitational/teleport-plugins/tree/master/access/slack',
-    hosted: true,
     fullName: 'Slack access request notifications',
+    cloudHostable: true,
+    selfHostable: false,
     Description: () => (
       <Text>
         <p>
@@ -181,7 +205,8 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     name: 'Okta',
     icon: oktaIcon, // TODO(lisa): update all these icons to SVGIcon for theme friendly
     url: 'https://goteleport.com/docs/application-access/okta/guide/',
-    hosted: true,
+    cloudHostable: true,
+    selfHostable: false,
     fullName: 'Okta Integration',
     Description: () => (
       <Text>
@@ -280,7 +305,8 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     name: 'Opsgenie',
     icon: opsgenieIcon, // TODO(lisa): update all these icons to SVGIcon for theme friendly
     url: 'https://goteleport.com/docs/access-controls/access-requests/resource-requests/', // TODO(lisa): change to opsgenie docs (wip)
-    hosted: true,
+    cloudHostable: true,
+    selfHostable: true,
     fullName: 'Opsgenie access request notifications',
     Description: () => (
       <Text>
@@ -391,7 +417,8 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     name: 'Jamf',
     icon: JamfIcon,
     url: 'https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise',
-    hosted: true,
+    cloudHostable: true,
+    selfHostable: false,
     disableForTeam: true,
     fullName: 'Jamf Integration for Device Trust',
     Description: () => (
@@ -522,7 +549,8 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     name: 'ServiceNow',
     icon: serviceNowIcon,
     url: 'https://goteleport.com/docs/access-controls/access-requests/resource-requests/',
-    hosted: true,
+    cloudHostable: true,
+    selfHostable: false,
     fullName: 'ServiceNow Integration',
     Description: () => (
       <Text>
@@ -607,7 +635,8 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     fullName: 'Jira access request management',
     icon: jiraIcon,
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-jira',
-    hosted: true,
+    cloudHostable: true,
+    selfHostable: false,
     permissions: [
       {
         category: 'Read/Write on Jira Issues',
@@ -792,8 +821,9 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     name: 'PagerDuty',
     icon: pagerdutyIcon,
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-pagerduty/',
-    hosted: true,
     fullName: 'PagerDuty access request management',
+    cloudHostable: true,
+    selfHostable: false,
     Description: () => (
       <Text>
         <p>
@@ -919,7 +949,8 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     name: 'Email',
     icon: emailIcon,
     url: 'https://github.com/gravitational/teleport-plugins/tree/master/access/email',
-    hosted: false,
+    cloudHostable: false,
+    selfHostable: true,
   },
   {
     type: 'discord',
@@ -927,7 +958,8 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     fullName: 'Discord access request notifications',
     icon: discordIcon,
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-discord',
-    hosted: true,
+    cloudHostable: true,
+    selfHostable: false,
     Description: () => (
       <Text>
         <p>
@@ -996,8 +1028,9 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     name: 'Mattermost',
     icon: mattermostIcon,
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-mattermost/',
-    hosted: true,
     fullName: 'Mattermost access request notifications',
+    cloudHostable: true,
+    selfHostable: false,
     Description: () => (
       <Text>
         <p>
@@ -1141,7 +1174,8 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     name: 'Microsoft Teams',
     icon: msteamsIcon,
     url: 'https://github.com/gravitational/teleport-plugins/tree/master/access/msteams',
-    hosted: false,
+    cloudHostable: false,
+    selfHostable: true,
   },
 ];
 

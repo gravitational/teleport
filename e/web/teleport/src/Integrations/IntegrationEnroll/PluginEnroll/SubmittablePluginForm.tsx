@@ -12,7 +12,7 @@ import { Plugin } from 'teleport/services/integrations';
 import cfg from 'e-teleport/config';
 import { pluginsService, getCTAForPlugin } from 'e-teleport/services/plugins';
 
-import { HostedPlugin } from './plugins';
+import { CloudHostablePlugin } from './plugins';
 
 // SubmittablePluginForm is a form that will use the default form submission event
 // if the plugin is an `OAuth` plugin. Otherwise it will send off a conventional
@@ -22,7 +22,7 @@ export function SubmittablePluginForm({
   eventId,
   setStaticPluginResponse,
 }: {
-  plugin: HostedPlugin;
+  plugin: CloudHostablePlugin;
   eventId: string;
   setStaticPluginResponse(createdPlugin: Plugin): void;
 }) {

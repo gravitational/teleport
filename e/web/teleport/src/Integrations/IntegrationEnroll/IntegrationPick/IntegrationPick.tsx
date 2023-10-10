@@ -52,7 +52,7 @@ import useTeleport from 'e-teleport/useTeleportE';
 import { getCTAForPlugin } from 'e-teleport/services/plugins';
 
 import {
-  HostedPlugin,
+  CloudHostablePlugin,
   plugins as defaultPlugins,
   SelfHostedPlugin,
   pluginTypeToIntegrationEnrollKind,
@@ -67,7 +67,7 @@ type Plugins = {
   // available plugins are adapted for hosting,
   // and which the auth server is set up for,
   // and are plugins that are not already enrolled yet.
-  available: HostedPlugin[];
+  available: CloudHostablePlugin[];
   // selfHosted are plugins that doesn't have
   // onboarding support (link out to docs).
   selfHosted: SelfHostedPlugin[];
@@ -78,21 +78,20 @@ export function IntegrationPick() {
   const hasPluginAccess = ctx.storeUser.getPluginsAccess().create;
   const hasIntegrationAccess = ctx.storeUser.getIntegrationsAccess().create;
 
-  const { attempt, run } = useAttempt(
-    hasPluginAccess && cfg.isCloud ? 'processing' : ''
-  );
+  const { attempt, run } = useAttempt(hasPluginAccess ? 'processing' : '');
   const [plugins, setPlugins] = useState<Plugins>({
-    // available describes plugins that teleport helps onboard and is
-    // only supported in cloud (for the moment).
-    //
-    // So for enterprise, we will not render any tiles.
+    // For enterprise, we will not render any tiles that are not 'selfHostable'.
     //
     // For cloud, even if the user has no plugin access, we will still
     // render the available tiles but it will be disabled.
-    available: cfg.isCloud ? defaultPlugins.filter(isHostedPlugin) : [],
+    available: cfg.isCloud
+      ? defaultPlugins.filter(isCloudHostablePlugin)
+      : defaultPlugins.filter(isCloudHostablePlugin).filter(canBeSelfHosted),
     // selfHosted tiles will be rendered to
     // both enterprise and cloud teleport.
-    selfHosted: defaultPlugins.filter(isSelfHostedPlugin),
+    selfHosted: defaultPlugins
+      .filter(canBeSelfHosted)
+      .filter(isNotCloudHostablePlugin),
     enrolled: [],
   });
 
@@ -114,7 +113,7 @@ export function IntegrationPick() {
       });
     }
 
-    if (hasPluginAccess && cfg.isCloud) {
+    if (hasPluginAccess) {
       run(() => fetchAndMakePlugins());
     }
 
@@ -199,10 +198,10 @@ function PluginTile({
   hasAccess,
 }: {
   pluginAlreadyEnrolled?: boolean;
-  type: HostedPlugin | SelfHostedPlugin;
+  type: CloudHostablePlugin | SelfHostedPlugin;
   hasAccess: boolean;
 }) {
-  const hostedButNoAccess = !hasAccess && plugin.hosted;
+  const hostedButNoAccess = !hasAccess && plugin.cloudHostable;
 
   const pluginAccess: PluginAccess =
     plugin.disableForTeam && cfg.isUsageBasedBilling
@@ -215,12 +214,12 @@ function PluginTile({
 
   let tileProps;
 
-  if (pluginEnrollable && plugin.hosted) {
+  if (pluginEnrollable && plugin.cloudHostable) {
     tileProps = {
       as: InternalLink,
       to: cfg.getIntegrationEnrollRoute(plugin.type),
     };
-  } else if (!plugin.hosted) {
+  } else if (!plugin.cloudHostable) {
     tileProps = {
       as: ExternalLink,
       href: plugin.url,
@@ -273,16 +272,22 @@ function PluginTile({
   );
 }
 
-function isHostedPlugin(
-  plugin: HostedPlugin | SelfHostedPlugin
-): plugin is HostedPlugin {
-  return plugin.hosted;
+function isCloudHostablePlugin(
+  plugin: CloudHostablePlugin | SelfHostedPlugin
+): plugin is CloudHostablePlugin {
+  return plugin.cloudHostable;
 }
 
-function isSelfHostedPlugin(
-  plugin: HostedPlugin | SelfHostedPlugin
-): plugin is SelfHostedPlugin {
-  return !plugin.hosted;
+function isNotCloudHostablePlugin(
+  plugin: CloudHostablePlugin | SelfHostedPlugin
+): plugin is Exclude<typeof plugin, CloudHostablePlugin> {
+  return !plugin.cloudHostable;
+}
+
+function canBeSelfHosted(
+  plugin: CloudHostablePlugin | SelfHostedPlugin
+): boolean {
+  return plugin.selfHostable;
 }
 
 type PluginAccess = 'allowed' | 'denied' | 'requires-enterprise';
