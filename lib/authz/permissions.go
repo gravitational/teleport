@@ -115,9 +115,6 @@ type AuthorizerAccessPoint interface {
 
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error)
-
 	// GetCertAuthority returns cert authority by id
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 

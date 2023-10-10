@@ -69,11 +69,6 @@ func (m *mockGetter) GetUser(ctx context.Context, name string, withSecrets bool)
 	return user, nil
 }
 
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (m *mockGetter) GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	return m.GetUser(ctx, name, withSecrets)
-}
-
 func (m *mockGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
 	role, ok := m.roles[name]
 	if !ok {
