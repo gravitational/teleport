@@ -99,15 +99,17 @@ func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster
 	if err := cluster.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := cluster.GetRevision()
 	value, err := services.MarshalKubeCluster(cluster)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(kubernetesPrefix, cluster.GetName()),
-		Value:   value,
-		Expires: cluster.Expiry(),
-		ID:      cluster.GetResourceID(),
+		Key:      backend.Key(kubernetesPrefix, cluster.GetName()),
+		Value:    value,
+		Expires:  cluster.Expiry(),
+		ID:       cluster.GetResourceID(),
+		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
 	if err != nil {

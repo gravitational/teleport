@@ -545,7 +545,7 @@ export type Props = {
   title?: string;
   isLocalAuthEnabled?: boolean;
   isPasswordlessEnabled: boolean;
-  privateKeyPolicyEnabled: boolean;
+  privateKeyPolicyEnabled?: boolean;
   authProviders?: AuthProvider[];
   auth2faType?: Auth2faType;
   primaryAuthType: PrimaryAuthType;

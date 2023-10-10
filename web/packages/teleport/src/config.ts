@@ -268,9 +268,16 @@ const cfg = {
     assistExecuteCommandWebSocketPath:
       'wss://:hostname/v1/webapi/command/:clusterId/execute',
     userPreferencesPath: '/v1/webapi/user/preferences',
+    userClusterPreferencesPath: '/v1/webapi/user/preferences/:clusterId',
 
     // Assist needs some access request info to exist in OSS
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
+  },
+
+  getUserClusterPreferencesUrl(clusterId: string) {
+    return generatePath(cfg.api.userClusterPreferencesPath, {
+      clusterId,
+    });
   },
 
   getAppFqdnUrl(params: UrlAppParams) {

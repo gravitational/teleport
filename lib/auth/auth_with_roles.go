@@ -2606,14 +2606,14 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 	return a.authServer.DeleteAccessRequest(ctx, name)
 }
 
-func (a *ServerWithRoles) GetUsers(withSecrets bool) ([]types.User, error) {
+func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
 		// migrated to that model.
 		if !a.hasBuiltinRole(types.RoleAdmin) {
 			err := trace.AccessDenied("user %q requested access to all users with secrets", a.context.User.GetName())
 			log.Warning(err)
-			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.UserLogin{
+			if err := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
 					Code: events.UserLocalLoginFailureCode,
@@ -2634,28 +2634,30 @@ func (a *ServerWithRoles) GetUsers(withSecrets bool) ([]types.User, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetUsers(withSecrets)
+
+	users, err := a.authServer.GetUsers(ctx, withSecrets)
+	return users, trace.Wrap(err)
 }
 
 // TODO(tross) remove this once oss and e are converted to using the new signature.
 func (a *ServerWithRoles) GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	return a.GetUsers(withSecrets)
+	return a.GetUsers(ctx, withSecrets)
 }
 
 // TODO(tross) remove this once oss and e are converted to using the new signature.
 func (a *ServerWithRoles) GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	user, err := a.GetUser(name, withSecrets)
+	user, err := a.GetUser(ctx, name, withSecrets)
 	return user, trace.Wrap(err)
 }
 
-func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (types.User, error) {
+func (a *ServerWithRoles) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
 		// migrated to that model.
 		if !a.hasBuiltinRole(types.RoleAdmin) {
 			err := trace.AccessDenied("user %q requested access to user %q with secrets", a.context.User.GetName(), name)
 			log.Warning(err)
-			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.UserLogin{
+			if err := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
 					Code: events.UserLocalLoginFailureCode,
@@ -2682,7 +2684,7 @@ func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (types.User, er
 		}
 	}
 
-	user, err := a.authServer.GetUser(name, withSecrets)
+	user, err := a.authServer.GetUser(ctx, name, withSecrets)
 	return user, trace.Wrap(err)
 }
 
@@ -2986,7 +2988,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// This call bypasses RBAC check for users read on purpose.
 	// Users who are allowed to impersonate other users might not have
 	// permissions to read user data.
-	user, err := a.authServer.GetUser(req.Username, false)
+	user, err := a.authServer.GetUser(ctx, req.Username, false)
 	if err != nil {
 		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", req.Username)
 		return nil, trace.AccessDenied("access denied")
@@ -3294,32 +3296,23 @@ func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *pro
 }
 
 // CreateUser inserts a new user entry in a backend.
-func (a *ServerWithRoles) CreateUser(ctx context.Context, u types.User) error {
-	_, err := a.CreateUserWithContext(context.TODO(), u)
-	return trace.Wrap(err)
+func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (types.User, error) {
+	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	created, err := a.authServer.CreateUser(ctx, user)
+	return created, trace.Wrap(err)
 }
 
 // CreateUserWithContext inserts a new user entry in a backend.
 // TODO(tross) remove this once oss and e are converted to using the new signature.
 func (a *ServerWithRoles) CreateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user, err := a.authServer.CreateUserWithContext(ctx, user)
-	return user, trace.Wrap(err)
+	return a.CreateUser(ctx, user)
 }
 
 // UpdateUser updates an existing user in a backend.
 // Captures the auth user who modified the user record.
-func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) error {
-	_, err := a.UpdateUserWithContext(ctx, user)
-	return trace.Wrap(err)
-}
-
-// UpdateUserWithContext updates an existing user in a backend.
-// Captures the auth user who modified the user record.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (a *ServerWithRoles) UpdateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
+func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3328,13 +3321,14 @@ func (a *ServerWithRoles) UpdateUserWithContext(ctx context.Context, user types.
 	return updated, trace.Wrap(err)
 }
 
-func (a *ServerWithRoles) UpsertUser(u types.User) error {
-	_, err := a.UpsertUserWithContext(context.TODO(), u)
-	return trace.Wrap(err)
+// UpdateUserWithContext updates an existing user in a backend.
+// Captures the auth user who modified the user record.
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func (a *ServerWithRoles) UpdateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
+	return a.UpdateUser(ctx, user)
 }
 
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (a *ServerWithRoles) UpsertUserWithContext(ctx context.Context, u types.User) (types.User, error) {
+func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3345,8 +3339,13 @@ func (a *ServerWithRoles) UpsertUserWithContext(ctx context.Context, u types.Use
 			User: types.UserRef{Name: a.context.User.GetName()},
 		})
 	}
-	user, err := a.authServer.UpsertUserWithContext(ctx, u)
+	user, err := a.authServer.UpsertUser(ctx, u)
 	return user, trace.Wrap(err)
+}
+
+// TODO(tross) remove this once oss and e are converted to using the new signature.
+func (a *ServerWithRoles) UpsertUserWithContext(ctx context.Context, u types.User) (types.User, error) {
+	return a.UpsertUser(ctx, u)
 }
 
 // UpdateAndSwapUser exists on [ServerWithRoles] only for compatibility with
@@ -4392,7 +4391,7 @@ func (a *ServerWithRoles) DeleteAllRoles() error {
 }
 
 // DeleteAllUsers not implemented: can only be called locally.
-func (a *ServerWithRoles) DeleteAllUsers() error {
+func (a *ServerWithRoles) DeleteAllUsers(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 

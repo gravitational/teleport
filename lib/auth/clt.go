@@ -326,7 +326,7 @@ func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListW
 }
 
 // DeleteAllUsers not implemented: can only be called locally.
-func (c *Client) DeleteAllUsers() error {
+func (c *Client) DeleteAllUsers(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -456,19 +456,34 @@ func (c *Client) UserLoginStateClient() services.UserLoginStates {
 // UpsertUserWithContext UpsertUser user updates or inserts user entry.
 // TODO(tross) remove this once oss and e are converted to using the new signature.
 func (c *Client) UpsertUserWithContext(ctx context.Context, user types.User) (types.User, error) {
-	if err := c.UpsertUser(user); err != nil {
+	upserted, err := c.UpsertUser(ctx, user)
+	return upserted, trace.Wrap(err)
+}
+
+// UpsertUser user updates user entry.
+func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
+	data, err := services.MarshalUser(user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	_, err = c.HTTPClient.PostJSON(ctx, c.Endpoint("users"), &upsertUserRawReq{User: data})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := c.GetUser(user.GetName(), false)
-	return user, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	upserted, err := c.GetUser(ctx, user.GetName(), false)
+	return upserted, trace.Wrap(err)
 }
 
 // GetUserWithContext returns the user matching the name as seen by the server.
 // withSecrets controls whether authentication details are returned.
 // TODO(tross) remove this once oss and e are converted to using the new signature.
 func (c *Client) GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	user, err := c.GetUser(name, withSecrets)
+	user, err := c.GetUser(ctx, name, withSecrets)
 	return user, trace.Wrap(err)
 }
 
@@ -540,7 +555,7 @@ type IdentityService interface {
 	GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error)
 
 	// GetUser returns user by name
-	GetUser(name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 	// GetUserWithContext returns user by name.
 	// TODO(tross) remove this once oss and e are converted to using the new signature.
 	GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error)
@@ -553,14 +568,14 @@ type IdentityService interface {
 	GetCurrentUserRoles(ctx context.Context) ([]types.Role, error)
 
 	// CreateUser inserts a new entry in a backend.
-	CreateUser(ctx context.Context, user types.User) error
+	CreateUser(ctx context.Context, user types.User) (types.User, error)
 
 	// CreateUser inserts a new entry in a backend.
 	// TODO(tross) remove this once oss and e are converted to using the new signature.
 	CreateUserWithContext(ctx context.Context, user types.User) (types.User, error)
 
 	// UpdateUser updates an existing user in a backend.
-	UpdateUser(ctx context.Context, user types.User) error
+	UpdateUser(ctx context.Context, user types.User) (types.User, error)
 
 	// UpdateUser updates an existing user in a backend.
 	// TODO(tross) remove this once oss and e are converted to using the new signature.
@@ -573,7 +588,7 @@ type IdentityService interface {
 	UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error)
 
 	// UpsertUser user updates or inserts user entry
-	UpsertUser(user types.User) error
+	UpsertUser(ctx context.Context, user types.User) (types.User, error)
 
 	// UpsertUserWithContext user updates or inserts user entry.
 	// TODO(tross) remove this once oss and e are converted to using the new signature.
@@ -587,7 +602,7 @@ type IdentityService interface {
 	DeleteUser(ctx context.Context, user string) error
 
 	// GetUsers returns a list of usernames registered in the system
-	GetUsers(withSecrets bool) ([]types.User, error)
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 
 	// GetUsersWithContext returns a list of usernames registered in the system
 	// TODO(tross) remove this once oss and e are converted to using the new signature.
@@ -616,7 +631,7 @@ type IdentityService interface {
 	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
 
 	// DeleteAllUsers deletes all users
-	DeleteAllUsers() error
+	DeleteAllUsers(ctx context.Context) error
 
 	// DeleteAllUsers deletes all users
 	// TODO(tross) remove this once oss and e are converted to using the new signature.

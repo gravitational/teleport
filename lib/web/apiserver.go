@@ -861,6 +861,12 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Updates the user's preferences
 	h.PUT("/webapi/user/preferences", h.WithAuth(h.updateUserPreferences))
+
+	// Fetches the user's cluster preferences.
+	h.GET("/webapi/user/preferences/:site", h.WithClusterAuth(h.getUserClusterPreferences))
+
+	// Updates the user's cluster preferences.
+	h.PUT("/webapi/user/preferences/:site", h.WithClusterAuth(h.updateUserClusterPreferences))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -946,7 +952,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := clt.GetUser(c.GetUser(), false)
+	user, err := clt.GetUser(r.Context(), c.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2243,7 +2249,7 @@ func (h *Handler) trySettingConnectorNameToPasswordless(ctx context.Context, ses
 		return nil
 	}
 
-	users, err := h.cfg.ProxyClient.GetUsers(false)
+	users, err := h.cfg.ProxyClient.GetUsers(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

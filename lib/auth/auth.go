@@ -1742,7 +1742,7 @@ func (a *Server) GetUserOrLoginState(ctx context.Context, username string) (serv
 		return uls, nil
 	}
 
-	user, err := a.GetUser(username, false)
+	user, err := a.GetUser(ctx, username, false)
 	return user, trace.Wrap(err)
 }
 
@@ -2696,8 +2696,8 @@ func (a *Server) getSigningCAs(ctx context.Context, domainName string, caType ty
 // this is done to avoid potential user lockouts due to backend failures
 // In case if user exceeds defaults.MaxLoginAttempts
 // the user account will be locked for defaults.AccountLockInterval
-func (a *Server) WithUserLock(username string, authenticateFn func() error) error {
-	user, err := a.Services.GetUser(username, false)
+func (a *Server) WithUserLock(ctx context.Context, username string, authenticateFn func() error) error {
+	user, err := a.Services.GetUser(ctx, username, false)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// If user is not found, still call authenticateFn. It should
@@ -2758,7 +2758,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	log.Debug(fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
 		username, defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(lockUntil)))
 	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
-	err = a.UpsertUser(user)
+	_, err = a.UpsertUser(ctx, user)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(fnErr)
@@ -2801,7 +2801,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
 		username = req.GetUserCredentials().GetUsername()
 
-		if err := a.WithUserLock(username, func() error {
+		if err := a.WithUserLock(ctx, username, func() error {
 			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
 		}); err != nil {
 			return nil, trace.Wrap(err)
@@ -3412,7 +3412,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		// We don't call from the cache layer because we want to
 		// retrieve the recently updated user. Otherwise, the cache
 		// returns stale data.
-		user, err := a.Identity.GetUser(req.User, false)
+		user, err := a.Identity.GetUser(ctx, req.User, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3453,7 +3453,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		}
 
 		// Get default/static roles.
-		user, err := a.GetUser(req.User, false)
+		user, err := a.GetUser(ctx, req.User, false)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to switchback")
 		}
@@ -5511,7 +5511,7 @@ func (a *Server) validateMFAAuthResponseForRegister(
 		return false, nil
 	}
 
-	if err := a.WithUserLock(username, func() error {
+	if err := a.WithUserLock(ctx, username, func() error {
 		_, _, err := a.validateMFAAuthResponse(
 			ctx, resp, username, false /* passwordless */)
 		return err

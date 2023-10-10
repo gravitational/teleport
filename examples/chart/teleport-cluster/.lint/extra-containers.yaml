@@ -1,0 +1,12 @@
+clusterName: helm-lint.example.com
+extraContainers:
+  - name: nscenter
+    command:
+      - /bin/bash
+      - -c
+      - sleep infinity & wait
+    image: praqma/network-multitool
+    imagePullPolicy: IfNotPresent
+    securityContext:
+      privileged: true
+      runAsNonRoot: false
