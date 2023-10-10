@@ -297,19 +297,28 @@ type IntegrationConfExternalCloudAudit struct {
 // IntegrationBootstrapCreateExternalCloudAuditArguments contains the arguments of
 // `teleport integration bootstrap externalcloudaudit` command
 type IntegrationBootstrapCreateExternalCloudAudit struct {
-	// EventBucket is the name of the events bucket created
-	EventBucket string
-	// SessionBucket is the name of the sessions bucket created
-	SessionBucket string
 	// Region is the AWS Region used to set up the client
 	Region string
-
+	// EventBucket is the name of the events bucket created
+	EventBucket string
+	// QueryResultBucket is the name of the query results bucket created
+	QueryResultsBucket string
+	// LargePayloadBucket is the name of the large payloads bucket created
+	LargePayloadBucket string
+	// SessionBucket is the name of the sessions bucket created
+	SessionBucket string
 	// WithCMK is whether to create a customer managed KMS key
 	WithCMK bool
 	// KMSKeyAlias is optional alias of CMK key
 	KMSKeyAlias string
 	// KMSKeyID is key id of existing CMK key
 	KMSKeyID string
+	// AthenaWorkgroup is the name of the athena workgroup to create
+	AthenaWorkgroup string
+	// DatabaseName is the name of the glue database
+	DatabaseName string
+	// TableName is the name of the glue table
+	TableName string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
