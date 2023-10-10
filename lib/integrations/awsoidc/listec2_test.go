@@ -52,6 +52,20 @@ func (m *mockListEC2Client) GetCallerIdentity(ctx context.Context, params *sts.G
 func (m mockListEC2Client) DescribeInstances(ctx context.Context, params *ec2.DescribeInstancesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
 	requestedPage := 1
 
+	stateFilter := false
+	platformFilter := false
+	for _, filter := range params.Filters {
+		if *filter.Name == "instance-state-name" && len(filter.Values) == 1 && filter.Values[0] == "running" {
+			stateFilter = true
+		}
+		if *filter.Name == "platform-details" && len(filter.Values) == 1 && filter.Values[0] == "Linux/UNIX" {
+			platformFilter = true
+		}
+	}
+	if !stateFilter || !platformFilter {
+		return nil, trace.BadParameter("instance-state-name and platform-details filters were not included")
+	}
+
 	totalInstances := len(m.ec2Instances)
 
 	if params.NextToken != nil {
