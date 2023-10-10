@@ -202,14 +202,6 @@ impl TeleportRdpdrBackend {
 
         // We have some status change to report, send it to the server.
         self.write_rdpdr_dev_ctl_resp(req, Box::new(get_status_change_ret))
-            .map_err(|_e| {
-                other_err!(
-                    "TeleportRdpdrBackend::handle_list_readers",
-                    "failed to send DeviceControlResponse to server",
-                )
-            })?;
-
-        Ok(())
     }
 
     fn create_get_status_change_return(
