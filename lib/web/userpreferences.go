@@ -74,7 +74,7 @@ func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	return resp.Preferences.ClusterPreferences, nil
+	return clusterPreferencesResponse(resp.Preferences.ClusterPreferences), nil
 }
 
 // updateUserClusterPreferences is a handler for PUT /webapi/user/preferences.
@@ -167,14 +167,20 @@ func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, 
 // userPreferencesResponse creates a JSON response for the user preferences.
 func userPreferencesResponse(resp *userpreferencesv1.UserPreferences) *UserPreferencesResponse {
 	jsonResp := &UserPreferencesResponse{
-		Assist:             assistUserPreferencesResponse(resp.Assist),
-		Theme:              resp.Theme,
-		Onboard:            onboardUserPreferencesResponse(resp.Onboard),
-		ClusterPreferences: clusterPreferencesResponse(resp.ClusterPreferences),
+		Assist:                     assistUserPreferencesResponse(resp.Assist),
+		Theme:                      resp.Theme,
+		Onboard:                    onboardUserPreferencesResponse(resp.Onboard),
+		ClusterPreferences:         clusterPreferencesResponse(resp.ClusterPreferences),
 		UnifiedResourcePreferences: unifiedResourcePreferencesResponse(resp.UnifiedResourcePreferences),
 	}
 
 	return jsonResp
+}
+
+func clusterPreferencesResponse(resp *userpreferencesv1.ClusterUserPreferences) ClusterUserPreferencesResponse {
+	return ClusterUserPreferencesResponse{
+		PinnedResources: resp.PinnedResources.ResourceIds,
+	}
 }
 
 // assistUserPreferencesResponse creates a JSON response for the assist user preferences.

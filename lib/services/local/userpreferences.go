@@ -51,11 +51,6 @@ func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
 		ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
 			PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{},
 		},
-		ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
-			PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
-				ResourceIds: []string{},
-			},
-		},
 	}
 }
 
