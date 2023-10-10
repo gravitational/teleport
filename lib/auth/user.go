@@ -37,9 +37,9 @@ import (
 )
 
 // CreateUser inserts a new user entry in a backend.
-func (s *Server) CreateUser(ctx context.Context, user types.User) error {
-	_, err := s.CreateUserWithContext(ctx, user)
-	return trace.Wrap(err)
+func (s *Server) CreateUser(ctx context.Context, user types.User) (types.User, error) {
+	created, err := s.CreateUserWithContext(ctx, user)
+	return created, trace.Wrap(err)
 }
 
 // CreateUserWithContext inserts a new user entry in a backend.
@@ -52,7 +52,7 @@ func (s *Server) CreateUserWithContext(ctx context.Context, user types.User) (ty
 		})
 	}
 
-	created, err := s.Services.CreateUserWithContext(ctx, user)
+	created, err := s.Services.CreateUser(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -86,14 +86,14 @@ func (s *Server) CreateUserWithContext(ctx context.Context, user types.User) (ty
 }
 
 // UpdateUser updates an existing user in a backend.
-func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
-	_, err := s.UpdateUserWithContext(ctx, user)
-	return trace.Wrap(err)
+func (s *Server) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
+	updated, err := s.UpdateUserWithContext(ctx, user)
+	return updated, trace.Wrap(err)
 }
 
 // UpdateUserWithContext updates an existing user in a backend.
 func (s *Server) UpdateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
-	prevUser, err := s.GetUser(user.GetName(), false)
+	prevUser, err := s.GetUser(ctx, user.GetName(), false)
 	var omitEditorEvent bool
 	if err != nil {
 		// don't return error here since this call is for event emitting purposes only
@@ -101,7 +101,7 @@ func (s *Server) UpdateUserWithContext(ctx context.Context, user types.User) (ty
 		omitEditorEvent = true
 	}
 
-	updated, err := s.Services.UpdateUserWithContext(ctx, user)
+	updated, err := s.Services.UpdateUser(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -137,15 +137,15 @@ func (s *Server) UpdateUserWithContext(ctx context.Context, user types.User) (ty
 }
 
 // UpsertUser updates a user.
-func (s *Server) UpsertUser(user types.User) error {
-	_, err := s.UpsertUserWithContext(context.TODO(), user)
-	return trace.Wrap(err)
+func (s *Server) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
+	upserted, err := s.UpsertUserWithContext(ctx, user)
+	return upserted, trace.Wrap(err)
 }
 
 // UpsertUserWithContext updates a user.
 // TODO(tross) remove this once oss and e are converted to using the new signature.
 func (s *Server) UpsertUserWithContext(ctx context.Context, user types.User) (types.User, error) {
-	prevUser, err := s.GetUser(user.GetName(), false)
+	prevUser, err := s.GetUser(ctx, user.GetName(), false)
 	var omitEditorEvent bool
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -157,16 +157,16 @@ func (s *Server) UpsertUserWithContext(ctx context.Context, user types.User) (ty
 		}
 	}
 
-	created, err := s.Services.UpsertUserWithContext(ctx, user)
+	upserted, err := s.Services.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var connectorName string
-	if created.GetCreatedBy().Connector == nil {
+	if upserted.GetCreatedBy().Connector == nil {
 		connectorName = constants.LocalConnector
 	} else {
-		connectorName = created.GetCreatedBy().Connector.ID
+		connectorName = upserted.GetCreatedBy().Connector.ID
 	}
 
 	if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.UserCreate{
@@ -175,14 +175,14 @@ func (s *Server) UpsertUserWithContext(ctx context.Context, user types.User) (ty
 			Code: events.UserCreateCode,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User: created.GetName(),
+			User: upserted.GetName(),
 		},
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name:    created.GetName(),
-			Expires: created.Expiry(),
+			Name:    upserted.GetName(),
+			Expires: upserted.Expiry(),
 		},
 		Connector: connectorName,
-		Roles:     created.GetRoles(),
+		Roles:     upserted.GetRoles(),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit user upsert event.")
 	}
@@ -192,10 +192,10 @@ func (s *Server) UpsertUserWithContext(ctx context.Context, user types.User) (ty
 		prevRoles = prevUser.GetRoles()
 	}
 	if !omitEditorEvent {
-		usagereporter.EmitEditorChangeEvent(created.GetName(), prevRoles, created.GetRoles(), s.AnonymizeAndSubmit)
+		usagereporter.EmitEditorChangeEvent(upserted.GetName(), prevRoles, upserted.GetRoles(), s.AnonymizeAndSubmit)
 	}
 
-	return created, nil
+	return upserted, nil
 }
 
 // CompareAndSwapUser updates a user but fails if the value on the backend does
@@ -236,7 +236,7 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 
 // DeleteUser deletes an existng user in a backend by username.
 func (s *Server) DeleteUser(ctx context.Context, user string) error {
-	prevUser, err := s.GetUser(user, false)
+	prevUser, err := s.GetUser(ctx, user, false)
 	var omitEditorEvent bool
 	if err != nil && !trace.IsNotFound(err) {
 		// don't return error here, delete may still succeed

@@ -902,7 +902,7 @@ Outer:
 }
 
 func NewReviewPermissionChecker(ctx context.Context, getter RequestValidatorGetter, username string) (ReviewPermissionChecker, error) {
-	user, err := getter.GetUser(username, false)
+	user, err := getter.GetUser(ctx, username, false)
 	if err != nil {
 		return ReviewPermissionChecker{}, trace.Wrap(err)
 	}
@@ -983,7 +983,7 @@ type RequestValidator struct {
 
 // NewRequestValidator configures a new RequestValidator for the specified user.
 func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, username string, opts ...ValidateRequestOption) (RequestValidator, error) {
-	user, err := getter.GetUser(username, false)
+	user, err := getter.GetUser(ctx, username, false)
 	if err != nil {
 		return RequestValidator{}, trace.Wrap(err)
 	}

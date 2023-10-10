@@ -58,7 +58,7 @@ func (m *mockGetter) user(t *testing.T, roles ...string) string {
 	return name
 }
 
-func (m *mockGetter) GetUser(name string, withSecrets bool) (types.User, error) {
+func (m *mockGetter) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	if withSecrets {
 		return nil, trace.NotImplemented("mock getter does not store secrets")
 	}
@@ -71,7 +71,7 @@ func (m *mockGetter) GetUser(name string, withSecrets bool) (types.User, error) 
 
 // TODO(tross) remove this once oss and e are converted to using the new signature.
 func (m *mockGetter) GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	return m.GetUser(name, withSecrets)
+	return m.GetUser(ctx, name, withSecrets)
 }
 
 func (m *mockGetter) GetRole(ctx context.Context, name string) (types.Role, error) {

@@ -190,6 +190,9 @@ spec:
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
+{{- if .Values.extraContainers }}
+  {{- toYaml .Values.extraContainers | nindent 6 }}
+{{- end }}
       volumes:
       - name: "config"
         configMap:

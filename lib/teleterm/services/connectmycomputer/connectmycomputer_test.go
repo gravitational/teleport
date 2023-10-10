@@ -229,7 +229,7 @@ type mockAccessAndIdentity struct {
 	nodeErr    error
 }
 
-func (m *mockAccessAndIdentity) GetUser(name string, withSecrets bool) (types.User, error) {
+func (m *mockAccessAndIdentity) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	return m.user, nil
 }
 
@@ -261,14 +261,14 @@ func (m *mockAccessAndIdentity) NewWatcher(ctx context.Context, watch types.Watc
 	return watcher, nil
 }
 
-func (m *mockAccessAndIdentity) UpdateUser(ctx context.Context, user types.User) error {
+func (m *mockAccessAndIdentity) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	m.callCounts["UpdateUser"]++
 	m.user = user
 	m.events.Fire(types.Event{
 		Type:     types.OpPut,
 		Resource: user,
 	})
-	return nil
+	return user, nil
 }
 
 func (m *mockAccessAndIdentity) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {

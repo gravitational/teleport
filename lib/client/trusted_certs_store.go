@@ -306,7 +306,7 @@ func (fs *FSTrustedCertsStore) saveTrustedCertsInCASDir(proxyHost string, cas []
 }
 
 func (fs *FSTrustedCertsStore) writeClusterCertificates(proxyHost, clusterName string, tlsCertificates [][]byte) (retErr error) {
-	caFile, err := os.OpenFile(fs.clusterCAPath(proxyHost, clusterName), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
+	caFile, err := os.OpenFile(fs.clusterCAPath(proxyHost, clusterName), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o640)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -329,7 +329,7 @@ func (fs *FSTrustedCertsStore) saveTrustedCertsInLegacyCAFile(proxyHost string, 
 	}
 
 	certsFile := fs.tlsCAsPath(proxyHost)
-	fp, err := os.OpenFile(certsFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
+	fp, err := os.OpenFile(certsFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o640)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -365,7 +365,7 @@ func (fs *FSTrustedCertsStore) addKnownHosts(proxyHost string, cas []auth.Truste
 	}
 	defer utils.StoreErrorOf(unlock, &retErr)
 
-	fp, err := os.OpenFile(fs.knownHostsPath(), os.O_CREATE|os.O_RDWR, 0640)
+	fp, err := os.OpenFile(fs.knownHostsPath(), os.O_CREATE|os.O_RDWR, 0o640)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
