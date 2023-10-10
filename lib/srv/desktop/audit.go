@@ -47,11 +47,28 @@ type desktopSessionAuditor struct {
 	auditCache sharedDirectoryAuditCache
 }
 
+func (d *desktopSessionAuditor) makeSessionMetadata() events.SessionMetadata {
+	return events.SessionMetadata{
+		SessionID:        d.sessionID,
+		WithMFA:          d.identity.MFAVerified,
+		PrivateKeyPolicy: string(d.identity.PrivateKeyPolicy),
+	}
+}
+
+func (d *desktopSessionAuditor) makeConnectionMetadata() events.ConnectionMetadata {
+	return events.ConnectionMetadata{
+		LocalAddr:  d.identity.LoginIP,
+		RemoteAddr: d.desktop.GetAddr(),
+		Protocol:   libevents.EventProtocolTDP,
+	}
+}
+
 func (s *WindowsService) newSessionAuditor(
 	sessionID string,
 	identity *tlsca.Identity,
 	windowsUser string,
-	desktop types.WindowsDesktop) *desktopSessionAuditor {
+	desktop types.WindowsDesktop,
+) *desktopSessionAuditor {
 	return &desktopSessionAuditor{
 		clock: s.cfg.Clock,
 
@@ -79,16 +96,9 @@ func (d *desktopSessionAuditor) makeSessionStart(err error) *events.WindowsDeskt
 			ClusterName: d.clusterName,
 			Time:        d.startTime,
 		},
-		UserMetadata: userMetadata,
-		SessionMetadata: events.SessionMetadata{
-			SessionID: d.sessionID,
-			WithMFA:   d.identity.MFAVerified,
-		},
-		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  d.identity.LoginIP,
-			RemoteAddr: d.desktop.GetAddr(),
-			Protocol:   libevents.EventProtocolTDP,
-		},
+		UserMetadata:          userMetadata,
+		SessionMetadata:       d.makeSessionMetadata(),
+		ConnectionMetadata:    d.makeConnectionMetadata(),
 		Status:                events.Status{Success: err == nil},
 		WindowsDesktopService: d.desktopServiceUUID,
 		DesktopName:           d.desktop.GetName(),
@@ -117,11 +127,8 @@ func (d *desktopSessionAuditor) makeSessionEnd(recorded bool) *events.WindowsDes
 			Code:        libevents.DesktopSessionEndCode,
 			ClusterName: d.clusterName,
 		},
-		UserMetadata: userMetadata,
-		SessionMetadata: events.SessionMetadata{
-			SessionID: d.sessionID,
-			WithMFA:   d.identity.MFAVerified,
-		},
+		UserMetadata:          userMetadata,
+		SessionMetadata:       d.makeSessionMetadata(),
 		WindowsDesktopService: d.desktopServiceUUID,
 		DesktopAddr:           d.desktop.GetAddr(),
 		Domain:                d.desktop.GetDomain(),
@@ -145,18 +152,11 @@ func (d *desktopSessionAuditor) makeClipboardSend(length int32) *events.DesktopC
 			ClusterName: d.clusterName,
 			Time:        d.clock.Now().UTC(),
 		},
-		UserMetadata: d.identity.GetUserMetadata(),
-		SessionMetadata: events.SessionMetadata{
-			SessionID: d.sessionID,
-			WithMFA:   d.identity.MFAVerified,
-		},
-		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  d.identity.LoginIP,
-			RemoteAddr: d.desktop.GetAddr(),
-			Protocol:   libevents.EventProtocolTDP,
-		},
-		DesktopAddr: d.desktop.GetAddr(),
-		Length:      length,
+		UserMetadata:       d.identity.GetUserMetadata(),
+		SessionMetadata:    d.makeSessionMetadata(),
+		ConnectionMetadata: d.makeConnectionMetadata(),
+		DesktopAddr:        d.desktop.GetAddr(),
+		Length:             length,
 	}
 }
 
@@ -168,18 +168,11 @@ func (d *desktopSessionAuditor) makeClipboardReceive(length int32) *events.Deskt
 			ClusterName: d.clusterName,
 			Time:        d.clock.Now().UTC(),
 		},
-		UserMetadata: d.identity.GetUserMetadata(),
-		SessionMetadata: events.SessionMetadata{
-			SessionID: d.sessionID,
-			WithMFA:   d.identity.MFAVerified,
-		},
-		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  d.identity.LoginIP,
-			RemoteAddr: d.desktop.GetAddr(),
-			Protocol:   libevents.EventProtocolTDP,
-		},
-		DesktopAddr: d.desktop.GetAddr(),
-		Length:      length,
+		UserMetadata:       d.identity.GetUserMetadata(),
+		SessionMetadata:    d.makeSessionMetadata(),
+		ConnectionMetadata: d.makeConnectionMetadata(),
+		DesktopAddr:        d.desktop.GetAddr(),
+		Length:             length,
 	}
 }
 
@@ -204,16 +197,9 @@ func (d *desktopSessionAuditor) onSharedDirectoryAnnounce(m tdp.SharedDirectoryA
 			ClusterName: d.clusterName,
 			Time:        d.clock.Now().UTC(),
 		},
-		UserMetadata: d.identity.GetUserMetadata(),
-		SessionMetadata: events.SessionMetadata{
-			SessionID: d.sessionID,
-			WithMFA:   d.identity.MFAVerified,
-		},
-		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  d.identity.LoginIP,
-			RemoteAddr: d.desktop.GetAddr(),
-			Protocol:   libevents.EventProtocolTDP,
-		},
+		UserMetadata:       d.identity.GetUserMetadata(),
+		SessionMetadata:    d.makeSessionMetadata(),
+		ConnectionMetadata: d.makeConnectionMetadata(),
 		Status: events.Status{
 			Success:     false,
 			Error:       errMsg,
@@ -245,20 +231,13 @@ func (d *desktopSessionAuditor) makeSharedDirectoryStart(m tdp.SharedDirectoryAc
 			ClusterName: d.clusterName,
 			Time:        d.clock.Now().UTC(),
 		},
-		UserMetadata: d.identity.GetUserMetadata(),
-		SessionMetadata: events.SessionMetadata{
-			SessionID: d.sessionID,
-			WithMFA:   d.identity.MFAVerified,
-		},
-		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  d.identity.LoginIP,
-			RemoteAddr: d.desktop.GetAddr(),
-			Protocol:   libevents.EventProtocolTDP,
-		},
-		Status:        statusFromErrCode(m.ErrCode),
-		DesktopAddr:   d.desktop.GetAddr(),
-		DirectoryName: string(name),
-		DirectoryID:   m.DirectoryID,
+		UserMetadata:       d.identity.GetUserMetadata(),
+		SessionMetadata:    d.makeSessionMetadata(),
+		ConnectionMetadata: d.makeConnectionMetadata(),
+		Status:             statusFromErrCode(m.ErrCode),
+		DesktopAddr:        d.desktop.GetAddr(),
+		DirectoryName:      string(name),
+		DirectoryID:        m.DirectoryID,
 	}
 }
 
@@ -293,16 +272,9 @@ func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(m tdp.SharedDirecto
 			ClusterName: d.clusterName,
 			Time:        d.clock.Now().UTC(),
 		},
-		UserMetadata: d.identity.GetUserMetadata(),
-		SessionMetadata: events.SessionMetadata{
-			SessionID: d.sessionID,
-			WithMFA:   d.identity.MFAVerified,
-		},
-		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  d.identity.LoginIP,
-			RemoteAddr: d.desktop.GetAddr(),
-			Protocol:   libevents.EventProtocolTDP,
-		},
+		UserMetadata:       d.identity.GetUserMetadata(),
+		SessionMetadata:    d.makeSessionMetadata(),
+		ConnectionMetadata: d.makeConnectionMetadata(),
 		Status: events.Status{
 			Success:     false,
 			Error:       err.Error(),
@@ -356,23 +328,16 @@ func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(m tdp.SharedDire
 			ClusterName: d.clusterName,
 			Time:        d.clock.Now().UTC(),
 		},
-		UserMetadata: d.identity.GetUserMetadata(),
-		SessionMetadata: events.SessionMetadata{
-			SessionID: d.sessionID,
-			WithMFA:   d.identity.MFAVerified,
-		},
-		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  d.identity.LoginIP,
-			RemoteAddr: d.desktop.GetAddr(),
-			Protocol:   libevents.EventProtocolTDP,
-		},
-		Status:        statusFromErrCode(m.ErrCode),
-		DesktopAddr:   d.desktop.GetAddr(),
-		DirectoryName: string(name),
-		DirectoryID:   uint32(did),
-		Path:          path,
-		Length:        m.ReadDataLength,
-		Offset:        offset,
+		UserMetadata:       d.identity.GetUserMetadata(),
+		SessionMetadata:    d.makeSessionMetadata(),
+		ConnectionMetadata: d.makeConnectionMetadata(),
+		Status:             statusFromErrCode(m.ErrCode),
+		DesktopAddr:        d.desktop.GetAddr(),
+		DirectoryName:      string(name),
+		DirectoryID:        uint32(did),
+		Path:               path,
+		Length:             m.ReadDataLength,
+		Offset:             offset,
 	}
 }
 
@@ -409,16 +374,9 @@ func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(m tdp.SharedDirect
 			ClusterName: d.clusterName,
 			Time:        d.clock.Now().UTC(),
 		},
-		UserMetadata: d.identity.GetUserMetadata(),
-		SessionMetadata: events.SessionMetadata{
-			SessionID: d.sessionID,
-			WithMFA:   d.identity.MFAVerified,
-		},
-		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  d.identity.LoginIP,
-			RemoteAddr: d.desktop.GetAddr(),
-			Protocol:   libevents.EventProtocolTDP,
-		},
+		UserMetadata:       d.identity.GetUserMetadata(),
+		SessionMetadata:    d.makeSessionMetadata(),
+		ConnectionMetadata: d.makeConnectionMetadata(),
 		Status: events.Status{
 			Success:     false,
 			Error:       err.Error(),
@@ -471,23 +429,16 @@ func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(m tdp.SharedDir
 			ClusterName: d.clusterName,
 			Time:        d.clock.Now().UTC(),
 		},
-		UserMetadata: d.identity.GetUserMetadata(),
-		SessionMetadata: events.SessionMetadata{
-			SessionID: d.sessionID,
-			WithMFA:   d.identity.MFAVerified,
-		},
-		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  d.identity.LoginIP,
-			RemoteAddr: d.desktop.GetAddr(),
-			Protocol:   libevents.EventProtocolTDP,
-		},
-		Status:        statusFromErrCode(m.ErrCode),
-		DesktopAddr:   d.desktop.GetAddr(),
-		DirectoryName: string(name),
-		DirectoryID:   uint32(did),
-		Path:          path,
-		Length:        m.BytesWritten,
-		Offset:        offset,
+		UserMetadata:       d.identity.GetUserMetadata(),
+		SessionMetadata:    d.makeSessionMetadata(),
+		ConnectionMetadata: d.makeConnectionMetadata(),
+		Status:             statusFromErrCode(m.ErrCode),
+		DesktopAddr:        d.desktop.GetAddr(),
+		DirectoryName:      string(name),
+		DirectoryID:        uint32(did),
+		Path:               path,
+		Length:             m.BytesWritten,
+		Offset:             offset,
 	}
 }
 

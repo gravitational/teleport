@@ -1465,10 +1465,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		ServerAddr:      sess.kubeAddress,
 	}
 
-	sessionMetadata := apievents.SessionMetadata{
-		SessionID: uuid.NewString(),
-		WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
-	}
+	sessionMetadata := ctx.Identity.GetIdentity().GetSessionMetadata(uuid.NewString())
 
 	connectionMetdata := apievents.ConnectionMetadata{
 		RemoteAddr: req.RemoteAddr,

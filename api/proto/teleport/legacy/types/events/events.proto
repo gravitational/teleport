@@ -59,6 +59,8 @@ message SessionMetadata {
   string SessionID = 1 [(gogoproto.jsontag) = "sid"];
   // WithMFA is a UUID of an MFA device used to start this session.
   string WithMFA = 2 [(gogoproto.jsontag) = "with_mfa,omitempty"];
+  // PrivateKeyPolicy is the private key policy of the private key used to start this session.
+  string private_key_policy = 3;
 }
 
 // UserMetadata is a common user event metadata

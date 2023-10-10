@@ -1052,6 +1052,14 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 	}
 }
 
+func (id Identity) GetSessionMetadata(sid string) events.SessionMetadata {
+	return events.SessionMetadata{
+		SessionID:        sid,
+		WithMFA:          id.MFAVerified,
+		PrivateKeyPolicy: string(id.PrivateKeyPolicy),
+	}
+}
+
 // IsMFAVerified returns whether this identity is MFA verified.
 func (id *Identity) IsMFAVerified() bool {
 	return id.MFAVerified != "" || id.PrivateKeyPolicy.MFAVerified()
