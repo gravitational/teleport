@@ -15,7 +15,7 @@ env:
   # we want to rebuild the images. Make sure this value is kept up
   # to data as new releasese are created. See: 
   #   https://github.com/gravitational/teleport/blob/master/docs/preflight.md
-  TELEPORT_MAJOR_VERSIONS: "v12 v13"
+  TELEPORT_MAJOR_VERSIONS: "v12 v13 v14"
 
 permissions:
   contents: read
