@@ -1982,12 +1982,6 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (typ
 	return user, trace.Wrap(err)
 }
 
-// GetUserWithContext is a part of auth.Cache implementation.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Cache) GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	return c.GetUser(ctx, name, withSecrets)
-}
-
 // GetUsers is a part of auth.Cache implementation
 func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	_, span := c.Tracer.Start(ctx, "cache/GetUsers")
@@ -2002,12 +1996,6 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 	}
 	defer rg.Release()
 	return rg.reader.GetUsers(ctx, withSecrets)
-}
-
-// GetUsersWithContext is a part of auth.Cache implementation
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Cache) GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	return c.GetUsers(ctx, withSecrets)
 }
 
 // GetTunnelConnections is a part of auth.Cache implementation

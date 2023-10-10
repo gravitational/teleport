@@ -842,12 +842,6 @@ func (c *Client) CreateUser(ctx context.Context, user types.User) (types.User, e
 	return created, trace.Wrap(err)
 }
 
-// CreateUserWithContext creates a new user from the specified descriptor.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) CreateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
-	return c.CreateUser(ctx, user)
-}
-
 // UpdateUser updates an existing user in a backend.
 func (c *Client) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	userV2, ok := user.(*types.UserV2)
@@ -864,12 +858,6 @@ func (c *Client) UpdateUser(ctx context.Context, user types.User) (types.User, e
 	return updated, trace.Wrap(err)
 }
 
-// UpdateUserWithContext updates an existing user in a backend.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) UpdateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
-	return c.UpdateUser(ctx, user)
-}
-
 // GetUser returns a list of usernames registered in the system.
 // withSecrets controls whether authentication details are returned.
 func (c *Client) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
@@ -884,13 +872,6 @@ func (c *Client) GetUser(ctx context.Context, name string, withSecrets bool) (ty
 		return nil, trace.Wrap(err)
 	}
 	return user, nil
-}
-
-// GetUserWithContext returns a list of usernames registered in the system.
-// withSecrets controls whether authentication details are returned.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	return c.GetUser(ctx, name, withSecrets)
 }
 
 // GetCurrentUser returns current user as seen by the server.
@@ -936,13 +917,6 @@ func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, 
 		users = append(users, user)
 	}
 	return users, nil
-}
-
-// GetUsersWithContext returns a list of users.
-// withSecrets controls whether authentication details are returned.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	return c.GetUsers(ctx, withSecrets)
 }
 
 // DeleteUser deletes a user by name.
