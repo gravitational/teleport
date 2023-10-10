@@ -70,7 +70,7 @@ export class WindowsManager {
       autoHideMenuBar: true,
       title: 'Teleport Connect Preview',
       webPreferences: {
-        devTools: this.settings.dev,
+        devTools: this.settings.debug,
         webgl: false,
         enableWebSQL: false,
         safeDialogs: true,
