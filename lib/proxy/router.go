@@ -352,7 +352,7 @@ func (c *checkedPrefixWriter) Write(p []byte) (int, error) {
 	}
 	n, err := c.Conn.Write(p)
 	// Advance pointer by confirmed portion of the prefix.
-	c.requiredPrefix = c.requiredPrefix[min(n, len(small)):]
+	c.requiredPointer += min(n, len(small))
 	return n, err
 }
 
