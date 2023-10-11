@@ -33,6 +33,10 @@ export type Notification = {
   date: Date;
 };
 
+// TODO?: based on a feedback, consider representing
+// notifications as a collection of maps indexed by id
+// which is then converted to a sorted list as needed
+// (may be easier to work with)
 export type NotificationState = {
   notifications: Notification[];
 };
