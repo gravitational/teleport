@@ -19,7 +19,7 @@ mod scard;
 pub(crate) mod tdp;
 
 use self::path::{UnixPath, WindowsPath};
-use self::scard::IoctlCode;
+use self::scard::{Contexts, IoctlCode};
 use crate::client::{ClientFunction, ClientHandle};
 use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error,
@@ -34,13 +34,17 @@ use consts::{
     GENERAL_CAPABILITY_VERSION_02, I64_SIZE, I8_SIZE, NTSTATUS, SCARD_DEVICE_ID,
     SMARTCARD_CAPABILITY_VERSION_01, TDP_FALSE, U32_SIZE, U8_SIZE, VERSION_MAJOR, VERSION_MINOR,
 };
-use ironrdp_pdu::{other_err, PduResult};
+use ironrdp_pdu::{custom_err, other_err, PduResult};
+use ironrdp_rdpdr::pdu::esc::{
+    rpce, CardProtocol, CardStateFlags, ConnectCall, ConnectReturn, EstablishContextCall,
+    EstablishContextReturn, GetStatusChangeCall, GetStatusChangeReturn, ListReadersCall,
+    ListReadersReturn, ReaderStateCommonCall, ScardCall,
+};
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::{
     pdu::{
         efs::{
-            DeviceControlRequest, DeviceControlResponse, DeviceIoResponse, NtStatus,
-            ServerDeviceAnnounceResponse,
+            DeviceControlRequest, DeviceControlResponse, NtStatus, ServerDeviceAnnounceResponse,
         },
         esc::{LongReturn, ReturnCode, ScardAccessStartedEventCall, ScardIoCtlCode},
     },
@@ -63,6 +67,7 @@ use tdp::{
     SharedDirectoryReadRequest, SharedDirectoryReadResponse, SharedDirectoryWriteRequest,
     SharedDirectoryWriteResponse, TdpErrCode,
 };
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct TeleportRdpdrBackend {
@@ -72,30 +77,254 @@ pub struct TeleportRdpdrBackend {
     active_device_ids: Vec<u32>,
     /// The client handle for this backend, used to send messages to the RDP server.
     client_handle: ClientHandle,
+    /// contexts holds all the active contexts for the server, established using
+    /// SCARD_IOCTL_ESTABLISHCONTEXT. Some IOCTLs are context-specific and pass it as argument.
+    ///
+    /// contexts also holds a cache and connected smartcard handles for each context.
+    contexts: Contexts,
+    uuid: Uuid,
+    cert_der: Vec<u8>,
+    key_der: Vec<u8>,
+    pin: String,
 }
 
 impl TeleportRdpdrBackend {
-    pub fn new(smartcard_device_id: u32, client_handle: ClientHandle) -> Self {
+    pub fn new(
+        smartcard_device_id: u32,
+        client_handle: ClientHandle,
+        cert_der: Vec<u8>,
+        key_der: Vec<u8>,
+        pin: String,
+    ) -> Self {
         Self {
             active_device_ids: vec![smartcard_device_id],
             client_handle,
+            contexts: Contexts::new(),
+            uuid: Uuid::new_v4(),
+            cert_der,
+            key_der,
+            pin,
         }
     }
 
     fn get_scard_device_id(&self) -> PduResult<u32> {
-        if self.active_device_ids.len() == 0 {
-            return Err(other_err!(
+        if self.active_device_ids.is_empty() {
+            return Err(custom_err!(
                 "TeleportRdpdrBackend::get_scard_device_id",
-                "no active devices",
+                TeleportRdpdrBackendError("no active devices".to_string())
             ));
         }
         Ok(self.active_device_ids[0])
+    }
+
+    fn handle_access_started(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        _call: ScardAccessStartedEventCall,
+    ) -> PduResult<()> {
+        let scard_device_id = self.get_scard_device_id()?;
+        if req.header.device_id != scard_device_id {
+            return Err(custom_err!(
+                "TeleportRdpdrBackend::handle_scard_access_started_event_call",
+                TeleportRdpdrBackendError(
+                    format!(
+                        "got ScardAccessStartedEventCall for unknown device_id [{}], expected [{}]",
+                        req.header.device_id, scard_device_id
+                    )
+                    .to_string()
+                ),
+            ));
+        }
+
+        self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
+    }
+
+    fn handle_establish_context(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        _call: EstablishContextCall,
+    ) -> PduResult<()> {
+        let ctx = self.contexts.establish();
+
+        self.write_rdpdr_dev_ctl_resp(
+            req,
+            Box::new(EstablishContextReturn::new(ReturnCode::Success, ctx)),
+        )
+    }
+
+    fn handle_list_readers(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        _call: ListReadersCall,
+    ) -> PduResult<()> {
+        self.write_rdpdr_dev_ctl_resp(
+            req,
+            Box::new(ListReadersReturn::new(
+                ReturnCode::Success,
+                vec![scard::TELEPORT_READER_NAME.to_string()],
+            )),
+        )
+    }
+
+    fn handle_get_status_change(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        call: GetStatusChangeCall,
+    ) -> PduResult<()> {
+        let timeout = call.timeout;
+        let context_id = call.context.value;
+
+        if timeout != scard::TIMEOUT_INFINITE && timeout != scard::TIMEOUT_IMMEDIATE {
+            // We've never seen one of these but we log a warning here in case we ever come
+            // across one and need to debug a related issue.
+            warn!(
+                "logic for a non-infinite/non-immediate timeout [{}] is not implemented",
+                timeout
+            );
+        }
+
+        let get_status_change_ret = Self::create_get_status_change_return(call);
+
+        // We have no status change to report, cache a response
+        // for later in case we get an SCARD_IOCTL_CANCEL.
+        if Self::has_no_change(&get_status_change_ret) {
+            if timeout != scard::TIMEOUT_INFINITE {
+                return Err(other_err!(
+                    "TeleportRdpdrBackend::handle_list_readers",
+                    "got no change for non-infinite timeout",
+                ));
+            }
+
+            // Received a GetStatusChangeCall with an infinite timeout, so we're adding
+            // a corresponding DeviceControlResponse holding a GetStatusChangeReturn
+            // with its return code set to SCARD_E_CANCELLED to this Context. This value will
+            // be returned when we get an SCARD_IOCTL_CANCEL call for this Context.
+            self.contexts.set_scard_cancel_response(
+                context_id,
+                DeviceControlResponse::new(
+                    req,
+                    NtStatus::Success,
+                    Box::new(GetStatusChangeReturn::new(
+                        ReturnCode::Cancelled,
+                        get_status_change_ret.into_inner().reader_states,
+                    )),
+                ),
+            )?;
+
+            debug!("blocking GetStatusChange call indefinitely (since our status never changes) until we receive an SCARD_IOCTL_CANCEL");
+
+            return Ok(());
+        }
+
+        // We have some status change to report, send it to the server.
+        self.write_rdpdr_dev_ctl_resp(req, Box::new(get_status_change_ret))
+    }
+
+    fn handle_connect(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        call: ConnectCall,
+    ) -> PduResult<()> {
+        let handle = self.contexts.connect(
+            call.common.context,
+            call.common.context.value,
+            self.uuid,
+            &self.cert_der,
+            &self.key_der,
+            self.pin.clone(),
+        )?;
+
+        self.write_rdpdr_dev_ctl_resp(
+            req,
+            Box::new(ConnectReturn::new(
+                ReturnCode::Success,
+                handle,
+                CardProtocol::SCARD_PROTOCOL_T1,
+            )),
+        )
+    }
+
+    fn create_get_status_change_return(
+        call: GetStatusChangeCall,
+    ) -> rpce::Pdu<GetStatusChangeReturn> {
+        let mut reader_states = vec![];
+        for state in call.states {
+            match state.reader.as_str() {
+                // PnP is Plug-and-Play. This special reader "name" is used to monitor for
+                // new readers being plugged in.
+                "\\\\?PnP?\\Notification" => {
+                    reader_states.push(ReaderStateCommonCall {
+                        current_state: state.common.current_state,
+                        event_state: state.common.current_state,
+                        atr_length: state.common.atr_length,
+                        atr: state.common.atr,
+                    });
+                }
+                // This is our actual emulated smartcard reader. We always advertise its state as
+                // "present".
+                scard::TELEPORT_READER_NAME => {
+                    let (atr_length, atr) = scard::padded_atr::<36>();
+                    reader_states.push(ReaderStateCommonCall {
+                        current_state: state.common.current_state,
+                        event_state: CardStateFlags::SCARD_STATE_CHANGED
+                            | CardStateFlags::SCARD_STATE_PRESENT,
+                        atr_length,
+                        atr,
+                    });
+                }
+                // All other reader names are unknown and unexpected.
+                _ => {
+                    warn!(
+                        "got unexpected reader name [{}], ignoring",
+                        state.reader.as_str()
+                    );
+                    reader_states.push(ReaderStateCommonCall {
+                        current_state: state.common.current_state,
+                        event_state: CardStateFlags::SCARD_STATE_CHANGED
+                            | CardStateFlags::SCARD_STATE_UNKNOWN
+                            | CardStateFlags::SCARD_STATE_IGNORE,
+                        atr_length: state.common.atr_length,
+                        atr: state.common.atr,
+                    });
+                }
+            }
+        }
+
+        GetStatusChangeReturn::new(ReturnCode::Success, reader_states)
+    }
+
+    fn has_no_change(pdu: &rpce::Pdu<GetStatusChangeReturn>) -> bool {
+        pdu.into_inner_ref()
+            .reader_states
+            .iter()
+            .all(|state| state.current_state == state.event_state)
+    }
+
+    fn write_rdpdr_dev_ctl_resp(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        resp: Box<dyn rpce::Encode>,
+    ) -> PduResult<()> {
+        let resp = DeviceControlResponse::new(req, NtStatus::Success, resp);
+        self.client_handle
+            .blocking_send(ClientFunction::WriteRdpdr(RdpdrPdu::DeviceControlResponse(
+                resp,
+            )))
+            .map_err(|e| {
+                custom_err!(
+                    "write_rdpdr_dev_ctl_resp",
+                    // Due to a long chain of trait dependencies in IronRDP that are impractical to unwind at this point,
+                    // we can't put _e in the source field of the error because it isn't Sync (because ClientFunction itself
+                    // isn't sync). We compromise here by just wrapping its Debug output in a TeleportRdpdrBackendError.
+                    TeleportRdpdrBackendError(format!("{:?}", e))
+                )
+            })
     }
 }
 
 impl RdpdrBackend for TeleportRdpdrBackend {
     fn handle_server_device_announce_response(
-        &self,
+        &mut self,
         pdu: ServerDeviceAnnounceResponse,
     ) -> PduResult<()> {
         if !self.active_device_ids.contains(&pdu.device_id) {
@@ -116,43 +345,33 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         Ok(())
     }
 
-    fn handle_scard_access_started_event_call(
-        &self,
+    fn handle_scard_call(
+        &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
-        _call: ScardAccessStartedEventCall,
+        call: ScardCall,
     ) -> PduResult<()> {
-        if req.header.device_id != self.get_scard_device_id()? {
-            return Err(other_err!(
-                "TeleportRdpdrBackend::handle_scard_access_started_event_call",
-                "got ScardAccessStartedEventCall for unknown device_id",
-            ));
+        match call {
+            ScardCall::AccessStartedEventCall(call) => self.handle_access_started(req, call),
+            ScardCall::EstablishContextCall(call) => self.handle_establish_context(req, call),
+            ScardCall::ListReadersCall(call) => self.handle_list_readers(req, call),
+            ScardCall::GetStatusChangeCall(call) => self.handle_get_status_change(req, call),
+            ScardCall::ConnectCall(call) => self.handle_connect(req, call),
+            ScardCall::Unsupported => Ok(()),
         }
-
-        let resp = DeviceControlResponse {
-            device_io_reply: DeviceIoResponse {
-                device_id: req.header.device_id,
-                completion_id: req.header.completion_id,
-                io_status: NtStatus::Success,
-            },
-            output_buffer: Box::new(LongReturn {
-                return_code: ReturnCode::Success,
-            }),
-        };
-
-        self.client_handle
-            .blocking_send(ClientFunction::WriteRdpdr(RdpdrPdu::DeviceControlResponse(
-                resp,
-            )))
-            .map_err(|_e| {
-                other_err!(
-                    "TeleportRdpdrBackend::handle_scard_access_started_event_call",
-                    "failed to send DeviceControlResponse to server",
-                )
-            })?;
-
-        Ok(())
     }
 }
+
+/// A generic error type for the TeleportRdpdrBackend that can contain any arbitrary error message.
+#[derive(Debug)]
+struct TeleportRdpdrBackendError(String);
+
+impl std::fmt::Display for TeleportRdpdrBackendError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#?}", self)
+    }
+}
+
+impl std::error::Error for TeleportRdpdrBackendError {}
 
 /// Client implements a device redirection (RDPDR) client, as defined in
 /// https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
@@ -483,8 +702,6 @@ impl Client {
             rdp_req.device_io_request.completion_id,
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryInfoResponse| -> RdpResult<Messages> {
-                    let rdp_req = rdp_req;
-
                     match res.err_code {
                         TdpErrCode::Failed | TdpErrCode::AlreadyExists => {
                             return Err(try_error(&format!(
@@ -2404,14 +2621,14 @@ impl DeviceIoResponseDeprecated {
 #[derive(Debug)]
 struct DeviceControlResponseDeprecated {
     header: DeviceIoResponseDeprecated,
-    output_buffer: Box<dyn Encode>,
+    output_buffer: Box<dyn Encode + Send + Sync>,
 }
 
 impl DeviceControlResponseDeprecated {
     fn new(
         req: &DeviceControlRequestDeprecated,
         io_status: NTSTATUS,
-        output: Box<dyn Encode>,
+        output: Box<dyn Encode + Send + Sync>,
     ) -> Self {
         Self {
             header: DeviceIoResponseDeprecated::new(&req.header, io_status),

@@ -18,6 +18,10 @@ use crate::{piv, Message};
 use crate::{Encode, Payload};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use ironrdp_pdu::{other_err, PduResult};
+use ironrdp_rdpdr::pdu::efs::DeviceControlResponse;
+use ironrdp_rdpdr::pdu::esc::ndr::{self, Encode as NdrEncode};
+use ironrdp_rdpdr::pdu::esc::{ScardContext, ScardHandle};
 use iso7816::command::Command as CardCommand;
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::model::data::Message as MessageTrait;
@@ -129,7 +133,7 @@ impl Client {
     ) -> RdpResult<Vec<DeviceControlResponseDeprecated>> {
         let req = EstablishContext_Call::decode(input)?;
         debug!("got {:?}", req);
-        let ctx = self.contexts.establish();
+        let ctx = self.contexts.establish_deprecated();
         let resp = EstablishContext_Return::new(ReturnCode::SCARD_S_SUCCESS, ctx);
         debug!("sending {:?}", resp);
         Ok(vec![DeviceControlResponseDeprecated::new(
@@ -168,8 +172,8 @@ impl Client {
         // Fetch the pending SCARD_IOCTL_GETSTATUSCHANGEW response and add it to the responses.
         if let Some(dcr) = self
             .contexts
-            .get(req.context.value)?
-            .scard_cancel_response
+            .get_internal_mut_deprecated(req.context.value)?
+            .scard_cancel_response_deprecated
             .take()
         {
             responses.push(dcr);
@@ -254,8 +258,8 @@ impl Client {
             // be returned when we get an SCARD_IOCTL_CANCEL call for this Context.
             resp.set_return_code(ReturnCode::SCARD_E_CANCELLED);
             self.contexts
-                .get(context_value)?
-                .set_scard_cancel_response(DeviceControlResponseDeprecated::new(
+                .get_internal_mut_deprecated(context_value)?
+                .set_scard_cancel_response_deprecated(DeviceControlResponseDeprecated::new(
                     ioctl,
                     NTSTATUS::STATUS_SUCCESS,
                     Box::new(resp),
@@ -280,8 +284,10 @@ impl Client {
         let req = Connect_Call::decode(input)?;
         debug!("got {:?}", req);
 
-        let ctx = self.contexts.get(req.common.context.value)?;
-        let handle = ctx.connect(
+        let ctx = self
+            .contexts
+            .get_internal_mut_deprecated(req.common.context.value)?;
+        let handle = ctx.connect_deprecated(
             req.common.context,
             self.uuid,
             &self.cert_der,
@@ -307,7 +313,7 @@ impl Client {
         debug!("got {:?}", req);
 
         self.contexts
-            .get(req.handle.context.value)?
+            .get_internal_mut_deprecated(req.handle.context.value)?
             .disconnect(req.handle.value);
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
@@ -392,7 +398,7 @@ impl Client {
 
         let card = self
             .contexts
-            .get(req.handle.context.value)?
+            .get_internal_mut_deprecated(req.handle.context.value)?
             .get(req.handle.value)
             .ok_or_else(|| invalid_data_error("unknown handle ID"))?;
 
@@ -415,7 +421,9 @@ impl Client {
         let req = GetDeviceTypeId_Call::decode(input)?;
         debug!("got {:?}", req);
 
-        let _ctx = self.contexts.get(req.context.value)?;
+        let _ctx = self
+            .contexts
+            .get_internal_mut_deprecated(req.context.value)?;
 
         let resp = GetDeviceTypeId_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
@@ -436,7 +444,7 @@ impl Client {
 
         let val = self
             .contexts
-            .get(req.common.context.value)?
+            .get_internal_mut_deprecated(req.common.context.value)?
             .cache_read(&req.lookup_name);
 
         let resp = ReadCache_Return::new(val);
@@ -457,7 +465,7 @@ impl Client {
         debug!("got {:?}", req);
 
         self.contexts
-            .get(req.common.context.value)?
+            .get_internal_mut_deprecated(req.common.context.value)?
             .cache_write(req.lookup_name, req.common.data);
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
@@ -477,7 +485,9 @@ impl Client {
         let req = GetReaderIcon_Call::decode(input)?;
         debug!("got {:?}", req);
 
-        let _ctx = self.contexts.get(req.context.value)?;
+        let _ctx = self
+            .contexts
+            .get_internal_mut_deprecated(req.context.value)?;
 
         let resp = GetReaderIcon_Return::new(ReturnCode::SCARD_E_UNSUPPORTED_FEATURE);
         debug!("sending {:?}", resp);
@@ -717,8 +727,8 @@ impl Encode for ScardAccessStartedEvent_Call {
     }
 }
 
-const TIMEOUT_INFINITE: u32 = 0xffffffff;
-const TIMEOUT_IMMEDIATE: u32 = 0;
+pub const TIMEOUT_INFINITE: u32 = 0xffffffff;
+pub const TIMEOUT_IMMEDIATE: u32 = 0;
 
 #[derive(Debug, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
@@ -854,11 +864,11 @@ enum Scope {
 #[allow(non_camel_case_types)]
 struct EstablishContext_Return {
     return_code: ReturnCode,
-    context: Context,
+    context: ContextDeprecated,
 }
 
 impl EstablishContext_Return {
-    fn new(return_code: ReturnCode, context: Context) -> Self {
+    fn new(return_code: ReturnCode, context: ContextDeprecated) -> Self {
         Self {
             return_code,
             context,
@@ -878,14 +888,14 @@ impl Encode for EstablishContext_Return {
 }
 
 #[derive(Debug)]
-struct Context {
+pub struct ContextDeprecated {
     length: u32,
     // Shortcut: we always create 4-byte context values.
     // The spec allows this field to have variable length.
     value: u32,
 }
 
-impl Context {
+impl ContextDeprecated {
     fn new(val: u32) -> Self {
         Self {
             length: 4,
@@ -949,7 +959,7 @@ fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<u32> {
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
 struct ListReaders_Call {
-    context: Context,
+    context: ContextDeprecated,
     groups_ptr_length: u32,
     groups_length: u32,
     groups_ptr: u32,
@@ -964,7 +974,7 @@ impl ListReaders_Call {
         let _header = RPCETypeHeader::decode(payload)?;
 
         let mut index = 0;
-        let mut context = Context::decode_ptr(payload, &mut index)?;
+        let mut context = ContextDeprecated::decode_ptr(payload, &mut index)?;
         let groups_ptr_length = payload.read_u32::<LittleEndian>()?;
         let groups_ptr = decode_ptr(payload, &mut index)?;
         let readers_is_null = (payload.read_u32::<LittleEndian>()?) == 0x00000001;
@@ -1158,7 +1168,7 @@ fn encode_multistring_ascii(items: &[String]) -> RdpResult<Vec<u8>> {
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 struct Context_Call {
-    context: Context,
+    context: ContextDeprecated,
 }
 
 impl Context_Call {
@@ -1167,7 +1177,7 @@ impl Context_Call {
         let _header = RPCETypeHeader::decode(payload)?;
 
         let mut index = 0;
-        let mut context = Context::decode_ptr(payload, &mut index)?;
+        let mut context = ContextDeprecated::decode_ptr(payload, &mut index)?;
         context.decode_value(payload)?;
         Ok(Self { context })
     }
@@ -1191,7 +1201,7 @@ impl Encode for Context_Call {
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
 struct GetStatusChange_Call {
-    context: Context,
+    context: ContextDeprecated,
     timeout: u32,
     states_ptr_length: u32,
     states_ptr: u32,
@@ -1205,7 +1215,7 @@ impl GetStatusChange_Call {
         let _header = RPCETypeHeader::decode(payload)?;
 
         let mut index = 0;
-        let mut context = Context::decode_ptr(payload, &mut index)?;
+        let mut context = ContextDeprecated::decode_ptr(payload, &mut index)?;
 
         let timeout = payload.read_u32::<LittleEndian>()?;
         let states_ptr_length = payload.read_u32::<LittleEndian>()?;
@@ -1359,10 +1369,17 @@ const STATIC_ATR: [u8; 11] = [
     0x3B, 0x95, 0x13, 0x81, 0x01, 0x80, 0x73, 0xFF, 0x01, 0x00, 0x0B,
 ];
 
-fn padded_atr(size: usize) -> (u32, Vec<u8>) {
+pub fn padded_atr_deprecated(size: usize) -> (u32, Vec<u8>) {
     let mut atr = STATIC_ATR.to_vec();
     atr.resize(size, 0);
     (STATIC_ATR.len() as u32, atr)
+}
+
+pub fn padded_atr<const SIZE: usize>() -> (u32, [u8; SIZE]) {
+    let mut atr = [0; SIZE];
+    let len = STATIC_ATR.len().min(SIZE);
+    atr[..len].copy_from_slice(&STATIC_ATR[..len]);
+    (len as u32, atr)
 }
 
 #[derive(Debug)]
@@ -1389,7 +1406,7 @@ impl GetStatusChange_Return {
                 // This is our actual emulated smartcard reader. We always advertise its state as
                 // "present".
                 "Teleport" => {
-                    let (atr_length, atr) = padded_atr(36);
+                    let (atr_length, atr) = padded_atr_deprecated(36);
                     reader_states.push(ReaderState_Common_Call {
                         current_state: state.common.current_state,
                         event_state: CardStateFlags::SCARD_STATE_CHANGED
@@ -1501,14 +1518,14 @@ bitflags! {
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
 struct Connect_Common {
-    context: Context,
+    context: ContextDeprecated,
     share_mode: u32,
     preferred_protocols: CardProtocol,
 }
 
 impl Connect_Common {
     fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<Self> {
-        let context = Context::decode_ptr(payload, index)?;
+        let context = ContextDeprecated::decode_ptr(payload, index)?;
         let share_mode = payload.read_u32::<LittleEndian>()?;
         let preferred_protocols = CardProtocol::from_bits(payload.read_u32::<LittleEndian>()?)
             .ok_or_else(|| {
@@ -1570,7 +1587,7 @@ impl Encode for Connect_Return {
 
 #[derive(Debug)]
 struct Handle {
-    context: Context,
+    context: ContextDeprecated,
     length: u32,
     // Shortcut: we always create 4-byte handle values.
     // The spec allows this field to have variable length.
@@ -1578,7 +1595,7 @@ struct Handle {
 }
 
 impl Handle {
-    fn new(context: Context, value: u32) -> Self {
+    fn new(context: ContextDeprecated, value: u32) -> Self {
         Self {
             context,
             length: 4,
@@ -1598,7 +1615,7 @@ impl Handle {
     }
 
     fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<Self> {
-        let context = Context::decode_ptr(payload, index)?;
+        let context = ContextDeprecated::decode_ptr(payload, index)?;
         let length = payload.read_u32::<LittleEndian>()?;
         let _ptr = decode_ptr(payload, index)?;
         Ok(Self {
@@ -1741,7 +1758,7 @@ struct Status_Return {
 
 impl Status_Return {
     fn new(return_code: ReturnCode, reader_names: Vec<String>, encoding: StringEncoding) -> Self {
-        let (atr_length, atr) = padded_atr(32);
+        let (atr_length, atr) = padded_atr_deprecated(32);
         Self {
             return_code,
             reader_names,
@@ -1947,7 +1964,7 @@ impl Encode for Transmit_Return {
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
 struct GetDeviceTypeId_Call {
-    context: Context,
+    context: ContextDeprecated,
     reader_ptr: u32,
     reader_name: String,
 }
@@ -1958,7 +1975,7 @@ impl GetDeviceTypeId_Call {
         let _header = RPCETypeHeader::decode(payload)?;
 
         let mut index = 0;
-        let mut context = Context::decode_ptr(payload, &mut index)?;
+        let mut context = ContextDeprecated::decode_ptr(payload, &mut index)?;
 
         let reader_ptr = decode_ptr(payload, &mut index)?;
 
@@ -2069,7 +2086,7 @@ impl Encode for ReadCache_Call {
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
 struct ReadCache_Common {
-    context: Context,
+    context: ContextDeprecated,
     card_uuid: Vec<u8>,
     freshness_counter: u32,
     data_is_null: bool,
@@ -2078,7 +2095,7 @@ struct ReadCache_Common {
 
 impl ReadCache_Common {
     fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<Self> {
-        let context = Context::decode_ptr(payload, index)?;
+        let context = ContextDeprecated::decode_ptr(payload, index)?;
         let _card_uuid_ptr = decode_ptr(payload, index)?;
 
         let freshness_counter = payload.read_u32::<LittleEndian>()?;
@@ -2201,7 +2218,7 @@ impl Encode for WriteCache_Call {
 #[derive(Debug)]
 #[allow(non_camel_case_types, dead_code)]
 struct WriteCache_Common {
-    context: Context,
+    context: ContextDeprecated,
     card_uuid: Vec<u8>,
     freshness_counter: u32,
     data: Vec<u8>,
@@ -2209,7 +2226,7 @@ struct WriteCache_Common {
 
 impl WriteCache_Common {
     fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<Self> {
-        let context = Context::decode_ptr(payload, index)?;
+        let context = ContextDeprecated::decode_ptr(payload, index)?;
         let _card_uuid_ptr = decode_ptr(payload, index)?;
         let freshness_counter = payload.read_u32::<LittleEndian>()?;
         let _data_len = payload.read_u32::<LittleEndian>()?;
@@ -2257,7 +2274,7 @@ impl WriteCache_Common {
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
 struct GetReaderIcon_Call {
-    context: Context,
+    context: ContextDeprecated,
     reader_name: String,
 }
 
@@ -2267,7 +2284,7 @@ impl GetReaderIcon_Call {
         let _header = RPCETypeHeader::decode(payload)?;
 
         let mut index = 0;
-        let mut context = Context::decode_ptr(payload, &mut index)?;
+        let mut context = ContextDeprecated::decode_ptr(payload, &mut index)?;
 
         let _reader_ptr = decode_ptr(payload, &mut index)?;
 
@@ -2326,32 +2343,69 @@ impl Encode for GetReaderIcon_Return {
 }
 
 #[derive(Debug)]
-struct Contexts {
+pub struct Contexts {
     contexts: HashMap<u32, ContextInternal>,
     next_id: u32,
 }
 
 impl Contexts {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             next_id: 1,
             contexts: HashMap::new(),
         }
     }
 
-    fn establish(&mut self) -> Context {
+    pub fn establish(&mut self) -> ScardContext {
         let ctx_internal = ContextInternal::new();
         let id = self.next_id;
         self.next_id += 1;
-        let ctx = Context::new(id);
+        let ctx = ScardContext::new(id);
         self.contexts.insert(id, ctx_internal);
         ctx
     }
 
-    fn get(&mut self, id: u32) -> RdpResult<&mut ContextInternal> {
+    pub fn establish_deprecated(&mut self) -> ContextDeprecated {
+        let ctx_internal = ContextInternal::new();
+        let id = self.next_id;
+        self.next_id += 1;
+        let ctx = ContextDeprecated::new(id);
+        self.contexts.insert(id, ctx_internal);
+        ctx
+    }
+
+    pub fn connect(
+        &mut self,
+        ctx: ScardContext,
+        id: u32,
+        uuid: Uuid,
+        cert_der: &[u8],
+        key_der: &[u8],
+        pin: String,
+    ) -> PduResult<ScardHandle> {
+        let ctx_internal = self.get_internal_mut(id)?;
+        let handle = ctx_internal.connect(ctx, uuid, cert_der, key_der, pin)?;
+        Ok(handle)
+    }
+
+    pub fn set_scard_cancel_response(
+        &mut self,
+        id: u32,
+        resp: DeviceControlResponse,
+    ) -> PduResult<()> {
+        self.get_internal_mut(id)?.set_scard_cancel_response(resp)
+    }
+
+    fn get_internal_mut_deprecated(&mut self, id: u32) -> RdpResult<&mut ContextInternal> {
         self.contexts
             .get_mut(&id)
             .ok_or_else(|| invalid_data_error(&format!("unknown context id: {}", id)))
+    }
+
+    fn get_internal_mut(&mut self, id: u32) -> PduResult<&mut ContextInternal> {
+        self.contexts
+            .get_mut(&id)
+            .ok_or_else(|| other_err!("Contexts::get", "unknown context id"))
     }
 
     fn release(&mut self, id: u32) {
@@ -2371,7 +2425,15 @@ struct ContextInternal {
     //
     // This value will be set during the handling of the SCARD_IOCTL_GETSTATUSCHANGEW, so that
     // it can be fetched and returned in response to a SCARD_IOCTL_CANCEL.
-    scard_cancel_response: Option<DeviceControlResponseDeprecated>,
+    scard_cancel_response: Option<DeviceControlResponse>,
+    // If we receive a SCARD_IOCTL_GETSTATUSCHANGEW with an infinite timeout, we need to
+    // return a GetStatusChange_Return (embedded in a DeviceControlResponse) with
+    // its return code set to SCARD_E_CANCELLED in the case that we receive a
+    // SCARD_IOCTL_CANCEL.
+    //
+    // This value will be set during the handling of the SCARD_IOCTL_GETSTATUSCHANGEW, so that
+    // it can be fetched and returned in response to a SCARD_IOCTL_CANCEL.
+    scard_cancel_response_deprecated: Option<DeviceControlResponseDeprecated>,
 }
 
 impl ContextInternal {
@@ -2381,29 +2443,57 @@ impl ContextInternal {
             handles: HashMap::new(),
             cache: HashMap::new(),
             scard_cancel_response: None,
+            scard_cancel_response_deprecated: None,
         }
     }
 
-    fn set_scard_cancel_response(
+    fn set_scard_cancel_response(&mut self, resp: DeviceControlResponse) -> PduResult<()> {
+        if self.scard_cancel_response.is_some() {
+            return Err(other_err!(
+                "ContextInternal::set_scard_cancel_response",
+                "SCARD_IOCTL_CANCEL already received",
+            ));
+        }
+        self.scard_cancel_response = Some(resp);
+        Ok(())
+    }
+
+    fn set_scard_cancel_response_deprecated(
         &mut self,
         response: DeviceControlResponseDeprecated,
     ) -> RdpResult<()> {
-        if self.scard_cancel_response.is_some() {
+        if self.scard_cancel_response_deprecated.is_some() {
             return Err(invalid_data_error("SCARD_IOCTL_CANCEL already received"));
         }
-        self.scard_cancel_response = Some(response);
+        self.scard_cancel_response_deprecated = Some(response);
         Ok(())
     }
 
     fn connect(
         &mut self,
-        ctx: Context,
+        ctx: ScardContext,
+        uuid: Uuid,
+        cert_der: &[u8],
+        key_der: &[u8],
+        pin: String,
+    ) -> PduResult<ScardHandle> {
+        let card = piv::Card::new(uuid, cert_der, key_der, pin)?;
+        let id = self.next_id;
+        self.next_id += 1;
+        let handle = ScardHandle::new(ctx, id);
+        self.handles.insert(id, card);
+        Ok(handle)
+    }
+
+    fn connect_deprecated(
+        &mut self,
+        ctx: ContextDeprecated,
         uuid: Uuid,
         cert_der: &[u8],
         key_der: &[u8],
         pin: String,
     ) -> RdpResult<Handle> {
-        let card = piv::Card::new(uuid, cert_der, key_der, pin)?;
+        let card = piv::Card::new_deprecated(uuid, cert_der, key_der, pin)?;
         let id = self.next_id;
         self.next_id += 1;
         let handle = Handle::new(ctx, id);
@@ -2436,6 +2526,8 @@ fn debug_print_payload(payload: &mut Payload) {
     let buf = &payload.into_inner()[from..];
     info!("========== payload {:?}", &buf);
 }
+
+pub const TELEPORT_READER_NAME: &str = "Teleport";
 
 #[cfg(test)]
 mod tests {
@@ -2601,7 +2693,7 @@ mod tests {
         let mut c = client();
 
         for _ in 0..established_ctxs {
-            c.contexts.establish();
+            c.contexts.establish_deprecated();
         }
         if let Some(connect_scard_to_ctx) = connect_scard_to_ctx {
             connect_scard(&mut c, connect_scard_to_ctx);
@@ -2638,9 +2730,12 @@ mod tests {
     /// way of doing what test_scard_ioctl_connectw does to the Client's
     /// internal state.
     fn connect_scard(c: &mut Client, context_value: u32) {
-        let ctx = c.contexts.get(context_value).unwrap();
-        ctx.connect(
-            Context {
+        let ctx = c
+            .contexts
+            .get_internal_mut_deprecated(context_value)
+            .unwrap();
+        ctx.connect_deprecated(
+            ContextDeprecated {
                 length: 4,
                 value: context_value,
             },
@@ -2678,7 +2773,7 @@ mod tests {
             },
             &EstablishContext_Return {
                 return_code: ReturnCode::SCARD_S_SUCCESS,
-                context: Context {
+                context: ContextDeprecated {
                     length: 4,
                     value: 1,
                 },
@@ -2693,7 +2788,7 @@ mod tests {
             None,
             IoctlCode::SCARD_IOCTL_LISTREADERSW,
             &ListReaders_Call {
-                context: Context {
+                context: ContextDeprecated {
                     length: 4,
                     value: 2,
                 },
@@ -2719,7 +2814,7 @@ mod tests {
             None,
             IoctlCode::SCARD_IOCTL_GETDEVICETYPEID,
             &GetDeviceTypeId_Call {
-                context: Context {
+                context: ContextDeprecated {
                     length: 4,
                     value: context_value,
                 },
@@ -2741,7 +2836,7 @@ mod tests {
             None,
             IoctlCode::SCARD_IOCTL_RELEASECONTEXT,
             &Context_Call {
-                context: Context {
+                context: ContextDeprecated {
                     length: 4,
                     value: context_value,
                 },
@@ -2760,7 +2855,7 @@ mod tests {
             None,
             IoctlCode::SCARD_IOCTL_GETSTATUSCHANGEW,
             &GetStatusChange_Call {
-                context: Context {
+                context: ContextDeprecated {
                     length: 4,
                     value: context_value,
                 },
@@ -2826,7 +2921,7 @@ mod tests {
             &Connect_Call {
                 reader: "Teleport".to_string(),
                 common: Connect_Common {
-                    context: Context {
+                    context: ContextDeprecated {
                         length: 4,
                         value: context_value,
                     },
@@ -2839,7 +2934,7 @@ mod tests {
             &Connect_Return {
                 return_code: ReturnCode::SCARD_S_SUCCESS,
                 handle: Handle {
-                    context: Context {
+                    context: ContextDeprecated {
                         length: 4,
                         value: 5,
                     },
@@ -2860,7 +2955,7 @@ mod tests {
             IoctlCode::SCARD_IOCTL_BEGINTRANSACTION,
             &HCardAndDisposition_Call {
                 handle: Handle {
-                    context: Context {
+                    context: ContextDeprecated {
                         length: 4,
                         value: 5,
                     },
@@ -2884,7 +2979,7 @@ mod tests {
             IoctlCode::SCARD_IOCTL_STATUSW,
             &Status_Call {
                 handle: Handle {
-                    context: Context {
+                    context: ContextDeprecated {
                         length: 4,
                         value: 5,
                     },
@@ -2919,7 +3014,7 @@ mod tests {
             IoctlCode::SCARD_IOCTL_TRANSMIT,
             &Transmit_Call {
                 handle: Handle {
-                    context: Context {
+                    context: ContextDeprecated {
                         length: 4,
                         value: 5,
                     },
@@ -2956,7 +3051,7 @@ mod tests {
             &ReadCache_Call {
                 lookup_name: "Cached_CardmodFile\\Cached_Pin_Freshness".to_string(),
                 common: ReadCache_Common {
-                    context: Context {
+                    context: ContextDeprecated {
                         length: 4,
                         value: 5,
                     },
@@ -2985,7 +3080,7 @@ mod tests {
             &WriteCache_Call {
                 lookup_name: "Cached_CardProperty_Read Only Mode_0".to_string(),
                 common: WriteCache_Common {
-                    context: Context {
+                    context: ContextDeprecated {
                         length: 4,
                         value: context_value,
                     },
@@ -3011,7 +3106,7 @@ mod tests {
             IoctlCode::SCARD_IOCTL_ENDTRANSACTION,
             &HCardAndDisposition_Call {
                 handle: Handle {
-                    context: Context {
+                    context: ContextDeprecated {
                         length: 4,
                         value: context_value,
                     },
@@ -3035,7 +3130,7 @@ mod tests {
             IoctlCode::SCARD_IOCTL_DISCONNECT,
             &HCardAndDisposition_Call {
                 handle: Handle {
-                    context: Context {
+                    context: ContextDeprecated {
                         length: 4,
                         value: context_value,
                     },
@@ -3058,7 +3153,7 @@ mod tests {
             None,
             IoctlCode::SCARD_IOCTL_GETREADERICON,
             &GetReaderIcon_Call {
-                context: Context {
+                context: ContextDeprecated {
                     length: 4,
                     value: context_value,
                 },

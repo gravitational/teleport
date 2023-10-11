@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 bytes = "1.4.0"
-byteorder = "1.4.3"
+byteorder = "1.5.0"
 getrandom = { version = "0.2", features = ["js"] }
 js-sys = "0.3.61"
 log = "0.4.17"
@@ -24,9 +24,10 @@ tracing-web = "0.1.2"
 time = { version = "0.3", features = ["wasm-bindgen"] }
 console_error_panic_hook = "0.1.7"
 
-ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "fe1567c887bfebfb546d86903c3b878c90d3867e" }
-ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "fe1567c887bfebfb546d86903c3b878c90d3867e" }
-ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP", rev = "fe1567c887bfebfb546d86903c3b878c90d3867e" }
+# TODO: change this to IronRDP master once https://github.com/Devolutions/IronRDP/pull/210 lands
+ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "464f154ea0558133b556af541ee35f342335abd3" }
+ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "464f154ea0558133b556af541ee35f342335abd3" }
+ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP", rev = "464f154ea0558133b556af541ee35f342335abd3" }
 
 # Uncomment the following lines and comment out the ones above to use local crates instead of the ones from github
 # ironrdp-session = { path = "/path/to/your/local/IronRDP/crates/ironrdp-session" }

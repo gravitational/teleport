@@ -1,46 +1,41 @@
-use std::io::Error as IoError;
-use std::io::ErrorKind::ConnectionRefused;
-use std::net::ToSocketAddrs;
-use std::sync::{Arc, Mutex, MutexGuard};
-
-use bitflags::Flags;
+pub mod global;
+use crate::rdpdr::consts::SCARD_DEVICE_ID;
+use crate::rdpdr::TeleportRdpdrBackend;
+use crate::{
+    handle_fastpath_pdu, handle_rdp_channel_ids, CGOErrCode, CGOKeyboardEvent,
+    CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
+};
 use bytes::BytesMut;
-use ironrdp_cliprdr::pdu::{ClipboardFormat, ClipboardFormatId, FormatDataResponse};
 use ironrdp_cliprdr::Cliprdr;
-use ironrdp_connector::{Config, ConnectionResult, ConnectorError};
+use ironrdp_connector::{Config, ConnectorError};
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
 use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::MousePdu;
 use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
-use ironrdp_pdu::{PduError, PduParsing};
+use ironrdp_pdu::PduParsing;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
 use ironrdp_rdpsnd::Rdpsnd;
-use ironrdp_session::x224::{Processor as X224Processor, Processor};
+use ironrdp_session::x224::Processor as X224Processor;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
-use ironrdp_svc::{StaticVirtualChannelProcessor, SvcMessage, SvcProcessorMessages};
+use ironrdp_svc::{SvcMessage, SvcProcessorMessages};
 use ironrdp_tls::TlsStream;
 use ironrdp_tokio::{Framed, TokioStream};
+use rand::{Rng, SeedableRng};
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
+use std::io::Error as IoError;
+use std::net::ToSocketAddrs;
+use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
 use tokio::task::JoinError;
 
-pub(crate) use global::call_function_on_handle;
-
-use crate::{
-    handle_fastpath_pdu, handle_rdp_channel_ids, handle_remote_copy, util, CGOErrCode,
-    CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
-};
 // Export this for crate level use.
-use crate::cliprdr::{ClipboardFunction, TeleportCliprdrBackend};
-use crate::rdpdr::consts::SCARD_DEVICE_ID;
-use crate::rdpdr::TeleportRdpdrBackend;
-
-pub mod global;
+use crate::cliprdr::TeleportCliprdrBackend;
+pub(crate) use global::call_function_on_handle;
 
 /// The RDP client on the Rust side of things. Each `Client`
 /// corresponds with a Go `Client` specified by `cgo_handle`.
@@ -83,10 +78,15 @@ impl Client {
         // Create a framed stream for use by connect_begin
         let mut framed = ironrdp_tokio::TokioFramed::new(stream);
 
-        let connector_config = create_config(params);
+        let connector_config =
+            create_config(params.screen_width, params.screen_height, params.username);
 
         // Create a channel for sending/receiving function calls to/from the Client.
         let (client_handle, function_receiver) = channel(100);
+
+        // Generate a random 8-digit PIN for our smartcard.
+        let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
+        let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
 
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
             .with_server_addr(server_socket_addr)
@@ -101,6 +101,9 @@ impl Client {
                     Box::new(TeleportRdpdrBackend::new(
                         SCARD_DEVICE_ID,
                         client_handle.clone(),
+                        params.cert_der,
+                        params.key_der,
+                        pin,
                     )),
                     "IronRDP".to_string(),
                 )
@@ -217,12 +220,8 @@ impl Client {
             client_handle,
         );
 
-        let mut write_loop_handle = Client::run_write_loop(
-            self.cgo_handle,
-            write_stream,
-            function_receiver,
-            x224_processor,
-        );
+        let mut write_loop_handle =
+            Client::run_write_loop(write_stream, function_receiver, x224_processor);
 
         // Wait for either loop to finish. When one does, abort the other and return the result.
         tokio::select! {
@@ -506,9 +505,9 @@ impl Client {
     /// while waiting for the `x224_processor` lock, or while processing the frame.
     /// This function ensures `x224_processor` is locked only for the necessary duration
     /// of the function call.
-    async fn x224_process_svc_messages<C: StaticVirtualChannelProcessor + 'static>(
+    async fn x224_process_svc_messages(
         x224_processor: Arc<Mutex<X224Processor>>,
-        messages: SvcProcessorMessages<C>,
+        messages: SvcProcessorMessages<Rdpdr>,
     ) -> SessionResult<Vec<u8>> {
         global::TOKIO_RT
             .spawn_blocking(move || {
@@ -563,14 +562,11 @@ pub type FunctionReceiver = Receiver<ClientFunction>;
 type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
 type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
-fn create_config(params: ConnectParams) -> Config {
+fn create_config(width: u16, height: u16, username: String) -> Config {
     Config {
-        desktop_size: ironrdp_connector::DesktopSize {
-            width: params.screen_width,
-            height: params.screen_height,
-        },
+        desktop_size: ironrdp_connector::DesktopSize { width, height },
         security_protocol: SecurityProtocol::HYBRID_EX,
-        username: params.username,
+        username,
         password: std::env::var("RDP_PASSWORD").unwrap(), //todo(isaiah)
         domain: None,
         client_build: 0,
