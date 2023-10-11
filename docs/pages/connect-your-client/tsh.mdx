@@ -697,14 +697,14 @@ Teleport supports creating clusters of servers located behind firewalls
 **without any open listening TCP ports**.  This works by creating reverse SSH
 tunnels from behind-firewall environments into a Teleport Proxy Service you have access to.
 
-These features are called **Trusted Clusters**. Refer to [the Trusted Clusters guide](../management/admin/trustedclusters.mdx)
-to learn how a Trusted Cluster can be configured.
+To learn more about setting up a trust relationship between clusters behind firewalls, see
+[Configure Trusted Clusters](../management/admin/trustedclusters.mdx).
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
-Assuming the Teleport Proxy Server called `work` is configured with a few Trusted
-Clusters, a user may use the `tsh clusters` command to see a list of all Trusted Clusters on the server:
+Assuming the Teleport Proxy Server called `work` is configured with a few trusted
+clusters, you can use the `tsh clusters` command to see a list of all the trusted clusters on the server:
 
 ```code
 $ tsh --proxy=work clusters
