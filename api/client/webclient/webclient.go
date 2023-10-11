@@ -398,7 +398,7 @@ type AuthenticationSettings struct {
 	// PrivateKeyPolicy contains the cluster-wide private key policy.
 	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"private_key_policy"`
 	// PIVSlot specifies a specific PIV slot to use with hardware key support.
-	PIVSlot string `json:"piv_slot"`
+	PIVSlot keys.PIVSlot `json:"piv_slot"`
 	// DeviceTrustDisabled provides a clue to Teleport clients on whether to avoid
 	// device authentication.
 	// Deprecated: Use DeviceTrust.Disabled instead.

@@ -24,7 +24,7 @@ import (
 // If the slot is empty, a new private key matching the given policy will be generated in the slot.
 //   - hardware_key: 9a
 //   - hardware_key_touch: 9c
-func GetYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot string) (*PrivateKey, error) {
+func GetYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot PIVSlot) (*PrivateKey, error) {
 	priv, err := getOrGenerateYubiKeyPrivateKey(ctx, policy, slot)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get a YubiKey private key")
@@ -47,7 +47,10 @@ func GetOrGenerateYubiKeyPrivateKey(touchRequired bool) (*PrivateKey, error) {
 	return priv, nil
 }
 
-// ValidatePIVSlotKey validates the given piv slot key.
-func ValidatePIVSlotKey(slotKeyString string) error {
-	return trace.Wrap(validatePIVSlotKey(slotKeyString))
+// PIVSlot is the string representation of a PIV slot. e.g. "9a".
+type PIVSlot string
+
+// Validate that the PIV slot is a valid value.
+func (s PIVSlot) Validate() error {
+	return trace.Wrap(s.validate())
 }

@@ -105,7 +105,7 @@ type Profile struct {
 	PrivateKeyPolicy keys.PrivateKeyPolicy `yaml:"private_key_policy"`
 
 	// PIVSlot is a specific piv slot that Teleport clients should use for hardware key support.
-	PIVSlot string `yaml:"piv_slot"`
+	PIVSlot keys.PIVSlot `yaml:"piv_slot"`
 }
 
 // Copy returns a shallow copy of p, or nil if p is nil.
@@ -244,7 +244,7 @@ func SetCurrentProfileName(dir string, name string) error {
 	}
 
 	path := keypaths.CurrentProfileFilePath(dir)
-	if err := os.WriteFile(path, []byte(strings.TrimSpace(name)+"\n"), 0660); err != nil {
+	if err := os.WriteFile(path, []byte(strings.TrimSpace(name)+"\n"), 0o660); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -395,7 +395,7 @@ func (p *Profile) saveToFile(filepath string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = os.WriteFile(filepath, bytes, 0660); err != nil {
+	if err = os.WriteFile(filepath, bytes, 0o660); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

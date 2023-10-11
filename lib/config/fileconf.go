@@ -998,7 +998,7 @@ type AuthenticationConfig struct {
 
 	// PIVSlot is a PIV slot that Teleport clients should use instead of the
 	// default based on private key policy. For example, "9a" or "9e".
-	PIVSlot string `yaml:"piv_slot,omitempty"`
+	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1030,7 +1030,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	}
 
 	if a.PIVSlot != "" {
-		if err = keys.ValidatePIVSlotKey(a.PIVSlot); err != nil {
+		if err = a.PIVSlot.Validate(); err != nil {
 			return nil, trace.Wrap(err, "failed to parse piv_slot")
 		}
 	}
@@ -1048,7 +1048,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		AllowHeadless:     a.Headless,
 		DeviceTrust:       dt,
 		DefaultSessionTTL: a.DefaultSessionTTL,
-		PIVSlot:           a.PIVSlot,
+		PIVSlot:           string(a.PIVSlot),
 	})
 }
 

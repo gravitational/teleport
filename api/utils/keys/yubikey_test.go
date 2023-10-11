@@ -55,7 +55,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 				t.Run(fmt.Sprintf("custom slot:%v", customSlot), func(t *testing.T) {
 					t.Cleanup(func() { resetYubikey(ctx, t) })
 
-					slot := ""
+					var slot keys.PIVSlot = ""
 					if customSlot {
 						slot = "9a"
 					}
@@ -133,7 +133,7 @@ func TestOverwritePrompt(t *testing.T) {
 		t.Cleanup(func() { resetYubikey(ctx, t) })
 
 		// Generate a key that does not require touch in the slot that Teleport expects to require touch.
-		_, err := keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKey, pivSlot.String())
+		_, err := keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKey, keys.PIVSlot(pivSlot.String()))
 		require.NoError(t, err)
 
 		testOverwritePrompt(t)
