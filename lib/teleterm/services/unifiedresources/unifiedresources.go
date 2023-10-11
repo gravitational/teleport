@@ -54,21 +54,21 @@ func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *pr
 	for _, unifiedResource := range unifiedResourcesResponse.Resources {
 		switch e := unifiedResource.GetResource().(type) {
 		case *proto.PaginatedResource_Node:
-			response.Resources = append(response.Resources, CombinedResource{
+			response.Resources = append(response.Resources, UnifiedResource{
 				Server: &clusters.Server{
 					URI:    cluster.URI.AppendServer(e.Node.GetName()),
 					Server: e.Node,
 				},
 			})
 		case *proto.PaginatedResource_DatabaseServer:
-			response.Resources = append(response.Resources, CombinedResource{
+			response.Resources = append(response.Resources, UnifiedResource{
 				Database: &clusters.Database{
 					URI:      cluster.URI.AppendDB(e.DatabaseServer.GetName()),
 					Database: e.DatabaseServer.GetDatabase(),
 				},
 			})
 		case *proto.PaginatedResource_KubeCluster:
-			response.Resources = append(response.Resources, CombinedResource{
+			response.Resources = append(response.Resources, UnifiedResource{
 				Kube: &clusters.Kube{
 					URI:               cluster.URI.AppendKube(e.KubeCluster.GetName()),
 					KubernetesCluster: e.KubeCluster,
@@ -88,13 +88,13 @@ type Client interface {
 }
 
 type ListResponse struct {
-	Resources []CombinedResource
+	Resources []UnifiedResource
 	NextKey   string
 }
 
-// CombinedResource combines all resource types into a single struct.
+// UnifiedResource combines all resource types into a single struct.
 // Only one filed should be set at a time.
-type CombinedResource struct {
+type UnifiedResource struct {
 	Server   *clusters.Server
 	Database *clusters.Database
 	Kube     *clusters.Kube
