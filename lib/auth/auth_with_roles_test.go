@@ -4273,7 +4273,7 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
-	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
+	names := []string{"vivi", "cloud", "aerith", "barret", "cid", "vivi2"}
 	for i := 0; i < 6; i++ {
 		name := names[i]
 		node, err := types.NewServerWithLabels(
@@ -4293,6 +4293,19 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, testNodes, 6)
 
+	sp := &types.SAMLIdPServiceProviderV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "tifaSAML",
+			},
+		},
+		Spec: types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newEntityDescriptor("tifaSAML"),
+			EntityID:         "tifaSAML",
+		},
+	}
+	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp))
+
 	// create user and client
 	user, _, err := CreateUserAndRole(srv.Auth(), "user", nil, nil)
 	require.NoError(t, err)
@@ -4304,13 +4317,13 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 		SortBy:         types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 	})
 	require.NoError(t, err)
-	require.Len(t, resp.Resources, 2)
+	require.Len(t, resp.Resources, 1)
 	require.Empty(t, resp.NextKey)
 
 	// Check that our returned resource has the correct name
 	for _, resource := range resp.Resources {
-		r := resource.GetNode()
-		require.True(t, strings.Contains(r.GetHostname(), "tifa"))
+		r := resource.GetAppServerOrSAMLIdPServiceProvider()
+		require.True(t, strings.Contains(r.GetName(), "tifa"))
 	}
 }
 

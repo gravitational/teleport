@@ -1505,22 +1505,9 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	// Fetch full list of resources in the backend.
 	var (
-		elapsedFetch      time.Duration
-		elapsedFilter     time.Duration
-		unifiedResources  types.ResourcesWithLabels
-		filteredResources types.ResourcesWithLabels
-		nextKey           string
+		unifiedResources types.ResourcesWithLabels
+		nextKey          string
 	)
-
-	defer func() {
-		log.WithFields(logrus.Fields{
-			"user":           a.context.User.GetName(),
-			"elapsed_fetch":  elapsedFetch,
-			"elapsed_filter": elapsedFilter,
-		}).Debugf(
-			"ListUnifiedResources(%v->%v) in %v.",
-			len(unifiedResources), len(filteredResources), elapsedFetch+elapsedFilter)
-	}()
 
 	filter := services.MatchResourceFilter{
 		Labels:              req.Labels,
@@ -1533,8 +1520,6 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	startFetch := time.Now()
-	startFilter := time.Now()
 	if req.PinnedOnly {
 		prefs, err := a.authServer.GetUserPreferences(ctx, a.context.User.GetName())
 		if err != nil {
@@ -1555,7 +1540,15 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}
 	} else {
 		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
-			if err := resourceChecker.CanAccess(resource); err != nil {
+			var err error
+			switch r := resource.(type) {
+			case types.SAMLIdPServiceProvider:
+				err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList)
+			default:
+				err = resourceChecker.CanAccess(r)
+			}
+
+			if err != nil {
 				if trace.IsAccessDenied(err) {
 					return false, nil
 				}
@@ -1568,8 +1561,6 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			return nil, trace.Wrap(err, "filtering unified resources")
 		}
 	}
-	elapsedFetch = time.Since(startFetch)
-	elapsedFilter = time.Since(startFilter)
 
 	paginatedResources, err := services.MakePaginatedResources(types.KindUnifiedResource, unifiedResources)
 	if err != nil {
