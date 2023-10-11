@@ -25,6 +25,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/accessrequest"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -291,7 +292,7 @@ func GenerateAccessRequestPromotions(ctx context.Context, resourceGetter modules
 		return nil, trace.Wrap(err)
 	}
 
-	resources, err := services.GetResourcesByResourceIDs(ctx, resourceGetter, accessRequest.GetRequestedResourceIDs())
+	resources, err := accessrequest.GetResourcesByResourceIDs(ctx, resourceGetter, accessRequest.GetRequestedResourceIDs())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

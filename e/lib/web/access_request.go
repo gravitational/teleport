@@ -11,6 +11,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 
+	apiaccessrequest "github.com/gravitational/teleport/api/accessrequest"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/accessrequest"
@@ -217,7 +218,7 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, cfg *getAc
 		return nil, nil
 	}
 
-	resourceIDsByCluster := services.GetResourceIDsByCluster(req)
+	resourceIDsByCluster := apiaccessrequest.GetResourceIDsByCluster(req)
 
 	resourceDetails := make(map[string]ui.ResourceDetails)
 	for clusterName, resourceIDs := range resourceIDsByCluster {
@@ -226,7 +227,7 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, cfg *getAc
 			return nil, trace.Wrap(err)
 		}
 
-		details, err := services.GetResourceDetails(ctx, clusterName, clt, resourceIDs)
+		details, err := apiaccessrequest.GetResourceDetails(ctx, clusterName, clt, resourceIDs)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
