@@ -37,6 +37,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -119,6 +120,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessList},
 		{Kind: types.KindUserLoginState},
 		{Kind: types.KindAccessListMember},
+		{Kind: types.KindDiscoveryConfig},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -368,6 +370,7 @@ func ForDiscovery(cfg Config) Config {
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindDatabase},
 		{Kind: types.KindApp},
+		{Kind: types.KindDiscoveryConfig},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
@@ -474,6 +477,7 @@ type Cache struct {
 	userGroupsCache              services.UserGroups
 	oktaCache                    services.Okta
 	integrationsCache            services.Integrations
+	discoveryConfigsCache        services.DiscoveryConfigs
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
 	accessListsCache             services.AccessLists
 	userLoginStateCache          services.UserLoginStates
@@ -630,6 +634,8 @@ type Config struct {
 	Okta services.Okta
 	// Integrations is an Integrations service.
 	Integrations services.Integrations
+	// DiscoveryConfigs is a DiscoveryConfigs service.
+	DiscoveryConfigs services.DiscoveryConfigs
 	// AccessLists is the access list service.
 	AccessLists services.AccessLists
 	// UserLoginStates is the user login state service.
@@ -803,6 +809,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	discoveryConfigsCache, err := local.NewDiscoveryConfigService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	accessListsCache, err := local.NewAccessListService(config.Backend, config.Clock)
 	if err != nil {
 		cancel()
@@ -843,6 +855,7 @@ func New(config Config) (*Cache, error) {
 		userGroupsCache:              userGroupsCache,
 		oktaCache:                    oktaCache,
 		integrationsCache:            integrationsCache,
+		discoveryConfigsCache:        discoveryConfigsCache,
 		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
 		accessListsCache:             accessListsCache,
 		userLoginStateCache:          userLoginStatesCache,
@@ -2477,6 +2490,32 @@ func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integrat
 	}
 	defer rg.Release()
 	return rg.reader.GetIntegration(ctx, name)
+}
+
+// ListDiscoveryConfigs returns a paginated list of all DiscoveryConfig resources.
+func (c *Cache) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListDiscoveryConfigs")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.discoveryConfigs)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListDiscoveryConfigs(ctx, pageSize, nextKey)
+}
+
+// GetDiscoveryConfig returns the specified DiscoveryConfig resource.
+func (c *Cache) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetDiscoveryConfig")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.discoveryConfigs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetDiscoveryConfig(ctx, name)
 }
 
 // ListAccessLists returns a paginated list of all access lists resources.

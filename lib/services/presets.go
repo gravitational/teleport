@@ -162,6 +162,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindClusterAlert, RW()),
 					types.NewRule(types.KindAccessList, RW()),
 					types.NewRule(types.KindNode, RW()),
+					types.NewRule(types.KindDiscoveryConfig, RW()),
 				},
 			},
 		},
