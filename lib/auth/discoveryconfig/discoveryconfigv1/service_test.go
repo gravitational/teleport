@@ -223,6 +223,43 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 			ErrAssertion: require.NoError,
 		},
 
+		// Upsert
+		{
+			Name: "no access to upsert discovery config",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindDiscoveryConfig},
+					Verbs:     []string{types.VerbUpdate}, // missing VerbCreate
+				}}},
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
+				dc := sampleDiscoveryConfigFn(t, dcName)
+				_, err := resourceSvc.UpsertDiscoveryConfig(ctx, &discoveryconfigpb.UpsertDiscoveryConfigRequest{
+					DiscoveryConfig: convert.ToProto(dc),
+				})
+				return err
+			},
+			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
+		},
+		{
+			Name: "access to upsert discovery config",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindDiscoveryConfig},
+					Verbs:     []string{types.VerbUpdate, types.VerbCreate},
+				}}},
+			},
+			Setup: func(t *testing.T, dcName string) {},
+			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
+				dc := sampleDiscoveryConfigFn(t, dcName)
+				_, err := resourceSvc.UpsertDiscoveryConfig(ctx, &discoveryconfigpb.UpsertDiscoveryConfigRequest{
+					DiscoveryConfig: convert.ToProto(dc),
+				})
+				return err
+			},
+			ErrAssertion: require.NoError,
+		},
+
 		// Delete
 		{
 			Name: "no access to delete discovery config",
