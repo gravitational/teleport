@@ -2,6 +2,21 @@
 
 ## 14.0.3 (10/11/23)
 
+### Security Fixes
+
+#### [Critical] Privilege escalation through `RecursiveChown`
+
+When using automatic Linux user creation, an attacker could exploit a race
+condition in the user creation functionality to `chown` arbitrary files on the
+system.
+
+Users who aren't using automatic Linux host user creation aren’t affected by
+this vulnerability.
+
+[#33248](https://github.com/gravitational/teleport/pull/33248)
+
+### Other Fixes
+
  * Fixed spurious timeouts in Database Access Sessions [#32720](https://github.com/gravitational/teleport/pull/32720)
  * Azure VM auto-discovery can now find VMs with multiple managed identities [#32800](https://github.com/gravitational/teleport/pull/32800)
  * Fixed improperly set Kubernetes impersonation headers [#32848](https://github.com/gravitational/teleport/pull/32848)
@@ -28,7 +43,6 @@
  * Discovery EC2 instance listing now shows instance name [#33179](https://github.com/gravitational/teleport/pull/33179)
  * Fixed HTTP connection hijack issue when using `tsh proxy kube` [#33172](https://github.com/gravitational/teleport/pull/33172)
  * Improved error messaging in `tsh kube credentials`  when root cluster roles don't allow Kube access [#33210](https://github.com/gravitational/teleport/pull/33210)
- * Fixed RecursiveChown privilege escalation due to following symlinks [#33248](https://github.com/gravitational/teleport/pull/33248)
 
 ## 14.0.1 (09/26/23)
 
