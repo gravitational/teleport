@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
+import { makeEmptyAttempt } from 'shared/hooks/useAsync';
 
 import {
   createTeleportContext,
@@ -26,10 +27,7 @@ import { ContextProvider } from 'teleport';
 
 import { UserContext } from 'teleport/User/UserContext';
 
-import {
-  makeDefaultUserClusterPreferences,
-  makeDefaultUserPreferences,
-} from 'teleport/services/userPreferences/userPreferences';
+import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
 import {
   ClusterResource,
@@ -101,7 +99,6 @@ const Provider = ({
   const updatePreferences = () => Promise.resolve();
   const updateClusterPreferences = () => Promise.resolve();
   const preferences: UserPreferences = makeDefaultUserPreferences();
-  const clusterPreferences = makeDefaultUserClusterPreferences();
   preferences.onboard.preferredResources = resources;
 
   return (
@@ -113,7 +110,8 @@ const Provider = ({
           preferences,
           updatePreferences,
           updateClusterPreferences,
-          clusterPreferences,
+          updateClusterPreferencesAttempt: makeEmptyAttempt(),
+          clusterPreferencesAttempt: makeEmptyAttempt(),
         }}
       >
         <ContextProvider ctx={ctx}>{children}</ContextProvider>

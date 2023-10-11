@@ -76,6 +76,8 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
   const { attempt, run } = useAttempt('processing');
   const { clusterId } = useStickyClusterId();
 
+  // TODO (avatus): eventually we will want to refactor cluster preferences
+  // into their own data store so they can be fetched individually
   const [
     clusterPreferencesAttempt,
     clusterPreferencesRun,
