@@ -30,6 +30,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -1121,6 +1122,30 @@ func (c *deviceCollection) writeText(w io.Writer, verbose bool) error {
 			devicetrust.FriendlyDeviceEnrollStatus(device.EnrollStatus),
 			device.CreateTime.AsTime().Format(time.RFC3339),
 			device.UpdateTime.AsTime().Format(time.RFC3339),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type discoveryConfigCollection struct {
+	discoveryConfigs []*discoveryconfig.DiscoveryConfig
+}
+
+func (c *discoveryConfigCollection) resources() []types.Resource {
+	resources := make([]types.Resource, len(c.discoveryConfigs))
+	for i, dc := range c.discoveryConfigs {
+		resources[i] = dc
+	}
+	return resources
+}
+
+func (c *discoveryConfigCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Discovery Group"})
+	for _, dc := range c.discoveryConfigs {
+		t.AddRow([]string{
+			dc.GetName(),
+			dc.GetDiscoveryGroup(),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
