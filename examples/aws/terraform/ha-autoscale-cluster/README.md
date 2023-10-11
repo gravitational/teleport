@@ -110,7 +110,7 @@ export TF_VAR_grafana_pass="CHANGE_THIS_VALUE"
 # This value can be used to change the default authentication type used for the Teleport cluster.
 # See https://goteleport.com/docs/reference/authentication for more information.
 # This is useful for persisting a different default authentication type across AMI upgrades when you have a SAML, OIDC
-# or Github connector configured in DynamoDB. The default is "local".
+# or GitHub connector configured in DynamoDB. The default is "local".
 # Teleport Community Edition supports "local" or "github"
 # Teleport Enterprise Edition supports "local", "github", "oidc" or "saml"
 # Teleport Enterprise FIPS deployments have local authentication disabled, so should use "github", "oidc" or "saml"
