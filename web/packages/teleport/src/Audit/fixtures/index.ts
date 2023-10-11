@@ -3062,6 +3062,7 @@ export const events = [
         updated_by: 'mike',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL005E',
@@ -3074,6 +3075,7 @@ export const events = [
         updated_by: 'mike',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL006I',
@@ -3086,6 +3088,7 @@ export const events = [
         updated_by: 'mike',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL006E',
@@ -3098,6 +3101,7 @@ export const events = [
         updated_by: 'mike',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL007I',
@@ -3110,6 +3114,7 @@ export const events = [
         updated_by: 'mike',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL007E',
@@ -3118,10 +3123,12 @@ export const events = [
     access_list_name: 'access-list',
     members: [
       {
-        member_name: 'user',
-        updated_by: 'mike',
+        joined_on: '2023-10-11T20:43:39.705323Z',
+        member_name: 'carrot',
+        removed_on: '0001-01-01T00:00:00Z',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL008I',
