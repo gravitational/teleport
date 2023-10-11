@@ -95,7 +95,7 @@ test('notification bell without notification', async () => {
 test('notification bell with notification', async () => {
   setup();
   ctx.storeNotifications.state = {
-    notices: [
+    notifications: [
       {
         item: {
           kind: NotificationKind.AccessList,

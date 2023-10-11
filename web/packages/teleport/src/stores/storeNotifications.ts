@@ -34,18 +34,18 @@ export type Notification = {
 };
 
 export type NotificationState = {
-  notices: Notification[];
+  notifications: Notification[];
 };
 
 const defaultNotificationState: NotificationState = {
-  notices: [],
+  notifications: [],
 };
 
 export class StoreNotifications extends Store<NotificationState> {
   state: NotificationState = defaultNotificationState;
 
   getNotifications() {
-    return this.state.notices;
+    return this.state.notifications;
   }
 
   setNotifications(notices: Notification[]) {
@@ -53,13 +53,13 @@ export class StoreNotifications extends Store<NotificationState> {
     const sortedNotices = notices.sort((a, b) => {
       return a.date.getTime() - b.date.getTime();
     });
-    this.setState({ notices: [...sortedNotices] });
+    this.setState({ notifications: [...sortedNotices] });
   }
 
   updateNotificationsByKind(notices: Notification[], kind: NotificationKind) {
     switch (kind) {
       case NotificationKind.AccessList:
-        const filtered = this.state.notices.filter(
+        const filtered = this.state.notifications.filter(
           n => n.item.kind !== NotificationKind.AccessList
         );
         this.setNotifications([...filtered, ...notices]);
