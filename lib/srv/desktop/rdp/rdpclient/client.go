@@ -193,17 +193,13 @@ func (c *Client) Run(ctx context.Context) error {
 
 	select {
 	case err := <-rustRDPReturnCh:
-		{
-			// Ensure the startInputStreaming goroutine returns.
-			close(stopCh)
-			return err
-		}
+		// Ensure the startInputStreaming goroutine returns.
+		close(stopCh)
+		return err
 	case err := <-inputStreamingReturnCh:
-		{
-			// Ensure the startRustRDP goroutine returns.
-			stopErr := c.stopRustRdp()
-			return trace.NewAggregate(err, stopErr)
-		}
+		// Ensure the startRustRDP goroutine returns.
+		stopErr := c.stopRustRDP()
+		return trace.NewAggregate(err, stopErr)
 	}
 }
 
@@ -288,7 +284,6 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		return trace.BadParameter("user key was nil")
 	}
 
-	// TODO(isaiah): better error handling here
 	if res := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
@@ -317,7 +312,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) stopRustRdp() error {
+func (c *Client) stopRustRDP() error {
 	if errCode := C.client_stop(C.uintptr_t(c.handle)); errCode != C.ErrCodeSuccess {
 		return trace.Errorf("client_stop failed: %v", errCode)
 	}
