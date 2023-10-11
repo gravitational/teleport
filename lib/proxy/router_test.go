@@ -365,6 +365,7 @@ func (o *mockConn) Close() error {
 }
 
 func TestCheckedPrefixWriter(t *testing.T) {
+	t.Parallel()
 	testData := []byte("test data")
 	t.Run("missing prefix", func(t *testing.T) {
 		t.Run("single write", func(t *testing.T) {
