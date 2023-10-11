@@ -509,36 +509,36 @@ message GetConnectMyComputerNodeNameResponse {
 
 message ListUnifiedResourcesRequest {
   string cluster_uri = 1;
-  // Kinds is a list of kinds to match against a resource's kind. This can be used in a
+  // A list of kinds to match against a resource's kind. This can be used in a
   // unified resource request that can include multiple types.
   repeated string kinds = 2;
-  // Limit is the maximum amount of resources to retrieve.
+  // The maximum number of resources to retrieve.
   int32 limit = 3;
-  // StartKey is used to start listing resources from a specific spot. It
-  // should be set to the previous next_key value if using pagination, or
-  // left empty.
+  // Starts listing resources from a specific spot.
+  // It should be set to the next_key from ListUnifiedResourcesResponse if
+  // using pagination, or left empty.
   string start_key = 4;
+  // If defined, the advanced search is used. The search field should be left empty.
   string query = 5;
+  // If defined, the regular search is used. The query field should be left empty.
   string search = 6;
   // SortBy describes which resource field and which direction to sort by.
   SortBy sort_by = 7;
-  // the caller is able to request access to using search_as_roles
+  // When true, all resources that the user can request access to are returned.
   bool search_as_roles = 8;
 }
 
 message SortBy {
-  // IsDesc is a sort direction flag where if true the direction is descending, else ascending.
+  // A sort direction flag where if true the direction is descending, else ascending.
   bool is_desc = 1;
-  // Field is the name of an objects field to sort by.
+  // Name of an object's field to sort by. Resources can be sorted by name and kind.
   string field = 2;
 }
 
 message ListUnifiedResourcesResponse {
-  // Resources is a list of resource.
   repeated PaginatedResource resources = 1;
-  // NextKey is the next Key to use as StartKey in a ListResourcesRequest to
-  // continue retrieving pages of resource. If NextKey is empty, there are no
-  // more pages.
+  // A key to use as start_key in a ListResourcesRequest to continue retrieving
+  // the next pages. If it is empty, there are no more pages.
   string next_key = 2;
 }
 

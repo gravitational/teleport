@@ -3342,20 +3342,22 @@ type ListUnifiedResourcesRequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	ClusterUri string `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
-	// Kinds is a list of kinds to match against a resource's kind. This can be used in a
+	// A list of kinds to match against a resource's kind. This can be used in a
 	// unified resource request that can include multiple types.
 	Kinds []string `protobuf:"bytes,2,rep,name=kinds,proto3" json:"kinds,omitempty"`
-	// Limit is the maximum amount of resources to retrieve.
+	// The maximum number of resources to retrieve.
 	Limit int32 `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
-	// StartKey is used to start listing resources from a specific spot. It
-	// should be set to the previous next_key value if using pagination, or
-	// left empty.
+	// Starts listing resources from a specific spot.
+	// It should be set to the next_key from ListUnifiedResourcesResponse if
+	// using pagination, or left empty.
 	StartKey string `protobuf:"bytes,4,opt,name=start_key,json=startKey,proto3" json:"start_key,omitempty"`
-	Query    string `protobuf:"bytes,5,opt,name=query,proto3" json:"query,omitempty"`
-	Search   string `protobuf:"bytes,6,opt,name=search,proto3" json:"search,omitempty"`
+	// If defined, the advanced search is used. The search field should be left empty.
+	Query string `protobuf:"bytes,5,opt,name=query,proto3" json:"query,omitempty"`
+	// If defined, the regular search is used. The query field should be left empty.
+	Search string `protobuf:"bytes,6,opt,name=search,proto3" json:"search,omitempty"`
 	// SortBy describes which resource field and which direction to sort by.
 	SortBy *SortBy `protobuf:"bytes,7,opt,name=sort_by,json=sortBy,proto3" json:"sort_by,omitempty"`
-	// the caller is able to request access to using search_as_roles
+	// When true, all resources that the user can request access to are returned.
 	SearchAsRoles bool `protobuf:"varint,8,opt,name=search_as_roles,json=searchAsRoles,proto3" json:"search_as_roles,omitempty"`
 }
 
@@ -3452,9 +3454,9 @@ type SortBy struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// IsDesc is a sort direction flag where if true the direction is descending, else ascending.
+	// A sort direction flag where if true the direction is descending, else ascending.
 	IsDesc bool `protobuf:"varint,1,opt,name=is_desc,json=isDesc,proto3" json:"is_desc,omitempty"`
-	// Field is the name of an objects field to sort by.
+	// Name of an object's field to sort by. Resources can be sorted by name and kind.
 	Field string `protobuf:"bytes,2,opt,name=field,proto3" json:"field,omitempty"`
 }
 
@@ -3509,11 +3511,9 @@ type ListUnifiedResourcesResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Resources is a list of resource.
 	Resources []*PaginatedResource `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
-	// NextKey is the next Key to use as StartKey in a ListResourcesRequest to
-	// continue retrieving pages of resource. If NextKey is empty, there are no
-	// more pages.
+	// A key to use as start_key in a ListResourcesRequest to continue retrieving
+	// the next pages. If it is empty, there are no more pages.
 	NextKey string `protobuf:"bytes,2,opt,name=next_key,json=nextKey,proto3" json:"next_key,omitempty"`
 }
 
