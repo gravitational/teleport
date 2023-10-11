@@ -815,7 +815,32 @@ export default function createClient(
               if (err) {
                 reject(err);
               } else {
-                resolve(res.toObject());
+                resolve({
+                  nextKey: res.getNextKey(),
+                  resources: res.getResourcesList().map(p => {
+                    switch (p.getResourceCase()) {
+                      case api.PaginatedResource.ResourceCase.SERVER:
+                        return {
+                          kind: 'server',
+                          resource: p.getServer().toObject() as types.Server,
+                        };
+                      case api.PaginatedResource.ResourceCase.DATABASE:
+                        return {
+                          kind: 'database',
+                          resource: p
+                            .getDatabase()
+                            .toObject() as types.Database,
+                        };
+                      case api.PaginatedResource.ResourceCase.KUBE:
+                        return {
+                          kind: 'kube',
+                          resource: p.getKube().toObject() as types.Kube,
+                        };
+                      default:
+                        throw new Error('resource not set');
+                    }
+                  }),
+                });
               }
             });
           }
