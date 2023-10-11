@@ -55,6 +55,15 @@ func (p PrivateKeyPolicy) VerifyPolicy(policy PrivateKeyPolicy) error {
 	return NewPrivateKeyPolicyError(p)
 }
 
+// IsHardwareKeyVerified return true if this private key policy requires a hardware key.
+func (p PrivateKeyPolicy) IsHardwareKeyVerified() bool {
+	switch p {
+	case PrivateKeyPolicyHardwareKey, PrivateKeyPolicyHardwareKeyTouch:
+		return true
+	}
+	return false
+}
+
 // MFAVerified checks that meet this private key policy counts towards MFA verification.
 func (p PrivateKeyPolicy) MFAVerified() bool {
 	return p == PrivateKeyPolicyHardwareKeyTouch

@@ -14,13 +14,43 @@ limitations under the License.
 package keys
 
 import (
+	"context"
+
 	"github.com/gravitational/trace"
 )
 
-func GetOrGenerateYubiKeyPrivateKey(touchRequired bool) (*PrivateKey, error) {
-	priv, err := getOrGenerateYubiKeyPrivateKey(touchRequired)
+// GetYubiKeyPrivateKey attempt to retrieve a YubiKey private key matching the given hardware key policy
+// from the given slot. If slot is unspecified, the default slot for the given key policy will be used.
+// If the slot is empty, a new private key matching the given policy will be generated in the slot.
+//   - hardware_key: 9a
+//   - hardware_key_touch: 9c
+func GetYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot PIVSlot) (*PrivateKey, error) {
+	priv, err := getOrGenerateYubiKeyPrivateKey(ctx, policy, slot)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get a YubiKey private key")
 	}
 	return priv, nil
+}
+
+// TODO(Joerger): Deprecated in favor of GetYubiKeyPrivateKey.
+// Delete once all references in /e are removed
+func GetOrGenerateYubiKeyPrivateKey(touchRequired bool) (*PrivateKey, error) {
+	policy := PrivateKeyPolicyHardwareKey
+	if touchRequired {
+		policy = PrivateKeyPolicyHardwareKeyTouch
+	}
+
+	priv, err := getOrGenerateYubiKeyPrivateKey(context.TODO(), policy, "")
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get a YubiKey private key")
+	}
+	return priv, nil
+}
+
+// PIVSlot is the string representation of a PIV slot. e.g. "9a".
+type PIVSlot string
+
+// Validate that the PIV slot is a valid value.
+func (s PIVSlot) Validate() error {
+	return trace.Wrap(s.validate())
 }

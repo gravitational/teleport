@@ -997,6 +997,7 @@ func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, 
 		AllowHeadless:       cap.GetAllowHeadless(),
 		Local:               &webclient.LocalSettings{},
 		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
+		PIVSlot:             cap.GetPIVSlot(),
 		DeviceTrustDisabled: deviceTrustDisabled(cap),
 		DeviceTrust:         deviceTrustSettings(cap),
 	}
@@ -1038,6 +1039,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 		SecondFactor:        cap.GetSecondFactor(),
 		PreferredLocalMFA:   cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
+		PIVSlot:             cap.GetPIVSlot(),
 		DeviceTrustDisabled: deviceTrustDisabled(cap),
 		DeviceTrust:         deviceTrustSettings(cap),
 	}
@@ -1054,6 +1056,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 		SecondFactor:        cap.GetSecondFactor(),
 		PreferredLocalMFA:   cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
+		PIVSlot:             cap.GetPIVSlot(),
 		DeviceTrustDisabled: deviceTrustDisabled(cap),
 		DeviceTrust:         deviceTrustSettings(cap),
 	}
@@ -1070,6 +1073,7 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 		SecondFactor:        cap.GetSecondFactor(),
 		PreferredLocalMFA:   cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
+		PIVSlot:             cap.GetPIVSlot(),
 		DeviceTrustDisabled: deviceTrustDisabled(cap),
 		DeviceTrust:         deviceTrustSettings(cap),
 	}
