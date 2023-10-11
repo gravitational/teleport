@@ -2,6 +2,21 @@
 
 ## 13.4.3 (10/11/23)
 
+### Security Fixes
+
+#### [Critical] Privilege escalation through `RecursiveChown`
+
+When using automatic Linux user creation, an attacker could exploit a race
+condition in the user creation functionality to `chown` arbitrary files on the
+system.
+
+Users who aren't using automatic Linux host user creation aren’t affected by
+this vulnerability.
+
+[#33247](https://github.com/gravitational/teleport/pull/33247)
+
+### Other Fixes
+
 * Fixed multiple discovery install attempts on Azure & GCP VMs [#32570](https://github.com/gravitational/teleport/pull/32570)
 * Fixed Access List caching & eventing issues [#32651](https://github.com/gravitational/teleport/pull/32651)
 * Teleport client now uses gRPC when creating tracing client [#32664](https://github.com/gravitational/teleport/pull/32664)
@@ -22,7 +37,6 @@
 * Fixed self-signed certificate issue on macOS [#33157](https://github.com/gravitational/teleport/pull/33157)
 * Discovery EC2 instance listing now shows instance name [#33178](https://github.com/gravitational/teleport/pull/33178)
 * Improved error messaging in `tsh kube credentials` when root cluster roles don't allow Kube access [#33211](https://github.com/gravitational/teleport/pull/33211)
-* Fixed RecursiveChown privilege escalation due to following symlinks [#33247](https://github.com/gravitational/teleport/pull/33247)
 
 ## 13.4.1 (09/26/23)
 
