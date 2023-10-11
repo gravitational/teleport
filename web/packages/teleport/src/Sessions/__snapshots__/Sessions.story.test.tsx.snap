@@ -685,6 +685,11 @@ exports[`active sessions CTA 1`] = `
           >
             Users
           </th>
+          <th
+            style="cursor: default;"
+          >
+            Command
+          </th>
           <th>
             <a
               style="display: flex; align-items: center;"
@@ -744,6 +749,9 @@ exports[`active sessions CTA 1`] = `
             lisa2
           </td>
           <td>
+            kubectl get pods
+          </td>
+          <td>
             59 minutes
           </td>
           <td
@@ -778,6 +786,9 @@ exports[`active sessions CTA 1`] = `
           </td>
           <td>
             lisa2
+          </td>
+          <td>
+            ls -la
           </td>
           <td>
             5 seconds
@@ -845,6 +856,9 @@ exports[`active sessions CTA 1`] = `
             lisa3
           </td>
           <td>
+            top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid
+          </td>
+          <td>
             5 seconds
           </td>
           <td
@@ -908,6 +922,9 @@ exports[`active sessions CTA 1`] = `
           </td>
           <td>
             lisa2
+          </td>
+          <td>
+            top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid
           </td>
           <td>
             5 seconds
@@ -975,6 +992,9 @@ exports[`active sessions CTA 1`] = `
             lisa2
           </td>
           <td>
+            top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid
+          </td>
+          <td>
             5 seconds
           </td>
           <td
@@ -1009,6 +1029,9 @@ exports[`active sessions CTA 1`] = `
           </td>
           <td>
             lisa2
+          </td>
+          <td>
+            top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid
           </td>
           <td>
             3 minutes
@@ -1051,6 +1074,9 @@ exports[`active sessions CTA 1`] = `
           </td>
           <td>
             lisa2
+          </td>
+          <td>
+            top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid
           </td>
           <td>
             13 minutes
@@ -1650,6 +1676,11 @@ exports[`loaded 1`] = `
           >
             Users
           </th>
+          <th
+            style="cursor: default;"
+          >
+            Command
+          </th>
           <th>
             <a
               style="display: flex; align-items: center;"
@@ -1709,6 +1740,9 @@ exports[`loaded 1`] = `
             lisa2
           </td>
           <td>
+            kubectl get pods
+          </td>
+          <td>
             59 minutes
           </td>
           <td
@@ -1743,6 +1777,9 @@ exports[`loaded 1`] = `
           </td>
           <td>
             lisa2
+          </td>
+          <td>
+            ls -la
           </td>
           <td>
             5 seconds
@@ -1810,6 +1847,9 @@ exports[`loaded 1`] = `
             lisa3
           </td>
           <td>
+            top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid
+          </td>
+          <td>
             5 seconds
           </td>
           <td
@@ -1873,6 +1913,9 @@ exports[`loaded 1`] = `
           </td>
           <td>
             lisa2
+          </td>
+          <td>
+            top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid
           </td>
           <td>
             5 seconds
@@ -1940,6 +1983,9 @@ exports[`loaded 1`] = `
             lisa2
           </td>
           <td>
+            top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid
+          </td>
+          <td>
             5 seconds
           </td>
           <td
@@ -1974,6 +2020,9 @@ exports[`loaded 1`] = `
           </td>
           <td>
             lisa2
+          </td>
+          <td>
+            top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid
           </td>
           <td>
             3 minutes
@@ -2016,6 +2065,9 @@ exports[`loaded 1`] = `
           </td>
           <td>
             lisa2
+          </td>
+          <td>
+            top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid
           </td>
           <td>
             13 minutes
@@ -2615,6 +2667,11 @@ exports[`moderated sessions CTA 1`] = `
           >
             Users
           </th>
+          <th
+            style="cursor: default;"
+          >
+            Command
+          </th>
           <th>
             <a
               style="display: flex; align-items: center;"
@@ -2674,6 +2731,9 @@ exports[`moderated sessions CTA 1`] = `
             lisa2
           </td>
           <td>
+            kubectl get pods
+          </td>
+          <td>
             59 minutes
           </td>
           <td
@@ -2708,6 +2768,9 @@ exports[`moderated sessions CTA 1`] = `
           </td>
           <td>
             lisa2
+          </td>
+          <td>
+            ls -la
           </td>
           <td>
             5 seconds
@@ -2775,6 +2838,9 @@ exports[`moderated sessions CTA 1`] = `
             lisa3
           </td>
           <td>
+            top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid
+          </td>
+          <td>
             5 seconds
           </td>
           <td
@@ -2838,6 +2904,9 @@ exports[`moderated sessions CTA 1`] = `
           </td>
           <td>
             lisa2
+          </td>
+          <td>
+            top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid
           </td>
           <td>
             5 seconds
@@ -2905,6 +2974,9 @@ exports[`moderated sessions CTA 1`] = `
             lisa2
           </td>
           <td>
+            top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid
+          </td>
+          <td>
             5 seconds
           </td>
           <td
@@ -2939,6 +3011,9 @@ exports[`moderated sessions CTA 1`] = `
           </td>
           <td>
             lisa2
+          </td>
+          <td>
+            top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid
           </td>
           <td>
             3 minutes
@@ -2981,6 +3056,9 @@ exports[`moderated sessions CTA 1`] = `
           </td>
           <td>
             lisa2
+          </td>
+          <td>
+            top -o command -o cpu -o boosts -o cycles -o cow -o user -o vsize -o csw -o threads -o ports -o ppid
           </td>
           <td>
             13 minutes

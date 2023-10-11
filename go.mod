@@ -2,7 +2,7 @@ module github.com/gravitational/teleport
 
 go 1.21
 
-toolchain go1.21.2
+toolchain go1.21.3
 
 require (
 	cloud.google.com/go/compute v1.23.0
@@ -176,7 +176,7 @@ require (
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.138.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230807174057-1744710a1577
-	google.golang.org/grpc v1.57.0
+	google.golang.org/grpc v1.57.1
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c

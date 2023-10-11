@@ -832,9 +832,13 @@
           ]
         },
         {
-          "title": "Security",
+          "title": "Secure Practices",
           "slug": "/management/security/",
           "entries": [
+            {
+              "title": "Restrict Access for Privileged Accounts",
+              "slug": "/management/security/restrict-privileges/"
+            },
             {
               "title": "Reducing the Blast Radius of Attacks",
               "slug": "/management/security/reduce-blast-radius/"
@@ -1173,7 +1177,11 @@
             },
             {
               "title": "Agentless OpenSSH Integration",
-              "slug": "/server-access/guides/openssh/"
+              "slug": "/server-access/guides/openssh/openssh/"
+            },
+            {
+              "title": "Agentless OpenSSH Integration (Manual Install)",
+              "slug": "/server-access/guides/openssh/openssh-manual-install/"
             },
             {
               "title": "Recording Proxy Mode",
@@ -1228,6 +1236,10 @@
         {
           "title": "Access Controls",
           "slug": "/server-access/rbac/"
+        },
+        {
+          "title": "Troubleshooting Server Access",
+          "slug": "/server-access/troubleshooting-server/"
         }
       ]
     },
@@ -1348,8 +1360,16 @@
               "slug": "/database-access/guides/rds/"
             },
             {
-              "title": "AWS RDS Proxy",
-              "slug": "/database-access/guides/rds-proxy/"
+              "title": "AWS RDS Proxy for MariaDB/MySQL",
+              "slug": "/database-access/guides/rds-proxy-mysql/"
+            },
+            {
+              "title": "AWS RDS Proxy for PostgreSQL",
+              "slug": "/database-access/guides/rds-proxy-postgres/"
+            },
+            {
+              "title": "AWS RDS Proxy for SQL Server",
+              "slug": "/database-access/guides/rds-proxy-sqlserver/"
             },
             {
               "title": "AWS Redshift",
@@ -3083,6 +3103,11 @@
     {
       "source": "/management/guides/terraform-provider/",
       "destination": "/management/dynamic-resources/terraform-provider/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/openssh/",
+      "destination": "/server-access/guides/openssh/openssh/",
       "permanent": true
     }
   ]

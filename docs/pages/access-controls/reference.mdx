@@ -357,8 +357,39 @@ allow:
     - resources:
         - token
       verbs: [list, create, read, update, delete]
-
 ```
+
+### Allowing access to token resources
+
+If you configure a role that allows tokens to be created, users assigned to the 
+role can create tokens to provision any type of Teleport resource. 
+For example, you might create a role with the following configuration to enable assigned
+users to enroll servers:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: enroll-servers
+spec:
+  allow:
+    node_labels:
+      'env': 'us-lab'
+    rules:
+      - resources: [token]
+        verbs: [list, create, read, update, delete]
+  deny: {}
+```
+
+With these permissions, users assigned to the role can generate tokens to enroll  
+a server, application, or database, establish a trust relationship between a root 
+cluster and a new Teleport Proxy Service, or add a new leaf cluster.
+
+Because the token resource isn't scoped to a specific context, such as a node or 
+trusted cluster, you should consider any role that provides token permissions to be 
+an administrative role. In particular, you should avoid configuring `allow` rules 
+that grant `create` and `update` permissions on `token` resources to prevent 
+unexpected changes to the configuration or state of your cluster.
 
 ## RBAC for sessions
 
@@ -404,18 +435,18 @@ metadata:
 spec:
   allow:
     rules:
-    # Teleport allows shared session access by default, so for our restrictions
-    # to work we first allow access to ssh_sessions...
-    - resources: [ssh_session]
+    # Teleport allows session access to the user's sessions
+    # and sessions they can join by default. This allows seeing any sessions.
+    - resources: [session_tracker]
       verbs: ['*']
   deny:
     rules:
     # ... and then limit that access via a deny rule.
     # Deny rules take precedence over allow rules, so the resulting role allows
     # users to create SSH sessions but to only view their own sessions.
-    - resources: [ssh_session]
+    - resources: [session_tracker]
       verbs: [list, read, update, delete]
-      where: '!contains(ssh_session.participants, user.metadata.name)'
+      where: '!contains(session_tracker.participants, user.metadata.name)'
 ```
 
 ## Second Factor - U2F
@@ -431,7 +462,7 @@ Here is an explanation of the fields used in the `where` and `filter` conditions
 | -------------------------- | ------------------------------------------------- |
 | `user.spec.roles`          | The list of roles assigned to a user              |
 | `session.participants`     | The list of participants from a session recording |
-| `ssh_session.participants` | The list of participants from an SSH session      |
+| `session_tracker.participants` | The list of participants from an SSH session      |
 | `user.metadata.name`       | The user's name                                   |
 
 Check out our [predicate language](../reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources)
