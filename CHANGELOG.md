@@ -1,5 +1,32 @@
 # Changelog
 
+## 12.4.22 (10/11/23)
+
+### Security Fixes
+
+#### [Critical] Privilege escalation through `RecursiveChown`
+
+When using automatic Linux user creation, an attacker could exploit a race
+condition in the user creation functionality to `chown` arbitrary files on the
+system.
+
+Users who aren't using automatic Linux host user creation aren’t affected by
+this vulnerability.
+
+[#33246](https://github.com/gravitational/teleport/pull/33246)
+
+### Other Fixes
+
+* Improved error messaging in `tsh kube credentials` when root cluster roles don't allow Kube access [#33227](https://github.com/gravitational/teleport/pull/33227) 
+* Fixed self-signed certificate issue on macOS [#33158](https://github.com/gravitational/teleport/pull/33158)
+* Allow "auth unreachable" error message to be configurable [#33039](https://github.com/gravitational/teleport/pull/33039)
+* Fixed user session tracking across trusted clusters [#33019](https://github.com/gravitational/teleport/pull/33019)
+* Fixed issue causing keys to be incorrectly removed in tsh and Teleport Connect on Windows [#32965](https://github.com/gravitational/teleport/pull/32965)
+* Added connection information to multiplexer logs [#32740](https://github.com/gravitational/teleport/pull/32740)
+* Fixed spurious timeouts in Database Access Sessions [#32726](https://github.com/gravitational/teleport/pull/32726)
+* Fixed a corner case of privilege tokens where MFA devices disabled by cluster settings were still counted against the user [#32669](https://github.com/gravitational/teleport/pull/32669)
+* Fixed multiple discovery install attempts on Azure & GCP VMs [#32571](https://github.com/gravitational/teleport/pull/32571)
+ 
 ## 12.4.20 (09/25/23)
 
 * Added support for AWS EC2 IMDSv2 on installer script and when gathering inventory metadata [#32446](https://github.com/gravitational/teleport/pull/32446)
