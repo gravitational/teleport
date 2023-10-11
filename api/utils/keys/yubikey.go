@@ -116,7 +116,7 @@ func getOrGenerateYubiKeyPrivateKey(ctx context.Context, requiredKeyPolicy Priva
 	// Get the key in the slot, or generate a new one if needed.
 	priv, err := y.getPrivateKey(pivSlot)
 	switch {
-	case err == nil && requiredKeyPolicy.VerifyPolicy(priv.GetPrivateKeyPolicy()) != nil:
+	case err == nil && !requiredKeyPolicy.IsSatisfiedBy(priv.GetPrivateKeyPolicy()):
 		// Key does not meet the required key policy, prompt the user before we overwrite the slot.
 		msg := fmt.Sprintf("private key in YubiKey PIV slot %q does not meet private key policy %q.", pivSlot, requiredKeyPolicy)
 		if err := promptOverwriteSlot(msg); err != nil {
@@ -372,7 +372,7 @@ func (y *YubiKeyPrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
 	return GetPrivateKeyPolicyFromAttestation(y.attestation)
 }
 
-// GetPrivateKeyPolicyFromAttestation returns the PrivateKeyPolicy met by the given hardware key attestation.
+// GetPrivateKeyPolicyFromAttestation returns the PrivateKeyPolicy satisfied by the given hardware key attestation.
 func GetPrivateKeyPolicyFromAttestation(att *piv.Attestation) PrivateKeyPolicy {
 	switch att.TouchPolicy {
 	case piv.TouchPolicyCached, piv.TouchPolicyAlways:

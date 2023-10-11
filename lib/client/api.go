@@ -4472,7 +4472,7 @@ func (tc *TeleportClient) applyAuthSettings(authSettings webclient.Authenticatio
 	tc.PIVSlot = authSettings.PIVSlot
 
 	// Update the private key policy from auth settings if it is stricter than the saved setting.
-	if authSettings.PrivateKeyPolicy != "" && !keys.IsRequiredPolicyMet(authSettings.PrivateKeyPolicy, tc.PrivateKeyPolicy) {
+	if authSettings.PrivateKeyPolicy != "" && !authSettings.PrivateKeyPolicy.IsSatisfiedBy(tc.PrivateKeyPolicy) {
 		tc.PrivateKeyPolicy = authSettings.PrivateKeyPolicy
 	}
 }

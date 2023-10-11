@@ -222,7 +222,7 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !keys.IsRequiredPolicyMet(requiredPolicy, identityPolicy) {
+	if !requiredPolicy.IsSatisfiedBy(identityPolicy) {
 		return ctx, keys.NewPrivateKeyPolicyError(requiredPolicy)
 	}
 

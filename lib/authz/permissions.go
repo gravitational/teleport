@@ -310,7 +310,7 @@ func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *C
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !keys.IsRequiredPolicyMet(requiredPolicy, identityPolicy) {
+	if !requiredPolicy.IsSatisfiedBy(identityPolicy) {
 		return keys.NewPrivateKeyPolicyError(requiredPolicy)
 	}
 

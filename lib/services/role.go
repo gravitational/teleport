@@ -1224,7 +1224,7 @@ func (set RoleSet) PrivateKeyPolicy(authPreferencePolicy keys.PrivateKeyPolicy) 
 		policySet = append(policySet, role.GetPrivateKeyPolicy())
 	}
 
-	return keys.GetPolicyFromSet(policySet)
+	return keys.PolicyThatSatisfiesSet(policySet)
 }
 
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL

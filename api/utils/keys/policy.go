@@ -44,8 +44,8 @@ const (
 	PrivateKeyPolicyHardwareKeyTouchAndPIN PrivateKeyPolicy = "hardware_key_touch_and_pin"
 )
 
-// IsRequiredPolicyMet returns whether the required key policy is met by the key's policy.
-func IsRequiredPolicyMet(requiredPolicy, keyPolicy PrivateKeyPolicy) bool {
+// IsSatisfiedBy returns whether this key policy is satisfied by the given key policy.
+func (requiredPolicy PrivateKeyPolicy) IsSatisfiedBy(keyPolicy PrivateKeyPolicy) bool {
 	switch requiredPolicy {
 	case PrivateKeyPolicyNone:
 		return true
@@ -62,10 +62,10 @@ func IsRequiredPolicyMet(requiredPolicy, keyPolicy PrivateKeyPolicy) bool {
 	return false
 }
 
-// Deprecated in favor of IsRequiredPolicyMet.
+// Deprecated in favor of IsSatisfiedBy.
 // TODO(Joerger): delete once reference in /e is replaced.
 func (requiredPolicy PrivateKeyPolicy) VerifyPolicy(keyPolicy PrivateKeyPolicy) error {
-	if !IsRequiredPolicyMet(requiredPolicy, keyPolicy) {
+	if !requiredPolicy.IsSatisfiedBy(keyPolicy) {
 		return NewPrivateKeyPolicyError(requiredPolicy)
 	}
 	return nil
@@ -117,17 +117,17 @@ func (p PrivateKeyPolicy) validate() error {
 	return trace.BadParameter("%q is not a valid key policy", p)
 }
 
-// GetPolicyFromSet returns least restrictive policy necessary to meet the given set of policies.
-func GetPolicyFromSet(policies []PrivateKeyPolicy) (PrivateKeyPolicy, error) {
+// PolicyThatSatisfiesSet returns least restrictive policy necessary to satisfy the given set of policies.
+func PolicyThatSatisfiesSet(policies []PrivateKeyPolicy) (PrivateKeyPolicy, error) {
 	setPolicy := PrivateKeyPolicyNone
 	for _, policy := range policies {
-		if !IsRequiredPolicyMet(policy, setPolicy) {
-			if IsRequiredPolicyMet(setPolicy, policy) {
+		if !policy.IsSatisfiedBy(setPolicy) {
+			if setPolicy.IsSatisfiedBy(policy) {
 				// Upgrade set policy to stricter policy.
 				setPolicy = policy
-			} else if IsRequiredPolicyMet(policy, PrivateKeyPolicyHardwareKeyTouchAndPIN) &&
-				IsRequiredPolicyMet(setPolicy, PrivateKeyPolicyHardwareKeyTouchAndPIN) {
-				// neither policy is met by the other (pin or touch), but both are met by stricter pin+touch policy).
+			} else if policy.IsSatisfiedBy(PrivateKeyPolicyHardwareKeyTouchAndPIN) &&
+				setPolicy.IsSatisfiedBy(PrivateKeyPolicyHardwareKeyTouchAndPIN) {
+				// neither policy is satisfied by the other (pin or touch), but both are satisfied by stricter pin+touch policy).
 				setPolicy = PrivateKeyPolicyHardwareKeyTouchAndPIN
 			} else {
 				return PrivateKeyPolicyNone, trace.BadParameter("private key policy requirements %q and %q are incompatible, please contact the cluster administrator", policy, setPolicy)
@@ -138,19 +138,28 @@ func GetPolicyFromSet(policies []PrivateKeyPolicy) (PrivateKeyPolicy, error) {
 	return setPolicy, nil
 }
 
-var privateKeyPolicyErrRegex = regexp.MustCompile(`private key policy not met: (\w+)`)
+var (
+	privateKeyPolicyErrRegex = regexp.MustCompile(`private key policy not satisfied: (\w+)`)
+	// deprecated in favor of privateKeyPolicyErrRegex.
+	// TODO(Joerger): Delete in 17.0.0 after replacing the error string below in 16.0.0
+	privateKeyPolicyErrRegexOld = regexp.MustCompile(`private key policy not met: (\w+)`)
+)
 
 func NewPrivateKeyPolicyError(p PrivateKeyPolicy) error {
+	// TODO(Joerger): Replace with "private key policy not satisfied" in 16.0.0
 	return trace.BadParameter(fmt.Sprintf("private key policy not met: %s", p))
 }
 
 // ParsePrivateKeyPolicyError checks if the given error is a private key policy
-// error and returns the contained unmet PrivateKeyPolicy.
+// error and returns the contained unsatisfied PrivateKeyPolicy.
 func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
 	// subMatches should have two groups - the full string and the policy "(\w+)"
 	subMatches := privateKeyPolicyErrRegex.FindStringSubmatch(err.Error())
 	if subMatches == nil || len(subMatches) != 2 {
-		return "", trace.BadParameter("provided error is not a key policy error")
+		subMatches := privateKeyPolicyErrRegexOld.FindStringSubmatch(err.Error())
+		if subMatches == nil || len(subMatches) != 2 {
+			return "", trace.BadParameter("provided error is not a key policy error")
+		}
 	}
 
 	policy := PrivateKeyPolicy(subMatches[1])
@@ -162,5 +171,5 @@ func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
 
 // IsPrivateKeyPolicyError returns true if the given error is a private key policy error.
 func IsPrivateKeyPolicyError(err error) bool {
-	return privateKeyPolicyErrRegex.MatchString(err.Error())
+	return privateKeyPolicyErrRegex.MatchString(err.Error()) || privateKeyPolicyErrRegexOld.MatchString(err.Error())
 }

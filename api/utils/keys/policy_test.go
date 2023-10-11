@@ -84,7 +84,7 @@ func TestIsRequiredPolicyMet(t *testing.T) {
 	} {
 		t.Run(string(tc.requiredPolicy), func(t *testing.T) {
 			for _, keyPolicy := range privateKeyPolicies {
-				if keys.IsRequiredPolicyMet(tc.requiredPolicy, keyPolicy) {
+				if tc.requiredPolicy.IsSatisfiedBy(keyPolicy) {
 					require.Contains(t, tc.verifiedPolicies, keyPolicy, "Policy %q does not meet %q but IsRequirePolicyMet(%v, %v) returned true", keyPolicy, tc.requiredPolicy, tc.requiredPolicy, keyPolicy)
 				} else {
 					require.NotContains(t, tc.verifiedPolicies, keyPolicy, "Policy %q does meet %q but IsRequirePolicyMet(%v, %v) returned false", keyPolicy, tc.requiredPolicy, tc.requiredPolicy, keyPolicy)
@@ -147,7 +147,7 @@ func TestGetPolicyFromSet(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			requiredPolicy, err := keys.GetPolicyFromSet(tc.policySet)
+			requiredPolicy, err := keys.PolicyThatSatisfiesSet(tc.policySet)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectSetPolicy, requiredPolicy)
 
@@ -155,7 +155,7 @@ func TestGetPolicyFromSet(t *testing.T) {
 			for i, j := 0, len(tc.policySet)-1; i < j; i, j = i+1, j-1 {
 				tc.policySet[i], tc.policySet[j] = tc.policySet[j], tc.policySet[i]
 			}
-			requiredPolicy, err = keys.GetPolicyFromSet(tc.policySet)
+			requiredPolicy, err = keys.PolicyThatSatisfiesSet(tc.policySet)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectSetPolicy, requiredPolicy)
 		})
