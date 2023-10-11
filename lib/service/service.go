@@ -1894,10 +1894,10 @@ func (process *TeleportProcess) initAuthService() error {
 			// TODO(jakule): Very excessive retrying, but we need to make sure that
 			// the access graph is initialized before we start serving requests.
 			for {
-				if err := initializeAndWatchAccessGraph(process.ExitContext(), accessGraphAddr, authServer); err != nil {
+				if err := initializeAndWatchAccessGraph(process.GracefulExitContext(), accessGraphAddr, authServer); err != nil {
 					log.Errorf("Failed to initialize access graph: %v", err)
 					select {
-					case <-process.ExitContext().Done():
+					case <-process.GracefulExitContext().Done():
 						return trace.Wrap(err)
 					case <-time.After(accessGraphRetryPeriod):
 						continue

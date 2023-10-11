@@ -45,6 +45,39 @@ func initializeAndWatchAccessGraph(ctx context.Context, accessGraphAddr string, 
 
 	accessGraphClient := accessgraphv1.NewAccessGraphServiceClient(conn)
 
+	resp, err := accessGraphClient.SendEvent(ctx, &accessgraphv1.SendEventRequest{
+		Event: &proto.Event{
+			Type: proto.Operation_INIT,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if resp.GetCacheInitialized() {
+		// Order of sending matters here. Roles must go first.
+		// TODO(jakule): Order should not matter.
+		if err := sendRoles(ctx, authServer, accessGraphClient); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := sendUsers(ctx, authServer, accessGraphClient); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := sendResources(ctx, authServer, accessGraphClient, types.KindNode); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := sendAccessRequests(ctx, authServer, accessGraphClient); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(startWatching(ctx, accessGraphClient, authServer))
+}
+
+func startWatching(ctx context.Context, accessGraphClient accessgraphv1.AccessGraphServiceClient, authServer *auth.Server) error {
 	eventWatcher := &tagEventWatcher{
 		ctx:               ctx,
 		accessGraphClient: accessGraphClient,
@@ -56,25 +89,7 @@ func initializeAndWatchAccessGraph(ctx context.Context, accessGraphAddr string, 
 		{Kind: types.KindAccessRequest},
 	}
 
-	// Order of sending matters here. Roles must go first.
-	// TODO(jakule): Order should not matter.
-	if err := sendRoles(ctx, authServer, accessGraphClient); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := sendUsers(ctx, authServer, accessGraphClient); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := sendResources(ctx, authServer, accessGraphClient, types.KindNode); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := sendAccessRequests(ctx, authServer, accessGraphClient); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return auth.WatchEvents(&proto.Watch{Kinds: observedKinds}, eventWatcher, "accessgraph", authServer)
+	return trace.Wrap(auth.WatchEvents(&proto.Watch{Kinds: observedKinds}, eventWatcher, "accessgraph", authServer))
 }
 
 func sendUsers(ctx context.Context, authServer *auth.Server, accessGraphClient accessgraphv1.AccessGraphServiceClient) error {

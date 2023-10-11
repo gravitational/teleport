@@ -77,4 +77,6 @@ message SendEventRequest {
 }
 
 // SendEventResponse is a response to sending an event.
-message SendEventResponse {}
+message SendEventResponse {
+  bool cache_initialized = 1;
+}
