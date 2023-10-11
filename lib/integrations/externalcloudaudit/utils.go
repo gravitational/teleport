@@ -1,9 +1,11 @@
 package externalcloudaudit
 
 import (
+	"errors"
 	"net/url"
 	"strings"
 
+	"github.com/aws/smithy-go"
 	"github.com/gravitational/trace"
 )
 
@@ -51,4 +53,19 @@ func ValidateBuckets(buckets ...string) error {
 	}
 
 	return nil
+}
+
+// isNoSuchBucketError returns true if error is NoSuchBucket error
+// Despite https://aws.github.io/aws-sdk-go-v2/docs/handling-errors/#api-error-responses
+// It doesn't seem possible to actually handle that error using s3types.NoSuchBucket.
+// See https://github.com/aws/aws-sdk-go-v2/issues/1110 for discussion
+func isNoSuchBucketError(err error) bool {
+	var aerr smithy.APIError
+	if errors.As(err, &aerr) {
+		if aerr.ErrorCode() == "NoSuchBucket" {
+			return true
+		}
+	}
+
+	return false
 }

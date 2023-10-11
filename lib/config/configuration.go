@@ -299,20 +299,10 @@ type IntegrationConfExternalCloudAudit struct {
 type IntegrationBootstrapCreateExternalCloudAudit struct {
 	// Region is the AWS Region used to set up the client
 	Region string
-	// EventBucket is the name of the events bucket created
-	EventBucket string
-	// QueryResultBucket is the name of the query results bucket created
-	QueryResultsBucket string
-	// LargePayloadBucket is the name of the large payloads bucket created
-	LargePayloadBucket string
-	// SessionBucket is the name of the sessions bucket created
-	SessionBucket string
-	// WithCMK is whether to create a customer managed KMS key
-	WithCMK bool
-	// KMSKeyAlias is optional alias of CMK key
-	KMSKeyAlias string
-	// KMSKeyID is key id of existing CMK key
-	KMSKeyID string
+	// LongTermStorageBucket is the name of the bucket created for sessions and audit event data
+	LongTermStorageBucket string
+	// TransientBucket is the name of the bucket created for short term query results and large payload data
+	TransientBucket string
 	// AthenaWorkgroup is the name of the athena workgroup to create
 	AthenaWorkgroup string
 	// DatabaseName is the name of the glue database

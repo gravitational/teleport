@@ -9,101 +9,13 @@ import (
 	athenatypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	gluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
-	"github.com/aws/aws-sdk-go-v2/service/kms"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gravitational/trace"
 )
+
 
 const (
 	DatabaseDescription = "Teleport external cloud audit events database for Athena"
 )
-
-type EnsureKMSKeyClient interface {
-	// CreateKey creates a unique customer managed KMS key
-	CreateKey(ctx context.Context, params *kms.CreateKeyInput, optFns ...func(*kms.Options)) (*kms.CreateKeyOutput, error)
-	// Creates a friendly name for a KMS key.
-	CreateAlias(ctx context.Context, params *kms.CreateAliasInput, optFns ...func(*kms.Options)) (*kms.CreateAliasOutput, error)
-}
-
-type EnsureKMSKeyRequest struct {
-	// An optional alias for the created kms key
-	Alias string
-}
-
-type EnsureKMSKeyResponse struct {
-	// KMSKeyID is ID of created kms key
-	KMSKeyID string
-}
-
-func EnsureKMSKey(ctx context.Context, kmsClient EnsureKMSKeyClient, req EnsureKMSKeyRequest) (*EnsureKMSKeyResponse, error) {
-	createOutput, err := kmsClient.CreateKey(ctx, &kms.CreateKeyInput{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if req.Alias != "" {
-		_, err = kmsClient.CreateAlias(ctx, &kms.CreateAliasInput{
-			AliasName:   aws.String(req.Alias),
-			TargetKeyId: createOutput.KeyMetadata.KeyId,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return &EnsureKMSKeyResponse{
-		KMSKeyID: *createOutput.KeyMetadata.KeyId,
-	}, nil
-}
-
-// EnsureS3BucketClient describes the required methods to ensure s3 buckets for external cloud audit
-type EnsureS3BucketClient interface {
-	// CreateBucket creates a new S3 bucket.
-	CreateBucket(ctx context.Context, params *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, error)
-	// PutBucketEncryption configures encryption and Amazon S3 Bucket Keys for an existing bucket.
-	PutBucketEncryption(ctx context.Context, params *s3.PutBucketEncryptionInput, optFns ...func(*s3.Options)) (*s3.PutBucketEncryptionOutput, error)
-}
-
-// EnsureS3BucketRequest are the request parameters for creating the external cloud audit s3 buckets
-type EnsureS3BucketRequest struct {
-	BucketName string
-	KMSKeyID   string
-}
-
-// EnsureS3Bucket for external cloud audit S3 buckets with recommended configurations
-func EnsureS3Bucket(ctx context.Context, s3Client EnsureS3BucketClient, req EnsureS3BucketRequest) error {
-	_, err := s3Client.CreateBucket(ctx, &s3.CreateBucketInput{
-		Bucket:          aws.String(req.BucketName),
-		ObjectOwnership: s3types.ObjectOwnershipBucketOwnerEnforced,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// If KMSKeyID isn't specified the bucket defaults to SSE-S3
-	if req.KMSKeyID != "" {
-		_, err = s3Client.PutBucketEncryption(ctx, &s3.PutBucketEncryptionInput{
-			Bucket: aws.String(req.BucketName),
-			ServerSideEncryptionConfiguration: &s3types.ServerSideEncryptionConfiguration{
-				Rules: []s3types.ServerSideEncryptionRule{
-					{
-						BucketKeyEnabled: true,
-						ApplyServerSideEncryptionByDefault: &s3types.ServerSideEncryptionByDefault{
-							SSEAlgorithm:   s3types.ServerSideEncryptionAwsKms,
-							KMSMasterKeyID: aws.String(req.KMSKeyID),
-						},
-					},
-				},
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
 
 // EnsureAthenaWorkgroupClient describes the required methods to ensure and configure athena workgroups for external cloud audit
 type EnsureAthenaWorkgroupClient interface {
