@@ -9,7 +9,7 @@
  * Teleport client now uses gRPC when creating tracing client [#32663](https://github.com/gravitational/teleport/pull/32663)
  * Fixed panic on `tsh device enroll --current-device` [#32756](https://github.com/gravitational/teleport/pull/32756)
  * The Teleport `etcd` backend will now start if some nodes are unreachable [#32779](https://github.com/gravitational/teleport/pull/32779)
- * Fixed certificate verification issues when using `kunectl exec` [#32768](https://github.com/gravitational/teleport/pull/32768)
+ * Fixed certificate verification issues when using `kubectl exec` [#32768](https://github.com/gravitational/teleport/pull/32768)
  * Added Discover flow for enrolling EC2 Instances with EICE [#32760](https://github.com/gravitational/teleport/pull/32760)
  * Added connection information to multiplexer logs [#32738](https://github.com/gravitational/teleport/pull/32738)
  * Fixed issue causing keys to be incorrectly removed in tsh and Teleport Connect on Windows [#32963](https://github.com/gravitational/teleport/pull/32963)
