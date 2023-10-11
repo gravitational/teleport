@@ -37,9 +37,9 @@ export const makeTestUserContext = (
         pinnedResources: [],
       },
       updateClusterPreferencesAttempt: makeEmptyAttempt(),
-      clusterPreferencesAttempt: makeEmptyAttempt(),
       updatePreferences: () => Promise.resolve(),
-      updateClusterPreferences: () => Promise.resolve(),
+      updateClusterPinnedResources: () => Promise.resolve(),
+      getClusterPinnedResources: () => Promise.resolve(),
     },
     overrides
   );

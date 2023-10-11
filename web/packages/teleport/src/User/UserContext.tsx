@@ -16,26 +16,22 @@
 
 import React, {
   createContext,
+  useCallback,
   PropsWithChildren,
   useContext,
-  useCallback,
+  useRef,
   useEffect,
   useState,
 } from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
-import {
-  useAsync,
-  Attempt,
-  makeSuccessAttempt,
-  makeEmptyAttempt,
-} from 'shared/hooks/useAsync';
 
 import { Indicator } from 'design';
 
 import { StyledIndicator } from 'teleport/Main';
 
 import * as service from 'teleport/services/userPreferences';
+import cfg from 'teleport/config';
 
 import storage, { KeysEnum } from 'teleport/services/localStorage';
 
@@ -45,7 +41,6 @@ import {
 } from 'teleport/services/userPreferences/types';
 
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
-import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import type {
   UserClusterPreferences,
@@ -55,11 +50,11 @@ import type {
 export interface UserContextValue {
   preferences: UserPreferences;
   updatePreferences: (preferences: Partial<UserPreferences>) => Promise<void>;
-  updateClusterPreferences: (
-    preferences: Partial<UserClusterPreferences>
-  ) => void;
-  updateClusterPreferencesAttempt: Attempt<any>; // returns nothing
-  clusterPreferencesAttempt: Attempt<UserClusterPreferences>;
+  updateClusterPinnedResources: (
+    clusterId: string,
+    pinnedResources: string[]
+  ) => Promise<void>;
+  getClusterPinnedResources: (clusterId: string) => Promise<string[]>;
 }
 
 export const UserContext = createContext<UserContextValue>(null);
@@ -68,50 +63,42 @@ export function useUser(): UserContextValue {
   return useContext(UserContext);
 }
 
-const isAbortError = (err: any): boolean =>
-  (err instanceof DOMException && err.name === 'AbortError') ||
-  (err.cause && isAbortError(err.cause));
+// ClusterPreferences represents a map of clusterId to their cluster preferences
+type ClusterPreferences = Record<string, UserClusterPreferences>;
 
 export function UserContextProvider(props: PropsWithChildren<unknown>) {
   const { attempt, run } = useAttempt('processing');
-  const { clusterId } = useStickyClusterId();
-
-  // TODO (avatus): eventually we will want to refactor cluster preferences
-  // into their own data store so they can be fetched individually
-  const [
-    clusterPreferencesAttempt,
-    clusterPreferencesRun,
-    setClusterPreferencesAttempt,
-  ] = useAsync(
-    useCallback((clusterId: string, abortSignal: AbortSignal) => {
-      try {
-        return service.getUserClusterPreferences(clusterId, abortSignal);
-      } catch (error) {
-        if (isAbortError(error)) {
-          // ignore CanceledError
-          return;
-        }
-        // throw everything else
-        throw error;
-      }
-    }, [])
-  );
-
-  const [
-    updateClusterPreferencesAttempt,
-    updateClusterPreferencesRun,
-    setUpdateClusterPreferencesAttempt,
-  ] = useAsync(
-    useCallback(
-      (clusterId: string, nextPreferences: Partial<UserPreferences>) => {
-        return service.updateUserClusterPreferences(clusterId, nextPreferences);
-      },
-      []
-    )
-  );
+  const clusterPreferences = useRef<ClusterPreferences>({});
 
   const [preferences, setPreferences] = useState<UserPreferences>(
     makeDefaultUserPreferences()
+  );
+
+  const getClusterPinnedResources = useCallback(async (clusterId: string) => {
+    if (clusterPreferences.current[clusterId]) {
+      return clusterPreferences.current[clusterId].pinnedResources;
+    }
+    const prefs = await service.getUserClusterPreferences(clusterId);
+    clusterPreferences.current[clusterId] = prefs;
+    return prefs.pinnedResources;
+  }, []);
+
+  const updateClusterPinnedResources = useCallback(
+    async (clusterId: string, pinnedResources: string[]) => {
+      let currentPrefs = { ...clusterPreferences[clusterId] };
+      if (currentPrefs) {
+        currentPrefs.pinnedResources = pinnedResources;
+      } else {
+        currentPrefs = { pinnedResources };
+      }
+      clusterPreferences.current[clusterId] = currentPrefs;
+
+      return service.updateUserClusterPreferences(clusterId, {
+        ...preferences,
+        clusterPreferences: currentPrefs,
+      });
+    },
+    [preferences]
   );
 
   async function loadUserPreferences() {
@@ -120,6 +107,8 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
 
     try {
       const preferences = await service.getUserPreferences();
+      clusterPreferences.current[cfg.proxyCluster] =
+        preferences.clusterPreferences;
       if (!storedPreferences) {
         // there are no mirrored user preferences in local storage so this is the first time
         // the user has requested their preferences in this browser session
@@ -171,28 +160,14 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
         ...preferences.unifiedResourcePreferences,
         ...newPreferences.unifiedResourcePreferences,
       },
-      clusterPreferences: clusterPreferencesAttempt.data,
+      // updatePreferences only update the root cluster so we can only pass cluster
+      // preferences from the root cluster
+      clusterPreferences: clusterPreferences.current[cfg.proxyCluster],
     } as UserPreferences;
-
     setPreferences(nextPreferences);
     storage.setUserPreferences(nextPreferences);
 
     return service.updateUserPreferences(nextPreferences);
-  }
-
-  function updateClusterPreferences(
-    newPreferences: Partial<UserClusterPreferences>
-  ) {
-    const nextPreferences = {
-      ...clusterPreferencesAttempt.data,
-      ...newPreferences,
-    };
-
-    setClusterPreferencesAttempt(makeSuccessAttempt(nextPreferences));
-    updateClusterPreferencesRun(clusterId, {
-      ...preferences,
-      clusterPreferences: nextPreferences,
-    });
   }
 
   useEffect(() => {
@@ -213,17 +188,6 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     run(loadUserPreferences);
   }, []);
 
-  useEffect(() => {
-    const abortController = new AbortController();
-
-    clusterPreferencesRun(clusterId, abortController.signal);
-    setUpdateClusterPreferencesAttempt(makeEmptyAttempt());
-
-    return () => {
-      abortController.abort();
-    };
-  }, [clusterId, clusterPreferencesRun, setUpdateClusterPreferencesAttempt]);
-
   if (attempt.status === 'processing') {
     return (
       <StyledIndicator>
@@ -237,9 +201,8 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
       value={{
         preferences,
         updatePreferences,
-        clusterPreferencesAttempt,
-        updateClusterPreferences,
-        updateClusterPreferencesAttempt,
+        getClusterPinnedResources,
+        updateClusterPinnedResources,
       }}
     >
       {props.children}

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 import styled from 'styled-components';
 import {
@@ -29,6 +29,7 @@ import {
 import { Magnifier, PushPin } from 'design/Icon';
 
 import { Danger } from 'design/Alert';
+import { makeSuccessAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import { TextIcon } from 'teleport/Discover/Shared';
 
@@ -83,18 +84,39 @@ export function Resources() {
   const { isLeafCluster, clusterId } = useStickyClusterId();
   const enabled = localStorage.areUnifiedResourcesEnabled();
   const pinningNotSupported = localStorage.arePinnedResourcesDisabled();
+  const {
+    getClusterPinnedResources,
+    preferences,
+    updatePreferences,
+    updateClusterPinnedResources,
+  } = useUser();
   const teleCtx = useTeleport();
   const canCreate = teleCtx.storeUser.getTokenAccess().create;
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
 
-  const {
-    updateClusterPreferences,
-    preferences,
-    updatePreferences,
-    clusterPreferencesAttempt,
-    updateClusterPreferencesAttempt,
-  } = useUser();
-  const pinnedResources = clusterPreferencesAttempt.data?.pinnedResources || [];
+  const [getPinnedResourcesAttempt, getPinnedResources, setPinnedResources] =
+    useAsync(
+      useCallback(
+        () => getClusterPinnedResources(clusterId),
+        [clusterId, getClusterPinnedResources]
+      )
+    );
+
+  useEffect(() => {
+    getPinnedResources();
+  }, [clusterId, getPinnedResources]);
+
+  const pinnedResources = getPinnedResourcesAttempt.data || [];
+
+  const [updatePinnedResourcesAttempt, updatePinnedResources] = useAsync(
+    useCallback(
+      (newPinnedResources: string[]) => {
+        setPinnedResources(makeSuccessAttempt(newPinnedResources));
+        return updateClusterPinnedResources(clusterId, newPinnedResources);
+      },
+      [clusterId, updateClusterPinnedResources]
+    )
+  );
 
   const { params, setParams, replaceHistory, pathname, setSort, onLabelClick } =
     useUrlFiltering({
@@ -122,14 +144,10 @@ export function Resources() {
 
   const handlePinResource = (resourceId: string) => {
     if (pinnedResources.includes(resourceId)) {
-      updateClusterPreferences({
-        pinnedResources: pinnedResources.filter(i => i !== resourceId),
-      });
+      updatePinnedResources(pinnedResources.filter(i => i !== resourceId));
       return;
     }
-    updateClusterPreferences({
-      pinnedResources: [...pinnedResources, resourceId],
-    });
+    updatePinnedResources([...pinnedResources, resourceId]);
   };
 
   // if every selected resource is already pinned, the bulk action
@@ -159,9 +177,7 @@ export function Resources() {
       newPinned = Array.from(new Set(combined));
     }
 
-    updateClusterPreferences({
-      pinnedResources: newPinned,
-    });
+    updatePinnedResources(newPinned);
   };
 
   const {
@@ -266,14 +282,14 @@ export function Resources() {
           </ErrorBoxInternal>
         </ErrorBox>
       )}
-      {clusterPreferencesAttempt.status === 'error' && (
+      {getPinnedResourcesAttempt.status === 'error' && (
         <ErrorBox>
-          <Danger>{clusterPreferencesAttempt.statusText}</Danger>
+          <Danger>{getPinnedResourcesAttempt.statusText}</Danger>
         </ErrorBox>
       )}
-      {updateClusterPreferencesAttempt.status === 'error' && (
+      {updatePinnedResourcesAttempt.status === 'error' && (
         <ErrorBox>
-          <Danger>{updateClusterPreferencesAttempt.statusText}</Danger>
+          <Danger>{updatePinnedResourcesAttempt.statusText}</Danger>
         </ErrorBox>
       )}
       <FeatureHeader
@@ -335,7 +351,7 @@ export function Resources() {
         ))}
       </Flex>
       <ResourcesContainer className="ResourcesContainer" gap={2}>
-        {clusterPreferencesAttempt.status !== 'processing' &&
+        {getPinnedResourcesAttempt.status !== 'processing' &&
           resources.map(res => {
             const key = resourceKey(res);
             return (
@@ -353,7 +369,7 @@ export function Resources() {
           })}
         {/* Using index as key here is ok because these elements never change order */}
         {(attempt.status === 'processing' ||
-          clusterPreferencesAttempt.status === 'processing') &&
+          getPinnedResourcesAttempt.status === 'processing') &&
           loadingCardArray.map((_, i) => <LoadingCard delay="short" key={i} />)}
       </ResourcesContainer>
       <div ref={setScrollDetector} />
