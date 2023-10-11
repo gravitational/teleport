@@ -29,13 +29,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // UnifiedResourceKinds is a list of all kinds that are stored in the unified resource cache.
-var UnifiedResourceKinds []string = []string{types.KindNode, types.KindKubeServer, types.KindDatabaseServer, types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindWindowsDesktop, types.KindAccessList}
+var UnifiedResourceKinds []string = []string{types.KindNode, types.KindKubeServer, types.KindDatabaseServer, types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindWindowsDesktop}
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
 type UnifiedResourceCacheConfig struct {
@@ -326,7 +325,6 @@ type ResourceGetter interface {
 	AppServersGetter
 	WindowsDesktopGetter
 	KubernetesServerGetter
-	AccessListsGetter
 	SAMLIdpServiceProviderGetter
 }
 
@@ -424,11 +422,6 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
-	newAccessLists, err := c.getAccessLists(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	// empty the trees
@@ -444,7 +437,6 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources[types.KubeServer](c, newKubes)
 	putResources[types.SAMLIdPServiceProvider](c, newSAMLApps)
 	putResources[types.WindowsDesktop](c, newDesktops)
-	putResources[*accesslist.AccessList](c, newAccessLists)
 	c.stale = false
 	c.defineCollectorAsInitialized()
 	return nil
@@ -554,28 +546,6 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 	}
 
 	return newSAMLApps, nil
-}
-
-// getAccessLists will get all access lists
-func (c *UnifiedResourceCache) getAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
-	var accessLists []*accesslist.AccessList
-	startKey := ""
-
-	for {
-		resp, nextKey, err := c.ListAccessLists(ctx, apidefaults.DefaultChunkSize, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err, "getting access lists for unified resource watcher")
-		}
-		accessLists = append(accessLists, resp...)
-
-		if nextKey == "" {
-			break
-		}
-
-		startKey = nextKey
-	}
-
-	return accessLists, nil
 }
 
 // read applies the supplied closure to either the primary tree or the ttl-based fallback tree depending on

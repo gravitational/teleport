@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
@@ -94,9 +93,7 @@ type testPack struct {
 	okta                    services.Okta
 	integrations            services.Integrations
 	discoveryConfigs        services.DiscoveryConfigs
-	accessLists             services.AccessLists
 	userLoginStates         services.UserLoginStates
-	accessListMembers       services.AccessListMembers
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -254,13 +251,6 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.discoveryConfigs = dcSvc
 
-	alSvc, err := local.NewAccessListService(p.backend, p.backend.Clock())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	p.accessLists = alSvc
-	p.accessListMembers = alSvc
-
 	ulsSvc, err := local.NewUserLoginStateService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -305,7 +295,6 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
 		DiscoveryConfigs:        p.discoveryConfigs,
-		AccessLists:             p.accessLists,
 		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
@@ -702,7 +691,6 @@ func TestCompletenessInit(t *testing.T) {
 			Okta:                    p.okta,
 			Integrations:            p.integrations,
 			DiscoveryConfigs:        p.discoveryConfigs,
-			AccessLists:             p.accessLists,
 			UserLoginStates:         p.userLoginStates,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
@@ -773,7 +761,6 @@ func TestCompletenessReset(t *testing.T) {
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
 		DiscoveryConfigs:        p.discoveryConfigs,
-		AccessLists:             p.accessLists,
 		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
@@ -956,7 +943,6 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
 		DiscoveryConfigs:        p.discoveryConfigs,
-		AccessLists:             p.accessLists,
 		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
@@ -1038,7 +1024,6 @@ func initStrategy(t *testing.T) {
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
 		DiscoveryConfigs:        p.discoveryConfigs,
-		AccessLists:             p.accessLists,
 		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
@@ -2142,33 +2127,6 @@ func TestDiscoveryConfig(t *testing.T) {
 	})
 }
 
-// TestAccessLists tests that CRUD operations on access list resources are
-// replicated from the backend to the cache.
-func TestAccessLists(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[*accesslist.AccessList]{
-		newResource: func(name string) (*accesslist.AccessList, error) {
-			return newAccessList(t, name, p.backend.Clock()), nil
-		},
-		create: func(ctx context.Context, accessList *accesslist.AccessList) error {
-			_, err := p.accessLists.UpsertAccessList(ctx, accessList)
-			return trace.Wrap(err)
-		},
-		list:      p.accessLists.GetAccessLists,
-		cacheGet:  p.cache.GetAccessList,
-		cacheList: p.cache.GetAccessLists,
-		update: func(ctx context.Context, accessList *accesslist.AccessList) error {
-			_, err := p.accessLists.UpsertAccessList(ctx, accessList)
-			return trace.Wrap(err)
-		},
-		deleteAll: p.accessLists.DeleteAllAccessLists,
-	})
-}
-
 // TestUserLoginStates tests that CRUD operations on user login state resources are
 // replicated from the backend to the cache.
 func TestUserLoginStates(t *testing.T) {
@@ -2193,49 +2151,6 @@ func TestUserLoginStates(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		deleteAll: p.userLoginStates.DeleteAllUserLoginStates,
-	})
-}
-
-// TestAccessListMembers tests that CRUD operations on access list members resources are
-// replicated from the backend to the cache.
-func TestAccessListMembers(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	const accessListName = "test-access-list"
-
-	clock := clockwork.NewFakeClock()
-
-	p.accessLists.UpsertAccessList(context.Background(), newAccessList(t, accessListName, clock))
-
-	testResources(t, p, testFuncs[*accesslist.AccessListMember]{
-		newResource: func(name string) (*accesslist.AccessListMember, error) {
-			return newAccessListMember(t, accessListName, name), nil
-		},
-		create: func(ctx context.Context, member *accesslist.AccessListMember) error {
-			_, err := p.accessListMembers.UpsertAccessListMember(ctx, member)
-			return trace.Wrap(err)
-		},
-		list: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
-			members, _, err := p.accessListMembers.ListAccessListMembers(ctx, accessListName, 0, "")
-			return members, trace.Wrap(err)
-		},
-		cacheGet: func(ctx context.Context, memberName string) (*accesslist.AccessListMember, error) {
-			return p.cache.GetAccessListMember(ctx, accessListName, memberName)
-		},
-		cacheList: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
-			members, _, err := p.cache.ListAccessListMembers(ctx, accessListName, 0, "")
-			return members, trace.Wrap(err)
-		},
-		update: func(ctx context.Context, member *accesslist.AccessListMember) error {
-			_, err := p.accessListMembers.UpsertAccessListMember(ctx, member)
-			return trace.Wrap(err)
-		},
-		deleteAll: func(ctx context.Context) error {
-			return trace.Wrap(p.accessListMembers.DeleteAllAccessListMembersForAccessList(ctx, accessListName))
-		},
 	})
 }
 
@@ -2635,8 +2550,6 @@ func newProxyEvents(events types.Events, ignoreKinds []types.WatchKind) *proxyEv
 func TestCacheWatchKindExistsInEvents(t *testing.T) {
 	t.Parallel()
 
-	clock := clockwork.NewFakeClock()
-
 	cases := map[string]Config{
 		"ForAuth":           ForAuth(Config{}),
 		"ForProxy":          ForProxy(Config{}),
@@ -2693,9 +2606,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindIntegration:             &types.IntegrationV1{},
 		types.KindDiscoveryConfig:         newDiscoveryConfig(t, "discovery-config"),
 		types.KindHeadlessAuthentication:  &types.HeadlessAuthentication{},
-		types.KindAccessList:              newAccessList(t, "access-list", clock),
 		types.KindUserLoginState:          newUserLoginState(t, "user-login-state"),
-		types.KindAccessListMember:        newAccessListMember(t, "access-list", "member"),
 	}
 
 	for name, cfg := range cases {
@@ -2898,56 +2809,6 @@ func TestInvalidDatabases(t *testing.T) {
 	}
 }
 
-func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist.AccessList {
-	t.Helper()
-
-	accessList, err := accesslist.NewAccessList(
-		header.Metadata{
-			Name: name,
-		},
-		accesslist.Spec{
-			Title:       "title",
-			Description: "test access list",
-			Owners: []accesslist.Owner{
-				{
-					Name:        "test-user1",
-					Description: "test user 1",
-				},
-				{
-					Name:        "test-user2",
-					Description: "test user 2",
-				},
-			},
-			Audit: accesslist.Audit{
-				NextAuditDate: clock.Now(),
-			},
-			MembershipRequires: accesslist.Requires{
-				Roles: []string{"mrole1", "mrole2"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1", "mvalue2"},
-					"mtrait2": {"mvalue3", "mvalue4"},
-				},
-			},
-			OwnershipRequires: accesslist.Requires{
-				Roles: []string{"orole1", "orole2"},
-				Traits: map[string][]string{
-					"otrait1": {"ovalue1", "ovalue2"},
-					"otrait2": {"ovalue3", "ovalue4"},
-				},
-			},
-			Grants: accesslist.Grants{
-				Roles: []string{"grole1", "grole2"},
-				Traits: map[string][]string{
-					"gtrait1": {"gvalue1", "gvalue2"},
-					"gtrait2": {"gvalue3", "gvalue4"},
-				},
-			},
-		},
-	)
-	require.NoError(t, err)
-	return accessList
-}
-
 func newDiscoveryConfig(t *testing.T, name string) *discoveryconfig.DiscoveryConfig {
 	t.Helper()
 
@@ -2984,26 +2845,6 @@ func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState
 	)
 	require.NoError(t, err)
 	return uls
-}
-
-func newAccessListMember(t *testing.T, accessListName, memberName string) *accesslist.AccessListMember {
-	t.Helper()
-
-	member, err := accesslist.NewAccessListMember(
-		header.Metadata{
-			Name: memberName,
-		},
-		accesslist.AccessListMemberSpec{
-			AccessList: accessListName,
-			Name:       memberName,
-			Joined:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-			Expires:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-			Reason:     "because",
-			AddedBy:    "test-user1",
-		},
-	)
-	require.NoError(t, err)
-	return member
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
