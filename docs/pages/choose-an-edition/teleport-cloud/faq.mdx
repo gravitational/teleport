@@ -136,31 +136,32 @@ The ability to download recordings for offline viewing will be available in a fu
 
 ## Upgrading
 
-### Will Teleport be automatically upgraded with each release?
+### Will Teleport be automatically upgraded?
 
-Teleport Team and Teleport Enterprise Cloud are upgraded after each Teleport release
-is delivered. You can see the schedule for Teleport releases on [Teleport Upcoming
-Releases](../../upcoming-releases.mdx).
+The Teleport Auth Service and Teleport Proxy Service for Teleport Team and Teleport Enterprise Cloud 
+are automatically kept up to date with patches and minor releases following the release schedule
+described in [Teleport Upcoming Releases](../../upcoming-releases.mdx).
 
-- Major version upgrades for the Teleport Auth Service and Teleport Proxy Service on 
-  Teleport Cloud occur after the first minor release (for example (=teleport.major_version=).1.0) 
-  of Teleport.
-  This typically happens within one month of a new major release of Teleport
-  becoming available.
-- After the first minor release, subsequent minor and patch upgrades typically
-  occur within a week.
+- Major version upgrades for the Teleport Auth Service and Teleport Proxy Service typically occur 
+  one month after new major versions are released.
+- Minor upgrades and patches typically occur between one day and a week after a release.
+- Teleport Auth Service and Teleport Proxy Service upgrades are pushed to Teleport cloud accounts
+  during your scheduled maintenance window.
+- Teleport agents are only upgraded automatically if you enroll in automatic agent updates.
 
-For major version upgrades (for example, 12.x to 13.x), your Teleport account is NOT 
-automatically upgraded if any Teleport agents connected to the cluster are not compatible 
-(more than one major version behind). This version check is done to ensure backwards compatibility. 
-    
+If you have Teleport agents connected to a Teleport Team or Teleport Enterprise cluster that are
+more than one major version behind, you might experience compatibility issues if your cluster is 
+automatically upgraded but agents aren't. 
+
 To get version information for your agents, see [How can I find version information on 
 connected agents?](#how-can-i-find-version-information-on-connected-agents).
+For information about enrolling in automatic agent updates, see [Enroll an agent into automatic 
+updates](../management/operations/enroll-agent-into-automatic-updates/).
 
-If you want to proceed with an upgrade regardless of this compatibility check, contact 
+For more information about automatic upgrades and compatibility issues, contact 
 [Teleport support](https://goteleport.com/support/).
 
-### Are upgrades times configurable for Teleport Enterprise Cloud?
+### Are upgrade times configurable for Teleport Enterprise Cloud?
 
 Yes, you can set the window start time that works best for your organization
 for upgrades. Teleport provides a scheduled maintenance time window for any
@@ -178,8 +179,14 @@ scheduled maintenance.
 
 ### When are agents automatically updated?
 
-Typically, Teleport agents are automatically updated from one to a few days after 
-your Teleport cluster is upgraded during a scheduled maintenance period.
+Teleport Team and Teleport Enterprise must be set to receive automatic updates
+to use the Teleport Cloud version server for automatic agent updates. With automatic 
+agent upgrades, agents periodically check the version server for new releases and 
+update the software when new versions are found.
+
+If you enroll in automatic agent upgrades, Teleport agents are automatically 
+updated from one to a few days after your Teleport cluster is upgraded during 
+a scheduled maintenance period.
 
 ### How can I find version information on connected agents?
 
