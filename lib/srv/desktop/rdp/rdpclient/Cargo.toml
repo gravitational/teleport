@@ -44,6 +44,7 @@ ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "464f154
 ironrdp-rdpsnd = { git = "https://github.com/Devolutions/IronRDP", rev = "464f154ea0558133b556af541ee35f342335abd3" }
 ironrdp-rdpdr = { git = "https://github.com/Devolutions/IronRDP", rev = "464f154ea0558133b556af541ee35f342335abd3" }
 ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "464f154ea0558133b556af541ee35f342335abd3" }
+ironrdp-cliprdr = { git = "https://github.com/Devolutions/IronRDP", rev = "464f154ea0558133b556af541ee35f342335abd3" }
 
 # Uncomment the following lines to use local crates instead of the ones from github
 # ironrdp-connector = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-connector" }

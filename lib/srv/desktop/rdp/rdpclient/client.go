@@ -679,7 +679,7 @@ func handle_remote_copy(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) 
 // handleRemoteCopy is called from Rust when data is copied
 // on the remote desktop
 func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
-	c.cfg.Log.Debugf(" Received %d bytes of clipboard data from Windows desktop", len(data))
+	c.cfg.Log.Debugf("Received %d bytes of clipboard data from Windows desktop", len(data))
 
 	if err := c.cfg.Conn.WriteMessage(tdp.ClipboardData(data)); err != nil {
 		c.cfg.Log.Errorf("failed handling remote copy: %v", err)

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use futures_util::future::err;
 use ironrdp_cliprdr::backend::CliprdrBackend;
 use ironrdp_cliprdr::pdu::{
     ClipboardFormat, ClipboardFormatId, ClipboardGeneralCapabilityFlags, FileContentsRequest,
@@ -50,7 +49,7 @@ impl CliprdrBackend for TeleportCliprdrBackend {
             .client_handle
             .blocking_send(HandleClipboard(RequestFormatList))
         {
-            error!("Couldn't send request format list message")
+            error!("Couldn't send request format list message: {:?}", e);
         }
     }
 
@@ -65,12 +64,15 @@ impl CliprdrBackend for TeleportCliprdrBackend {
     }
 
     fn on_remote_copy(&mut self, available_formats: &[ClipboardFormat]) {
-        trace!("CLIPRDR: on_remote_copy");
+        trace!(
+            "CLIPRDR: on_remote_copy, available formats: {:?}",
+            available_formats
+        );
         if let Err(e) = self
             .client_handle
             .blocking_send(HandleClipboard(RemoteCopy(available_formats.to_vec())))
         {
-            error!("Couldn't send remote copy message");
+            error!("Couldn't send remote copy message: {:?}", e);
         }
     }
 
@@ -82,7 +84,7 @@ impl CliprdrBackend for TeleportCliprdrBackend {
                     format.format,
                 )))
         {
-            error!("Couldn't send format data request message");
+            error!("Couldn't send format data request message: {:?}", e);
         }
     }
 
@@ -92,7 +94,7 @@ impl CliprdrBackend for TeleportCliprdrBackend {
             if let Err(e) = self.client_handle.blocking_send(HandleClipboard(
                 ClipboardFunction::FormatDataResponse(response.data().to_vec()),
             )) {
-                error!("Couldn't send format data response message");
+                error!("Couldn't send format data response message: {:?}", e);
             }
         }
     }
