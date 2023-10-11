@@ -159,12 +159,19 @@ func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, 
 // userPreferencesResponse creates a JSON response for the user preferences.
 func userPreferencesResponse(resp *userpreferencesv1.UserPreferences) *UserPreferencesResponse {
 	jsonResp := &UserPreferencesResponse{
-		Assist:  assistUserPreferencesResponse(resp.Assist),
-		Theme:   resp.Theme,
-		Onboard: onboardUserPreferencesResponse(resp.Onboard),
+		Assist:             assistUserPreferencesResponse(resp.Assist),
+		Theme:              resp.Theme,
+		Onboard:            onboardUserPreferencesResponse(resp.Onboard),
+		ClusterPreferences: clusterPreferencesResponse(resp.ClusterPreferences),
 	}
 
 	return jsonResp
+}
+
+func clusterPreferencesResponse(resp *userpreferencesv1.ClusterUserPreferences) ClusterUserPreferencesResponse {
+	return ClusterUserPreferencesResponse{
+		PinnedResources: resp.PinnedResources.ResourceIds,
+	}
 }
 
 // assistUserPreferencesResponse creates a JSON response for the assist user preferences.

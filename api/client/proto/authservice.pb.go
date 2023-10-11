@@ -10391,7 +10391,10 @@ type ListUnifiedResourcesRequest struct {
 	UseSearchAsRoles bool `protobuf:"varint,9,opt,name=UseSearchAsRoles,proto3" json:"use_search_as_roles,omitempty"`
 	// UsePreviewAsRoles indicates that the response should include all resources
 	// the caller would be able to access with their preview_as_roles
-	UsePreviewAsRoles    bool     `protobuf:"varint,10,opt,name=UsePreviewAsRoles,proto3" json:"use_preview_as_roles,omitempty"`
+	UsePreviewAsRoles bool `protobuf:"varint,10,opt,name=UsePreviewAsRoles,proto3" json:"use_preview_as_roles,omitempty"`
+	// PinnedOnly indicates that the request will pull only the pinned resources
+	// of the requesting user
+	PinnedOnly           bool     `protobuf:"varint,11,opt,name=PinnedOnly,proto3" json:"pinned_only,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -10496,6 +10499,13 @@ func (m *ListUnifiedResourcesRequest) GetUseSearchAsRoles() bool {
 func (m *ListUnifiedResourcesRequest) GetUsePreviewAsRoles() bool {
 	if m != nil {
 		return m.UsePreviewAsRoles
+	}
+	return false
+}
+
+func (m *ListUnifiedResourcesRequest) GetPinnedOnly() bool {
+	if m != nil {
+		return m.PinnedOnly
 	}
 	return false
 }
@@ -32888,6 +32898,16 @@ func (m *ListUnifiedResourcesRequest) MarshalToSizedBuffer(dAtA []byte) (int, er
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
+	if m.PinnedOnly {
+		i--
+		if m.PinnedOnly {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x58
+	}
 	if m.UsePreviewAsRoles {
 		i--
 		if m.UsePreviewAsRoles {
@@ -39443,6 +39463,9 @@ func (m *ListUnifiedResourcesRequest) Size() (n int) {
 		n += 2
 	}
 	if m.UsePreviewAsRoles {
+		n += 2
+	}
+	if m.PinnedOnly {
 		n += 2
 	}
 	if m.XXX_unrecognized != nil {
@@ -59980,6 +60003,26 @@ func (m *ListUnifiedResourcesRequest) Unmarshal(dAtA []byte) error {
 				}
 			}
 			m.UsePreviewAsRoles = bool(v != 0)
+		case 11:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PinnedOnly", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.PinnedOnly = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipAuthservice(dAtA[iNdEx:])

@@ -1614,6 +1614,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		elapsedFilter     time.Duration
 		unifiedResources  types.ResourcesWithLabels
 		filteredResources types.ResourcesWithLabels
+		nextKey           string
 	)
 
 	defer func() {
@@ -1626,8 +1627,6 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			len(unifiedResources), len(filteredResources), elapsedFetch+elapsedFilter)
 	}()
 
-	startFetch := time.Now()
-	startFilter := time.Now()
 	filter := services.MatchResourceFilter{
 		Labels:              req.Labels,
 		SearchKeywords:      req.SearchKeywords,
@@ -1639,21 +1638,41 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	unifiedResources, nextKey, err := a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
-		if err := resourceChecker.CanAccess(resource); err != nil {
-			if trace.IsAccessDenied(err) {
-				return false, nil
-			}
-			return false, trace.Wrap(err)
+	startFetch := time.Now()
+	startFilter := time.Now()
+	if req.PinnedOnly {
+		prefs, err := a.authServer.GetUserPreferences(ctx, a.context.User.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err, "getting user preferences")
 		}
-		match, err := services.MatchResourceByFilters(resource, filter, nil)
-		return match, trace.Wrap(err)
-	}, req)
-	if err != nil {
-		return nil, trace.Wrap(err, "filtering unified resources")
+		if len(prefs.ClusterPreferences.PinnedResources.ResourceIds) == 0 {
+			return &proto.ListUnifiedResourcesResponse{}, nil
+		}
+		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) bool {
+			if err := resourceChecker.CanAccess(resource); err != nil {
+				return false
+			}
+			match, _ := services.MatchResourceByFilters(resource, filter, nil)
+			return match
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "getting unified resources by ID")
+		}
+	} else {
+		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
+			if err := resourceChecker.CanAccess(resource); err != nil {
+				if trace.IsAccessDenied(err) {
+					return false, nil
+				}
+				return false, trace.Wrap(err)
+			}
+			match, err := services.MatchResourceByFilters(resource, filter, nil)
+			return match, trace.Wrap(err)
+		}, req)
+		if err != nil {
+			return nil, trace.Wrap(err, "filtering unified resources")
+		}
 	}
-
 	elapsedFetch = time.Since(startFetch)
 	elapsedFilter = time.Since(startFilter)
 

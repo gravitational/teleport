@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -4201,6 +4202,62 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		r := resource.GetDatabaseServer()
 		require.Equal(t, types.KindDatabaseServer, r.GetKind())
 	}
+}
+
+func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
+	for _, name := range names {
+
+		// add nodes
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{
+				Hostname: name,
+			},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	// create user, role, and client
+	username := "theuser"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+
+	// pin a resource
+	pinned := &userpreferencesv1.PinnedResourcesUserPreferences{
+		ResourceIds: []string{"tifa/tifa/node"},
+	}
+	clusterPrefs := &userpreferencesv1.ClusterUserPreferences{
+		PinnedResources: pinned,
+	}
+
+	req := &userpreferencesv1.UpsertUserPreferencesRequest{
+		Preferences: &userpreferencesv1.UserPreferences{
+			ClusterPreferences: clusterPrefs,
+		},
+	}
+	err = srv.Auth().UpsertUserPreferences(ctx, username, req.Preferences)
+	require.NoError(t, err)
+
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		PinnedOnly: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, resp.NextKey)
+	// Check that our returned resource is the pinned resource
+	require.Equal(t, "tifa", resp.Resources[0].GetNode().GetHostname())
 }
 
 // TestListUnifiedResources_WithSearch will generate multiple resources
