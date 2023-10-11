@@ -167,7 +167,9 @@ func (a *assignmentReconciler) wait(ctx context.Context) {
 func (a *assignmentReconciler) stop() {
 	close(a.stopCh)
 	close(a.reconcileCh)
-	a.watcher.Close()
+	if a.watcher != nil {
+		a.watcher.Close()
+	}
 	if !a.noAssignmentProcessorLoop {
 		a.assignmentProcessor.stop()
 	}

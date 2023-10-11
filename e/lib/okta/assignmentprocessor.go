@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -84,6 +85,9 @@ type assignmentProcessor struct {
 	assignmentClient   *assignmentClient
 	stopCh             chan struct{}
 
+	// assignments will only be processed if leadership has been acquired by the parent Okta service.
+	leadershipAcquired *atomic.Bool
+
 	userTargetCounterMu sync.Mutex
 	// In the event of multiple assignments targeting the same user and group/application, we'll maintain
 	// a counter of active assignments. When this counter reaches 0 during a cleanup, the Okta API will
@@ -94,17 +98,18 @@ type assignmentProcessor struct {
 
 func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssignments) *assignmentProcessor {
 	return &assignmentProcessor{
-		log:               svc.log,
-		clock:             svc.clock,
-		oktaOrgURL:        svc.orgURL,
-		hostID:            svc.hostID,
-		emitter:           svc.emitter,
-		accessPoint:       svc.accessPoint,
-		assignmentGetter:  assignmentGetter,
-		oktaClient:        svc.client,
-		assignmentClient:  newAssignmentClient(svc.log, svc.client),
-		stopCh:            make(chan struct{}, 1),
-		userTargetCounter: map[string]map[string]struct{}{},
+		log:                svc.log,
+		clock:              svc.clock,
+		oktaOrgURL:         svc.orgURL,
+		hostID:             svc.hostID,
+		emitter:            svc.emitter,
+		accessPoint:        svc.accessPoint,
+		assignmentGetter:   assignmentGetter,
+		oktaClient:         svc.client,
+		leadershipAcquired: &svc.leadershipAcquired,
+		assignmentClient:   newAssignmentClient(svc.log, svc.client),
+		stopCh:             make(chan struct{}, 1),
+		userTargetCounter:  map[string]map[string]struct{}{},
 	}
 }
 
@@ -125,6 +130,11 @@ func (a *assignmentProcessor) loop(ctx context.Context, oktaClient oktaClient) {
 			return
 		case <-ctx.Done():
 			return
+		}
+
+		// If the parent Okta service is not the leader, skip processing.
+		if !a.leadershipAcquired.Load() {
+			continue
 		}
 
 		// Refresh the assignment client every loop.
@@ -202,6 +212,11 @@ func (a *assignmentProcessor) processAssignments(ctx context.Context) error {
 // for caching in bulk runs. If reconcile is set, the function will attempt to find differences from the Okta
 // state and reconcile them. Otherwise, they will not be processed.
 func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment types.OktaAssignment, reconcile bool) error {
+	// Skip processing if the leadership has not been acquired.
+	if !a.leadershipAcquired.Load() {
+		return nil
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, processAssignmentTimeout)
 	defer cancel()
 

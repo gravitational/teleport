@@ -40,6 +40,7 @@ func TestAssignmentReconciler(t *testing.T) {
 	hash := crypto.SHA256
 	ap := newTestAccessPoint(t, clock)
 	svc, oktaClient, emitter := newTestService(t, ap)
+	svc.SetLeader(true)
 	svc.clock = clock
 	onReconcileCh := make(chan struct{}, 1)
 	testUser := "test-user@test.user"

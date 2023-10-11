@@ -52,29 +52,15 @@ func (s *Service) synchronizeLoop(ctx context.Context) {
 
 Loop:
 	for {
-		timeoutCtx, cancel := context.WithTimeout(ctx, timeBetweenSyncs)
-		if err := s.synchronize(timeoutCtx); err != nil {
-			s.log.Errorf("Error while synchronizing Okta resources with Teleport: %v", err)
-
-			event := &apievents.OktaSyncFailure{
-				Metadata: apievents.Metadata{
-					Type: events.OktaSyncFailureEvent,
-					Code: events.OktaSyncFailureCode,
-				},
-				ServerMetadata: apievents.ServerMetadata{
-					ServerID: s.hostID,
-				},
-				Status: apievents.Status{
-					Success: false,
-					Error:   err.Error(),
-				},
+		// If the parent Okta service is not the leader, skip synchronizing.
+		if s.leadershipAcquired.Load() {
+			timeoutCtx, cancel := context.WithTimeout(ctx, timeBetweenSyncs)
+			if err := s.synchronize(timeoutCtx); err != nil {
+				s.log.Errorf("Error while synchronizing Okta resources with Teleport: %v", err)
+				s.emitSyncError(ctx, err)
 			}
-
-			if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
-				s.log.WithError(emitErr).Warnf("Failed to emit Okta synchronization failure event: %v", event)
-			}
+			cancel()
 		}
-		cancel()
 
 		select {
 		case <-ticker.Chan():
@@ -90,6 +76,27 @@ Loop:
 	s.log.Infof("Synchronizer stopped.")
 
 	s.syncStoppedChCloser.Do(func() { close(s.syncStoppedCh) })
+}
+
+// emitSyncError will emit a sync error event to the Teleport audit log.
+func (s *Service) emitSyncError(ctx context.Context, err error) {
+	event := &apievents.OktaSyncFailure{
+		Metadata: apievents.Metadata{
+			Type: events.OktaSyncFailureEvent,
+			Code: events.OktaSyncFailureCode,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerID: s.hostID,
+		},
+		Status: apievents.Status{
+			Success: false,
+			Error:   err.Error(),
+		},
+	}
+
+	if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
+		s.log.WithError(emitErr).Warnf("Failed to emit Okta synchronization failure event: %v", event)
+	}
 }
 
 // setupSynchronizerTicker creates the ticker for the synchronizer.

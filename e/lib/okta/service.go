@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"math"
 	"net/http"
 	"strings"
@@ -56,6 +57,11 @@ const (
 	oktaDefaultTimeBetweenSyncs = 10 * time.Minute
 	oktaTransportIdleTimeout    = 30 * time.Second
 	oktaConnectionTimeout       = 30 * time.Second
+
+	semaphoreKind              = "okta-service"
+	semaphoreExpiration        = 10 * time.Minute
+	semaphoreRenewal           = 2 * time.Minute
+	semaphoreRenewalMaxRetries = 5
 )
 
 // ProxyGetter is an interface for retrieving proxy IDs.
@@ -294,6 +300,9 @@ type Service struct {
 	closeCalled    atomic.Bool
 
 	pluginStatusSink common.StatusSink
+
+	leadershipAcquired     atomic.Bool
+	leadershipRenewRetries atomic.Int32
 }
 
 // rateLimitingHTTPTransport will only perform HTTP requests after waiting the
@@ -419,6 +428,10 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 
 // Start will start the Okta service.
 func (s *Service) Start(ctx context.Context) error {
+	// becomeLeader will ensure that the Okta service is the leader before processing anything. This service
+	// will not make any calls the Okta API while it is not the leader.
+	go s.becomeLeader(ctx)
+
 	if err := s.startSynchronizerReconcilers(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -487,6 +500,110 @@ func (s *Service) Close(ctx context.Context) error {
 	}
 
 	return trace.NewAggregate(errs...)
+}
+
+// IsLeader will return true if this service is currently the leader.
+func (s *Service) IsLeader() bool {
+	return s.leadershipAcquired.Load()
+}
+
+// SetLeader will set leadership acquired bool to the given value. Used for testing.
+func (s *Service) SetLeader(isLeader bool) {
+	s.leadershipAcquired.Store(isLeader)
+}
+
+// errStopLeadership will be returned by the leadership acquisition functions when
+// the Okta service has been stopped.
+var errStopLeadership = errors.New("stop leadership acquisition")
+
+// becomeLeader will repeatedly try to acquire and renew a semaphore scoped to the Okta organization
+// managed by this service. Once this semaphore is acquired, this Okta service will be allowed to issue
+// API calls and process assignments. This will prevent multiple Okta services from managing the same Okta
+// organization, as the Okta API rate limits are pretty severe.
+func (s *Service) becomeLeader(ctx context.Context) {
+	for {
+		lease, err := s.acquireSemaphore(ctx)
+		if errors.Is(err, errStopLeadership) {
+			return
+		} else if err != nil {
+			s.log.WithError(err).Debug("Error acquiring semaphore")
+			continue
+		}
+
+		s.leadershipAcquired.Store(true)
+
+		s.log.Debug("Semaphore acquired, going into renew loop")
+
+		err = s.renewSemaphoreLease(ctx, lease)
+		s.leadershipAcquired.Store(false)
+
+		if errors.Is(err, errStopLeadership) {
+			return
+		} else if !trace.IsLimitExceeded(err) {
+			s.log.WithError(err).Debug("Error renewing lease")
+		}
+	}
+}
+
+// acquireSemaphore will acquire the semaphore for this Okta service and org.
+func (s *Service) acquireSemaphore(ctx context.Context) (*types.SemaphoreLease, error) {
+	ticker := s.clock.NewTicker(semaphoreRenewal)
+	defer ticker.Stop()
+	for {
+		s.log.Debug("Attempting to acquire semaphore before starting.")
+		lease, err := s.accessPoint.AcquireSemaphore(ctx, types.AcquireSemaphoreRequest{
+			SemaphoreKind: semaphoreKind,
+			SemaphoreName: s.orgURLBase64,
+			MaxLeases:     1,
+			Expires:       s.clock.Now().Add(semaphoreExpiration),
+			Holder:        s.hostID,
+		})
+		if err == nil {
+			return lease, nil
+		}
+
+		s.log.Debugf("Unable to acquire semaphore, retrying in %s (%s)", semaphoreRenewal.String(), err.Error())
+
+		select {
+		case <-s.stopCh:
+			return nil, errStopLeadership
+		case <-ctx.Done():
+			return nil, errStopLeadership
+		case <-ticker.Chan():
+		}
+	}
+}
+
+// renewSemaphoreLease will repeatedly attempt to renew the semaphore lease.
+func (s *Service) renewSemaphoreLease(ctx context.Context, lease *types.SemaphoreLease) error {
+	// Set up a function to renew the lease regularly.
+	ticker := s.clock.NewTicker(semaphoreRenewal)
+	defer ticker.Stop()
+
+	// Reset renew retries.
+	s.leadershipRenewRetries.Store(0)
+
+	for {
+		select {
+		case <-s.stopCh:
+			return errStopLeadership
+		case <-ctx.Done():
+			return errStopLeadership
+		case <-ticker.Chan():
+		}
+
+		lease.Expires = s.clock.Now().Add(semaphoreExpiration)
+		if err := s.accessPoint.KeepAliveSemaphoreLease(ctx, *lease); err != nil {
+			retryCount := s.leadershipRenewRetries.Add(1)
+			if retryCount >= semaphoreRenewalMaxRetries {
+				return trace.LimitExceeded("max semaphore renew attempts reached, service will stop processing")
+			} else {
+				s.log.WithError(err).WithField("retry_count", retryCount).Warnf("Error renewing semaphore lease, will retry in %s", semaphoreRenewal.String())
+			}
+		} else {
+			s.leadershipRenewRetries.Store(0)
+		}
+	}
 }
 
 // reportPluginStatus will report the plugin status to the given status sink if it exists.

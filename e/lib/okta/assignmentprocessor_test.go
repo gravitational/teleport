@@ -503,6 +503,7 @@ func TestProcessAssignments(t *testing.T) {
 			ctx := context.Background()
 			ap := newTestAccessPoint(t, clock)
 			svc, oktaClient, emitter := newTestService(t, ap)
+			svc.SetLeader(true)
 			svc.clock = clock
 			a := newAssignmentProcessor(svc, func() types.OktaAssignments {
 				return test.assignments

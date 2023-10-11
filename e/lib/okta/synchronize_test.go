@@ -38,6 +38,7 @@ func TestSynchronizeGroups(t *testing.T) {
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	svc, client, emitter := newTestService(t, ap)
+	svc.leadershipAcquired.Store(true)
 
 	// Add in one app to get a group to app mapping from
 	client.oktaApps = []okta.App{
