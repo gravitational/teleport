@@ -21,7 +21,7 @@ import { Danger } from 'design/Alert';
 import { FetchStatus } from 'design/DataTable/types';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { getErrMessage } from 'shared/utils/error';
+import { getErrMessage } from '@gravitational/shared/utils/errorType';
 
 import {
   SecurityGroup,

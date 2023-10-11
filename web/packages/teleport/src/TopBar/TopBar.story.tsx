@@ -69,7 +69,7 @@ export function TopBarWithNotifications() {
     },
   });
   ctx.storeNotifications.state = {
-    notices: [
+    notifications: [
       {
         item: {
           kind: NotificationKind.AccessList,

@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Copyright 2023 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,23 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import { privateKeyEnablingPolicies } from 'shared/services';
-
-export function isPrivateKeyRequiredError(err: Error) {
-  return privateKeyEnablingPolicies.some(p => err.message.includes(p));
-}
-
-// getErrMessage first checks if the error is of type Error
-// before attempting to access the error message field.
-// Used with try catch blocks, where the error caught
-// may not necessary be of type Error.
-export function getErrMessage(err: unknown) {
-  let message = 'something went wrong';
-  if (err instanceof Error) message = err.message;
-
-  return message;
-}
 
 export function assertUnreachable(x: never): never {
   throw new Error(`Unhandled case: ${x}`);

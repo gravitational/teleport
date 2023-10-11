@@ -16,7 +16,7 @@
 import { useEffect, useState } from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { getErrMessage } from 'shared/utils/error';
+import { getErrMessage } from '@gravitational/shared/utils/errorType';
 
 import useTeleport from 'teleport/useTeleport';
 import { useDiscover } from 'teleport/Discover/useDiscover';
