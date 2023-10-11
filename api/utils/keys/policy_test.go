@@ -146,8 +146,14 @@ func TestGetPolicyFromSet(t *testing.T) {
 			},
 			wantPolicy: keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
 		}, {
-			name:       "touch and pin policy",
-			policySet:  privateKeyPolicies,
+			name: "touch and pin policy",
+			policySet: []keys.PrivateKeyPolicy{
+				keys.PrivateKeyPolicyNone,
+				keys.PrivateKeyPolicyHardwareKey,
+				keys.PrivateKeyPolicyHardwareKeyTouch,
+				keys.PrivateKeyPolicyHardwareKeyPIN,
+				keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+			},
 			wantPolicy: keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
 		},
 	}
