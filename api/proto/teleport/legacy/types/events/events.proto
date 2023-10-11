@@ -60,7 +60,7 @@ message SessionMetadata {
   // WithMFA is a UUID of an MFA device used to start this session.
   string WithMFA = 2 [(gogoproto.jsontag) = "with_mfa,omitempty"];
   // PrivateKeyPolicy is the private key policy of the private key used to start this session.
-  string private_key_policy = 3;
+  string PrivateKeyPolicy = 3 [(gogoproto.jsontag) = "private_key_policy,omitempty"];
 }
 
 // UserMetadata is a common user event metadata
@@ -91,7 +91,7 @@ message UserMetadata {
   DeviceMetadata TrustedDevice = 8 [(gogoproto.jsontag) = "trusted_device,omitempty"];
 
   // RequiredPrivateKeyPolicy is the private key policy enforced for this login.
-  string required_private_key_policy = 9;
+  string RequiredPrivateKeyPolicy = 9 [(gogoproto.jsontag) = "required_private_key_policy,omitempty"];
 }
 
 // Server is a server metadata
@@ -3630,7 +3630,7 @@ message Identity {
   // GCPServiceAccounts is a list of allowed GCP service accounts user can assume.
   repeated string GCPServiceAccounts = 25 [(gogoproto.jsontag) = "gcp_service_accounts,omitempty"];
   // PrivateKeyPolicy is the private key policy of the user's private key.
-  string private_key_policy = 26;
+  string PrivateKeyPolicy = 26 [(gogoproto.jsontag) = "private_key_policy,omitempty"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.

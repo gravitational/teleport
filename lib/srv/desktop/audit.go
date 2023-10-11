@@ -47,7 +47,7 @@ type desktopSessionAuditor struct {
 	auditCache sharedDirectoryAuditCache
 }
 
-func (d *desktopSessionAuditor) makeSessionMetadata() events.SessionMetadata {
+func (d *desktopSessionAuditor) getSessionMetadata() events.SessionMetadata {
 	return events.SessionMetadata{
 		SessionID:        d.sessionID,
 		WithMFA:          d.identity.MFAVerified,
@@ -55,7 +55,7 @@ func (d *desktopSessionAuditor) makeSessionMetadata() events.SessionMetadata {
 	}
 }
 
-func (d *desktopSessionAuditor) makeConnectionMetadata() events.ConnectionMetadata {
+func (d *desktopSessionAuditor) getConnectionMetadata() events.ConnectionMetadata {
 	return events.ConnectionMetadata{
 		LocalAddr:  d.identity.LoginIP,
 		RemoteAddr: d.desktop.GetAddr(),
@@ -97,8 +97,8 @@ func (d *desktopSessionAuditor) makeSessionStart(err error) *events.WindowsDeskt
 			Time:        d.startTime,
 		},
 		UserMetadata:          userMetadata,
-		SessionMetadata:       d.makeSessionMetadata(),
-		ConnectionMetadata:    d.makeConnectionMetadata(),
+		SessionMetadata:       d.getSessionMetadata(),
+		ConnectionMetadata:    d.getConnectionMetadata(),
 		Status:                events.Status{Success: err == nil},
 		WindowsDesktopService: d.desktopServiceUUID,
 		DesktopName:           d.desktop.GetName(),
@@ -128,7 +128,7 @@ func (d *desktopSessionAuditor) makeSessionEnd(recorded bool) *events.WindowsDes
 			ClusterName: d.clusterName,
 		},
 		UserMetadata:          userMetadata,
-		SessionMetadata:       d.makeSessionMetadata(),
+		SessionMetadata:       d.getSessionMetadata(),
 		WindowsDesktopService: d.desktopServiceUUID,
 		DesktopAddr:           d.desktop.GetAddr(),
 		Domain:                d.desktop.GetDomain(),
@@ -153,8 +153,8 @@ func (d *desktopSessionAuditor) makeClipboardSend(length int32) *events.DesktopC
 			Time:        d.clock.Now().UTC(),
 		},
 		UserMetadata:       d.identity.GetUserMetadata(),
-		SessionMetadata:    d.makeSessionMetadata(),
-		ConnectionMetadata: d.makeConnectionMetadata(),
+		SessionMetadata:    d.getSessionMetadata(),
+		ConnectionMetadata: d.getConnectionMetadata(),
 		DesktopAddr:        d.desktop.GetAddr(),
 		Length:             length,
 	}
@@ -169,8 +169,8 @@ func (d *desktopSessionAuditor) makeClipboardReceive(length int32) *events.Deskt
 			Time:        d.clock.Now().UTC(),
 		},
 		UserMetadata:       d.identity.GetUserMetadata(),
-		SessionMetadata:    d.makeSessionMetadata(),
-		ConnectionMetadata: d.makeConnectionMetadata(),
+		SessionMetadata:    d.getSessionMetadata(),
+		ConnectionMetadata: d.getConnectionMetadata(),
 		DesktopAddr:        d.desktop.GetAddr(),
 		Length:             length,
 	}
@@ -198,8 +198,8 @@ func (d *desktopSessionAuditor) onSharedDirectoryAnnounce(m tdp.SharedDirectoryA
 			Time:        d.clock.Now().UTC(),
 		},
 		UserMetadata:       d.identity.GetUserMetadata(),
-		SessionMetadata:    d.makeSessionMetadata(),
-		ConnectionMetadata: d.makeConnectionMetadata(),
+		SessionMetadata:    d.getSessionMetadata(),
+		ConnectionMetadata: d.getConnectionMetadata(),
 		Status: events.Status{
 			Success:     false,
 			Error:       errMsg,
@@ -232,8 +232,8 @@ func (d *desktopSessionAuditor) makeSharedDirectoryStart(m tdp.SharedDirectoryAc
 			Time:        d.clock.Now().UTC(),
 		},
 		UserMetadata:       d.identity.GetUserMetadata(),
-		SessionMetadata:    d.makeSessionMetadata(),
-		ConnectionMetadata: d.makeConnectionMetadata(),
+		SessionMetadata:    d.getSessionMetadata(),
+		ConnectionMetadata: d.getConnectionMetadata(),
 		Status:             statusFromErrCode(m.ErrCode),
 		DesktopAddr:        d.desktop.GetAddr(),
 		DirectoryName:      string(name),
@@ -273,8 +273,8 @@ func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(m tdp.SharedDirecto
 			Time:        d.clock.Now().UTC(),
 		},
 		UserMetadata:       d.identity.GetUserMetadata(),
-		SessionMetadata:    d.makeSessionMetadata(),
-		ConnectionMetadata: d.makeConnectionMetadata(),
+		SessionMetadata:    d.getSessionMetadata(),
+		ConnectionMetadata: d.getConnectionMetadata(),
 		Status: events.Status{
 			Success:     false,
 			Error:       err.Error(),
@@ -329,8 +329,8 @@ func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(m tdp.SharedDire
 			Time:        d.clock.Now().UTC(),
 		},
 		UserMetadata:       d.identity.GetUserMetadata(),
-		SessionMetadata:    d.makeSessionMetadata(),
-		ConnectionMetadata: d.makeConnectionMetadata(),
+		SessionMetadata:    d.getSessionMetadata(),
+		ConnectionMetadata: d.getConnectionMetadata(),
 		Status:             statusFromErrCode(m.ErrCode),
 		DesktopAddr:        d.desktop.GetAddr(),
 		DirectoryName:      string(name),
@@ -375,8 +375,8 @@ func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(m tdp.SharedDirect
 			Time:        d.clock.Now().UTC(),
 		},
 		UserMetadata:       d.identity.GetUserMetadata(),
-		SessionMetadata:    d.makeSessionMetadata(),
-		ConnectionMetadata: d.makeConnectionMetadata(),
+		SessionMetadata:    d.getSessionMetadata(),
+		ConnectionMetadata: d.getConnectionMetadata(),
 		Status: events.Status{
 			Success:     false,
 			Error:       err.Error(),
@@ -430,8 +430,8 @@ func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(m tdp.SharedDir
 			Time:        d.clock.Now().UTC(),
 		},
 		UserMetadata:       d.identity.GetUserMetadata(),
-		SessionMetadata:    d.makeSessionMetadata(),
-		ConnectionMetadata: d.makeConnectionMetadata(),
+		SessionMetadata:    d.getSessionMetadata(),
+		ConnectionMetadata: d.getConnectionMetadata(),
 		Status:             statusFromErrCode(m.ErrCode),
 		DesktopAddr:        d.desktop.GetAddr(),
 		DirectoryName:      string(name),
