@@ -1648,6 +1648,9 @@ export class ListUnifiedResourcesRequest extends jspb.Message {
     getSearchAsRoles(): boolean;
     setSearchAsRoles(value: boolean): ListUnifiedResourcesRequest;
 
+    getPinnedOnly(): boolean;
+    setPinnedOnly(value: boolean): ListUnifiedResourcesRequest;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListUnifiedResourcesRequest.AsObject;
@@ -1669,6 +1672,7 @@ export namespace ListUnifiedResourcesRequest {
         search: string,
         sortBy?: SortBy.AsObject,
         searchAsRoles: boolean,
+        pinnedOnly: boolean,
     }
 }
 

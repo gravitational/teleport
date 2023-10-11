@@ -45,6 +45,7 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 		SearchKeywords:      client.ParseSearchKeywords(req.GetSearch(), ' '),
 		SortBy:              sortBy,
 		UseSearchAsRoles:    req.GetSearchAsRoles(),
+		PinnedOnly:          req.GetPinnedOnly(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
