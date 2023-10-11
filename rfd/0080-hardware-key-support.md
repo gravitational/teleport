@@ -444,7 +444,7 @@ Tap your YubiKey
 
 ##### PIN requirement
 
-If a user has private key policy `hardware_key_pin` or `hardware_key_touch_and_pin`, then Teleport client requests will require pin. This will be handled by a standard IO prompt.
+If a user has private key policy `hardware_key_pin` or `hardware_key_touch_and_pin`, then Teleport client requests will require pin. This will be handled by a password style prompt.
 
 ```bash
 > tsh login --user=dev
