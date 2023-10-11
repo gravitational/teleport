@@ -1818,6 +1818,10 @@ message AuthPreferenceSpecV2 {
   // Okta is a set of options related to the Okta service in Teleport.
   // Requires Teleport Enterprise.
   OktaOptions Okta = 17 [(gogoproto.jsontag) = "okta,omitempty"];
+
+  // PIVSlot is a PIV slot that Teleport clients should use instead of the
+  // default based on private key policy. For example, "9a" or "9e".
+  string PIVSlot = 18 [(gogoproto.jsontag) = "piv_slot,omitempty"];
 }
 
 // U2F defines settings for U2F device.

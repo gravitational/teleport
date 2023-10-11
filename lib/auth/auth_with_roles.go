@@ -1505,24 +1505,10 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	// Fetch full list of resources in the backend.
 	var (
-		elapsedFetch      time.Duration
-		elapsedFilter     time.Duration
-		unifiedResources  types.ResourcesWithLabels
-		filteredResources types.ResourcesWithLabels
+		unifiedResources types.ResourcesWithLabels
+		nextKey          string
 	)
 
-	defer func() {
-		log.WithFields(logrus.Fields{
-			"user":           a.context.User.GetName(),
-			"elapsed_fetch":  elapsedFetch,
-			"elapsed_filter": elapsedFilter,
-		}).Debugf(
-			"ListUnifiedResources(%v->%v) in %v.",
-			len(unifiedResources), len(filteredResources), elapsedFetch+elapsedFilter)
-	}()
-
-	startFetch := time.Now()
-	startFilter := time.Now()
 	filter := services.MatchResourceFilter{
 		Labels:              req.Labels,
 		SearchKeywords:      req.SearchKeywords,
@@ -1534,23 +1520,47 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	unifiedResources, nextKey, err := a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
-		if err := resourceChecker.CanAccess(resource); err != nil {
-			if trace.IsAccessDenied(err) {
-				return false, nil
-			}
-			return false, trace.Wrap(err)
+	if req.PinnedOnly {
+		prefs, err := a.authServer.GetUserPreferences(ctx, a.context.User.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err, "getting user preferences")
 		}
-		match, err := services.MatchResourceByFilters(resource, filter, nil)
-		return match, trace.Wrap(err)
-	}, req)
-	if err != nil {
-		return nil, trace.Wrap(err, "filtering unified resources")
-	}
+		if len(prefs.ClusterPreferences.PinnedResources.ResourceIds) == 0 {
+			return &proto.ListUnifiedResourcesResponse{}, nil
+		}
+		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) bool {
+			if err := resourceChecker.CanAccess(resource); err != nil {
+				return false
+			}
+			match, _ := services.MatchResourceByFilters(resource, filter, nil)
+			return match
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "getting unified resources by ID")
+		}
+	} else {
+		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
+			var err error
+			switch r := resource.(type) {
+			case types.SAMLIdPServiceProvider:
+				err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList)
+			default:
+				err = resourceChecker.CanAccess(r)
+			}
 
-	elapsedFetch = time.Since(startFetch)
-	elapsedFilter = time.Since(startFilter)
+			if err != nil {
+				if trace.IsAccessDenied(err) {
+					return false, nil
+				}
+				return false, trace.Wrap(err)
+			}
+			match, err := services.MatchResourceByFilters(resource, filter, nil)
+			return match, trace.Wrap(err)
+		}, req)
+		if err != nil {
+			return nil, trace.Wrap(err, "filtering unified resources")
+		}
+	}
 
 	paginatedResources, err := services.MakePaginatedResources(types.KindUnifiedResource, unifiedResources)
 	if err != nil {
@@ -2606,14 +2616,14 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 	return a.authServer.DeleteAccessRequest(ctx, name)
 }
 
-func (a *ServerWithRoles) GetUsers(withSecrets bool) ([]types.User, error) {
+func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
 		// migrated to that model.
 		if !a.hasBuiltinRole(types.RoleAdmin) {
 			err := trace.AccessDenied("user %q requested access to all users with secrets", a.context.User.GetName())
 			log.Warning(err)
-			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.UserLogin{
+			if err := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
 					Code: events.UserLocalLoginFailureCode,
@@ -2634,28 +2644,19 @@ func (a *ServerWithRoles) GetUsers(withSecrets bool) ([]types.User, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetUsers(withSecrets)
+
+	users, err := a.authServer.GetUsers(ctx, withSecrets)
+	return users, trace.Wrap(err)
 }
 
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (a *ServerWithRoles) GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	return a.GetUsers(withSecrets)
-}
-
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (a *ServerWithRoles) GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	user, err := a.GetUser(name, withSecrets)
-	return user, trace.Wrap(err)
-}
-
-func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (types.User, error) {
+func (a *ServerWithRoles) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
 		// migrated to that model.
 		if !a.hasBuiltinRole(types.RoleAdmin) {
 			err := trace.AccessDenied("user %q requested access to user %q with secrets", a.context.User.GetName(), name)
 			log.Warning(err)
-			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.UserLogin{
+			if err := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
 					Code: events.UserLocalLoginFailureCode,
@@ -2682,7 +2683,7 @@ func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (types.User, er
 		}
 	}
 
-	user, err := a.authServer.GetUser(name, withSecrets)
+	user, err := a.authServer.GetUser(ctx, name, withSecrets)
 	return user, trace.Wrap(err)
 }
 
@@ -2986,7 +2987,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// This call bypasses RBAC check for users read on purpose.
 	// Users who are allowed to impersonate other users might not have
 	// permissions to read user data.
-	user, err := a.authServer.GetUser(req.Username, false)
+	user, err := a.authServer.GetUser(ctx, req.Username, false)
 	if err != nil {
 		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", req.Username)
 		return nil, trace.AccessDenied("access denied")
@@ -3294,32 +3295,17 @@ func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *pro
 }
 
 // CreateUser inserts a new user entry in a backend.
-func (a *ServerWithRoles) CreateUser(ctx context.Context, u types.User) error {
-	_, err := a.CreateUserWithContext(context.TODO(), u)
-	return trace.Wrap(err)
-}
-
-// CreateUserWithContext inserts a new user entry in a backend.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (a *ServerWithRoles) CreateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
+func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := a.authServer.CreateUserWithContext(ctx, user)
-	return user, trace.Wrap(err)
+	created, err := a.authServer.CreateUser(ctx, user)
+	return created, trace.Wrap(err)
 }
 
 // UpdateUser updates an existing user in a backend.
 // Captures the auth user who modified the user record.
-func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) error {
-	_, err := a.UpdateUserWithContext(ctx, user)
-	return trace.Wrap(err)
-}
-
-// UpdateUserWithContext updates an existing user in a backend.
-// Captures the auth user who modified the user record.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (a *ServerWithRoles) UpdateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
+func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3328,13 +3314,7 @@ func (a *ServerWithRoles) UpdateUserWithContext(ctx context.Context, user types.
 	return updated, trace.Wrap(err)
 }
 
-func (a *ServerWithRoles) UpsertUser(u types.User) error {
-	_, err := a.UpsertUserWithContext(context.TODO(), u)
-	return trace.Wrap(err)
-}
-
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (a *ServerWithRoles) UpsertUserWithContext(ctx context.Context, u types.User) (types.User, error) {
+func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3345,7 +3325,7 @@ func (a *ServerWithRoles) UpsertUserWithContext(ctx context.Context, u types.Use
 			User: types.UserRef{Name: a.context.User.GetName()},
 		})
 	}
-	user, err := a.authServer.UpsertUserWithContext(ctx, u)
+	user, err := a.authServer.UpsertUser(ctx, u)
 	return user, trace.Wrap(err)
 }
 
@@ -4392,13 +4372,7 @@ func (a *ServerWithRoles) DeleteAllRoles() error {
 }
 
 // DeleteAllUsers not implemented: can only be called locally.
-func (a *ServerWithRoles) DeleteAllUsers() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUsersWithContext not implemented: can only be called locally.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (a *ServerWithRoles) DeleteAllUsersWithContext(context.Context) error {
+func (a *ServerWithRoles) DeleteAllUsers(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 

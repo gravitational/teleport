@@ -25,6 +25,7 @@ import type {
   AuthType,
   PreferredMfaType,
   PrimaryAuthType,
+  PrivateKeyPolicy,
 } from 'shared/services';
 
 import type { SortType } from 'teleport/services/agents';
@@ -66,6 +67,7 @@ const cfg = {
     second_factor: 'off' as Auth2faType,
     authType: 'local' as AuthType,
     preferredLocalMfa: '' as PreferredMfaType,
+    privateKeyPolicy: 'none' as PrivateKeyPolicy,
     // motd is message of the day, displayed to users before login.
     motd: '',
   },
@@ -267,12 +269,19 @@ const cfg = {
     assistExecuteCommandWebSocketPath:
       'wss://:hostname/v1/webapi/command/:clusterId/execute',
     userPreferencesPath: '/v1/webapi/user/preferences',
+    userClusterPreferencesPath: '/v1/webapi/user/preferences/:clusterId',
 
     // Assist needs some access request info to exist in OSS
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
   },
 
   welcomeInitialUserFlag: 'initial',
+
+  getUserClusterPreferencesUrl(clusterId: string) {
+    return generatePath(cfg.api.userClusterPreferencesPath, {
+      clusterId,
+    });
+  },
 
   getAppFqdnUrl(params: UrlAppParams) {
     return generatePath(cfg.api.appFqdnPath, { ...params });
@@ -319,6 +328,10 @@ const cfg = {
 
   getLocalAuthFlag() {
     return cfg.auth.localAuthEnabled;
+  },
+
+  getPrivateKeyPolicy() {
+    return cfg.auth.privateKeyPolicy;
   },
 
   isPasswordlessEnabled() {

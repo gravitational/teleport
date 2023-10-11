@@ -1956,12 +1956,12 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 }
 
 // GetUser is a part of auth.Cache implementation.
-func (c *Cache) GetUser(name string, withSecrets bool) (types.User, error) {
-	_, span := c.Tracer.Start(context.TODO(), "cache/GetUser")
+func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
+	_, span := c.Tracer.Start(ctx, "cache/GetUser")
 	defer span.End()
 
 	if withSecrets { // cache never tracks user secrets
-		return c.Config.Users.GetUser(name, withSecrets)
+		return c.Config.Users.GetUser(ctx, name, withSecrets)
 	}
 	rg, err := readCollectionCache(c, c.collections.users)
 	if err != nil {
@@ -1969,45 +1969,33 @@ func (c *Cache) GetUser(name string, withSecrets bool) (types.User, error) {
 	}
 	defer rg.Release()
 
-	user, err := rg.reader.GetUser(name, withSecrets)
+	user, err := rg.reader.GetUser(ctx, name, withSecrets)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if user, err := c.Config.Users.GetUser(name, withSecrets); err == nil {
+		if user, err := c.Config.Users.GetUser(ctx, name, withSecrets); err == nil {
 			return user, nil
 		}
 	}
 	return user, trace.Wrap(err)
 }
 
-// GetUserWithContext is a part of auth.Cache implementation.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Cache) GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	return c.GetUser(name, withSecrets)
-}
-
 // GetUsers is a part of auth.Cache implementation
-func (c *Cache) GetUsers(withSecrets bool) ([]types.User, error) {
-	_, span := c.Tracer.Start(context.TODO(), "cache/GetUsers")
+func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
+	_, span := c.Tracer.Start(ctx, "cache/GetUsers")
 	defer span.End()
 
 	if withSecrets { // cache never tracks user secrets
-		return c.Users.GetUsers(withSecrets)
+		return c.Users.GetUsers(ctx, withSecrets)
 	}
 	rg, err := readCollectionCache(c, c.collections.users)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetUsers(withSecrets)
-}
-
-// GetUsersWithContext is a part of auth.Cache implementation
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Cache) GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	return c.GetUsers(withSecrets)
+	return rg.reader.GetUsers(ctx, withSecrets)
 }
 
 // GetTunnelConnections is a part of auth.Cache implementation

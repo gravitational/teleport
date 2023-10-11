@@ -901,7 +901,7 @@ func createUserAndRole(client *testClient, username string, allowedLogins []stri
 	}
 
 	user.AddRole(role.GetName())
-	err = client.UpsertUser(user)
+	user, err = client.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

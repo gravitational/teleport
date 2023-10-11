@@ -19,6 +19,7 @@ import { makeChangedUserAuthn } from './make';
 test('makeChangedUserAuthn with null', async () => {
   expect(makeChangedUserAuthn(null)).toStrictEqual({
     recovery: { codes: [], createdDate: null },
+    privateKeyPolicyEnabled: false,
   });
 });
 
@@ -30,11 +31,13 @@ test('makeChangedUserAuthn with recovery codes', async () => {
         codes: ['llama', 'alpca'],
         created: date,
       },
+      privateKeyPolicyEnabled: true,
     })
   ).toStrictEqual({
     recovery: {
       codes: ['llama', 'alpca'],
       createdDate: new Date('2022-10-25T00:30:18.162Z'),
     },
+    privateKeyPolicyEnabled: true,
   });
 });

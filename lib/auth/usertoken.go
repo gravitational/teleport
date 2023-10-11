@@ -145,7 +145,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 		return nil, trace.BadParameter("invalid reset password token request type")
 	}
 
-	_, err = s.ResetPassword(req.Name)
+	_, err = s.ResetPassword(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

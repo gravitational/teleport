@@ -828,58 +828,43 @@ func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster
 }
 
 // CreateUser creates a new user from the specified descriptor.
-func (c *Client) CreateUser(ctx context.Context, user types.User) error {
+func (c *Client) CreateUser(ctx context.Context, user types.User) (types.User, error) {
 	userV2, ok := user.(*types.UserV2)
 	if !ok {
-		return trace.BadParameter("unsupported user type %T", user)
+		return nil, trace.BadParameter("unsupported user type %T", user)
 	}
 
-	_, err := c.grpc.CreateUser(ctx, userV2)
-	return trace.Wrap(err)
-}
-
-// CreateUserWithContext creates a new user from the specified descriptor.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) CreateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
-	err := c.CreateUser(ctx, user)
-	if err != nil {
+	if _, err := c.grpc.CreateUser(ctx, userV2); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := c.GetUserWithContext(ctx, user.GetName(), false)
+	created, err := c.GetUser(ctx, user.GetName(), false)
 	return created, trace.Wrap(err)
 }
 
 // UpdateUser updates an existing user in a backend.
-func (c *Client) UpdateUser(ctx context.Context, user types.User) error {
+func (c *Client) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	userV2, ok := user.(*types.UserV2)
 	if !ok {
-		return trace.BadParameter("unsupported user type %T", user)
+		return nil, trace.BadParameter("unsupported user type %T", user)
 	}
 
 	_, err := c.grpc.UpdateUser(ctx, userV2)
-	return trace.Wrap(err)
-}
-
-// UpdateUserWithContext updates an existing user in a backend.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) UpdateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
-	err := c.UpdateUser(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := c.GetUserWithContext(ctx, user.GetName(), false)
+	updated, err := c.GetUser(ctx, userV2.GetName(), false)
 	return updated, trace.Wrap(err)
 }
 
 // GetUser returns a list of usernames registered in the system.
 // withSecrets controls whether authentication details are returned.
-func (c *Client) GetUser(name string, withSecrets bool) (types.User, error) {
+func (c *Client) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing username")
 	}
-	user, err := c.grpc.GetUser(context.TODO(), &proto.GetUserRequest{
+	user, err := c.grpc.GetUser(ctx, &proto.GetUserRequest{
 		Name:        name,
 		WithSecrets: withSecrets,
 	})
@@ -887,13 +872,6 @@ func (c *Client) GetUser(name string, withSecrets bool) (types.User, error) {
 		return nil, trace.Wrap(err)
 	}
 	return user, nil
-}
-
-// GetUserWithContext returns a list of usernames registered in the system.
-// withSecrets controls whether authentication details are returned.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	return c.GetUser(name, withSecrets)
 }
 
 // GetCurrentUser returns current user as seen by the server.
@@ -924,8 +902,8 @@ func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) 
 
 // GetUsers returns a list of users.
 // withSecrets controls whether authentication details are returned.
-func (c *Client) GetUsers(withSecrets bool) ([]types.User, error) {
-	stream, err := c.grpc.GetUsers(context.TODO(), &proto.GetUsersRequest{
+func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
+	stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
 		WithSecrets: withSecrets,
 	})
 	if err != nil {
@@ -939,13 +917,6 @@ func (c *Client) GetUsers(withSecrets bool) ([]types.User, error) {
 		users = append(users, user)
 	}
 	return users, nil
-}
-
-// GetUsersWithContext returns a list of users.
-// withSecrets controls whether authentication details are returned.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	return c.GetUsers(withSecrets)
 }
 
 // DeleteUser deletes a user by name.
@@ -4023,6 +3994,22 @@ func (c *Client) ListIntegrations(ctx context.Context, pageSize int, nextKey str
 	}
 
 	return integrations, resp.GetNextKey(), nil
+}
+
+// ListAllIntegrations returns the list of all Integrations.
+func (c *Client) ListAllIntegrations(ctx context.Context) ([]types.Integration, error) {
+	var result []types.Integration
+	var nextKey string
+	for {
+		integrations, nextKey, err := c.ListIntegrations(ctx, 0, nextKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result = append(result, integrations...)
+		if nextKey == "" {
+			return result, nil
+		}
+	}
 }
 
 // GetIntegration returns an Integration by its name.
