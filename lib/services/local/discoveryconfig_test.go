@@ -50,6 +50,7 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 	// Create a couple discovery configs.
 	discoveryConfig1 := newDiscoveryConfig(t, "discovery-config-1")
 	discoveryConfig2 := newDiscoveryConfig(t, "discovery-config-2")
+	discoveryConfig3 := newDiscoveryConfig(t, "discovery-config-3")
 
 	// Initially we expect no discovery configs.
 	out, nextToken, err := service.ListDiscoveryConfigs(ctx, 0, "")
@@ -102,13 +103,27 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(discoveryConfig1, discoveryConfig, cmpOpts...))
 
+	// Upsert a discovery config updates if it already exists.
+	discoveryConfig1.SetExpiry(clock.Now().Add(40 * time.Minute))
+	discoveryConfig, err = service.UpsertDiscoveryConfig(ctx, discoveryConfig1)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(discoveryConfig1, discoveryConfig, cmpOpts...))
+	discoveryConfig, err = service.GetDiscoveryConfig(ctx, discoveryConfig1.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(discoveryConfig1, discoveryConfig, cmpOpts...))
+
+	// Upsert a discovery config creates if it doesn't exist.
+	discoveryConfig, err = service.UpsertDiscoveryConfig(ctx, discoveryConfig3)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(discoveryConfig3, discoveryConfig, cmpOpts...))
+
 	// Delete a discovery config.
 	err = service.DeleteDiscoveryConfig(ctx, discoveryConfig1.GetName())
 	require.NoError(t, err)
 	out, nextToken, err = service.ListDiscoveryConfigs(ctx, 0, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
-	require.Empty(t, cmp.Diff([]*discoveryconfig.DiscoveryConfig{discoveryConfig2}, out, cmpOpts...))
+	require.Empty(t, cmp.Diff([]*discoveryconfig.DiscoveryConfig{discoveryConfig2, discoveryConfig3}, out, cmpOpts...))
 
 	// Try to delete a discovery config that doesn't exist.
 	err = service.DeleteDiscoveryConfig(ctx, "doesnotexist")
