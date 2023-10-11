@@ -24,7 +24,7 @@ this vulnerability.
 * Fixed spurious timeouts in Database Access Sessions Fixed spurious timeouts in Database Access Sessions
 * Added connection information to multiplexer logs [#32739](https://github.com/gravitational/teleport/pull/32739)
 * Fixed panic on `tsh device enroll --current-device` [#32757](https://github.com/gravitational/teleport/pull/32757)
-* Added Discover flow for enrolling EC2 Instances with EICE [#32766](https://github.com/gravitational/teleport/pull/32766)
+* Added Discover flow for enrolling EC2 Instances with Instance Connect Endpoint [#32766](https://github.com/gravitational/teleport/pull/32766)
 * The Teleport `etcd` backend will now start if some nodes are unreachable [#32778](https://github.com/gravitational/teleport/pull/32778)
 * Adds Audit Review recurrence presets [#32961](https://github.com/gravitational/teleport/pull/32961)
 * Fixed issue causing keys to be incorrectly removed in tsh and Teleport Connect on Windows  [#32964](https://github.com/gravitational/teleport/pull/32964)
