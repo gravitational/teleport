@@ -2726,6 +2726,7 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_Genera
 			// If MFA is not required to gain access to the resource then let the client
 			// know and abort the ceremony.
 			if !required {
+				//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 				return trace.Wrap(stream.Send(&authpb.UserSingleUseCertsResponse{
 					Response: &authpb.UserSingleUseCertsResponse_MFAChallenge{
 						MFAChallenge: &authpb.MFAAuthenticateChallenge{
@@ -2755,6 +2756,7 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_Genera
 	}
 
 	// 4. send Certs
+	//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 	if err := stream.Send(&authpb.UserSingleUseCertsResponse{
 		Response: &authpb.UserSingleUseCertsResponse_Cert{Cert: respCert},
 	}); err != nil {
@@ -2837,6 +2839,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream authpb.AuthServic
 
 	challenge.MFARequired = mfaRequired
 
+	//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 	if err := stream.Send(&authpb.UserSingleUseCertsResponse{
 		Response: &authpb.UserSingleUseCertsResponse_MFAChallenge{MFAChallenge: challenge},
 	}); err != nil {
