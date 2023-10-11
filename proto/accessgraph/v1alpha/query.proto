@@ -23,7 +23,7 @@ service AccessGraphService {
   // Query queries the access graph.
   // Currently only used by WebUI.
   rpc Query(QueryRequest) returns (QueryResponse);
-  // GetFile gets a statis UI file from the access graph container.
+  // GetFile gets a static UI file from the access graph container.
   rpc GetFile(GetFileRequest) returns (GetFileResponse);
 }
 

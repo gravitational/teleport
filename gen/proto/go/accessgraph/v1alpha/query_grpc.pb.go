@@ -44,7 +44,7 @@ type AccessGraphServiceClient interface {
 	// Query queries the access graph.
 	// Currently only used by WebUI.
 	Query(ctx context.Context, in *QueryRequest, opts ...grpc.CallOption) (*QueryResponse, error)
-	// GetFile gets a statis UI file from the access graph container.
+	// GetFile gets a static UI file from the access graph container.
 	GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (*GetFileResponse, error)
 }
 
@@ -81,7 +81,7 @@ type AccessGraphServiceServer interface {
 	// Query queries the access graph.
 	// Currently only used by WebUI.
 	Query(context.Context, *QueryRequest) (*QueryResponse, error)
-	// GetFile gets a statis UI file from the access graph container.
+	// GetFile gets a static UI file from the access graph container.
 	GetFile(context.Context, *GetFileRequest) (*GetFileResponse, error)
 	mustEmbedUnimplementedAccessGraphServiceServer()
 }

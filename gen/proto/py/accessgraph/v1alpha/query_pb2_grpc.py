@@ -40,7 +40,7 @@ class AccessGraphServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def GetFile(self, request, context):
-        """GetFile gets a statis UI file from the access graph container.
+        """GetFile gets a static UI file from the access graph container.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
