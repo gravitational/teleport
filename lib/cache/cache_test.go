@@ -1412,16 +1412,22 @@ func TestUsers(t *testing.T) {
 		newResource: func(name string) (types.User, error) {
 			return types.NewUser("bob")
 		},
-		create: modifyNoContext(p.usersS.UpsertUser),
+		create: func(ctx context.Context, user types.User) error {
+			_, err := p.usersS.UpsertUser(ctx, user)
+			return err
+		},
 		list: func(ctx context.Context) ([]types.User, error) {
-			return p.usersS.GetUsers(false)
+			return p.usersS.GetUsers(ctx, false)
 		},
 		cacheList: func(ctx context.Context) ([]types.User, error) {
-			return p.cache.GetUsers(false)
+			return p.cache.GetUsers(ctx, false)
 		},
-		update: modifyNoContext(p.usersS.UpsertUser),
-		deleteAll: func(_ context.Context) error {
-			return p.usersS.DeleteAllUsers()
+		update: func(ctx context.Context, user types.User) error {
+			_, err := p.usersS.UpdateUser(ctx, user)
+			return err
+		},
+		deleteAll: func(ctx context.Context) error {
+			return p.usersS.DeleteAllUsers(ctx)
 		},
 	})
 }
@@ -2677,7 +2683,8 @@ func TestPartialHealth(t *testing.T) {
 
 	user, err := types.NewUser("bob")
 	require.NoError(t, err)
-	require.NoError(t, p.usersS.UpsertUser(user))
+	user, err = p.usersS.UpsertUser(ctx, user)
+	require.NoError(t, err)
 	select {
 	case event := <-p.eventsC:
 		require.Equal(t, EventProcessed, event.Type)
@@ -2687,7 +2694,7 @@ func TestPartialHealth(t *testing.T) {
 	}
 
 	// make sure that the user resource works as normal and gets replicated to cache
-	replicatedUsers, err := p.cache.GetUsers(false)
+	replicatedUsers, err := p.cache.GetUsers(ctx, false)
 	require.NoError(t, err)
 	require.Len(t, replicatedUsers, 1)
 
@@ -2695,10 +2702,11 @@ func TestPartialHealth(t *testing.T) {
 	meta := user.GetMetadata()
 	meta.Labels = map[string]string{"origin": "cache"}
 	user.SetMetadata(meta)
-	require.NoError(t, p.cache.usersCache.UpsertUser(user))
+	_, err = p.cache.usersCache.UpsertUser(ctx, user)
+	require.NoError(t, err)
 
 	// the label on the returned user proves that it came from the cache
-	resultUser, err := p.cache.GetUser("bob", false)
+	resultUser, err := p.cache.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, "cache", resultUser.GetMetadata().Labels["origin"])
 

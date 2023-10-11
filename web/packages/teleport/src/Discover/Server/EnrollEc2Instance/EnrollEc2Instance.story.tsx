@@ -222,4 +222,26 @@ const ec2InstancesResponse = [
       subnetId: 'test',
     },
   },
+  {
+    id: 'ec2-instance-5',
+    kind: 'node',
+    clusterId: 'cluster',
+    hostname: 'ec2-hostname-5',
+    tags: [
+      { name: 'instance', value: 'ec2-5' },
+      { name: 'Name', value: 'My EC2 Box' },
+    ],
+    addr: 'ec2.5.com',
+    tunnel: false,
+    subKind: 'openssh-ec2-ice',
+    sshLogins: ['test'],
+    aws: {
+      accountId: 'test-account',
+      instanceId: 'instance-ec2-5',
+      region: 'us-west-1',
+      vpcId: 'test',
+      integration: 'test',
+      subnetId: 'test',
+    },
+  },
 ];

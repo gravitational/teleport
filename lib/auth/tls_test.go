@@ -1066,7 +1066,7 @@ func TestNopUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// But can not get users or nodes
-	_, err = client.GetUsers(false)
+	_, err = client.GetUsers(ctx, false)
 	require.True(t, trace.IsAccessDenied(err))
 
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
@@ -1247,16 +1247,17 @@ func TestUsersCRUD(t *testing.T) {
 
 	usr, err := types.NewUser("user1")
 	require.NoError(t, err)
-	require.NoError(t, clt.CreateUser(ctx, usr))
+	_, err = clt.CreateUser(ctx, usr)
+	require.NoError(t, err)
 
-	users, err := clt.GetUsers(false)
+	users, err := clt.GetUsers(ctx, false)
 	require.NoError(t, err)
 	require.Equal(t, len(users), 1)
 	require.Equal(t, users[0].GetName(), "user1")
 
 	require.NoError(t, clt.DeleteUser(ctx, "user1"))
 
-	users, err = clt.GetUsers(false)
+	users, err = clt.GetUsers(ctx, false)
 	require.NoError(t, err)
 	require.Equal(t, len(users), 0)
 }
@@ -1797,7 +1798,8 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	_, err = CreateRole(ctx, clt, newRoleName, types.RoleSpecV6{})
 	require.NoError(t, err)
 	newUser.AddRole(newRoleName)
-	require.NoError(t, clt.UpdateUser(ctx, newUser))
+	_, err = clt.UpdateUser(ctx, newUser)
+	require.NoError(t, err)
 
 	// Renew session with the updated traits.
 	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
@@ -1995,7 +1997,7 @@ func TestGetCertAuthority(t *testing.T) {
 	require.NoError(t, err)
 
 	user.AddRole(role.GetName())
-	err = testSrv.Auth().UpsertUser(user)
+	user, err = testSrv.Auth().UpsertUser(ctx, user)
 	require.NoError(t, err)
 
 	userClt, err := testSrv.NewClient(TestUser(user.GetName()))
@@ -2264,7 +2266,7 @@ func TestGenerateCerts(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		superImpersonator, err := CreateUser(srv.Auth(), "superimpersonator", superImpersonatorRole)
+		superImpersonator, err := CreateUser(ctx, srv.Auth(), "superimpersonator", superImpersonatorRole)
 		require.NoError(t, err)
 
 		// Impersonator can generate certificates for super impersonator
@@ -2278,7 +2280,7 @@ func TestGenerateCerts(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		impersonator, err := CreateUser(srv.Auth(), "impersonator", role)
+		impersonator, err := CreateUser(ctx, srv.Auth(), "impersonator", role)
 		require.NoError(t, err)
 
 		iUser := TestUser(impersonator.GetName())

@@ -1862,6 +1862,9 @@ message ListUnifiedResourcesRequest {
   // UsePreviewAsRoles indicates that the response should include all resources
   // the caller would be able to access with their preview_as_roles
   bool UsePreviewAsRoles = 10 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
+  // PinnedOnly indicates that the request will pull only the pinned resources
+  // of the requesting user
+  bool PinnedOnly = 11 [(gogoproto.jsontag) = "pinned_only,omitempty"];
 }
 
 // ListUnifiedResourceResponse response of ListUnifiedResources.
@@ -2061,6 +2064,60 @@ message GetSAMLAuthRequestRequest {
 message GetGithubAuthRequestRequest {
   // StateToken is a github auth request state token.
   string StateToken = 1 [(gogoproto.jsontag) = "state_token"];
+}
+
+// CreateOIDCConnectorRequest is a request for CreateOIDCConnector.
+message CreateOIDCConnectorRequest {
+  // Connector to be created.
+  types.OIDCConnectorV3 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+// UpdateOIDCConnectorRequest is a request for UpdateOIDCConnector.
+message UpdateOIDCConnectorRequest {
+  // Connector to be updated.
+  types.OIDCConnectorV3 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+// UpsertOIDCConnectorRequest is a request for UpsertOIDCConnector.
+message UpsertOIDCConnectorRequest {
+  // Connector to be created or updated.
+  types.OIDCConnectorV3 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+// CreateSAMLConnectorRequest is a request for CreateSAMLConnector.
+message CreateSAMLConnectorRequest {
+  // Connector to be created.
+  types.SAMLConnectorV2 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+// UpdateSAMLConnectorRequest is a request for UpdateSAMLConnector.
+message UpdateSAMLConnectorRequest {
+  // Connector to be updated.
+  types.SAMLConnectorV2 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+// UpsertSAMLConnectorRequest is a request for UpsertSAMLConnector.
+message UpsertSAMLConnectorRequest {
+  // Connector to be created or updated.
+  types.SAMLConnectorV2 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+// CreateGithubConnectorRequest is a request for CreateGithubConnector.
+message CreateGithubConnectorRequest {
+  // Connector to be created.
+  types.GithubConnectorV3 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+// UpdateGithubConnectorRequest is a request for UpdateGithubConnector.
+message UpdateGithubConnectorRequest {
+  // Connector to be updated.
+  types.GithubConnectorV3 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+// UpsertGithubConnectorRequest is a request for UpsertGithubConnector.
+message UpsertGithubConnectorRequest {
+  // Connector to be created or updated.
+  types.GithubConnectorV3 Connector = 1 [(gogoproto.jsontag) = "connector"];
 }
 
 // GetSSODiagnosticInfoRequest is a request for GetSSODiagnosticInfo.
@@ -2720,8 +2777,18 @@ service AuthService {
   rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV3);
   // GetOIDCConnectors gets all current OIDC connector resources.
   rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV3List);
+  // UpsertOIDCConnector creates a new OIDC connector in the backend.
+  rpc CreateOIDCConnector(CreateOIDCConnectorRequest) returns (types.OIDCConnectorV3);
+  // UpsertOIDCConnector updates an existing OIDC connector in the backend.
+  rpc UpdateOIDCConnector(UpdateOIDCConnectorRequest) returns (types.OIDCConnectorV3);
   // UpsertOIDCConnector upserts an OIDC connector in a backend.
-  rpc UpsertOIDCConnector(types.OIDCConnectorV3) returns (google.protobuf.Empty);
+  //
+  // Deprecated: Use UpsertOIDCConnectorV2 instead.
+  rpc UpsertOIDCConnector(types.OIDCConnectorV3) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
+  // UpsertOIDCConnectorV2 upserts an OIDC connector in the backend.
+  rpc UpsertOIDCConnectorV2(UpsertOIDCConnectorRequest) returns (types.OIDCConnectorV3);
   // DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
   rpc DeleteOIDCConnector(types.ResourceRequest) returns (google.protobuf.Empty);
   // CreateOIDCAuthRequest creates OIDCAuthRequest.
@@ -2733,8 +2800,18 @@ service AuthService {
   rpc GetSAMLConnector(types.ResourceWithSecretsRequest) returns (types.SAMLConnectorV2);
   // GetSAMLConnectors gets all current SAML connector resources.
   rpc GetSAMLConnectors(types.ResourcesWithSecretsRequest) returns (types.SAMLConnectorV2List);
+  // CreateSAMLConnector creates a new SAML connector in the backend.
+  rpc CreateSAMLConnector(CreateSAMLConnectorRequest) returns (types.SAMLConnectorV2);
+  // UpdateSAMLConnector updates an existing SAML connector in the backend.
+  rpc UpdateSAMLConnector(UpdateSAMLConnectorRequest) returns (types.SAMLConnectorV2);
   // UpsertSAMLConnector upserts a SAML connector in a backend.
-  rpc UpsertSAMLConnector(types.SAMLConnectorV2) returns (google.protobuf.Empty);
+  //
+  // Deprecated: Use UpsertSAMLConnectorV2 instead.
+  rpc UpsertSAMLConnector(types.SAMLConnectorV2) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
+  // UpsertSAMLConnectorV2 upserts a SAML connector in a backend.
+  rpc UpsertSAMLConnectorV2(UpsertSAMLConnectorRequest) returns (types.SAMLConnectorV2);
   // DeleteSAMLConnector deletes an existing SAML connector in a backend by name.
   rpc DeleteSAMLConnector(types.ResourceRequest) returns (google.protobuf.Empty);
   // CreateSAMLAuthRequest creates SAMLAuthRequest.
@@ -2746,8 +2823,18 @@ service AuthService {
   rpc GetGithubConnector(types.ResourceWithSecretsRequest) returns (types.GithubConnectorV3);
   // GetGithubConnectors gets all current Github connector resources.
   rpc GetGithubConnectors(types.ResourcesWithSecretsRequest) returns (types.GithubConnectorV3List);
+  // CreateGithubConnector creates a new Github connector in the backend.
+  rpc CreateGithubConnector(CreateGithubConnectorRequest) returns (types.GithubConnectorV3);
+  // UpdateGithubConnector updates an existing Github connector in the backend.
+  rpc UpdateGithubConnector(UpdateGithubConnectorRequest) returns (types.GithubConnectorV3);
   // UpsertGithubConnector upserts a Github connector in a backend.
-  rpc UpsertGithubConnector(types.GithubConnectorV3) returns (google.protobuf.Empty);
+  //
+  // Deprecated: Use UpsertGithubConnectorV2 instead.
+  rpc UpsertGithubConnector(types.GithubConnectorV3) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
+  // UpsertGithubConnectorV2 upserts a Github connector in a backend.
+  rpc UpsertGithubConnectorV2(UpsertGithubConnectorRequest) returns (types.GithubConnectorV3);
   // DeleteGithubConnector deletes an existing Github connector in a backend by name.
   rpc DeleteGithubConnector(types.ResourceRequest) returns (google.protobuf.Empty);
   // CreateGithubAuthRequest creates GithubAuthRequest.

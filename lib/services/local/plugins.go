@@ -211,16 +211,18 @@ func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify 
 		return trace.Wrap(err)
 	}
 
+	rev := newPlugin.GetRevision()
 	value, err := services.MarshalPlugin(newPlugin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	_, err = s.backend.CompareAndSwap(ctx, *item, backend.Item{
-		Key:     backend.Key(pluginsPrefix, plugin.GetName()),
-		Value:   value,
-		Expires: plugin.Expiry(),
-		ID:      plugin.GetResourceID(),
+		Key:      backend.Key(pluginsPrefix, plugin.GetName()),
+		Value:    value,
+		Expires:  plugin.Expiry(),
+		ID:       plugin.GetResourceID(),
+		Revision: rev,
 	})
 
 	return trace.Wrap(err)

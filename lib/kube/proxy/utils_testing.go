@@ -480,7 +480,7 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 	require.NoError(t, err)
 
 	// Fetch user info to get roles and max session TTL.
-	user, err := authServer.GetUser(userName, false)
+	user, err := authServer.GetUser(context.Background(), userName, false)
 	require.NoError(t, err)
 
 	roles, err := services.FetchRoles(user.GetRoles(), authServer, user.GetTraits())

@@ -212,7 +212,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		},
 	}
 	// Create user for regular tests.
-	s.user, err = auth.CreateUser(s.tlsServer.Auth(), "foo", s.role)
+	s.user, err = auth.CreateUser(context.Background(), s.tlsServer.Auth(), "foo", s.role)
 	require.NoError(t, err)
 
 	s.closeContext, s.closeFunc = context.WithCancel(context.Background())
