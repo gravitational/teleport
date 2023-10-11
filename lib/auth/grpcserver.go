@@ -2669,6 +2669,8 @@ func (g *GRPCServer) GetMFADevices(ctx context.Context, req *authpb.GetMFADevice
 	return devs, trace.Wrap(err)
 }
 
+// DELETE IN v16, kept for compatibility with older tsh versions (codingllama).
+// (Don't actually delete it, but instead make it always error.)
 func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_GenerateUserSingleUseCertsServer) error {
 	ctx := stream.Context()
 	actx, err := g.authenticate(ctx)
