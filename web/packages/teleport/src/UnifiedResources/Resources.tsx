@@ -352,7 +352,8 @@ export function Resources() {
             );
           })}
         {/* Using index as key here is ok because these elements never change order */}
-        {attempt.status === 'processing' &&
+        {(attempt.status === 'processing' ||
+          clusterPreferencesAttempt.status === 'processing') &&
           loadingCardArray.map((_, i) => <LoadingCard delay="short" key={i} />)}
       </ResourcesContainer>
       <div ref={setScrollDetector} />
