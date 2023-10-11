@@ -4273,7 +4273,7 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
-	names := []string{"vivi", "cloud", "aerith", "baret", "cid", "vivi2"}
+	names := []string{"vivi", "cloud", "aerith", "barret", "cid", "vivi2"}
 	for i := 0; i < 6; i++ {
 		name := names[i]
 		node, err := types.NewServerWithLabels(
