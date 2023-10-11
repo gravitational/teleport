@@ -1,5 +1,19 @@
 # Changelog
 
+## 11.3.27 (10/11/23)
+
+### Security Fixes
+
+#### [Critical] Privilege escalation through `RecursiveChown`
+
+When using automatic Linux user creation, an attacker could exploit a race
+condition in the user creation functionality to `chown` arbitrary files on the
+system.
+
+Users who aren't using automatic Linux host user creation aren’t affected by
+this vulnerability.
+[#33245](https://github.com/gravitational/teleport/pull/33245)
+
 ## 11.3.25 (09/20/23)
 
 ### Security fixes
