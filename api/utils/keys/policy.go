@@ -118,21 +118,24 @@ func (p PrivateKeyPolicy) validate() error {
 }
 
 // GetPolicyFromSet returns least restrictive policy necessary to meet the given set of policies.
-func GetPolicyFromSet(policies []PrivateKeyPolicy) PrivateKeyPolicy {
+func GetPolicyFromSet(policies []PrivateKeyPolicy) (PrivateKeyPolicy, error) {
 	setPolicy := PrivateKeyPolicyNone
 	for _, policy := range policies {
 		if !IsRequiredPolicyMet(policy, setPolicy) {
 			if IsRequiredPolicyMet(setPolicy, policy) {
 				// Upgrade set policy to stricter policy.
 				setPolicy = policy
-			} else {
-				// neither policy is met by the other (pin or touch), return the strictest policy to meet both.
+			} else if IsRequiredPolicyMet(policy, PrivateKeyPolicyHardwareKeyTouchAndPIN) &&
+				IsRequiredPolicyMet(setPolicy, PrivateKeyPolicyHardwareKeyTouchAndPIN) {
+				// neither policy is met by the other (pin or touch), but both are met by stricter pin+touch policy).
 				setPolicy = PrivateKeyPolicyHardwareKeyTouchAndPIN
+			} else {
+				return PrivateKeyPolicyNone, trace.BadParameter("private key policy requirements %q and %q are incompatible, please contact the cluster administrator", policy, setPolicy)
 			}
 		}
 	}
 
-	return setPolicy
+	return setPolicy, nil
 }
 
 var privateKeyPolicyErrRegex = regexp.MustCompile(`private key policy not met: (\w+)`)

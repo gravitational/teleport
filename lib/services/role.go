@@ -1218,7 +1218,7 @@ func (set RoleSet) getMFARequired(clusterRequireMFAType types.RequireMFAType) MF
 }
 
 // PrivateKeyPolicy returns the enforced private key policy for this role set.
-func (set RoleSet) PrivateKeyPolicy(authPreferencePolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy {
+func (set RoleSet) PrivateKeyPolicy(authPreferencePolicy keys.PrivateKeyPolicy) (keys.PrivateKeyPolicy, error) {
 	policySet := []keys.PrivateKeyPolicy{authPreferencePolicy}
 	for _, role := range set {
 		policySet = append(policySet, role.GetPrivateKeyPolicy())

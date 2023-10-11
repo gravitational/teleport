@@ -147,13 +147,17 @@ func TestGetPolicyFromSet(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expectSetPolicy, keys.GetPolicyFromSet(tc.policySet))
+			requiredPolicy, err := keys.GetPolicyFromSet(tc.policySet)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectSetPolicy, requiredPolicy)
 
 			// reversing the policy set shouldn't change the output
 			for i, j := 0, len(tc.policySet)-1; i < j; i, j = i+1, j-1 {
 				tc.policySet[i], tc.policySet[j] = tc.policySet[j], tc.policySet[i]
 			}
-			require.Equal(t, tc.expectSetPolicy, keys.GetPolicyFromSet(tc.policySet))
+			requiredPolicy, err = keys.GetPolicyFromSet(tc.policySet)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectSetPolicy, requiredPolicy)
 		})
 	}
 }
