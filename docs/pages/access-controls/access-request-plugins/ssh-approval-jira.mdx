@@ -47,20 +47,20 @@ to deny the request.
 
 ### Get a Jira API token
 
-If you're using Jira Cloud, navigate to Account Settings, click Security, then select
+If you're using Jira Cloud, navigate to Account Settings, click **Security**, then select
 [**API Tokens**](https://id.atlassian.com/manage-profile/security/api-tokens).
 Create a new app-specific API token in your Jira installation. 
 You'll need this token later to configure the plugin.
 
 If you are using Jira Server, navigate to the URL for the **API Tokens** page.
-This URL depends on where you have installed.
+This URL depends on where you have installed Jira.
 
 ### Set up Jira webhooks
 
 Go to Settings → General → System → Webhooks.
 Create a new webhook for Jira to tell the Teleport plugin about updates.
 
-For the webhook URL, use the URL that you'll run the plugin on. The URL must be publicly 
+For the webhook URL, use the URL that you'll run the plugin on. The URL must be a publicly 
 accessible URL. Jira requires the webhook listener to run over HTTPS.
 
 The webhook needs to be notified only about new issues being created, issues being 
@@ -73,7 +73,7 @@ The plugin's web server will run with TLS, but you can disable it with `--insecu
 to test things out in a dev environment.
 
 In the webhook settings page, make sure that the webhook will only send Issue Updated 
-updates. It's not critical if anything else gets sent. The plugin ignore everything else.
+updates. It's not critical if anything else gets sent. The plugin ignores everything else.
 
 ## Step 4/6. Install the plugin
 
@@ -90,8 +90,8 @@ instructions for your environment to configure the plugin:
 label="Executable" 
 >
 
-The Teleport Jira plugin uses a config file in TOML format. Generate a
-boilerplate config by running the following command:
+The Teleport Jira plugin uses a configuration file in TOML format. Generate a
+boilerplate configuration by running the following command:
 
 ```code
 $ teleport-jira configure > teleport-jira.toml
@@ -138,10 +138,13 @@ The `[jira]` section requires a few things:
 - Your Jira API token that you've created above.
 - A Jira Project key, available in Project settings.
 
-The `[http]` setting block describes how the plugin's HTTP server works. The HTTP server is responsible for listening for updates from Jira, and processing updates, like when someone drags a task from Inbox to Approved column.
+The `[http]` setting block describes how the plugin's HTTP server works. 
+The HTTP server is responsible for listening for updates from Jira, and processing updates, 
+like when someone drags a task from Inbox to Approved column.
 
-You must provide an address the server should listen on, and a certificate to use. It's possible to
-run the Jira plugin on the same server as the Teleport Proxy, so you can use the same TLS certificate.
+You must provide an address the server should listen on, and a certificate to use. 
+It's possible to run the Jira plugin on the same server as the Teleport Proxy Service, so 
+you can use the same TLS certificate.
 
 ## Step 6/6. Test the plugin
 
@@ -151,6 +154,13 @@ You should be able to run the Teleport plugin now!
 <TabItem label="Executable" scopes={["oss", "enterprise", "cloud"]}>
 ```code
 $ teleport-jira start
+```
+</TabItem>
+<TabItem label="Docker">
+Run the plugin:
+
+```code
+$ docker run -v <path-to-config>:/etc/teleport-jira.toml public.ecr.aws/gravitational/teleport-plugin-jira:(=teleport.version=) start
 ```
 </TabItem>
 <TabItem label="Helm Chart" scopes={["oss", "enterprise", "cloud"]}>
