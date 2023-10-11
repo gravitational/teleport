@@ -16,8 +16,6 @@ package handler
 
 import (
 	"context"
-	"golang.org/x/exp/slices"
-
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -26,12 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
-
-var supportedResourceKinds = []string{
-	types.KindNode,
-	types.KindDatabase,
-	types.KindKubernetesCluster,
-}
 
 func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnifiedResourcesRequest) (*api.ListUnifiedResourcesResponse, error) {
 	clusterURI, err := uri.Parse(req.GetClusterUri())
@@ -45,19 +37,8 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 		sortBy.Field = req.GetSortBy().Field
 	}
 
-	kinds := req.GetKinds()
-	if len(kinds) == 0 {
-		kinds = supportedResourceKinds
-	} else {
-		for _, kind := range kinds {
-			if !slices.Contains(supportedResourceKinds, kind) {
-				return nil, trace.BadParameter("unsupported resource kind: %s", kind)
-			}
-		}
-	}
-
 	daemonResponse, err := s.DaemonService.ListUnifiedResources(ctx, clusterURI, &proto.ListUnifiedResourcesRequest{
-		Kinds:               kinds,
+		Kinds:               req.GetKinds(),
 		Limit:               req.GetLimit(),
 		StartKey:            req.GetStartKey(),
 		PredicateExpression: req.GetQuery(),
