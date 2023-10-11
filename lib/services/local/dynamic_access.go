@@ -171,7 +171,7 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		}
 
 		// run the application logic
-		if err := services.ApplyAccessReview(req, params.Review, checker.User); err != nil {
+		if err := services.ApplyAccessReview(req, params.Review, checker.UserState); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

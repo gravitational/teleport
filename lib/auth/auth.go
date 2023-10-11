@@ -1746,17 +1746,7 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 
 // GetUserOrLoginState will return the given user or the login state associated with the user.
 func (a *Server) GetUserOrLoginState(ctx context.Context, username string) (services.UserState, error) {
-	uls, err := a.GetUserLoginState(ctx, username)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	if err == nil {
-		return uls, nil
-	}
-
-	user, err := a.GetUser(ctx, username, false)
-	return user, trace.Wrap(err)
+	return services.GetUserOrLoginState(ctx, a, username)
 }
 
 func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
