@@ -21,7 +21,6 @@ import React, {
   useCallback,
   useEffect,
   useState,
-  useRef,
 } from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -76,19 +75,15 @@ const isAbortError = (err: any): boolean =>
 export function UserContextProvider(props: PropsWithChildren<unknown>) {
   const { attempt, run } = useAttempt('processing');
   const { clusterId } = useStickyClusterId();
-  const clusterAbortRef = useRef(new AbortController());
 
   const [
     clusterPreferencesAttempt,
     clusterPreferencesRun,
     setClusterPreferencesAttempt,
   ] = useAsync(
-    useCallback((clusterId: string) => {
+    useCallback((clusterId: string, abortSignal: AbortSignal) => {
       try {
-        return service.getUserClusterPreferences(
-          clusterId,
-          clusterAbortRef.current.signal
-        );
+        return service.getUserClusterPreferences(clusterId, abortSignal);
       } catch (error) {
         if (isAbortError(error)) {
           // ignore CanceledError
@@ -217,11 +212,13 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
   }, []);
 
   useEffect(() => {
-    clusterPreferencesRun(clusterId);
+    const abortController = new AbortController();
+
+    clusterPreferencesRun(clusterId, abortController.signal);
     setUpdateClusterPreferencesAttempt(makeEmptyAttempt());
-    const current = clusterAbortRef.current;
+
     return () => {
-      current.abort();
+      abortController.abort();
     };
   }, [clusterId, clusterPreferencesRun, setUpdateClusterPreferencesAttempt]);
 
