@@ -391,9 +391,9 @@ type Watcher interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 }
 
-func WatchEvents(watch *authpb.Watch, stream WatchEvent, username string, auth Watcher) error {
+func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, auth Watcher) error {
 	servicesWatch := types.Watch{
-		Name:                username,
+		Name:                componentName,
 		Kinds:               watch.Kinds,
 		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}

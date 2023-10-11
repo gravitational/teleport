@@ -55,7 +55,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/gravitational/teleport"
@@ -1882,39 +1881,29 @@ func (process *TeleportProcess) initAuthService() error {
 	if cfg.AccessGraph.Enabled {
 		log.Debugf("Access Graph integration enabled")
 
-		process.RegisterCriticalFunc("access-graph-service", func() error {
-			log.Debugf("Starting access graph service")
+		process.RegisterFunc("access-graph-service", func() error {
+			log.Infof("Starting access graph service")
 
 			accessGraphAddr := cfg.AccessGraph.Addr
 			if accessGraphAddr == "" {
-				return trace.NotFound("access graph not enabled for this cluster")
+				return trace.NotFound("access graph endpoint not configured")
 			}
 
-			var opts []grpc.DialOption
+			const accessGraphRetryPeriod = 5 * time.Second
 
-			// TODO(jakule): add TLS support
-			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-
-			conn, err := grpc.Dial(accessGraphAddr, opts...)
-			if err != nil {
-				return trace.Wrap(err)
+			// TODO(jakule): Very excessive retrying, but we need to make sure that
+			// the access graph is initialized before we start serving requests.
+			for {
+				if err := initializeAndWatchAccessGraph(process.ExitContext(), accessGraphAddr, authServer); err != nil {
+					log.Errorf("Failed to initialize access graph: %v", err)
+					select {
+					case <-process.ExitContext().Done():
+						return trace.Wrap(err)
+					case <-time.After(accessGraphRetryPeriod):
+						continue
+					}
+				}
 			}
-			defer conn.Close()
-
-			accessGraphClient := accessgraphv1.NewAccessGraphServiceClient(conn)
-
-			foo := &tagEventWatcher{
-				ctx:               process.ExitContext(),
-				accessGraphClient: accessGraphClient,
-			}
-			observedKinds := []types.WatchKind{
-				{Kind: types.KindNode},
-				{Kind: types.KindUser},
-				{Kind: types.KindRole},
-				{Kind: types.KindAccessRequest},
-			}
-
-			return auth.WatchEvents(&proto.Watch{Kinds: observedKinds}, foo, "accessgraph", authServer)
 		})
 	}
 
