@@ -20,7 +20,7 @@ import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { getErrMessage } from '@gravitational/shared/utils/errorType';
+import { getErrMessage } from 'shared/utils/errorType';
 
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {

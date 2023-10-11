@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { assertUnreachable } from 'shared/utils/error';
+import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
 /**
- * @deprecated Import assertUnreachable from `shared/utils/error` instead.
+ * @deprecated Import assertUnreachable from `shared/utils/assertUnreachable` instead.
  */
 export { assertUnreachable };

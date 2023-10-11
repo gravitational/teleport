@@ -15,7 +15,7 @@
  */
 
 import { Store } from 'shared/libs/stores';
-import { assertUnreachable } from 'shared/utils/error';
+import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
 export enum NotificationKind {
   AccessList = 'access-list',
