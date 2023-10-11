@@ -867,17 +867,6 @@ func (r RequireMFAType) IsSessionMFARequired() bool {
 	return r != RequireMFAType_OFF
 }
 
-func (r RequireMFAType) IsHardwareKeyRequired() bool {
-	switch r {
-	case RequireMFAType_SESSION_AND_HARDWARE_KEY,
-		RequireMFAType_HARDWARE_KEY_TOUCH,
-		RequireMFAType_HARDWARE_KEY_PIN,
-		RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
-		return true
-	}
-	return false
-}
-
 // MarshalJSON marshals RequireMFAType to boolean or string.
 func (r *RequireMFAType) MarshalYAML() (interface{}, error) {
 	val, err := r.encode()
@@ -922,9 +911,13 @@ func (r *RequireMFAType) UnmarshalJSON(data []byte) error {
 }
 
 const (
-	RequireMFATypeHardwareKeyString            = "hardware_key"
-	RequireMFATypeHardwareKeyTouchString       = "hardware_key_touch"
-	RequireMFATypeHardwareKeyPINString         = "hardware_key_pin"
+	// RequireMFATypeHardwareKeyString is the string representation of RequireMFATypeHardwareKey
+	RequireMFATypeHardwareKeyString = "hardware_key"
+	// RequireMFATypeHardwareKeyTouchString is the string representation of RequireMFATypeHardwareKeyTouch
+	RequireMFATypeHardwareKeyTouchString = "hardware_key_touch"
+	// RequireMFATypeHardwareKeyPINString is the string representation of RequireMFATypeHardwareKeyPIN
+	RequireMFATypeHardwareKeyPINString = "hardware_key_pin"
+	// RequireMFATypeHardwareKeyTouchAndPINString is the string representation of RequireMFATypeHardwareKeyTouchAndPIN
 	RequireMFATypeHardwareKeyTouchAndPINString = "hardware_key_touch_and_pin"
 )
 
