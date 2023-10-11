@@ -153,71 +153,6 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	return sshConfig, nil
 }
 
-// reissueUserCerts gets new user certificates from the root Auth server.
-func (c *ClusterClient) reissueUserCerts(ctx context.Context, cachePolicy CertCachePolicy, params ReissueParams) (*Key, error) {
-	if params.RouteToCluster == "" {
-		params.RouteToCluster = c.tc.SiteName
-	}
-	key := params.ExistingCreds
-	if key == nil {
-		var err error
-
-		// Don't load the certs if we're going to drop all of them all as part
-		// of the re-issue. If we load all of the old certs now we won't be able
-		// to differentiate between legacy certificates (that need to be
-		// deleted) and newly re-issued certs (that we definitely do *not* want
-		// to delete) when it comes time to drop them from the local agent.
-		var certOptions []CertOption
-		if cachePolicy == CertCacheKeep {
-			certOptions = WithAllCerts
-		}
-
-		key, err = c.tc.localAgent.GetKey(params.RouteToCluster, certOptions...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	req, err := c.prepareUserCertsRequest(params, key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	certs, err := c.AuthClient.GenerateUserCerts(ctx, *req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	key.ClusterName = params.RouteToCluster
-
-	// Only update the parts of key that match the usage. See the docs on
-	// proto.UserCertsRequest_CertUsage for which certificates match which
-	// usage.
-	//
-	// This prevents us from overwriting the top-level key.TLSCert with
-	// usage-restricted certificates.
-	switch params.usage() {
-	case proto.UserCertsRequest_All:
-		key.Cert = certs.SSH
-		key.TLSCert = certs.TLS
-	case proto.UserCertsRequest_SSH:
-		key.Cert = certs.SSH
-	case proto.UserCertsRequest_App:
-		key.AppTLSCerts[params.RouteToApp.Name] = certs.TLS
-	case proto.UserCertsRequest_Database:
-		dbCert, err := makeDatabaseClientPEM(params.RouteToDatabase.Protocol, certs.TLS, key)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = dbCert
-	case proto.UserCertsRequest_Kubernetes:
-		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
-	case proto.UserCertsRequest_WindowsDesktop:
-		key.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = certs.TLS
-	}
-	return key, nil
-}
-
 // prepareUserCertsRequest creates a [proto.UserCertsRequest] with the fields
 // set accordingly from the provided ReissueParams.
 func (c *ClusterClient) prepareUserCertsRequest(params ReissueParams, key *Key) (*proto.UserCertsRequest, error) {
@@ -317,6 +252,9 @@ func performMFACeremony(ctx context.Context, params performMFACeremonyParams) (*
 		},
 		MFARequiredCheck: mfaRequiredReq,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	log.Debugf("MFA requirement from CreateAuthenticateChallenge, MFARequired=%s", authnChal.GetMFARequired())
 	if authnChal.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
 		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
