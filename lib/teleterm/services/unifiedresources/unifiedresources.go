@@ -16,14 +16,32 @@ package unifiedresources
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
+var supportedResourceKinds = []string{
+	types.KindNode,
+	types.KindDatabase,
+	types.KindKubernetesCluster,
+}
+
 func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
+	kinds := req.GetKinds()
+	if len(kinds) == 0 {
+		kinds = supportedResourceKinds
+	} else {
+		for _, kind := range kinds {
+			if !slices.Contains(supportedResourceKinds, kind) {
+				return nil, trace.BadParameter("unsupported resource kind: %s", kind)
+			}
+		}
+	}
 	unifiedResourcesResponse, err := client.ListUnifiedResources(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
