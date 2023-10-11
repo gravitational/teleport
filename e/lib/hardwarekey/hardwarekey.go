@@ -43,10 +43,8 @@ func attestYubikey(att *attestation.YubiKeyAttestationStatement) (*keys.Attestat
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	policy := keys.PrivateKeyPolicyHardwareKey
-	if attestation.TouchPolicy == piv.TouchPolicyAlways || attestation.TouchPolicy == piv.TouchPolicyCached {
-		policy = keys.PrivateKeyPolicyHardwareKeyTouch
-	}
+
+	privateKeyPolicy := keys.GetPrivateKeyPolicyFromAttestation(attestation)
 
 	pubDER, err := x509.MarshalPKIXPublicKey(slotCert.PublicKey)
 	if err != nil {
@@ -55,6 +53,6 @@ func attestYubikey(att *attestation.YubiKeyAttestationStatement) (*keys.Attestat
 
 	return &keys.AttestationData{
 		PublicKeyDER:     pubDER,
-		PrivateKeyPolicy: policy,
+		PrivateKeyPolicy: privateKeyPolicy,
 	}, nil
 }
