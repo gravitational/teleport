@@ -23,6 +23,8 @@ service AccessGraphService {
   // Query queries the access graph.
   // Currently only used by WebUI.
   rpc Query(QueryRequest) returns (QueryResponse);
+  // GetFile gets a statis UI file from the access graph container.
+  rpc GetFile(GetFileRequest) returns (GetFileResponse);
 }
 
 // Node is a node in the access graph.
@@ -52,4 +54,14 @@ message QueryRequest {
 message QueryResponse {
   repeated Node nodes = 1;
   repeated Edge edges = 2;
+}
+
+// GetFileRequest is a request to get a file.
+message GetFileRequest {
+  string filepath = 1;
+}
+
+// GetFileResponse is a response to a file request.
+message GetFileResponse {
+  bytes data = 1;
 }

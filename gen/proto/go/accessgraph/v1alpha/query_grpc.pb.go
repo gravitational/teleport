@@ -33,7 +33,8 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	AccessGraphService_Query_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/Query"
+	AccessGraphService_Query_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/Query"
+	AccessGraphService_GetFile_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/GetFile"
 )
 
 // AccessGraphServiceClient is the client API for AccessGraphService service.
@@ -43,6 +44,8 @@ type AccessGraphServiceClient interface {
 	// Query queries the access graph.
 	// Currently only used by WebUI.
 	Query(ctx context.Context, in *QueryRequest, opts ...grpc.CallOption) (*QueryResponse, error)
+	// GetFile gets a statis UI file from the access graph container.
+	GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (*GetFileResponse, error)
 }
 
 type accessGraphServiceClient struct {
@@ -62,6 +65,15 @@ func (c *accessGraphServiceClient) Query(ctx context.Context, in *QueryRequest, 
 	return out, nil
 }
 
+func (c *accessGraphServiceClient) GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (*GetFileResponse, error) {
+	out := new(GetFileResponse)
+	err := c.cc.Invoke(ctx, AccessGraphService_GetFile_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AccessGraphServiceServer is the server API for AccessGraphService service.
 // All implementations must embed UnimplementedAccessGraphServiceServer
 // for forward compatibility
@@ -69,6 +81,8 @@ type AccessGraphServiceServer interface {
 	// Query queries the access graph.
 	// Currently only used by WebUI.
 	Query(context.Context, *QueryRequest) (*QueryResponse, error)
+	// GetFile gets a statis UI file from the access graph container.
+	GetFile(context.Context, *GetFileRequest) (*GetFileResponse, error)
 	mustEmbedUnimplementedAccessGraphServiceServer()
 }
 
@@ -78,6 +92,9 @@ type UnimplementedAccessGraphServiceServer struct {
 
 func (UnimplementedAccessGraphServiceServer) Query(context.Context, *QueryRequest) (*QueryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Query not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) GetFile(context.Context, *GetFileRequest) (*GetFileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetFile not implemented")
 }
 func (UnimplementedAccessGraphServiceServer) mustEmbedUnimplementedAccessGraphServiceServer() {}
 
@@ -110,6 +127,24 @@ func _AccessGraphService_Query_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessGraphService_GetFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessGraphServiceServer).GetFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessGraphService_GetFile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessGraphServiceServer).GetFile(ctx, req.(*GetFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AccessGraphService_ServiceDesc is the grpc.ServiceDesc for AccessGraphService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -120,6 +155,10 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Query",
 			Handler:    _AccessGraphService_Query_Handler,
+		},
+		{
+			MethodName: "GetFile",
+			Handler:    _AccessGraphService_GetFile_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
