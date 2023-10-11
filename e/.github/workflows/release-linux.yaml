@@ -1,4 +1,4 @@
-name: Build Linux (Push)
+name: Build Linux-based Release Artifacts
 on:
   workflow_dispatch:
     inputs:
@@ -27,8 +27,38 @@ on:
         type: string
         required: true
 
+      release-artifacts:
+        description:  |
+          Should the workflow upload the resulting artifacts to the Release
+          server?
+        type: boolean
+        required: false
+        default: false
+
+      release-version:
+        description: |
+          Override the default release version tag when uploading the build
+          artifacts. The default value is deduced from `oss-teleport-ref`,
+          which is assumed to be a version tag with a leading `v`. Use this
+          override to specify a tag for build debugging purposes.
+        type: string
+        required: false
+        default: ""
+
       build-connect:
         description: "Should Teleport Connect be built"
+        required: false
+        type: boolean
+        default: false
+
+      build-deb:
+        description: "Should a Debian package of the release be built"
+        required: false
+        type: boolean
+        default: false
+
+      build-rpm:
+        description: "Should a RPM package of the release be built"
         required: false
         type: boolean
         default: false
@@ -39,39 +69,62 @@ on:
         type: string
         default: ""
 
-run-name: "Push Build for ${{ inputs.release-target }} of ${{ inputs.oss-teleport-repo }} branch ${{ inputs.oss-teleport-ref }}"
+run-name: "Build of ${{ inputs.release-target }} of ${{ inputs.oss-teleport-repo }} branch ${{ inputs.oss-teleport-ref }}"
 
 jobs:
-  identity:
-    runs-on: ubuntu-latest
-    if: inputs.workflow-tag != ''
-    steps:
-      - name: ${{ inputs.workflow-tag }}
-        run: echo ${{ inputs.workflow-tag }}
-
   select:
     runs-on: ubuntu-latest
     outputs:
+      arch: ${{ steps.determine-arch.outputs.arch }}
       builder: ${{ steps.select-builder.outputs.builder }}
+      teleport-version: ${{ steps.determine-version.outputs.teleport-version }}
     steps:
+      - name: Identify workflow
+        if: inputs.workflow-tag != ''
+        run: echo ${{ inputs.workflow-tag }}
+
       - name: Select builder
         id: select-builder
         env:
           BUILD_CONNECT: ${{ inputs.build-connect }}
+          RELEASE_ARTIFACTS: ${{ inputs.release-artifacts }}
         # Teleport Connect builds need to use a GitHub runner as the use UID 1000 which
         # is needed for the Teleport Connect builder image. Self-hosted runners use 1001.
         # TODO(camscale): Make the connect builder work with UID 1001 as well as 1000.
         run: |
-          if [ "$BUILD_CONNECT" = 'true' ]; then
+          if [ "$BUILD_CONNECT" = 'true' ] || [ "$RELEASE_ARTIFACTS" = 'true' ]; then
             echo 'builder="ubuntu-22.04-16core"'
           else
             echo 'builder={"group": "prod", "labels": ["self-hosted", "linux", "x64"]}'
-          fi >> $GITHUB_OUTPUT
+          fi >> "$GITHUB_OUTPUT"
+      - name: Determine Teleport version
+        id: determine-version
+        env:
+          # If a teleport version is not explicitly given we assume that the
+          # `oss-teleport-ref` is a release tag of the form vX.Y.Z and deduce
+          # the version from that.
+          TELEPORT_VERSION: ${{ inputs.release-version || inputs.oss-teleport-ref }}
+        run: |
+          echo "teleport-version=${TELEPORT_VERSION#v}" >> "$GITHUB_OUTPUT"
+      - name: Determine architecture
+        id: determine-arch
+        env:
+          RELEASE_TARGET: ${{ inputs.release-target }}
+        run: |
+          case "$RELEASE_TARGET" in
+          *amd64*) echo 'arch=amd64' ;;
+          *arm64*) echo 'arch=arm64' ;;
+          *arm*) echo 'arch=arm' ;;
+          *386*) echo 'arch=386' ;;
+          esac >> "$GITHUB_OUTPUT"
 
   build-artifacts:
     name: Build Artifacts
     needs: [ select ]
     secrets: inherit
+    permissions:
+      id-token: write # required for aws-actions/configure-aws-credentials in called workflow
+      contents: read
     uses: ./.github/workflows/build-linux.yaml
     with:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
@@ -79,5 +132,165 @@ jobs:
       ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
       release: enterprise
       release-target: ${{ inputs.release-target }}
+      save-artifacts: ${{ inputs.release-artifacts }}
       builder: ${{ needs.select.outputs.builder }}
       build-connect: ${{ inputs.build-connect }}
+      build-deb: ${{ inputs.build-deb }}
+      build-rpm: ${{ inputs.build-rpm }}
+      arch: ${{ needs.select.outputs.arch }}
+
+  upload-artifacts-to-artifact-storage:
+    name: Upload Artifacts to Artifact Storage Bucket
+    if: inputs.release-artifacts
+    needs: [ select, build-artifacts ]
+    environment: staging
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # required for aws-actions/configure-aws-credentials
+      contents: read
+    steps:
+      - name: Download artifacts
+        id: download
+        uses: actions/download-artifact@v3
+        with:
+          name: release
+          path: artifacts
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          aws-access-key-id: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.STAGING_DEPLOYMENT_AWS_ROLE }}
+          role-session-name: upload-artifacts-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Copy artifacts to S3 bucket
+        working-directory: ${{ steps.download.outputs.download-path }}
+        env:
+          BUCKET_URL: "s3://${{ secrets.STAGING_AWS_S3_BUCKET }}/teleport/tag/${{ needs.select.outputs.teleport-version }}"
+        run: |
+          aws s3 sync . "${BUCKET_URL}"
+
+  register-artifacts-with-release-server:
+    name: Register artifacts with release server
+    if: inputs.release-artifacts
+    needs: [ select, build-artifacts ]
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Download artifacts
+        id: download
+        uses: actions/download-artifact@v3
+        with:
+          name: release
+          path: artifacts
+
+      - name: Register artifacts
+        env:
+          RELEASES_HOST: https://releases-prod.platform.teleport.sh
+          RELEASES_KEY: ${{ secrets.RELEASES_API_KEY }}
+          RELEASES_CERT: ${{ secrets.RELEASES_API_CERT }}
+          TELEPORT_VERSION: ${{ needs.select.outputs.teleport-version }}
+        shell: bash
+        working-directory: ${{ steps.download.outputs.download-path }}
+        run: |
+          rhel='RHEL/CentOS 7.x compatible'
+          fips='FedRAMP/FIPS'
+          tc64='Teleport Connect 64-bit'
+          both='teleport teleport-ent'
+          declare -A archDesc=([amd64]='64-bit' [386]='32-bit' [arm64]='ARM64/ARMv8 (64-bit)' [arm]='ARMv7 (32-bit)')
+
+          for file in *; do
+            [[ "${file##*.}" == sha256 ]] && continue
+
+            # Classify products, OS, architecture, description, variants and pkg type for each file.
+            p=''; os=''; a=''; d='' v='' pkg=''
+            case "$file" in
+              # Teleport connect
+              teleport-connect-*-x64.tar.gz) p="$both"; os=linux; a=amd64; d="$tc64" ;;
+              teleport-connect-*.x86_64.rpm) p="$both"; os=linux; a=amd64; pkg=RPM; d="$tc64 RPM" ;;
+              teleport-connect_*_amd64.deb) p="$both"; os=linux; a=amd64; pkg=DEB; d="$tc64 DEB" ;;
+
+              # tarballs: teleport-ent-* must be before teleport-*
+              teleport-ent-*-linux-386-bin.tar.gz) p=teleport-ent; os=linux; a=386 ;;
+              teleport-ent-*-linux-amd64-bin.tar.gz) p=teleport-ent; os=linux; a=amd64 ;;
+              teleport-ent-*-linux-amd64-centos7-bin.tar.gz) p=teleport-ent; os=linux; a=amd64; v="$rhel" ;;
+              teleport-ent-*-linux-amd64-centos7-fips-bin.tar.gz) p=teleport-ent; os=linux; a=amd64; v="$rhel, $fips" ;;
+              teleport-ent-*-linux-amd64-fips-bin.tar.gz) p=teleport-ent; os=linux; a=amd64; v="$fips" ;;
+              teleport-ent-*-linux-arm-bin.tar.gz) p=teleport-ent; os=linux; a=arm ;;
+
+              teleport-*-linux-386-bin.tar.gz) p=teleport; os=linux; a=386 ;;
+              teleport-*-linux-amd64-bin.tar.gz) p=teleport; os=linux; a=amd64 ;;
+              teleport-*-linux-amd64-centos7-bin.tar.gz) p=teleport; os=linux; a=amd64; v="$rhel" ;;
+              teleport-*-linux-arm-bin.tar.gz) p=teleport; os=linux; a=arm ;;
+
+              # rpm: teleport-ent-* must be before teleport-*
+              teleport-ent-*-fips.x86_64.rpm) p=teleport-ent; os=linux; a=amd64; pkg=RPM; v="$rhel, $fips" ;;
+              teleport-ent-*.arm.rpm) p=teleport-ent; os=linux; a=arm; pkg=RPM ;;
+              teleport-ent-*.i386.rpm) p=teleport-ent; os=linux; a=386; pkg=RPM ;;
+              teleport-ent-*.x86_64.rpm) p=teleport-ent; os=linux a=amd64; pkg=RPM ;;
+
+              teleport-*.arm.rpm) p=teleport; os=linux; a=arm; pkg=RPM ;;
+              teleport-*.i386.rpm) p=teleport; os=linux; a=386; pkg=RPM ;;
+              teleport-*.x86_64.rpm) p=teleport; os=linux a=amd64; pkg=RPM ;;
+
+              # deb: teleport-ent-* must be before teleport-*
+              teleport-ent_*-fips_amd64.deb) p=teleport-ent; os=linux; a=amd64; pkg=DEB; v="$fips" ;;
+              teleport-ent_*_amd64.deb) p=teleport-ent; os=linux; a=amd64; pkg=DEB ;;
+              teleport-ent_*_arm.deb) p=teleport-ent; os=linux; a=arm; pkg=DEB ;;
+              teleport-ent_*_i386.deb) p=teleport-ent; os=linux; a=386; pkg=DEB ;;
+
+              teleport_*_amd64.deb) p=teleport; os=linux; a=amd64; pkg=DEB ;;
+              teleport_*_arm.deb) p=teleport; os=linux; a=arm; pkg=DEB ;;
+              teleport_*_i386.deb) p=teleport; os=linux; a=386; pkg=DEB ;;
+
+              *) echo "Unknown filename: $file"; exit 1 ;;
+            esac
+
+            # Use a default description if none given
+            if [[ -z "${d:-}" ]]; then
+              d="${os^} ${archDesc[$a]}${pkg:+ $pkg}${v:+ ($v)}"
+            fi
+
+            sha256sum -c "$file.sha256" || exit 1
+            shasum=$(cut -d ' ' -f 1 "$file.sha256")
+
+            rs_curl() {
+              status_code=$(
+                curl \
+                  --cert <(printenv RELEASES_CERT | base64 -d) \
+                  --key <(printenv RELEASES_KEY | base64 -d) \
+                  -o "./curl_out.txt" -w "%{http_code}" "$@"
+              )
+              if (( status_code != 200 && status_code != 409 )); then
+                echo "curl HTTP status: $status_code"
+                cat ./curl_out.txt
+                exit 1
+              fi
+            }
+
+            echo "Releasing $file for products $p (arch $a) ($d $TELEPORT_VERSION)"
+
+            release_params=()
+            for product in $p; do
+              rs_curl \
+                -F "product=$product" \
+                -F "version=$TELEPORT_VERSION" \
+                -F "notesMd=# Teleport $TELEPORT_VERSION" \
+                -F "status=draft" \
+                "$RELEASES_HOST/releases"
+              release_params+=(-F "releaseId=$product@$TELEPORT_VERSION")
+            done
+
+            rs_curl \
+              -F "description=$d" \
+              -F "os=$os" \
+              -F "arch=$a" \
+              -F "file=@$file" \
+              -F "sha256=$shasum" \
+              "${release_params[@]}" \
+              "$RELEASES_HOST/assets"
+          done
