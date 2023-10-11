@@ -9,7 +9,7 @@ COMMIT=$(git rev-list -n 1 v$BASE_TAG)
 DATE=$(git show -s --date=format:'%Y-%m-%dT%H:%M:%S%z' --format=%cd $COMMIT)
 
 gh pr list \
-    --search "base:$BASE_BRANCH merged:>$DATE" \
+    --search "base:$BASE_BRANCH merged:>$DATE sort:merged" \
     --limit 200 \
     --json number,title \
     --template "{{range .}}{{printf \"* %v [#%v](https://github.com/gravitational/teleport/pull/%v)\n\" .title .number .number}}{{end}}"
