@@ -21,7 +21,7 @@ import { Text } from 'design';
 import { Notification as NotificationIcon, UserList } from 'design/Icon';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 import { useStore } from 'shared/libs/stores';
-import { assertUnreachable } from 'shared/utils/error';
+import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
 import {
   Dropdown,

@@ -26,7 +26,7 @@ import {
 import * as Icons from 'design/Icon';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
 
-import { getErrMessage } from '@gravitational/shared/utils/errorType';
+import { getErrMessage } from 'shared/utils/errorType';
 
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
