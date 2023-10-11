@@ -28,6 +28,7 @@ extern crate log;
 extern crate num_derive;
 
 use std::convert::TryFrom;
+use std::ffi::CString;
 use std::fmt::Debug;
 use std::io::Cursor;
 use std::os::raw::c_char;
@@ -60,6 +61,19 @@ pub extern "C" fn init() {
     env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {e}"));
 }
 
+/// free_string is used to free memory for strings that were passed back to Go side.
+///
+/// # Safety
+///
+/// The caller must ensure that the provided pointer was created by Rust using CString::into_raw
+/// method and that length of the string was not modified in the meantime.
+#[no_mangle]
+pub unsafe extern "C" fn free_string(ptr: *mut c_char) {
+    if !ptr.is_null() {
+        drop(CString::from_raw(ptr));
+    }
+}
+
 /// client_run establishes an RDP connection with the provided `params`
 /// and executes the RDP session, hanging until the session ends.
 ///
@@ -67,12 +81,17 @@ pub extern "C" fn init() {
 /// manually by calling [`client_stop`]. Failure to end a session can
 /// result in a memory leak.
 ///
+/// Caller must free memory allocated for message returned (CGOResult.message)
+/// using free_string function.
+///
+/// Message returned by this function can be null.
+///
 /// # Safety
 ///
 /// The caller must ensure that cgo_handle is a valid handle and that
 /// go_addr, go_username, cert_der, key_der point to valid buffers.
 #[no_mangle]
-pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectParams) -> CGOErrCode {
+pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectParams) -> CGOResult {
     trace!("client_run");
     // Convert from C to Rust types.
     let addr = from_c_string(params.go_addr);
@@ -94,11 +113,16 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             show_desktop_wallpaper: params.show_desktop_wallpaper,
         },
     ) {
-        Ok(_) => CGOErrCode::ErrCodeSuccess,
-        Err(e) => {
-            error!("client_run failed: {:?}", e);
-            CGOErrCode::ErrCodeFailure
-        }
+        Ok(_) => CGOResult {
+            err_code: CGOErrCode::ErrCodeSuccess,
+            message: ptr::null_mut(),
+        },
+        Err(e) => CGOResult {
+            err_code: CGOErrCode::ErrCodeFailure,
+            message: CString::new(format!("{}", e))
+                .map(|c| c.into_raw())
+                .unwrap_or(ptr::null_mut()),
+        },
     }
 }
 
@@ -540,6 +564,12 @@ pub enum CGOErrCode {
     ErrCodeSuccess = 0,
     ErrCodeFailure = 1,
     ErrCodeClientPtr = 2,
+}
+
+#[repr(C)]
+pub struct CGOResult {
+    pub err_code: CGOErrCode,
+    pub message: *mut c_char,
 }
 
 #[repr(C)]
