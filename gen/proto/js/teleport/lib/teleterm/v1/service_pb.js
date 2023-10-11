@@ -11886,7 +11886,8 @@ proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.toObject = function(i
     query: jspb.Message.getFieldWithDefault(msg, 5, ""),
     search: jspb.Message.getFieldWithDefault(msg, 6, ""),
     sortBy: (f = msg.getSortBy()) && proto.teleport.lib.teleterm.v1.SortBy.toObject(includeInstance, f),
-    searchAsRoles: jspb.Message.getBooleanFieldWithDefault(msg, 8, false)
+    searchAsRoles: jspb.Message.getBooleanFieldWithDefault(msg, 8, false),
+    pinnedOnly: jspb.Message.getBooleanFieldWithDefault(msg, 9, false)
   };
 
   if (includeInstance) {
@@ -11955,6 +11956,10 @@ proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.deserializeBinaryFrom
     case 8:
       var value = /** @type {boolean} */ (reader.readBool());
       msg.setSearchAsRoles(value);
+      break;
+    case 9:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setPinnedOnly(value);
       break;
     default:
       reader.skipField();
@@ -12039,6 +12044,13 @@ proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.serializeBinaryToWrit
   if (f) {
     writer.writeBool(
       8,
+      f
+    );
+  }
+  f = message.getPinnedOnly();
+  if (f) {
+    writer.writeBool(
+      9,
       f
     );
   }
@@ -12224,6 +12236,24 @@ proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.getSearchAs
  */
 proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.setSearchAsRoles = function(value) {
   return jspb.Message.setProto3BooleanField(this, 8, value);
+};
+
+
+/**
+ * optional bool pinned_only = 9;
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.getPinnedOnly = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 9, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.setPinnedOnly = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 9, value);
 };
 
 

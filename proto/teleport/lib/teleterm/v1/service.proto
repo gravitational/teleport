@@ -526,6 +526,8 @@ message ListUnifiedResourcesRequest {
   SortBy sort_by = 7;
   // When true, all resources that the user can request access to are returned.
   bool search_as_roles = 8;
+  // Only the pinned resources will be returned for the requesting user.
+  bool pinned_only = 9;
 }
 
 message SortBy {
