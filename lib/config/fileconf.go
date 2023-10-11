@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
@@ -994,6 +995,10 @@ type AuthenticationConfig struct {
 
 	// DefaultSessionTTL is the default cluster max session ttl
 	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
+
+	// PIVSlot is a PIV slot that Teleport clients should use instead of the
+	// default based on private key policy. For example, "9a" or "9e".
+	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1024,6 +1029,12 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
+	if a.PIVSlot != "" {
+		if err = a.PIVSlot.Validate(); err != nil {
+			return nil, trace.Wrap(err, "failed to parse piv_slot")
+		}
+	}
+
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
@@ -1037,6 +1048,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		AllowHeadless:     a.Headless,
 		DeviceTrust:       dt,
 		DefaultSessionTTL: a.DefaultSessionTTL,
+		PIVSlot:           string(a.PIVSlot),
 	})
 }
 
