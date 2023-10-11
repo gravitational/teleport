@@ -2251,6 +2251,19 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 		tc.concurrentConns = 1
 	}
 
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// once the tunnel is established we need to wait until we have a
+		// connection to the remote auth
+		site := teleport.GetSiteAPI(helpers.Site)
+		if !assert.NotNil(t, site) {
+			return
+		}
+		// we need to wait until we know about the node because direct dial to
+		// unregistered servers is no longer supported
+		_, err := site.GetNode(ctx, defaults.Namespace, teleport.Config.HostUUID)
+		assert.NoError(t, err)
+	}, time.Second*30, 250*time.Millisecond)
+
 	asyncErrors := make(chan error, 1)
 
 	for i := 0; i < tc.concurrentConns; i++ {
