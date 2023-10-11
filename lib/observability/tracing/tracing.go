@@ -195,14 +195,11 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	res, err := resource.New(ctx,
 		resource.WithSchemaURL(semconv.SchemaURL),
 		resource.WithFromEnv(),
-		resource.WithProcessPID(),
 		resource.WithProcessExecutableName(),
-		resource.WithProcessExecutablePath(),
 		resource.WithProcessRuntimeName(),
 		resource.WithProcessRuntimeVersion(),
 		resource.WithProcessRuntimeDescription(),
 		resource.WithTelemetrySDK(),
-		resource.WithHost(),
 		resource.WithAttributes(attrs...),
 	)
 	if err != nil {
