@@ -244,6 +244,9 @@ spec:
         - mountPath: /var/lib/teleport
           name: "data"
 {{ end }}
+{{- if $auth.extraContainers }}
+  {{- toYaml $auth.extraContainers | nindent 6 }}
+{{- end }}
       volumes:
 {{- if $auth.enterprise }}
       - name: license
