@@ -7209,6 +7209,14 @@ func (mock authProviderMock) GenerateUserSingleUseCerts(ctx context.Context) (au
 	return nil, nil
 }
 
+func (mock authProviderMock) CreateAuthenticateChallenge(ctx context.Context, req *authproto.CreateAuthenticateChallengeRequest) (*authproto.MFAAuthenticateChallenge, error) {
+	return nil, nil
+}
+
+func (mock authProviderMock) GenerateUserCerts(ctx context.Context, req authproto.UserCertsRequest) (*authproto.Certs, error) {
+	return nil, nil
+}
+
 func (mock authProviderMock) GenerateOpenSSHCert(ctx context.Context, req *authproto.OpenSSHCertRequest) (*authproto.OpenSSHCert, error) {
 	return nil, nil
 }
