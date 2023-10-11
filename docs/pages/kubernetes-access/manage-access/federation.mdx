@@ -21,7 +21,7 @@ For example, consider the following setup:
 
 - There are three Teleport/Kubernetes clusters: the root cluster named `main` and the leaf clusters 
   `east` and `west` specified in the `cluster_name` setting in each cluster's configuration file.
-- The clusters `east` and `west` trust the `main` root cluster certificate authority.- The clusters `east` and `west` are trusted clusters for `main`.
+- The clusters `east` and `west` trust the `main` root cluster certificate authority.
 - Users always authenticate against `main` but use their certificates to access
   SSH nodes and the Kubernetes API in all three clusters.
 - The DNS name of the main Proxy Service is `main.example.com`.
