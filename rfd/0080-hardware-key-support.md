@@ -99,7 +99,7 @@ Web sessions created by user-authorized endpoints like the auth http endpoint `P
 
 ##### Web Session Access
 
-Currently, the auth grpc endpoint `GetWebSession` can be used by a user to retrieve a specific web session, including secrets. This endpoint will be restricted to required `read` permissions for `KindWebSession`, similar to `GetWebSessions`. Users will still be able to retrieve non-secret web session info with the auth http endpoint `GET /:version/users/:user/web/sessions/:sid`.
+Currently, the auth grpc endpoint `GetWebSession` can be used by a user to retrieve a specific web session, including secrets. This endpoint will be restricted to require `read` permissions for `KindWebSession`, similar to `GetWebSessions`. Users will still be able to retrieve non-secret web session info with the auth http endpoint `GET /:version/users/:user/web/sessions/:sid`.
 
 ##### Web Session cookies
 
