@@ -76,7 +76,7 @@ type Config struct {
 	ACL string
 	// Session is an optional existing AWS client session
 	Session *awssession.Session
-	// Credentials if supplied are used in tests
+	// Credentials if supplied are used in tests or with external cloud audit.
 	Credentials *credentials.Credentials
 	// SSEKMSKey specifies the optional custom CMK used for KMS SSE.
 	SSEKMSKey string

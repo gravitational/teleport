@@ -84,11 +84,11 @@ func newPublisherFromAthenaConfig(cfg Config) *publisher {
 	})
 	return NewPublisher(PublisherConfig{
 		TopicARN: cfg.TopicARN,
-		SNSPublisher: sns.NewFromConfig(*cfg.AWSConfig, func(o *sns.Options) {
+		SNSPublisher: sns.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sns.Options) {
 			o.Retryer = r
 		}),
 		// TODO(tobiaszheller): consider reworking lib/observability to work also on s3 sdk-v2.
-		Uploader:      manager.NewUploader(s3.NewFromConfig(*cfg.AWSConfig)),
+		Uploader:      manager.NewUploader(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig)),
 		PayloadBucket: cfg.largeEventsBucket,
 		PayloadPrefix: cfg.largeEventsPrefix,
 	})
