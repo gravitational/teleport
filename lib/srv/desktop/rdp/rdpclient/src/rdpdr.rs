@@ -19,11 +19,12 @@ mod scard;
 pub(crate) mod tdp;
 
 use self::path::{UnixPath, WindowsPath};
-use self::scard::{Contexts, IoctlCode, TRANSMIT_DATA_LIMIT};
+use self::scard::{padded_atr, Contexts, IoctlCode, TRANSMIT_DATA_LIMIT};
 use crate::client::{ClientFunction, ClientHandle};
 use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error,
 };
+use crate::rdpdr::scard::TELEPORT_READER_NAME;
 use crate::{util, vchan, Encode, Message, Messages, Payload, MAX_ALLOWED_VCHAN_MSG_SIZE};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 pub use consts::CHANNEL_NAME;
@@ -34,12 +35,13 @@ use consts::{
     GENERAL_CAPABILITY_VERSION_02, I64_SIZE, I8_SIZE, NTSTATUS, SCARD_DEVICE_ID,
     SMARTCARD_CAPABILITY_VERSION_01, TDP_FALSE, U32_SIZE, U8_SIZE, VERSION_MAJOR, VERSION_MINOR,
 };
+use ironrdp_pdu::utils::CharacterSet;
 use ironrdp_pdu::{custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::esc::{
-    rpce, CardProtocol, CardStateFlags, ConnectCall, ConnectReturn, EstablishContextCall,
-    EstablishContextReturn, GetStatusChangeCall, GetStatusChangeReturn, HCardAndDispositionCall,
-    ListReadersCall, ListReadersReturn, ReaderStateCommonCall, ScardCall, TransmitCall,
-    TransmitReturn,
+    rpce, CardProtocol, CardState, CardStateFlags, ConnectCall, ConnectReturn,
+    EstablishContextCall, EstablishContextReturn, GetStatusChangeCall, GetStatusChangeReturn,
+    HCardAndDispositionCall, ListReadersCall, ListReadersReturn, ReaderStateCommonCall, ScardCall,
+    StatusCall, StatusReturn, TransmitCall, TransmitReturn,
 };
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::{
@@ -283,6 +285,31 @@ impl TeleportRdpdrBackend {
         )
     }
 
+    fn handle_status(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        _call: StatusCall,
+        enc: CharacterSet,
+    ) -> PduResult<()> {
+        let (atr_length, atr) = padded_atr::<32>();
+
+        self.write_rdpdr_dev_ctl_resp(
+            req,
+            Box::new(StatusReturn::new(
+                ReturnCode::Success,
+                vec![TELEPORT_READER_NAME.to_string()],
+                // SPECIFICMODE state means that the card is ready to handle commands in a specific
+                // mode, no other negotiation is necessary. Real smartcards would probably negotiate
+                // some mode first.
+                CardState::SpecificMode,
+                CardProtocol::SCARD_PROTOCOL_T1,
+                atr,
+                atr_length,
+                enc,
+            )),
+        )
+    }
+
     fn create_get_status_change_return(
         call: GetStatusChangeCall,
     ) -> rpce::Pdu<GetStatusChangeReturn> {
@@ -397,12 +424,31 @@ impl RdpdrBackend for TeleportRdpdrBackend {
             ScardCall::ConnectCall(call) => self.handle_connect(req, call),
             ScardCall::HCardAndDispositionCall(call) => match req.io_control_code {
                 ScardIoCtlCode::BeginTransaction => self.handle_begin_transaction(req, call),
-                _ => Err(other_err!(
+                _ => Err(custom_err!(
                     "TeleportRdpdrBackend::handle_scard_call",
-                    "got unexpected ScardIoCtlCode with a HCardAndDispositionCall",
+                    TeleportRdpdrBackendError(format!(
+                        "got unexpected ScardIoCtlCode with a HCardAndDispositionCall: {:?}",
+                        req.io_control_code
+                    ))
                 )),
             },
             ScardCall::TransmitCall(call) => self.handle_transmit(req, call),
+            ScardCall::StatusCall(call) => {
+                let enc = match req.io_control_code {
+                    ScardIoCtlCode::StatusW => CharacterSet::Unicode,
+                    ScardIoCtlCode::StatusA => CharacterSet::Ansi,
+                    _ => {
+                        return Err(custom_err!(
+                            "TeleportRdpdrBackend::handle_scard_call",
+                            TeleportRdpdrBackendError(format!(
+                                "got unexpected ScardIoCtlCode with a StatusCall: {:?}",
+                                req.io_control_code
+                            ))
+                        ));
+                    }
+                };
+                self.handle_status(req, call, enc)
+            }
 
             ScardCall::Unsupported => Ok(()),
         }
