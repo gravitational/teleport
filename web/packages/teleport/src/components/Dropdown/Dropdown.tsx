@@ -72,11 +72,6 @@ export const commonDropdownItemStyles = css`
   padding: ${p => p.theme.space[1] * 3}px;
   color: ${props => props.theme.colors.text.main};
   text-decoration: none;
-  transition: opacity 0.15s ease-in;
-
-  &:hover {
-    opacity: 1;
-  }
 
   svg {
     height: 18px;
