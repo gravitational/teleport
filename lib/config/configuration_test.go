@@ -3593,7 +3593,7 @@ func TestAuthHostedPlugins(t *testing.T) {
 		assert   func(t *testing.T, p servicecfg.HostedPluginsConfig)
 	}{
 		{
-			desc: "Plugins disabled by default",
+			desc: "Plugins enabled by default",
 			config: strings.Join([]string{
 				"auth_service:",
 				"  enabled: yes",
@@ -3601,19 +3601,8 @@ func TestAuthHostedPlugins(t *testing.T) {
 			readErr:  require.NoError,
 			applyErr: require.NoError,
 			assert: func(t *testing.T, p servicecfg.HostedPluginsConfig) {
-				require.False(t, p.Enabled)
+				require.True(t, p.Enabled)
 			},
-		},
-		{
-			desc: "Plugins enabled but zero providers defined",
-			config: strings.Join([]string{
-				"auth_service:",
-				"  enabled: yes",
-				"  hosted_plugins:",
-				"    enabled: yes",
-			}, "\n"),
-			readErr:  require.NoError,
-			applyErr: badParameter,
 		},
 		{
 			desc: "Unknown OAuth provider specified",
