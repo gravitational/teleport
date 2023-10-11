@@ -326,6 +326,253 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 	return p, nil
 }
 
+func TestFindDependencies(t *testing.T) {
+	tests := []struct {
+		name                   string
+		targetKind             resourceKind
+		collectionDependencies map[resourceKind][]resourceKind
+		expected               []resourceKind
+		expectedErr            require.ErrorAssertionFunc
+	}{
+		{
+			name:        "no dependencies",
+			targetKind:  resourceKind{kind: types.KindRole},
+			expected:    []resourceKind{{kind: types.KindRole}},
+			expectedErr: require.NoError,
+		},
+		{
+			name:       "simple dependencies",
+			targetKind: resourceKind{kind: types.KindRole},
+			collectionDependencies: map[resourceKind][]resourceKind{
+				{kind: types.KindRole}: {
+					{kind: types.KindUser},
+					{kind: types.KindApp},
+				},
+			},
+			expected: []resourceKind{
+				{kind: types.KindUser},
+				{kind: types.KindApp},
+				{kind: types.KindRole},
+			},
+			expectedErr: require.NoError,
+		},
+		{
+			name:       "transitive dependencies",
+			targetKind: resourceKind{kind: types.KindRole},
+			collectionDependencies: map[resourceKind][]resourceKind{
+				{kind: types.KindRole}: {
+					{kind: types.KindUser},
+					{kind: types.KindApp},
+				},
+				{kind: types.KindUser}: {
+					{kind: types.KindAccessList},
+				},
+				{kind: types.KindApp}: {
+					{kind: types.KindAppServer},
+				},
+			},
+			expected: []resourceKind{
+				{kind: types.KindAccessList},
+				{kind: types.KindUser},
+				{kind: types.KindAppServer},
+				{kind: types.KindApp},
+				{kind: types.KindRole},
+			},
+			expectedErr: require.NoError,
+		},
+		{
+			name:       "duplicate dependencies",
+			targetKind: resourceKind{kind: types.KindRole},
+			collectionDependencies: map[resourceKind][]resourceKind{
+				{kind: types.KindRole}: {
+					{kind: types.KindUser},
+					{kind: types.KindApp},
+				},
+				{kind: types.KindUser}: {
+					{kind: types.KindAppServer},
+				},
+				{kind: types.KindApp}: {
+					{kind: types.KindAppServer},
+				},
+			},
+			expected: []resourceKind{
+				{kind: types.KindAppServer},
+				{kind: types.KindUser},
+				{kind: types.KindApp},
+				{kind: types.KindRole},
+			},
+			expectedErr: require.NoError,
+		},
+		{
+			name:       "cyclical dependency",
+			targetKind: resourceKind{kind: types.KindRole},
+			collectionDependencies: map[resourceKind][]resourceKind{
+				{kind: types.KindRole}: {
+					{kind: types.KindUser},
+					{kind: types.KindApp},
+				},
+				{kind: types.KindUser}: {
+					{kind: types.KindAppServer},
+				},
+				{kind: types.KindAppServer}: {
+					{kind: types.KindAccessList},
+				},
+				{kind: types.KindAccessList}: {
+					{kind: types.KindUser},
+				},
+			},
+			expectedErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "cycle found")
+			},
+		},
+		{
+			name:       "cyclical dependency 2",
+			targetKind: resourceKind{kind: types.KindRole},
+			collectionDependencies: map[resourceKind][]resourceKind{
+				{kind: types.KindRole}: {
+					{kind: types.KindUser},
+					{kind: types.KindApp},
+				},
+				{kind: types.KindUser}: {
+					{kind: types.KindAppServer},
+				},
+				{kind: types.KindAppServer}: {
+					{kind: types.KindAccessList},
+				},
+				{kind: types.KindAccessList}: {
+					{kind: types.KindAppServer},
+				},
+			},
+			expectedErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "cycle found")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			deps, err := findDependencies(test.collectionDependencies, test.targetKind)
+			require.Equal(t, test.expected, deps)
+			test.expectedErr(t, err)
+		})
+	}
+}
+
+func TestGenerateOrderedDependencies(t *testing.T) {
+	tests := []struct {
+		name                   string
+		kinds                  []resourceKind
+		collectionDependencies map[resourceKind][]resourceKind
+		expected               []resourceKind
+		expectedErr            require.ErrorAssertionFunc
+	}{
+		{
+			name: "no dependencies, will be in the input order",
+			kinds: []resourceKind{
+				{kind: types.KindRole},
+				{kind: types.KindUser},
+				{kind: types.KindAccessList},
+				{kind: types.KindAppServer},
+				{kind: types.KindAccessRequest},
+			},
+			expected: []resourceKind{
+				{kind: types.KindRole},
+				{kind: types.KindUser},
+				{kind: types.KindAccessList},
+				{kind: types.KindAppServer},
+				{kind: types.KindAccessRequest},
+			},
+			expectedErr: require.NoError,
+		},
+		{
+			name: "single dependency",
+			kinds: []resourceKind{
+				{kind: types.KindRole},
+				{kind: types.KindUser},
+				{kind: types.KindAccessList},
+				{kind: types.KindAppServer},
+				{kind: types.KindAccessRequest},
+			},
+			collectionDependencies: map[resourceKind][]resourceKind{
+				{kind: types.KindRole}: {
+					{kind: types.KindAccessRequest},
+				},
+			},
+			expected: []resourceKind{
+				{kind: types.KindAccessRequest},
+				{kind: types.KindRole},
+				{kind: types.KindUser},
+				{kind: types.KindAccessList},
+				{kind: types.KindAppServer},
+			},
+			expectedErr: require.NoError,
+		},
+		{
+			name: "duplicate dependency",
+			kinds: []resourceKind{
+				{kind: types.KindRole},
+				{kind: types.KindUser},
+				{kind: types.KindAccessList},
+				{kind: types.KindAppServer},
+				{kind: types.KindAccessRequest},
+			},
+			collectionDependencies: map[resourceKind][]resourceKind{
+				{kind: types.KindRole}: {
+					{kind: types.KindAccessRequest},
+				},
+				{kind: types.KindUser}: {
+					{kind: types.KindAccessRequest},
+				},
+				{kind: types.KindAccessList}: {
+					{kind: types.KindAccessRequest},
+				},
+				{kind: types.KindAppServer}: {
+					{kind: types.KindAccessRequest},
+				},
+			},
+			expected: []resourceKind{
+				{kind: types.KindAccessRequest},
+				{kind: types.KindRole},
+				{kind: types.KindUser},
+				{kind: types.KindAccessList},
+				{kind: types.KindAppServer},
+			},
+			expectedErr: require.NoError,
+		},
+		{
+			name: "missing kind",
+			kinds: []resourceKind{
+				{kind: types.KindRole},
+				{kind: types.KindUser},
+				{kind: types.KindAccessList},
+				{kind: types.KindAppServer},
+				{kind: types.KindAccessRequest},
+			},
+			collectionDependencies: map[resourceKind][]resourceKind{
+				{kind: types.KindRole}: {
+					{kind: types.KindSemaphore},
+				},
+			},
+			expectedErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "dependency not found in provided kinds")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ordered, err := generateOrderedKinds(test.kinds, test.collectionDependencies)
+			require.Equal(t, test.expected, ordered)
+			test.expectedErr(t, err)
+		})
+	}
+}
+
 // TestCA tests certificate authorities
 func TestCA(t *testing.T) {
 	t.Parallel()

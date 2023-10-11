@@ -69,7 +69,104 @@ var (
 	)
 
 	cacheCollectors = []prometheus.Collector{cacheEventsReceived, cacheStaleEventsReceived}
+
+	// collectionDependencies defines collections that must be run before one another.
+	collectionDependencies = map[resourceKind][]resourceKind{
+		{kind: types.KindAccessListMember}: {
+			{kind: types.KindAccessList},
+		},
+	}
 )
+
+func init() {
+	for kind := range collectionDependencies {
+		if _, err := findDependencies(collectionDependencies, kind); err != nil {
+			panic(fmt.Sprintf("Cycle found in cache: %v", err))
+		}
+	}
+}
+
+// findDependencies will find all dependencies for a target.
+func findDependencies(collectionDependencies map[resourceKind][]resourceKind, targetKinds ...resourceKind) ([]resourceKind, error) {
+	if len(targetKinds) == 0 {
+		return nil, trace.BadParameter("no target kinds")
+	}
+
+	// Search for dependencies for the most recent target kind.
+	targetKind := targetKinds[len(targetKinds)-1]
+
+	dependencies := []resourceKind{}
+	seenKind := map[resourceKind]struct{}{}
+
+	// Look through each dependency.
+	for _, dependency := range collectionDependencies[targetKind] {
+		// If the dependency has already been targeted, we know that this is a cyclical loop.
+		for _, alreadyTargetedKind := range targetKinds {
+			if alreadyTargetedKind == dependency {
+				return nil, trace.AlreadyExists("cycle found")
+			}
+		}
+
+		allKinds := make([]resourceKind, len(targetKinds)+1)
+		copy(allKinds, targetKinds)
+		allKinds[len(allKinds)-1] = dependency
+
+		// Find dependencies with the target chain + the new dependency.
+		foundDependencies, err := findDependencies(collectionDependencies, allKinds...)
+		if err != nil {
+			return nil, trace.Wrap(err, "cycle found for kind %s", targetKind)
+		}
+
+		// Only add dependencies we haven't already seen, as it's valid for kinds to refer to the same dependency.
+		for _, foundDependency := range foundDependencies {
+			if _, ok := seenKind[foundDependency]; !ok {
+				dependencies = append(dependencies, foundDependency)
+				seenKind[foundDependency] = struct{}{}
+			}
+		}
+	}
+
+	// Add the target kind to the dependency itself.
+	return append(dependencies, targetKind), nil
+}
+
+// generateOrderedKinds will generate the given kinds in an order so that all dependencies are satisfied. If a dependency
+// is not present but required the function will error.
+func generateOrderedKinds(kinds []resourceKind, collectionDependencies map[resourceKind][]resourceKind) ([]resourceKind, error) {
+	kindMap := make(map[resourceKind]struct{}, len(kinds))
+	for _, kind := range kinds {
+		kindMap[kind] = struct{}{}
+	}
+
+	alreadySeen := map[resourceKind]struct{}{}
+	orderedKinds := make([]resourceKind, 0, len(kinds))
+
+	for _, kind := range kinds {
+		// The dependency for each kind will include the kind itself.
+		dependencies, err := findDependencies(collectionDependencies, kind)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Add the dependencies to the ordered kind list.
+		for _, dependency := range dependencies {
+			// If a dependency is not provided in the list of kinds, throw an error.
+			if _, ok := kindMap[dependency]; !ok {
+				return nil, trace.NotFound("dependency not found in provided kinds")
+			}
+
+			// This dependency is already present, so skip adding it again.
+			if _, ok := alreadySeen[dependency]; ok {
+				continue
+			}
+
+			orderedKinds = append(orderedKinds, dependency)
+			alreadySeen[dependency] = struct{}{}
+		}
+	}
+
+	return orderedKinds, nil
+}
 
 // ForAuth sets up watch configuration for the auth server
 func ForAuth(cfg Config) Config {
@@ -1429,10 +1526,25 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(fetchLimit(c.target))
-	applyfns := make([]applyFn, len(c.collections.byKind))
+	kinds := make([]resourceKind, len(c.collections.byKind))
+
 	i := 0
-	for kind, collection := range c.collections.byKind {
-		kind, collection := kind, collection
+	for kind := range c.collections.byKind {
+		kinds[i] = kind
+		i++
+	}
+
+	// order the kinds by which kinds depend on one another. When the apply
+	// functions are run later, they'll be run in this order.
+	orderedKinds, err := generateOrderedKinds(kinds, collectionDependencies)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	applyfns := make([]applyFn, len(kinds))
+	i = 0
+	for _, kind := range orderedKinds {
+		kind, collection := kind, c.collections.byKind[kind]
 		ii := i
 		i++
 
