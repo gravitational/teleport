@@ -67,15 +67,15 @@ func TestUnifiedResourcesList(t *testing.T) {
 
 	response, err := List(ctx, cluster, mockedClient, &proto.ListUnifiedResourcesRequest{})
 	require.NoError(t, err)
-	require.Equal(t, CombinedResource{Server: &clusters.Server{
+	require.Equal(t, UnifiedResource{Server: &clusters.Server{
 		URI:    uri.NewClusterURI(cluster.ProfileName).AppendServer(node.GetName()),
 		Server: node,
 	}}, response.Resources[0])
-	require.Equal(t, CombinedResource{Database: &clusters.Database{
+	require.Equal(t, UnifiedResource{Database: &clusters.Database{
 		URI:      uri.NewClusterURI(cluster.ProfileName).AppendDB(database.GetName()),
 		Database: database.GetDatabase(),
 	}}, response.Resources[1])
-	require.Equal(t, CombinedResource{Kube: &clusters.Kube{
+	require.Equal(t, UnifiedResource{Kube: &clusters.Kube{
 		URI:               uri.NewClusterURI(cluster.ProfileName).AppendKube(kube.GetName()),
 		KubernetesCluster: kube,
 	}}, response.Resources[2])
