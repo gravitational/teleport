@@ -81,7 +81,7 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-    - kind: pod
+    - kind: "*"
       namespace: "*"
       name: "*"
     kubernetes_groups:
@@ -91,13 +91,13 @@ spec:
 Adjust the `allow` field for your environment:
 
 - `kubernetes_labels` should be adjusted to grant access to only the clusters
-  that the bot will need to access. The value shown, `'*': '**'` will grant
+  that the bot will need to access. The value shown, `'*': '*'` will grant
   access to all Kubernetes clusters.
 
 - Each item in `kubernetes_resources` must match the namespace and name of a
   Kubernetes resource that you would like users with `machine-id-kube-role` to
-  access. Currently, Teleport only supports the `pod` kind. In the
-  configuration above, this role can access all pods in all namespaces.
+  access. In the configuration above, this role can access all resources in all
+  namespaces.
 
 - `editor` must match the name of the group you specified in the
   RoleBinding or ClusterRoleBinding.
