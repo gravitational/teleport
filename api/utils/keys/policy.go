@@ -121,17 +121,25 @@ func (p PrivateKeyPolicy) validate() error {
 func PolicyThatSatisfiesSet(policies []PrivateKeyPolicy) (PrivateKeyPolicy, error) {
 	setPolicy := PrivateKeyPolicyNone
 	for _, policy := range policies {
-		if !policy.IsSatisfiedBy(setPolicy) {
-			if setPolicy.IsSatisfiedBy(policy) {
-				// Upgrade set policy to stricter policy.
-				setPolicy = policy
-			} else if policy.IsSatisfiedBy(PrivateKeyPolicyHardwareKeyTouchAndPIN) &&
-				setPolicy.IsSatisfiedBy(PrivateKeyPolicyHardwareKeyTouchAndPIN) {
-				// neither policy is satisfied by the other (pin or touch), but both are satisfied by stricter pin+touch policy).
-				setPolicy = PrivateKeyPolicyHardwareKeyTouchAndPIN
-			} else {
-				return PrivateKeyPolicyNone, trace.BadParameter("private key policy requirements %q and %q are incompatible, please contact the cluster administrator", policy, setPolicy)
-			}
+		if policy.IsSatisfiedBy(setPolicy) {
+			continue
+		}
+
+		switch {
+		case setPolicy.IsSatisfiedBy(policy):
+			// Upgrade set policy to stricter policy.
+			setPolicy = policy
+
+		case policy.IsSatisfiedBy(PrivateKeyPolicyHardwareKeyTouchAndPIN) &&
+			setPolicy.IsSatisfiedBy(PrivateKeyPolicyHardwareKeyTouchAndPIN):
+			// Neither policy is met by the other (pin or touch), but both are met by
+			// stricter pin+touch policy.
+			setPolicy = PrivateKeyPolicyHardwareKeyTouchAndPIN
+
+		default:
+			return PrivateKeyPolicyNone, trace.BadParameter(""+
+				"private key policy requirements %q and %q are incompatible, "+
+				"please contact the cluster administrator", policy, setPolicy)
 		}
 	}
 

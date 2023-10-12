@@ -487,13 +487,16 @@ However, if pin is required, we must require the user to set a non-default PIN a
 
 ```bash
 > tsh login --user=dev
-Enter your YubiKey PIV PIN:
-# 123456
+Enter your YubiKey PIV PIN [blank to use default PIN]:
+# \n
 The default PIN 123456 is not supported.
 Please set a new 6 digit PIN:
 Enter your new YubiKey PIV PIN:
-Enter your new YubiKey PIV PIN again to confirm:
-Please set a new 8 digit PUK (used to reset PIN):
+Confirm your new YubiKey PIV PIN:
+Enter your YubiKey PIV PUK to reset PIN [blank to use default PUK]
+# \n
+The default PUK 12345678 is not supported
+Please set a new 8 digit PUK:
 Enter your new YubiKey PIV PUK:
-Enter your new YubiKey PIV PUK again to confirm:
+Confirm your new YubiKey PIV PUK:
 ```

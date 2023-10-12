@@ -18,6 +18,7 @@ package keys_test
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -152,9 +153,8 @@ func TestGetPolicyFromSet(t *testing.T) {
 			require.Equal(t, tc.expectSetPolicy, requiredPolicy)
 
 			// reversing the policy set shouldn't change the output
-			for i, j := 0, len(tc.policySet)-1; i < j; i, j = i+1, j-1 {
-				tc.policySet[i], tc.policySet[j] = tc.policySet[j], tc.policySet[i]
-			}
+			slices.Reverse(tc.policySet)
+
 			requiredPolicy, err = keys.PolicyThatSatisfiesSet(tc.policySet)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectSetPolicy, requiredPolicy)
@@ -162,8 +162,8 @@ func TestGetPolicyFromSet(t *testing.T) {
 	}
 }
 
-// TestPrivateKeyPolicyError tests private key policy error logic.
-func TestPrivateKeyPolicyError(t *testing.T) {
+// TestPrivateKeyPolicyError tests private key policy error parsing and checking.
+func TestParsePrivateKeyPolicyError(t *testing.T) {
 	type testCase struct {
 		desc                    string
 		errIn                   error
