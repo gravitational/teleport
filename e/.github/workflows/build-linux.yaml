@@ -211,7 +211,7 @@ jobs:
           cp web/packages/teleterm/build/release/teleport-connect* build/artifacts
 
       - name: Build Debian package
-        if: inputs.build-deb && !steps.determine-fips.outputs.is-fips
+        if: inputs.build-deb && steps.determine-fips.outputs.is-fips == 'false'
         env:
           ARCH: ${{ inputs.arch }}
           ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
@@ -226,7 +226,7 @@ jobs:
           fi
 
       - name: Build FIPS Debian package
-        if: inputs.build-deb && steps.determine-fips.outputs.is-fips
+        if: inputs.build-deb && steps.determine-fips.outputs.is-fips == 'true'
         env:
           ARCH: ${{ inputs.arch }}
           FIPS: yes
@@ -253,7 +253,7 @@ jobs:
           chown -Rv "$(id -un):$(id -gn)" "$GNUPG_DIR"
 
       - name: Build RPM package
-        if: inputs.build-rpm && !steps.determine-fips.outputs.is-fips
+        if: inputs.build-rpm && steps.determine-fips.outputs.is-fips == 'false'
         env:
           ARCH: ${{ inputs.arch }}
           ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
@@ -269,7 +269,7 @@ jobs:
           fi
 
       - name: Build FIPS RPM package
-        if: inputs.build-rpm && steps.determine-fips.outputs.is-fips
+        if: inputs.build-rpm && steps.determine-fips.outputs.is-fips == 'true'
         env:
           ARCH: ${{ inputs.arch }}
           FIPS: yes
