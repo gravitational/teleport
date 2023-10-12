@@ -254,10 +254,10 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 
 	// For generic auth errors, the smart card returns the error code 0x6982. This PIV library
 	// wraps error codes like this with a user readable message: "security status not satisfied".
-	const pivGenericAuthErrCode = "6982"
+	const pivGenericAuthErrCodeString = "6982"
 
 	signature, err := y.sign(ctx, rand, digest, opts)
-	if err != nil && strings.Contains(err.Error(), pivGenericAuthErrCode) {
+	if err != nil && strings.Contains(err.Error(), pivGenericAuthErrCodeString) {
 		// If we get a generic auth error, it probably means the PIV connection didn't prompt for
 		// PIN when he PIV module expected PIN. This can happen in custom PIV modules that don't
 		// implement proper PIN caching in the connection, or potentially in very old YubiKey
@@ -549,7 +549,7 @@ func (y *YubiKey) getPrivateKey(slot piv.Slot) (*PrivateKey, error) {
 	return key, nil
 }
 
-// SetPin sets the YubiKey PIV PIN.
+// SetPin sets the YubiKey PIV PIN. This doesn't require user interaction like touch, just the correct old PIN.
 func (y *YubiKey) SetPIN(oldPin, newPin string) error {
 	yk, err := y.open()
 	if err != nil {
@@ -772,6 +772,7 @@ const (
 )
 
 func setPINAndPUKFromDefault(ctx context.Context, yk *piv.YubiKey) (string, error) {
+	// YubiKey requires that PIN and PUK be 6-8 characters.
 	isValid := func(pin string) bool {
 		return len(pin) >= 6 && len(pin) <= 8
 	}

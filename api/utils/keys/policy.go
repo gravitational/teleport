@@ -137,6 +137,9 @@ func PolicyThatSatisfiesSet(policies []PrivateKeyPolicy) (PrivateKeyPolicy, erro
 			setPolicy = PrivateKeyPolicyHardwareKeyTouchAndPIN
 
 		default:
+			// Currently, "hardware_key_touch_and_pin" is the strictest policy available and
+			// meets every other required policy. However, in the future we may add policy
+			// requirements that are mutually exclusive, so this logic is future proofed.
 			return PrivateKeyPolicyNone, trace.BadParameter(""+
 				"private key policy requirements %q and %q are incompatible, "+
 				"please contact the cluster administrator", policy, setPolicy)
@@ -146,12 +149,7 @@ func PolicyThatSatisfiesSet(policies []PrivateKeyPolicy) (PrivateKeyPolicy, erro
 	return setPolicy, nil
 }
 
-var (
-	privateKeyPolicyErrRegex = regexp.MustCompile(`private key policy not satisfied: (\w+)`)
-	// deprecated in favor of privateKeyPolicyErrRegex.
-	// TODO(Joerger): Delete in 17.0.0 after replacing the error string below in 16.0.0
-	privateKeyPolicyErrRegexOld = regexp.MustCompile(`private key policy not met: (\w+)`)
-)
+var privateKeyPolicyErrRegex = regexp.MustCompile(`private key policy not (met|satisfied): (\w+)`)
 
 func NewPrivateKeyPolicyError(p PrivateKeyPolicy) error {
 	// TODO(Joerger): Replace with "private key policy not satisfied" in 16.0.0
@@ -163,14 +161,11 @@ func NewPrivateKeyPolicyError(p PrivateKeyPolicy) error {
 func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
 	// subMatches should have two groups - the full string and the policy "(\w+)"
 	subMatches := privateKeyPolicyErrRegex.FindStringSubmatch(err.Error())
-	if subMatches == nil || len(subMatches) != 2 {
-		subMatches := privateKeyPolicyErrRegexOld.FindStringSubmatch(err.Error())
-		if subMatches == nil || len(subMatches) != 2 {
-			return "", trace.BadParameter("provided error is not a key policy error")
-		}
+	if subMatches == nil || len(subMatches) != 3 {
+		return "", trace.BadParameter("provided error is not a key policy error")
 	}
 
-	policy := PrivateKeyPolicy(subMatches[1])
+	policy := PrivateKeyPolicy(subMatches[2])
 	if err := policy.validate(); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -179,5 +174,5 @@ func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
 
 // IsPrivateKeyPolicyError returns true if the given error is a private key policy error.
 func IsPrivateKeyPolicyError(err error) bool {
-	return privateKeyPolicyErrRegex.MatchString(err.Error()) || privateKeyPolicyErrRegexOld.MatchString(err.Error())
+	return privateKeyPolicyErrRegex.MatchString(err.Error())
 }
