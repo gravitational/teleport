@@ -80,12 +80,12 @@ spec:
   allow:
     kubernetes_labels:
       '*': '*'
+    kubernetes_groups:
+    - editor
     kubernetes_resources:
     - kind: "*"
       namespace: "*"
       name: "*"
-    kubernetes_groups:
-    - editor
 ```
 
 Adjust the `allow` field for your environment:
@@ -94,13 +94,12 @@ Adjust the `allow` field for your environment:
   that the bot will need to access. The value shown, `'*': '*'` will grant
   access to all Kubernetes clusters.
 
-- Each item in `kubernetes_resources` must match the namespace and name of a
-  Kubernetes resource that you would like users with `machine-id-kube-role` to
-  access. In the configuration above, this role can access all resources in all
-  namespaces.
-
 - `editor` must match the name of the group you specified in the
   RoleBinding or ClusterRoleBinding.
+
+- `kubernetes_resources` can be used to apply additional restrictions to what
+  the bot can access within the Kubernetes cluster. These restrictions are
+  layered upon the RBAC configured within the Kubernetes role itself.
 
 ## Step 2/3. Configure a Kubernetes `tbot` output
 
@@ -174,3 +173,5 @@ this format is compatible with most Kubernetes tools including:
 
 - Read the [configuration reference](../reference/configuration.mdx) to explore
   all the available configuration options.
+- Read the [Kubernetes Access RBAC guide](../../kubernetes-access/controls.mdx)
+  for more details on controlling Kubernetes access.
