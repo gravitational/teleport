@@ -72,6 +72,13 @@ on:
 run-name: "Build of ${{ inputs.release-target }} of ${{ inputs.oss-teleport-repo }} branch ${{ inputs.oss-teleport-ref }}"
 
 jobs:
+  identity:
+    runs-on: ubuntu-latest
+    if: inputs.workflow-tag != ''
+    steps:
+      - name: ${{ inputs.workflow-tag }}
+        run: echo ${{ inputs.workflow-tag }}
+
   select:
     runs-on: ubuntu-latest
     outputs:
@@ -79,10 +86,6 @@ jobs:
       builder: ${{ steps.select-builder.outputs.builder }}
       teleport-version: ${{ steps.determine-version.outputs.teleport-version }}
     steps:
-      - name: Identify workflow
-        if: inputs.workflow-tag != ''
-        run: echo ${{ inputs.workflow-tag }}
-
       - name: Select builder
         id: select-builder
         env:
