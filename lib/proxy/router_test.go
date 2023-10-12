@@ -372,7 +372,7 @@ func TestCheckedPrefixWriter(t *testing.T) {
 			cpw := newCheckedPrefixWriter(&mockConn{}, []byte("wrong"))
 
 			_, err := cpw.Write(testData)
-			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err), "expected trace.AccessDenied error, got: %v", err)
 		})
 		t.Run("two writes", func(t *testing.T) {
 			cpw := newCheckedPrefixWriter(&mockConn{}, append(testData, []byte("wrong")...))
@@ -381,7 +381,7 @@ func TestCheckedPrefixWriter(t *testing.T) {
 			require.NoError(t, err)
 
 			_, err = cpw.Write(testData)
-			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err), "expected trace.AccessDenied error, got: %v", err)
 		})
 	})
 	t.Run("success", func(t *testing.T) {
