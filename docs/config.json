@@ -1224,10 +1224,6 @@
           "slug": "/database-access/auto-user-provisioning/",
           "entries": [
             {
-              "title": "MariaDB",
-              "slug": "/database-access/auto-user-provisioning/mariadb/"
-            },
-            {
               "title": "MySQL",
               "slug": "/database-access/auto-user-provisioning/mysql/"
             },

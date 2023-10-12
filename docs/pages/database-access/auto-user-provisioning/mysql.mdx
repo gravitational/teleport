@@ -52,10 +52,6 @@ GRANT PROCESS, ROLE_ADMIN, CREATE USER ON *.* TO 'teleport-admin' ;
 CREATE DATABASE IF NOT EXISTS `teleport`;
 GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON `teleport`.* TO 'teleport-admin' ;
 ```
-
-Note that Teleport uses `teleport` as the name of the default database but the
-name is configurable in the Teleport database definition. Replace the database
-name in the last two lines if you wish to use another database name.
 </TabItem>
 
 <TabItem label="Self-hosted MySQL">
@@ -68,11 +64,6 @@ GRANT PROCESS, ROLE_ADMIN, CREATE USER ON *.* TO 'teleport-admin' ;
 CREATE DATABASE IF NOT EXISTS `teleport`;
 GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON `teleport`.* TO 'teleport-admin' ;
 ```
-
-Note that Teleport uses `teleport` as the name of the default database but the
-name is configurable in the Teleport database definition. Replace the database
-name in the last two lines if you wish to use another database name.
-
 </TabItem>
 </Tabs>
 
@@ -96,9 +87,6 @@ db_service:
     uri: "localhost:3306"
     admin_user:
       name: "teleport-admin"
-      # Optional default database the admin user logs into. Default is
-      # "teleport" if not specified.
-      # default_database: teleport
 ```
 </TabItem>
 <TabItem label="Dynamic resource">
@@ -112,17 +100,13 @@ spec:
   uri: "localhost:3306"
   admin_user:
     name: "teleport-admin"
-    # Optional default database the admin user logs into. Default is
-    # "teleport" if not specified.
-    # default_database: teleport
 ```
 </TabItem>
 </Tabs>
 
 <Admonition type="tip" title="Auto-discovered databases">
 For auto-discovered cloud databases, the name of the admin user is taken from
-the `teleport.dev/db-admin` label, and the default database is taken from the
-`teleport.dev/db-admin-default-database` label.
+the `teleport.dev/db-admin` label.
 </Admonition>
 
 ## Step 2/3. Configure Teleport role
@@ -131,7 +115,7 @@ the `teleport.dev/db-admin` label, and the default database is taken from the
 
 User created within the database will:
 
-- Be a part of the `teleport-auto-user` role.
+- Be assigned the `teleport-auto-user` role.
 - Be assigned all roles from the Teleport user's role set that match the database.
   The role names must be valid and exist in the database.
 
@@ -147,17 +131,17 @@ within the database will have the name in the format of
 The original Teleport username will be saved as user attributes within the
 databases.
 
-An user-auto-provisioned database session can find its own user attributes by:
+User can find its own attributes in an auto-provisioned database session by:
 ```sql
 SELECT * FROM INFORMATION_SCHEMA.USER_ATTRIBUTES WHERE CONCAT(USER, '@', HOST) = current_user(); 
 ```
 
-Database admins can also search a particular Teleport username by:
+Database admins can search a particular Teleport username by:
 ```sql
 SELECT * FROM INFORMATION_SCHEMA.USER_ATTRIBUTES WHERE ATTRIBUTE->"$.user" = "teleport-user-name";
 ```
 
-In addition, the "hashed" in-database name will be set as `db_user` for
+In addition, the "hashed" in-database name will be recorded as `db_user` for
 database queries in the Teleport Audit Logs, when the Teleport username is over
 32 characters.
 </Details>
