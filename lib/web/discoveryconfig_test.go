@@ -51,151 +51,166 @@ func TestDiscoveryConfig(t *testing.T) {
 	require.NoError(t, err)
 	pack := env.proxies[0].authPack(t, username, []types.Role{roleRWDiscoveryConfig})
 
-	// Get All should return an empty list
 	getAllEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig")
-	resp, err := pack.clt.Get(ctx, getAllEndpoint, nil)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.Code())
+	t.Run("Get All should return an empty list", func(t *testing.T) {
+		resp, err := pack.clt.Get(ctx, getAllEndpoint, nil)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
 
-	var listResponse ui.DiscoveryConfigsListResponse
-	err = json.Unmarshal(resp.Bytes(), &listResponse)
-	require.NoError(t, err)
-	require.Empty(t, listResponse.NextKey)
-	require.Empty(t, listResponse.Items)
+		var listResponse ui.DiscoveryConfigsListResponse
+		err = json.Unmarshal(resp.Bytes(), &listResponse)
+		require.NoError(t, err)
+		require.Empty(t, listResponse.NextKey)
+		require.Empty(t, listResponse.Items)
+	})
 
-	// Create without a name must fail.
 	createEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig")
-	resp, err = pack.clt.PostJSON(ctx, createEndpoint, ui.DiscoveryConfig{
-		DiscoveryGroup: "dg01",
+	t.Run("Create without a name must fai", func(t *testing.T) {
+		resp, err := pack.clt.PostJSON(ctx, createEndpoint, ui.DiscoveryConfig{
+			DiscoveryGroup: "dg01",
+		})
+		require.ErrorContains(t, err, "missing discovery config name")
+		require.Equal(t, http.StatusBadRequest, resp.Code())
 	})
-	require.ErrorContains(t, err, "missing discovery config name")
-	require.Equal(t, http.StatusBadRequest, resp.Code())
 
-	// Create without a group must fail.reateEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig")
-	resp, err = pack.clt.PostJSON(ctx, createEndpoint, ui.DiscoveryConfig{
-		Name: "dc01",
+	t.Run("Create without a group must fail", func(t *testing.T) {
+		resp, err := pack.clt.PostJSON(ctx, createEndpoint, ui.DiscoveryConfig{
+			Name: "dc01",
+		})
+		require.ErrorContains(t, err, "missing discovery group")
+		require.Equal(t, http.StatusBadRequest, resp.Code())
 	})
-	require.ErrorContains(t, err, "missing discovery group")
-	require.Equal(t, http.StatusBadRequest, resp.Code())
 
-	// Create valid.
-	resp, err = pack.clt.PostJSON(ctx, createEndpoint, ui.DiscoveryConfig{
-		Name:           "dc01",
-		DiscoveryGroup: "dg01",
+	t.Run("Get One must return not found when it doesn't exist", func(t *testing.T) {
+		getDC02Endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig", "dc02")
+		resp, err := pack.clt.Get(ctx, getDC02Endpoint, nil)
+		require.ErrorContains(t, err, "doesn't exist")
+		require.Equal(t, http.StatusNotFound, resp.Code())
 	})
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.Code())
 
-	// Create invalid when name already exists.
-	resp, err = pack.clt.PostJSON(ctx, createEndpoint, ui.DiscoveryConfig{
-		Name:           "dc01",
-		DiscoveryGroup: "dg01",
-	})
-	require.ErrorContains(t, err, "already exists")
-	require.Equal(t, http.StatusConflict, resp.Code())
-
-	// Get One.
-	getDC01Endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig", "dc01")
-	resp, err = pack.clt.Get(ctx, getDC01Endpoint, nil)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.Code())
-
-	var discoveryConfigResp ui.DiscoveryConfig
-	err = json.Unmarshal(resp.Bytes(), &discoveryConfigResp)
-	require.NoError(t, err)
-	require.Equal(t, "dg01", discoveryConfigResp.DiscoveryGroup)
-	require.Equal(t, "dc01", discoveryConfigResp.Name)
-
-	// Get One must return not found when it doesn't exist.
-	getDC02Endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig", "dc02")
-	resp, err = pack.clt.Get(ctx, getDC02Endpoint, nil)
-	require.ErrorContains(t, err, "doesn't exist")
-	require.Equal(t, http.StatusNotFound, resp.Code())
-
-	// Update discovery config.
-	updateDC01Endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig", "dc01")
-	resp, err = pack.clt.PutJSON(ctx, updateDC01Endpoint, ui.UpdateDiscoveryConfigRequest{
-		DiscoveryGroup: "dgAA",
-	})
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.Code())
-
-	resp, err = pack.clt.Get(ctx, getDC01Endpoint, nil)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.Code())
-
-	err = json.Unmarshal(resp.Bytes(), &discoveryConfigResp)
-	require.NoError(t, err)
-	require.Equal(t, "dgAA", discoveryConfigResp.DiscoveryGroup)
-	require.Equal(t, "dc01", discoveryConfigResp.Name)
-
-	// Update must fail when discovery group is not present.
-	updateDC01Endpoint = pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig", "dc01")
-	resp, err = pack.clt.PutJSON(ctx, updateDC01Endpoint, ui.UpdateDiscoveryConfigRequest{
-		DiscoveryGroup: "",
-	})
-	require.ErrorContains(t, err, "missing discovery group")
-	require.Equal(t, http.StatusBadRequest, resp.Code())
-
-	// Update must return not found when it doesn't exist.
-	updateDC02Endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig", "dc02")
-	resp, err = pack.clt.PutJSON(ctx, updateDC02Endpoint, ui.UpdateDiscoveryConfigRequest{
-		DiscoveryGroup: "dg01",
-	})
-	require.ErrorContains(t, err, "doesn't exist")
-	require.Equal(t, http.StatusNotFound, resp.Code())
-
-	// Delete discovery config.
-	deleteDC01Endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig", "dc01")
-	resp, err = pack.clt.Delete(ctx, deleteDC01Endpoint)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.Code())
-
-	// Get All should return an empty list.
-	getAllEndpoint = pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig")
-	resp, err = pack.clt.Get(ctx, getAllEndpoint, nil)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.Code())
-
-	err = json.Unmarshal(resp.Bytes(), &listResponse)
-	require.NoError(t, err)
-	require.Empty(t, listResponse.NextKey)
-	require.Empty(t, listResponse.Items)
-
-	// Create multiple and then list all of them.
-	listTestCount := 54
-	for i := 0; i < listTestCount; i++ {
-		resp, err = pack.clt.PostJSON(ctx, createEndpoint, ui.DiscoveryConfig{
-			Name:           fmt.Sprintf("dc-%d", i),
+	t.Run("Create valid", func(t *testing.T) {
+		resp, err := pack.clt.PostJSON(ctx, createEndpoint, ui.DiscoveryConfig{
+			Name:           "dc01",
 			DiscoveryGroup: "dg01",
 		})
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.Code())
-	}
-	uniqDC := make(map[string]struct{}, listTestCount)
-	iterationsCount := listTestCount / 5
-	startKey := ""
-	for {
-		// Add a small limit page to test iteration.
-		resp, err = pack.clt.Get(ctx, getAllEndpoint, url.Values{
-			"limit":    []string{"5"},
-			"startKey": []string{startKey},
-		})
-		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, resp.Code())
 
-		err = json.Unmarshal(resp.Bytes(), &listResponse)
-		require.NoError(t, err)
-		for _, item := range listResponse.Items {
-			uniqDC[item.Name] = struct{}{}
+		t.Run("Create fails when name already exists", func(t *testing.T) {
+			resp, err := pack.clt.PostJSON(ctx, createEndpoint, ui.DiscoveryConfig{
+				Name:           "dc01",
+				DiscoveryGroup: "dg01",
+			})
+			require.ErrorContains(t, err, "already exists")
+			require.Equal(t, http.StatusConflict, resp.Code())
+		})
+
+		getDC01Endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig", "dc01")
+		t.Run("Get one", func(t *testing.T) {
+			resp, err := pack.clt.Get(ctx, getDC01Endpoint, nil)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.Code())
+
+			var discoveryConfigResp ui.DiscoveryConfig
+			err = json.Unmarshal(resp.Bytes(), &discoveryConfigResp)
+			require.NoError(t, err)
+			require.Equal(t, "dg01", discoveryConfigResp.DiscoveryGroup)
+			require.Equal(t, "dc01", discoveryConfigResp.Name)
+		})
+
+		t.Run("Update discovery config", func(t *testing.T) {
+			updateDC01Endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig", "dc01")
+			resp, err = pack.clt.PutJSON(ctx, updateDC01Endpoint, ui.UpdateDiscoveryConfigRequest{
+				DiscoveryGroup: "dgAA",
+			})
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.Code())
+
+			resp, err = pack.clt.Get(ctx, getDC01Endpoint, nil)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.Code())
+
+			var discoveryConfigResp ui.DiscoveryConfig
+			err = json.Unmarshal(resp.Bytes(), &discoveryConfigResp)
+			require.NoError(t, err)
+			require.Equal(t, "dgAA", discoveryConfigResp.DiscoveryGroup)
+			require.Equal(t, "dc01", discoveryConfigResp.Name)
+		})
+
+		t.Run("Delete discovery config", func(t *testing.T) {
+			deleteDC01Endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig", "dc01")
+			resp, err = pack.clt.Delete(ctx, deleteDC01Endpoint)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.Code())
+
+			t.Run("Get All should return an empty list", func(t *testing.T) {
+				resp, err := pack.clt.Get(ctx, getAllEndpoint, nil)
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.Code())
+
+				var listResponse ui.DiscoveryConfigsListResponse
+				err = json.Unmarshal(resp.Bytes(), &listResponse)
+				require.NoError(t, err)
+				require.Empty(t, listResponse.NextKey)
+				require.Empty(t, listResponse.Items)
+			})
+		})
+	})
+
+	t.Run("Update must fail when discovery group is not present", func(t *testing.T) {
+		updateDC01Endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig", "dc01")
+		resp, err := pack.clt.PutJSON(ctx, updateDC01Endpoint, ui.UpdateDiscoveryConfigRequest{
+			DiscoveryGroup: "",
+		})
+		require.ErrorContains(t, err, "missing discovery group")
+		require.Equal(t, http.StatusBadRequest, resp.Code())
+	})
+
+	t.Run("Update must return not found when it doesn't exist", func(t *testing.T) {
+		updateDC02Endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "discoveryconfig", "dc02")
+		resp, err := pack.clt.PutJSON(ctx, updateDC02Endpoint, ui.UpdateDiscoveryConfigRequest{
+			DiscoveryGroup: "dg01",
+		})
+		require.ErrorContains(t, err, "doesn't exist")
+		require.Equal(t, http.StatusNotFound, resp.Code())
+	})
+
+	t.Run("Create multiple and then list all of them", func(t *testing.T) {
+		listTestCount := 54
+		for i := 0; i < listTestCount; i++ {
+			resp, err := pack.clt.PostJSON(ctx, createEndpoint, ui.DiscoveryConfig{
+				Name:           fmt.Sprintf("dc-%d", i),
+				DiscoveryGroup: "dg01",
+			})
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.Code())
 		}
-		if listResponse.NextKey == "" {
-			break
+		uniqDC := make(map[string]struct{}, listTestCount)
+		iterationsCount := listTestCount / 5
+		startKey := ""
+		for {
+			// Add a small limit page to test iteration.
+			resp, err := pack.clt.Get(ctx, getAllEndpoint, url.Values{
+				"limit":    []string{"5"},
+				"startKey": []string{startKey},
+			})
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.Code())
+
+			var listResponse ui.DiscoveryConfigsListResponse
+			err = json.Unmarshal(resp.Bytes(), &listResponse)
+			require.NoError(t, err)
+			for _, item := range listResponse.Items {
+				uniqDC[item.Name] = struct{}{}
+			}
+			if listResponse.NextKey == "" {
+				break
+			}
+			iterationsCount--
+			require.NotEmpty(t, listResponse.NextKey)
+			startKey = listResponse.NextKey
 		}
-		iterationsCount--
-		require.NotEmpty(t, listResponse.NextKey)
-		startKey = listResponse.NextKey
-	}
-	require.Equal(t, listTestCount, len(uniqDC))
-	require.Zero(t, iterationsCount, "invalid number of iterations")
+		require.Equal(t, listTestCount, len(uniqDC))
+		require.Zero(t, iterationsCount, "invalid number of iterations")
+	})
 }
