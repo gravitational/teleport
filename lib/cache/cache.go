@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -117,9 +116,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindOktaAssignment},
 		{Kind: types.KindIntegration},
 		{Kind: types.KindHeadlessAuthentication},
-		{Kind: types.KindAccessList},
 		{Kind: types.KindUserLoginState},
-		{Kind: types.KindAccessListMember},
 		{Kind: types.KindDiscoveryConfig},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
@@ -479,7 +476,6 @@ type Cache struct {
 	integrationsCache            services.Integrations
 	discoveryConfigsCache        services.DiscoveryConfigs
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
-	accessListsCache             services.AccessLists
 	userLoginStateCache          services.UserLoginStates
 	eventsFanout                 *services.FanoutSet
 
@@ -636,8 +632,6 @@ type Config struct {
 	Integrations services.Integrations
 	// DiscoveryConfigs is a DiscoveryConfigs service.
 	DiscoveryConfigs services.DiscoveryConfigs
-	// AccessLists is the access list service.
-	AccessLists services.AccessLists
 	// UserLoginStates is the user login state service.
 	UserLoginStates services.UserLoginStates
 	// Backend is a backend for local cache
@@ -815,12 +809,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	accessListsCache, err := local.NewAccessListService(config.Backend, config.Clock)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	userLoginStatesCache, err := local.NewUserLoginStateService(config.Backend)
 	if err != nil {
 		cancel()
@@ -857,7 +845,6 @@ func New(config Config) (*Cache, error) {
 		integrationsCache:            integrationsCache,
 		discoveryConfigsCache:        discoveryConfigsCache,
 		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
-		accessListsCache:             accessListsCache,
 		userLoginStateCache:          userLoginStatesCache,
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
@@ -2518,45 +2505,6 @@ func (c *Cache) GetDiscoveryConfig(ctx context.Context, name string) (*discovery
 	return rg.reader.GetDiscoveryConfig(ctx, name)
 }
 
-// ListAccessLists returns a paginated list of all access lists resources.
-func (c *Cache) ListAccessLists(ctx context.Context, pageSize int, nextKey string) ([]*accesslist.AccessList, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessLists")
-	defer span.End()
-
-	rg, err := readCollectionCache(c, c.collections.accessLists)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListAccessLists(ctx, pageSize, nextKey)
-}
-
-// GetAccessLists returns a list of all access lists resources.
-func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessLists")
-	defer span.End()
-
-	rg, err := readCollectionCache(c, c.collections.accessLists)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetAccessLists(ctx)
-}
-
-// GetAccessList returns the specified access list resource.
-func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessList")
-	defer span.End()
-
-	rg, err := readCollectionCache(c, c.collections.accessLists)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetAccessList(ctx, name)
-}
-
 // GetUserLoginStates returns the all user login state resources.
 func (c *Cache) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserLoginState, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetUserLoginStates")
@@ -2568,32 +2516,6 @@ func (c *Cache) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserL
 	}
 	defer rg.Release()
 	return rg.reader.GetUserLoginStates(ctx)
-}
-
-// ListAccessListMembers returns a paginated list of all access list members.
-func (c *Cache) ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListMembers")
-	defer span.End()
-
-	rg, err := readCollectionCache(c, c.collections.accessListMembers)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListAccessListMembers(ctx, accessList, pageSize, pageToken)
-}
-
-// GetAccessListMember returns the specified access list member resource.
-func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessListMember")
-	defer span.End()
-
-	rg, err := readCollectionCache(c, c.collections.accessListMembers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetAccessListMember(ctx, accessList, memberName)
 }
 
 // GetUserLoginState returns the specified user login state resource.
