@@ -42,6 +42,8 @@ func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *pr
 			}
 		}
 	}
+
+	req.Kinds = kinds
 	unifiedResourcesResponse, err := client.ListUnifiedResources(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)

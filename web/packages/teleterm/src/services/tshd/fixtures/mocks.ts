@@ -98,5 +98,5 @@ export class MockTshClient implements types.TshClient {
   deleteConnectMyComputerNode = () => Promise.resolve();
   getConnectMyComputerNodeName = () => Promise.resolve('');
 
-  listUnifiedResources = async () => ({ resourcesList: [], nextKey: '' });
+  listUnifiedResources = async () => ({ resources: [], nextKey: '' });
 }
