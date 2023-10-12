@@ -161,5 +161,5 @@ func setupPINPrompt(t *testing.T) {
 	// Handle PIN prompt.
 	oldStdin := prompt.Stdin()
 	t.Cleanup(func() { prompt.SetStdin(oldStdin) })
-	prompt.SetStdin(prompt.NewFakeReader().AddString(testPIN))
+	prompt.SetStdin(prompt.NewFakeReader().AddString(testPIN).AddString(testPIN))
 }
