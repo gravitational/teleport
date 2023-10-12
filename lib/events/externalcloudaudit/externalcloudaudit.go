@@ -36,10 +36,10 @@ type Configurator struct {
 // valid instance will be returned with 'isUsed' property set to false.
 // Error is returned when it cannot check config in backend.
 func NewConfigurator(ctx context.Context, bk backend.Backend) (*Configurator, error) {
-	if !modules.GetModules().Features().Cloud {
+	if !modules.GetModules().Features().Cloud || modules.GetModules().Features().IsUsageBasedBilling {
 		return &Configurator{isUsed: false}, nil
 	}
-	// TODO(tobiaszheller): consider adding some mechanism to disable it
+	// TODO(tobiaszheller/nklaassen): consider adding some mechanism to disable it
 	// via env flag or some other solution.
 
 	svc := local.NewExternalCloudAuditService(bk)
@@ -89,11 +89,31 @@ type CacheConfig struct {
 
 	// IntegratioName used to generate AWS OIDC credentials.
 	IntegratioName string
+
+	// RefreshBeforeExpirationPeriod defines duration which is used to check
+	// if existing credentials needs refreshing, based on existing expiration value.
+	RefreshBeforeExpirationPeriod time.Duration
+
+	// RefreshIntervalCheck defines how often cache will check if credentials
+	// needs refreshing.
+	RefreshIntervalCheck time.Duration
+
+	// RetrieveTimeout defines timeout used when calling Retrieve credentials.
+	RetrieveTimeout time.Duration
 }
 
 func (cfg *CacheConfig) CheckAndSetDefaults() error {
 	if cfg.IntegratioName == "" {
 		return trace.BadParameter("missing parameter IntegratioName")
+	}
+	if cfg.RefreshBeforeExpirationPeriod == 0 {
+		cfg.RefreshBeforeExpirationPeriod = 15 * time.Minute
+	}
+	if cfg.RefreshIntervalCheck == 0 {
+		cfg.RefreshIntervalCheck = 30 * time.Second
+	}
+	if cfg.RetrieveTimeout == 0 {
+		cfg.RetrieveTimeout = 30 * time.Second
 	}
 	if cfg.Log == nil {
 		cfg.Log = logrus.StandardLogger()
@@ -117,6 +137,7 @@ type CredentialsCache struct {
 	// TODO(tobiaszheller): do we need that mutex? so far it's replaced with initialized chan.
 	// mu protects retrieveFn.
 	// mu sync.RWMutex
+
 	// retrieveFn is dynamically set after auth is initialized.
 	retrieveFn RetrieveCredentialsFn
 
@@ -167,7 +188,7 @@ func (cc *CredentialsCache) retrieve(ctx context.Context) (aws.Credentials, erro
 		logrus.Warn("BYOB v2 not ready yet for generating")
 		return aws.Credentials{}, errors.New("e BYOB credentials not ready yet")
 	}
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, cc.RetrieveTimeout)
 	defer cancel()
 	return cc.retrieveFn(ctx, cc.IntegratioName)
 }
@@ -184,7 +205,7 @@ func (cc *CredentialsCache) getCredentialsFromCache(ctx context.Context) (aws.Cr
 func (cc *CredentialsCache) credentialsNeedsRefresh() bool {
 	cc.credsMu.RLock()
 	defer cc.credsMu.RUnlock()
-	return !cc.creds.HasKeys() || (cc.creds.CanExpire && cc.creds.Expires.Before(time.Now().Add(15*time.Minute)))
+	return !cc.creds.HasKeys() || (cc.creds.CanExpire && cc.creds.Expires.Before(time.Now().Add(cc.RefreshBeforeExpirationPeriod)))
 }
 
 func (cc *CredentialsCache) retrieveIfCloseToExpiration(ctx context.Context) {
@@ -213,13 +234,12 @@ func (cc *CredentialsCache) run(ctx context.Context) {
 	case <-cc.initialized:
 		cc.retrieveCredentialsAndUpdateCache(ctx)
 	case <-ctx.Done():
-		cc.Log.WithError(ctx.Err()).Debugf("BYOB Context closed before initialzed")
+		cc.Log.WithError(ctx.Err()).Debugf("CredentialsCache received cancel signal before initialized")
 		return
 	}
 
 	checkInterval := interval.New(interval.Config{
-		// Check for expiration every 1m
-		Duration: time.Minute,
+		Duration: cc.RefreshIntervalCheck,
 		Jitter:   retryutils.NewSeventhJitter(),
 	})
 	defer checkInterval.Stop()
@@ -228,7 +248,7 @@ func (cc *CredentialsCache) run(ctx context.Context) {
 		case <-checkInterval.Next():
 			cc.retrieveIfCloseToExpiration(ctx)
 		case <-ctx.Done():
-			cc.Log.WithError(ctx.Err()).Debugf("BYOB Context closed with err. Returning from refresh loop.")
+			cc.Log.WithError(ctx.Err()).Debugf("CredentialsCache received cancel signal, stopping refreshing loop")
 			return
 		}
 	}
