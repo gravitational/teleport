@@ -118,15 +118,10 @@ export function Resources() {
     updatePinnedResourcesAttempt,
     updatePinnedResources,
     setUpdatePinnedResources,
-  ] = useAsync(
-    useCallback(
-      async (newPinnedResources: string[]) => {
-        await updateClusterPinnedResources(clusterId, newPinnedResources);
-        setPinnedResources(makeSuccessAttempt(newPinnedResources));
-      },
-      [clusterId, updateClusterPinnedResources]
-    )
-  );
+  ] = useAsync(async (newPinnedResources: string[]) => {
+    await updateClusterPinnedResources(clusterId, newPinnedResources);
+    setPinnedResources(makeSuccessAttempt(newPinnedResources));
+  });
 
   const { params, setParams, replaceHistory, pathname, setSort, onLabelClick } =
     useUrlFiltering({

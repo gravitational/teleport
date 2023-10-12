@@ -86,18 +86,14 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     clusterId: string,
     pinnedResources: string[]
   ) => {
-    await setTimeout(() => {}, 1000);
-    let currentPrefs = { ...clusterPreferences[clusterId] };
-    if (currentPrefs) {
-      currentPrefs.pinnedResources = pinnedResources;
-    } else {
-      currentPrefs = { pinnedResources };
+    if (!clusterPreferences.current[clusterId]) {
+      clusterPreferences.current[clusterId] = { pinnedResources: [] };
     }
-    clusterPreferences.current[clusterId] = currentPrefs;
+    clusterPreferences.current[clusterId].pinnedResources = pinnedResources;
 
     return service.updateUserClusterPreferences(clusterId, {
       ...preferences,
-      clusterPreferences: currentPrefs,
+      clusterPreferences: clusterPreferences.current[clusterId],
     });
   };
 
