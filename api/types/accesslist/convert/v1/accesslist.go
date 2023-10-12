@@ -59,8 +59,8 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 
 	var notifications accesslist.Notifications
 	if msg.Spec.Audit.Notifications != nil {
-		if msg.Spec.Audit.Notifications.StartNotifications != nil {
-			notifications.StartNotifications = msg.Spec.Audit.Notifications.StartNotifications.AsDuration()
+		if msg.Spec.Audit.Notifications.Start != nil {
+			notifications.Start = msg.Spec.Audit.Notifications.Start.AsDuration()
 		}
 	}
 
@@ -136,7 +136,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 					DayOfMonth: accesslistv1.ReviewDayOfMonth(accessList.Spec.Audit.Recurrence.DayOfMonth),
 				},
 				Notifications: &accesslistv1.Notifications{
-					StartNotifications: durationpb.New(accessList.Spec.Audit.Notifications.StartNotifications),
+					Start: durationpb.New(accessList.Spec.Audit.Notifications.Start),
 				},
 			},
 			MembershipRequires: &accesslistv1.AccessListRequires{

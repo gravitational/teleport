@@ -121,8 +121,8 @@ message Recurrence {
 
 // Notifications contains the configuration for notifying users of a nearing next audit date.
 message Notifications {
-  // start_notifications specifies when to start notifying users that the next audit date is coming up.
-  google.protobuf.Duration start_notifications = 1;
+  // start specifies when to start notifying users that the next audit date is coming up.
+  google.protobuf.Duration start = 1;
 }
 
 // AccessListRequires describes a requirement section for an access list. A user must
