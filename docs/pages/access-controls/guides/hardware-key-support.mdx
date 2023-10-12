@@ -79,9 +79,10 @@ like `tctl edit`. With touch required, hardware key support provides better secu
   so we recommend only using one PIV application at a time.
 </Admonition>
 
-- Running Smart Card daemon:
-  - Ships with MacOS and Windows.
-  - On Linux, consult your distribution manual on how to install `pcscd`.
+- Install a smart card driver for you operating system. Teleport clients will connect to your YubiKey through the smart card driver to generate keys and perform cryptographical operations.
+  - MacOS and Windows both ship with smart card drivers.
+    - If you run into problems on Windows, try the official [YubiKey Smart Card Minidriver](https://www.yubico.com/support/download/smart-card-drivers-tools/).
+  - On Linux distributions, download the [YubiKey Manager or Yubico PIV tool](https://www.yubico.com/support/download/smart-card-drivers-tools/), which both include the Linux smart card driver as a dependency. 
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/2. Enforce hardware key support
