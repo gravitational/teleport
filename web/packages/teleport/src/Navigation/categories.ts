@@ -20,7 +20,8 @@ export enum NavigationCategory {
 }
 
 export enum ManagementSection {
-  Access = 'Access',
+  Access = 'Access Management',
+  Identity = 'Identity Governance & Security',
   Activity = 'Activity',
   Billing = 'Billing',
   Clusters = 'Clusters',
@@ -28,6 +29,7 @@ export enum ManagementSection {
 
 export const MANAGEMENT_NAVIGATION_SECTIONS = [
   ManagementSection.Access,
+  ManagementSection.Identity,
   ManagementSection.Activity,
   ManagementSection.Billing,
   ManagementSection.Clusters,
