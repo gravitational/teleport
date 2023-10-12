@@ -66,7 +66,7 @@ type ReviewChanges struct {
 	// ReviewFrequencyChanged is populated if the review frequency has changed.
 	ReviewFrequencyChanged ReviewFrequency `json:"review_frequency_changed" yaml:"review_frequency_changed"`
 
-	// ReviewDayOfMonthChanged changed is populated if the review day of month has changed.
+	// ReviewDayOfMonthChanged is populated if the review day of month has changed.
 	ReviewDayOfMonthChanged ReviewDayOfMonth `json:"review_day_of_month_changed" yaml:"review_day_of_month_changed"`
 }
 
