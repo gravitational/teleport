@@ -38,6 +38,8 @@ const (
 	ThreeMonths ReviewFrequency = 3
 	SixMonths   ReviewFrequency = 6
 	OneYear     ReviewFrequency = 12
+
+	twoWeeks = 24 * time.Hour * 14
 )
 
 func (r ReviewFrequency) String() string {
@@ -168,6 +170,9 @@ type Audit struct {
 	// Recurrence is the recurrence definition for auditing. Valid values are
 	// 1, first, 15, and last.
 	Recurrence Recurrence `json:"recurrence" yaml:"recurrence"`
+
+	// Notifications is the configuration for notifying users.
+	Notifications Notifications `json:"notifications" yaml:"notifications"`
 }
 
 // Recurrence defines when access list reviews should occur.
@@ -177,6 +182,12 @@ type Recurrence struct {
 
 	// DayOfMonth is the day of month subsequent reviews will be scheduled on.
 	DayOfMonth ReviewDayOfMonth `json:"day_of_month" yaml:"day_of_month"`
+}
+
+// Notifications contains the configuration for notifying users of a nearing next audit date.
+type Notifications struct {
+	// StartNotifications specifies when to start notifying users that the next audit date is coming up.
+	StartNotifications time.Duration `json:"start_notifications" yaml:"start_notifications"`
 }
 
 // Requires describes a requirement section for an access list. A user must
@@ -269,6 +280,10 @@ func (a *AccessList) CheckAndSetDefaults() error {
 	case FirstDayOfMonth, FifteenthDayOfMonth, LastDayOfMonth:
 	default:
 		return trace.BadParameter("recurrence day of month is an invalid value")
+	}
+
+	if a.Spec.Audit.Notifications.StartNotifications == 0 {
+		a.Spec.Audit.Notifications.StartNotifications = twoWeeks
 	}
 
 	if len(a.Spec.Grants.Roles) == 0 && len(a.Spec.Grants.Traits) == 0 {
@@ -394,5 +409,37 @@ func (r Recurrence) MarshalJSON() ([]byte, error) {
 		Alias:      (Alias)(r),
 		Frequency:  r.Frequency.String(),
 		DayOfMonth: r.DayOfMonth.String(),
+	})
+}
+
+func (n *Notifications) UnmarshalJSON(data []byte) error {
+	type Alias Notifications
+	notifications := struct {
+		StartNotifications string `json:"start_notifications"`
+		*Alias
+	}{
+		Alias: (*Alias)(n),
+	}
+	if err := json.Unmarshal(data, &notifications); err != nil {
+		return trace.Wrap(err)
+	}
+
+	var err error
+	n.StartNotifications, err = time.ParseDuration(notifications.StartNotifications)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (n Notifications) MarshalJSON() ([]byte, error) {
+	type Alias Notifications
+	return json.Marshal(&struct {
+		StartNotifications string `json:"start_notifications"`
+		Alias
+	}{
+		Alias:              (Alias)(n),
+		StartNotifications: n.StartNotifications.String(),
 	})
 }
