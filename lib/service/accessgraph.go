@@ -99,7 +99,7 @@ func startWatching(ctx context.Context, accessGraphClient accessgraphv1.AccessGr
 }
 
 func sendUsers(ctx context.Context, authServer *auth.Server, accessGraphClient accessgraphv1.AccessGraphServiceClient) error {
-	users, err := authServer.GetUsers(false)
+	users, err := authServer.GetUsers(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
