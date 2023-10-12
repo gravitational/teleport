@@ -956,6 +956,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	}
 
 	startEvent := audit.makeSessionStart(nil)
+	startEvent.AllowUserCreation = createUsers
 	s.emit(ctx, sw, startEvent)
 
 	err = rdpc.Run(ctx)
