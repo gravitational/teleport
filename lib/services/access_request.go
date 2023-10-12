@@ -902,10 +902,38 @@ Outer:
 	return len(needsAllow) == 0, nil
 }
 
-func NewReviewPermissionChecker(ctx context.Context, getter RequestValidatorGetter, username string) (ReviewPermissionChecker, error) {
+func NewReviewPermissionChecker(
+	ctx context.Context,
+	getter RequestValidatorGetter,
+	username string,
+	// TODO: How do we inject this down to auth.Server
+	identityRoles []string,
+) (ReviewPermissionChecker, error) {
 	uls, err := GetUserOrLoginState(ctx, getter, username)
 	if err != nil {
 		return ReviewPermissionChecker{}, trace.Wrap(err)
+	}
+
+	// If a bot, we fetch the bot role and the roles that role can impersonate.
+	// This is because all bot output certificates use role impersonation and
+	// if we use the role directly attached to the bot, no access request
+	// privileges will be present.
+	if uls.IsBot() {
+		ac, err := NewAccessChecker(&AccessInfo{
+			Roles:  uls.GetRoles(),
+			Traits: uls.GetTraits(),
+		}, "", getter)
+		if err != nil {
+			return ReviewPermissionChecker{}, trace.Wrap(err)
+		}
+
+		// TODO: Fetch roles rather than passing name
+		if err := ac.CheckImpersonateRoles(uls, identityRoles); err != nil {
+			return ReviewPermissionChecker{}, trace.Wrap(err)
+		}
+
+		// TODO: It's impossible to SetRoles
+		uls.SetRoles(identityRoles)
 	}
 
 	c := ReviewPermissionChecker{
