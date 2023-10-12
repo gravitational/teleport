@@ -140,7 +140,11 @@ connection allows the Teleport Proxy Service to identify the protocol and intend
 recipient.
 
 The local proxy needs to be running as long as the client needs to
-make connections to the database or as long as a connection is still open.
+make connections to the database or as long as a connection is still open. One
+way to keep this local proxy running in the background is to use a systemd
+service. This is demonstrated in the remainder of this step, but a different
+service manager could be used or a number of other techniques could be used to
+run the local proxy whilst the client is running.
 
 The local proxy opens a specified port on the local loopback interface. Clients
 must then be configured to connect to this port on localhost. As the port is
@@ -151,11 +155,6 @@ By default, database clients must also be configured to use the credentials
 when connecting to the local port. This ensures no other users of the host can
 access the database via the local port, and ensures the connection between your
 database client and server is never unencrypted, even over localhost.
-
-One way to keep this local proxy running in the background is to use a systemd
-service. This is demonstrated in the remainder of this step, but a different
-service manager could be used or a number of other techniques could be used to
-run the local proxy whilst the client is running.
 
 To create a systemd service for this purpose, create a unit file at
 `/etc/systemd/system/tbot-db-proxy.service`:
