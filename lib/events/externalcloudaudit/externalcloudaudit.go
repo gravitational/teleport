@@ -102,14 +102,26 @@ func (cfg *CacheConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// CredentialsCache is used to store and refresh AWS credentials used with
+// AWS OIDC integration.
+// Credentials are valid 1h, but they cannot be refreshed if proxy is down.
+// That's why we are trying to refresh it before they are about to expire.
+//
+// CredentialsCache is dependency to both s3 session uploader and athena audit
+// logger. They are both initialized before auth. However AWS credentials using
+// OIDC integration can be obtained only after auth is initialized.
+// That's why retrieveFn is injected dynamically after auth is initialized.
+// Before initialization, CredentialsCache will return error on Retrive call.
 type CredentialsCache struct {
+	CacheConfig
+	// TODO(tobiaszheller): do we need that mutex? so far it's replaced with initialized chan.
 	// mu protects retrieveFn.
-	mu sync.RWMutex
+	// mu sync.RWMutex
 	// retrieveFn is dynamically set after auth is initialized.
 	retrieveFn RetrieveCredentialsFn
 
-	CacheConfig
-
+	// initialized is used to communicate (via closing channel) that cache is
+	// initialzed, after retrieveFn is set.
 	initialized chan struct{}
 
 	creds   aws.Credentials
