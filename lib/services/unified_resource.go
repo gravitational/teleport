@@ -289,6 +289,31 @@ func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types
 	return resources, nil
 }
 
+// GetUnifiedResourcesByIDs will take a list of ids and return any items found in the unifiedResourceCache tree by id and that return true from matchFn
+func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids []string, matchFn func(types.ResourceWithLabels) bool) ([]types.ResourceWithLabels, error) {
+	var resources []types.ResourceWithLabels
+
+	err := c.read(ctx, func(cache *UnifiedResourceCache) error {
+		for _, id := range ids {
+			key := backend.Key(prefix, id)
+			res, found := cache.nameTree.Get(&item{Key: key})
+			if !found || res == nil {
+				continue
+			}
+			resource := cache.resources[res.Value]
+			if matched := matchFn(resource); matched {
+				resources = append(resources, resource.CloneResource())
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "getting unified resources by id")
+	}
+
+	return resources, nil
+}
+
 // ResourceGetter is an interface that provides a way to fetch all the resources
 // that can be stored in the UnifiedResourceCache
 type ResourceGetter interface {

@@ -62,6 +62,9 @@ func TestService_GetUserPreferences(t *testing.T) {
 						PreferredResources: []userpreferencesv1.Resource{},
 						MarketingParams:    &userpreferencesv1.MarketingParams{},
 					},
+					ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
+						PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{},
+					},
 				},
 			},
 			wantErr: assert.NoError,
@@ -100,6 +103,11 @@ func TestService_UpsertUserPreferences(t *testing.T) {
 		Theme: userpreferencesv1.Theme_THEME_LIGHT,
 		Onboard: &userpreferencesv1.OnboardUserPreferences{
 			PreferredResources: []userpreferencesv1.Resource{},
+		},
+		ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
+			PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
+				ResourceIds: []string{"node1", "node2"},
+			},
 		},
 	}
 
