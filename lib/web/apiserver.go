@@ -769,8 +769,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
 
 	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))
-	h.POST("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
-	h.PUT("/webapi/github/:name", h.WithAuth(h.upsertGithubConnectorHandle))
+	h.POST("/webapi/github", h.WithAuth(h.createGithubConnectorHandle))
+	h.PUT("/webapi/github/:name", h.WithAuth(h.updateGithubConnectorHandle))
 	h.DELETE("/webapi/github/:name", h.WithAuth(h.deleteGithubConnector))
 
 	h.GET("/webapi/trustedcluster", h.WithAuth(h.getTrustedClustersHandle))
