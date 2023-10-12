@@ -280,6 +280,7 @@ jobs:
           cp e/build/*.rpm build/artifacts
 
       - name: Checksum artifacts
+        if: inputs.save-artifacts
         run: |
           cd build/artifacts
           for f in *; do
