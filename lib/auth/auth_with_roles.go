@@ -2450,8 +2450,12 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 	// their own requests.  we therefore subselect the filter results to show only those requests
 	// that the user *is* allowed to see (specifically, their own requests + requests that they
 	// are allowed to review).
-
-	checker, err := services.NewReviewPermissionChecker(ctx, a.authServer, a.context.User.GetName())
+	checker, err := services.NewReviewPermissionChecker(
+		ctx,
+		a.authServer,
+		a.context.User.GetName(),
+		a.context.Identity.GetIdentity(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2531,8 +2535,7 @@ func AuthorizeAccessReviewRequest(context authz.Context, params types.AccessRevi
 
 		// MaybeCanReviewRequests returns false positives, but it will tell us
 		// if the user definitely can't review requests, which saves a lot of work.
-		// TODO: Is this the best way we can handle bots??
-		if !context.User.IsBot() && !context.Checker.MaybeCanReviewRequests() {
+		if !context.Checker.MaybeCanReviewRequests() {
 			return trace.AccessDenied("user %q cannot submit reviews", context.User.GetName())
 		}
 	}
@@ -2562,7 +2565,7 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission typ
 	// under optimistic locking at the level of the backend service.  the correctness of the
 	// author field is all that needs to be enforced at this level.
 
-	return a.authServer.SubmitAccessReview(ctx, submission)
+	return a.authServer.SubmitAccessReview(ctx, submission, a.context.Identity.GetIdentity())
 }
 
 func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {

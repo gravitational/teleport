@@ -902,34 +902,59 @@ Outer:
 	return len(needsAllow) == 0, nil
 }
 
+type userStateRoleOverride struct {
+	UserState
+	Roles []string
+}
+
+func (u userStateRoleOverride) GetRoles() []string {
+	return u.Roles
+}
+
 func NewReviewPermissionChecker(
 	ctx context.Context,
 	getter RequestValidatorGetter,
 	username string,
-	// TODO: How do we inject this down to auth.Server
-	identityRoles []string,
+	identity tlsca.Identity,
 ) (ReviewPermissionChecker, error) {
 	uls, err := GetUserOrLoginState(ctx, getter, username)
 	if err != nil {
 		return ReviewPermissionChecker{}, trace.Wrap(err)
 	}
 
+	// By default, the users freshly fetched roles are used rather than the
+	// roles on the x509 identity. This prevents recursive access request
+	// review.
+	//
+	// For bots, however, the roles on the identity must be used. This is
+	// because the certs output by a bot always use role impersonation and the
+	// role directly assigned to a bot has minimal permissions.
 	if uls.IsBot() {
-		ac, err := NewAccessChecker(&AccessInfo{
-			Roles:  uls.GetRoles(),
-			Traits: uls.GetTraits(),
-		}, "", getter)
-		if err != nil {
-			return ReviewPermissionChecker{}, trace.Wrap(err)
+		if identity.Username != username {
+			// It should not be possible for these to be different as a
+			// guard in AuthorizeAccessReviewRequest prevents submitting a
+			// request as another user unless you have the admin role. This
+			// safeguard protects against that regressing and creating an
+			// inconsistent state.
+			return ReviewPermissionChecker{}, trace.BadParameter(
+				"bot identity username and review author mismatch",
+			)
+		}
+		if len(identity.ActiveRequests) > 0 {
+			// It should not be possible for a bot's output certificates to
+			// have active requests - but this additional check safeguards us
+			// against a regression elsewhere and prevents recursive access
+			// requests occurring.
+			return ReviewPermissionChecker{}, trace.BadParameter(
+				"bot should not have active requests",
+			)
 		}
 
-		// TODO: Fetch roles rather than passing name
-		if err := ac.CheckImpersonateRoles(uls, identityRoles); err != nil {
-			return ReviewPermissionChecker{}, trace.Wrap(err)
+		// Override list of roles to roles currently present on the x509 ident.
+		uls = userStateRoleOverride{
+			UserState: uls,
+			Roles:     identity.Groups,
 		}
-
-		// TODO: It's impossible to SetRoles
-		uls.SetRoles(identityRoles)
 	}
 
 	c := ReviewPermissionChecker{
@@ -941,7 +966,7 @@ func NewReviewPermissionChecker(
 
 	// load all statically assigned roles for the user and
 	// use them to build our checker state.
-	for _, roleName := range c.UserState.GetRoles() {
+	for _, roleName := range uls.GetRoles() {
 		role, err := getter.GetRole(ctx, roleName)
 		if err != nil {
 			return ReviewPermissionChecker{}, trace.Wrap(err)

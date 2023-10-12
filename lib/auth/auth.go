@@ -4360,7 +4360,11 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 	return trace.Wrap(err)
 }
 
-func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error) {
+func (a *Server) SubmitAccessReview(
+	ctx context.Context,
+	params types.AccessReviewSubmission,
+	identity tlsca.Identity,
+) (types.AccessRequest, error) {
 	// When promoting a request, the access list name must be set.
 	if params.Review.ProposedState.IsPromoted() && params.Review.GetAccessListName() == "" {
 		return nil, trace.BadParameter("promoted access list can be only set when promoting access requests")
@@ -4372,7 +4376,7 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 	}
 
 	// set up a checker for the review author
-	checker, err := services.NewReviewPermissionChecker(ctx, a, params.Review.Author)
+	checker, err := services.NewReviewPermissionChecker(ctx, a, params.Review.Author, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
