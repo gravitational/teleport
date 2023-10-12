@@ -814,7 +814,7 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 		return user, nil
 	}
 
-	existingUser, err := a.Services.GetUser(p.Username, false)
+	existingUser, err := a.Services.GetUser(ctx, p.Username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -826,11 +826,12 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 				existingUser.GetName())
 		}
 
-		if err := a.UpdateUser(ctx, user); err != nil {
+		user.SetRevision(existingUser.GetRevision())
+		if _, err := a.UpdateUser(ctx, user); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		if err := a.CreateUser(ctx, user); err != nil {
+		if _, err := a.CreateUser(ctx, user); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

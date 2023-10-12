@@ -628,7 +628,7 @@ func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) er
 				teleUser.AddRole(role.GetName())
 			}
 		}
-		err = auth.UpsertUser(teleUser)
+		_, err = auth.UpsertUser(ctx, teleUser)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1392,7 +1392,7 @@ func (i *TeleInstance) CreateWebUser(t *testing.T, username, password string) {
 	require.NoError(t, err)
 
 	user.AddRole(role.GetName())
-	err = i.Process.GetAuthServer().CreateUser(context.Background(), user)
+	_, err = i.Process.GetAuthServer().CreateUser(context.Background(), user)
 	require.NoError(t, err)
 
 	err = i.Process.GetAuthServer().UpsertPassword(user.GetName(), []byte(password))

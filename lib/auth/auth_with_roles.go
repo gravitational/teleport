@@ -36,6 +36,8 @@ import (
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/accesslist"
+	"github.com/gravitational/teleport/api/client/discoveryconfig"
+	"github.com/gravitational/teleport/api/client/externalcloudaudit"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/userloginstate"
@@ -44,6 +46,8 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	externalcloudauditv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
@@ -304,6 +308,15 @@ func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 	)
 }
 
+// ExternalCloudAuditClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) ExternalCloudAuditClient() services.ExternalCloudAudits {
+	return externalcloudaudit.NewClient(externalcloudauditv1.NewExternalCloudAuditServiceClient(
+		utils.NewGRPCDummyClientConnection("ExternalCloudAuditClient() should not be called on ServerWithRoles"),
+	))
+}
+
 // OktaClient allows ServerWithRoles to implement ClientI.
 // It should not be called through ServerWithRoles,
 // as it returns a dummy client that will always respond with "not implemented".
@@ -345,6 +358,14 @@ func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 func (a *ServerWithRoles) AccessListClient() services.AccessLists {
 	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(
 		utils.NewGRPCDummyClientConnection("AccessListClient() should not be called on ServerWithRoles")))
+}
+
+// DiscoveryConfigClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) DiscoveryConfigClient() services.DiscoveryConfigs {
+	return discoveryconfig.NewClient(discoveryconfigv1.NewDiscoveryConfigServiceClient(
+		utils.NewGRPCDummyClientConnection("DiscoveryConfigClient() should not be called on ServerWithRoles")))
 }
 
 // ResourceUsageClient allows ServerWithRoles to implement ClientI.
@@ -1505,24 +1526,10 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	// Fetch full list of resources in the backend.
 	var (
-		elapsedFetch      time.Duration
-		elapsedFilter     time.Duration
-		unifiedResources  types.ResourcesWithLabels
-		filteredResources types.ResourcesWithLabels
+		unifiedResources types.ResourcesWithLabels
+		nextKey          string
 	)
 
-	defer func() {
-		log.WithFields(logrus.Fields{
-			"user":           a.context.User.GetName(),
-			"elapsed_fetch":  elapsedFetch,
-			"elapsed_filter": elapsedFilter,
-		}).Debugf(
-			"ListUnifiedResources(%v->%v) in %v.",
-			len(unifiedResources), len(filteredResources), elapsedFetch+elapsedFilter)
-	}()
-
-	startFetch := time.Now()
-	startFilter := time.Now()
 	filter := services.MatchResourceFilter{
 		Labels:              req.Labels,
 		SearchKeywords:      req.SearchKeywords,
@@ -1534,23 +1541,47 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	unifiedResources, nextKey, err := a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
-		if err := resourceChecker.CanAccess(resource); err != nil {
-			if trace.IsAccessDenied(err) {
-				return false, nil
-			}
-			return false, trace.Wrap(err)
+	if req.PinnedOnly {
+		prefs, err := a.authServer.GetUserPreferences(ctx, a.context.User.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err, "getting user preferences")
 		}
-		match, err := services.MatchResourceByFilters(resource, filter, nil)
-		return match, trace.Wrap(err)
-	}, req)
-	if err != nil {
-		return nil, trace.Wrap(err, "filtering unified resources")
-	}
+		if len(prefs.ClusterPreferences.PinnedResources.ResourceIds) == 0 {
+			return &proto.ListUnifiedResourcesResponse{}, nil
+		}
+		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) bool {
+			if err := resourceChecker.CanAccess(resource); err != nil {
+				return false
+			}
+			match, _ := services.MatchResourceByFilters(resource, filter, nil)
+			return match
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "getting unified resources by ID")
+		}
+	} else {
+		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
+			var err error
+			switch r := resource.(type) {
+			case types.SAMLIdPServiceProvider:
+				err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList)
+			default:
+				err = resourceChecker.CanAccess(r)
+			}
 
-	elapsedFetch = time.Since(startFetch)
-	elapsedFilter = time.Since(startFilter)
+			if err != nil {
+				if trace.IsAccessDenied(err) {
+					return false, nil
+				}
+				return false, trace.Wrap(err)
+			}
+			match, err := services.MatchResourceByFilters(resource, filter, nil)
+			return match, trace.Wrap(err)
+		}, req)
+		if err != nil {
+			return nil, trace.Wrap(err, "filtering unified resources")
+		}
+	}
 
 	paginatedResources, err := services.MakePaginatedResources(types.KindUnifiedResource, unifiedResources)
 	if err != nil {
@@ -2606,14 +2637,14 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 	return a.authServer.DeleteAccessRequest(ctx, name)
 }
 
-func (a *ServerWithRoles) GetUsers(withSecrets bool) ([]types.User, error) {
+func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
 		// migrated to that model.
 		if !a.hasBuiltinRole(types.RoleAdmin) {
 			err := trace.AccessDenied("user %q requested access to all users with secrets", a.context.User.GetName())
 			log.Warning(err)
-			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.UserLogin{
+			if err := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
 					Code: events.UserLocalLoginFailureCode,
@@ -2634,17 +2665,19 @@ func (a *ServerWithRoles) GetUsers(withSecrets bool) ([]types.User, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetUsers(withSecrets)
+
+	users, err := a.authServer.GetUsers(ctx, withSecrets)
+	return users, trace.Wrap(err)
 }
 
-func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (types.User, error) {
+func (a *ServerWithRoles) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
 		// migrated to that model.
 		if !a.hasBuiltinRole(types.RoleAdmin) {
 			err := trace.AccessDenied("user %q requested access to user %q with secrets", a.context.User.GetName(), name)
 			log.Warning(err)
-			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.UserLogin{
+			if err := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
 					Code: events.UserLocalLoginFailureCode,
@@ -2670,7 +2703,9 @@ func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (types.User, er
 			}
 		}
 	}
-	return a.authServer.GetUser(name, withSecrets)
+
+	user, err := a.authServer.GetUser(ctx, name, withSecrets)
+	return user, trace.Wrap(err)
 }
 
 // GetCurrentUser returns current user as seen by the server.
@@ -2973,7 +3008,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// This call bypasses RBAC check for users read on purpose.
 	// Users who are allowed to impersonate other users might not have
 	// permissions to read user data.
-	user, err := a.authServer.GetUser(req.Username, false)
+	user, err := a.authServer.GetUser(ctx, req.Username, false)
 	if err != nil {
 		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", req.Username)
 		return nil, trace.AccessDenied("access denied")
@@ -3281,26 +3316,28 @@ func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *pro
 }
 
 // CreateUser inserts a new user entry in a backend.
-func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) error {
+func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return a.authServer.CreateUser(ctx, user)
+	created, err := a.authServer.CreateUser(ctx, user)
+	return created, trace.Wrap(err)
 }
 
 // UpdateUser updates an existing user in a backend.
 // Captures the auth user who modified the user record.
-func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) error {
+func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.UpdateUser(ctx, user)
+	updated, err := a.authServer.UpdateUserWithContext(ctx, user)
+	return updated, trace.Wrap(err)
 }
 
-func (a *ServerWithRoles) UpsertUser(u types.User) error {
+func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	createdBy := u.GetCreatedBy()
@@ -3309,7 +3346,8 @@ func (a *ServerWithRoles) UpsertUser(u types.User) error {
 			User: types.UserRef{Name: a.context.User.GetName()},
 		})
 	}
-	return a.authServer.UpsertUser(u)
+	user, err := a.authServer.UpsertUser(ctx, u)
+	return user, trace.Wrap(err)
 }
 
 // UpdateAndSwapUser exists on [ServerWithRoles] only for compatibility with
@@ -4355,7 +4393,7 @@ func (a *ServerWithRoles) DeleteAllRoles() error {
 }
 
 // DeleteAllUsers not implemented: can only be called locally.
-func (a *ServerWithRoles) DeleteAllUsers() error {
+func (a *ServerWithRoles) DeleteAllUsers(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 

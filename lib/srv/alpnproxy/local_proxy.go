@@ -35,7 +35,6 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -275,9 +274,6 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs []tls.Certificate) *httputil.Rev
 			outReq.URL.Host = l.cfg.RemoteProxyAddr
 		},
 		ModifyResponse: func(response *http.Response) error {
-			// Ask the client to close the connection to avoid re-use.
-			response.Header.Add("Connection", "close")
-
 			errHeader := response.Header.Get(commonApp.TeleportAPIErrorHeader)
 			if errHeader != "" {
 				// TODO: find a cleaner way of formatting the error.
@@ -320,10 +316,7 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 	defaultProxy := l.makeHTTPReverseProxy(l.getCerts())
 
 	server := &http.Server{
-		ReadTimeout:       apidefaults.DefaultIOTimeout,
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
-		WriteTimeout:      apidefaults.DefaultIOTimeout,
-		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		Handler: http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			if l.cfg.HTTPMiddleware.HandleRequest(rw, req) {
 				return

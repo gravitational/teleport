@@ -99,7 +99,7 @@ func newClientNegotiator(codecFactory *serializer.CodecFactory) runtime.ClientNe
 // This schema includes all well-known Kubernetes types and all namespaced
 // custom resources.
 // It also returns a map of resources that we support RBAC restrictions for.
-func newClusterSchemaBuilder(client *kubernetes.Clientset) (serializer.CodecFactory, rbacSupportedResources, error) {
+func newClusterSchemaBuilder(client kubernetes.Interface) (serializer.CodecFactory, rbacSupportedResources, error) {
 	kubeScheme := runtime.NewScheme()
 	kubeCodecs := serializer.NewCodecFactory(kubeScheme)
 	supportedResources := maps.Clone(defaultRBACResources)
@@ -110,7 +110,7 @@ func newClusterSchemaBuilder(client *kubernetes.Clientset) (serializer.CodecFact
 	// discoveryErr is returned when the discovery of one or more API groups fails.
 	var discoveryErr *discovery.ErrGroupDiscoveryFailed
 	// register all namespaced custom resources
-	_, apiGroups, err := client.DiscoveryClient.ServerGroupsAndResources()
+	_, apiGroups, err := client.Discovery().ServerGroupsAndResources()
 	switch {
 	case errors.As(err, &discoveryErr) && len(discoveryErr.Groups) == 1:
 		// If the discovery error is of type `ErrGroupDiscoveryFailed` and it
@@ -154,11 +154,17 @@ func newClusterSchemaBuilder(client *kubernetes.Clientset) (serializer.CodecFact
 			// the namespace where the resource is located.
 			// This means that we need to map the resource to the namespace kind.
 			supportedResources[resourceKey] = utils.KubeCustomResource
-
+			// create the group version kind for the resource
+			gvk := groupVersion.WithKind(apiResource.Kind)
+			// check if the resource is already registered in the scheme
+			// if it is, we don't need to register it again.
+			if _, err := kubeScheme.New(gvk); err == nil {
+				continue
+			}
 			// register the resource with the scheme to be able to decode it
 			// into an unstructured object
 			kubeScheme.AddKnownTypeWithName(
-				groupVersion.WithKind(apiResource.Kind),
+				gvk,
 				&unstructured.Unstructured{},
 			)
 			// register the resource list with the scheme to be able to decode it

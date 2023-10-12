@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
@@ -994,6 +995,10 @@ type AuthenticationConfig struct {
 
 	// DefaultSessionTTL is the default cluster max session ttl
 	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
+
+	// PIVSlot is a PIV slot that Teleport clients should use instead of the
+	// default based on private key policy. For example, "9a" or "9e".
+	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1024,6 +1029,12 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
+	if a.PIVSlot != "" {
+		if err = a.PIVSlot.Validate(); err != nil {
+			return nil, trace.Wrap(err, "failed to parse piv_slot")
+		}
+	}
+
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
@@ -1037,6 +1048,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		AllowHeadless:     a.Headless,
 		DeviceTrust:       dt,
 		DefaultSessionTTL: a.DefaultSessionTTL,
+		PIVSlot:           string(a.PIVSlot),
 	})
 }
 
@@ -1205,15 +1217,13 @@ type PluginOAuthProviders struct {
 
 func (p *PluginOAuthProviders) Parse() (servicecfg.PluginOAuthProviders, error) {
 	out := servicecfg.PluginOAuthProviders{}
-	if p.Slack == nil {
-		return out, trace.BadParameter("when plugin runtime is enabled, at least one plugin provider must be specified")
+	if p.Slack != nil {
+		slack, err := p.Slack.Parse()
+		if err != nil {
+			return out, trace.Wrap(err)
+		}
+		out.Slack = slack
 	}
-
-	slack, err := p.Slack.Parse()
-	if err != nil {
-		return out, trace.Wrap(err)
-	}
-	out.Slack = slack
 	return out, nil
 }
 
@@ -2160,6 +2170,12 @@ type WindowsDesktopService struct {
 	ShowDesktopWallpaper bool `yaml:"show_desktop_wallpaper,omitempty"`
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig `yaml:"ldap"`
+	// PKIDomain optionally configures a separate Active Directory domain
+	// for PKI operations. If empty, the domain from the LDAP config is used.
+	// This can be useful for cases where PKI is configured in a root domain
+	// but Teleport is used to provide access to users and computers in a child
+	// domain.
+	PKIDomain string `yaml:"pki_domain"`
 	// Discovery configures desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
 	// Hosts is a list of static, AD-connected Windows hosts. This gives users

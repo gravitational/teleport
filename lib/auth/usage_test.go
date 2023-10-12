@@ -75,7 +75,7 @@ func TestAccessRequestLimit(t *testing.T) {
 	alice, err := types.NewUser("alice")
 	alice.SetRoles([]string{"requestor"})
 	require.NoError(t, err)
-	err = p.a.CreateUser(ctx, alice)
+	_, err = p.a.CreateUser(ctx, alice)
 	require.NoError(t, err)
 
 	// Mock audit log

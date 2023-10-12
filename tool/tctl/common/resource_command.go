@@ -41,6 +41,8 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/externalcloudaudit"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -113,6 +115,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindClusterNetworkingConfig:  rc.createClusterNetworkingConfig,
 		types.KindClusterMaintenanceConfig: rc.createClusterMaintenanceConfig,
 		types.KindSessionRecordingConfig:   rc.createSessionRecordingConfig,
+		types.KindExternalCloudAudit:       rc.upsertExternalCloudAudit,
 		types.KindUIConfig:                 rc.createUIConfig,
 		types.KindLock:                     rc.createLock,
 		types.KindNetworkRestrictions:      rc.createNetworkRestrictions,
@@ -131,6 +134,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindIntegration:              rc.createIntegration,
 		types.KindWindowsDesktop:           rc.createWindowsDesktop,
 		types.KindAccessList:               rc.createAccessList,
+		types.KindDiscoveryConfig:          rc.createDiscoveryConfig,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser: rc.updateUser,
@@ -449,7 +453,7 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client auth.ClientI, 
 	}
 
 	userName := user.GetName()
-	existingUser, err := client.GetUser(userName, false)
+	existingUser, err := client.GetUser(ctx, userName, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -464,13 +468,13 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client auth.ClientI, 
 		// This field should not be allowed to be overwritten.
 		user.SetCreatedBy(existingUser.GetCreatedBy())
 
-		if err := client.UpdateUser(ctx, user); err != nil {
+		if _, err := client.UpdateUser(ctx, user); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("user %q has been updated\n", userName)
 
 	} else {
-		if err := client.CreateUser(ctx, user); err != nil {
+		if _, err := client.CreateUser(ctx, user); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("user %q has been created\n", userName)
@@ -486,7 +490,7 @@ func (rc *ResourceCommand) updateUser(ctx context.Context, client auth.ClientI, 
 		return trace.Wrap(err)
 	}
 
-	if err := client.UpdateUser(ctx, user); err != nil {
+	if _, err := client.UpdateUser(ctx, user); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("user %q has been updated\n", user.GetName())
@@ -580,6 +584,22 @@ func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, cli
 		return trace.Wrap(err)
 	}
 	fmt.Printf("session recording configuration has been updated\n")
+	return nil
+}
+
+// upsertExternalCloudAudit implements `tctl create external_cloud_audit` command.
+func (rc *ResourceCommand) upsertExternalCloudAudit(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	config, err := services.UnmarshalExternalCloudAudit(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	externalAuditClient := client.ExternalCloudAuditClient()
+	_, err = externalAuditClient.UpsertDraftExternalCloudAudit(ctx, config)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("external cloud audit configuration has been updated\n")
 	return nil
 }
 
@@ -979,6 +999,31 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client auth.Cl
 	return nil
 }
 
+func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	discoveryConfig, err := services.UnmarshalDiscoveryConfig(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	remote := client.DiscoveryConfigClient()
+
+	if rc.force {
+		if _, err := remote.UpsertDiscoveryConfig(ctx, discoveryConfig); err != nil {
+			return trace.Wrap(err)
+		}
+
+		fmt.Printf("DiscoveryConfig %q has been written\n", discoveryConfig.GetName())
+		return nil
+	}
+
+	if _, err := remote.CreateDiscoveryConfig(ctx, discoveryConfig); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("DiscoveryConfig %q has been created\n", discoveryConfig.GetName())
+
+	return nil
+}
+
 func (rc *ResourceCommand) createAccessList(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	accessList, err := services.UnmarshalAccessList(raw.Raw)
 	if err != nil {
@@ -1103,6 +1148,18 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("session recording configuration has been reset to defaults\n")
+	case types.KindExternalCloudAudit:
+		if rc.ref.Name == types.MetaNameExternalCloudAuditCluster {
+			if err := client.ExternalCloudAuditClient().DisableClusterExternalCloudAudit(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("cluster external cloud audit configuration has been disabled\n")
+		} else {
+			if err := client.ExternalCloudAuditClient().DeleteDraftExternalCloudAudit(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("draft external cloud audit configuration has been deleted\n")
+		}
 	case types.KindLock:
 		name := rc.ref.Name
 		if rc.ref.SubKind != "" {
@@ -1289,6 +1346,13 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		}
 		fmt.Printf("Integration %q removed\n", rc.ref.Name)
 
+	case types.KindDiscoveryConfig:
+		remote := client.DiscoveryConfigClient()
+		if err := remote.DeleteDiscoveryConfig(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("DiscoveryConfig %q removed\n", rc.ref.Name)
+
 	case types.KindAppServer:
 		appServers, err := client.GetApplicationServers(ctx, rc.namespace)
 		if err != nil {
@@ -1445,13 +1509,13 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 	switch rc.ref.Kind {
 	case types.KindUser:
 		if rc.ref.Name == "" {
-			users, err := client.GetUsers(rc.withSecrets)
+			users, err := client.GetUsers(ctx, rc.withSecrets)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &userCollection{users: users}, nil
 		}
-		user, err := client.GetUser(rc.ref.Name, rc.withSecrets)
+		user, err := client.GetUser(ctx, rc.ref.Name, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2043,7 +2107,43 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			}
 		}
 		return &userGroupCollection{userGroups: resources}, nil
-
+	case types.KindExternalCloudAudit:
+		out := []*externalcloudaudit.ExternalCloudAudit{}
+		name := rc.ref.Name
+		switch name {
+		case "":
+			cluster, err := client.ExternalCloudAuditClient().GetClusterExternalCloudAudit(ctx)
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					return nil, trace.Wrap(err)
+				}
+			} else {
+				out = append(out, cluster)
+			}
+			draft, err := client.ExternalCloudAuditClient().GetDraftExternalCloudAudit(ctx)
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					return nil, trace.Wrap(err)
+				}
+			} else {
+				out = append(out, draft)
+			}
+			return &externalCloudAuditCollection{externalCloudAudits: out}, nil
+		case types.MetaNameExternalCloudAuditCluster:
+			cluster, err := client.ExternalCloudAuditClient().GetClusterExternalCloudAudit(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &externalCloudAuditCollection{externalCloudAudits: []*externalcloudaudit.ExternalCloudAudit{cluster}}, nil
+		case types.MetaNameExternalCloudAuditDraft:
+			draft, err := client.ExternalCloudAuditClient().GetDraftExternalCloudAudit(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &externalCloudAuditCollection{externalCloudAudits: []*externalcloudaudit.ExternalCloudAudit{draft}}, nil
+		default:
+			return nil, trace.BadParameter("unsupported resource name for external_cloud_audit, valid for get are: '', %q, %q", types.MetaNameExternalCloudAuditDraft, types.MetaNameExternalCloudAuditCluster)
+		}
 	case types.KindIntegration:
 		if rc.ref.Name != "" {
 			ig, err := client.GetIntegration(ctx, rc.ref.Name)
@@ -2069,6 +2169,33 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		}
 
 		return &integrationCollection{integrations: resources}, nil
+
+	case types.KindDiscoveryConfig:
+		remote := client.DiscoveryConfigClient()
+		if rc.ref.Name != "" {
+			dc, err := remote.GetDiscoveryConfig(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &discoveryConfigCollection{discoveryConfigs: []*discoveryconfig.DiscoveryConfig{dc}}, nil
+		}
+
+		var resources []*discoveryconfig.DiscoveryConfig
+		var dcs []*discoveryconfig.DiscoveryConfig
+		var err error
+		var nextKey string
+		for {
+			dcs, nextKey, err = remote.ListDiscoveryConfigs(ctx, 0, nextKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			resources = append(resources, dcs...)
+			if nextKey == "" {
+				break
+			}
+		}
+
+		return &discoveryConfigCollection{discoveryConfigs: resources}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
