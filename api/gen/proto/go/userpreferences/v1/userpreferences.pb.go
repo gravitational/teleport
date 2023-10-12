@@ -49,7 +49,7 @@ type UserPreferences struct {
 	Onboard *OnboardUserPreferences `protobuf:"bytes,3,opt,name=onboard,proto3" json:"onboard,omitempty"`
 	// cluster_preferences are user preferences saved per cluster.
 	ClusterPreferences *ClusterUserPreferences `protobuf:"bytes,4,opt,name=cluster_preferences,json=clusterPreferences,proto3" json:"cluster_preferences,omitempty"`
-	// unified_resource_preferences are preferences used in the Unified Resource web UI
+	// unified_resource_preferences are user preferences saved for the Unified Resource web UI
 	UnifiedResourcePreferences *UnifiedResourcePreferences `protobuf:"bytes,5,opt,name=unified_resource_preferences,json=unifiedResourcePreferences,proto3" json:"unified_resource_preferences,omitempty"`
 }
 
