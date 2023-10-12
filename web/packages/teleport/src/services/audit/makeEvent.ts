@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { formatDistanceStrict } from 'date-fns';
+import { pluralize } from 'shared/utils/text';
 
 import { Event, RawEvent, Formatters, eventCodes, RawEvents } from './types';
 
@@ -1485,7 +1486,7 @@ export const formatters: Formatters = {
     type: 'access_list.member.create',
     desc: 'Access list member added',
     format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] added ${formattedMembersTxt(
+      `User [${updated_by}] added ${formatMembers(
         members
       )} to access list [${access_list_name}]`,
   },
@@ -1493,7 +1494,7 @@ export const formatters: Formatters = {
     type: 'access_list.member.create',
     desc: 'Access list member addition failure',
     format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] failed to add ${formattedMembersTxt(
+      `User [${updated_by}] failed to add ${formatMembers(
         members
       )} to access list [${access_list_name}]`,
   },
@@ -1501,7 +1502,7 @@ export const formatters: Formatters = {
     type: 'access_list.member.update',
     desc: 'Access list member updated',
     format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] updated ${formattedMembersTxt(
+      `User [${updated_by}] updated ${formatMembers(
         members
       )} in access list [${access_list_name}]`,
   },
@@ -1509,7 +1510,7 @@ export const formatters: Formatters = {
     type: 'access_list.member.update',
     desc: 'Access list member update failure',
     format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] failed to update ${formattedMembersTxt(
+      `User [${updated_by}] failed to update ${formatMembers(
         members
       )} in access list [${access_list_name}]`,
   },
@@ -1517,7 +1518,7 @@ export const formatters: Formatters = {
     type: 'access_list.member.delete',
     desc: 'Access list member removed',
     format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] removed ${formattedMembersTxt(
+      `User [${updated_by}] removed ${formatMembers(
         members
       )} from access list [${access_list_name}]`,
   },
@@ -1525,7 +1526,7 @@ export const formatters: Formatters = {
     type: 'access_list.member.delete',
     desc: 'Access list member removal failure',
     format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] failed to remove ${formattedMembersTxt(
+      `User [${updated_by}] failed to remove ${formatMembers(
         members
       )} from access list [${access_list_name}]`,
   },
@@ -1588,13 +1589,9 @@ function truncateStr(str: string, len: number): string {
   return str.substring(0, len - 3) + '...';
 }
 
-function formattedMembersTxt(members: { member_name: string }[]) {
+function formatMembers(members: { member_name: string }[]) {
   const memberNames = members.map(m => m.member_name);
   const memberNamesJoined = memberNames.join(', ');
 
-  if (memberNames.length > 1) {
-    return `members [${memberNamesJoined}]`;
-  }
-
-  return `member [${memberNamesJoined}]`;
+  return `${pluralize(memberNames.length, 'member')} [${memberNamesJoined}]`;
 }

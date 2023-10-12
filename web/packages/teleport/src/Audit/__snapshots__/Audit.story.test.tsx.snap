@@ -618,7 +618,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [mike] failed to remove member [carrot] from access list [access-list]
+            User [mike] failed to remove members [carrot, apple, banana] from access list [access-list]
           </td>
           <td
             style="min-width: 120px;"
