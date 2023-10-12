@@ -443,6 +443,10 @@ func (c *Client) AccessListClient() services.AccessLists {
 	return c.APIClient.AccessListClient()
 }
 
+func (c *Client) ExternalCloudAuditClient() services.ExternalCloudAudits {
+	return c.APIClient.ExternalCloudAuditClient()
+}
+
 func (c *Client) UserLoginStateClient() services.UserLoginStates {
 	return c.APIClient.UserLoginStateClient()
 }
@@ -464,6 +468,11 @@ func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, e
 
 	upserted, err := c.GetUser(ctx, user.GetName(), false)
 	return upserted, trace.Wrap(err)
+}
+
+// DiscoveryConfigClient returns a client for managing the DiscoveryConfig resource.
+func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigs {
+	return c.APIClient.DiscoveryConfigClient()
 }
 
 // WebService implements features used by Web UI clients
@@ -866,11 +875,23 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	UserLoginStateClient() services.UserLoginStates
 
+	// DiscoveryConfigClient returns a DiscoveryConfig client.
+	// Clients connecting to older Teleport versions, still get an DiscoveryConfig client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	DiscoveryConfigClient() services.DiscoveryConfigs
+
 	// ResourceUsageClient returns a resource usage service client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient
+
+	// ExternalCloudAuditClient returns an external cloud audit client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	ExternalCloudAuditClient() services.ExternalCloudAudits
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
