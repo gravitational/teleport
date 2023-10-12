@@ -17,19 +17,29 @@ syntax = "proto3";
 package teleport.resourceusage.v1;
 
 import "teleport/resourceusage/v1/access_requests.proto";
+import "teleport/resourceusage/v1/account_usage_type.proto";
+import "teleport/resourceusage/v1/device_trust.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1;resourceusagev1";
 
 // ResourceUsageService is a service to fetch information about the usage of limited resources on usage-billed plans.
 service ResourceUsageService {
-  // GetUsage returns usage information for all limited resources
+  // GetUsage returns usage information for all limited resources.
   rpc GetUsage(GetUsageRequest) returns (GetUsageResponse);
 }
 
-// GetUsageRequest is the request for GetUsage
+// GetUsageRequest is the request for GetUsage.
 message GetUsageRequest {}
 
-// GetUsageResponse is the response for GetUsage
+// GetUsageResponse is the response for GetUsage.
 message GetUsageResponse {
   AccessRequestsUsage access_requests = 1;
+
+  // Usage type of the underlying account.
+  // UNLIMITED accounts have no usage limits, therefore any numbers should be
+  // disconsidered for those accounts.
+  AccountUsageType account_usage_type = 2;
+
+  // DevicesUsage contains limits for trusted devices / Device Trust.
+  DevicesUsage devices_usage = 3;
 }
