@@ -18,14 +18,13 @@ package service
 
 import (
 	"context"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
@@ -65,11 +64,18 @@ func initializeAndWatchAccessGraph(ctx context.Context, accessGraphAddr string, 
 			return trace.Wrap(err)
 		}
 
-		if err := sendResources(ctx, authServer, accessGraphClient, types.KindNode); err != nil {
+		if err := sendNodes(ctx, authServer, accessGraphClient); err != nil {
 			return trace.Wrap(err)
 		}
 
 		if err := sendAccessRequests(ctx, authServer, accessGraphClient); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Send end event to indicate that initialization is done.
+		if _, err := accessGraphClient.SendResource(ctx, &accessgraphv1.SendResourceRequest{
+			Resource: &accessgraphv1.SendResourceRequest_End{},
+		}); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -104,11 +110,8 @@ func sendUsers(ctx context.Context, authServer *auth.Server, accessGraphClient a
 			return trace.BadParameter("expected userV2, got %T", user)
 		}
 
-		_, err := accessGraphClient.SendEvent(ctx, &accessgraphv1.SendEventRequest{
-			Event: &proto.Event{
-				Type:     proto.Operation_PUT,
-				Resource: &proto.Event_User{User: u},
-			},
+		_, err := accessGraphClient.SendResource(ctx, &accessgraphv1.SendResourceRequest{
+			Resource: &accessgraphv1.SendResourceRequest_User{User: u},
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -130,11 +133,8 @@ func sendRoles(ctx context.Context, authServer *auth.Server, accessGraphClient a
 			return trace.BadParameter("expected roleV6, got %T", role)
 		}
 
-		_, err := accessGraphClient.SendEvent(ctx, &accessgraphv1.SendEventRequest{
-			Event: &proto.Event{
-				Type:     proto.Operation_PUT,
-				Resource: &proto.Event_Role{Role: r},
-			},
+		_, err := accessGraphClient.SendResource(ctx, &accessgraphv1.SendResourceRequest{
+			Resource: &accessgraphv1.SendResourceRequest_Role{Role: r},
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -156,11 +156,8 @@ func sendAccessRequests(ctx context.Context, authServer *auth.Server, accessGrap
 			return trace.BadParameter("expected AccessRequestV3, got %T", request)
 		}
 
-		_, err := accessGraphClient.SendEvent(ctx, &accessgraphv1.SendEventRequest{
-			Event: &proto.Event{
-				Type:     proto.Operation_PUT,
-				Resource: &proto.Event_AccessRequest{AccessRequest: r},
-			},
+		_, err := accessGraphClient.SendResource(ctx, &accessgraphv1.SendResourceRequest{
+			Resource: &accessgraphv1.SendResourceRequest_AccessRequest{AccessRequest: r},
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -170,25 +167,22 @@ func sendAccessRequests(ctx context.Context, authServer *auth.Server, accessGrap
 	return nil
 }
 
-func sendResources(ctx context.Context, authServer *auth.Server, accessGraphClient accessgraphv1.AccessGraphServiceClient, resources ...string) error {
-	for _, resource := range resources {
-		listReq := proto.ListResourcesRequest{
-			ResourceType: resource,
-			Namespace:    apidefaults.Namespace,
+func sendNodes(ctx context.Context, authServer *auth.Server, accessGraphClient accessgraphv1.AccessGraphServiceClient) error {
+	nodes, err := authServer.GetNodes(ctx, apidefaults.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, server := range nodes {
+		s, ok := server.(*types.ServerV2)
+		if !ok {
+			return trace.BadParameter("expected ServerV2, got %T", server)
 		}
-		if err := authServer.IterateResources(ctx, listReq, func(resource types.ResourceWithLabels) error {
-			event, err := client.EventToGRPC(types.Event{
-				Type:     types.OpPut,
-				Resource: resource,
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if _, err := accessGraphClient.SendEvent(ctx, &accessgraphv1.SendEventRequest{Event: event}); err != nil {
-				return trace.Wrap(err)
-			}
-			return nil
-		}); err != nil {
+
+		_, err := accessGraphClient.SendResource(ctx, &accessgraphv1.SendResourceRequest{
+			Resource: &accessgraphv1.SendResourceRequest_Server{Server: s},
+		})
+		if err != nil {
 			return trace.Wrap(err)
 		}
 	}

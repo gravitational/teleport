@@ -17,6 +17,7 @@ syntax = "proto3";
 package accessgraph.v1alpha;
 
 import "teleport/legacy/client/proto/event.proto";
+import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
 
@@ -30,6 +31,9 @@ service AccessGraphService {
 
   // SendEvent sends an event to the access graph service.
   rpc SendEvent(SendEventRequest) returns (SendEventResponse);
+
+  // SendResource sends a resource to the access graph service.
+  rpc SendResource(SendResourceRequest) returns (SendResourceResponse);
 }
 
 // Node is a node in the access graph.
@@ -80,3 +84,29 @@ message SendEventRequest {
 message SendEventResponse {
   bool cache_initialized = 1;
 }
+
+// SendResourceRequest is a request to send a resource to the access graph.
+message SendResourceRequest {
+  // resource contains the updated resource
+  oneof resource {
+    SendResourceEnd end = 1;
+    // ResourceHeader is specified in delete events,
+    // the full object is not available, so resource
+    // header is used to provide information about object type
+    types.ResourceHeader resource_header = 2;
+    // User is a user resource
+    types.UserV2 user = 3;
+    // Role is a role resource
+    types.RoleV6 role = 4;
+    // Server is a node or proxy resource
+    types.ServerV2 server = 5;
+    // AccessRequest is a resource for access requests
+    types.AccessRequestV3 access_request = 6;
+  }
+}
+
+// SendResourceEnd is a marker for the end of a resource stream.
+message SendResourceEnd {}
+
+// SendResourceResponse is a response to sending a resource.
+message SendResourceResponse {}
