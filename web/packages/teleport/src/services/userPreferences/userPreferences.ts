@@ -53,8 +53,13 @@ export async function getUserClusterPreferences(clusterId: string) {
     .catch(res => {
       if (res.response?.status === 403 || res.response?.status === 404) {
         localStorage.setItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED, 'true');
+        // we handle this null error in the user context where we cache cluster
+        // preferences. We want to fail gracefully here and use our "not supported"
+        // message instead.
+        return null;
       }
-      return makeDefaultUserClusterPreferences();
+      // return all other errors here
+      return res;
     });
 }
 

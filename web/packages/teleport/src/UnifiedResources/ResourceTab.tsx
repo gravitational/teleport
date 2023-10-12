@@ -18,16 +18,42 @@ import React from 'react';
 import styled from 'styled-components';
 import { Box, Text } from 'design';
 
-export const ResourceTab = ({ title, isSelected, onClick }: Props) => {
-  return (
-    <TabBox onClick={onClick} selected={isSelected}>
+import { HoverTooltip, PINNING_NOT_SUPPORTED_MESSAGE } from './Resources';
+
+export const ResourceTab = ({
+  title,
+  disabled,
+  isSelected,
+  onClick,
+}: Props) => {
+  const handleClick = () => {
+    if (!disabled) {
+      onClick();
+    }
+  };
+
+  const $tab = (
+    <TabBox disabled={disabled} onClick={handleClick} selected={isSelected}>
       <TabText selected={isSelected}>{title}</TabText>
     </TabBox>
   );
+
+  if (disabled) {
+    return (
+      <HoverTooltip tipContent={<>{PINNING_NOT_SUPPORTED_MESSAGE}</>}>
+        {$tab}
+      </HoverTooltip>
+    );
+  }
+  return $tab;
 };
 
 const TabBox = styled(Box)`
-  cursor: pointer;
+  cursor: ${props => (props.disabled ? 'not-allowed' : 'pointer')};
+  color: ${props =>
+    props.disabled
+      ? props.theme.colors.text.disabled
+      : props.theme.colors.text.main};
   border-bottom: ${props =>
     props.selected ? `2px solid ${props.theme.colors.brand}` : 'transparent'};
 `;
@@ -47,5 +73,6 @@ const TabText = styled(Text)`
 type Props = {
   title: string;
   isSelected: boolean;
+  disabled: boolean;
   onClick: () => void;
 };

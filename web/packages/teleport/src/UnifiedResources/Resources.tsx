@@ -233,6 +233,8 @@ export function Resources() {
       pinnedOnly,
     });
     setSelectedResources([]);
+    setUpdatePinnedResources(makeEmptyAttempt());
+    setPinnedResources(makeSuccessAttempt(getPinnedResourcesAttempt.data));
     updatePreferences({ unifiedResourcePreferences: { defaultTab: value } });
     replaceHistory(
       encodeUrlQueryParams(
@@ -342,6 +344,9 @@ export function Resources() {
           <ResourceTab
             key={tab.value}
             onClick={() => selectTab(tab.value)}
+            disabled={
+              tab.value === UnifiedTabPreference.Pinned && pinningNotSupported
+            }
             title={tab.label}
             isSelected={
               params.pinnedOnly
@@ -351,35 +356,41 @@ export function Resources() {
           />
         ))}
       </Flex>
-      <ResourcesContainer className="ResourcesContainer" gap={2}>
-        {getPinnedResourcesAttempt.status !== 'processing' &&
-          resources.map(res => {
-            const key = resourceKey(res);
-            return (
-              <ResourceCard
-                key={key}
-                resource={res}
-                onLabelClick={onLabelClick}
-                pinResource={handlePinResource}
-                pinned={pinnedResources.includes(key)}
-                // pinningDisabled is used to disable the button during
-                // a pinning network request
-                pinningDisabled={
-                  updatePinnedResourcesAttempt.status === 'processing'
-                }
-                // pinningNotSupported is when the cluster does not have
-                // pinning enabled (old version)
-                pinningNotSupported={pinningNotSupported}
-                selected={selectedResources.includes(key)}
-                selectResource={handleSelectResources}
-              />
-            );
-          })}
-        {/* Using index as key here is ok because these elements never change order */}
-        {(attempt.status === 'processing' ||
-          getPinnedResourcesAttempt.status === 'processing') &&
-          loadingCardArray.map((_, i) => <LoadingCard delay="short" key={i} />)}
-      </ResourcesContainer>
+      {pinningNotSupported && params.pinnedOnly ? (
+        <PinningNotSupported />
+      ) : (
+        <ResourcesContainer className="ResourcesContainer" gap={2}>
+          {getPinnedResourcesAttempt.status !== 'processing' &&
+            resources.map(res => {
+              const key = resourceKey(res);
+              return (
+                <ResourceCard
+                  key={key}
+                  resource={res}
+                  onLabelClick={onLabelClick}
+                  pinResource={handlePinResource}
+                  pinned={pinnedResources.includes(key)}
+                  // pinningDisabled is used to disable the button during
+                  // a pinning network request
+                  pinningDisabled={
+                    updatePinnedResourcesAttempt.status === 'processing'
+                  }
+                  // pinningNotSupported is when the cluster does not have
+                  // pinning enabled (old version)
+                  pinningNotSupported={pinningNotSupported}
+                  selected={selectedResources.includes(key)}
+                  selectResource={handleSelectResources}
+                />
+              );
+            })}
+          {/* Using index as key here is ok because these elements never change order */}
+          {(attempt.status === 'processing' ||
+            getPinnedResourcesAttempt.status === 'processing') &&
+            loadingCardArray.map((_, i) => (
+              <LoadingCard delay="short" key={i} />
+            ))}
+        </ResourcesContainer>
+      )}
       <div ref={setScrollDetector} />
       <ListFooter>
         {attempt.status === 'failed' && resources.length > 0 && (
@@ -425,6 +436,14 @@ function NoPinned() {
   return (
     <Box p={8} mt={3} mx="auto" maxWidth="720px" textAlign="center">
       <TextIcon typography="h3">You have not pinned any resources</TextIcon>
+    </Box>
+  );
+}
+
+function PinningNotSupported() {
+  return (
+    <Box p={8} mt={3} mx="auto" maxWidth="720px" textAlign="center">
+      <TextIcon typography="h3">{PINNING_NOT_SUPPORTED_MESSAGE}</TextIcon>
     </Box>
   );
 }
