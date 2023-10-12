@@ -154,6 +154,7 @@ type EtcdBackend struct {
 	leaseCache  *utils.FnCache
 	ctx         context.Context
 	cancel      context.CancelFunc
+	ctxTimeout  time.Duration
 	watchDone   chan struct{}
 }
 
@@ -176,6 +177,8 @@ type Config struct {
 	BufferSize int `json:"buffer_size,omitempty"`
 	// DialTimeout specifies dial timeout
 	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
+	// ContextTimeout specifies dial timeout
+	ContextTimeout time.Duration `json:"context_timeout,omitempty"`
 	// Username is an optional username for HTTPS basic authentication
 	Username string `json:"username,omitempty"`
 	// Password is initialized from password file, and is not read from the config
@@ -280,6 +283,7 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 		clock:       options.clock,
 		cancel:      cancel,
 		ctx:         closeCtx,
+		ctxTimeout:  cfg.ContextTimeout,
 		watchDone:   make(chan struct{}),
 		buf:         buf,
 		leaseBucket: utils.SeventhJitter(options.leaseBucket),
@@ -647,7 +651,9 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey []byte, lim
 		opts = append(opts, clientv3.WithLimit(int64(limit)))
 	}
 	start := b.clock.Now()
-	re, err := b.clients.Next().Get(ctx, b.prependPrefix(startKey), opts...)
+	timeoutCtx, cancelFunc := context.WithTimeout(ctx, b.ctxTimeout)
+	defer cancelFunc()
+	re, err := b.clients.Next().Get(timeoutCtx, b.prependPrefix(startKey), opts...)
 	batchReadLatencies.Observe(time.Since(start).Seconds())
 	batchReadRequests.Inc()
 	if err := convertErr(err); err != nil {
@@ -693,8 +699,10 @@ func (b *EtcdBackend) Create(ctx context.Context, item backend.Item) (*backend.L
 		}
 	}
 	start := b.clock.Now()
+	timeoutCtx, cancelFunc := context.WithTimeout(ctx, b.ctxTimeout)
+	defer cancelFunc()
 	key := b.prependPrefix(item.Key)
-	re, err := b.clients.Next().Txn(ctx).
+	re, err := b.clients.Next().Txn(timeoutCtx).
 		If(clientv3.Compare(clientv3.CreateRevision(key), "=", 0)).
 		Then(clientv3.OpPut(key, base64.StdEncoding.EncodeToString(item.Value), opts...)).
 		Commit()
@@ -721,8 +729,10 @@ func (b *EtcdBackend) Update(ctx context.Context, item backend.Item) (*backend.L
 		}
 	}
 	start := b.clock.Now()
+	timeoutCtx, cancelFunc := context.WithTimeout(ctx, b.ctxTimeout)
+	defer cancelFunc()
 	key := b.prependPrefix(item.Key)
-	re, err := b.clients.Next().Txn(ctx).
+	re, err := b.clients.Next().Txn(timeoutCtx).
 		If(clientv3.Compare(clientv3.CreateRevision(key), "!=", 0)).
 		Then(clientv3.OpPut(key, base64.StdEncoding.EncodeToString(item.Value), opts...)).
 		Commit()
@@ -794,9 +804,11 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 	}
 	encodedPrev := base64.StdEncoding.EncodeToString(expected.Value)
 
+	timeoutCtx, cancelFunc := context.WithTimeout(ctx, b.ctxTimeout)
+	defer cancelFunc()
 	start := b.clock.Now()
 	key := b.prependPrefix(expected.Key)
-	re, err := b.clients.Next().Txn(ctx).
+	re, err := b.clients.Next().Txn(timeoutCtx).
 		If(clientv3.Compare(clientv3.Value(key), "=", encodedPrev)).
 		Then(clientv3.OpPut(key, base64.StdEncoding.EncodeToString(replaceWith.Value), opts...)).
 		Commit()
@@ -827,8 +839,10 @@ func (b *EtcdBackend) Put(ctx context.Context, item backend.Item) (*backend.Leas
 		}
 	}
 	start := b.clock.Now()
+	timeoutCtx, cancelFunc := context.WithTimeout(ctx, b.ctxTimeout)
+	defer cancelFunc()
 	re, err := b.clients.Next().Put(
-		ctx,
+		timeoutCtx,
 		b.prependPrefix(item.Key),
 		base64.StdEncoding.EncodeToString(item.Value),
 		opts...)
@@ -853,7 +867,9 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 		return trace.Wrap(err)
 	}
 	opts = append(opts, clientv3.WithIgnoreValue())
-	_, err := b.clients.Next().Put(ctx, b.prependPrefix(lease.Key), "", opts...)
+	timeoutCtx, cancelFunc := context.WithTimeout(ctx, b.ctxTimeout)
+	defer cancelFunc()
+	_, err := b.clients.Next().Put(timeoutCtx, b.prependPrefix(lease.Key), "", opts...)
 	err = convertErr(err)
 	if trace.IsNotFound(err) {
 		return trace.NotFound("item %q is not found", string(lease.Key))
@@ -864,7 +880,9 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 
 // Get returns a single item or not found error
 func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
-	re, err := b.clients.Next().Get(ctx, b.prependPrefix(key))
+	timeoutCtx, cancelFunc := context.WithTimeout(ctx, b.ctxTimeout)
+	defer cancelFunc()
+	re, err := b.clients.Next().Get(timeoutCtx, b.prependPrefix(key))
 	if err != nil {
 		return nil, convertErr(err)
 	}
@@ -886,8 +904,10 @@ func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error
 
 // Delete deletes item by key
 func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
+	timeoutCtx, cancelFunc := context.WithTimeout(ctx, b.ctxTimeout)
+	defer cancelFunc()
 	start := b.clock.Now()
-	re, err := b.clients.Next().Delete(ctx, b.prependPrefix(key))
+	re, err := b.clients.Next().Delete(timeoutCtx, b.prependPrefix(key))
 	writeLatencies.Observe(time.Since(start).Seconds())
 	writeRequests.Inc()
 	if err != nil {
@@ -933,8 +953,10 @@ func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) 
 	if len(endKey) == 0 {
 		return trace.BadParameter("missing parameter endKey")
 	}
+	timeoutCtx, cancelFunc := context.WithTimeout(ctx, b.ctxTimeout)
+	defer cancelFunc()
 	start := b.clock.Now()
-	_, err := b.clients.Next().Delete(ctx, b.prependPrefix(startKey), clientv3.WithRange(b.prependPrefix(endKey)))
+	_, err := b.clients.Next().Delete(timeoutCtx, b.prependPrefix(startKey), clientv3.WithRange(b.prependPrefix(endKey)))
 	writeLatencies.Observe(time.Since(start).Seconds())
 	writeRequests.Inc()
 	if err != nil {
@@ -957,8 +979,10 @@ func (b *EtcdBackend) setupLease(ctx context.Context, item backend.Item, lease *
 	// TODO(fspmarshall): make bucket size configurable.
 	bucket := roundUp(item.Expires, b.leaseBucket)
 	leaseID, err := utils.FnCacheGet(ctx, b.leaseCache, leaseKey{bucket: bucket}, func(ctx context.Context) (clientv3.LeaseID, error) {
+		timeoutCtx, cancelFunc := context.WithTimeout(ctx, b.ctxTimeout)
+		defer cancelFunc()
 		ttl := b.ttl(bucket)
-		elease, err := b.clients.Next().Grant(ctx, seconds(ttl))
+		elease, err := b.clients.Next().Grant(timeoutCtx, seconds(ttl))
 		if err != nil {
 			return 0, convertErr(err)
 		}
