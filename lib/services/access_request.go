@@ -914,10 +914,6 @@ func NewReviewPermissionChecker(
 		return ReviewPermissionChecker{}, trace.Wrap(err)
 	}
 
-	// If a bot, we fetch the bot role and the roles that role can impersonate.
-	// This is because all bot output certificates use role impersonation and
-	// if we use the role directly attached to the bot, no access request
-	// privileges will be present.
 	if uls.IsBot() {
 		ac, err := NewAccessChecker(&AccessInfo{
 			Roles:  uls.GetRoles(),
