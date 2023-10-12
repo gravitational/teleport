@@ -69,7 +69,7 @@ function ServerList(props: State) {
     agentFilter.search || agentFilter.query,
     loggedInUser?.acl?.tokens.create
   );
-  let emptyText = getEmptyTableText(emptyTableStatus, 'servers');
+  let { emptyText, emptyHint } = getEmptyTableText(emptyTableStatus, 'servers');
   let emptyButton: JSX.Element;
 
   if (
@@ -78,8 +78,8 @@ function ServerList(props: State) {
     isRootCluster &&
     canUseConnectMyComputer
   ) {
-    emptyText =
-      'No servers found. You can add them in the Teleport Web UI or by connecting your computer to the cluster.';
+    emptyHint =
+      'You can add them in the Teleport Web UI or by connecting your computer to the cluster.';
     emptyButton = (
       <ButtonPrimary
         type="button"
@@ -143,6 +143,7 @@ function ServerList(props: State) {
             ]}
             customSort={customSort}
             emptyText={emptyText}
+            emptyHint={emptyHint}
             emptyButton={emptyButton}
             data={servers}
           />

@@ -58,7 +58,7 @@ function KubeList(props: State) {
     agentFilter.search || agentFilter.query,
     loggedInUser?.acl?.tokens.create
   );
-  const emptyText = getEmptyTableText(emptyTableStatus, 'kubes');
+  const { emptyText, emptyHint } = getEmptyTableText(emptyTableStatus, 'kubes');
 
   return (
     <>
@@ -100,6 +100,7 @@ function KubeList(props: State) {
             ]}
             customSort={customSort}
             emptyText={emptyText}
+            emptyHint={emptyHint}
           />
           <SearchPagination prevPage={prevPage} nextPage={nextPage} />
         </DarkenWhileDisabled>

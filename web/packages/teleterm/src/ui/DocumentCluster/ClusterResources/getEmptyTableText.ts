@@ -62,16 +62,21 @@ export function getEmptyTableStatus(
 export function getEmptyTableText(
   status: EmptyTableStatus,
   pluralResourceNoun: string
-) {
+): { emptyText: string; emptyHint: string } {
   switch (status.status) {
     case 'error':
-      return `Failed to fetch ${pluralResourceNoun}.`;
+      return {
+        emptyText: `Failed to fetch ${pluralResourceNoun}.`,
+        emptyHint: undefined,
+      };
     case 'processing':
-      return 'Searching…';
+      return {
+        emptyText: 'Searching…',
+        emptyHint: undefined,
+      };
     case 'no-resources': {
-      let message = `No ${pluralResourceNoun} found.`;
-
-      if (status.showEnrollingResourcesHint) {
+      return {
+        emptyText: `No ${pluralResourceNoun} found.`,
         // TODO(ravicious): It'd be nice to include a link to Discover. However, all external links
         // opened by the browser need to be allowlisted (see setWindowOpenHandler), so we should
         // allow opening links only to the currently active cluster and its leafs.
@@ -84,9 +89,10 @@ export function getEmptyTableText(
         // and the main process should get a list of clusters from the tsh daemon.
         //
         // This is time consuming to set up, so for now we're skipping the link.
-        message += ' You can add them in the Teleport Web UI.';
-      }
-      return message;
+        emptyHint: status.showEnrollingResourcesHint
+          ? 'You can add them in the Teleport Web UI.'
+          : undefined,
+      };
     }
     default: {
       assertUnreachable(status);

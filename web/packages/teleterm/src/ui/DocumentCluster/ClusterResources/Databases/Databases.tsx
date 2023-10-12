@@ -62,7 +62,10 @@ function DatabaseList(props: State) {
     agentFilter.search || agentFilter.query,
     loggedInUser?.acl?.tokens.create
   );
-  const emptyText = getEmptyTableText(emptyTableStatus, 'databases');
+  const { emptyText, emptyHint } = getEmptyTableText(
+    emptyTableStatus,
+    'databases'
+  );
 
   return (
     <>
@@ -120,6 +123,7 @@ function DatabaseList(props: State) {
             ]}
             customSort={customSort}
             emptyText={emptyText}
+            emptyHint={emptyHint}
           />
           <SearchPagination prevPage={prevPage} nextPage={nextPage} />
         </DarkenWhileDisabled>

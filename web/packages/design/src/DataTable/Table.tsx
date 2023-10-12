@@ -36,6 +36,7 @@ export function Table<T>({
   state,
   onSort,
   emptyText,
+  emptyHint,
   emptyButton,
   nextPage,
   prevPage,
@@ -126,6 +127,7 @@ export function Table<T>({
     return (
       <EmptyIndicator
         emptyText={emptyText}
+        emptyHint={emptyHint}
         emptyButton={emptyButton}
         colSpan={columns.length}
       />
@@ -337,10 +339,12 @@ function ServersideTable<T>({
 
 const EmptyIndicator = ({
   emptyText,
+  emptyHint,
   emptyButton,
   colSpan,
 }: {
   emptyText: string;
+  emptyHint: string | undefined;
   emptyButton: JSX.Element | undefined;
   colSpan: number;
 }) => (
@@ -357,10 +361,18 @@ const EmptyIndicator = ({
           <Flex
             gap={2}
             flexWrap="nowrap"
-            alignItems="center"
+            alignItems="flex-start"
             justifyContent="center"
           >
-            <Icons.Database color="text.main" />
+            <Icons.Database
+              color="text.main"
+              // line-height and height must match line-height of Text below for the icon to be
+              // aligned to the first line of Text if Text spans multiple lines.
+              css={`
+                line-height: 32px;
+                height: 32px;
+              `}
+            />
             <Text
               textAlign="center"
               typography="paragraph"
@@ -370,6 +382,17 @@ const EmptyIndicator = ({
               {emptyText}
             </Text>
           </Flex>
+
+          {emptyHint && (
+            <Text
+              textAlign="center"
+              typography="paragraph"
+              m="0"
+              color="text.main"
+            >
+              {emptyHint}
+            </Text>
+          )}
 
           {emptyButton}
         </Flex>
