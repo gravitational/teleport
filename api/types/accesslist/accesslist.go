@@ -186,8 +186,8 @@ type Recurrence struct {
 
 // Notifications contains the configuration for notifying users of a nearing next audit date.
 type Notifications struct {
-	// StartNotifications specifies when to start notifying users that the next audit date is coming up.
-	StartNotifications time.Duration `json:"start_notifications" yaml:"start_notifications"`
+	// Start specifies when to start notifying users that the next audit date is coming up.
+	Start time.Duration `json:"start" yaml:"start"`
 }
 
 // Requires describes a requirement section for an access list. A user must
@@ -282,8 +282,8 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("recurrence day of month is an invalid value")
 	}
 
-	if a.Spec.Audit.Notifications.StartNotifications == 0 {
-		a.Spec.Audit.Notifications.StartNotifications = twoWeeks
+	if a.Spec.Audit.Notifications.Start == 0 {
+		a.Spec.Audit.Notifications.Start = twoWeeks
 	}
 
 	if len(a.Spec.Grants.Roles) == 0 && len(a.Spec.Grants.Traits) == 0 {
@@ -422,7 +422,7 @@ func (r Recurrence) MarshalJSON() ([]byte, error) {
 func (n *Notifications) UnmarshalJSON(data []byte) error {
 	type Alias Notifications
 	notifications := struct {
-		StartNotifications string `json:"start_notifications"`
+		Start string `json:"start"`
 		*Alias
 	}{
 		Alias: (*Alias)(n),
@@ -432,7 +432,7 @@ func (n *Notifications) UnmarshalJSON(data []byte) error {
 	}
 
 	var err error
-	n.StartNotifications, err = time.ParseDuration(notifications.StartNotifications)
+	n.Start, err = time.ParseDuration(notifications.Start)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -443,10 +443,10 @@ func (n *Notifications) UnmarshalJSON(data []byte) error {
 func (n Notifications) MarshalJSON() ([]byte, error) {
 	type Alias Notifications
 	return json.Marshal(&struct {
-		StartNotifications string `json:"start_notifications"`
+		Start string `json:"start"`
 		Alias
 	}{
-		Alias:              (Alias)(n),
-		StartNotifications: n.StartNotifications.String(),
+		Alias: (Alias)(n),
+		Start: n.Start.String(),
 	})
 }
