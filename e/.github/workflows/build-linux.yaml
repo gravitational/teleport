@@ -145,9 +145,12 @@ jobs:
       # Log into ECR to raise rate limits, needed for the public.ecr.aws/gravitational/fpm
       # image used for building .deb and .rpm files.
       - name: Log into ECR
-        run: |
-          aws ecr-public get-login-password --region us-east-1 | \
-            docker login -u=AWS --password-stdin public.ecr.aws
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+        env:
+          # GetAuthorizationToken command is only supported in us-east-1.
+          AWS_REGION: us-east-1
 
       # The step can be removed when we commit to the self-hosted ARC runners,
       # as it runs with a consistent UID/GID and creates the directories with
