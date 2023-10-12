@@ -134,10 +134,7 @@ type DeviceTrustServiceClient interface {
 	// Authorized either by a valid MDM service certificate or the appropriate
 	// "device" permissions (create/update/delete).
 	SyncInventory(ctx context.Context, opts ...grpc.CallOption) (DeviceTrustService_SyncInventoryClient, error)
-	// GetDevicesUsage retrieves device limits and usage numbers for the
-	// underlying account/license.
-	// Requires an authenticated user with billing/read permissions.
-	// See [DevicesUsage] for details.
+	// Superseded by ResourceUsageService.GetUsage. Use it instead.
 	GetDevicesUsage(ctx context.Context, in *GetDevicesUsageRequest, opts ...grpc.CallOption) (*DevicesUsage, error)
 }
 
@@ -417,10 +414,7 @@ type DeviceTrustServiceServer interface {
 	// Authorized either by a valid MDM service certificate or the appropriate
 	// "device" permissions (create/update/delete).
 	SyncInventory(DeviceTrustService_SyncInventoryServer) error
-	// GetDevicesUsage retrieves device limits and usage numbers for the
-	// underlying account/license.
-	// Requires an authenticated user with billing/read permissions.
-	// See [DevicesUsage] for details.
+	// Superseded by ResourceUsageService.GetUsage. Use it instead.
 	GetDevicesUsage(context.Context, *GetDevicesUsageRequest) (*DevicesUsage, error)
 	mustEmbedUnimplementedDeviceTrustServiceServer()
 }
