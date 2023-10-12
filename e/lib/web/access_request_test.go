@@ -534,9 +534,8 @@ func TestSuggestAccessLists(t *testing.T) {
 
 	ctx := context.Background()
 	s := newWebSuite(t)
-	webPack := s.newAuthWebPack(t, "reviewer")
-	authClient := s.newAdminAuthClient(s.ctx, t)
-	accessListClient := authClient.AccessListClient()
+
+	authServer := s.testAuthServer.AuthServer.AuthServer
 
 	// create requester, access and godmode roles
 	const requesterRoleName = "requester"
@@ -548,7 +547,7 @@ func TestSuggestAccessLists(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = authClient.UpsertRole(ctx, requesterRole)
+	err = authServer.UpsertRole(ctx, requesterRole)
 	require.NoError(t, err)
 
 	accessRole, err := types.NewRole("access", types.RoleSpecV6{
@@ -559,12 +558,12 @@ func TestSuggestAccessLists(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = authClient.UpsertRole(ctx, accessRole)
+	err = authServer.UpsertRole(ctx, accessRole)
 	require.NoError(t, err)
 
 	godmodeRole, err := types.NewRole("godmode", types.RoleSpecV6{})
 	require.NoError(t, err)
-	err = authClient.UpsertRole(ctx, godmodeRole)
+	err = authServer.UpsertRole(ctx, godmodeRole)
 	require.NoError(t, err)
 
 	// create a node, so we can request access to it
@@ -577,16 +576,26 @@ func TestSuggestAccessLists(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = authClient.UpsertNode(ctx, node)
+	_, err = authServer.UpsertNode(ctx, node)
 	require.NoError(t, err)
 
 	// assign the admin role and preferred_drink=fanta to reviewer
-	user, err := authClient.GetUser(ctx, "reviewer", false)
+	user, err := types.NewUser("reviewer")
+	require.NoError(t, err)
 	require.NoError(t, err)
 	user.SetRoles([]string{requesterRoleName})
 	user.SetTraits(trait.Traits{"preferred_drink": []string{"fanta"}})
-	_, err = authClient.UpsertUser(ctx, user)
+	_, err = authServer.UpsertUser(ctx, user)
 	require.NoError(t, err)
+	err = authServer.UpsertPassword(user.GetName(), []byte(s.testPassword()))
+	require.NoError(t, err)
+
+	webPack := s.newAuthWebPack(t, "reviewer", skipUserCreation())
+
+	// create a new client with the user after the user has been modified to ensure that the
+	// user login state reflects the current user modifications.
+	authClient := s.newAdminAuthClient(s.ctx, t)
+	accessListClient := authClient.AccessListClient()
 
 	// create four access lists:
 	// - one that is a close match
