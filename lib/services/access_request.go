@@ -966,7 +966,7 @@ func NewReviewPermissionChecker(
 
 	// load all statically assigned roles for the user and
 	// use them to build our checker state.
-	for _, roleName := range uls.GetRoles() {
+	for _, roleName := range c.UserState.GetRoles() {
 		role, err := getter.GetRole(ctx, roleName)
 		if err != nil {
 			return ReviewPermissionChecker{}, trace.Wrap(err)
