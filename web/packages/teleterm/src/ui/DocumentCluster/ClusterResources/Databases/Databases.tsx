@@ -28,11 +28,12 @@ import { retryWithRelogin } from 'teleterm/ui/utils';
 import { IAppContext } from 'teleterm/ui/types';
 import { GatewayProtocol } from 'teleterm/services/tshd/types';
 import { makeDatabase } from 'teleterm/ui/services/clusters';
-import { DatabaseUri } from 'teleterm/ui/uri';
+import { DatabaseUri, routing } from 'teleterm/ui/uri';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
 import { getEmptyTableStatus, getEmptyTableText } from '../getEmptyTableText';
+import { useClusterContext } from '../../clusterContext';
 
 import { useDatabases, State } from './useDatabases';
 
@@ -57,10 +58,13 @@ function DatabaseList(props: State) {
   const dbs = fetchAttempt.data?.agentsList.map(makeDatabase) || [];
   const disabled = fetchAttempt.status === 'processing';
   const loggedInUser = useWorkspaceLoggedInUser();
+  const { clusterUri } = useClusterContext();
+  const canAddResources =
+    routing.isRootCluster(clusterUri) && loggedInUser?.acl?.tokens.create;
   const emptyTableStatus = getEmptyTableStatus(
     fetchAttempt.status,
     agentFilter.search || agentFilter.query,
-    loggedInUser?.acl?.tokens.create
+    canAddResources
   );
   const { emptyText, emptyHint } = getEmptyTableText(
     emptyTableStatus,

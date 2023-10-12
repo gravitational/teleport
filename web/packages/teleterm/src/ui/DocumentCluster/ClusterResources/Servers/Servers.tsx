@@ -63,11 +63,12 @@ function ServerList(props: State) {
   const servers = fetchAttempt.data?.agentsList.map(makeServer) || [];
   const disabled = fetchAttempt.status === 'processing';
   const isRootCluster = clusterUri === rootClusterUri;
+  const canAddResources = isRootCluster && loggedInUser?.acl?.tokens.create;
 
   const emptyTableStatus = getEmptyTableStatus(
     fetchAttempt.status,
     agentFilter.search || agentFilter.query,
-    loggedInUser?.acl?.tokens.create
+    canAddResources
   );
   let { emptyText, emptyHint } = getEmptyTableText(emptyTableStatus, 'servers');
   let emptyButton: JSX.Element;

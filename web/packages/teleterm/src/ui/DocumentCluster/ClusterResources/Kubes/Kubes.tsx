@@ -26,9 +26,11 @@ import { SearchPanel, SearchPagination } from 'shared/components/Search';
 
 import { makeKube } from 'teleterm/ui/services/clusters';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
+import { routing } from 'teleterm/ui/uri';
 
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
 import { getEmptyTableStatus, getEmptyTableText } from '../getEmptyTableText';
+import { useClusterContext } from '../../clusterContext';
 
 import { useKubes, State } from './useKubes';
 
@@ -53,10 +55,13 @@ function KubeList(props: State) {
   const kubes = fetchAttempt.data?.agentsList.map(makeKube) || [];
   const disabled = fetchAttempt.status === 'processing';
   const loggedInUser = useWorkspaceLoggedInUser();
+  const { clusterUri } = useClusterContext();
+  const canAddResources =
+    routing.isRootCluster(clusterUri) && loggedInUser?.acl?.tokens.create;
   const emptyTableStatus = getEmptyTableStatus(
     fetchAttempt.status,
     agentFilter.search || agentFilter.query,
-    loggedInUser?.acl?.tokens.create
+    canAddResources
   );
   const { emptyText, emptyHint } = getEmptyTableText(emptyTableStatus, 'kubes');
 
