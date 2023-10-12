@@ -840,7 +840,9 @@ export default function createClient(
                           };
                         default:
                           logger.info(
-                            `Ignoring unsupported resource ${JSON.stringify(p.toObject())}.`
+                            `Ignoring unsupported resource ${JSON.stringify(
+                              p.toObject()
+                            )}.`
                           );
                       }
                     })
