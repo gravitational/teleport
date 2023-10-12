@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types/externalcloudaudit"
@@ -53,7 +54,7 @@ func NewConfigurator(ctx context.Context, bk backend.Backend) (*Configurator, er
 		return nil, trace.Wrap(err)
 	}
 
-	credentialsCache, err := newExternalCloudAuditCredentialsCache(CacheConfig{
+	credentialsCache, err := newCredentialsCache(CacheConfig{
 		IntegratioName: externalAudit.Spec.IntegrationName,
 	})
 	if err != nil {
@@ -87,6 +88,9 @@ type CacheConfig struct {
 	// Log is a logger.
 	Log logrus.FieldLogger
 
+	// Clock is used to control time.
+	Clock clockwork.Clock
+
 	// IntegratioName used to generate AWS OIDC credentials.
 	IntegratioName string
 
@@ -119,6 +123,9 @@ func (cfg *CacheConfig) CheckAndSetDefaults() error {
 		cfg.Log = logrus.StandardLogger()
 		cfg.Log.WithField("component", "external-cloud-audit-credentials-cache")
 	}
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
+	}
 	return nil
 }
 
@@ -134,9 +141,6 @@ func (cfg *CacheConfig) CheckAndSetDefaults() error {
 // Before initialization, CredentialsCache will return error on Retrive call.
 type CredentialsCache struct {
 	CacheConfig
-	// TODO(tobiaszheller): do we need that mutex? so far it's replaced with initialized chan.
-	// mu protects retrieveFn.
-	// mu sync.RWMutex
 
 	// retrieveFn is dynamically set after auth is initialized.
 	retrieveFn RetrieveCredentialsFn
@@ -145,11 +149,16 @@ type CredentialsCache struct {
 	// initialzed, after retrieveFn is set.
 	initialized chan struct{}
 
-	creds   aws.Credentials
-	credsMu sync.RWMutex
+	credsOrErr   credsOrErr
+	credsOrErrMu sync.RWMutex
 }
 
-func newExternalCloudAuditCredentialsCache(cfg CacheConfig) (*CredentialsCache, error) {
+type credsOrErr struct {
+	creds aws.Credentials
+	err   error
+}
+
+func newCredentialsCache(cfg CacheConfig) (*CredentialsCache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -157,6 +166,9 @@ func newExternalCloudAuditCredentialsCache(cfg CacheConfig) (*CredentialsCache, 
 	return &CredentialsCache{
 		CacheConfig: cfg,
 		initialized: make(chan struct{}),
+		credsOrErr: credsOrErr{
+			err: errors.New("cache not yet initialized"),
+		},
 	}, nil
 }
 
@@ -164,75 +176,55 @@ type RetrieveCredentialsFn func(ctx context.Context, integration string) (aws.Cr
 
 // SetRetrieveCredentialsFn sets RetrieveCredentialsFn. It should be called only once.
 func (cc *CredentialsCache) SetRetrieveCredentialsFn(fn RetrieveCredentialsFn) {
-	// cc.mu.Lock()
-	// defer cc.mu.Unlock()
 	cc.retrieveFn = fn
 	close(cc.initialized)
 }
 
-func (cc *CredentialsCache) isInitialized() bool {
-	select {
-	case <-cc.initialized:
-		return true
-	default:
-		return false
-	}
-
-	// cc.mu.RLock()
-	// defer cc.mu.RUnlock()
-	// return cc.retrieveFn != nil
-}
-
 func (cc *CredentialsCache) retrieve(ctx context.Context) (aws.Credentials, error) {
-	if !cc.isInitialized() {
-		logrus.Warn("BYOB v2 not ready yet for generating")
-		return aws.Credentials{}, errors.New("e BYOB credentials not ready yet")
-	}
 	ctx, cancel := context.WithTimeout(ctx, cc.RetrieveTimeout)
 	defer cancel()
 	return cc.retrieveFn(ctx, cc.IntegratioName)
 }
 
 func (cc *CredentialsCache) getCredentialsFromCache(ctx context.Context) (aws.Credentials, error) {
-	cc.credsMu.RLock()
-	defer cc.credsMu.RUnlock()
-	if !cc.creds.HasKeys() {
-		return aws.Credentials{}, errors.New("credentials not available in cache yet")
-	}
-	return cc.creds, nil
+	cc.credsOrErrMu.RLock()
+	defer cc.credsOrErrMu.RUnlock()
+	return cc.credsOrErr.creds, cc.credsOrErr.err
 }
 
-func (cc *CredentialsCache) credentialsNeedsRefresh() bool {
-	cc.credsMu.RLock()
-	defer cc.credsMu.RUnlock()
-	return !cc.creds.HasKeys() || (cc.creds.CanExpire && cc.creds.Expires.Before(time.Now().Add(cc.RefreshBeforeExpirationPeriod)))
-}
-
-func (cc *CredentialsCache) retrieveIfCloseToExpiration(ctx context.Context) {
-	if !cc.credentialsNeedsRefresh() {
-		cc.Log.Debugf("BYOB Credentials don't need refreshing yet")
+func (cc *CredentialsCache) retrieveIfNeeded(ctx context.Context) {
+	credsFromCache, err := cc.getCredentialsFromCache(ctx)
+	if err == nil && credsFromCache.HasKeys() && cc.Clock.Now().Add(cc.RefreshBeforeExpirationPeriod).Before(credsFromCache.Expires) {
+		// No need to refresh, valid credentials in cache
 		return
 	}
 	cc.Log.Debugf("BYOB Credentials need refreshing")
-	cc.retrieveCredentialsAndUpdateCache(ctx)
-}
 
-func (cc *CredentialsCache) retrieveCredentialsAndUpdateCache(ctx context.Context) {
 	creds, err := cc.retrieve(ctx)
 	if err != nil {
-		cc.Log.WithError(err).Debugf("BYOB Failed to retrieve")
+		// if we were not able to retrive, check if existing credentials in cache are still valid.
+		// if yes, just log debug, it will be retired on next interval check.
+		if credsFromCache.HasKeys() && !credsFromCache.Expired() {
+			cc.Log.WithError(err).Debugf("BYOB Failed to retrieve credentials, old ones will be still used")
+			return
+		}
+		// if not, update cached error.
+		cc.credsOrErrMu.Lock()
+		cc.credsOrErr = credsOrErr{err: trace.Wrap(err)}
+		cc.credsOrErrMu.Unlock()
 		return
 	}
-	cc.credsMu.Lock()
-	cc.creds = creds
-	cc.credsMu.Unlock()
+	// refresh went well, update cached values.
+	cc.credsOrErrMu.Lock()
+	cc.credsOrErr = credsOrErr{creds: creds}
+	cc.credsOrErrMu.Unlock()
 }
 
 func (cc *CredentialsCache) run(ctx context.Context) {
 	// wait for initialized signal before running loop.
 	select {
 	case <-cc.initialized:
-		cc.retrieveCredentialsAndUpdateCache(ctx)
+		cc.retrieveIfNeeded(ctx)
 	case <-ctx.Done():
 		cc.Log.WithError(ctx.Err()).Debugf("CredentialsCache received cancel signal before initialized")
 		return
@@ -246,7 +238,7 @@ func (cc *CredentialsCache) run(ctx context.Context) {
 	for {
 		select {
 		case <-checkInterval.Next():
-			cc.retrieveIfCloseToExpiration(ctx)
+			cc.retrieveIfNeeded(ctx)
 		case <-ctx.Done():
 			cc.Log.WithError(ctx.Err()).Debugf("CredentialsCache received cancel signal, stopping refreshing loop")
 			return

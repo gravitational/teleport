@@ -2,8 +2,12 @@ package externalcloudaudit
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/externalcloudaudit"
@@ -12,6 +16,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestConfiguratorIsUsed(t *testing.T) {
@@ -114,4 +119,45 @@ func TestConfiguratorIsUsed(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCredentialsCache(t *testing.T) {
+	cc, err := newCredentialsCache(CacheConfig{
+		IntegratioName: "test",
+		Log:            utils.NewLoggerForTests(),
+	})
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go cc.run(ctx)
+	// TODO(tobiaszheller): rework to use from sdkv1/v2
+
+	t.Run("retrieve fn not initialized yet, expect err", func(t *testing.T) {
+		// This test case covers scenario when auth is not yet initialized.
+		_, err := cc.getCredentialsFromCache(ctx)
+		require.ErrorContains(t, err, "cache not yet initialized")
+	})
+
+	mock := mockCredentialsRetrieve{
+		wantResp: func() (aws.Credentials, error) {
+			return aws.Credentials{}, errors.New("error from credential retrieve")
+		},
+	}
+	t.Run("set retrieve fn to return error", func(t *testing.T) {
+		cc.SetRetrieveCredentialsFn(mock.Retrieve)
+		// This test case covers scenario when cache is initialized
+		// however retrieve fn returns error.
+		require.Eventually(t, func() bool {
+			_, err := cc.getCredentialsFromCache(ctx)
+			return assert.ErrorContains(t, err, "error from credential retrieve")
+		}, 5*time.Second, 100*time.Millisecond)
+	})
+}
+
+type mockCredentialsRetrieve struct {
+	wantResp func() (aws.Credentials, error)
+}
+
+func (m *mockCredentialsRetrieve) Retrieve(ctx context.Context, integration string) (aws.Credentials, error) {
+	return m.wantResp()
 }
