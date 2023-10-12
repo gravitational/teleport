@@ -353,7 +353,7 @@ func (c *checkedPrefixWriter) Write(p []byte) (int, error) {
 	n, err := c.Conn.Write(p)
 	// Advance pointer by confirmed portion of the prefix.
 	c.requiredPointer += min(n, len(small))
-	return n, err
+	return n, trace.Wrap(err)
 }
 
 // getRemoteCluster looks up the provided clusterName to determine if a remote site exists with
