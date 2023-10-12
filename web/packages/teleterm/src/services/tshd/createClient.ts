@@ -817,29 +817,34 @@ export default function createClient(
               } else {
                 resolve({
                   nextKey: res.getNextKey(),
-                  resources: res.getResourcesList().map(p => {
-                    switch (p.getResourceCase()) {
-                      case api.PaginatedResource.ResourceCase.SERVER:
-                        return {
-                          kind: 'server',
-                          resource: p.getServer().toObject() as types.Server,
-                        };
-                      case api.PaginatedResource.ResourceCase.DATABASE:
-                        return {
-                          kind: 'database',
-                          resource: p
-                            .getDatabase()
-                            .toObject() as types.Database,
-                        };
-                      case api.PaginatedResource.ResourceCase.KUBE:
-                        return {
-                          kind: 'kube',
-                          resource: p.getKube().toObject() as types.Kube,
-                        };
-                      default:
-                        throw new Error('resource not set');
-                    }
-                  }),
+                  resources: res
+                    .getResourcesList()
+                    .map(p => {
+                      switch (p.getResourceCase()) {
+                        case api.PaginatedResource.ResourceCase.SERVER:
+                          return {
+                            kind: 'server' as const,
+                            resource: p.getServer().toObject() as types.Server,
+                          };
+                        case api.PaginatedResource.ResourceCase.DATABASE:
+                          return {
+                            kind: 'database' as const,
+                            resource: p
+                              .getDatabase()
+                              .toObject() as types.Database,
+                          };
+                        case api.PaginatedResource.ResourceCase.KUBE:
+                          return {
+                            kind: 'kube' as const,
+                            resource: p.getKube().toObject() as types.Kube,
+                          };
+                        default:
+                          logger.info(
+                            `Ignoring unsupported resource ${JSON.stringify(p.toObject())}.`
+                          );
+                      }
+                    })
+                    .filter(Boolean),
                 });
               }
             });
