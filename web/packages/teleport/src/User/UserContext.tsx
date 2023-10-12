@@ -75,6 +75,9 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
 
   const getClusterPinnedResources = useCallback(async (clusterId: string) => {
     if (clusterPreferences.current[clusterId]) {
+      // we know that pinned resources is supported because we've already successfully
+      // fetched their pinned resources once before
+      localStorage.removeItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED);
       return clusterPreferences.current[clusterId].pinnedResources;
     }
     const prefs = await service.getUserClusterPreferences(clusterId);
