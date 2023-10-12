@@ -2676,7 +2676,8 @@ func AuthorizeAccessReviewRequest(context authz.Context, params types.AccessRevi
 
 		// MaybeCanReviewRequests returns false positives, but it will tell us
 		// if the user definitely can't review requests, which saves a lot of work.
-		if !context.Checker.MaybeCanReviewRequests() {
+		// TODO: Is this the best way we can handle bots??
+		if !context.User.IsBot() && !context.Checker.MaybeCanReviewRequests() {
 			return trace.AccessDenied("user %q cannot submit reviews", context.User.GetName())
 		}
 	}
