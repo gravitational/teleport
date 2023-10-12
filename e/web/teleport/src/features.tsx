@@ -269,7 +269,7 @@ class FeatureAuthConnectors extends OSS.FeatureAuthConnectors {
 
 class FeatureAccessListManagement implements TeleportFeature {
   category = NavigationCategory.Management;
-  section = ManagementSection.Access;
+  section = ManagementSection.Identity;
   route = {
     title: 'Manage Access Lists',
     path: cfg.routes.accessLists,
@@ -294,7 +294,7 @@ class FeatureAccessListManagement implements TeleportFeature {
 
 class FeatureDeviceTrust implements TeleportFeature {
   category = NavigationCategory.Management;
-  section = ManagementSection.Access;
+  section = ManagementSection.Identity;
   route = {
     title: 'Manage Trusted Devices',
     path: cfg.routes.deviceTrust,
@@ -387,14 +387,16 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     // - Access
     new OSS.FeatureUsers(),
     new OSS.FeatureRoles(),
-    new FeatureAccessListManagement(),
-    new FeatureDeviceTrust(),
     new FeatureAuthConnectors(),
-    new OSS.FeatureLocks(),
-    new FeatureNewLock(),
     new FeatureIntegrations(),
     new FeatureDiscoverE(),
     new FeatureIntegrationEnroll(),
+
+    // - Identity
+    new FeatureAccessListManagement(),
+    new OSS.FeatureLocks(),
+    new FeatureNewLock(),
+    new FeatureDeviceTrust(),
 
     // - Activity
     new OSS.FeatureRecordings(),
