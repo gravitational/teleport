@@ -25,6 +25,16 @@ class AccessGraphServiceStub(object):
                 request_serializer=accessgraph_dot_v1alpha_dot_query__pb2.GetFileRequest.SerializeToString,
                 response_deserializer=accessgraph_dot_v1alpha_dot_query__pb2.GetFileResponse.FromString,
                 )
+        self.SendEvent = channel.unary_unary(
+                '/accessgraph.v1alpha.AccessGraphService/SendEvent',
+                request_serializer=accessgraph_dot_v1alpha_dot_query__pb2.SendEventRequest.SerializeToString,
+                response_deserializer=accessgraph_dot_v1alpha_dot_query__pb2.SendEventResponse.FromString,
+                )
+        self.SendResource = channel.unary_unary(
+                '/accessgraph.v1alpha.AccessGraphService/SendResource',
+                request_serializer=accessgraph_dot_v1alpha_dot_query__pb2.SendResourceRequest.SerializeToString,
+                response_deserializer=accessgraph_dot_v1alpha_dot_query__pb2.SendResourceResponse.FromString,
+                )
 
 
 class AccessGraphServiceServicer(object):
@@ -46,6 +56,20 @@ class AccessGraphServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def SendEvent(self, request, context):
+        """SendEvent sends an event to the access graph service.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SendResource(self, request, context):
+        """SendResource sends a resource to the access graph service.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_AccessGraphServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -58,6 +82,16 @@ def add_AccessGraphServiceServicer_to_server(servicer, server):
                     servicer.GetFile,
                     request_deserializer=accessgraph_dot_v1alpha_dot_query__pb2.GetFileRequest.FromString,
                     response_serializer=accessgraph_dot_v1alpha_dot_query__pb2.GetFileResponse.SerializeToString,
+            ),
+            'SendEvent': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendEvent,
+                    request_deserializer=accessgraph_dot_v1alpha_dot_query__pb2.SendEventRequest.FromString,
+                    response_serializer=accessgraph_dot_v1alpha_dot_query__pb2.SendEventResponse.SerializeToString,
+            ),
+            'SendResource': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendResource,
+                    request_deserializer=accessgraph_dot_v1alpha_dot_query__pb2.SendResourceRequest.FromString,
+                    response_serializer=accessgraph_dot_v1alpha_dot_query__pb2.SendResourceResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -101,5 +135,39 @@ class AccessGraphService(object):
         return grpc.experimental.unary_unary(request, target, '/accessgraph.v1alpha.AccessGraphService/GetFile',
             accessgraph_dot_v1alpha_dot_query__pb2.GetFileRequest.SerializeToString,
             accessgraph_dot_v1alpha_dot_query__pb2.GetFileResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def SendEvent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/accessgraph.v1alpha.AccessGraphService/SendEvent',
+            accessgraph_dot_v1alpha_dot_query__pb2.SendEventRequest.SerializeToString,
+            accessgraph_dot_v1alpha_dot_query__pb2.SendEventResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def SendResource(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/accessgraph.v1alpha.AccessGraphService/SendResource',
+            accessgraph_dot_v1alpha_dot_query__pb2.SendResourceRequest.SerializeToString,
+            accessgraph_dot_v1alpha_dot_query__pb2.SendResourceResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

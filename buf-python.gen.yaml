@@ -6,3 +6,6 @@ plugins:
 
   - plugin: buf.build/grpc/python:v1.58.1
     out: gen/proto/py/
+
+  - plugin: buf.build/protocolbuffers/pyi:v24.4
+    out: gen/proto/py/

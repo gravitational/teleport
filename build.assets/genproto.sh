@@ -77,6 +77,7 @@ main() {
 
   # Generate Python protos.
   echoed buf generate --template=buf-python.gen.yaml \
+      --path=api/proto/teleport/ \
       --path=proto/accessgraph/
 
   # Add __init__.py file to the root directory with generated Python packages.
