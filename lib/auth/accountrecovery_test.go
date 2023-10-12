@@ -245,7 +245,7 @@ func TestStartAccountRecovery_WithLock(t *testing.T) {
 	require.Equal(t, startRecoveryMaxFailedAttemptsErrMsg, err.Error())
 
 	// Test locks have been placed.
-	user, err := srv.Auth().GetUser(u.username, false)
+	user, err := srv.Auth().GetUser(ctx, u.username, false)
 	require.NoError(t, err)
 	require.True(t, user.GetStatus().IsLocked)
 	require.False(t, user.GetStatus().RecoveryAttemptLockExpires.IsZero())
@@ -502,7 +502,7 @@ func TestVerifyAccountRecovery_WithLock(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Test only login is locked.
-	user, err := srv.Auth().GetUser(u.username, false)
+	user, err := srv.Auth().GetUser(ctx, u.username, false)
 	require.NoError(t, err)
 	require.True(t, user.GetStatus().IsLocked)
 	require.True(t, user.GetStatus().RecoveryAttemptLockExpires.IsZero())
@@ -642,7 +642,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test locks are removed.
-	user, err := srv.Auth().GetUser(u.username, false)
+	user, err := srv.Auth().GetUser(ctx, u.username, false)
 	require.NoError(t, err)
 	require.False(t, user.GetStatus().IsLocked)
 	require.True(t, user.GetStatus().RecoveryAttemptLockExpires.IsZero())
@@ -1393,11 +1393,22 @@ func createUserWithSecondFactors(testServer *TestTLSServer) (*userAuthCreds, err
 		return nil, trace.Wrap(err)
 	}
 
-	// Register a TOTP device.
 	userClient, err := testServer.NewClient(TestUser(username))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Fetch the MFA device created above.
+	devicesResp, err := userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(devicesResp.Devices) != 1 {
+		return nil, fmt.Errorf("found an unexpected number of MFA devices: %v", devicesResp.Devices)
+	}
+	webDev.MFA = devicesResp.Devices[0]
+
+	// Register a TOTP device.
 	totpDev, err := RegisterTestDevice(
 		ctx,
 		userClient,

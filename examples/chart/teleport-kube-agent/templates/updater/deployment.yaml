@@ -58,7 +58,7 @@ spec:
           value: /etc/teleport-tls-ca/ca.pem
         # Used to track whether a Teleport agent was installed using this method.
         - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-          value: true
+          value: "true"
   {{- end }}
 {{- end }}
         args:

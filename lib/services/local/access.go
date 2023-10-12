@@ -42,12 +42,16 @@ func NewAccessService(backend backend.Backend) *AccessService {
 
 // DeleteAllRoles deletes all roles
 func (s *AccessService) DeleteAllRoles() error {
-	return s.DeleteRange(context.TODO(), backend.Key(rolesPrefix), backend.RangeEnd(backend.Key(rolesPrefix)))
+	startKey := backend.Key(rolesPrefix)
+	endKey := backend.RangeEnd(startKey)
+	return s.DeleteRange(context.TODO(), startKey, endKey)
 }
 
 // GetRoles returns a list of roles registered with the local auth server
 func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
-	result, err := s.GetRange(ctx, backend.Key(rolesPrefix), backend.RangeEnd(backend.Key(rolesPrefix)), backend.NoLimit)
+	startKey := backend.ExactKey(rolesPrefix)
+	endKey := backend.RangeEnd(startKey)
+	result, err := s.GetRange(ctx, startKey, endKey, backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -100,16 +104,18 @@ func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) error {
 		return trace.Wrap(err)
 	}
 
+	rev := role.GetRevision()
 	value, err := services.MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
-		Value:   value,
-		Expires: role.Expiry(),
-		ID:      role.GetResourceID(),
+		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  role.Expiry(),
+		ID:       role.GetResourceID(),
+		Revision: rev,
 	}
 
 	_, err = s.Put(ctx, item)
@@ -166,7 +172,7 @@ func (s *AccessService) GetLock(ctx context.Context, name string) (types.Lock, e
 
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
 func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
-	startKey := backend.Key(locksPrefix)
+	startKey := backend.ExactKey(locksPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -199,15 +205,17 @@ func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets 
 
 // UpsertLock upserts a lock.
 func (s *AccessService) UpsertLock(ctx context.Context, lock types.Lock) error {
+	rev := lock.GetRevision()
 	value, err := services.MarshalLock(lock)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(locksPrefix, lock.GetName()),
-		Value:   value,
-		Expires: lock.Expiry(),
-		ID:      lock.GetResourceID(),
+		Key:      backend.Key(locksPrefix, lock.GetName()),
+		Value:    value,
+		Expires:  lock.Expiry(),
+		ID:       lock.GetResourceID(),
+		Revision: rev,
 	}
 
 	if _, err = s.Put(ctx, item); err != nil {
@@ -232,7 +240,7 @@ func (s *AccessService) DeleteLock(ctx context.Context, name string) error {
 
 // DeleteLock deletes all/in-force locks.
 func (s *AccessService) DeleteAllLocks(ctx context.Context) error {
-	startKey := backend.Key(locksPrefix)
+	startKey := backend.ExactKey(locksPrefix)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
@@ -245,7 +253,7 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 			TTL:      time.Minute,
 		},
 	}, func(ctx context.Context) error {
-		remoteLocksKey := backend.Key(locksPrefix, clusterName)
+		remoteLocksKey := backend.ExactKey(locksPrefix, clusterName)
 		origRemoteLocks, err := s.GetRange(ctx, remoteLocksKey, backend.RangeEnd(remoteLocksKey), backend.NoLimit)
 		if err != nil {
 			return trace.Wrap(err)
@@ -256,15 +264,17 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 			if !strings.HasPrefix(lock.GetName(), clusterName) {
 				lock.SetName(clusterName + "/" + lock.GetName())
 			}
+			rev := lock.GetRevision()
 			value, err := services.MarshalLock(lock)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			item := backend.Item{
-				Key:     backend.Key(locksPrefix, lock.GetName()),
-				Value:   value,
-				Expires: lock.Expiry(),
-				ID:      lock.GetResourceID(),
+				Key:      backend.Key(locksPrefix, lock.GetName()),
+				Value:    value,
+				Expires:  lock.Expiry(),
+				ID:       lock.GetResourceID(),
+				Revision: rev,
 			}
 			newRemoteLocksToStore[string(item.Key)] = item
 		}

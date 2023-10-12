@@ -37,7 +37,7 @@ func TestAzurePostgresFlexFetchers(t *testing.T) {
 	azureSub := makeAzureSubscription(t, "sub123")
 	azPostgresFlexServer, azPostgresFlexDB := makeAzurePostgresFlexServer(t, "postgres-flex", "sub123", "group 1", "East US", map[string]string{"env": "prod"})
 	azureMatchers := []types.AzureMatcher{{
-		Types:        []string{services.AzureMatcherPostgres},
+		Types:        []string{types.AzureMatcherPostgres},
 		ResourceTags: types.Labels{"env": []string{"prod"}},
 		Regions:      []string{"eastus"},
 	}}
@@ -87,6 +87,6 @@ func makeAzurePostgresFlexServer(t *testing.T, name, subscription, group, region
 	}
 	database, err := services.NewDatabaseFromAzurePostgresFlexServer(server)
 	require.NoError(t, err)
-	common.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherPostgres)
+	common.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherPostgres)
 	return server, database
 }

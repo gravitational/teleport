@@ -179,3 +179,70 @@ func TestIsValidRegion(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckRoleARN(t *testing.T) {
+	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
+		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+	}
+
+	for _, tt := range []struct {
+		name     string
+		arn      string
+		errCheck require.ErrorAssertionFunc
+	}{
+		{
+			name:     "valid",
+			arn:      "arn:aws:iam:us-west-2:123456789012:role/foo/bar",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "empty string",
+			arn:      "",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "arn identifier but no other section",
+			arn:      "arn:nil",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "valid with resource that has spaces",
+			arn:      "arn:aws:iam:us-west-2:123456789012:role/foo bar",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "valid when resource section has :",
+			arn:      "arn:aws:iam:us-west-2:123456789012:role/foo bar:a",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "invalid when resource is missing",
+			arn:      "arn:aws:iam:us-west-2:123456789012",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "valid even if region is missing",
+			arn:      "arn:aws:iam::123456789012:role/foo bar",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "invalid when the resource is not role",
+			arn:      "arn:aws:iam::123456789012:user/foo bar",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "invalid when the resource is of type role, but role name section is missing",
+			arn:      "arn:aws:iam::123456789012:role",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "invalid when the resource is of type role, but role is empty",
+			arn:      "arn:aws:iam::123456789012:role/",
+			errCheck: isBadParamErrFn,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errCheck(t, CheckRoleARN(tt.arn))
+		})
+	}
+}

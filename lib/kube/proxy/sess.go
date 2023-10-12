@@ -597,7 +597,7 @@ func (s *session) launch() error {
 
 	var executor remotecommand.Executor
 
-	executor, err = s.forwarder.getExecutor(s.ctx, s.sess, s.req)
+	executor, err = s.forwarder.getExecutor(s.sess, s.req)
 	if err != nil {
 		s.log.WithError(err).Warning("Failed creating executor.")
 		return trace.Wrap(err)
@@ -1206,6 +1206,7 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		Reason:            s.reason,
 		Invited:           s.invitedUsers,
 		HostID:            s.forwarder.cfg.HostID,
+		InitialCommand:    s.req.URL.Query()["command"],
 	}
 
 	s.log.Debug("Creating session tracker")

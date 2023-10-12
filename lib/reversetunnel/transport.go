@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -93,6 +94,9 @@ type transport struct {
 	// preventing users connecting to the proxy tunnel listener spoofing their address; but we are still able to
 	// correctly propagate client address in reverse tunnel agents of nodes/services.
 	forwardClientAddress bool
+
+	// trackUserConnection is an optional mechanism used to count active user sessions.
+	trackUserConnection func() (release func())
 }
 
 // start will start the transporting data over the tunnel. This function will
@@ -246,6 +250,10 @@ func (p *transport) start() {
 		// tunnel from the SSH node by dreq.ServerID. We'll need to forward
 		// dreq.Address as well.
 		directAddress = dreq.Address
+
+		if p.trackUserConnection != nil {
+			defer p.trackUserConnection()()
+		}
 	default:
 		// Not a special address; could be empty.
 		directAddress = dreq.Address
@@ -391,10 +399,24 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 		}
 
 		p.log.Debugf("Returning direct dialed connection to %q.", addr)
+
+		// Requests to get a connection to the remote auth server do not provide a ConnType,
+		// and since an empty ConnType is converted to [types.NodeTunnel] in CheckAndSetDefaults,
+		// we need to check the address of the request to prevent auth connections from being
+		// counted as a proxied ssh session.
+		if r.ConnType == types.NodeTunnel && r.Address != reversetunnelclient.RemoteAuthServer {
+			return proxy.NewProxiedMetricConn(conn), false, nil
+		}
+
 		return conn, false, nil
 	}
 
 	p.log.Debugf("Returning connection dialed through tunnel with server ID %v.", r.ServerID)
+
+	if r.ConnType == types.NodeTunnel {
+		return proxy.NewProxiedMetricConn(conn), true, nil
+	}
+
 	return conn, true, nil
 }
 

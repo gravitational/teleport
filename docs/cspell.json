@@ -597,6 +597,7 @@
     "noprompt",
     "nosql",
     "nowait",
+    "ntauth",
     "nvme",
     "obtainlicense",
     "octocat",
@@ -690,6 +691,7 @@
     "runscript",
     "russellhaering",
     "russjones",
+    "rwxr",
     "sadas",
     "samlauthentication",
     "samltest",
@@ -828,6 +830,7 @@
     "winadj",
     "windowsaccountname",
     "windowsdesktop",
+    "winscp",
     "winserver",
     "workgroups",
     "wtmp",
@@ -853,7 +856,8 @@
     "persistentvolumeclaim",
     "daemonset",
     "certificatesigningrequest",
-    "deletecollection"
+    "deletecollection",
+    "supervillain"
   ],
   "flagWords": [
     "hte"

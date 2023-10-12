@@ -42,6 +42,7 @@ type AccessRequestData struct {
 	ResolutionTag     ResolutionTag
 	ResolutionReason  string
 	SystemAnnotations map[string][]string
+	Resources         []string
 }
 
 // DecodeAccessRequestData deserializes a string map to PluginData struct.
@@ -57,8 +58,16 @@ func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData,
 	data.ResolutionTag = ResolutionTag(dataMap["resolution"])
 	data.ResolutionReason = dataMap["resolve_reason"]
 
-	if _, ok := dataMap["system_annotations"]; ok {
-		err = json.Unmarshal([]byte(dataMap["system_annotations"]), &data.SystemAnnotations)
+	if str, ok := dataMap["resources"]; ok {
+		err = json.Unmarshal([]byte(str), &data.Resources)
+		if err != nil {
+			err = trace.Wrap(err)
+			return
+		}
+	}
+
+	if str, ok := dataMap["system_annotations"]; ok {
+		err = json.Unmarshal([]byte(str), &data.SystemAnnotations)
 		if err != nil {
 			err = trace.Wrap(err)
 			return
@@ -76,7 +85,16 @@ func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) 
 
 	result["user"] = data.User
 	result["roles"] = strings.Join(data.Roles, ",")
+	result["resources"] = strings.Join(data.Resources, ",")
 	result["request_reason"] = data.RequestReason
+
+	if len(data.Resources) != 0 {
+		resources, err := json.Marshal(data.Resources)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result["resources"] = string(resources)
+	}
 
 	var reviewsCountStr string
 	if data.ReviewsCount > 0 {

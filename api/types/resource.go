@@ -654,3 +654,18 @@ func ValidateResourceName(validationRegex *regexp.Regexp, name string) error {
 		name, validationRegex.String(),
 	)
 }
+
+// FriendlyName will return the friendly name for a resource if it has one. Otherwise, it
+// will return an empty string.
+func FriendlyName(resource ResourceWithLabels) string {
+	// Right now, only resources sourced from Okta and nodes have friendly names.
+	if resource.Origin() == OriginOkta {
+		return resource.GetMetadata().Description
+	}
+
+	if hn, ok := resource.(interface{ GetHostname() string }); ok {
+		return hn.GetHostname()
+	}
+
+	return ""
+}

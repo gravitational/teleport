@@ -45,7 +45,7 @@ func (s *PresenceService) GetInstances(ctx context.Context, req types.InstanceFi
 		return stream.Once(instance)
 	}
 
-	startKey := backend.Key(instancePrefix, "")
+	startKey := backend.ExactKey(instancePrefix)
 	endKey := backend.RangeEnd(startKey)
 	items := backend.StreamRange(ctx, s, startKey, endKey, pageSize)
 	return stream.FilterMap(items, func(item backend.Item) (types.Instance, bool) {
@@ -102,15 +102,17 @@ func (s *PresenceService) UpsertInstance(ctx context.Context, instance types.Ins
 		return trace.BadParameter("unexpected type %T, expected %T", instance, v1)
 	}
 
+	rev := instance.GetRevision()
 	value, err := utils.FastMarshal(v1)
 	if err != nil {
 		return trace.Errorf("failed to marshal Instance: %v", err)
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(instancePrefix, instance.GetName()),
-		Value:   value,
-		Expires: instance.Expiry(),
+		Key:      backend.Key(instancePrefix, instance.GetName()),
+		Value:    value,
+		Expires:  instance.Expiry(),
+		Revision: rev,
 	}
 
 	_, err = s.Backend.Put(ctx, item)

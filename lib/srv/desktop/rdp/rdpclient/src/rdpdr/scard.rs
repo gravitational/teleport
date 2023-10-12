@@ -1307,8 +1307,7 @@ impl ReaderState_Common_Call {
         let current_state = CardStateFlags::from_bits_truncate(payload.read_u32::<LittleEndian>()?);
         let event_state = CardStateFlags::from_bits_truncate(payload.read_u32::<LittleEndian>()?);
         let atr_length = payload.read_u32::<LittleEndian>()?;
-        let mut atr = vec![];
-        atr.resize(36, 0);
+        let mut atr = vec![0; 36];
         payload.read_exact(&mut atr)?;
         Ok(Self {
             current_state,
@@ -1811,8 +1810,7 @@ impl Transmit_Call {
         send_pci.decode_value(payload)?;
 
         let send_length = payload.read_u32::<LittleEndian>()?;
-        let mut send_buffer = vec![];
-        send_buffer.resize(send_length as usize, 0);
+        let mut send_buffer = vec![0; send_length as usize];
         payload.read_exact(&mut send_buffer)?;
 
         let recv_pci = if recv_pci_ptr != 0 {
@@ -1886,8 +1884,7 @@ impl SCardIO_Request {
             .ok_or_else(|| invalid_data_error("invalid protocol bits in SCardIO_Request"))?;
         let extra_bytes_length = payload.read_u32::<LittleEndian>()?;
         let _extra_bytes_ptr = decode_ptr(payload, index)?;
-        let mut extra_bytes = vec![];
-        extra_bytes.resize(extra_bytes_length as usize, 0);
+        let extra_bytes = vec![0; extra_bytes_length as usize];
         Ok(Self {
             protocol,
             extra_bytes_length,

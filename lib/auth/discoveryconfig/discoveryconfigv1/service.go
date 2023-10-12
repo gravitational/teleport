@@ -170,6 +170,26 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 	return conv.ToProto(resp), nil
 }
 
+// UpsertDiscoveryConfig creates or updates a DiscoveryConfig.
+func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.UpsertDiscoveryConfigRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
+	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindDiscoveryConfig, types.VerbCreate, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dc, err := conv.FromProto(req.GetDiscoveryConfig())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := s.backend.UpsertDiscoveryConfig(ctx, dc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conv.ToProto(resp), nil
+}
+
 // DeleteDiscoveryConfig removes the specified DiscoveryConfig resource.
 func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.DeleteDiscoveryConfigRequest) (*emptypb.Empty, error) {
 	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindDiscoveryConfig, types.VerbDelete)

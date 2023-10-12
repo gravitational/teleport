@@ -264,6 +264,9 @@ type Config struct {
 	// Note: When set, this overrides Auth and Proxy's AssistAPIKey settings.
 	OpenAIConfig *openai.ClientConfig
 
+	// Options provide a way to customize behavior of service initialization.
+	Options []Option
+
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
@@ -284,6 +287,24 @@ type Config struct {
 	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
 	// as we still need to keep multiple addresses and return them for older config versions.
 	authServers []utils.NetAddr
+}
+
+// Option allows to customize default behavior of service initialization defined by Config
+type Option interface {
+	Apply(any) error
+}
+
+// KubeMultiplexerIgnoreSelfConnectionsOption signals that Proxy TLS server's listener should
+// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
+// connections there.
+type KubeMultiplexerIgnoreSelfConnectionsOption struct{}
+
+func (k KubeMultiplexerIgnoreSelfConnectionsOption) Apply(input any) error {
+	return nil
+}
+
+func WithKubeMultiplexerIgnoreSelfConnectionsOption() KubeMultiplexerIgnoreSelfConnectionsOption {
+	return KubeMultiplexerIgnoreSelfConnectionsOption{}
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.
