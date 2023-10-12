@@ -338,7 +338,8 @@ func newCheckedPrefixWriter(conn net.Conn, requiredPrefix []byte) *checkedPrefix
 func (c *checkedPrefixWriter) Write(p []byte) (int, error) {
 	// If pointer reached end of required prefix the check is done
 	if len(c.requiredPrefix) == c.requiredPointer {
-		return c.Conn.Write(p)
+		n, err := c.Conn.Write(p)
+		return n, trace.Wrap(err)
 	}
 
 	// Decide which is smaller, provided data or remaining portion of the required prefix
