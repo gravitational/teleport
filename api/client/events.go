@@ -23,6 +23,8 @@ import (
 	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	discoveryconfigv1conv "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
+	"github.com/gravitational/teleport/api/types/externalcloudaudit"
+	externalcloudauditv1conv "github.com/gravitational/teleport/api/types/externalcloudaudit/convert/v1"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	userloginstatev1conv "github.com/gravitational/teleport/api/types/userloginstate/convert/v1"
 )
@@ -159,6 +161,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case *types.SessionRecordingConfigV2:
 		out.Resource = &proto.Event_SessionRecordingConfig{
 			SessionRecordingConfig: r,
+		}
+	case *externalcloudaudit.ExternalCloudAudit:
+		out.Resource = &proto.Event_ExternalCloudAudit{
+			ExternalCloudAudit: externalcloudauditv1conv.ToProto(r),
 		}
 	case *types.AuthPreferenceV2:
 		out.Resource = &proto.Event_AuthPreference{
