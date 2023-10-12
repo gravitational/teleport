@@ -270,6 +270,9 @@ spec:
           readOnly: true
   {{- end }}
 {{ end }}
+{{- if $auth.extraContainers }}
+  {{- toYaml $auth.extraContainers | nindent 6 }}
+{{- end }}
 {{- if $projectedServiceAccountToken }}
       automountServiceAccountToken: false
 {{- end }}

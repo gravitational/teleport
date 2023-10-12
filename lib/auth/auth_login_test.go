@@ -395,14 +395,13 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 	username := userCreds.username
 
 	// ...and assign the user a sane unix login, plus the prod role.
-	user, err := adminClient.GetUser(username, false /* withSecrets */)
+	user, err := adminClient.GetUser(ctx, username, false /* withSecrets */)
 	require.NoError(t, err, "GetUser(%q)", username)
 	const login = "llama"
 	user.SetLogins(append(user.GetLogins(), login))
 	user.AddRole(prodRole.GetName())
-	require.NoError(t,
-		adminClient.UpdateUser(ctx, user.(*types.UserV2)),
-		"UpdateUser(%q)", username)
+	_, err = adminClient.UpdateUser(ctx, user.(*types.UserV2))
+	require.NoError(t, err, "UpdateUser(%q)", username)
 
 	userClient, err := testServer.NewClient(TestUser(username))
 	require.NoError(t, err, "NewClient(%q)", username)

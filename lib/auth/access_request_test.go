@@ -132,7 +132,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 		user, err := types.NewUser(name)
 		require.NoError(t, err)
 		user.SetRoles(roles)
-		err = tlsServer.Auth().UpsertUser(user)
+		_, err = tlsServer.Auth().UpsertUser(ctx, user)
 		require.NoError(t, err)
 	}
 
@@ -648,7 +648,7 @@ func testRoleRefreshWithBogusRequestID(t *testing.T, testPack *accessRequestTest
 	user, err := types.NewUser(username)
 	require.NoError(t, err)
 	user.AddRole("requesters")
-	err = auth.UpsertUser(user)
+	user, err = auth.UpsertUser(ctx, user)
 	require.NoError(t, err)
 
 	// Create a client with the old set of roles.
@@ -657,7 +657,7 @@ func testRoleRefreshWithBogusRequestID(t *testing.T, testPack *accessRequestTest
 
 	// Add a new role to the user on the server.
 	user.AddRole("operators")
-	err = auth.UpdateUser(ctx, user)
+	_, err = auth.UpdateUser(ctx, user)
 	require.NoError(t, err)
 
 	certs, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{

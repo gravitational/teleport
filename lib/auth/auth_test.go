@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -233,7 +234,7 @@ func TestSessions(t *testing.T) {
 	out, err := s.a.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.NoError(t, err)
 	ws.SetPriv(nil)
-	require.Equal(t, ws, out)
+	require.Empty(t, cmp.Diff(ws, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.a.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
 		User:      user,
@@ -558,7 +559,7 @@ func TestUserLock(t *testing.T) {
 		require.Error(t, err)
 	}
 
-	user, err := s.a.GetUser(username, false)
+	user, err := s.a.GetUser(ctx, username, false)
 	require.NoError(t, err)
 	require.True(t, user.GetStatus().IsLocked)
 
@@ -774,21 +775,21 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	user.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: "some-auth-user"},
 	})
-	err = s.a.CreateUser(ctx, user)
+	user, err = s.a.CreateUser(ctx, user)
 	require.NoError(t, err)
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.UserCreateEvent)
 	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserCreate).User, "some-auth-user")
 	s.mockEmitter.Reset()
 
 	// test create user with existing user
-	err = s.a.CreateUser(ctx, user)
+	_, err = s.a.CreateUser(ctx, user)
 	require.True(t, trace.IsAlreadyExists(err))
 	require.Nil(t, s.mockEmitter.LastEvent())
 
 	// test createdBy gets set to default
 	user2, err := types.NewUser("some-other-user")
 	require.NoError(t, err)
-	err = s.a.CreateUser(ctx, user2)
+	_, err = s.a.CreateUser(ctx, user2)
 	require.NoError(t, err)
 	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserCreate).User, teleport.UserSystem)
 	s.mockEmitter.Reset()
@@ -796,12 +797,12 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	// test update on non-existent user
 	user3, err := types.NewUser("non-existent-user")
 	require.NoError(t, err)
-	err = s.a.UpdateUser(ctx, user3)
+	_, err = s.a.UpdateUser(ctx, user3)
 	require.True(t, trace.IsNotFound(err))
 	require.Nil(t, s.mockEmitter.LastEvent())
 
 	// test update user
-	err = s.a.UpdateUser(ctx, user)
+	_, err = s.a.UpdateUser(ctx, user)
 	require.NoError(t, err)
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.UserUpdatedEvent)
 	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserCreate).User, teleport.UserSystem)

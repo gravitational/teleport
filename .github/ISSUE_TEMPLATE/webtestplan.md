@@ -580,7 +580,15 @@ Use Discover Wizard to enroll new resources and access them:
 - Kubernetes access
    - [ ] Open a new kubernetes tab, run `echo $KUBECONFIG` and check if it points to the file within Connect's app data directory.
    - [ ] Close the tab and open it again (to the same resource). Verify that the kubeconfig path didn't change.
-   - [ ] Run `kubectl get pods` and see if the command succeeds.
+   - [ ] Run `kubectl get pods -A` and verify that the command succeeds. Then create a pod with
+     `kubectl apply -f https://k8s.io/examples/application/shell-demo.yaml` and exec into it with
+     `kubectl exec --stdin --tty shell-demo -- /bin/bash`. Verify that the shell works.
+      - For execing into a pod, you might need to [create a `ClusterRoleBinding` in
+        k8s](https://goteleport.com/docs/kubernetes-access/register-clusters/static-kubeconfig/#kubernetes-authorization)
+        for [the admin role](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#user-facing-roles).
+        Then you need to add the k8s group (which maps to the k8s admin role in
+        `ClusterRoleBinding`) to `kubernetes_groups` of your Teleport role.
+      - [ ] Repeat the above check for a k8s cluster connected to a leaf cluster.
    - Verify that the kubeconfig file is removed when the user:
       - [ ] Removes the connection
       - [ ] Logs out of the cluster

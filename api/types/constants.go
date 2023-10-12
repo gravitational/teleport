@@ -36,6 +36,11 @@ const (
 	// releases on the release server
 	EnterpriseReleaseEndpoint = "teleport-ent"
 
+	// PackageNameOSS is the teleport package name for the OSS version.
+	PackageNameOSS = "teleport"
+	// PackageNameOSS is the teleport package name for the Enterprise version.
+	PackageNameEnt = "teleport-ent"
+
 	// ActionRead grants read access (get, list)
 	ActionRead = "read"
 
@@ -274,6 +279,15 @@ const (
 	// MetaNameSessionRecordingConfig is the exact name of the singleton resource for
 	// session recording configuration.
 	MetaNameSessionRecordingConfig = "session-recording-config"
+
+	// KindExternalCloudAudit the resource for external cloud audit.
+	KindExternalCloudAudit = "external_cloud_audit"
+	// MetaNameExternalCloudAuditDraft is the exact name of the singleton resource
+	// holding external cloud audit draft configuration.
+	MetaNameExternalCloudAuditDraft = "external-cloud-audit-draft"
+	// MetaNameExternalCloudAuditCluster is the exact name of the singleton resource
+	// holding external cloud audit cluster configuration.
+	MetaNameExternalCloudAuditCluster = "external-cloud-audit-cluster"
 
 	// KindClusterConfig is the resource that holds cluster level configuration.
 	// Deprecated: This does not correspond to an actual resource anymore but is
