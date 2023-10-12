@@ -101,7 +101,16 @@ export const Cards: Story = {
               ...additionalResources,
               ...desktops,
             ].map((res, i) => (
-              <ResourceCard key={i} resource={res} />
+              <ResourceCard
+                key={i}
+                resource={res}
+                pinned={false}
+                pinResource={() => {}}
+                pinningDisabled={false}
+                selectResource={() => {}}
+                selected={false}
+                pinningNotSupported={false}
+              />
             ))}
           </Grid>
         </TeleportContextProvider>

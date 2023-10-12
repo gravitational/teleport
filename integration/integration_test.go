@@ -2251,6 +2251,19 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 		tc.concurrentConns = 1
 	}
 
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// once the tunnel is established we need to wait until we have a
+		// connection to the remote auth
+		site := teleport.GetSiteAPI(helpers.Site)
+		if !assert.NotNil(t, site) {
+			return
+		}
+		// we need to wait until we know about the node because direct dial to
+		// unregistered servers is no longer supported
+		_, err := site.GetNode(ctx, defaults.Namespace, teleport.Config.HostUUID)
+		assert.NoError(t, err)
+	}, time.Second*30, 250*time.Millisecond)
+
 	asyncErrors := make(chan error, 1)
 
 	for i := 0; i < tc.concurrentConns; i++ {
@@ -3890,7 +3903,7 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	err = main.Process.GetAuthServer().UpsertRole(ctx, adminsRole)
 	require.NoError(t, err)
-	err = main.Process.GetAuthServer().UpsertUser(&types.UserV2{
+	_, err = main.Process.GetAuthServer().UpsertUser(ctx, &types.UserV2{
 		Kind: types.KindUser,
 		Metadata: types.Metadata{
 			Name: username,
@@ -6903,7 +6916,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	}
 
 	// Update user
-	err = authServer.UpsertUser(user)
+	user, err = authServer.UpsertUser(ctx, user)
 	require.NoError(t, err)
 
 	WaitForResource(t, watcher, user.GetKind(), user.GetName())
@@ -8891,7 +8904,8 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 		u.SetRoles([]string{"access", role})
 		u.SetLogins([]string{suite.Me.Username, user})
 
-		require.NoError(t, asrv.CreateUser(ctx, u))
+		_, err = asrv.CreateUser(ctx, u)
+		require.NoError(t, err)
 
 		token, err := asrv.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
 			Name: user,

@@ -1787,7 +1787,7 @@ func TestIsMFARequired(t *testing.T) {
 					require.NoError(t, err)
 
 					user.AddRole(role.GetName())
-					err = srv.Auth().UpsertUser(user)
+					user, err = srv.Auth().UpsertUser(ctx, user)
 					require.NoError(t, err)
 
 					cl, err := srv.NewClient(TestUser(user.GetName()))
@@ -1937,7 +1937,7 @@ func TestIsMFARequired_nodeMatch(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	user, err := CreateUser(srv.Auth(), "mfa-user", role)
+	user, err := CreateUser(ctx, srv.Auth(), "mfa-user", role)
 	require.NoError(t, err)
 
 	cl, err := srv.NewClient(TestUser(user.GetName()))
@@ -3733,7 +3733,7 @@ func TestSAMLValidation(t *testing.T) {
 
 			role, err := CreateRole(ctx, server.Auth(), "test_role", types.RoleSpecV6{Allow: tc.allow})
 			require.NoError(t, err)
-			user, err := CreateUser(server.Auth(), "test_user", role)
+			user, err := CreateUser(ctx, server.Auth(), "test_user", role)
 			require.NoError(t, err)
 
 			connector, err := types.NewSAMLConnector("test_connector", types.SAMLConnectorSpecV2{
@@ -3896,7 +3896,7 @@ func TestRoleVersions(t *testing.T) {
 		},
 	})
 
-	user, err := CreateUser(srv.Auth(), "user", role)
+	user, err := CreateUser(context.Background(), srv.Auth(), "user", role)
 	require.NoError(t, err)
 
 	client, err := srv.NewClient(TestUser(user.GetName()))

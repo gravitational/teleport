@@ -326,13 +326,7 @@ func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListW
 }
 
 // DeleteAllUsers not implemented: can only be called locally.
-func (c *Client) DeleteAllUsers() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUsersWithContext not implemented: can only be called locally.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) DeleteAllUsersWithContext(ctx context.Context) error {
+func (c *Client) DeleteAllUsers(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -449,27 +443,36 @@ func (c *Client) AccessListClient() services.AccessLists {
 	return c.APIClient.AccessListClient()
 }
 
+func (c *Client) ExternalCloudAuditClient() services.ExternalCloudAudits {
+	return c.APIClient.ExternalCloudAuditClient()
+}
+
 func (c *Client) UserLoginStateClient() services.UserLoginStates {
 	return c.APIClient.UserLoginStateClient()
 }
 
-// UpsertUserWithContext UpsertUser user updates or inserts user entry.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) UpsertUserWithContext(ctx context.Context, user types.User) (types.User, error) {
-	if err := c.UpsertUser(user); err != nil {
+// UpsertUser user updates user entry.
+func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
+	data, err := services.MarshalUser(user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	_, err = c.HTTPClient.PostJSON(ctx, c.Endpoint("users"), &upsertUserRawReq{User: data})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := c.GetUser(user.GetName(), false)
-	return user, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	upserted, err := c.GetUser(ctx, user.GetName(), false)
+	return upserted, trace.Wrap(err)
 }
 
-// GetUserWithContext returns the user matching the name as seen by the server.
-// withSecrets controls whether authentication details are returned.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	user, err := c.GetUser(name, withSecrets)
-	return user, trace.Wrap(err)
+// DiscoveryConfigClient returns a client for managing the DiscoveryConfig resource.
+func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigs {
+	return c.APIClient.DiscoveryConfigClient()
 }
 
 // WebService implements features used by Web UI clients
@@ -540,10 +543,7 @@ type IdentityService interface {
 	GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error)
 
 	// GetUser returns user by name
-	GetUser(name string, withSecrets bool) (types.User, error)
-	// GetUserWithContext returns user by name.
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// GetCurrentUser returns current user as seen by the server.
 	// Useful especially in the context of remote clusters which perform role and trait mapping.
@@ -553,18 +553,10 @@ type IdentityService interface {
 	GetCurrentUserRoles(ctx context.Context) ([]types.Role, error)
 
 	// CreateUser inserts a new entry in a backend.
-	CreateUser(ctx context.Context, user types.User) error
-
-	// CreateUser inserts a new entry in a backend.
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	CreateUserWithContext(ctx context.Context, user types.User) (types.User, error)
+	CreateUser(ctx context.Context, user types.User) (types.User, error)
 
 	// UpdateUser updates an existing user in a backend.
-	UpdateUser(ctx context.Context, user types.User) error
-
-	// UpdateUser updates an existing user in a backend.
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	UpdateUserWithContext(ctx context.Context, user types.User) (types.User, error)
+	UpdateUser(ctx context.Context, user types.User) (types.User, error)
 
 	// UpdateAndSwapUser reads an existing user, runs `fn` against it and writes
 	// the result to storage. Return `false` from `fn` to avoid storage changes.
@@ -573,11 +565,7 @@ type IdentityService interface {
 	UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error)
 
 	// UpsertUser user updates or inserts user entry
-	UpsertUser(user types.User) error
-
-	// UpsertUserWithContext user updates or inserts user entry.
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	UpsertUserWithContext(ctx context.Context, user types.User) (types.User, error)
+	UpsertUser(ctx context.Context, user types.User) (types.User, error)
 
 	// CompareAndSwapUser updates an existing user in a backend, but fails if
 	// the user in the backend does not match the expected value.
@@ -587,11 +575,7 @@ type IdentityService interface {
 	DeleteUser(ctx context.Context, user string) error
 
 	// GetUsers returns a list of usernames registered in the system
-	GetUsers(withSecrets bool) ([]types.User, error)
-
-	// GetUsersWithContext returns a list of usernames registered in the system
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error)
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 
 	// ChangePassword changes user password
 	ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error
@@ -616,11 +600,7 @@ type IdentityService interface {
 	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
 
 	// DeleteAllUsers deletes all users
-	DeleteAllUsers() error
-
-	// DeleteAllUsers deletes all users
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	DeleteAllUsersWithContext(ctx context.Context) error
+	DeleteAllUsers(ctx context.Context) error
 
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
@@ -895,11 +875,23 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	UserLoginStateClient() services.UserLoginStates
 
+	// DiscoveryConfigClient returns a DiscoveryConfig client.
+	// Clients connecting to older Teleport versions, still get an DiscoveryConfig client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	DiscoveryConfigClient() services.DiscoveryConfigs
+
 	// ResourceUsageClient returns a resource usage service client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient
+
+	// ExternalCloudAuditClient returns an external cloud audit client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	ExternalCloudAuditClient() services.ExternalCloudAudits
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)

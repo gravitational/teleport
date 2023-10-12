@@ -84,10 +84,10 @@ func runUserResourceTest(
 
 	// Check that dynamically created item is compatible with service
 	s := NewIdentityService(tt.bk)
-	b, err := s.GetUser("bob", withSecrets)
+	b, err := s.GetUser(ctx, "bob", withSecrets)
 	require.NoError(t, err)
 	require.Equal(t, services.UsersEquals(bob, b), true, "dynamically inserted user does not match")
-	allUsers, err := s.GetUsers(withSecrets)
+	allUsers, err := s.GetUsers(ctx, withSecrets)
 	require.NoError(t, err)
 	require.Equal(t, len(allUsers), 2, "expected exactly two users")
 	for _, user := range allUsers {
@@ -103,7 +103,7 @@ func runUserResourceTest(
 
 	// Advance the clock to let the users to expire.
 	tt.bk.Clock().(clockwork.FakeClock).Advance(2 * time.Minute)
-	allUsers, err = s.GetUsers(withSecrets)
+	allUsers, err = s.GetUsers(ctx, withSecrets)
 	require.NoError(t, err)
 	require.Equal(t, len(allUsers), 0, "expected all users to expire")
 }

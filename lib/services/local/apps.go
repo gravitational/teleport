@@ -99,15 +99,17 @@ func (s *AppService) UpdateApp(ctx context.Context, app types.Application) error
 	if err := app.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := app.GetRevision()
 	value, err := services.MarshalApp(app)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(appPrefix, app.GetName()),
-		Value:   value,
-		Expires: app.Expiry(),
-		ID:      app.GetResourceID(),
+		Key:      backend.Key(appPrefix, app.GetName()),
+		Value:    value,
+		Expires:  app.Expiry(),
+		ID:       app.GetResourceID(),
+		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
 	if err != nil {

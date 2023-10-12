@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
@@ -59,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
+	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -767,7 +769,7 @@ func (g *GRPCServer) GetUser(ctx context.Context, req *authpb.GetUserRequest) (*
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := auth.ServerWithRoles.GetUser(req.Name, req.WithSecrets)
+	user, err := auth.ServerWithRoles.GetUser(ctx, req.Name, req.WithSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -823,7 +825,7 @@ func (g *GRPCServer) GetUsers(req *authpb.GetUsersRequest, stream authpb.AuthSer
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	users, err := auth.ServerWithRoles.GetUsers(req.WithSecrets)
+	users, err := auth.ServerWithRoles.GetUsers(stream.Context(), req.WithSecrets)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1170,7 +1172,7 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *types.UserV2) (*emptyp
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.ServerWithRoles.CreateUser(ctx, req); err != nil {
+	if _, err := auth.ServerWithRoles.CreateUser(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1194,7 +1196,7 @@ func (g *GRPCServer) UpdateUser(ctx context.Context, req *types.UserV2) (*emptyp
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.ServerWithRoles.UpdateUser(ctx, req); err != nil {
+	if _, err := auth.ServerWithRoles.UpdateUser(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -5448,6 +5450,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	integrationpb.RegisterIntegrationServiceServer(server, integrationServiceServer)
+
+	discoveryConfig, err := discoveryconfigv1.NewService(discoveryconfigv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Clock:      cfg.AuthServer.clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	discoveryconfigpb.RegisterDiscoveryConfigServiceServer(server, discoveryConfig)
 
 	// Initialize and register the user preferences service.
 	userPreferencesSrv, err := userpreferencesv1.NewService(&userpreferencesv1.ServiceConfig{

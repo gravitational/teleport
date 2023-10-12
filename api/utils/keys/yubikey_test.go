@@ -50,36 +50,41 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 		keys.PrivateKeyPolicyHardwareKey,
 		keys.PrivateKeyPolicyHardwareKeyTouch,
 	} {
-		t.Run(fmt.Sprintf("policy:%q", policy), func(t *testing.T) {
-			t.Cleanup(func() { resetYubikey(ctx, t) })
+		for _, customSlot := range []bool{true, false} {
+			t.Run(fmt.Sprintf("policy:%q", policy), func(t *testing.T) {
+				t.Run(fmt.Sprintf("custom slot:%v", customSlot), func(t *testing.T) {
+					t.Cleanup(func() { resetYubikey(ctx, t) })
 
-			// GetYubiKeyPrivateKey should generate a new YubiKeyPrivateKey.
-			priv, err := keys.GetOrGenerateYubiKeyPrivateKey(policy == keys.PrivateKeyPolicyHardwareKeyTouch)
-			require.NoError(t, err)
+					var slot keys.PIVSlot = ""
+					if customSlot {
+						slot = "9a"
+					}
 
-			// test HardwareSigner methods
-			getPolicy := keys.GetPrivateKeyPolicy(priv)
-			require.Equal(t, policy, getPolicy)
+					// GetYubiKeyPrivateKey should generate a new YubiKeyPrivateKey.
+					priv, err := keys.GetYubiKeyPrivateKey(ctx, policy, slot)
+					require.NoError(t, err)
 
-			att, err := keys.GetAttestationStatement(priv)
-			require.NoError(t, err)
-			require.NotNil(t, att)
+					// test HardwareSigner methods
+					require.Equal(t, policy, priv.GetPrivateKeyPolicy())
+					require.NotNil(t, priv.GetAttestationStatement())
 
-			// Test Sign.
-			digest := make([]byte, 32)
-			_, err = priv.Sign(rand.Reader, digest, nil)
-			require.NoError(t, err)
+					// Test Sign.
+					digest := []byte{100}
+					_, err = priv.Sign(rand.Reader, digest, nil)
+					require.NoError(t, err)
 
-			// Another call to GetYubiKeyPrivateKey should retrieve the previously generated key.
-			retrievePriv, err := keys.GetOrGenerateYubiKeyPrivateKey(policy == keys.PrivateKeyPolicyHardwareKeyTouch)
-			require.NoError(t, err)
-			require.Equal(t, priv.Public(), retrievePriv.Public())
+					// Another call to GetYubiKeyPrivateKey should retrieve the previously generated key.
+					retrievePriv, err := keys.GetYubiKeyPrivateKey(ctx, policy, slot)
+					require.NoError(t, err)
+					require.Equal(t, priv.Public(), retrievePriv.Public())
 
-			// parsing the key's private key PEM should produce the same key as well.
-			retrievePriv, err = keys.ParsePrivateKey(priv.PrivateKeyPEM())
-			require.NoError(t, err)
-			require.Equal(t, priv.Public(), retrievePriv.Public())
-		})
+					// parsing the key's private key PEM should produce the same key as well.
+					retrievePriv, err = keys.ParsePrivateKey(priv.PrivateKeyPEM())
+					require.NoError(t, err)
+					require.Equal(t, priv.Public(), retrievePriv.Public())
+				})
+			})
+		}
 	}
 }
 
@@ -96,18 +101,19 @@ func TestOverwritePrompt(t *testing.T) {
 	oldStdin := prompt.Stdin()
 	t.Cleanup(func() { prompt.SetStdin(oldStdin) })
 
-	slot, err := keys.GetDefaultKeySlot(keys.PrivateKeyPolicyHardwareKeyTouch)
+	// Use a custom slot.
+	pivSlot, err := keys.GetDefaultKeySlot(keys.PrivateKeyPolicyHardwareKeyTouch)
 	require.NoError(t, err)
 
 	testOverwritePrompt := func(t *testing.T) {
 		// Fail to overwrite slot when user denies
 		prompt.SetStdin(prompt.NewFakeReader().AddString("n"))
-		_, err := keys.GetOrGenerateYubiKeyPrivateKey(true)
+		_, err := keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKeyTouch, "" /* slot */)
 		require.True(t, trace.IsCompareFailed(err), "Expected compare failed error but got %v", err)
 
 		// Successfully overwrite slot when user accepts
 		prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
-		_, err = keys.GetOrGenerateYubiKeyPrivateKey(true)
+		_, err = keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKeyTouch, "" /* slot */)
 		require.NoError(t, err)
 	}
 
@@ -117,7 +123,7 @@ func TestOverwritePrompt(t *testing.T) {
 		// Set a non-teleport certificate in the slot.
 		y, err := keys.FindYubiKey(0)
 		require.NoError(t, err)
-		err = y.SetMetadataCertificate(slot, pkix.Name{Organization: []string{"not-teleport"}})
+		err = y.SetMetadataCertificate(pivSlot, pkix.Name{Organization: []string{"not-teleport"}})
 		require.NoError(t, err)
 
 		testOverwritePrompt(t)
@@ -127,9 +133,7 @@ func TestOverwritePrompt(t *testing.T) {
 		t.Cleanup(func() { resetYubikey(ctx, t) })
 
 		// Generate a key that does not require touch in the slot that Teleport expects to require touch.
-		y, err := keys.FindYubiKey(0)
-		require.NoError(t, err)
-		_, err = y.GeneratePrivateKey(slot, keys.PrivateKeyPolicyHardwareKey)
+		_, err := keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKey, keys.PIVSlot(pivSlot.String()))
 		require.NoError(t, err)
 
 		testOverwritePrompt(t)

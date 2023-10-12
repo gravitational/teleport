@@ -188,10 +188,7 @@ type ReadProxyAccessPoint interface {
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
-
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]types.Namespace, error)
@@ -430,10 +427,7 @@ type ReadKubernetesAccessPoint interface {
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
-
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -499,10 +493,7 @@ type ReadAppsAccessPoint interface {
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
-
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -569,10 +560,7 @@ type ReadDatabaseAccessPoint interface {
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
-
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -639,10 +627,7 @@ type ReadWindowsDesktopAccessPoint interface {
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
-
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -777,10 +762,7 @@ type ReadOktaAccessPoint interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
-
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// ListUserGroups returns a paginated list of all user group resources.
 	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
@@ -923,16 +905,10 @@ type Cache interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
-
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// GetUsers returns a list of local users registered with this domain
-	GetUsers(withSecrets bool) ([]types.User, error)
-
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error)
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)

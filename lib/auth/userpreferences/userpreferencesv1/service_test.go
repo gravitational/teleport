@@ -58,9 +58,15 @@ func TestService_GetUserPreferences(t *testing.T) {
 						ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED,
 					},
 					Theme: userpreferencesv1.Theme_THEME_LIGHT,
+					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+						DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
+					},
 					Onboard: &userpreferencesv1.OnboardUserPreferences{
 						PreferredResources: []userpreferencesv1.Resource{},
 						MarketingParams:    &userpreferencesv1.MarketingParams{},
+					},
+					ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
+						PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{},
 					},
 				},
 			},
@@ -100,6 +106,11 @@ func TestService_UpsertUserPreferences(t *testing.T) {
 		Theme: userpreferencesv1.Theme_THEME_LIGHT,
 		Onboard: &userpreferencesv1.OnboardUserPreferences{
 			PreferredResources: []userpreferencesv1.Resource{},
+		},
+		ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
+			PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
+				ResourceIds: []string{"node1", "node2"},
+			},
 		},
 	}
 
@@ -201,7 +212,7 @@ func initSvc(t *testing.T) (map[string]context.Context, *Service) {
 		user.AddRole(role.GetName())
 		require.NoError(t, err)
 
-		err = userSvc.CreateUser(user)
+		user, err = userSvc.CreateUser(ctx, user)
 		require.NoError(t, err)
 
 		ctx = authz.ContextWithUser(ctx, authz.LocalUser{
