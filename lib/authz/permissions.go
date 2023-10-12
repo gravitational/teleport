@@ -1393,13 +1393,13 @@ func HasBuiltinRole(authContext Context, name string) bool {
 
 // IsLocalUser checks if the identity is a local user.
 func IsLocalUser(authContext Context) bool {
-	_, ok := authContext.Identity.(LocalUser)
+	_, ok := authContext.UnmappedIdentity.(LocalUser)
 	return ok
 }
 
 // IsLocalOrRemoteUser checks if the identity is either a local or remote user.
 func IsLocalOrRemoteUser(authContext Context) bool {
-	switch authContext.Identity.(type) {
+	switch authContext.UnmappedIdentity.(type) {
 	case LocalUser, RemoteUser:
 		return true
 	default:
@@ -1414,6 +1414,6 @@ func IsCurrentUser(authContext Context, username string) bool {
 
 // IsRemoteUser checks if the identity is a remote user.
 func IsRemoteUser(authContext Context) bool {
-	_, ok := authContext.Identity.(RemoteUser)
+	_, ok := authContext.UnmappedIdentity.(RemoteUser)
 	return ok
 }
