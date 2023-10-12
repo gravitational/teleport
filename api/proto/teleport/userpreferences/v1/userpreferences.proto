@@ -35,7 +35,7 @@ message UserPreferences {
   v1.OnboardUserPreferences onboard = 3;
   // cluster_preferences are user preferences saved per cluster.
   v1.ClusterUserPreferences cluster_preferences = 4;
-  // unified_resource_preferences are preferences used in the Unified Resource web UI
+  // unified_resource_preferences are user preferences saved for the Unified Resource web UI
   UnifiedResourcePreferences unified_resource_preferences = 5;
 }
 

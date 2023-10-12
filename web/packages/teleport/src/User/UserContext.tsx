@@ -63,12 +63,11 @@ export function useUser(): UserContextValue {
   return useContext(UserContext);
 }
 
-// ClusterPreferences represents a map of clusterId to their cluster preferences
-type ClusterPreferences = Record<string, UserClusterPreferences>;
-
 export function UserContextProvider(props: PropsWithChildren<unknown>) {
   const { attempt, run } = useAttempt('processing');
-  const clusterPreferences = useRef<ClusterPreferences>({});
+  // because we have to update cluster preferences with itself during the update
+  // we useRef here to prevent infinite rerenders
+  const clusterPreferences = useRef<Record<string, UserClusterPreferences>>({});
 
   const [preferences, setPreferences] = useState<UserPreferences>(
     makeDefaultUserPreferences()
@@ -83,23 +82,24 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     return prefs.pinnedResources;
   }, []);
 
-  const updateClusterPinnedResources = useCallback(
-    async (clusterId: string, pinnedResources: string[]) => {
-      let currentPrefs = { ...clusterPreferences[clusterId] };
-      if (currentPrefs) {
-        currentPrefs.pinnedResources = pinnedResources;
-      } else {
-        currentPrefs = { pinnedResources };
-      }
-      clusterPreferences.current[clusterId] = currentPrefs;
+  const updateClusterPinnedResources = async (
+    clusterId: string,
+    pinnedResources: string[]
+  ) => {
+    await setTimeout(() => {}, 1000);
+    let currentPrefs = { ...clusterPreferences[clusterId] };
+    if (currentPrefs) {
+      currentPrefs.pinnedResources = pinnedResources;
+    } else {
+      currentPrefs = { pinnedResources };
+    }
+    clusterPreferences.current[clusterId] = currentPrefs;
 
-      return service.updateUserClusterPreferences(clusterId, {
-        ...preferences,
-        clusterPreferences: currentPrefs,
-      });
-    },
-    [preferences]
-  );
+    return service.updateUserClusterPreferences(clusterId, {
+      ...preferences,
+      clusterPreferences: currentPrefs,
+    });
+  };
 
   async function loadUserPreferences() {
     const storedPreferences = storage.getUserPreferences();

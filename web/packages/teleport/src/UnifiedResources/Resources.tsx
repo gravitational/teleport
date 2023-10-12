@@ -29,7 +29,11 @@ import {
 import { Magnifier, PushPin } from 'design/Icon';
 
 import { Danger } from 'design/Alert';
-import { makeSuccessAttempt, useAsync } from 'shared/hooks/useAsync';
+import {
+  makeEmptyAttempt,
+  makeSuccessAttempt,
+  useAsync,
+} from 'shared/hooks/useAsync';
 
 import { TextIcon } from 'teleport/Discover/Shared';
 
@@ -67,7 +71,7 @@ const FETCH_MORE_SIZE = 24;
 const loadingCardArray = new Array(FETCH_MORE_SIZE).fill(undefined);
 
 export const PINNING_NOT_SUPPORTED_MESSAGE =
-  'This cluster does not support pinning resources. To enabled, upgrade to 14.1 or newer.';
+  'This cluster does not support pinning resources. To enable, upgrade to 14.1 or newer.';
 
 const tabs: { label: string; value: UnifiedTabPreference }[] = [
   {
@@ -104,15 +108,21 @@ export function Resources() {
 
   useEffect(() => {
     getPinnedResources();
+    setSelectedResources([]);
+    setUpdatePinnedResources(makeEmptyAttempt());
   }, [clusterId, getPinnedResources]);
 
   const pinnedResources = getPinnedResourcesAttempt.data || [];
 
-  const [updatePinnedResourcesAttempt, updatePinnedResources] = useAsync(
+  const [
+    updatePinnedResourcesAttempt,
+    updatePinnedResources,
+    setUpdatePinnedResources,
+  ] = useAsync(
     useCallback(
-      (newPinnedResources: string[]) => {
+      async (newPinnedResources: string[]) => {
+        await updateClusterPinnedResources(clusterId, newPinnedResources);
         setPinnedResources(makeSuccessAttempt(newPinnedResources));
-        return updateClusterPinnedResources(clusterId, newPinnedResources);
       },
       [clusterId, updateClusterPinnedResources]
     )
@@ -163,10 +173,6 @@ export function Resources() {
     }
     setSelectedResources([...selectedResources, resourceId]);
   };
-
-  useEffect(() => {
-    setSelectedResources([]);
-  }, [clusterId]);
 
   const handlePinSelected = (unpin: boolean) => {
     let newPinned = [];
@@ -361,6 +367,13 @@ export function Resources() {
                 onLabelClick={onLabelClick}
                 pinResource={handlePinResource}
                 pinned={pinnedResources.includes(key)}
+                // pinningDisabled is used to disable the button during
+                // a pinning network request
+                pinningDisabled={
+                  updatePinnedResourcesAttempt.status === 'processing'
+                }
+                // pinningNotSupported is when the cluster does not have
+                // pinning enabled (old version)
                 pinningNotSupported={pinningNotSupported}
                 selected={selectedResources.includes(key)}
                 selectResource={handleSelectResources}

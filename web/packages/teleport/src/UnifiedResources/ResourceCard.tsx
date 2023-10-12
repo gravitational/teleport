@@ -82,6 +82,9 @@ type Props = {
   // this is used to disable pinning functionality if
   // a leaf cluster hasn't been upgraded yet
   pinningNotSupported: boolean;
+  // pinningDisabled is used to disable the button during
+  // a pinning network request
+  pinningDisabled: boolean;
 };
 
 export function ResourceCard({
@@ -92,6 +95,7 @@ export function ResourceCard({
   pinResource,
   selectResource,
   pinningNotSupported = false,
+  pinningDisabled,
 }: Props) {
   const name = resourceName(resource);
   const id = resourceKey(resource);
@@ -224,7 +228,8 @@ export function ResourceCard({
             />
           </HoverTooltip>
           <PinButton
-            pinningDisabled={pinningNotSupported}
+            pinningDisabled={pinningDisabled}
+            pinningNotSupported={pinningNotSupported}
             setPinned={setPinned}
             hovered={hovered}
             pinned={pinned}
@@ -601,14 +606,16 @@ function PinButton({
   hovered,
   setPinned,
   pinningDisabled,
+  pinningNotSupported,
 }: {
   pinned: boolean;
   hovered: boolean;
   setPinned: (id: string) => void;
   pinningDisabled: boolean;
+  pinningNotSupported: boolean;
 }) {
   const copyAnchorEl = useRef(null);
-  const tipContent = pinningDisabled
+  const tipContent = pinningNotSupported
     ? PINNING_NOT_SUPPORTED_MESSAGE
     : pinned
     ? 'Unpin'
@@ -624,7 +631,7 @@ function PinButton({
         top: ${props => props.theme.space[9]}px;
         left: 16px;
       `}
-      disabled={pinningDisabled}
+      disabled={pinningDisabled || pinningNotSupported}
       setRef={copyAnchorEl}
       size={0}
       onClick={setPinned}
