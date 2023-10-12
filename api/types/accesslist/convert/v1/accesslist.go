@@ -18,6 +18,7 @@ package v1
 
 import (
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -56,6 +57,13 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		recurrence.DayOfMonth = accesslist.ReviewDayOfMonth(msg.Spec.Audit.Recurrence.DayOfMonth)
 	}
 
+	var notifications accesslist.Notifications
+	if msg.Spec.Audit.Notifications != nil {
+		if msg.Spec.Audit.Notifications.StartNotifications != nil {
+			notifications.StartNotifications = msg.Spec.Audit.Notifications.StartNotifications.AsDuration()
+		}
+	}
+
 	owners := make([]accesslist.Owner, len(msg.Spec.Owners))
 	for i, owner := range msg.Spec.Owners {
 		owners[i] = accesslist.Owner{
@@ -74,6 +82,7 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		Audit: accesslist.Audit{
 			NextAuditDate: msg.Spec.Audit.NextAuditDate.AsTime(),
 			Recurrence:    recurrence,
+			Notifications: notifications,
 		},
 		MembershipRequires: accesslist.Requires{
 			Roles:  msg.Spec.MembershipRequires.Roles,
@@ -125,6 +134,9 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 				Recurrence: &accesslistv1.Recurrence{
 					Frequency:  accesslistv1.ReviewFrequency(accessList.Spec.Audit.Recurrence.Frequency),
 					DayOfMonth: accesslistv1.ReviewDayOfMonth(accessList.Spec.Audit.Recurrence.DayOfMonth),
+				},
+				Notifications: &accesslistv1.Notifications{
+					StartNotifications: durationpb.New(accessList.Spec.Audit.Notifications.StartNotifications),
 				},
 			},
 			MembershipRequires: &accesslistv1.AccessListRequires{
