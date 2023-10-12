@@ -23,6 +23,11 @@ export enum ThemePreference {
   Dark = 2,
 }
 
+export enum UnifiedTabPreference {
+  All = 1,
+  Pinned = 2,
+}
+
 export enum ClusterResource {
   RESOURCE_UNSPECIFIED = 0,
   RESOURCE_WINDOWS_DESKTOPS = 1,
@@ -49,6 +54,7 @@ export interface UserPreferences {
   assist: AssistUserPreferences;
   onboard: OnboardUserPreferences;
   clusterPreferences: UserClusterPreferences;
+  unifiedResourcePreferences: UnifiedResourcePreferences;
 }
 
 // UserClusterPreferences are user preferences that are
@@ -56,6 +62,12 @@ export interface UserPreferences {
 export interface UserClusterPreferences {
   // pinnedResources is an array of resource IDs.
   pinnedResources: string[];
+}
+
+// UnifiedResourcePreferences are preferences related to the Unified Resource view
+export interface UnifiedResourcePreferences {
+  // defaultTab is the default tab selected in the unified resource view
+  defaultTab: UnifiedTabPreference;
 }
 
 export type GetUserClusterPreferencesResponse = UserClusterPreferences;
