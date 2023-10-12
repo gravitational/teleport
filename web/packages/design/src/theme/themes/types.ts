@@ -194,6 +194,10 @@ interface AccessGraphColors {
     resourceGroup: AccessGraphNodeColors;
     allowedAction: AccessGraphNodeColors;
     disallowedAction: AccessGraphNodeColors;
+    allowedRequest: AccessGraphNodeColors;
+    disallowedRequest: AccessGraphNodeColors;
+    allowedReview: AccessGraphNodeColors;
+    disallowedReview: AccessGraphNodeColors;
   };
   edges: {
     dynamicMemberOf: AccessGraphEdgeColors;

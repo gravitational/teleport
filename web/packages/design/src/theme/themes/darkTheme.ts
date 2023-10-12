@@ -17,6 +17,7 @@ limitations under the License.
 import {
   blue,
   green,
+  indigo,
   orange,
   pink,
   purple,
@@ -304,6 +305,55 @@ const colors: ThemeColors = {
         label: {
           background: red[200],
           color: red[700],
+        },
+      },
+      allowedRequest: {
+        background: lighten(indigo[300], 0.9),
+        borderColor: indigo[300],
+        typeColor: indigo[300],
+        iconBackground: indigo[300],
+        handleColor: indigo[400],
+        highlightColor: indigo[300],
+        label: {
+          background: indigo[200],
+          color: indigo[700],
+        },
+
+      },
+      disallowedRequest: {
+        background: lighten(purple[300], 0.9),
+        borderColor: purple[300],
+        typeColor: purple[300],
+        iconBackground: purple[300],
+        handleColor: purple[400],
+        highlightColor: purple[300],
+        label: {
+          background: purple[200],
+          color: purple[700],
+        },
+      },
+      allowedReview: {
+        background: lighten(indigo[300], 0.9),
+        borderColor: indigo[300],
+        typeColor: indigo[300],
+        iconBackground: indigo[300],
+        handleColor: indigo[400],
+        highlightColor: indigo[300],
+        label: {
+          background: indigo[200],
+          color: indigo[700],
+        },
+      },
+      disallowedReview: {
+        background: lighten(purple[300], 0.9),
+        borderColor: purple[300],
+        typeColor: purple[300],
+        iconBackground: purple[300],
+        handleColor: purple[400],
+        highlightColor: purple[300],
+        label: {
+          background: purple[200],
+          color: purple[700],
         },
       },
     },
