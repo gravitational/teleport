@@ -41,9 +41,10 @@ func (h *Handler) discoveryconfigCreate(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	dc, err := discoveryconfig.NewDiscoveryConfig(header.Metadata{
-		Name: req.Name,
-	},
+	dc, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{
+			Name: req.Name,
+		},
 		discoveryconfig.Spec{
 			DiscoveryGroup: req.DiscoveryGroup,
 			AWS:            req.AWS,
