@@ -3059,7 +3059,6 @@ export const events = [
     members: [
       {
         member_name: 'user',
-        updated_by: 'mike',
       },
     ],
     updated_by: 'mike',
@@ -3072,7 +3071,6 @@ export const events = [
     members: [
       {
         member_name: 'user',
-        updated_by: 'mike',
       },
     ],
     updated_by: 'mike',
@@ -3085,7 +3083,6 @@ export const events = [
     members: [
       {
         member_name: 'user',
-        updated_by: 'mike',
       },
     ],
     updated_by: 'mike',
@@ -3098,7 +3095,6 @@ export const events = [
     members: [
       {
         member_name: 'user',
-        updated_by: 'mike',
       },
     ],
     updated_by: 'mike',
@@ -3111,7 +3107,6 @@ export const events = [
     members: [
       {
         member_name: 'user',
-        updated_by: 'mike',
       },
     ],
     updated_by: 'mike',
@@ -3123,9 +3118,13 @@ export const events = [
     access_list_name: 'access-list',
     members: [
       {
-        joined_on: '2023-10-11T20:43:39.705323Z',
         member_name: 'carrot',
-        removed_on: '0001-01-01T00:00:00Z',
+      },
+      {
+        member_name: 'apple',
+      },
+      {
+        member_name: 'banana',
       },
     ],
     updated_by: 'mike',
