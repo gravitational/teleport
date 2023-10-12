@@ -35,8 +35,10 @@ export function useDesktops(ctx: Ctx) {
   const username = ctx.storeUser.state.username;
 
   const { params, search, ...filteringProps } = useUrlFiltering({
-    fieldName: 'name',
-    dir: 'ASC',
+    sort: {
+      fieldName: 'name',
+      dir: 'ASC',
+    },
   });
 
   const { fetch, ...paginationProps } = useServerSidePagination({

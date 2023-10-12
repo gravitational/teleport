@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { makeEmptyAttempt } from 'shared/hooks/useAsync';
+
 import { UserContextValue } from 'teleport/User/UserContext';
 
 export const makeTestUserContext = (
@@ -31,7 +33,13 @@ export const makeTestUserContext = (
           preferredResources: [],
         },
       },
+      clusterPreferences: {
+        pinnedResources: [],
+      },
+      updateClusterPreferencesAttempt: makeEmptyAttempt(),
       updatePreferences: () => Promise.resolve(),
+      updateClusterPinnedResources: () => Promise.resolve(),
+      getClusterPinnedResources: () => Promise.resolve(),
     },
     overrides
   );
