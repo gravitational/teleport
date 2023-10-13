@@ -18,19 +18,10 @@ import { matchPath, generatePath } from 'react-router';
 
 import type { RouteProps } from 'react-router';
 
-export const paths = {
-  rootCluster: '/clusters/:rootClusterId',
-  leafCluster: '/clusters/:rootClusterId/leaves/:leafClusterId',
-  server:
-    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/servers/:serverId',
-  serverLeaf:
-    '/clusters/:rootClusterId/leaves/:leafClusterId/servers/:serverId',
-  kube: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId',
-  db: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/dbs/:dbId',
-  gateway: '/gateways/:gatewayId',
-  docHome: '/docs/home',
-  doc: '/docs/:docId',
-};
+/*
+ * Resource URIs
+ * These are for identifying a specific resource within a root cluster.
+ */
 
 type RootClusterId = string;
 type LeafClusterId = string;
@@ -68,13 +59,40 @@ export type KubeUri = RootClusterKubeUri | LeafClusterKubeUri;
 export type DatabaseUri = RootClusterDatabaseUri | LeafClusterDatabaseUri;
 export type ClusterOrResourceUri = ResourceUri | ClusterUri;
 
+/*
+ * Document URIs
+ * These are for documents (tabs) within the app.
+ */
+
 type DocumentId = string;
 export type DocumentUri = `/docs/${DocumentId}`;
+
+/*
+ * Gateway URIs
+ * These are for gateways (proxies) managed by the tsh daemon.
+ */
 
 type GatewayId = string;
 export type GatewayUri = `/gateways/${GatewayId}`;
 
 export const TELEPORT_CUSTOM_PROTOCOL = 'teleport' as const;
+
+export const paths = {
+  // Resources.
+  rootCluster: '/clusters/:rootClusterId',
+  leafCluster: '/clusters/:rootClusterId/leaves/:leafClusterId',
+  server:
+    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/servers/:serverId',
+  serverLeaf:
+    '/clusters/:rootClusterId/leaves/:leafClusterId/servers/:serverId',
+  kube: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId',
+  db: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/dbs/:dbId',
+  // Documents.
+  docHome: '/docs/home',
+  doc: '/docs/:docId',
+  // Gateways.
+  gateway: '/gateways/:gatewayId',
+};
 
 export const routing = {
   parseClusterUri(uri: string) {
