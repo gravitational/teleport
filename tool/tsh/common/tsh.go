@@ -4166,8 +4166,8 @@ func onStatus(cf *CLIConf) error {
 		return nil
 	}
 
-	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
-		log.Debug("Skipping cluster alerts due to Hardware Key Touch requirement.")
+	if tc.PrivateKeyPolicy.MFAVerified() {
+		log.Debug("Skipping cluster alerts due to Hardware Key PIN/Touch requirement.")
 	} else {
 		if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
 			types.AlertSeverity_HIGH); err != nil {

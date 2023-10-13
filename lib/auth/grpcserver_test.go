@@ -1923,6 +1923,8 @@ var requireMFATypes = []types.RequireMFAType{
 	types.RequireMFAType_SESSION,
 	types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
 	types.RequireMFAType_HARDWARE_KEY_TOUCH,
+	types.RequireMFAType_HARDWARE_KEY_PIN,
+	types.RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN,
 }
 
 func TestIsMFARequired(t *testing.T) {
