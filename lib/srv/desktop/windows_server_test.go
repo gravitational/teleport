@@ -123,32 +123,45 @@ func TestGenerateCredentials(t *testing.T) {
 		require.NoError(t, client.Close())
 	})
 
-	w := &WindowsService{
-		clusterName: clusterName,
-		cfg: WindowsServiceConfig{
-			LDAPConfig: windows.LDAPConfig{
-				Domain: domain,
-			},
-			AuthClient: client,
-		},
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	for _, test := range []struct {
 		name               string
 		activeDirectorySID string
+		cdp                string
+		configure          func(*WindowsServiceConfig)
 	}{
 		{
 			name:               "no ad sid",
 			activeDirectorySID: "",
+			cdp:                `ldap:///CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`,
 		},
 		{
 			name:               "with ad sid",
 			activeDirectorySID: testSid,
+			cdp:                `ldap:///CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`,
+		},
+		{
+			name:               "separate PKI domain",
+			activeDirectorySID: "",
+			configure:          func(cfg *WindowsServiceConfig) { cfg.PKIDomain = "pki.example.com" },
+			cdp:                `ldap:///CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=pki,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`,
 		},
 	} {
+		w := &WindowsService{
+			clusterName: clusterName,
+			cfg: WindowsServiceConfig{
+				LDAPConfig: windows.LDAPConfig{
+					Domain: domain,
+				},
+				AuthClient: client,
+			},
+		}
+		if test.configure != nil {
+			test.configure(&w.cfg)
+		}
+
 		certb, keyb, err := w.generateCredentials(ctx, generateCredentialsRequest{
 			username:           user,
 			domain:             domain,
@@ -164,8 +177,7 @@ func TestGenerateCredentials(t *testing.T) {
 		require.NotNil(t, cert)
 
 		require.Equal(t, user, cert.Subject.CommonName)
-		require.Contains(t, cert.CRLDistributionPoints,
-			`ldap:///CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`)
+		require.ElementsMatch(t, cert.CRLDistributionPoints, []string{test.cdp})
 
 		foundKeyUsage := false
 		foundAltName := false
