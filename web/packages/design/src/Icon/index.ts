@@ -111,6 +111,7 @@ export { Label } from './Icons/Label';
 export { Lan } from './Icons/Lan';
 export { Laptop } from './Icons/Laptop';
 export { License } from './Icons/License';
+export { LineSegment } from './Icons/LineSegment';
 export { Link } from './Icons/Link';
 export { Linkedin } from './Icons/Linkedin';
 export { Linux } from './Icons/Linux';
