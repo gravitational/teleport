@@ -29,6 +29,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	certificatesv1 "k8s.io/api/certificates/v1"
 	corev1 "k8s.io/api/core/v1"
+	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	networkingv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -409,6 +410,58 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 			arrayToPointerArray(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.NetworkingV1().Ingresses(namespace).Delete(ctx, name, deleteOptions))
+			},
+		)
+		if err != nil {
+			return internalErrStatus, trace.Wrap(err)
+		}
+		o.Items = pointerArrayToArray(items)
+	case *extensionsv1beta1.IngressList:
+		items, err := deleteResources(
+			params,
+			types.KindKubeIngress,
+			arrayToPointerArray(o.Items),
+			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
+				return trace.Wrap(client.ExtensionsV1beta1().Ingresses(namespace).Delete(ctx, name, deleteOptions))
+			},
+		)
+		if err != nil {
+			return internalErrStatus, trace.Wrap(err)
+		}
+		o.Items = pointerArrayToArray(items)
+	case *extensionsv1beta1.DaemonSetList:
+		items, err := deleteResources(
+			params,
+			types.KindKubeDaemonSet,
+			arrayToPointerArray(o.Items),
+			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
+				return trace.Wrap(client.ExtensionsV1beta1().DaemonSets(namespace).Delete(ctx, name, deleteOptions))
+			},
+		)
+		if err != nil {
+			return internalErrStatus, trace.Wrap(err)
+		}
+		o.Items = pointerArrayToArray(items)
+	case *extensionsv1beta1.DeploymentList:
+		items, err := deleteResources(
+			params,
+			types.KindKubeDeployment,
+			arrayToPointerArray(o.Items),
+			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
+				return trace.Wrap(client.ExtensionsV1beta1().Deployments(namespace).Delete(ctx, name, deleteOptions))
+			},
+		)
+		if err != nil {
+			return internalErrStatus, trace.Wrap(err)
+		}
+		o.Items = pointerArrayToArray(items)
+	case *extensionsv1beta1.ReplicaSetList:
+		items, err := deleteResources(
+			params,
+			types.KindKubeReplicaSet,
+			arrayToPointerArray(o.Items),
+			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
+				return trace.Wrap(client.ExtensionsV1beta1().ReplicaSets(namespace).Delete(ctx, name, deleteOptions))
 			},
 		)
 		if err != nil {

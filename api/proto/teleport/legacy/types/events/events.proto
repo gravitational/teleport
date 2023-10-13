@@ -2861,6 +2861,9 @@ message WindowsDesktopSessionStart {
   map<string, string> DesktopLabels = 10 [(gogoproto.jsontag) = "desktop_labels"];
   // DesktopName is the name of the desktop resource.
   string DesktopName = 11 [(gogoproto.jsontag) = "desktop_name"];
+  // AllowUserCreation indicates whether automatic local user creation
+  // is allowed for this session.
+  bool AllowUserCreation = 12 [(gogoproto.jsontag) = "allow_user_creation"];
 }
 
 // DatabaseSessionEnd is emitted when a user ends the database session.

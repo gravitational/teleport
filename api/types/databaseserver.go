@@ -168,6 +168,9 @@ func (s *DatabaseServerV3) SetRotation(r Rotation) {
 
 // GetDatabase returns the database this database server proxies.
 func (s *DatabaseServerV3) GetDatabase() Database {
+	if s.Spec.Database == nil {
+		return nil
+	}
 	return s.Spec.Database
 }
 
