@@ -33,7 +33,7 @@ func RegisterPluginManager(oauthProviders servicecfg.PluginOAuthProviders, proce
 	pluginsService := local.NewPluginsService(process.GetBackend())
 	pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(process.GetBackend())
 	if err != nil {
-		trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	pluginManager, err := NewManager(ManagerConfig{
 		Authorizers:             authorizers,
@@ -48,7 +48,7 @@ func RegisterPluginManager(oauthProviders servicecfg.PluginOAuthProviders, proce
 		}),
 	})
 	if err != nil {
-		trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	process.Supervisor.RegisterFunc(teleport.ComponentPluginManager, func() error {
