@@ -241,7 +241,7 @@ func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resource
 		rolesToRequest = append(rolesToRequest, roleName)
 	}
 	if len(rolesToRequest) == 0 {
-		return nil, trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user %q`, m.user.GetName())
+		return nil, trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user %q`, m.userState.GetName())
 	}
 
 	// Prune the list of roles to request to only those which may be necessary
@@ -373,7 +373,7 @@ func ValidateAccessPredicates(role types.Role) error {
 }
 
 // ApplyAccessReview attempts to apply the specified access review to the specified request.
-func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author types.User) error {
+func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author UserState) error {
 	if rev.Author != author.GetName() {
 		return trace.BadParameter("mismatched review author (expected %q, got %q)", rev.Author, author)
 	}
@@ -485,7 +485,7 @@ func checkReviewCompat(req types.AccessRequest, rev types.AccessReview) error {
 
 // collectReviewThresholdIndexes aggregates the indexes of all thresholds whose filters match
 // the supplied review (part of review application logic).
-func collectReviewThresholdIndexes(req types.AccessRequest, rev types.AccessReview, author types.User) ([]uint32, error) {
+func collectReviewThresholdIndexes(req types.AccessRequest, rev types.AccessReview, author UserState) ([]uint32, error) {
 	parser, err := newThresholdFilterParser(req, rev, author)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -534,7 +534,7 @@ func accessReviewThresholdMatchesFilter(t types.AccessReviewThreshold, parser pr
 
 // newThresholdFilterParser creates a custom parser context which exposes a simplified view of the review author
 // and the request for evaluation of review threshold filters.
-func newThresholdFilterParser(req types.AccessRequest, rev types.AccessReview, author types.User) (BoolPredicateParser, error) {
+func newThresholdFilterParser(req types.AccessRequest, rev types.AccessReview, author UserState) (BoolPredicateParser, error) {
 	return NewJSONBoolParser(thresholdFilterContext{
 		Reviewer: reviewAuthorContext{
 			Roles:  author.GetRoles(),
@@ -723,6 +723,7 @@ type ResourceLister interface {
 // RequestValidatorGetter is the interface required by the request validation
 // functions used to get necessary resources.
 type RequestValidatorGetter interface {
+	UserLoginStatesGetter
 	UserGetter
 	RoleGetter
 	ResourceLister
@@ -779,8 +780,8 @@ func insertAnnotations(annotations map[string][]string, conditions types.AccessR
 // ReviewPermissionChecker is a helper for validating whether a user
 // is allowed to review specific access requests.
 type ReviewPermissionChecker struct {
-	User  types.User
-	Roles struct {
+	UserState UserState
+	Roles     struct {
 		// allow/deny mappings sort role matches into lists based on their
 		// constraining predicate (where) expression.
 		AllowReview, DenyReview map[string][]parse.Matcher
@@ -807,7 +808,7 @@ func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (boo
 	// adding role subselection support.
 
 	// user cannot review their own request
-	if c.User.GetName() == req.GetUser() {
+	if c.UserState.GetName() == req.GetUser() {
 		return false, nil
 	}
 
@@ -817,8 +818,8 @@ func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (boo
 
 	parser, err := NewJSONBoolParser(reviewPermissionContext{
 		Reviewer: reviewAuthorContext{
-			Roles:  c.User.GetRoles(),
-			Traits: c.User.GetTraits(),
+			Roles:  c.UserState.GetRoles(),
+			Traits: c.UserState.GetTraits(),
 		},
 		Request: reviewRequestContext{
 			Roles:             requestedRoles,
@@ -903,13 +904,13 @@ Outer:
 }
 
 func NewReviewPermissionChecker(ctx context.Context, getter RequestValidatorGetter, username string) (ReviewPermissionChecker, error) {
-	user, err := getter.GetUser(username, false)
+	uls, err := GetUserOrLoginState(ctx, getter, username)
 	if err != nil {
 		return ReviewPermissionChecker{}, trace.Wrap(err)
 	}
 
 	c := ReviewPermissionChecker{
-		User: user,
+		UserState: uls,
 	}
 
 	c.Roles.AllowReview = make(map[string][]parse.Matcher)
@@ -917,7 +918,7 @@ func NewReviewPermissionChecker(ctx context.Context, getter RequestValidatorGett
 
 	// load all statically assigned roles for the user and
 	// use them to build our checker state.
-	for _, roleName := range c.User.GetRoles() {
+	for _, roleName := range c.UserState.GetRoles() {
 		role, err := getter.GetRole(ctx, roleName)
 		if err != nil {
 			return ReviewPermissionChecker{}, trace.Wrap(err)
@@ -935,12 +936,12 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 
 	var err error
 
-	c.Roles.DenyReview[deny.Where], err = appendRoleMatchers(c.Roles.DenyReview[deny.Where], deny.Roles, deny.ClaimsToRoles, c.User.GetTraits())
+	c.Roles.DenyReview[deny.Where], err = appendRoleMatchers(c.Roles.DenyReview[deny.Where], deny.Roles, deny.ClaimsToRoles, c.UserState.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	c.Roles.AllowReview[allow.Where], err = appendRoleMatchers(c.Roles.AllowReview[allow.Where], allow.Roles, allow.ClaimsToRoles, c.User.GetTraits())
+	c.Roles.AllowReview[allow.Where], err = appendRoleMatchers(c.Roles.AllowReview[allow.Where], allow.Roles, allow.ClaimsToRoles, c.UserState.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -957,7 +958,7 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 type RequestValidator struct {
 	clock         clockwork.Clock
 	getter        RequestValidatorGetter
-	user          types.User
+	userState     UserState
 	requireReason bool
 	opts          struct {
 		expandVars bool
@@ -982,15 +983,15 @@ type RequestValidator struct {
 
 // NewRequestValidator configures a new RequestValidator for the specified user.
 func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, username string, opts ...ValidateRequestOption) (RequestValidator, error) {
-	user, err := getter.GetUser(username, false)
+	uls, err := GetUserOrLoginState(ctx, getter, username)
 	if err != nil {
 		return RequestValidator{}, trace.Wrap(err)
 	}
 
 	m := RequestValidator{
-		clock:  clock,
-		getter: getter,
-		user:   user,
+		clock:     clock,
+		getter:    getter,
+		userState: uls,
 	}
 	for _, opt := range opts {
 		opt(&m)
@@ -1005,7 +1006,7 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 
 	// load all statically assigned roles for the user and
 	// use them to build our validation state.
-	for _, roleName := range m.user.GetRoles() {
+	for _, roleName := range m.userState.GetRoles() {
 		role, err := m.getter.GetRole(ctx, roleName)
 		if err != nil {
 			return RequestValidator{}, trace.Wrap(err)
@@ -1020,7 +1021,7 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 // Validate validates an access request and potentially modifies it depending on how
 // the validator was configured.
 func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) error {
-	if m.user.GetName() != req.GetUser() {
+	if m.userState.GetName() != req.GetUser() {
 		return trace.BadParameter("request validator configured for different user (this is a bug)")
 	}
 
@@ -1305,7 +1306,7 @@ func (m *RequestValidator) GetRequestableRoles() ([]string, error) {
 
 	var expanded []string
 	for _, role := range allRoles {
-		if n := role.GetName(); !slices.Contains(m.user.GetRoles(), n) && m.CanRequestRole(n) {
+		if n := role.GetName(); !slices.Contains(m.userState.GetRoles(), n) && m.CanRequestRole(n) {
 			// user does not currently hold this role, and is allowed to request it.
 			expanded = append(expanded, n)
 		}
@@ -1323,7 +1324,7 @@ func (m *RequestValidator) push(role types.Role) error {
 
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
 
-	m.Roles.DenyRequest, err = appendRoleMatchers(m.Roles.DenyRequest, deny.Roles, deny.ClaimsToRoles, m.user.GetTraits())
+	m.Roles.DenyRequest, err = appendRoleMatchers(m.Roles.DenyRequest, deny.Roles, deny.ClaimsToRoles, m.userState.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1332,7 +1333,7 @@ func (m *RequestValidator) push(role types.Role) error {
 	// matchers for this role, if it applies any.
 	astart := len(m.Roles.AllowRequest)
 
-	m.Roles.AllowRequest, err = appendRoleMatchers(m.Roles.AllowRequest, allow.Roles, allow.ClaimsToRoles, m.user.GetTraits())
+	m.Roles.AllowRequest, err = appendRoleMatchers(m.Roles.AllowRequest, allow.Roles, allow.ClaimsToRoles, m.userState.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1371,8 +1372,8 @@ func (m *RequestValidator) push(role types.Role) error {
 		// validation process for incoming access requests requires
 		// generating system annotations to be attached to the request
 		// before it is inserted into the backend.
-		insertAnnotations(m.Annotations.Deny, deny, m.user.GetTraits())
-		insertAnnotations(m.Annotations.Allow, allow, m.user.GetTraits())
+		insertAnnotations(m.Annotations.Deny, deny, m.userState.GetTraits())
+		insertAnnotations(m.Annotations.Allow, allow, m.userState.GetTraits())
 
 		m.SuggestedReviewers = append(m.SuggestedReviewers, allow.SuggestedReviewers...)
 	}
@@ -1670,7 +1671,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		}
 	}
 
-	allRoles, err := FetchRoles(roles, m.getter, m.user.GetTraits())
+	allRoles, err := FetchRoles(roles, m.getter, m.userState.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1787,7 +1788,7 @@ func (m *RequestValidator) roleAllowsResource(
 		matchers = append(matchers, NewLoginMatcher(loginHint))
 	}
 	matchers = append(matchers, extraMatchers...)
-	err := roleSet.checkAccess(resource, m.user.GetTraits(), AccessState{MFAVerified: true}, matchers...)
+	err := roleSet.checkAccess(resource, m.userState.GetTraits(), AccessState{MFAVerified: true}, matchers...)
 	if trace.IsAccessDenied(err) {
 		// Access denied, this role does not allow access to this resource, no
 		// unexpected error to report.
