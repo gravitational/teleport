@@ -1389,6 +1389,13 @@ type WindowsDesktopConfig struct {
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig
 
+	// PKIDomain optionally configures a separate Active Directory domain
+	// for PKI operations. If empty, the domain from the LDAP config is used.
+	// This can be useful for cases where PKI is configured in a root domain
+	// but Teleport is used to provide access to users and computers in a child
+	// domain.
+	PKIDomain string
+
 	// Discovery configures automatic desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig
 
