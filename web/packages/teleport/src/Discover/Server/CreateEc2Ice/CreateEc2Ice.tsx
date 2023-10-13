@@ -17,6 +17,7 @@
 import React, { useState, useEffect } from 'react';
 
 import { Box, Indicator, Text, Flex } from 'design';
+import { Warning } from 'design/Icon';
 import { Danger } from 'design/Alert';
 import { FetchStatus } from 'design/DataTable/types';
 
@@ -34,6 +35,7 @@ import {
 import { NodeMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
   ActionButtons,
+  ButtonBlueText,
   Header,
   SecurityGroupPicker,
 } from 'teleport/Discover/Shared';
@@ -169,7 +171,15 @@ export function CreateEc2Ice() {
             any security groups, the default one for the VPC will be used.
           </Text>
           {fetchSecurityGroupsAttempt.status === 'failed' && (
-            <Danger>{fetchSecurityGroupsAttempt.statusText}</Danger>
+            <>
+              <Flex my={3}>
+                <Warning size="medium" ml={1} mr={2} color="error.main" />
+                <Text>{fetchSecurityGroupsAttempt.statusText}</Text>
+              </Flex>
+              <ButtonBlueText ml={1} onClick={fetchSecurityGroups}>
+                Retry
+              </ButtonBlueText>
+            </>
           )}
           {fetchSecurityGroupsAttempt.status === 'processing' && (
             <Flex width="352px" justifyContent="center" mt={3}>

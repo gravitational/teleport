@@ -21,7 +21,8 @@ export function encodeUrlQueryParams(
   searchString: string,
   sort: SortType | null,
   kinds: string[] | null,
-  isAdvancedSearch: boolean
+  isAdvancedSearch: boolean,
+  pinnedOnly: boolean
 ) {
   const urlParams = new URLSearchParams();
 
@@ -31,6 +32,10 @@ export function encodeUrlQueryParams(
 
   if (sort) {
     urlParams.append('sort', `${sort.fieldName}:${sort.dir.toLowerCase()}`);
+  }
+
+  if (pinnedOnly) {
+    urlParams.append('pinnedOnly', `${pinnedOnly}`);
   }
 
   if (kinds) {

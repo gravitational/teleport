@@ -16,10 +16,7 @@
 
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 import { Platform } from 'teleterm/mainProcess/types';
-import {
-  makeRootCluster,
-  makeLoggedInUser,
-} from 'teleterm/services/tshd/testHelpers';
+import { makeLoggedInUser } from 'teleterm/services/tshd/testHelpers';
 
 import { hasConnectMyComputerPermissions } from './permissions';
 
@@ -56,22 +53,23 @@ const testCases: {
 ];
 
 test.each(testCases)('$name', testCase => {
-  const cluster = makeRootCluster({
-    loggedInUser: makeLoggedInUser({
-      acl: {
-        tokens: {
-          create: testCase.canCreateToken,
-          edit: false,
-          list: false,
-          use: false,
-          read: false,
-          pb_delete: false,
-        },
+  const loggedInUser = makeLoggedInUser({
+    acl: {
+      tokens: {
+        create: testCase.canCreateToken,
+        edit: false,
+        list: false,
+        use: false,
+        read: false,
+        pb_delete: false,
       },
-    }),
+    },
   });
   const runtimeSettings = makeRuntimeSettings({ platform: testCase.platform });
 
-  const isPermitted = hasConnectMyComputerPermissions(cluster, runtimeSettings);
+  const isPermitted = hasConnectMyComputerPermissions(
+    loggedInUser,
+    runtimeSettings
+  );
   expect(isPermitted).toEqual(testCase.expect);
 });
