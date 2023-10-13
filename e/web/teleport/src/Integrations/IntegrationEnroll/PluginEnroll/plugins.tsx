@@ -550,7 +550,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     icon: serviceNowIcon,
     url: 'https://goteleport.com/docs/access-controls/access-requests/resource-requests/',
     cloudHostable: true,
-    selfHostable: false,
+    selfHostable: true,
     fullName: 'ServiceNow Integration',
     Description: () => (
       <Text>
