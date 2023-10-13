@@ -2255,7 +2255,7 @@ func (a *Server) AugmentContextUserCertificates(
 
 // submitCertificateIssuedEvent submits a certificate issued usage event to the
 // usage reporting service.
-func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
+func (a *Server) submitCertificateIssuedEvent(req *certRequest, params services.UserCertParams) {
 	var database, app, kubernetes, desktop bool
 
 	if req.dbService != "" {
@@ -2291,13 +2291,14 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 	}
 
 	a.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
-		UserName:        user,
-		Ttl:             durationpb.New(req.ttl),
-		IsBot:           bot,
-		UsageDatabase:   database,
-		UsageApp:        app,
-		UsageKubernetes: kubernetes,
-		UsageDesktop:    desktop,
+		UserName:         user,
+		Ttl:              durationpb.New(req.ttl),
+		IsBot:            bot,
+		UsageDatabase:    database,
+		UsageApp:         app,
+		UsageKubernetes:  kubernetes,
+		UsageDesktop:     desktop,
+		PrivateKeyPolicy: string(params.PrivateKeyPolicy),
 	})
 }
 
@@ -2649,7 +2650,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		certs.SSHCACerts = append(certs.SSHCACerts, services.GetSSHCheckingKeys(ca)...)
 	}
 
-	a.submitCertificateIssuedEvent(&req)
+	a.submitCertificateIssuedEvent(&req, params)
 
 	userCertificatesGeneratedMetric.WithLabelValues(string(attestedKeyPolicy)).Inc()
 
