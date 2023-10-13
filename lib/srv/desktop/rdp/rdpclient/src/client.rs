@@ -1,8 +1,11 @@
-use std::fmt::Debug;
-use std::io::Error as IoError;
-use std::net::ToSocketAddrs;
-use std::sync::{Arc, Mutex, MutexGuard};
+pub mod global;
 
+use crate::rdpdr::consts::SCARD_DEVICE_ID;
+use crate::rdpdr::TeleportRdpdrBackend;
+use crate::{
+    handle_fastpath_pdu, handle_rdp_channel_ids, CGOErrCode, CGOKeyboardEvent,
+    CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
+};
 use bitflags::Flags;
 use bytes::BytesMut;
 use ironrdp_cliprdr::pdu::{ClipboardFormat, ClipboardFormatId, FormatDataResponse};
@@ -10,7 +13,7 @@ use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
 use ironrdp_connector::{Config, ConnectorError};
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
 use ironrdp_pdu::input::mouse::PointerFlags;
-use ironrdp_pdu::input::MousePdu;
+use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
@@ -19,29 +22,24 @@ use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
 use ironrdp_rdpsnd::Rdpsnd;
 use ironrdp_session::x224::Processor as X224Processor;
+use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{StaticVirtualChannelProcessor, SvcMessage, SvcProcessorMessages};
 use ironrdp_tls::TlsStream;
 use ironrdp_tokio::{Framed, TokioStream};
 use rand::{Rng, SeedableRng};
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
+use std::fmt::{Debug, Display, Formatter};
+use std::io::Error as IoError;
+use std::net::ToSocketAddrs;
+use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
 use tokio::task::JoinError;
 
-pub(crate) use global::call_function_on_handle;
-
-use crate::{
-    handle_fastpath_pdu, handle_rdp_channel_ids, handle_remote_copy, util, CGOErrCode,
-    CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
-};
 // Export this for crate level use.
 use crate::cliprdr::{ClipboardFn, ClipboardFunction, TeleportCliprdrBackend};
-use crate::rdpdr::consts::SCARD_DEVICE_ID;
-use crate::rdpdr::TeleportRdpdrBackend;
-
-pub mod global;
 
 /// The RDP client on the Rust side of things. Each `Client`
 /// corresponds with a Go `Client` specified by `cgo_handle`.
@@ -49,7 +47,7 @@ pub struct Client {
     cgo_handle: CgoHandle,
     read_stream: Option<RdpReadStream>,
     write_stream: Option<RdpWriteStream>,
-    x224_processor: Option<Arc<Mutex<X224Processor>>>,
+    x224_processor: Arc<Mutex<X224Processor>>,
     client_handle: Option<ClientHandle>,
     function_receiver: Option<FunctionReceiver>,
 }
@@ -77,7 +75,10 @@ impl Client {
     /// Initializes the RDP connection with the given [`ConnectParams`].
     async fn connect(cgo_handle: CgoHandle, params: ConnectParams) -> ClientResult<Self> {
         let server_addr = params.addr.clone();
-        let server_socket_addr = server_addr.to_socket_addrs().unwrap().next().unwrap();
+        let server_socket_addr = server_addr
+            .to_socket_addrs()?
+            .next()
+            .ok_or(ClientError::UnknownAddress)?;
 
         let stream = TokioTcpStream::connect(&server_socket_addr).await?;
 
@@ -162,7 +163,7 @@ impl Client {
             cgo_handle,
             read_stream: Some(read_stream),
             write_stream: Some(write_stream),
-            x224_processor: Some(Arc::new(Mutex::new(x224_processor))),
+            x224_processor: Arc::new(Mutex::new(x224_processor)),
             client_handle: Some(client_handle),
             function_receiver: Some(function_receiver),
         })
@@ -204,10 +205,7 @@ impl Client {
             .take()
             .ok_or_else(|| ClientError::InternalError)?;
 
-        let x224_processor = self
-            .x224_processor
-            .take()
-            .ok_or_else(|| ClientError::InternalError)?;
+        let x224_processor = self.x224_processor.clone();
 
         let client_handle = self
             .client_handle
@@ -443,7 +441,7 @@ impl Client {
 
         let mut data: Vec<u8> = Vec::new();
         let input_pdu = FastPathInput(fastpath_events);
-        input_pdu.to_buffer(&mut data).unwrap();
+        input_pdu.to_buffer(&mut data)?;
 
         write_stream.write_all(&data).await?;
         Ok(())
@@ -489,7 +487,7 @@ impl Client {
 
         let mut data: Vec<u8> = Vec::new();
         let input_pdu = FastPathInput(fastpath_events);
-        input_pdu.to_buffer(&mut data).unwrap();
+        input_pdu.to_buffer(&mut data)?;
 
         write_stream.write_all(&data).await?;
         Ok(())
@@ -647,6 +645,28 @@ pub enum ClientError {
     SendError,
     JoinError(JoinError),
     InternalError,
+    UnknownAddress,
+    InputEventError(InputEventError),
+}
+
+impl Display for ClientError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClientError::Tcp(e) => Display::fmt(e, f),
+            ClientError::Rdp(e) => Display::fmt(e, f),
+            ClientError::SessionError(e) => match &e.kind {
+                Reason(reason) => Display::fmt(reason, f),
+                _ => Display::fmt(e, f),
+            },
+            ClientError::ConnectorError(e) => Display::fmt(e, f),
+            ClientError::InputEventError(e) => Display::fmt(e, f),
+            ClientError::JoinError(e) => Display::fmt(e, f),
+            ClientError::CGOErrCode(e) => Debug::fmt(e, f),
+            ClientError::SendError => Display::fmt("Couldn't send message to channel", f),
+            ClientError::InternalError => Display::fmt("Internal error", f),
+            ClientError::UnknownAddress => Display::fmt("Unknown address", f),
+        }
+    }
 }
 
 impl From<IoError> for ClientError {
@@ -705,5 +725,11 @@ impl From<CGOErrCode> for ClientResult<()> {
             CGOErrCode::ErrCodeSuccess => Ok(()),
             _ => Err(ClientError::from(value)),
         }
+    }
+}
+
+impl From<InputEventError> for ClientError {
+    fn from(e: InputEventError) -> Self {
+        ClientError::InputEventError(e)
     }
 }
