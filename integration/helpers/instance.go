@@ -1294,9 +1294,15 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		sshProxyAddr = cfg.Proxy.SSHAddr
 		kubeProxyAddr = cfg.Proxy.KubeAddr
 	case cfg.ALBAddr != "":
-		webProxyAddr = cfg.ALBAddr
-		sshProxyAddr = cfg.ALBAddr
-		kubeProxyAddr = cfg.ALBAddr
+		if i.IsSinglePortSetup {
+			webProxyAddr = cfg.ALBAddr
+			sshProxyAddr = cfg.ALBAddr
+			kubeProxyAddr = cfg.ALBAddr
+		} else {
+			webProxyAddr = cfg.ALBAddr
+			sshProxyAddr = i.SSHProxy
+			kubeProxyAddr = i.Config.Proxy.Kube.ListenAddr.Addr
+		}
 	default:
 		webProxyAddr = i.Web
 		sshProxyAddr = i.SSHProxy

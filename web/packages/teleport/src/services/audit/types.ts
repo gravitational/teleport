@@ -1377,53 +1377,23 @@ export type RawEvents = {
       updated_by: string;
     }
   >;
-  [eventCodes.ACCESS_LIST_MEMBER_CREATE]: RawEvent<
-    typeof eventCodes.ACCESS_LIST_MEMBER_CREATE,
-    {
-      access_list_name: string;
-      member_name: string;
-      updated_by: string;
-    }
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_CREATE
   >;
-  [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: RawEvent<
-    typeof eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE,
-    {
-      access_list_name: string;
-      member_name: string;
-      updated_by: string;
-    }
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE
   >;
-  [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: RawEvent<
-    typeof eventCodes.ACCESS_LIST_MEMBER_UPDATE,
-    {
-      access_list_name: string;
-      member_name: string;
-      updated_by: string;
-    }
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_UPDATE
   >;
-  [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: RawEvent<
-    typeof eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE,
-    {
-      access_list_name: string;
-      member_name: string;
-      updated_by: string;
-    }
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE
   >;
-  [eventCodes.ACCESS_LIST_MEMBER_DELETE]: RawEvent<
-    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE,
-    {
-      access_list_name: string;
-      member_name: string;
-      updated_by: string;
-    }
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE
   >;
-  [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: RawEvent<
-    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE,
-    {
-      access_list_name: string;
-      member_name: string;
-      updated_by: string;
-    }
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE
   >;
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: RawEvent<
     typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST,
@@ -1572,6 +1542,15 @@ type RawEventUserToken<T extends EventCode> = RawEvent<
   {
     name: string;
     ttl: string;
+  }
+>;
+
+type RawEventAccessList<T extends EventCode> = RawEvent<
+  T,
+  {
+    access_list_name: string;
+    members: { member_name: string }[];
+    updated_by: string;
   }
 >;
 

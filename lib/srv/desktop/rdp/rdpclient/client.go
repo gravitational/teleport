@@ -188,8 +188,11 @@ func (c *Client) Run(ctx context.Context) error {
 	// Both goroutines have finished, it's now
 	// safe for the deferred c.cleanup() call to
 	// clean up the memory.
-
 	return nil
+}
+
+func (c *Client) GetClientUsername() string {
+	return c.username
 }
 
 func (c *Client) readClientUsername() error {
