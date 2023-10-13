@@ -129,6 +129,11 @@ func (a *AccessListService) GetAccessList(ctx context.Context, name string) (*ac
 	return accessList, trace.Wrap(err)
 }
 
+// GetAccessListsToReview returns access lists that the user needs to review. This is not implemented in the local service.
+func (a *AccessListService) GetAccessListsToReview(ctx context.Context) ([]*accesslist.AccessList, error) {
+	return nil, trace.NotImplemented("GetAccessListsToReview should not be called")
+}
+
 // UpsertAccessList creates or updates an access list resource.
 func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
 	err := a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {

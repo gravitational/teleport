@@ -42,6 +42,8 @@ type AccessListsGetter interface {
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
+	// GetAccessListsToReview returns access lists that the user needs to review.
+	GetAccessListsToReview(context.Context) ([]*accesslist.AccessList, error)
 }
 
 // AccessLists defines an interface for managing AccessLists.
