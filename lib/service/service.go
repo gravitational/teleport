@@ -1014,6 +1014,10 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		process.log.Infof("Configured upgrade window exporter for external upgrader. kind=%s", upgraderKind)
 	}
 
+	if process.Config.Proxy.Enabled {
+		process.RegisterFunc("update.aws-oidc.deploy.agents", process.initDeployServiceUpdater)
+	}
+
 	serviceStarted := false
 
 	if !cfg.DiagnosticAddr.IsEmpty() {
