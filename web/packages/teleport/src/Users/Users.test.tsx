@@ -14,64 +14,18 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { render, screen } from 'design/utils/testing';
 
-import { useAttempt } from 'shared/hooks';
-
-import { getOSSFeatures } from 'teleport/features';
-import { User } from 'teleport/services/user';
-import { Context, ContextProvider } from 'teleport';
-import { events } from 'teleport/Audit/fixtures';
-import { clusters } from 'teleport/Clusters/fixtures';
-import { nodes } from 'teleport/Nodes/fixtures';
-import { sessions } from 'teleport/Sessions/fixtures';
-import { apps } from 'teleport/Apps/fixtures';
-import { kubes } from 'teleport/Kubes/fixtures';
-import { databases } from 'teleport/Databases/fixtures';
-import { desktops } from 'teleport/Desktops/fixtures';
-import { userContext } from 'teleport/Main/fixtures';
-import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
-import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
-import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
-import TeleportContext from 'teleport/teleportContext';
+import { ContextProvider } from 'teleport';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { Users } from './Users';
-import { Operation, State } from './useUsers';
+import { State } from './useUsers';
 
-jest.mock('shared/hooks', () => ({
-  useAttempt: () => {
-    return {
-      attempt: { status: 'success', statusText: 'Success Text' },
-      setAttempt: jest.fn(),
-      run: (fn?: any) => Promise.resolve(fn()),
-    };
-  },
-}));
-
-const setupContext = (): TeleportContext => {
-  const ctx = new Context();
-  ctx.isEnterprise = false;
-  ctx.auditService.fetchEvents = () =>
-    Promise.resolve({ events, startKey: '' });
-  ctx.clusterService.fetchClusters = () => Promise.resolve(clusters);
-  ctx.nodeService.fetchNodes = () => Promise.resolve({ agents: nodes });
-  ctx.sshService.fetchSessions = () => Promise.resolve(sessions);
-  ctx.appService.fetchApps = () => Promise.resolve({ agents: apps });
-  ctx.kubeService.fetchKubernetes = () => Promise.resolve({ agents: kubes });
-  ctx.databaseService.fetchDatabases = () =>
-    Promise.resolve({ agents: databases });
-  ctx.desktopService.fetchDesktops = () =>
-    Promise.resolve({ agents: desktops });
-  ctx.storeUser.setState(userContext);
-
-  return ctx;
-};
-
-describe('InviteCollaborators', () => {
-  mockUserContextProviderWith(makeTestUserContext());
-  const ctx = setupContext();
+describe('invite collaborators integration', () => {
+  const ctx = createTeleportContext();
 
   let props: State;
   beforeEach(() => {
@@ -111,7 +65,7 @@ describe('InviteCollaborators', () => {
       </MemoryRouter>
     );
 
-    expect(screen.queryByText('Create New User')).toBeInTheDocument();
+    expect(screen.getByText('Create New User')).toBeInTheDocument();
     expect(screen.queryByText('Enroll Users')).not.toBeInTheDocument();
   });
 
@@ -143,6 +97,6 @@ describe('InviteCollaborators', () => {
     // This will display regardless since the dialog display is managed by the
     // dialog itself, and our mock above is trivial, but we can make sure it
     // renders.
-    expect(screen.queryByTestId('invite-collaborators')).toBeInTheDocument();
+    expect(screen.getByTestId('invite-collaborators')).toBeInTheDocument();
   });
 });

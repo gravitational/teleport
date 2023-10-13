@@ -133,7 +133,7 @@ export default function useUsers({ InviteCollaborators }: UsersContainerProps) {
   };
 }
 
-export type Operation = {
+type Operation = {
   type:
     | 'create'
     | 'invite-collaborators'

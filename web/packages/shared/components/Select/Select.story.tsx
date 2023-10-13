@@ -28,7 +28,7 @@ export const Selects = () => {
     <Flex>
       <SelectDefault {...props} />
       <SelectDark {...props} />
-      <SelectCreatableDefault {...props} />
+      <SelectCreatableDefault />
     </Flex>
   );
 };
@@ -114,7 +114,7 @@ function SelectDark({ value, onChange, options }) {
   );
 }
 
-function SelectCreatableDefault({ value, options }) {
+function SelectCreatableDefault() {
   const [input, setInput] = React.useState('');
   const [selected, setSelected] = React.useState<Option[]>();
 
