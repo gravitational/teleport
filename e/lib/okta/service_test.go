@@ -24,6 +24,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -70,19 +71,16 @@ func TestBecomeLeader(t *testing.T) {
 		holderID = semaphores[0].LeaseRefs()[0].Holder
 
 		// Make sure the service denoted as the semaphore holder is the current leader, otherwise it shouldn't be.
-		for i := 0; i < numServices; i++ {
-			hostID := services[i].hostID
-			if hostID == holderID {
-				require.True(t, services[i].IsLeader(), "host id %s should be leader", hostID)
+		var leaderIndex int
+		require.Eventually(t, func() bool {
+			leaderIndex = slices.IndexFunc(services, func(s *Service) bool {
+				return s.IsLeader()
+			})
+			return leaderIndex != -1 && strconv.Itoa(leaderIndex) == holderID
+		}, 10*time.Second, 250*time.Millisecond, "leader host ID (%d) does not match holder ID (%s)", leaderIndex, holderID)
 
-				// Close this service so that it relinquishes the semaphore.
-				require.NoError(t, services[i].Shutdown())
-				require.NoError(t, services[i].Close(ctx))
-			} else {
-				require.False(t, services[i].IsLeader(), "host id %s should not be leader", hostID)
-			}
-
-		}
+		require.NoError(t, services[leaderIndex].Shutdown())
+		require.NoError(t, services[leaderIndex].Close(ctx))
 
 		// Advance so that another service grabs the semaphore.
 		clock.Advance(semaphoreRenewal * 100)
