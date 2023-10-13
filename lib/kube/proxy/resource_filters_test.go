@@ -31,6 +31,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	networkingv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -191,6 +192,14 @@ func Test_filterBuffer(t *testing.T) {
 				case *authv1.RoleList:
 					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *networkingv1.IngressList:
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+				case *extensionsv1beta1.IngressList:
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+				case *extensionsv1beta1.DaemonSetList:
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+				case *extensionsv1beta1.ReplicaSetList:
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
+				case *extensionsv1beta1.DeploymentList:
 					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *metav1.Table:
 					for i := range o.Rows {

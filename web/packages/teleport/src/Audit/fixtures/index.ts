@@ -3059,9 +3059,9 @@ export const events = [
     members: [
       {
         member_name: 'user',
-        updated_by: 'mike',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL005E',
@@ -3071,9 +3071,9 @@ export const events = [
     members: [
       {
         member_name: 'user',
-        updated_by: 'mike',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL006I',
@@ -3083,9 +3083,9 @@ export const events = [
     members: [
       {
         member_name: 'user',
-        updated_by: 'mike',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL006E',
@@ -3095,9 +3095,9 @@ export const events = [
     members: [
       {
         member_name: 'user',
-        updated_by: 'mike',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL007I',
@@ -3107,9 +3107,9 @@ export const events = [
     members: [
       {
         member_name: 'user',
-        updated_by: 'mike',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL007E',
@@ -3118,10 +3118,16 @@ export const events = [
     access_list_name: 'access-list',
     members: [
       {
-        member_name: 'user',
-        updated_by: 'mike',
+        member_name: 'carrot',
+      },
+      {
+        member_name: 'apple',
+      },
+      {
+        member_name: 'banana',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL008I',

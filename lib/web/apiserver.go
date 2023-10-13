@@ -849,6 +849,12 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Updates the user's preferences
 	h.PUT("/webapi/user/preferences", h.WithAuth(h.updateUserPreferences))
+
+	// Fetches the user's cluster preferences.
+	h.GET("/webapi/user/preferences/:site", h.WithClusterAuth(h.getUserClusterPreferences))
+
+	// Updates the user's cluster preferences.
+	h.PUT("/webapi/user/preferences/:site", h.WithClusterAuth(h.updateUserClusterPreferences))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -2500,12 +2506,24 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		}
 	}
 
+	// set default kinds to be requested if none exist in the request
+	if len(kinds) == 0 {
+		kinds = []string{
+			types.KindApp,
+			types.KindDatabase,
+			types.KindNode,
+			types.KindWindowsDesktop,
+			types.KindKubernetesCluster,
+		}
+	}
+
 	startKey := values.Get("startKey")
 	return &proto.ListUnifiedResourcesRequest{
 		Kinds:               kinds,
 		Limit:               limit,
 		StartKey:            startKey,
 		SortBy:              sortBy,
+		PinnedOnly:          values.Get("pinnedOnly") == "true",
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
 		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",

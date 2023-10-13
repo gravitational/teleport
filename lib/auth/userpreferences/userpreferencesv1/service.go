@@ -70,10 +70,6 @@ func (a *Service) GetUserPreferences(ctx context.Context, _ *userpreferences.Get
 		return nil, trace.Wrap(err)
 	}
 
-	if !authz.IsLocalUser(*authCtx) {
-		return nil, trace.AccessDenied("Non-local user cannot get user preferences")
-	}
-
 	username := authCtx.User.GetName()
 
 	prefs, err := a.backend.GetUserPreferences(ctx, username)
@@ -91,9 +87,6 @@ func (a *Service) UpsertUserPreferences(ctx context.Context, req *userpreference
 	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if !authz.IsLocalUser(*authCtx) {
-		return nil, trace.AccessDenied("Non-local user cannot upsert user preferences")
 	}
 
 	username := authCtx.User.GetName()

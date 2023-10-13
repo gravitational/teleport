@@ -41,9 +41,15 @@ func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
 			ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED,
 		},
 		Theme: userpreferencesv1.Theme_THEME_LIGHT,
+		UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+			DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
+		},
 		Onboard: &userpreferencesv1.OnboardUserPreferences{
 			PreferredResources: []userpreferencesv1.Resource{},
 			MarketingParams:    &userpreferencesv1.MarketingParams{},
+		},
+		ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
+			PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{},
 		},
 	}
 }
@@ -78,19 +84,7 @@ func (u *UserPreferencesService) UpsertUserPreferences(ctx context.Context, user
 		return trace.Wrap(err)
 	}
 
-	preferences, err := u.getUserPreferences(ctx, username)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		preferences = DefaultUserPreferences()
-	}
-
-	if err := overwriteValues(preferences, prefs); err != nil {
-		return trace.Wrap(err)
-	}
-
-	item, err := createBackendItem(username, preferences)
+	item, err := createBackendItem(username, prefs)
 	if err != nil {
 		return trace.Wrap(err)
 	}

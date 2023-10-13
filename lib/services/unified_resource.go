@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -290,6 +289,31 @@ func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types
 	return resources, nil
 }
 
+// GetUnifiedResourcesByIDs will take a list of ids and return any items found in the unifiedResourceCache tree by id and that return true from matchFn
+func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids []string, matchFn func(types.ResourceWithLabels) bool) ([]types.ResourceWithLabels, error) {
+	var resources []types.ResourceWithLabels
+
+	err := c.read(ctx, func(cache *UnifiedResourceCache) error {
+		for _, id := range ids {
+			key := backend.Key(prefix, id)
+			res, found := cache.nameTree.Get(&item{Key: key})
+			if !found || res == nil {
+				continue
+			}
+			resource := cache.resources[res.Value]
+			if matched := matchFn(resource); matched {
+				resources = append(resources, resource.CloneResource())
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "getting unified resources by id")
+	}
+
+	return resources, nil
+}
+
 // ResourceGetter is an interface that provides a way to fetch all the resources
 // that can be stored in the UnifiedResourceCache
 type ResourceGetter interface {
@@ -298,7 +322,6 @@ type ResourceGetter interface {
 	AppServersGetter
 	WindowsDesktopGetter
 	KubernetesServerGetter
-	AccessListsGetter
 	SAMLIdpServiceProviderGetter
 }
 
@@ -396,11 +419,6 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
-	newAccessLists, err := c.getAccessLists(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	// empty the trees
@@ -416,7 +434,6 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources[types.KubeServer](c, newKubes)
 	putResources[types.SAMLIdPServiceProvider](c, newSAMLApps)
 	putResources[types.WindowsDesktop](c, newDesktops)
-	putResources[*accesslist.AccessList](c, newAccessLists)
 	c.stale = false
 	c.defineCollectorAsInitialized()
 	return nil
@@ -526,28 +543,6 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 	}
 
 	return newSAMLApps, nil
-}
-
-// getAccessLists will get all access lists
-func (c *UnifiedResourceCache) getAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
-	var accessLists []*accesslist.AccessList
-	startKey := ""
-
-	for {
-		resp, nextKey, err := c.ListAccessLists(ctx, apidefaults.DefaultChunkSize, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err, "getting access lists for unified resource watcher")
-		}
-		accessLists = append(accessLists, resp...)
-
-		if nextKey == "" {
-			break
-		}
-
-		startKey = nextKey
-	}
-
-	return accessLists, nil
 }
 
 // read applies the supplied closure to either the primary tree or the ttl-based fallback tree depending on
