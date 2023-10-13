@@ -280,7 +280,7 @@ To configure the group policy object:
 
 To publish the Teleport certificate in the Active Directory domain:
 
-1. Log on to a Windows compiter that is joined to the Active Directory domain with 
+1. Log on to a Windows computer that is joined to the Active Directory domain with 
    an account that's a member of the **Domain Administrators** or **AWS Delegated 
    Domain Administrators** group.
 
@@ -311,7 +311,7 @@ To publish the Teleport CA to LDAP:
    certutil -dspublish -f <Var name="user-ca.cer"/> NTAuthCA
    ```
 
-1. Force the retrieval of the CA from LDAP by running the following cmmand
+1. Force the retrieval of the CA from LDAP by running the following command:
 
    ```powershell
    certutil -pulse
@@ -320,7 +320,7 @@ To publish the Teleport CA to LDAP:
    This step isn't strictly required. However, it allows you to proceed to the 
    next steps without waiting for the certificate to propagate.
 
-### Enable smart card authenitcation
+### Enable smart card authentication
 
 Teleport performs certificate-based authentication by emulating a smart card.
 
@@ -367,7 +367,7 @@ policies that allow remote connections to domain computers.
    select **Disabled**, then click **OK**.
    
    The Teleport certificate-based smart card authentication generates a random smart card 
-   PIN for each desktop session and provides the PIN to the desktop when establishin the RDP 
+   PIN for each desktop session and provides the PIN to the desktop when establishing the RDP 
    connection.
    Because the PIN is never provided to the Teleport user, the **Always prompt for password 
    upon connection** policy must be **disabled** for authentication to succeed.
@@ -627,7 +627,7 @@ To connect to a Windows desktop:
 
 By default, the Default Domain Policy grants the **Add workstations to domain
 user** right to all authenticated users. As a security best practice, Teleport
-recommends thatyou only grant this right to administrators or other privileged groups.
+recommends that you only grant this right to administrators or other privileged groups.
 
 To change the default domain policy:
 
