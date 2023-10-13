@@ -34,23 +34,28 @@ var (
 		keys.PrivateKeyPolicyHardwareKeyTouch,
 		keys.PrivateKeyPolicyHardwareKeyPIN,
 		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+		keys.PrivateKeyPolicyWebSession,
 	}
 	hardwareKeyPolicies = []keys.PrivateKeyPolicy{
 		keys.PrivateKeyPolicyHardwareKey,
 		keys.PrivateKeyPolicyHardwareKeyTouch,
 		keys.PrivateKeyPolicyHardwareKeyPIN,
 		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+		keys.PrivateKeyPolicyWebSession,
 	}
 	hardwareKeyTouchPolicies = []keys.PrivateKeyPolicy{
 		keys.PrivateKeyPolicyHardwareKeyTouch,
 		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+		keys.PrivateKeyPolicyWebSession,
 	}
 	hardwareKeyPINPolicies = []keys.PrivateKeyPolicy{
 		keys.PrivateKeyPolicyHardwareKeyPIN,
 		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+		keys.PrivateKeyPolicyWebSession,
 	}
 	hardwareKeyTouchAndPINPolicies = []keys.PrivateKeyPolicy{
 		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+		keys.PrivateKeyPolicyWebSession,
 	}
 )
 
@@ -141,8 +146,14 @@ func TestGetPolicyFromSet(t *testing.T) {
 			},
 			wantPolicy: keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
 		}, {
-			name:       "touch and pin policy",
-			policySet:  privateKeyPolicies,
+			name: "touch and pin policy",
+			policySet: []keys.PrivateKeyPolicy{
+				keys.PrivateKeyPolicyNone,
+				keys.PrivateKeyPolicyHardwareKey,
+				keys.PrivateKeyPolicyHardwareKeyTouch,
+				keys.PrivateKeyPolicyHardwareKeyPIN,
+				keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+			},
 			wantPolicy: keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
 		},
 	}
