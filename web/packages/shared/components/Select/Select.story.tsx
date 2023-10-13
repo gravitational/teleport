@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import { Flex, Box } from 'design';
 
-import Select, { DarkStyledSelect } from '../Select';
+import Select, { DarkStyledSelect, SelectCreatable, Option } from '../Select';
 
 export default {
   title: 'Shared/Select',
@@ -28,6 +28,7 @@ export const Selects = () => {
     <Flex>
       <SelectDefault {...props} />
       <SelectDark {...props} />
+      <SelectCreatableDefault {...props} />
     </Flex>
   );
 };
@@ -83,7 +84,7 @@ function SelectDark({ value, onChange, options }) {
   const [selected, setSelected] = React.useState([]);
 
   return (
-    <Flex flexDirection="column" width="330px">
+    <Flex flexDirection="column" width="330px" mr={5}>
       <DarkStyledSelect mb="206px">
         <Select
           value={value}
@@ -109,6 +110,48 @@ function SelectDark({ value, onChange, options }) {
           placeholder="Click to select a role"
         />
       </DarkStyledSelect>
+    </Flex>
+  );
+}
+
+function SelectCreatableDefault({ value, options }) {
+  const [input, setInput] = React.useState('');
+  const [selected, setSelected] = React.useState<Option[]>();
+
+  return (
+    <Flex flexDirection="column" width="330px" mr={5}>
+      <Box mb="200px">
+        <SelectCreatable
+          placeholder="Example"
+          isMulti
+          isClearable
+          isSearchable
+          inputValue={input}
+          value={selected}
+          onInputChange={v => setInput(v)}
+          onChange={v => setSelected((v as Option[] | null) || [])}
+        />
+      </Box>
+      <Box mb="200px">
+        <SelectCreatable
+          placeholder="Example"
+          inputValue={input}
+          value={selected}
+          onInputChange={v => setInput(v)}
+          onChange={v => setSelected((v as Option[] | null) || [])}
+        />
+      </Box>
+      <Box>
+        <DarkStyledSelect>
+          <SelectCreatable
+            placeholder="Example"
+            inputValue={input}
+            value={selected}
+            onInputChange={v => setInput(v)}
+            onChange={v => setSelected((v as Option[] | null) || [])}
+          />
+        </DarkStyledSelect>
+      </Box>
     </Flex>
   );
 }
