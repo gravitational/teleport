@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Copyright 2023 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,9 +14,20 @@
  * limitations under the License.
  */
 
-import { assertUnreachable } from 'shared/utils/assertUnreachable';
+import styled from 'styled-components';
 
-/**
- * @deprecated Import assertUnreachable from `shared/utils/assertUnreachable` instead.
- */
-export { assertUnreachable };
+export const ButtonIconContainer = styled.div`
+  padding: 0 10px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  cursor: pointer;
+  user-select: none;
+  margin-right: 5px;
+
+  &:hover {
+    background: ${props => props.theme.colors.spotBackground[0]};
+  }
+`;
