@@ -17,6 +17,7 @@ package services
 import (
 	"bytes"
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -386,8 +387,10 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 	}
 
 	return resourceSortKey{
-		byName: backend.Key(prefix, name, kind),
-		byType: backend.Key(prefix, kind, name),
+		// names should be stored as lowercase to keep items sorted as
+		// expected, regardless of case
+		byName: backend.Key(prefix, strings.ToLower(name), kind),
+		byType: backend.Key(prefix, kind, strings.ToLower(name)),
 	}
 }
 
