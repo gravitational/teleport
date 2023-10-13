@@ -343,7 +343,7 @@ func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessLis
 }
 
 // CreateAccessListReview will create a new review for an access list.
-func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (*accesslist.Review, error) {
+func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (*accesslist.Review, time.Time, error) {
 	reviewName := uuid.New().String()
 	createdReview, err := accesslist.NewReview(header.Metadata{
 		Name: reviewName,
@@ -354,8 +354,10 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 		Changes:    review.Spec.Changes,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, time.Time{}, trace.Wrap(err)
 	}
+
+	var nextAuditDate time.Time
 
 	err = a.service.RunWhileLocked(ctx, lockName(review.Spec.AccessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		accessList, err := a.service.GetResource(ctx, review.Spec.AccessList)
@@ -391,7 +393,8 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 			return trace.Wrap(err)
 		}
 
-		accessList.Spec.Audit.NextAuditDate = services.SelectNextReviewDate(accessList)
+		nextAuditDate = services.SelectNextReviewDate(accessList)
+		accessList.Spec.Audit.NextAuditDate = nextAuditDate
 
 		for _, removedMember := range review.Spec.Changes.RemovedMembers {
 			if err := a.memberService.WithPrefix(review.Spec.AccessList).DeleteResource(ctx, removedMember); err != nil {
@@ -406,9 +409,10 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 		return nil
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, time.Time{}, trace.Wrap(err)
 	}
-	return createdReview, nil
+
+	return createdReview, nextAuditDate, nil
 }
 
 // accessListRequiresEqual returns true if two access lists are equal.
