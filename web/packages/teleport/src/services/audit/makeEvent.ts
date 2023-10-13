@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { formatDistanceStrict } from 'date-fns';
+import { pluralize } from 'shared/utils/text';
 
 import { Event, RawEvent, Formatters, eventCodes, RawEvents } from './types';
 
@@ -1484,38 +1485,50 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_LIST_MEMBER_CREATE]: {
     type: 'access_list.member.create',
     desc: 'Access list member added',
-    format: ({ access_list_name, member_name, updated_by }) =>
-      `User [${updated_by}] added member [${member_name}] to access list [${access_list_name}]`,
+    format: ({ access_list_name, members, updated_by }) =>
+      `User [${updated_by}] added ${formatMembers(
+        members
+      )} to access list [${access_list_name}]`,
   },
   [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: {
     type: 'access_list.member.create',
     desc: 'Access list member addition failure',
-    format: ({ access_list_name, member_name, updated_by }) =>
-      `User [${updated_by}] failed to add member [${member_name}] to access list [${access_list_name}]`,
+    format: ({ access_list_name, members, updated_by }) =>
+      `User [${updated_by}] failed to add ${formatMembers(
+        members
+      )} to access list [${access_list_name}]`,
   },
   [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: {
     type: 'access_list.member.update',
     desc: 'Access list member updated',
-    format: ({ access_list_name, member_name, updated_by }) =>
-      `User [${updated_by}] updated member [${member_name}] in access list [${access_list_name}]`,
+    format: ({ access_list_name, members, updated_by }) =>
+      `User [${updated_by}] updated ${formatMembers(
+        members
+      )} in access list [${access_list_name}]`,
   },
   [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: {
     type: 'access_list.member.update',
     desc: 'Access list member update failure',
-    format: ({ access_list_name, member_name, updated_by }) =>
-      `User [${updated_by}] failed to update member [${member_name}] in access list [${access_list_name}]`,
+    format: ({ access_list_name, members, updated_by }) =>
+      `User [${updated_by}] failed to update ${formatMembers(
+        members
+      )} in access list [${access_list_name}]`,
   },
   [eventCodes.ACCESS_LIST_MEMBER_DELETE]: {
     type: 'access_list.member.delete',
     desc: 'Access list member removed',
-    format: ({ access_list_name, member_name, updated_by }) =>
-      `User [${updated_by}] removed member [${member_name}] from access list [${access_list_name}]`,
+    format: ({ access_list_name, members, updated_by }) =>
+      `User [${updated_by}] removed ${formatMembers(
+        members
+      )} from access list [${access_list_name}]`,
   },
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: {
     type: 'access_list.member.delete',
     desc: 'Access list member removal failure',
-    format: ({ access_list_name, member_name, updated_by }) =>
-      `User [${updated_by}] failed to remove member [${member_name}] from access list [${access_list_name}]`,
+    format: ({ access_list_name, members, updated_by }) =>
+      `User [${updated_by}] failed to remove ${formatMembers(
+        members
+      )} from access list [${access_list_name}]`,
   },
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: {
     type: 'access_list.member.delete_all_members',
@@ -1574,4 +1587,11 @@ function truncateStr(str: string, len: number): string {
     return str;
   }
   return str.substring(0, len - 3) + '...';
+}
+
+function formatMembers(members: { member_name: string }[]) {
+  const memberNames = members.map(m => m.member_name);
+  const memberNamesJoined = memberNames.join(', ');
+
+  return `${pluralize(memberNames.length, 'member')} [${memberNamesJoined}]`;
 }

@@ -1631,6 +1631,28 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		Kinds:               req.Kinds,
 	}
 
+	// Apply any requested additional search_as_roles and/or preview_as_roles
+	// for the duration of the search.
+	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
+		extendedContext, err := a.authContextForSearch(ctx, &proto.ListResourcesRequest{
+			UseSearchAsRoles:    req.UseSearchAsRoles,
+			UsePreviewAsRoles:   req.UsePreviewAsRoles,
+			ResourceType:        types.KindUnifiedResource,
+			Namespace:           apidefaults.Namespace,
+			Labels:              req.Labels,
+			PredicateExpression: req.PredicateExpression,
+			SearchKeywords:      req.SearchKeywords,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		baseContext := a.context
+		a.context = *extendedContext
+		defer func() {
+			a.context = baseContext
+		}()
+	}
+
 	resourceChecker, err := a.newResourceAccessChecker(types.KindUnifiedResource)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5425,6 +5447,12 @@ func (a *ServerWithRoles) GetResources(ctx context.Context, req *proto.ListResou
 func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 	if !hasLocalUserRole(a.context) && !hasRemoteUserRole(a.context) {
 		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
+	}
+	// Certain hardware-key based private key policies are treated as MFA verification.
+	if a.context.Identity.GetIdentity().PrivateKeyPolicy.MFAVerified() {
+		return &proto.IsMFARequiredResponse{
+			Required: false,
+		}, nil
 	}
 	return a.authServer.isMFARequired(ctx, a.context.Checker, req)
 }

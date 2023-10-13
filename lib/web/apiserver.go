@@ -2506,6 +2506,17 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		}
 	}
 
+	// set default kinds to be requested if none exist in the request
+	if len(kinds) == 0 {
+		kinds = []string{
+			types.KindApp,
+			types.KindDatabase,
+			types.KindNode,
+			types.KindWindowsDesktop,
+			types.KindKubernetesCluster,
+		}
+	}
+
 	startKey := values.Get("startKey")
 	return &proto.ListUnifiedResourcesRequest{
 		Kinds:               kinds,

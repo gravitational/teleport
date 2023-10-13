@@ -55,7 +55,8 @@ export default function useServersideSearchPanel({
         searchString,
         params.sort,
         params.kinds,
-        isAdvancedSearch
+        isAdvancedSearch,
+        params.pinnedOnly
       )
     );
   }

@@ -104,7 +104,6 @@ export const ConnectMyComputerContextProvider: FC<{
     mainProcessClient,
     connectMyComputerService,
     clustersService,
-    configService,
     workspacesService,
     usageService,
   } = ctx;
@@ -125,19 +124,19 @@ export const ConnectMyComputerContextProvider: FC<{
     isAgentConfiguredAttempt.data;
 
   const rootCluster = clustersService.findCluster(rootClusterUri);
+  const { loggedInUser } = rootCluster;
+
   const canUse = useMemo(() => {
-    const isFeatureFlagEnabled = configService.get(
-      'feature.connectMyComputer'
-    ).value;
     const hasPermissions = hasConnectMyComputerPermissions(
-      rootCluster,
+      loggedInUser,
       mainProcessClient.getRuntimeSettings()
     );
 
     // We check `isAgentConfigured`, because the user should always have access to the agent after configuring it.
     // https://github.com/gravitational/teleport/blob/master/rfd/0133-connect-my-computer.md#access-to-ui-and-autostart
-    return isFeatureFlagEnabled && (hasPermissions || isAgentConfigured);
-  }, [configService, isAgentConfigured, mainProcessClient, rootCluster]);
+    return hasPermissions || isAgentConfigured;
+  }, [isAgentConfigured, mainProcessClient, loggedInUser]);
+
   const agentCompatibility = useMemo(
     () =>
       checkAgentCompatibility(

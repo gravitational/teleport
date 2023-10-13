@@ -16,8 +16,10 @@
 
 import React, {
   createContext,
+  useCallback,
   PropsWithChildren,
   useContext,
+  useRef,
   useEffect,
   useState,
 } from 'react';
@@ -29,6 +31,7 @@ import { Indicator } from 'design';
 import { StyledIndicator } from 'teleport/Main';
 
 import * as service from 'teleport/services/userPreferences';
+import cfg from 'teleport/config';
 
 import storage, { KeysEnum } from 'teleport/services/localStorage';
 
@@ -39,11 +42,19 @@ import {
 
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
-import type { UserPreferences } from 'teleport/services/userPreferences/types';
+import type {
+  UserClusterPreferences,
+  UserPreferences,
+} from 'teleport/services/userPreferences/types';
 
 export interface UserContextValue {
   preferences: UserPreferences;
   updatePreferences: (preferences: Partial<UserPreferences>) => Promise<void>;
+  updateClusterPinnedResources: (
+    clusterId: string,
+    pinnedResources: string[]
+  ) => Promise<void>;
+  getClusterPinnedResources: (clusterId: string) => Promise<string[]>;
 }
 
 export const UserContext = createContext<UserContextValue>(null);
@@ -54,10 +65,43 @@ export function useUser(): UserContextValue {
 
 export function UserContextProvider(props: PropsWithChildren<unknown>) {
   const { attempt, run } = useAttempt('processing');
+  // because we have to update cluster preferences with itself during the update
+  // we useRef here to prevent infinite rerenders
+  const clusterPreferences = useRef<Record<string, UserClusterPreferences>>({});
 
   const [preferences, setPreferences] = useState<UserPreferences>(
     makeDefaultUserPreferences()
   );
+
+  const getClusterPinnedResources = useCallback(async (clusterId: string) => {
+    if (clusterPreferences.current[clusterId]) {
+      // we know that pinned resources is supported because we've already successfully
+      // fetched their pinned resources once before
+      localStorage.removeItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED);
+      return clusterPreferences.current[clusterId].pinnedResources;
+    }
+    const prefs = await service.getUserClusterPreferences(clusterId);
+    if (prefs) {
+      clusterPreferences.current[clusterId] = prefs;
+      return prefs.pinnedResources;
+    }
+    return null;
+  }, []);
+
+  const updateClusterPinnedResources = async (
+    clusterId: string,
+    pinnedResources: string[]
+  ) => {
+    if (!clusterPreferences.current[clusterId]) {
+      clusterPreferences.current[clusterId] = { pinnedResources: [] };
+    }
+    clusterPreferences.current[clusterId].pinnedResources = pinnedResources;
+
+    return service.updateUserClusterPreferences(clusterId, {
+      ...preferences,
+      clusterPreferences: clusterPreferences.current[clusterId],
+    });
+  };
 
   async function loadUserPreferences() {
     const storedPreferences = storage.getUserPreferences();
@@ -65,7 +109,8 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
 
     try {
       const preferences = await service.getUserPreferences();
-
+      clusterPreferences.current[cfg.proxyCluster] =
+        preferences.clusterPreferences;
       if (!storedPreferences) {
         // there are no mirrored user preferences in local storage so this is the first time
         // the user has requested their preferences in this browser session
@@ -113,8 +158,14 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
         ...preferences.onboard,
         ...newPreferences.onboard,
       },
+      unifiedResourcePreferences: {
+        ...preferences.unifiedResourcePreferences,
+        ...newPreferences.unifiedResourcePreferences,
+      },
+      // updatePreferences only update the root cluster so we can only pass cluster
+      // preferences from the root cluster
+      clusterPreferences: clusterPreferences.current[cfg.proxyCluster],
     } as UserPreferences;
-
     setPreferences(nextPreferences);
     storage.setUserPreferences(nextPreferences);
 
@@ -148,7 +199,14 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
   }
 
   return (
-    <UserContext.Provider value={{ preferences, updatePreferences }}>
+    <UserContext.Provider
+      value={{
+        preferences,
+        updatePreferences,
+        getClusterPinnedResources,
+        updateClusterPinnedResources,
+      }}
+    >
       {props.children}
     </UserContext.Provider>
   );
