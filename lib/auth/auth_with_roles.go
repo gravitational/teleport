@@ -2595,11 +2595,12 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 	// their own requests.  we therefore subselect the filter results to show only those requests
 	// that the user *is* allowed to see (specifically, their own requests + requests that they
 	// are allowed to review).
+	identity := a.context.Identity.GetIdentity()
 	checker, err := services.NewReviewPermissionChecker(
 		ctx,
 		a.authServer,
 		a.context.User.GetName(),
-		a.context.Identity.GetIdentity(),
+		&identity,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2710,7 +2711,8 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission typ
 	// under optimistic locking at the level of the backend service.  the correctness of the
 	// author field is all that needs to be enforced at this level.
 
-	return a.authServer.SubmitAccessReview(ctx, submission, a.context.Identity.GetIdentity())
+	identity := a.context.Identity.GetIdentity()
+	return a.authServer.submitAccessReview(ctx, submission, &identity)
 }
 
 func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
