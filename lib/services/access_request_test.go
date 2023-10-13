@@ -652,7 +652,7 @@ func TestReviewThresholds(t *testing.T) {
 					rt.expect = types.RequestState_PENDING
 				}
 
-				checker, err := NewReviewPermissionChecker(context.TODO(), g, rt.author)
+				checker, err := NewReviewPermissionChecker(context.TODO(), g, rt.author, nil)
 				require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
 
 				canReview, err := checker.CanReviewRequest(req)
