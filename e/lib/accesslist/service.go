@@ -355,6 +355,44 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 	return conv.ToProto(result), nil
 }
 
+// GetAccessListsToReview will return access lists that need to be reviewed by the current user.
+func (s *Service) GetAccessListsToReview(ctx context.Context, req *accesslistv1.GetAccessListsToReviewRequest) (*accesslistv1.GetAccessListsToReviewResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &accesslistv1.GetAccessListsToReviewResponse{}
+	var nextToken string
+	now := s.clock.Now()
+
+	for {
+		var page []*accesslist.AccessList
+		var err error
+		page, nextToken, err = s.accessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, accessList := range page {
+			if needsReviewBy(authCtx.Identity.GetIdentity(), accessList, now) {
+				resp.AccessLists = append(resp.AccessLists, conv.ToProto(accessList))
+			}
+		}
+
+		if nextToken == "" {
+			break
+		}
+	}
+
+	return resp, nil
+}
+
+// needsReviewBy returns true if the access list should be reviewed by the user.
+func needsReviewBy(identity tlsca.Identity, accessList *accesslist.AccessList, now time.Time) bool {
+	return services.IsAccessListOwner(identity, accessList) == nil && accessList.Spec.Audit.NextAuditDate.Sub(now) <= accessList.Spec.Audit.Notifications.Start
+}
+
 // UpsertAccessList creates or updates an access list resource.
 func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.UpsertAccessListRequest) (*accesslistv1.AccessList, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)

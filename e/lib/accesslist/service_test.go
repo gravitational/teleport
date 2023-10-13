@@ -365,6 +365,58 @@ func TestService_GetAccessList(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 }
 
+func TestService_GetAccessListsToReview(t *testing.T) {
+	t.Parallel()
+
+	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
+
+	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
+	require.NoError(t, err)
+	require.Empty(t, getResp.AccessLists)
+
+	resp, err := svc.GetAccessListsToReview(ownerCtx, &accesslistv1.GetAccessListsToReviewRequest{})
+	require.NoError(t, err)
+	require.Empty(t, resp.AccessLists)
+
+	a1 := newAccessList(t, "1", clock)
+	a2 := newAccessList(t, "2", clock)
+	a3 := newAccessList(t, "3", clock)
+	a4 := newAccessList(t, "4", clock)
+	a5 := newAccessList(t, "5", clock)
+
+	a1.Spec.Audit.NextAuditDate = time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
+	a2.Spec.Audit.NextAuditDate = time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC)
+	a3.Spec.Audit.NextAuditDate = time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC)
+	a4.Spec.Audit.NextAuditDate = time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC)
+	a5.Spec.Audit.NextAuditDate = time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
+
+	createAccessListsAndMembers(t, ctx, svc, emitter, nil, []*accesslist.AccessList{a1, a2, a3, a4, a5}, nil)
+
+	svc.clock = clockwork.NewFakeClockAt(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	resp, err = svc.GetAccessListsToReview(ownerCtx, &accesslistv1.GetAccessListsToReviewRequest{})
+	require.NoError(t, err)
+	require.Empty(t, resp.AccessLists)
+
+	svc.clock = clockwork.NewFakeClockAt(time.Date(2024, 1, 18, 0, 0, 0, 0, time.UTC))
+
+	resp, err = svc.GetAccessListsToReview(ownerCtx, &accesslistv1.GetAccessListsToReviewRequest{})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a5}, mustFromProtoAll(t, resp.AccessLists...), cmpOpts...))
+
+	svc.clock = clockwork.NewFakeClockAt(time.Date(2024, 2, 2, 0, 0, 0, 0, time.UTC))
+
+	resp, err = svc.GetAccessListsToReview(ownerCtx, &accesslistv1.GetAccessListsToReviewRequest{})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a5}, mustFromProtoAll(t, resp.AccessLists...), cmpOpts...))
+
+	svc.clock = clockwork.NewFakeClockAt(time.Date(2024, 2, 16, 0, 0, 0, 0, time.UTC))
+
+	resp, err = svc.GetAccessListsToReview(ownerCtx, &accesslistv1.GetAccessListsToReviewRequest{})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a3, a4, a5}, mustFromProtoAll(t, resp.AccessLists...), cmpOpts...))
+}
+
 func TestService_UpsertAndGetAccessList_OwnersIneligibleReason(t *testing.T) {
 	t.Parallel()
 
@@ -1329,6 +1381,9 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist
 			},
 			Audit: accesslist.Audit{
 				NextAuditDate: clock.Now().Add(time.Hour * 8700),
+				Notifications: accesslist.Notifications{
+					Start: 336 * time.Hour, // Two weeks.
+				},
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
