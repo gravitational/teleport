@@ -16,6 +16,8 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import { rest } from 'msw';
 
 import { Context as TeleportContext, ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -30,6 +32,7 @@ import {
 import {
   DiscoverProvider,
   DiscoverContextState,
+  DbMeta,
 } from 'teleport/Discover/useDiscover';
 import { IntegrationStatusCode } from 'teleport/services/integrations';
 
@@ -37,7 +40,10 @@ import { AutoDeploy } from './AutoDeploy';
 
 export default {
   title: 'Teleport/Discover/Database/Deploy/Auto',
+  loaders: [mswLoader],
 };
+
+initialize();
 
 export const Init = () => {
   return (
@@ -45,6 +51,18 @@ export const Init = () => {
       <AutoDeploy />
     </Provider>
   );
+};
+
+Init.parameters = {
+  msw: {
+    handlers: [
+      rest.post(
+        cfg.getListSecurityGroupsUrl('test-integration'),
+        (req, res, ctx) =>
+          res(ctx.json({ securityGroups: securityGroupsResponse }))
+      ),
+    ],
+  },
 };
 
 export const InitWithLabels = () => {
@@ -62,17 +80,80 @@ export const InitWithLabels = () => {
   );
 };
 
+InitWithLabels.parameters = {
+  msw: {
+    handlers: [
+      rest.post(
+        cfg.getListSecurityGroupsUrl('test-integration'),
+        (req, res, ctx) =>
+          res(ctx.json({ securityGroups: securityGroupsResponse }))
+      ),
+    ],
+  },
+};
+
+export const InitSecurityGroupsLoadingFailed = () => {
+  return (
+    <Provider>
+      <AutoDeploy />
+    </Provider>
+  );
+};
+
+InitSecurityGroupsLoadingFailed.parameters = {
+  msw: {
+    handlers: [
+      rest.post(
+        cfg.getListSecurityGroupsUrl('test-integration'),
+        (req, res, ctx) =>
+          res(
+            ctx.status(403),
+            ctx.json({
+              message: 'some error when trying to list security groups',
+            })
+          )
+      ),
+    ],
+  },
+};
+
+export const InitSecurityGroupsLoading = () => {
+  return (
+    <Provider>
+      <AutoDeploy />
+    </Provider>
+  );
+};
+
+InitSecurityGroupsLoading.parameters = {
+  msw: {
+    handlers: [
+      rest.post(
+        cfg.getListSecurityGroupsUrl('test-integration'),
+        (req, res, ctx) => res(ctx.delay('infinite'))
+      ),
+    ],
+  },
+};
+
 const Provider = props => {
   const ctx = createTeleportContext();
   const discoverCtx: DiscoverContextState = {
     agentMeta: {
       resourceName: 'db-name',
       agentMatcherLabels: [],
-      db: {} as any,
+      db: {
+        aws: {
+          rds: {
+            region: 'us-east-1',
+            vpcId: 'test-vpc',
+          },
+        },
+      },
       selectedAwsRdsDb: { region: 'us-east-1' } as any,
       integration: {
         kind: 'aws-oidc',
-        name: 'integration/aws-oidc',
+        name: 'test-integration',
         resourceType: 'integration',
         spec: {
           roleArn: 'arn-123',
@@ -80,7 +161,7 @@ const Provider = props => {
         statusCode: IntegrationStatusCode.Running,
       },
       ...props.agentMeta,
-    },
+    } as DbMeta,
     currentStep: 0,
     nextStep: () => null,
     prevStep: () => null,
@@ -131,3 +212,153 @@ function createTeleportContext() {
 
   return ctx;
 }
+
+const securityGroupsResponse = [
+  {
+    name: 'security-group-1',
+    id: 'sg-1',
+    description: 'this is security group 1',
+    inboundRules: [
+      {
+        ipProtocol: 'tcp',
+        fromPort: '0',
+        toPort: '0',
+        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
+      },
+      {
+        ipProtocol: 'tcp',
+        fromPort: '443',
+        toPort: '443',
+        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
+      },
+      {
+        ipProtocol: 'tcp',
+        fromPort: '2000',
+        toPort: '5000',
+        cidrs: [
+          { cidr: '192.168.1.0/24', description: 'Subnet Mask 255.255.255.0' },
+        ],
+      },
+    ],
+    outboundRules: [
+      {
+        ipProtocol: 'tcp',
+        fromPort: '0',
+        toPort: '0',
+        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
+      },
+      {
+        ipProtocol: 'tcp',
+        fromPort: '22',
+        toPort: '22',
+        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
+      },
+      {
+        ipProtocol: 'tcp',
+        fromPort: '2000',
+        toPort: '5000',
+        cidrs: [
+          { cidr: '10.0.0.0/16', description: 'Subnet Mask 255.255.0.0' },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'security-group-2',
+    id: 'sg-2',
+    description: 'this is security group 2',
+    inboundRules: [
+      {
+        ipProtocol: 'tcp',
+        fromPort: '0',
+        toPort: '0',
+        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
+      },
+      {
+        ipProtocol: 'tcp',
+        fromPort: '443',
+        toPort: '443',
+        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
+      },
+      {
+        ipProtocol: 'tcp',
+        fromPort: '2000',
+        toPort: '5000',
+        cidrs: [
+          { cidr: '192.168.1.0/24', description: 'Subnet Mask 255.255.255.0' },
+        ],
+      },
+    ],
+    outboundRules: [
+      {
+        ipProtocol: 'tcp',
+        fromPort: '0',
+        toPort: '0',
+        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
+      },
+      {
+        ipProtocol: 'tcp',
+        fromPort: '22',
+        toPort: '22',
+        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
+      },
+      {
+        ipProtocol: 'tcp',
+        fromPort: '2000',
+        toPort: '5000',
+        cidrs: [
+          { cidr: '10.0.0.0/16', description: 'Subnet Mask 255.255.0.0' },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'security-group-3',
+    id: 'sg-3',
+    description: 'this is security group 3',
+    inboundRules: [
+      {
+        ipProtocol: 'tcp',
+        fromPort: '0',
+        toPort: '0',
+        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
+      },
+      {
+        ipProtocol: 'tcp',
+        fromPort: '443',
+        toPort: '443',
+        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
+      },
+      {
+        ipProtocol: 'tcp',
+        fromPort: '2000',
+        toPort: '5000',
+        cidrs: [
+          { cidr: '192.168.1.0/24', description: 'Subnet Mask 255.255.255.0' },
+        ],
+      },
+    ],
+    outboundRules: [
+      {
+        ipProtocol: 'tcp',
+        fromPort: '0',
+        toPort: '0',
+        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
+      },
+      {
+        ipProtocol: 'tcp',
+        fromPort: '22',
+        toPort: '22',
+        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
+      },
+      {
+        ipProtocol: 'tcp',
+        fromPort: '2000',
+        toPort: '5000',
+        cidrs: [
+          { cidr: '10.0.0.0/16', description: 'Subnet Mask 255.255.0.0' },
+        ],
+      },
+    ],
+  },
+];

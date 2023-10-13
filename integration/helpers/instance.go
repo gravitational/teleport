@@ -628,7 +628,7 @@ func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) er
 				teleUser.AddRole(role.GetName())
 			}
 		}
-		err = auth.UpsertUser(teleUser)
+		_, err = auth.UpsertUser(ctx, teleUser)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1317,9 +1317,15 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		sshProxyAddr = cfg.Proxy.SSHAddr
 		kubeProxyAddr = cfg.Proxy.KubeAddr
 	case cfg.ALBAddr != "":
-		webProxyAddr = cfg.ALBAddr
-		sshProxyAddr = cfg.ALBAddr
-		kubeProxyAddr = cfg.ALBAddr
+		if i.IsSinglePortSetup {
+			webProxyAddr = cfg.ALBAddr
+			sshProxyAddr = cfg.ALBAddr
+			kubeProxyAddr = cfg.ALBAddr
+		} else {
+			webProxyAddr = cfg.ALBAddr
+			sshProxyAddr = i.SSHProxy
+			kubeProxyAddr = i.Config.Proxy.Kube.ListenAddr.Addr
+		}
 	default:
 		webProxyAddr = i.Web
 		sshProxyAddr = i.SSHProxy
@@ -1392,7 +1398,7 @@ func (i *TeleInstance) CreateWebUser(t *testing.T, username, password string) {
 	require.NoError(t, err)
 
 	user.AddRole(role.GetName())
-	err = i.Process.GetAuthServer().CreateUser(context.Background(), user)
+	_, err = i.Process.GetAuthServer().CreateUser(context.Background(), user)
 	require.NoError(t, err)
 
 	err = i.Process.GetAuthServer().UpsertPassword(user.GetName(), []byte(password))

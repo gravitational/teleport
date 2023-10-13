@@ -177,6 +177,9 @@ func (s *KubernetesServerV3) SetRotation(r Rotation) {
 
 // GetCluster returns the cluster this kube server proxies.
 func (s *KubernetesServerV3) GetCluster() KubeCluster {
+	if s.Spec.Cluster == nil {
+		return nil
+	}
 	return s.Spec.Cluster
 }
 

@@ -65,7 +65,7 @@ func awsDBDiscoveryUnmatched(t *testing.T) {
 	cluster := createTeleportCluster(t,
 		withSingleProxyPort(t),
 		withDiscoveryService(t, "db-e2e-test", types.AWSMatcher{
-			Types: []string{services.AWSMatcherRDS},
+			Types: []string{types.AWSMatcherRDS},
 			Tags: types.Labels{
 				// This label should not match.
 				"env": {"tag_not_found"},
@@ -110,7 +110,7 @@ func awsDBDiscoveryMatched(t *testing.T) {
 	cluster := createTeleportCluster(t,
 		withSingleProxyPort(t),
 		withDiscoveryService(t, "db-e2e-test", types.AWSMatcher{
-			Types:   []string{services.AWSMatcherRDS},
+			Types:   []string{types.AWSMatcherRDS},
 			Tags:    mustGetDiscoveryMatcherLabels(t),
 			Regions: []string{awsRegion},
 			AssumeRole: &types.AssumeRole{

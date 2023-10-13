@@ -31,7 +31,7 @@ import { Transition } from 'react-transition-group';
 
 import { makeLabelTag } from 'teleport/components/formatters';
 import { MenuIcon } from 'shared/components/MenuAction';
-import { CircleCheck, Laptop, Moon, Warning } from 'design/Icon';
+import * as icons from 'design/Icon';
 import Indicator from 'design/Indicator';
 
 import {
@@ -192,11 +192,12 @@ export function DocumentConnectMyComputerStatus(
                 display: flex;
               `}
             >
-              <Laptop mr={2} />
+              <icons.Laptop mr={2} />
               {/** The node name can be changed, so it might be different from the system hostname. */}
               {agentNode?.hostname || hostname}
             </Text>
             <MenuIcon
+              Icon={icons.MoreVert}
               buttonIconProps={{
                 css: css`
                   border-radius: ${props => props.theme.space[1]}px;
@@ -284,14 +285,16 @@ export function DocumentConnectMyComputerStatus(
             <>
               {isRunning ? (
                 <Text>
-                  Any cluster user with the role <strong>{roleName}</strong> can
-                  now access your computer as <strong>{systemUsername}</strong>.
+                  Cluster users with the role <strong>{roleName}</strong> and
+                  users with administrator privileges can now access your
+                  computer as <strong>{systemUsername}</strong>.
                 </Text>
               ) : (
                 <Text>
-                  Connecting your computer will allow any cluster user with the
-                  role <strong>{roleName}</strong> to access it as an SSH
-                  resource with the user <strong>{systemUsername}</strong>.
+                  Starting the agent will allow clusters users with the role{' '}
+                  <strong>{roleName}</strong> and users with administrator
+                  privileges to access it as an SSH resource as the user{' '}
+                  <strong>{systemUsername}</strong>.
                 </Text>
               )}
               {showConnectAndStopAgentButtons ? (
@@ -431,13 +434,13 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
       switch (currentAction.agentProcessState.status) {
         case 'not-started': {
           return {
-            Icon: Moon,
+            Icon: icons.Moon,
             title: 'Agent not running',
           };
         }
         case 'running': {
           return {
-            Icon: props => <CircleCheck {...props} color="success" />,
+            Icon: props => <icons.CircleCheck {...props} color="success" />,
             title: 'Agent running',
           };
         }
@@ -447,7 +450,7 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
 
           if (exitedSuccessfully) {
             return {
-              Icon: Moon,
+              Icon: icons.Moon,
               title: 'Agent not running',
             };
           } else {
@@ -515,7 +518,7 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
         }
         case 'success': {
           return {
-            Icon: CircleCheck,
+            Icon: icons.CircleCheck,
             title: 'Agent removed',
             error: currentAction.attempt.statusText,
           };
@@ -528,7 +531,7 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
   }
 }
 
-const StyledWarning = styled(Warning).attrs({
+const StyledWarning = styled(icons.Warning).attrs({
   color: 'error.main',
 })``;
 

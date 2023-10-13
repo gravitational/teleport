@@ -96,6 +96,8 @@ const Provider = ({
 }: ProviderProps) => {
   const ctx = createTeleportContext({ customAcl: customAcl });
   const updatePreferences = () => Promise.resolve();
+  const getClusterPinnedResources = () => Promise.resolve([]);
+  const updateClusterPinnedResources = () => Promise.resolve();
   const preferences: UserPreferences = makeDefaultUserPreferences();
   preferences.onboard.preferredResources = resources;
 
@@ -103,7 +105,14 @@ const Provider = ({
     <MemoryRouter
       initialEntries={[{ pathname: '/test', state: { entity: entity } }]}
     >
-      <UserContext.Provider value={{ preferences, updatePreferences }}>
+      <UserContext.Provider
+        value={{
+          preferences,
+          updatePreferences,
+          getClusterPinnedResources,
+          updateClusterPinnedResources,
+        }}
+      >
         <ContextProvider ctx={ctx}>{children}</ContextProvider>
       </UserContext.Provider>
     </MemoryRouter>

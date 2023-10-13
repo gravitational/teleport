@@ -134,7 +134,7 @@ func TestServerCreateBot(t *testing.T) {
 
 			// Ensure createBot produces the expected role and user.
 			resourceName := BotResourceName(tt.request.Name)
-			usr, err := srv.Auth().Services.GetUser(resourceName, false)
+			usr, err := srv.Auth().Services.GetUser(ctx, resourceName, false)
 			require.NoError(t, err)
 			tt.checkUser(t, usr)
 			role, err := srv.Auth().Services.GetRole(ctx, resourceName)

@@ -70,7 +70,7 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 	// Do not use GetCurrentUser – it returns the current view of the user given the certs, not merely
 	// the resource from the backend. This means that GetCurrentUser includes any roles granted
 	// through access requests. We don't want that since we're later going to update the user.
-	clusterUser, err := accessAndIdentity.GetUser(cluster.GetLoggedInUser().Name, false /* withSecrets */)
+	clusterUser, err := accessAndIdentity.GetUser(ctx, cluster.GetLoggedInUser().Name, false /* withSecrets */)
 	if err != nil {
 		return noCertsReloaded, trace.Wrap(err)
 	}
@@ -175,8 +175,8 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 	timeoutCtx, cancel := context.WithTimeout(ctx, resourceUpdateTimeout)
 	defer cancel()
 	err = s.syncResourceUpdate(timeoutCtx, accessAndIdentity, clusterUser, func(ctx context.Context) error {
-		return trace.Wrap(accessAndIdentity.UpdateUser(ctx, clusterUser),
-			"updating user %v", clusterUser.GetName())
+		_, err := accessAndIdentity.UpdateUser(ctx, clusterUser)
+		return trace.Wrap(err, "updating user %v", clusterUser.GetName())
 	})
 	if err != nil {
 		return noCertsReloaded, trace.Wrap(err)
@@ -236,9 +236,9 @@ type AccessAndIdentity interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// See services.Identity.GetUser.
-	GetUser(name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 	// See services.Identity.UpdateUser.
-	UpdateUser(context.Context, types.User) error
+	UpdateUser(context.Context, types.User) (types.User, error)
 
 	// See services.Presence.GetNode.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)

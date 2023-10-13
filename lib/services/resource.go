@@ -162,6 +162,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindClusterNetworkingConfig, nil
 	case types.KindSessionRecordingConfig, "recording_config", "session_recording", "rec_config", "recconfig":
 		return types.KindSessionRecordingConfig, nil
+	case types.KindExternalCloudAudit:
+		return types.KindExternalCloudAudit, nil
 	case types.KindRemoteCluster, "remote_clusters", "rc", "rcs":
 		return types.KindRemoteCluster, nil
 	case types.KindSemaphore, "semaphores", "sem", "sems":
@@ -210,6 +212,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindIntegration, nil
 	case types.KindAccessList, types.KindAccessList + "s", "accesslist", "accesslists":
 		return types.KindAccessList, nil
+	case types.KindDiscoveryConfig, types.KindDiscoveryConfig + "s", "discoveryconfig", "discoveryconfigs":
+		return types.KindDiscoveryConfig, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -517,14 +521,14 @@ func init() {
 		if !ok {
 			return nil, trace.BadParameter("expected GithubConnector, got %T", resource)
 		}
-		bytes, err := marshalGithubConnector(githubConnector, opts...)
+		bytes, err := MarshalOSSGithubConnector(githubConnector, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return bytes, nil
 	})
 	RegisterResourceUnmarshaler(types.KindGithubConnector, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
-		githubConnector, err := unmarshalGithubConnector(bytes) // XXX: Does not support marshal options.
+		githubConnector, err := UnmarshalOSSGithubConnector(bytes, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

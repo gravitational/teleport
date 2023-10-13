@@ -14,4 +14,9 @@
  * limitations under the License.
  */
 
-export { getUserPreferences, updateUserPreferences } from './userPreferences';
+export {
+  getUserPreferences,
+  updateUserPreferences,
+  updateUserClusterPreferences,
+  getUserClusterPreferences,
+} from './userPreferences';

@@ -661,16 +661,6 @@ func (c *HTTPClient) DeleteProxy(ctx context.Context, name string) error {
 	return nil
 }
 
-// UpsertUser user updates user entry.
-func (c *HTTPClient) UpsertUser(user types.User) error {
-	data, err := services.MarshalUser(user)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("users"), &upsertUserRawReq{User: data})
-	return trace.Wrap(err)
-}
-
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
 func (c *HTTPClient) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {

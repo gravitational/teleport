@@ -57,7 +57,7 @@ func ProxyClient(cfg ProxyConfig) (*kubernetes.Clientset, *rest.Config, error) {
 	}
 
 	// Fetch user info to get roles and max session TTL.
-	user, err := authServer.GetUser(cfg.Username, false)
+	user, err := authServer.GetUser(ctx, cfg.Username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

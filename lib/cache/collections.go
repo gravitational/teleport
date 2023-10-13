@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -172,8 +172,6 @@ type cacheCollections struct {
 	// byKind is a map of registered collections by resource Kind/SubKind
 	byKind map[resourceKind]collection
 
-	accessLists              collectionReader[services.AccessListsGetter]
-	accessListMembers        collectionReader[services.AccessListMembersGetter]
 	apps                     collectionReader[services.AppGetter]
 	nodes                    collectionReader[nodeGetter]
 	tunnelConnections        collectionReader[tunnelConnectionGetter]
@@ -187,6 +185,7 @@ type cacheCollections struct {
 	clusterNetworkingConfigs collectionReader[clusterNetworkingConfigGetter]
 	databases                collectionReader[services.DatabaseGetter]
 	databaseServers          collectionReader[databaseServerGetter]
+	discoveryConfigs         collectionReader[services.DiscoveryConfigsGetter]
 	installers               collectionReader[installerGetter]
 	integrations             collectionReader[services.IntegrationsGetter]
 	kubeClusters             collectionReader[kubernetesClusterGetter]
@@ -595,27 +594,21 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.integrations
+		case types.KindDiscoveryConfig:
+			if c.DiscoveryConfigs == nil {
+				return nil, trace.BadParameter("missing parameter DiscoveryConfigs")
+			}
+			collections.discoveryConfigs = &genericCollection[*discoveryconfig.DiscoveryConfig, services.DiscoveryConfigsGetter, discoveryConfigExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.discoveryConfigs
 		case types.KindHeadlessAuthentication:
 			// For headless authentications, we need only process events. We don't need to keep the cache up to date.
 			collections.byKind[resourceKind] = &genericCollection[*types.HeadlessAuthentication, noReader, noopExecutor]{cache: c, watch: watch}
-		case types.KindAccessList:
-			if c.AccessLists == nil {
-				return nil, trace.BadParameter("missing parameter AccessLists")
-			}
-			collections.accessLists = &genericCollection[*accesslist.AccessList, services.AccessListsGetter, accessListsExecutor]{cache: c, watch: watch}
-			collections.byKind[resourceKind] = collections.accessLists
 		case types.KindUserLoginState:
 			if c.UserLoginStates == nil {
 				return nil, trace.BadParameter("missing parameter UserLoginStates")
 			}
 			collections.userLoginStates = &genericCollection[*userloginstate.UserLoginState, services.UserLoginStatesGetter, userLoginStateExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.userLoginStates
-		case types.KindAccessListMember:
-			if c.AccessLists == nil {
-				return nil, trace.BadParameter("missing parameter AccessLists")
-			}
-			collections.accessListMembers = &genericCollection[*accesslist.AccessListMember, services.AccessListMembersGetter, accessListMembersExecutor]{cache: c, watch: watch}
-			collections.byKind[resourceKind] = collections.accessListMembers
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -1121,15 +1114,16 @@ var _ executor[types.ClusterName, clusterNameGetter] = clusterNameExecutor{}
 type userExecutor struct{}
 
 func (userExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.User, error) {
-	return cache.Users.GetUsers(loadSecrets)
+	return cache.Users.GetUsers(ctx, loadSecrets)
 }
 
 func (userExecutor) upsert(ctx context.Context, cache *Cache, resource types.User) error {
-	return cache.usersCache.UpsertUser(resource)
+	_, err := cache.usersCache.UpsertUser(ctx, resource)
+	return err
 }
 
 func (userExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.usersCache.DeleteAllUsers()
+	return cache.usersCache.DeleteAllUsers(ctx)
 }
 
 func (userExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
@@ -1146,8 +1140,8 @@ func (userExecutor) getReader(cache *Cache, cacheOK bool) userGetter {
 }
 
 type userGetter interface {
-	GetUser(user string, withSecrets bool) (types.User, error)
-	GetUsers(withSecrets bool) ([]types.User, error)
+	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 }
 
 var _ executor[types.User, userGetter] = userExecutor{}
@@ -2326,52 +2320,52 @@ func (integrationsExecutor) getReader(cache *Cache, cacheOK bool) services.Integ
 
 var _ executor[types.Integration, services.IntegrationsGetter] = integrationsExecutor{}
 
-type accessListsExecutor struct{}
+type discoveryConfigExecutor struct{}
 
-func (accessListsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.AccessList, error) {
-	var accessLists []*accesslist.AccessList
+func (discoveryConfigExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*discoveryconfig.DiscoveryConfig, error) {
+	var discoveryConfigs []*discoveryconfig.DiscoveryConfig
 	var nextToken string
 	for {
-		var page []*accesslist.AccessList
+		var page []*discoveryconfig.DiscoveryConfig
 		var err error
 
-		page, nextToken, err = cache.AccessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		page, nextToken, err = cache.DiscoveryConfigs.ListDiscoveryConfigs(ctx, 0 /* default page size */, nextToken)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		accessLists = append(accessLists, page...)
+		discoveryConfigs = append(discoveryConfigs, page...)
 
 		if nextToken == "" {
 			break
 		}
 	}
-	return accessLists, nil
+	return discoveryConfigs, nil
 }
 
-func (accessListsExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessList) error {
-	_, err := cache.accessListsCache.UpsertAccessList(ctx, resource)
+func (discoveryConfigExecutor) upsert(ctx context.Context, cache *Cache, resource *discoveryconfig.DiscoveryConfig) error {
+	_, err := cache.discoveryConfigsCache.UpsertDiscoveryConfig(ctx, resource)
 	return trace.Wrap(err)
 }
 
-func (accessListsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.accessListsCache.DeleteAllAccessLists(ctx)
+func (discoveryConfigExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.discoveryConfigsCache.DeleteAllDiscoveryConfigs(ctx)
 }
 
-func (accessListsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.accessListsCache.DeleteAccessList(ctx, resource.GetName())
+func (discoveryConfigExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.discoveryConfigsCache.DeleteDiscoveryConfig(ctx, resource.GetName())
 }
 
-func (accessListsExecutor) isSingleton() bool { return false }
+func (discoveryConfigExecutor) isSingleton() bool { return false }
 
-func (accessListsExecutor) getReader(cache *Cache, cacheOK bool) services.AccessListsGetter {
+func (discoveryConfigExecutor) getReader(cache *Cache, cacheOK bool) services.DiscoveryConfigsGetter {
 	if cacheOK {
-		return cache.accessListsCache
+		return cache.discoveryConfigsCache
 	}
-	return cache.Config.AccessLists
+	return cache.Config.DiscoveryConfigs
 }
 
-var _ executor[*accesslist.AccessList, services.AccessListsGetter] = accessListsExecutor{}
+var _ executor[*discoveryconfig.DiscoveryConfig, services.DiscoveryConfigsGetter] = discoveryConfigExecutor{}
 
 // noopExecutor can be used when a resource's events do not need to processed by
 // the cache itself, only passed on to other watchers.
@@ -2431,75 +2425,3 @@ func (userLoginStateExecutor) getReader(cache *Cache, cacheOK bool) services.Use
 }
 
 var _ executor[*userloginstate.UserLoginState, services.UserLoginStatesGetter] = userLoginStateExecutor{}
-
-type accessListMembersExecutor struct{}
-
-func (accessListMembersExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.AccessListMember, error) {
-	// Get all access lists
-	var accessLists []*accesslist.AccessList
-	var nextToken string
-	for {
-		var page []*accesslist.AccessList
-		var err error
-
-		page, nextToken, err = cache.AccessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		accessLists = append(accessLists, page...)
-
-		if nextToken == "" {
-			break
-		}
-	}
-
-	// Get the members of each access list.
-	var members []*accesslist.AccessListMember
-	for _, accessList := range accessLists {
-		for {
-			var page []*accesslist.AccessListMember
-			var err error
-
-			page, nextToken, err = cache.AccessLists.ListAccessListMembers(ctx, accessList.GetName(), 0 /* default page size */, nextToken)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			members = append(members, page...)
-
-			if nextToken == "" {
-				break
-			}
-		}
-	}
-	return members, nil
-}
-
-func (accessListMembersExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessListMember) error {
-	_, err := cache.accessListsCache.UpsertAccessListMember(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (accessListMembersExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.accessListsCache.DeleteAllAccessListMembers(ctx)
-}
-
-func (accessListMembersExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	member, ok := resource.(*accesslist.AccessListMember)
-	if !ok {
-		return trace.BadParameter("expected *accesslist.AccessListMember, got %T", resource)
-	}
-	return cache.accessListsCache.DeleteAccessListMember(ctx, member.Spec.AccessList, member.GetName())
-}
-
-func (accessListMembersExecutor) isSingleton() bool { return false }
-
-func (accessListMembersExecutor) getReader(cache *Cache, cacheOK bool) services.AccessListMembersGetter {
-	if cacheOK {
-		return cache.accessListsCache
-	}
-	return cache.AccessLists
-}
-
-var _ executor[*accesslist.AccessListMember, services.AccessListMembersGetter] = accessListMembersExecutor{}

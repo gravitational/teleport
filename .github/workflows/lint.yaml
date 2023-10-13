@@ -21,7 +21,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport14
+      image: ghcr.io/gravitational/teleport-buildbox:teleport15
 
     env:
       GOLANGCI_LINT_VERSION: v1.54.2
@@ -73,7 +73,7 @@ jobs:
       - uses: bufbuild/buf-setup-action@v1
         with:
           github_token: ${{ github.token }}
-          version: v1.26.1
+          version: v1.27.0
       - uses: bufbuild/buf-lint-action@v1
       - name: buf breaking from parent to self
         uses: bufbuild/buf-breaking-action@v1
