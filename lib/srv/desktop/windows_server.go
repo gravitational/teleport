@@ -839,9 +839,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		log.Infof("desktop session %v will not be recorded, user %v's roles disable recording", string(sessionID), authCtx.User.GetName())
 	}
 
-	var windowsUser string
 	authorize := func(login string) error {
-		windowsUser = login // capture attempted login user
 		state := authCtx.GetAccessState(authPref)
 		return authCtx.Checker.CheckAccess(
 			desktop,
@@ -855,12 +853,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	// is closed.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
-	// Create a session tracker so that other services, such as
-	// the session upload completer, can track the session's lifetime.
-	if err := s.trackSession(ctx, &identity, windowsUser, string(sessionID), desktop); err != nil {
-		return trace.Wrap(err)
-	}
 
 	sw, err := s.newStreamWriter(recordSession, string(sessionID))
 	if err != nil {
@@ -879,17 +871,23 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		}()
 	}()
 
-	delay := timer()
-	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr(), tdpConn)
-	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr(), tdpConn)
+	// We won't have the windows username until we start to read from the websocket,
+	// but we need to start emitting audit events now. Create an auditor without
+	// specifying the username (we'll update it soon as we have it).
+	audit := s.newSessionAuditor(string(sessionID), &identity, "", desktop)
 
-	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
 	groups, err := authCtx.Checker.DesktopGroups(desktop)
 	if err != nil && !trace.IsAccessDenied(err) {
-		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
+		startEvent := audit.makeSessionStart(err)
+		s.emit(ctx, sw, startEvent)
 		return trace.Wrap(err)
 	}
 	createUsers := err == nil
+
+	delay := timer()
+	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay, tdpConn, audit)
+	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, tdpConn, audit)
+
 	rdpc, err := rdpclient.New(rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
@@ -903,8 +901,22 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing(),
 		ShowDesktopWallpaper:  s.cfg.ShowDesktopWallpaper,
 	})
+	// before we check the error above, we grab the windows user so that
+	// future audit events include the proper username
+	var windowsUser string
+	if rdpc != nil {
+		windowsUser = rdpc.GetClientUsername()
+		audit.windowsUser = windowsUser
+	}
 	if err != nil {
-		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
+		startEvent := audit.makeSessionStart(err)
+		s.emit(ctx, sw, startEvent)
+		return trace.Wrap(err)
+	}
+
+	// Create a session tracker so that other services, such as
+	// the session upload completer, can track the session's lifetime.
+	if err := s.trackSession(ctx, &identity, windowsUser, string(sessionID), desktop); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -938,19 +950,30 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		// if we can't establish a connection monitor then we can't enforce RBAC.
 		// consider this a connection failure and return an error
 		// (in the happy path, rdpc remains open until Wait() completes)
-		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
+		startEvent := audit.makeSessionStart(err)
+		s.emit(ctx, sw, startEvent)
 		return trace.Wrap(err)
 	}
 
-	s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, nil)
+	startEvent := audit.makeSessionStart(nil)
+	s.emit(ctx, sw, startEvent)
+
 	err = rdpc.Run(ctx)
-	s.onSessionEnd(ctx, sw, &identity, sessionStartTime, recordSession, windowsUser, string(sessionID), desktop)
+
+	// ctx may have been canceled, so emit with a separate context
+	endEvent := audit.makeSessionEnd(recordSession)
+	s.emit(context.Background(), sw, endEvent)
 
 	return trace.Wrap(err)
 }
 
-func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
-	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn) func(m tdp.Message, b []byte) {
+func (s *WindowsService) makeTDPSendHandler(
+	ctx context.Context,
+	emitter events.Emitter,
+	delay func() int64,
+	tdpConn *tdp.Conn,
+	audit *desktopSessionAuditor,
+) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
 		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeNotification):
@@ -977,26 +1000,48 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 				// the TDP send handler emits a clipboard receive event, because we
 				// received clipboard data from the remote desktop and are sending
 				// it on the TDP connection
-				s.onClipboardReceive(ctx, emitter, id, sessionID, desktopAddr, int32(len(clip)))
+				rxEvent := audit.makeClipboardReceive(int32(len(clip)))
+				s.emit(ctx, emitter, rxEvent)
 			}
 		case byte(tdp.TypeSharedDirectoryAcknowledge):
 			if message, ok := m.(tdp.SharedDirectoryAcknowledge); ok {
-				s.onSharedDirectoryAcknowledge(ctx, emitter, id, sessionID, desktopAddr, message)
+				s.emit(ctx, emitter, audit.makeSharedDirectoryStart(message))
 			}
 		case byte(tdp.TypeSharedDirectoryReadRequest):
 			if message, ok := m.(tdp.SharedDirectoryReadRequest); ok {
-				s.onSharedDirectoryReadRequest(ctx, emitter, id, sessionID, desktopAddr, message, tdpConn)
+				errorEvent := audit.onSharedDirectoryReadRequest(message)
+				if errorEvent != nil {
+					// if we can't audit due to a full cache, abort the connection
+					// as a security measure
+					if err := tdpConn.Close(); err != nil {
+						s.cfg.Log.WithError(err).Errorf("error when terminating sessionID(%v) for audit cache maximum size violation", audit.sessionID)
+					}
+					s.emit(ctx, emitter, errorEvent)
+				}
 			}
 		case byte(tdp.TypeSharedDirectoryWriteRequest):
 			if message, ok := m.(tdp.SharedDirectoryWriteRequest); ok {
-				s.onSharedDirectoryWriteRequest(ctx, emitter, id, sessionID, desktopAddr, message, tdpConn)
+				errorEvent := audit.onSharedDirectoryWriteRequest(message)
+				if errorEvent != nil {
+					// if we can't audit due to a full cache, abort the connection
+					// as a security measure
+					if err := tdpConn.Close(); err != nil {
+						s.cfg.Log.WithError(err).Errorf("error when terminating sessionID(%v) for audit cache maximum size violation", audit.sessionID)
+					}
+					s.emit(ctx, emitter, errorEvent)
+				}
 			}
 		}
 	}
 }
 
-func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
-	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn) func(m tdp.Message) {
+func (s *WindowsService) makeTDPReceiveHandler(
+	ctx context.Context,
+	emitter events.Emitter,
+	delay func() int64,
+	tdpConn *tdp.Conn,
+	audit *desktopSessionAuditor,
+) func(m tdp.Message) {
 	return func(m tdp.Message) {
 		switch msg := m.(type) {
 		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
@@ -1023,13 +1068,22 @@ func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter even
 			// the TDP receive handler emits a clipboard send event, because we
 			// received clipboard data from the user (over TDP) and are sending
 			// it to the remote desktop
-			s.onClipboardSend(ctx, emitter, id, sessionID, desktopAddr, int32(len(msg)))
+			sendEvent := audit.makeClipboardSend(int32(len(msg)))
+			s.emit(ctx, emitter, sendEvent)
 		case tdp.SharedDirectoryAnnounce:
-			s.onSharedDirectoryAnnounce(ctx, emitter, id, sessionID, desktopAddr, m.(tdp.SharedDirectoryAnnounce), tdpConn)
+			errorEvent := audit.onSharedDirectoryAnnounce(m.(tdp.SharedDirectoryAnnounce))
+			if errorEvent != nil {
+				// if we can't audit due to a full cache, abort the connection
+				// as a security measure
+				if err := tdpConn.Close(); err != nil {
+					s.cfg.Log.WithError(err).Errorf("error when terminating sessionID(%v) for audit cache maximum size violation", audit.sessionID)
+				}
+				s.emit(ctx, emitter, errorEvent)
+			}
 		case tdp.SharedDirectoryReadResponse:
-			s.onSharedDirectoryReadResponse(ctx, emitter, id, sessionID, desktopAddr, msg)
+			s.emit(ctx, emitter, audit.makeSharedDirectoryReadResponse(msg))
 		case tdp.SharedDirectoryWriteResponse:
-			s.onSharedDirectoryWriteResponse(ctx, emitter, id, sessionID, desktopAddr, msg)
+			s.emit(ctx, emitter, audit.makeSharedDirectoryWriteResponse(msg))
 		}
 	}
 }
