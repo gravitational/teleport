@@ -434,8 +434,8 @@ export function resourceName(resource: UnifiedResource) {
 
 function NoPinned() {
   return (
-    <Box p={8} mt={3} mx="auto" maxWidth="720px" textAlign="center">
-      <TextIcon typography="h3">You have not pinned any resources</TextIcon>
+    <Box p={8} mt={3} mx="auto" textAlign="center">
+      <Text typography="h3">You have not pinned any resources</Text>
     </Box>
   );
 }
@@ -443,7 +443,7 @@ function NoPinned() {
 function PinningNotSupported() {
   return (
     <Box p={8} mt={3} mx="auto" maxWidth="720px" textAlign="center">
-      <TextIcon typography="h3">{PINNING_NOT_SUPPORTED_MESSAGE}</TextIcon>
+      <Text typography="h3">{PINNING_NOT_SUPPORTED_MESSAGE}</Text>
     </Box>
   );
 }
