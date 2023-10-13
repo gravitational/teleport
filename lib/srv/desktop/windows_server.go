@@ -937,6 +937,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	}
 
 	startEvent := audit.makeSessionStart(nil)
+	startEvent.AllowUserCreation = createUsers
 	s.record(ctx, recorder, startEvent)
 	s.emit(ctx, startEvent)
 
