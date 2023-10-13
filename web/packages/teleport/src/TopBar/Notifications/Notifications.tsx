@@ -18,7 +18,7 @@ import { formatDistanceToNow } from 'date-fns';
 import styled from 'styled-components';
 import { Text } from 'design';
 
-import { Notification as NotificationIcon, UserList } from 'design/Icon';
+import { Notification as NotificationIcon, UserList } from 'design/SVGIcon';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 import { useStore } from 'shared/libs/stores';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
@@ -105,8 +105,8 @@ function NotificationItem({
       return (
         <NotificationLink to={notice.item.route} onClick={close}>
           <NotificationItemButton>
-            <DropdownItemIcon>
-              <UserList mt="1px" />
+            <DropdownItemIcon css={{ marginTop: '1px' }}>
+              <UserList />
             </DropdownItemIcon>
             <Text>
               Access list <b>{notice.item.resourceName}</b> needs your review
