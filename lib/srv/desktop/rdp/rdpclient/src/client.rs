@@ -14,7 +14,7 @@ use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
-use ironrdp_pdu::{PduError, PduParsing, PduResult};
+use ironrdp_pdu::{PduError, PduParsing};
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
 use ironrdp_rdpsnd::Rdpsnd;
@@ -318,11 +318,8 @@ impl Client {
                             ClientResult::from(code)?;
                         }
                         ClientFunction::UpdateClipboard(data) => {
-                            let formats = {
-                                let mut cd = clipboard_data.lock().unwrap();
-                                *cd = Some(data);
-                                available_formats(&cd)
-                            };
+                            *(clipboard_data.lock().unwrap()) = Some(data.clone());
+                            let formats = available_formats(&Some(data));
                             Self::write_cliprdr(
                                 x224_processor.clone(),
                                 &mut write_stream,

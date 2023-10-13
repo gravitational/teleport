@@ -583,7 +583,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 				return trace.Errorf("RDPResponsePDU failed: %v", errCode)
 			}
 		default:
-			c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
+			c.cfg.Log.Warningf(" Skipping unimplemented TDP message type %T", msg)
 		}
 	}
 }

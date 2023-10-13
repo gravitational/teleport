@@ -87,10 +87,11 @@ impl CliprdrBackend for TeleportCliprdrBackend {
             available_formats
         );
         // always use CF_UNICODETEXT if available
-        let mut format = available_formats
-            .iter()
-            .find(|cf| cf.id() == ClipboardFormatId::CF_UNICODETEXT);
-        // if not fallback to CF_TEXT
+        // let mut format = available_formats
+        //     .iter()
+        //     .find(|cf| cf.id() == ClipboardFormatId::CF_UNICODETEXT);
+        // // if not fallback to CF_TEXT
+        let mut format: Option<&ClipboardFormat> = None;
         if format.is_none() {
             format = available_formats
                 .iter()
@@ -103,28 +104,24 @@ impl CliprdrBackend for TeleportCliprdrBackend {
 
     fn on_format_data_request(&mut self, format: FormatDataRequest) {
         trace!("CLIPRDR: on_format_data_request");
-        let response = self
-            .clipboard_data
-            .lock()
-            .unwrap()
-            .as_ref()
-            .and_then(|data| match format.format {
-                ClipboardFormatId::CF_UNICODETEXT => {
-                    let utf16: WString<LittleEndian> = data.as_str().into();
-                    let mut utf16 = utf16.into_bytes();
-                    utf16.extend_from_slice(&[0u8, 0u8]);
-                    Some(utf16)
+        let data = self.clipboard_data.lock().unwrap().clone();
+        let response = data.as_ref().and_then(|data| match format.format {
+            ClipboardFormatId::CF_UNICODETEXT => {
+                let utf16: WString<LittleEndian> = data.as_str().into();
+                let mut utf16 = utf16.into_bytes();
+                utf16.extend_from_slice(&[0u8, 0u8]);
+                Some(utf16)
+            }
+            ClipboardFormatId::CF_TEXT => {
+                if !data.is_ascii() {
+                    return None;
                 }
-                ClipboardFormatId::CF_TEXT => {
-                    if !data.is_ascii() {
-                        return None;
-                    }
-                    let mut data = data.clone().into_bytes();
-                    data.push(0u8);
-                    Some(data)
-                }
-                _ => None,
-            });
+                let mut data = data.clone().into_bytes();
+                data.push(0u8);
+                Some(data)
+            }
+            _ => None,
+        });
         self.send("format_data_request", move |c| {
             let response = match response.clone() {
                 None => FormatDataResponse::new_error(),
