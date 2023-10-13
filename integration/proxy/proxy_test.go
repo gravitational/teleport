@@ -70,7 +70,6 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 		secondClusterPortSetup    helpers.InstanceListenerSetupFunc
 		disableALPNListenerOnRoot bool
 		disableALPNListenerOnLeaf bool
-		testALPNConnUpgrade       bool
 	}{
 		{
 			name:                      "StandardAndOnePortSetupMasterALPNDisabled",
@@ -87,20 +86,17 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 			name:                   "TwoClusterOnePortSetup",
 			mainClusterPortSetup:   helpers.SingleProxyPortSetup,
 			secondClusterPortSetup: helpers.SingleProxyPortSetup,
-			testALPNConnUpgrade:    true,
 		},
 		{
 			name:                      "OnePortAndStandardListenerSetupLeafALPNDisabled",
 			mainClusterPortSetup:      helpers.SingleProxyPortSetup,
 			secondClusterPortSetup:    helpers.StandardListenerSetup,
 			disableALPNListenerOnLeaf: true,
-			testALPNConnUpgrade:       true,
 		},
 		{
 			name:                   "OnePortAndStandardListenerSetup",
 			mainClusterPortSetup:   helpers.SingleProxyPortSetup,
 			secondClusterPortSetup: helpers.StandardListenerSetup,
-			testALPNConnUpgrade:    true,
 		},
 	}
 
@@ -138,30 +134,28 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 				Port:    helpers.Port(t, suite.leaf.SSH),
 			})
 
-			if tc.testALPNConnUpgrade {
-				t.Run("ALPN conn upgrade", func(t *testing.T) {
-					// Make a mock ALB which points to the Teleport Proxy Service.
-					albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+			t.Run("WebProxyAddr behind ALB", func(t *testing.T) {
+				// Make a mock ALB which points to the Teleport Proxy Service.
+				albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
 
-					// Run command in root through ALB address.
-					suite.mustConnectToClusterAndRunSSHCommand(t, helpers.ClientConfig{
-						Login:   username,
-						Cluster: suite.root.Secrets.SiteName,
-						Host:    helpers.Loopback,
-						Port:    helpers.Port(t, suite.root.SSH),
-						ALBAddr: albProxy.Addr().String(),
-					})
-
-					// Run command in leaf through ALB address.
-					suite.mustConnectToClusterAndRunSSHCommand(t, helpers.ClientConfig{
-						Login:   username,
-						Cluster: suite.leaf.Secrets.SiteName,
-						Host:    helpers.Loopback,
-						Port:    helpers.Port(t, suite.leaf.SSH),
-						ALBAddr: albProxy.Addr().String(),
-					})
+				// Run command in root through ALB address.
+				suite.mustConnectToClusterAndRunSSHCommand(t, helpers.ClientConfig{
+					Login:   username,
+					Cluster: suite.root.Secrets.SiteName,
+					Host:    helpers.Loopback,
+					Port:    helpers.Port(t, suite.root.SSH),
+					ALBAddr: albProxy.Addr().String(),
 				})
-			}
+
+				// Run command in leaf through ALB address.
+				suite.mustConnectToClusterAndRunSSHCommand(t, helpers.ClientConfig{
+					Login:   username,
+					Cluster: suite.leaf.Secrets.SiteName,
+					Host:    helpers.Loopback,
+					Port:    helpers.Port(t, suite.leaf.SSH),
+					ALBAddr: albProxy.Addr().String(),
+				})
+			})
 		})
 	}
 }
