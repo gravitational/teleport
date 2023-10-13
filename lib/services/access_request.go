@@ -915,7 +915,7 @@ func NewReviewPermissionChecker(
 	ctx context.Context,
 	getter RequestValidatorGetter,
 	username string,
-	identity tlsca.Identity,
+	identity *tlsca.Identity,
 ) (ReviewPermissionChecker, error) {
 	uls, err := GetUserOrLoginState(ctx, getter, username)
 	if err != nil {
@@ -930,6 +930,13 @@ func NewReviewPermissionChecker(
 	// because the certs output by a bot always use role impersonation and the
 	// role directly assigned to a bot has minimal permissions.
 	if uls.IsBot() {
+		if identity == nil {
+			// Handle an edge case where SubmitAccessReview is being invoked
+			// in-memory but as a bot user.
+			return ReviewPermissionChecker{}, trace.BadParameter(
+				"bot user provided but identity parameter is nil",
+			)
+		}
 		if identity.Username != username {
 			// It should not be possible for these to be different as a
 			// guard in AuthorizeAccessReviewRequest prevents submitting a
