@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::{Debug, Formatter};
+
 use ironrdp_cliprdr::backend::CliprdrBackend;
 use ironrdp_cliprdr::pdu::{
-    ClipboardFormat, ClipboardFormatId, ClipboardGeneralCapabilityFlags, FileContentsRequest,
-    FileContentsResponse, FormatDataRequest, FormatDataResponse, LockDataId,
+    ClipboardFormat, ClipboardGeneralCapabilityFlags, FileContentsRequest, FileContentsResponse,
+    FormatDataRequest, FormatDataResponse, LockDataId,
 };
+use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
+use ironrdp_pdu::PduResult;
 
-use crate::client::ClientFunction::HandleClipboard;
-use crate::client::ClientHandle;
-use crate::cliprdr::ClipboardFunction::{RemoteCopy, RequestFormatList};
+use crate::client::{ClientFunction, ClientHandle};
 
 #[derive(Debug)]
 pub struct TeleportCliprdrBackend {
@@ -30,6 +32,19 @@ pub struct TeleportCliprdrBackend {
 impl TeleportCliprdrBackend {
     pub fn new(client_handle: ClientHandle) -> Self {
         Self { client_handle }
+    }
+
+    fn send<F>(&self, name: &str, f: F)
+    where
+        F: FnOnce(&Cliprdr, Option<String>) -> PduResult<CliprdrSvcMessages> + Send + 'static,
+    {
+        let f = Box::new(ClipboardFnInternal::new(name, f));
+        let res = self
+            .client_handle
+            .blocking_send(ClientFunction::WriteCliprdr(f));
+        if let Err(e) = res {
+            error!("Couldn't send request for {}: {:?}", name, e);
+        }
     }
 }
 
@@ -45,9 +60,10 @@ impl CliprdrBackend for TeleportCliprdrBackend {
 
     fn on_request_format_list(&mut self) {
         trace!("CLIPRDR: on_request_format_list");
+
         if let Err(e) = self
             .client_handle
-            .blocking_send(HandleClipboard(RequestFormatList))
+            .blocking_send(WriteCliprdr(RequestFormatList))
         {
             error!("Couldn't send request format list message: {:?}", e);
         }
@@ -70,7 +86,7 @@ impl CliprdrBackend for TeleportCliprdrBackend {
         );
         if let Err(e) = self
             .client_handle
-            .blocking_send(HandleClipboard(RemoteCopy(available_formats.to_vec())))
+            .blocking_send(WriteCliprdr(RemoteCopy(available_formats.to_vec())))
         {
             error!("Couldn't send remote copy message: {:?}", e);
         }
@@ -80,7 +96,7 @@ impl CliprdrBackend for TeleportCliprdrBackend {
         trace!("CLIPRDR: on_format_data_request");
         if let Err(e) =
             self.client_handle
-                .blocking_send(HandleClipboard(ClipboardFunction::FormatDataRequest(
+                .blocking_send(WriteCliprdr(ClipboardFunction::FormatDataRequest(
                     format.format,
                 )))
         {
@@ -91,7 +107,7 @@ impl CliprdrBackend for TeleportCliprdrBackend {
     fn on_format_data_response(&mut self, response: FormatDataResponse) {
         trace!("CLIPRDR: on_format_data_response");
         if !response.is_error() {
-            if let Err(e) = self.client_handle.blocking_send(HandleClipboard(
+            if let Err(e) = self.client_handle.blocking_send(WriteCliprdr(
                 ClipboardFunction::FormatDataResponse(response.data().to_vec()),
             )) {
                 error!("Couldn't send format data response message: {:?}", e);
@@ -116,11 +132,50 @@ impl CliprdrBackend for TeleportCliprdrBackend {
     }
 }
 
-#[derive(Debug)]
-pub enum ClipboardFunction {
-    RequestFormatList,
-    RemoteCopy(Vec<ClipboardFormat>),
-    FormatDataResponse(Vec<u8>),
-    FormatDataRequest(ClipboardFormatId),
-    Update(String),
+pub trait ClipboardFn: Send + Debug + 'static {
+    fn call(&self, cliprdr: &Cliprdr) -> PduResult<CliprdrSvcMessages>;
+}
+
+impl<F> ClipboardFn for F
+where
+    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages> + Send + Debug + 'static,
+{
+    fn call(&self, cliprdr: &Cliprdr) -> PduResult<CliprdrSvcMessages> {
+        (self)(cliprdr)
+    }
+}
+
+struct ClipboardFnInternal<F>
+where
+    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages> + Send + 'static,
+{
+    name: &'static str,
+    closure: F,
+}
+
+impl<F> ClipboardFnInternal<F>
+where
+    F: Fn(&Cliprdr, &Option<String>) -> PduResult<CliprdrSvcMessages> + Send + 'static,
+{
+    fn new(name: &'static str, closure: F) -> Self {
+        Self { name, closure }
+    }
+}
+
+impl<F> Debug for ClipboardFnInternal<F>
+where
+    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages> + Send + 'static,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", &self.name)
+    }
+}
+
+impl<F> ClipboardFn for ClipboardFnInternal<F>
+where
+    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages> + Send + 'static,
+{
+    fn call(&self, cliprdr: &Cliprdr) -> PduResult<CliprdrSvcMessages> {
+        (self.closure)(cliprdr)
+    }
 }

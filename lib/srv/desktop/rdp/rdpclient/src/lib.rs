@@ -137,7 +137,7 @@ pub unsafe extern "C" fn client_update_clipboard(
     match String::from_utf8(data) {
         Ok(s) => call_function_on_handle(
             cgo_handle,
-            ClientFunction::HandleClipboard(ClipboardFunction::Update(s)),
+            ClientFunction::WriteCliprdr(ClipboardFunction::Update(s)),
         ),
         Err(e) => {
             error!("can't convert clipboard data: {}", e);
