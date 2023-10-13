@@ -454,6 +454,7 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 		RoleRequests:    []string{"admins"},
 		UseRoleRequests: true,
 	})
+	require.NoError(t, err)
 	tlsCert, err := tls.X509KeyPair(certRes.TLS, testPack.privKey)
 	require.NoError(t, err)
 	impersonatedBotClient := testPack.tlsServer.NewClientWithCert(tlsCert)
