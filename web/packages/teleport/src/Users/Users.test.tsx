@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { render, screen } from 'design/utils/testing';
 
+import { useAttempt } from 'shared/hooks';
+
 import { getOSSFeatures } from 'teleport/features';
+import { User } from 'teleport/services/user';
 import { Context, ContextProvider } from 'teleport';
 import { events } from 'teleport/Audit/fixtures';
 import { clusters } from 'teleport/Clusters/fixtures';
@@ -34,7 +37,18 @@ import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserC
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 import TeleportContext from 'teleport/teleportContext';
 
-import { Main, MainProps } from './Main';
+import { Users } from './Users';
+import { Operation, State } from './useUsers';
+
+jest.mock('shared/hooks', () => ({
+  useAttempt: () => {
+    return {
+      attempt: { status: 'success', statusText: 'Success Text' },
+      setAttempt: jest.fn(),
+      run: (fn?: any) => Promise.resolve(fn()),
+    };
+  },
+}));
 
 const setupContext = (): TeleportContext => {
   const ctx = new Context();
@@ -55,90 +69,80 @@ const setupContext = (): TeleportContext => {
   return ctx;
 };
 
-test('displays questionnaire if present', () => {
+describe('InviteCollaborators', () => {
   mockUserContextProviderWith(makeTestUserContext());
   const ctx = setupContext();
 
-  const props: MainProps = {
-    features: getOSSFeatures(),
-    Questionnaire: () => <div>Passed Component!</div>,
-  };
+  let props: State;
+  beforeEach(() => {
+    props = {
+      attempt: {
+        message: 'success',
+        isSuccess: true,
+        isProcessing: false,
+        isFailed: false,
+      },
+      users: [],
+      roles: [],
+      operation: { type: 'invite-collaborators' },
 
-  render(
-    <MemoryRouter>
-      <LayoutContextProvider>
+      onStartCreate: () => undefined,
+      onStartDelete: () => undefined,
+      onStartEdit: () => undefined,
+      onStartReset: () => undefined,
+      onStartInviteCollaborators: () => undefined,
+      onClose: () => undefined,
+      onDelete: () => undefined,
+      onCreate: () => undefined,
+      onUpdate: () => undefined,
+      onReset: () => undefined,
+      onInviteCollaboratorsClose: () => undefined,
+      InviteCollaborators: null,
+      inviteCollaboratorsOpen: false,
+    };
+  });
+
+  test('displays the Create New User button when not configured', async () => {
+    render(
+      <MemoryRouter>
         <ContextProvider ctx={ctx}>
-          <Main {...props} />
+          <Users {...props} />
         </ContextProvider>
-      </LayoutContextProvider>
-    </MemoryRouter>
-  );
+      </MemoryRouter>
+    );
 
-  expect(screen.getByText('Passed Component!')).toBeInTheDocument();
-});
+    expect(screen.queryByText('Create New User')).toBeInTheDocument();
+    expect(screen.queryByText('Enroll Users')).not.toBeInTheDocument();
+  });
 
-test('renders without questionnaire prop', () => {
-  mockUserContextProviderWith(makeTestUserContext());
-  const ctx = setupContext();
+  test('displays the Enroll Users button when configured', async () => {
+    const startMock = jest.fn();
+    props = {
+      ...props,
+      InviteCollaborators: () => (
+        <div data-testid="invite-collaborators">Invite Collaborators</div>
+      ),
+      onStartInviteCollaborators: startMock,
+    };
 
-  const props: MainProps = {
-    features: getOSSFeatures(),
-  };
-  expect(props.Questionnaire).toBeUndefined();
-
-  render(
-    <MemoryRouter>
-      <LayoutContextProvider>
+    render(
+      <MemoryRouter>
         <ContextProvider ctx={ctx}>
-          <Main {...props} />
+          <Users {...props} />
         </ContextProvider>
-      </LayoutContextProvider>
-    </MemoryRouter>
-  );
+      </MemoryRouter>
+    );
 
-  expect(screen.getByTestId('title')).toBeInTheDocument();
-});
+    const enrollButton = screen.getByText('Enroll Users');
+    expect(enrollButton).toBeInTheDocument();
+    expect(screen.queryByText('Create New User')).not.toBeInTheDocument();
 
-test('displays invite collaborators feedback if present', () => {
-  mockUserContextProviderWith(makeTestUserContext());
-  const ctx = setupContext();
+    enrollButton.click();
+    expect(startMock.mock.calls).toHaveLength(1);
 
-  const props: MainProps = {
-    features: getOSSFeatures(),
-    inviteCollaboratorsFeedback: <div>Passed Component!</div>,
-  };
-
-  render(
-    <MemoryRouter>
-      <LayoutContextProvider>
-        <ContextProvider ctx={ctx}>
-          <Main {...props} />
-        </ContextProvider>
-      </LayoutContextProvider>
-    </MemoryRouter>
-  );
-
-  expect(screen.getByText('Passed Component!')).toBeInTheDocument();
-});
-
-test('renders without invite collaborators feedback enabled', () => {
-  mockUserContextProviderWith(makeTestUserContext());
-  const ctx = setupContext();
-
-  const props: MainProps = {
-    features: getOSSFeatures(),
-  };
-  expect(props.inviteCollaboratorsFeedback).toBeUndefined();
-
-  render(
-    <MemoryRouter>
-      <LayoutContextProvider>
-        <ContextProvider ctx={ctx}>
-          <Main {...props} />
-        </ContextProvider>
-      </LayoutContextProvider>
-    </MemoryRouter>
-  );
-
-  expect(screen.getByTestId('title')).toBeInTheDocument();
+    // This will display regardless since the dialog display is managed by the
+    // dialog itself, and our mock above is trivial, but we can make sure it
+    // renders.
+    expect(screen.queryByTestId('invite-collaborators')).toBeInTheDocument();
+  });
 });
