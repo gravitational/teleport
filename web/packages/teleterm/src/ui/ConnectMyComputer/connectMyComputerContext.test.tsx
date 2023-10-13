@@ -30,7 +30,6 @@ import {
   makeRootCluster,
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
-import { createMockConfigService } from 'teleterm/services/config/fixtures/mocks';
 
 import {
   AgentCompatibilityError,
@@ -42,7 +41,7 @@ import {
 import type { IAppContext } from 'teleterm/ui/types';
 import type { Cluster } from 'teleterm/services/tshd/types';
 
-function getMocksWithConnectMyComputerEnabled() {
+function getMocks() {
   const rootCluster = makeRootCluster({
     loggedInUser: makeLoggedInUser({
       acl: {
@@ -73,9 +72,6 @@ function getMocksWithConnectMyComputerEnabled() {
       accessRequests: undefined,
     };
   });
-  appContext.configService = createMockConfigService({
-    'feature.connectMyComputer': true,
-  });
 
   return { appContext, rootCluster };
 }
@@ -98,7 +94,7 @@ function renderUseConnectMyComputerContextHook(
 }
 
 test('startAgent re-throws errors that are thrown while spawning the process', async () => {
-  const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
+  const { appContext, rootCluster } = getMocks();
   const eventEmitter = new EventEmitter();
   const errorStatus: AgentProcessState = {
     status: 'error',
@@ -150,7 +146,7 @@ test('startAgent re-throws errors that are thrown while spawning the process', a
 });
 
 test('starting the agent flips the workspace autoStart flag to true', async () => {
-  const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
+  const { appContext, rootCluster } = getMocks();
 
   jest
     .spyOn(appContext.connectMyComputerService, 'waitForNodeToJoin')
@@ -172,7 +168,7 @@ test('starting the agent flips the workspace autoStart flag to true', async () =
 });
 
 test('killing the agent flips the workspace autoStart flag to false', async () => {
-  const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
+  const { appContext, rootCluster } = getMocks();
 
   const { result } = renderUseConnectMyComputerContextHook(
     appContext,
@@ -187,7 +183,7 @@ test('killing the agent flips the workspace autoStart flag to false', async () =
 });
 
 test('failed autostart flips the workspace autoStart flag to false', async () => {
-  const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
+  const { appContext, rootCluster } = getMocks();
 
   let currentAgentProcessState: AgentProcessState = {
     status: 'not-started',
@@ -224,7 +220,7 @@ test('failed autostart flips the workspace autoStart flag to false', async () =>
 });
 
 test('starts the agent automatically if the workspace autoStart flag is true', async () => {
-  const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
+  const { appContext, rootCluster } = getMocks();
 
   const eventEmitter = new EventEmitter();
   let currentAgentProcessState: AgentProcessState = {
@@ -278,53 +274,34 @@ test('starts the agent automatically if the workspace autoStart flag is true', a
 describe('canUse', () => {
   const cases = [
     {
-      name: 'should be true when the user has permissions and the feature flag is enabled',
+      name: 'should be true when the user has permissions',
       hasPermissions: true,
-      isFeatureFlagEnabled: true,
       isAgentConfigured: false,
       expected: true,
     },
     {
-      name: 'should be true when the user does not have permissions, but the agent has been configured and the feature flag is enabled',
+      name: 'should be true when the user does not have permissions, but the agent has been configured',
       hasPermissions: false,
-      isFeatureFlagEnabled: true,
       isAgentConfigured: true,
       expected: true,
     },
     {
-      name: 'should be false when the user does not have permissions, the agent has not been configured and the feature flag is enabled',
+      name: 'should be false when the user does not have permissions and the agent has not been configured',
       hasPermissions: false,
       isAgentConfigured: false,
-      isFeatureFlagEnabled: true,
-      expected: false,
-    },
-    {
-      name: 'should be false when the user has permissions and the agent is configured but the feature flag is disabled',
-      hasPermissions: true,
-      isAgentConfigured: true,
-      isFeatureFlagEnabled: false,
       expected: false,
     },
   ];
 
   test.each(cases)(
     '$name',
-    async ({
-      hasPermissions,
-      isAgentConfigured,
-      isFeatureFlagEnabled,
-      expected,
-    }) => {
-      const { appContext, rootCluster } =
-        getMocksWithConnectMyComputerEnabled();
+    async ({ hasPermissions, isAgentConfigured, expected }) => {
+      const { appContext, rootCluster } = getMocks();
       // update Connect My Computer permissions
       appContext.clustersService.setState(draftState => {
         draftState.clusters.get(
           rootCluster.uri
         ).loggedInUser.acl.tokens.create = hasPermissions;
-      });
-      appContext.configService = createMockConfigService({
-        'feature.connectMyComputer': isFeatureFlagEnabled,
       });
       const isAgentConfigFileCreated = Promise.resolve(isAgentConfigured);
       jest
@@ -353,7 +330,7 @@ describe('canUse', () => {
 });
 
 test('removing the agent shows a notification', async () => {
-  const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
+  const { appContext, rootCluster } = getMocks();
 
   const { result } = renderUseConnectMyComputerContextHook(
     appContext,
@@ -372,7 +349,7 @@ test('removing the agent shows a notification', async () => {
 });
 
 test('when the user does not have permissions to remove node a custom notification is shown', async () => {
-  const { appContext, rootCluster } = getMocksWithConnectMyComputerEnabled();
+  const { appContext, rootCluster } = getMocks();
   jest
     .spyOn(appContext.connectMyComputerService, 'removeConnectMyComputerNode')
     .mockRejectedValue(new Error('access denied'));
