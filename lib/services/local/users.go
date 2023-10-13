@@ -980,11 +980,53 @@ func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector typ
 		ID:       connector.GetResourceID(),
 		Revision: rev,
 	}
-	_, err = s.Put(ctx, item)
+	lease, err := s.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	connector.SetRevision(lease.Revision)
 	return nil
+}
+
+// CreateOIDCConnector creates a new OIDC connector.
+func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	value, err := services.MarshalOIDCConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
+		Value:   value,
+		Expires: connector.Expiry(),
+		ID:      connector.GetResourceID(),
+	}
+	lease, err := s.Create(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector.SetRevision(lease.Revision)
+	return connector, nil
+}
+
+// UpdateOIDCConnector updates an existing OIDC connector.
+func (s *IdentityService) UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	value, err := services.MarshalOIDCConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
+		Revision: connector.GetRevision(),
+	}
+	lease, err := s.ConditionalUpdate(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector.SetRevision(lease.Revision)
+	return connector, nil
 }
 
 // DeleteOIDCConnector deletes OIDC Connector by name
@@ -1009,8 +1051,7 @@ func (s *IdentityService) GetOIDCConnector(ctx context.Context, name string, wit
 		}
 		return nil, trace.Wrap(err)
 	}
-	conn, err := services.UnmarshalOIDCConnector(item.Value,
-		services.WithExpires(item.Expires))
+	conn, err := services.UnmarshalOIDCConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1030,8 +1071,7 @@ func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets boo
 	}
 	connectors := make([]types.OIDCConnector, len(result.Items))
 	for i, item := range result.Items {
-		conn, err := services.UnmarshalOIDCConnector(
-			item.Value, services.WithExpires(item.Expires))
+		conn, err := services.UnmarshalOIDCConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1096,11 +1136,58 @@ func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector typ
 		Expires:  connector.Expiry(),
 		Revision: rev,
 	}
-	_, err = s.Put(ctx, item)
+	lease, err := s.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	connector.SetRevision(lease.Revision)
 	return nil
+}
+
+// UpdateSAMLConnector updates an existing SAML connector
+func (s *IdentityService) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalSAMLConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
+		Revision: connector.GetRevision(),
+	}
+	lease, err := s.ConditionalUpdate(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector.SetRevision(lease.Revision)
+	return connector, nil
+}
+
+// CreateSAMLConnector creates a new SAML connector.
+func (s *IdentityService) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalSAMLConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
+		Value:   value,
+		Expires: connector.Expiry(),
+	}
+	lease, err := s.Create(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector.SetRevision(lease.Revision)
+	return connector, nil
 }
 
 // DeleteSAMLConnector deletes SAML Connector by name
@@ -1125,8 +1212,7 @@ func (s *IdentityService) GetSAMLConnector(ctx context.Context, name string, wit
 		}
 		return nil, trace.Wrap(err)
 	}
-	conn, err := services.UnmarshalSAMLConnector(
-		item.Value, services.WithExpires(item.Expires))
+	conn, err := services.UnmarshalSAMLConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1150,8 +1236,7 @@ func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets boo
 	}
 	connectors := make([]types.SAMLConnector, len(result.Items))
 	for i, item := range result.Items {
-		conn, err := services.UnmarshalSAMLConnector(
-			item.Value, services.WithExpires(item.Expires))
+		conn, err := services.UnmarshalSAMLConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1276,11 +1361,59 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 		ID:       connector.GetResourceID(),
 		Revision: rev,
 	}
-	_, err = s.Put(ctx, item)
+	lease, err := s.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	connector.SetRevision(lease.Revision)
 	return nil
+}
+
+// UpdateGithubConnector updates an existing Github connector.
+func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	if err := connector.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalGithubConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
+		Revision: connector.GetRevision(),
+	}
+	lease, err := s.ConditionalUpdate(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector.SetRevision(lease.Revision)
+	return connector, nil
+}
+
+// CreateGithubConnector creates a new Github connector.
+func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	if err := connector.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalGithubConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
+		Value:   value,
+		Expires: connector.Expiry(),
+		ID:      connector.GetResourceID(),
+	}
+	lease, err := s.Create(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector.SetRevision(lease.Revision)
+	return connector, nil
 }
 
 // GetGithubConnectors returns all configured Github connectors
@@ -1292,7 +1425,7 @@ func (s *IdentityService) GetGithubConnectors(ctx context.Context, withSecrets b
 	}
 	connectors := make([]types.GithubConnector, len(result.Items))
 	for i, item := range result.Items {
-		connector, err := services.UnmarshalGithubConnector(item.Value)
+		connector, err := services.UnmarshalGithubConnector(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1316,7 +1449,7 @@ func (s *IdentityService) GetGithubConnector(ctx context.Context, name string, w
 		}
 		return nil, trace.Wrap(err)
 	}
-	connector, err := services.UnmarshalGithubConnector(item.Value)
+	connector, err := services.UnmarshalGithubConnector(item.Value, services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
