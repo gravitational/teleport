@@ -298,7 +298,7 @@ func TestPluginOktaValidation(t *testing.T) {
 				require.NoError(t, err)
 			},
 		}, {
-			name: "version defaults to v1",
+			name: "EnableUserSync defaults to false",
 			settings: &PluginSpecV1_Okta{
 				Okta: &PluginOktaSettings{
 					OrgUrl: "https://test.okta.com",
@@ -315,7 +315,7 @@ func TestPluginOktaValidation(t *testing.T) {
 			},
 			assertErr: require.NoError,
 			assert: func(t *testing.T, settings *PluginOktaSettings) {
-				require.Equal(t, V1, settings.Version)
+				require.False(t, settings.EnableUserSync)
 			},
 		},
 	}

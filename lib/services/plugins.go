@@ -45,12 +45,6 @@ func MarshalPlugin(plugin types.Plugin, opts ...MarshalOption) ([]byte, error) {
 	if err := plugin.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return marshalRawPlugin(plugin, opts...)
-}
-
-// marshalRawPlugin marshals a Plugin resource to JSON *without* applying any
-// default values or fixups.
-func marshalRawPlugin(plugin types.Plugin, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

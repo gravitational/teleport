@@ -90,8 +90,6 @@ type PluginStatus interface {
 // NewPluginV1 creates a new PluginV1 resource.
 func NewPluginV1(metadata Metadata, spec PluginSpecV1, creds *PluginCredentialsV1) *PluginV1 {
 	p := &PluginV1{
-		Kind:     KindPlugin,
-		Version:  V1,
 		Metadata: metadata,
 		Spec:     spec,
 	}
@@ -440,10 +438,6 @@ func (s *PluginSlackAccessSettings) CheckAndSetDefaults() error {
 
 // CheckAndSetDefaults validates and set the default values.
 func (s *PluginOktaSettings) CheckAndSetDefaults() error {
-	if s.Version == "" {
-		s.Version = V1
-	}
-
 	if s.OrgUrl == "" {
 		return trace.BadParameter("org_url must be set")
 	}

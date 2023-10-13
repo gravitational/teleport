@@ -5485,8 +5485,8 @@ message PluginOktaSettings {
   // OrgUrl is the Okta organization URL to use for API communication.
   string org_url = 1;
 
-  // Version is the version of the Okta settings encoded in this resource.
-  string version = 2;
+  // EnableUserSync controls the user sync in the Okta integration service.
+  bool enable_user_sync = 2;
 }
 
 // Defines a set of discord channel IDs
