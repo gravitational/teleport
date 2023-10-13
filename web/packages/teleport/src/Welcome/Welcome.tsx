@@ -39,11 +39,11 @@ export default function Welcome({ NewCredentials }: WelcomeProps) {
   const { search } = useLocation();
 
   const handleOnInviteContinue = () => {
-    // We need to pass through the `initial` query parameter (if it exists) to
+    // We need to pass through the `invite` query parameter (if it exists) to
     // render the invite collaborators form for Cloud users.
     let suffix = '';
-    if (new URLSearchParams(search).has(cfg.welcomeInitialUserFlag)) {
-      suffix = `?${cfg.welcomeInitialUserFlag}`;
+    if (new URLSearchParams(search).has(cfg.welcomeShowCloudInviteForm)) {
+      suffix = `?${cfg.welcomeShowCloudInviteForm}`;
     }
 
     history.push(`${cfg.getUserInviteTokenContinueRoute(tokenId)}${suffix}`);
