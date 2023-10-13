@@ -1051,6 +1051,11 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 	}
 }
 
+// IsMFAVerified returns whether this identity is MFA verified.
+func (id *Identity) IsMFAVerified() bool {
+	return id.MFAVerified != "" || id.PrivateKeyPolicy.MFAVerified()
+}
+
 // CertificateRequest is a X.509 signing certificate request
 type CertificateRequest struct {
 	// Clock is a clock used to get current or test time

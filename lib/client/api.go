@@ -2823,17 +2823,19 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 	}
 
 	pclt, err := proxyclient.NewClient(ctx, proxyclient.ClientConfig{
-		ProxyAddress:            cfg.proxyAddress,
-		TLSRoutingEnabled:       tc.TLSRoutingEnabled,
-		TLSConfig:               tlsConfig,
-		DialOpts:                tc.Config.DialOpts,
-		UnaryInterceptors:       []grpc.UnaryClientInterceptor{interceptors.GRPCClientUnaryErrorInterceptor},
-		StreamInterceptors:      []grpc.StreamClientInterceptor{interceptors.GRPCClientStreamErrorInterceptor},
-		SSHConfig:               cfg.ClientConfig,
-		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
-		InsecureSkipVerify:      tc.InsecureSkipVerify,
-		ViaJumpHost:             len(tc.JumpHosts) > 0,
-		PROXYHeaderGetter:       CreatePROXYHeaderGetter(ctx, tc.PROXYSigner),
+		ProxyAddress:       cfg.proxyAddress,
+		TLSRoutingEnabled:  tc.TLSRoutingEnabled,
+		TLSConfig:          tlsConfig,
+		DialOpts:           tc.Config.DialOpts,
+		UnaryInterceptors:  []grpc.UnaryClientInterceptor{interceptors.GRPCClientUnaryErrorInterceptor},
+		StreamInterceptors: []grpc.StreamClientInterceptor{interceptors.GRPCClientStreamErrorInterceptor},
+		SSHConfig:          cfg.ClientConfig,
+		InsecureSkipVerify: tc.InsecureSkipVerify,
+		ViaJumpHost:        len(tc.JumpHosts) > 0,
+		PROXYHeaderGetter:  CreatePROXYHeaderGetter(ctx, tc.PROXYSigner),
+		// Connections are only upgraded through web port. Do not upgrade when
+		// using SSHProxyAddr in separate port mode.
+		ALPNConnUpgradeRequired: tc.TLSRoutingEnabled && tc.TLSRoutingConnUpgradeRequired,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3868,11 +3870,6 @@ func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (priv *keys.Privat
 
 // new SSHLogin generates a new SSHLogin using the given login key.
 func (tc *TeleportClient) newSSHLogin(priv *keys.PrivateKey) (SSHLogin, error) {
-	attestationStatement, err := keys.GetAttestationStatement(priv)
-	if err != nil {
-		return SSHLogin{}, trace.Wrap(err)
-	}
-
 	return SSHLogin{
 		ProxyAddr:            tc.WebProxyAddr,
 		PubKey:               priv.MarshalSSHPublicKey(),
@@ -3882,7 +3879,7 @@ func (tc *TeleportClient) newSSHLogin(priv *keys.PrivateKey) (SSHLogin, error) {
 		Compatibility:        tc.CertificateFormat,
 		RouteToCluster:       tc.SiteName,
 		KubernetesCluster:    tc.KubernetesCluster,
-		AttestationStatement: attestationStatement,
+		AttestationStatement: priv.GetAttestationStatement(),
 		ExtraHeaders:         tc.ExtraProxyHeaders,
 	}, nil
 }
