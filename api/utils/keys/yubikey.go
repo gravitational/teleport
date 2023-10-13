@@ -61,6 +61,13 @@ func getOrGenerateYubiKeyPrivateKey(ctx context.Context, requiredKeyPolicy Priva
 		return nil, trace.Wrap(err)
 	}
 
+	// If PIN is required, check that PIN and PUK are not the defaults.
+	if requiredKeyPolicy.isHardwareKeyPINVerified() {
+		if err := y.checkOrSetPIN(ctx); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	promptOverwriteSlot := func(msg string) error {
 		promptQuestion := fmt.Sprintf("%v\nWould you like to overwrite this slot's private key and certificate?", msg)
 		if confirmed, confirmErr := prompt.Confirmation(ctx, os.Stderr, prompt.Stdin(), promptQuestion); confirmErr != nil {
@@ -107,7 +114,7 @@ func getOrGenerateYubiKeyPrivateKey(ctx context.Context, requiredKeyPolicy Priva
 	// Get the key in the slot, or generate a new one if needed.
 	priv, err := y.getPrivateKey(pivSlot)
 	switch {
-	case err == nil && requiredKeyPolicy.VerifyPolicy(priv.GetPrivateKeyPolicy()) != nil:
+	case err == nil && !requiredKeyPolicy.IsSatisfiedBy(priv.GetPrivateKeyPolicy()):
 		// Key does not meet the required key policy, prompt the user before we overwrite the slot.
 		msg := fmt.Sprintf("private key in YubiKey PIV slot %q does not meet private key policy %q.", pivSlot, requiredKeyPolicy)
 		if err := promptOverwriteSlot(msg); err != nil {
@@ -118,7 +125,7 @@ func getOrGenerateYubiKeyPrivateKey(ctx context.Context, requiredKeyPolicy Priva
 		fallthrough
 	case trace.IsNotFound(err):
 		// no key found, generate a new key.
-		priv, err := y.generatePrivateKeyAndCert(pivSlot, requiredKeyPolicy)
+		priv, err = y.generatePrivateKeyAndCert(pivSlot, requiredKeyPolicy)
 		return priv, trace.Wrap(err)
 	case err != nil:
 		return nil, trace.Wrap(err)
@@ -135,6 +142,12 @@ func GetDefaultKeySlot(policy PrivateKeyPolicy) (piv.Slot, error) {
 	case PrivateKeyPolicyHardwareKeyTouch:
 		// private_key_policy: hardware_key_touch -> 9c
 		return piv.SlotSignature, nil
+	case PrivateKeyPolicyHardwareKeyPIN:
+		// private_key_policy: hardware_key_pin -> 9d
+		return piv.SlotCardAuthentication, nil
+	case PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		// private_key_policy: hardware_key_touch_and_pin -> 9e
+		return piv.SlotKeyManagement, nil
 	default:
 		return piv.Slot{}, trace.BadParameter("unexpected private key policy %v", policy)
 	}
@@ -146,6 +159,10 @@ func getKeyPolicies(policy PrivateKeyPolicy) (piv.TouchPolicy, piv.PINPolicy, er
 		return piv.TouchPolicyNever, piv.PINPolicyNever, nil
 	case PrivateKeyPolicyHardwareKeyTouch:
 		return piv.TouchPolicyCached, piv.PINPolicyNever, nil
+	case PrivateKeyPolicyHardwareKeyPIN:
+		return piv.TouchPolicyNever, piv.PINPolicyOnce, nil
+	case PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		return piv.TouchPolicyCached, piv.PINPolicyOnce, nil
 	default:
 		return piv.TouchPolicyNever, piv.PINPolicyNever, trace.BadParameter("unexpected private key policy %v", policy)
 	}
@@ -227,7 +244,7 @@ func (y *YubiKeyPrivateKey) Public() crypto.PublicKey {
 
 // Sign implements crypto.Signer.
 func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	signCtx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// To prevent concurrent calls to Sign from failing due to PIV only handling a
@@ -235,19 +252,38 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 	y.signMux.Lock()
 	defer y.signMux.Unlock()
 
+	// For generic auth errors, the smart card returns the error code 0x6982. This PIV library
+	// wraps error codes like this with a user readable message: "security status not satisfied".
+	const pivGenericAuthErrCodeString = "6982"
+
+	signature, err := y.sign(ctx, rand, digest, opts)
+	if err != nil && strings.Contains(err.Error(), pivGenericAuthErrCodeString) {
+		// If we get a generic auth error, it probably means the PIV connection didn't prompt for
+		// PIN when he PIV module expected PIN. This can happen in custom PIV modules that don't
+		// implement proper PIN caching in the connection, or potentially in very old YubiKey
+		// models. In these cases, modify the key's PIN policy to reflect that PIN should always
+		// be prompted for and try again.
+		y.attestation.PINPolicy = piv.PINPolicyAlways
+		signature, err = y.sign(ctx, rand, digest, opts)
+	}
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return signature, nil
+}
+
+func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	yk, err := y.open()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer yk.Close()
 
-	privateKey, err := yk.PrivateKey(y.pivSlot, y.Public(), piv.KeyAuth{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	var touchPromptDelayTimer *time.Timer
 	if y.attestation.TouchPolicy != piv.TouchPolicyNever {
-		touchPromptDelayTimer := time.NewTimer(signTouchPromptDelay)
+		touchPromptDelayTimer = time.NewTimer(signTouchPromptDelay)
 		defer touchPromptDelayTimer.Stop()
 
 		go func() {
@@ -256,11 +292,32 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 				// Prompt for touch after a delay, in case the function succeeds without touch due to a cached touch.
 				fmt.Fprintln(os.Stderr, "Tap your YubiKey")
 				return
-			case <-signCtx.Done():
+			case <-ctx.Done():
 				// touch cached, skip prompt.
 				return
 			}
 		}()
+	}
+
+	promptPIN := func() (string, error) {
+		// touch prompt delay is disrupted by pin prompts. To prevent misfired
+		// touch prompts, pause the timer for the duration of the pin prompt.
+		if touchPromptDelayTimer != nil {
+			if touchPromptDelayTimer.Stop() {
+				defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
+			}
+		}
+		return prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your YubiKey PIV PIN")
+	}
+
+	auth := piv.KeyAuth{
+		PINPrompt: promptPIN,
+		PINPolicy: y.attestation.PINPolicy,
+	}
+
+	privateKey, err := yk.PrivateKey(y.pivSlot, y.slotCert.PublicKey, auth)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	signer, ok := privateKey.(crypto.Signer)
@@ -317,10 +374,20 @@ func (y *YubiKeyPrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
 	return GetPrivateKeyPolicyFromAttestation(y.attestation)
 }
 
-// GetPrivateKeyPolicyFromAttestation returns the PrivateKeyPolicy met by the given hardware key attestation.
+// GetPrivateKeyPolicyFromAttestation returns the PrivateKeyPolicy satisfied by the given hardware key attestation.
 func GetPrivateKeyPolicyFromAttestation(att *piv.Attestation) PrivateKeyPolicy {
-	switch att.TouchPolicy {
-	case piv.TouchPolicyCached, piv.TouchPolicyAlways:
+	isTouchPolicy := att.TouchPolicy == piv.TouchPolicyCached ||
+		att.TouchPolicy == piv.TouchPolicyAlways
+
+	isPINPolicy := att.PINPolicy == piv.PINPolicyOnce ||
+		att.PINPolicy == piv.PINPolicyAlways
+
+	switch {
+	case isPINPolicy && isTouchPolicy:
+		return PrivateKeyPolicyHardwareKeyTouchAndPIN
+	case isPINPolicy:
+		return PrivateKeyPolicyHardwareKeyPIN
+	case isTouchPolicy:
 		return PrivateKeyPolicyHardwareKeyTouch
 	default:
 		return PrivateKeyPolicyHardwareKey
@@ -461,13 +528,6 @@ func (y *YubiKey) getPrivateKey(slot piv.Slot) (*PrivateKey, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// We don't yet support pin policies so we must return a user readable error in case
-	// they passed a mis-configured slot. Otherwise they will get a PIV auth error during signing.
-	// TODO(Joerger): remove this check once PIN prompt is supported.
-	if attestation.PINPolicy != piv.PINPolicyNever {
-		return nil, trace.NotImplemented(`PIN policy is not currently supported. Please generate a key with PIN policy "never"`)
-	}
-
 	priv := &YubiKeyPrivateKey{
 		YubiKey:         y,
 		pivSlot:         slot,
@@ -481,7 +541,52 @@ func (y *YubiKey) getPrivateKey(slot piv.Slot) (*PrivateKey, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return NewPrivateKey(priv, keyPEM)
+	key, err := NewPrivateKey(priv, keyPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return key, nil
+}
+
+// SetPin sets the YubiKey PIV PIN. This doesn't require user interaction like touch, just the correct old PIN.
+func (y *YubiKey) SetPIN(oldPin, newPin string) error {
+	yk, err := y.open()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer yk.Close()
+
+	err = yk.SetPIN(oldPin, newPin)
+	return trace.Wrap(err)
+}
+
+// checkOrSetPIN prompts the user for PIN and verifies it with the YubiKey.
+// If the user provides the default PIN, they will be prompted to set a
+// non-default PIN and PUK before continuing.
+func (y *YubiKey) checkOrSetPIN(ctx context.Context) error {
+	pin, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your YubiKey PIV PIN [blank to use default PIN]")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	yk, err := y.open()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer yk.Close()
+
+	switch pin {
+	case piv.DefaultPIN:
+		fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", piv.DefaultPIN)
+		fallthrough
+	case "":
+		if pin, err = setPINAndPUKFromDefault(ctx, yk); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(yk.VerifyPIN(pin))
 }
 
 // open a connection to YubiKey PIV module. The returned connection should be closed once
@@ -665,3 +770,92 @@ const (
 	// slower cards (if there are any).
 	signTouchPromptDelay = time.Millisecond * 200
 )
+
+func setPINAndPUKFromDefault(ctx context.Context, yk *piv.YubiKey) (string, error) {
+	// YubiKey requires that PIN and PUK be 6-8 characters.
+	isValid := func(pin string) bool {
+		return len(pin) >= 6 && len(pin) <= 8
+	}
+
+	var pin string
+	for {
+		fmt.Fprintf(os.Stderr, "Please set a new 6-8 character PIN.\n")
+		newPIN, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your new YubiKey PIV PIN")
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		newPINConfirm, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Confirm your new YubiKey PIV PIN")
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		if newPIN != newPINConfirm {
+			fmt.Fprintf(os.Stderr, "PINs do not match.\n")
+			continue
+		}
+
+		if newPIN == piv.DefaultPIN {
+			fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", piv.DefaultPIN)
+			continue
+		}
+
+		if !isValid(newPIN) {
+			fmt.Fprintf(os.Stderr, "PIN must be 6-8 characters long.\n")
+			continue
+		}
+
+		pin = newPIN
+		break
+	}
+
+	puk, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your YubiKey PIV PUK to reset PIN [blank to use default PUK]")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	switch puk {
+	case piv.DefaultPUK:
+		fmt.Fprintf(os.Stderr, "The default PUK %q is not supported.\n", piv.DefaultPUK)
+		fallthrough
+	case "":
+		for {
+			fmt.Fprintf(os.Stderr, "Please set a new 6-8 character PUK (used to reset PIN).\n")
+			newPUK, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your new YubiKey PIV PUK")
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+			newPUKConfirm, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Confirm your new YubiKey PIV PUK")
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			if newPUK != newPUKConfirm {
+				fmt.Fprintf(os.Stderr, "PUKs do not match.\n")
+				continue
+			}
+
+			if newPUK == piv.DefaultPUK {
+				fmt.Fprintf(os.Stderr, "The default PUK %q is not supported.\n", piv.DefaultPUK)
+				continue
+			}
+
+			if !isValid(newPUK) {
+				fmt.Fprintf(os.Stderr, "PUK must be 6-8 characters long.\n")
+				continue
+			}
+
+			if err := yk.SetPUK(piv.DefaultPUK, newPUK); err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			puk = newPUK
+			break
+		}
+	}
+
+	if err := yk.Unblock(puk, pin); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return pin, nil
+}

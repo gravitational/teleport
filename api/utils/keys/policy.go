@@ -34,65 +34,138 @@ const (
 	// hardware key to generate and store their private keys securely, and
 	// this key must require touch to be accessed and used.
 	PrivateKeyPolicyHardwareKeyTouch PrivateKeyPolicy = "hardware_key_touch"
+	// PrivateKeyPolicyHardwareKeyPIN means that the client must use a valid
+	// hardware key to generate and store their private keys securely, and
+	// this key must require pin to be accessed and used.
+	PrivateKeyPolicyHardwareKeyPIN PrivateKeyPolicy = "hardware_key_pin"
+	// PrivateKeyPolicyHardwareKeyTouchAndPIN means that the client must use a valid
+	// hardware key to generate and store their private keys securely, and
+	// this key must require touch and pin to be accessed and used.
+	PrivateKeyPolicyHardwareKeyTouchAndPIN PrivateKeyPolicy = "hardware_key_touch_and_pin"
 )
 
-// VerifyPolicy verifies that the given policy meets the requirements of this policy.
-// If not, it will return a private key policy error, which can be parsed to retrieve
-// the unmet policy.
-func (p PrivateKeyPolicy) VerifyPolicy(policy PrivateKeyPolicy) error {
-	switch p {
+// IsSatisfiedBy returns whether this key policy is satisfied by the given key policy.
+func (requiredPolicy PrivateKeyPolicy) IsSatisfiedBy(keyPolicy PrivateKeyPolicy) bool {
+	switch requiredPolicy {
 	case PrivateKeyPolicyNone:
-		return nil
+		return true
 	case PrivateKeyPolicyHardwareKey:
-		if policy == PrivateKeyPolicyHardwareKey || policy == PrivateKeyPolicyHardwareKeyTouch {
-			return nil
-		}
+		return keyPolicy.IsHardwareKeyPolicy()
 	case PrivateKeyPolicyHardwareKeyTouch:
-		if policy == PrivateKeyPolicyHardwareKeyTouch {
-			return nil
-		}
+		return keyPolicy.isHardwareKeyTouchVerified()
+	case PrivateKeyPolicyHardwareKeyPIN:
+		return keyPolicy.isHardwareKeyPINVerified()
+	case PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		return keyPolicy.isHardwareKeyTouchVerified() && keyPolicy.isHardwareKeyPINVerified()
 	}
-	return NewPrivateKeyPolicyError(p)
+
+	return false
 }
 
-// IsHardwareKeyVerified return true if this private key policy requires a hardware key.
-func (p PrivateKeyPolicy) IsHardwareKeyVerified() bool {
+// Deprecated in favor of IsSatisfiedBy.
+// TODO(Joerger): delete once reference in /e is replaced.
+func (requiredPolicy PrivateKeyPolicy) VerifyPolicy(keyPolicy PrivateKeyPolicy) error {
+	if !requiredPolicy.IsSatisfiedBy(keyPolicy) {
+		return NewPrivateKeyPolicyError(requiredPolicy)
+	}
+	return nil
+}
+
+// IsHardwareKeyPolicy return true if this private key policy requires a hardware key.
+func (p PrivateKeyPolicy) IsHardwareKeyPolicy() bool {
 	switch p {
-	case PrivateKeyPolicyHardwareKey, PrivateKeyPolicyHardwareKeyTouch:
+	case PrivateKeyPolicyHardwareKey,
+		PrivateKeyPolicyHardwareKeyTouch,
+		PrivateKeyPolicyHardwareKeyPIN,
+		PrivateKeyPolicyHardwareKeyTouchAndPIN:
 		return true
 	}
 	return false
 }
 
-// MFAVerified checks that meet this private key policy counts towards MFA verification.
+// MFAVerified checks that private keys with this key policy count as MFA verified.
+// Both Hardware key touch and pin are count as MFA verification.
 func (p PrivateKeyPolicy) MFAVerified() bool {
-	return p == PrivateKeyPolicyHardwareKeyTouch
+	return p.isHardwareKeyTouchVerified() || p.isHardwareKeyPINVerified()
+}
+
+func (p PrivateKeyPolicy) isHardwareKeyTouchVerified() bool {
+	switch p {
+	case PrivateKeyPolicyHardwareKeyTouch, PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		return true
+	}
+	return false
+}
+
+func (p PrivateKeyPolicy) isHardwareKeyPINVerified() bool {
+	switch p {
+	case PrivateKeyPolicyHardwareKeyPIN, PrivateKeyPolicyHardwareKeyTouchAndPIN:
+		return true
+	}
+	return false
 }
 
 func (p PrivateKeyPolicy) validate() error {
 	switch p {
-	case PrivateKeyPolicyNone, PrivateKeyPolicyHardwareKey, PrivateKeyPolicyHardwareKeyTouch:
+	case PrivateKeyPolicyNone,
+		PrivateKeyPolicyHardwareKey,
+		PrivateKeyPolicyHardwareKeyTouch,
+		PrivateKeyPolicyHardwareKeyPIN,
+		PrivateKeyPolicyHardwareKeyTouchAndPIN:
 		return nil
 	}
 	return trace.BadParameter("%q is not a valid key policy", p)
 }
 
-var privateKeyPolicyErrRegex = regexp.MustCompile(`private key policy not met: (\w+)`)
+// PolicyThatSatisfiesSet returns least restrictive policy necessary to satisfy the given set of policies.
+func PolicyThatSatisfiesSet(policies []PrivateKeyPolicy) (PrivateKeyPolicy, error) {
+	setPolicy := PrivateKeyPolicyNone
+	for _, policy := range policies {
+		if policy.IsSatisfiedBy(setPolicy) {
+			continue
+		}
+
+		switch {
+		case setPolicy.IsSatisfiedBy(policy):
+			// Upgrade set policy to stricter policy.
+			setPolicy = policy
+
+		case policy.IsSatisfiedBy(PrivateKeyPolicyHardwareKeyTouchAndPIN) &&
+			setPolicy.IsSatisfiedBy(PrivateKeyPolicyHardwareKeyTouchAndPIN):
+			// Neither policy is met by the other (pin or touch), but both are met by
+			// stricter pin+touch policy.
+			setPolicy = PrivateKeyPolicyHardwareKeyTouchAndPIN
+
+		default:
+			// Currently, "hardware_key_touch_and_pin" is the strictest policy available and
+			// meets every other required policy. However, in the future we may add policy
+			// requirements that are mutually exclusive, so this logic is future proofed.
+			return PrivateKeyPolicyNone, trace.BadParameter(""+
+				"private key policy requirements %q and %q are incompatible, "+
+				"please contact the cluster administrator", policy, setPolicy)
+		}
+	}
+
+	return setPolicy, nil
+}
+
+var privateKeyPolicyErrRegex = regexp.MustCompile(`private key policy not (met|satisfied): (\w+)`)
 
 func NewPrivateKeyPolicyError(p PrivateKeyPolicy) error {
+	// TODO(Joerger): Replace with "private key policy not satisfied" in 16.0.0
 	return trace.BadParameter(fmt.Sprintf("private key policy not met: %s", p))
 }
 
 // ParsePrivateKeyPolicyError checks if the given error is a private key policy
-// error and returns the contained unmet PrivateKeyPolicy.
+// error and returns the contained unsatisfied PrivateKeyPolicy.
 func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
 	// subMatches should have two groups - the full string and the policy "(\w+)"
 	subMatches := privateKeyPolicyErrRegex.FindStringSubmatch(err.Error())
-	if subMatches == nil || len(subMatches) != 2 {
+	if subMatches == nil || len(subMatches) != 3 {
 		return "", trace.BadParameter("provided error is not a key policy error")
 	}
 
-	policy := PrivateKeyPolicy(subMatches[1])
+	policy := PrivateKeyPolicy(subMatches[2])
 	if err := policy.validate(); err != nil {
 		return "", trace.Wrap(err)
 	}

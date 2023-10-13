@@ -389,6 +389,10 @@ func (c *AuthPreferenceV2) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 		return keys.PrivateKeyPolicyHardwareKey
 	case RequireMFAType_HARDWARE_KEY_TOUCH:
 		return keys.PrivateKeyPolicyHardwareKeyTouch
+	case RequireMFAType_HARDWARE_KEY_PIN:
+		return keys.PrivateKeyPolicyHardwareKeyPIN
+	case RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
+		return keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
 	default:
 		return keys.PrivateKeyPolicyNone
 	}
@@ -907,8 +911,14 @@ func (r *RequireMFAType) UnmarshalJSON(data []byte) error {
 }
 
 const (
-	RequireMFATypeHardwareKeyString      = "hardware_key"
+	// RequireMFATypeHardwareKeyString is the string representation of RequireMFATypeHardwareKey
+	RequireMFATypeHardwareKeyString = "hardware_key"
+	// RequireMFATypeHardwareKeyTouchString is the string representation of RequireMFATypeHardwareKeyTouch
 	RequireMFATypeHardwareKeyTouchString = "hardware_key_touch"
+	// RequireMFATypeHardwareKeyPINString is the string representation of RequireMFATypeHardwareKeyPIN
+	RequireMFATypeHardwareKeyPINString = "hardware_key_pin"
+	// RequireMFATypeHardwareKeyTouchAndPINString is the string representation of RequireMFATypeHardwareKeyTouchAndPIN
+	RequireMFATypeHardwareKeyTouchAndPINString = "hardware_key_touch_and_pin"
 )
 
 // encode RequireMFAType into a string or boolean. This is necessary for
@@ -924,6 +934,10 @@ func (r *RequireMFAType) encode() (interface{}, error) {
 		return RequireMFATypeHardwareKeyString, nil
 	case RequireMFAType_HARDWARE_KEY_TOUCH:
 		return RequireMFATypeHardwareKeyTouchString, nil
+	case RequireMFAType_HARDWARE_KEY_PIN:
+		return RequireMFATypeHardwareKeyPINString, nil
+	case RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
+		return RequireMFATypeHardwareKeyTouchAndPINString, nil
 	default:
 		return nil, trace.BadParameter("RequireMFAType invalid value %v", *r)
 	}
@@ -940,6 +954,10 @@ func (r *RequireMFAType) decode(val interface{}) error {
 			*r = RequireMFAType_SESSION_AND_HARDWARE_KEY
 		case RequireMFATypeHardwareKeyTouchString:
 			*r = RequireMFAType_HARDWARE_KEY_TOUCH
+		case RequireMFATypeHardwareKeyPINString:
+			*r = RequireMFAType_HARDWARE_KEY_PIN
+		case RequireMFATypeHardwareKeyTouchAndPINString:
+			*r = RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN
 		case "":
 			// default to off
 			*r = RequireMFAType_OFF
