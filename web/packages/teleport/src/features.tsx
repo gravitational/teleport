@@ -324,7 +324,7 @@ export class FeatureRoles implements TeleportFeature {
   section = ManagementSection.Access;
 
   route = {
-    title: 'Manage Roles',
+    title: 'Manage User Roles',
     path: cfg.routes.roles,
     exact: true,
     component: Roles,
@@ -371,7 +371,7 @@ export class FeatureAuthConnectors implements TeleportFeature {
 
 export class FeatureLocks implements TeleportFeature {
   category = NavigationCategory.Management;
-  section = ManagementSection.Access;
+  section = ManagementSection.Identity;
 
   route = {
     title: 'Manage Session & Identity Locks',
@@ -664,11 +664,13 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureUsers(),
     new FeatureRoles(),
     new FeatureAuthConnectors(),
-    new FeatureLocks(),
-    new FeatureNewLock(),
     new FeatureIntegrations(),
     new FeatureDiscover(),
     new FeatureIntegrationEnroll(),
+
+    // - Identity
+    new FeatureLocks(),
+    new FeatureNewLock(),
 
     // - Activity
     new FeatureRecordings(),
