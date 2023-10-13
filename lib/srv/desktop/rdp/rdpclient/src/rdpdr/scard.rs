@@ -2415,7 +2415,7 @@ impl Contexts {
             .ok_or_else(|| other_err!("Contexts::get", "unknown context id"))
     }
 
-    fn release(&mut self, id: u32) {
+    pub fn release(&mut self, id: u32) {
         self.contexts.remove(&id);
     }
 }

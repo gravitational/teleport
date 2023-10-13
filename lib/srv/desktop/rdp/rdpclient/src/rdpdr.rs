@@ -38,7 +38,7 @@ use consts::{
 use ironrdp_pdu::utils::CharacterSet;
 use ironrdp_pdu::{custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::esc::{
-    rpce, CardProtocol, CardState, CardStateFlags, ConnectCall, ConnectReturn,
+    rpce, CardProtocol, CardState, CardStateFlags, ConnectCall, ConnectReturn, ContextCall,
     EstablishContextCall, EstablishContextReturn, GetStatusChangeCall, GetStatusChangeReturn,
     HCardAndDispositionCall, ListReadersCall, ListReadersReturn, ReaderStateCommonCall, ScardCall,
     StatusCall, StatusReturn, TransmitCall, TransmitReturn,
@@ -121,10 +121,9 @@ impl TeleportRdpdrBackend {
         Ok(self.active_device_ids[0])
     }
 
-    fn handle_access_started(
+    fn handle_access_started_event(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
-        _call: ScardAccessStartedEventCall,
     ) -> PduResult<()> {
         let scard_device_id = self.get_scard_device_id()?;
         if req.header.device_id != scard_device_id {
@@ -146,7 +145,6 @@ impl TeleportRdpdrBackend {
     fn handle_establish_context(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
-        _call: EstablishContextCall,
     ) -> PduResult<()> {
         let ctx = self.contexts.establish();
 
@@ -156,11 +154,7 @@ impl TeleportRdpdrBackend {
         )
     }
 
-    fn handle_list_readers(
-        &mut self,
-        req: DeviceControlRequest<ScardIoCtlCode>,
-        _call: ListReadersCall,
-    ) -> PduResult<()> {
+    fn handle_list_readers(&mut self, req: DeviceControlRequest<ScardIoCtlCode>) -> PduResult<()> {
         self.write_rdpdr_dev_ctl_resp(
             req,
             Box::new(ListReadersReturn::new(
@@ -251,7 +245,6 @@ impl TeleportRdpdrBackend {
     fn handle_begin_transaction(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
-        _call: HCardAndDispositionCall,
     ) -> PduResult<()> {
         self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
     }
@@ -285,12 +278,21 @@ impl TeleportRdpdrBackend {
         )
     }
 
-    fn handle_status(
-        &mut self,
-        req: DeviceControlRequest<ScardIoCtlCode>,
-        _call: StatusCall,
-        enc: CharacterSet,
-    ) -> PduResult<()> {
+    fn handle_status(&mut self, req: DeviceControlRequest<ScardIoCtlCode>) -> PduResult<()> {
+        let enc = match req.io_control_code {
+            ScardIoCtlCode::StatusW => CharacterSet::Unicode,
+            ScardIoCtlCode::StatusA => CharacterSet::Ansi,
+            _ => {
+                return Err(custom_err!(
+                    "TeleportRdpdrBackend::handle_status",
+                    TeleportRdpdrBackendError(format!(
+                        "got unexpected ScardIoCtlCode with a StatusCall: {:?}",
+                        req.io_control_code
+                    ))
+                ));
+            }
+        };
+
         let (atr_length, atr) = padded_atr::<32>();
 
         self.write_rdpdr_dev_ctl_resp(
@@ -308,6 +310,15 @@ impl TeleportRdpdrBackend {
                 enc,
             )),
         )
+    }
+
+    fn handle_release_context(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        call: ContextCall,
+    ) -> PduResult<()> {
+        self.contexts.release(call.context.value);
+        self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
     }
 
     fn create_get_status_change_return(
@@ -386,6 +397,17 @@ impl TeleportRdpdrBackend {
                 )
             })
     }
+
+    /// This function returns the error for unhandled combinations of [`ScardIoCtlCode`] and [`ScardCall`].
+    fn unhandled_combo_error(ioctl: ScardIoCtlCode, call: ScardCall) -> PduResult<()> {
+        Err(custom_err!(
+            "TeleportRdpdrBackend::unhandled_combo_error",
+            TeleportRdpdrBackendError(format!(
+                "received unhandled combination of ScardIoCtlCode [{:?}] with ScardCall [{:?}]",
+                ioctl, call
+            ))
+        ))
+    }
 }
 
 impl RdpdrBackend for TeleportRdpdrBackend {
@@ -416,41 +438,50 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: ScardCall,
     ) -> PduResult<()> {
-        match call {
-            ScardCall::AccessStartedEventCall(call) => self.handle_access_started(req, call),
-            ScardCall::EstablishContextCall(call) => self.handle_establish_context(req, call),
-            ScardCall::ListReadersCall(call) => self.handle_list_readers(req, call),
-            ScardCall::GetStatusChangeCall(call) => self.handle_get_status_change(req, call),
-            ScardCall::ConnectCall(call) => self.handle_connect(req, call),
-            ScardCall::HCardAndDispositionCall(call) => match req.io_control_code {
-                ScardIoCtlCode::BeginTransaction => self.handle_begin_transaction(req, call),
-                _ => Err(custom_err!(
-                    "TeleportRdpdrBackend::handle_scard_call",
-                    TeleportRdpdrBackendError(format!(
-                        "got unexpected ScardIoCtlCode with a HCardAndDispositionCall: {:?}",
-                        req.io_control_code
-                    ))
-                )),
+        match req.io_control_code {
+            ScardIoCtlCode::AccessStartedEvent => match call {
+                ScardCall::AccessStartedEventCall(_) => self.handle_access_started_event(req),
+                _ => Self::unhandled_combo_error(req.io_control_code, call),
             },
-            ScardCall::TransmitCall(call) => self.handle_transmit(req, call),
-            ScardCall::StatusCall(call) => {
-                let enc = match req.io_control_code {
-                    ScardIoCtlCode::StatusW => CharacterSet::Unicode,
-                    ScardIoCtlCode::StatusA => CharacterSet::Ansi,
-                    _ => {
-                        return Err(custom_err!(
-                            "TeleportRdpdrBackend::handle_scard_call",
-                            TeleportRdpdrBackendError(format!(
-                                "got unexpected ScardIoCtlCode with a StatusCall: {:?}",
-                                req.io_control_code
-                            ))
-                        ));
-                    }
-                };
-                self.handle_status(req, call, enc)
-            }
-
-            ScardCall::Unsupported => Ok(()),
+            ScardIoCtlCode::EstablishContext => match call {
+                ScardCall::EstablishContextCall(_) => self.handle_establish_context(req),
+                _ => Self::unhandled_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::ListReadersW => match call {
+                ScardCall::ListReadersCall(_) => self.handle_list_readers(req),
+                _ => Self::unhandled_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::GetStatusChangeW => match call {
+                ScardCall::GetStatusChangeCall(call) => self.handle_get_status_change(req, call),
+                _ => Self::unhandled_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::ConnectW => match call {
+                ScardCall::ConnectCall(call) => self.handle_connect(req, call),
+                _ => Self::unhandled_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::BeginTransaction => match call {
+                ScardCall::HCardAndDispositionCall(_) => self.handle_begin_transaction(req),
+                _ => Self::unhandled_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::Transmit => match call {
+                ScardCall::TransmitCall(call) => self.handle_transmit(req, call),
+                _ => Self::unhandled_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::StatusW | ScardIoCtlCode::StatusA => match call {
+                ScardCall::StatusCall(_) => self.handle_status(req),
+                _ => Self::unhandled_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::ReleaseContext => match call {
+                ScardCall::ContextCall(call) => self.handle_release_context(req, call),
+                _ => Self::unhandled_combo_error(req.io_control_code, call),
+            },
+            _ => Err(custom_err!(
+                "TeleportRdpdrBackend::handle_scard_call",
+                TeleportRdpdrBackendError(format!(
+                    "received unhandled ScardIoCtlCode: {:?}",
+                    req.io_control_code
+                ))
+            )),
         }
     }
 }
