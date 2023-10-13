@@ -32,7 +32,6 @@ use std::ffi::CString;
 use std::fmt::Debug;
 use std::io::Cursor;
 use std::os::raw::c_char;
-use std::string::FromUtf8Error;
 use std::{mem, ptr, time};
 
 use ironrdp_session::image::DecodedImage;
@@ -48,7 +47,6 @@ use rdpdr::tdp::{
 use util::{encode_png, from_c_string, from_go_array};
 
 use crate::client::{Client, ClientFunction};
-use crate::cliprdr::ClipboardFunction;
 
 pub mod client;
 mod cliprdr;
@@ -161,7 +159,7 @@ pub unsafe extern "C" fn client_update_clipboard(
     match String::from_utf8(data) {
         Ok(s) => call_function_on_handle(
             cgo_handle,
-            ClientFunction::WriteCliprdr(ClipboardFunction::Update(s)),
+            ClientFunction::UpdateClipboard(s),
         ),
         Err(e) => {
             error!("can't convert clipboard data: {}", e);

@@ -13,35 +13,42 @@
 // limitations under the License.
 
 use std::fmt::{Debug, Formatter};
+use std::ops::Deref;
+use std::sync::{Arc, Mutex};
 
+use byteorder::LittleEndian;
 use ironrdp_cliprdr::backend::CliprdrBackend;
 use ironrdp_cliprdr::pdu::{
-    ClipboardFormat, ClipboardGeneralCapabilityFlags, FileContentsRequest, FileContentsResponse,
-    FormatDataRequest, FormatDataResponse, LockDataId,
+    ClipboardFormat, ClipboardFormatId, ClipboardGeneralCapabilityFlags, FileContentsRequest,
+    FileContentsResponse, FormatDataRequest, FormatDataResponse, LockDataId,
 };
 use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
 use ironrdp_pdu::PduResult;
+use utf16string::WString;
 
 use crate::client::{ClientFunction, ClientHandle};
 
 #[derive(Debug)]
 pub struct TeleportCliprdrBackend {
     client_handle: ClientHandle,
+    clipboard_data: Arc<Mutex<Option<String>>>,
 }
 
 impl TeleportCliprdrBackend {
-    pub fn new(client_handle: ClientHandle) -> Self {
-        Self { client_handle }
+    pub fn new(client_handle: ClientHandle, clipboard_data: Arc<Mutex<Option<String>>>) -> Self {
+        Self {
+            client_handle,
+            clipboard_data,
+        }
     }
 
-    fn send<F>(&self, name: &str, f: F)
+    fn send<F>(&self, name: &'static str, f: F)
     where
-        F: FnOnce(&Cliprdr, Option<String>) -> PduResult<CliprdrSvcMessages> + Send + 'static,
+        F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages> + Send + 'static,
     {
-        let f = Box::new(ClipboardFnInternal::new(name, f));
         let res = self
             .client_handle
-            .blocking_send(ClientFunction::WriteCliprdr(f));
+            .blocking_send(ClientFunction::WriteCliprdr(as_clipboard_fn(name, f)));
         if let Err(e) = res {
             error!("Couldn't send request for {}: {:?}", name, e);
         }
@@ -60,13 +67,8 @@ impl CliprdrBackend for TeleportCliprdrBackend {
 
     fn on_request_format_list(&mut self) {
         trace!("CLIPRDR: on_request_format_list");
-
-        if let Err(e) = self
-            .client_handle
-            .blocking_send(WriteCliprdr(RequestFormatList))
-        {
-            error!("Couldn't send request format list message: {:?}", e);
-        }
+        let formats = available_formats(self.clipboard_data.lock().unwrap().deref());
+        self.send("request_format_list", move |c| c.initiate_copy(&formats));
     }
 
     fn on_process_negotiated_capabilities(
@@ -84,35 +86,82 @@ impl CliprdrBackend for TeleportCliprdrBackend {
             "CLIPRDR: on_remote_copy, available formats: {:?}",
             available_formats
         );
-        if let Err(e) = self
-            .client_handle
-            .blocking_send(WriteCliprdr(RemoteCopy(available_formats.to_vec())))
-        {
-            error!("Couldn't send remote copy message: {:?}", e);
+        // always use CF_UNICODETEXT if available
+        let mut format = available_formats
+            .iter()
+            .find(|cf| cf.id() == ClipboardFormatId::CF_UNICODETEXT);
+        // if not fallback to CF_TEXT
+        if format.is_none() {
+            format = available_formats
+                .iter()
+                .find(|cf| cf.id() == ClipboardFormatId::CF_TEXT);
+        }
+        if let Some(format) = format.map(ClipboardFormat::id) {
+            self.send("remote_copy", move |c| c.initiate_paste(format))
         }
     }
 
     fn on_format_data_request(&mut self, format: FormatDataRequest) {
         trace!("CLIPRDR: on_format_data_request");
-        if let Err(e) =
-            self.client_handle
-                .blocking_send(WriteCliprdr(ClipboardFunction::FormatDataRequest(
-                    format.format,
-                )))
-        {
-            error!("Couldn't send format data request message: {:?}", e);
-        }
+        let response = self
+            .clipboard_data
+            .lock()
+            .unwrap()
+            .as_ref()
+            .and_then(|data| match format.format {
+                ClipboardFormatId::CF_UNICODETEXT => {
+                    let utf16: WString<LittleEndian> = data.as_str().into();
+                    let mut utf16 = utf16.into_bytes();
+                    utf16.extend_from_slice(&[0u8, 0u8]);
+                    Some(utf16)
+                }
+                ClipboardFormatId::CF_TEXT => {
+                    if !data.is_ascii() {
+                        return None;
+                    }
+                    let mut data = data.clone().into_bytes();
+                    data.push(0u8);
+                    Some(data)
+                }
+                _ => None,
+            });
+        self.send("format_data_request", move |c| {
+            let response = match response.clone() {
+                None => FormatDataResponse::new_error(),
+                Some(data) => FormatDataResponse::new_data(data),
+            };
+            c.submit_format_data(response)
+        });
     }
 
     fn on_format_data_response(&mut self, response: FormatDataResponse) {
         trace!("CLIPRDR: on_format_data_response");
-        if !response.is_error() {
-            if let Err(e) = self.client_handle.blocking_send(WriteCliprdr(
-                ClipboardFunction::FormatDataResponse(response.data().to_vec()),
-            )) {
-                error!("Couldn't send format data response message: {:?}", e);
-            }
+        if response.is_error() {
+            error!("Received error in format_data_response");
+            return;
         }
+        let mut data = response.data().to_vec();
+        let data = if data.ends_with(&[0u8, 0u8]) {
+            WString::from_utf16le(data)
+                .map(|s| s.to_utf8())
+                .map_err(|_| ())
+        } else {
+            String::from_utf8(data).map_err(|_| ())
+        };
+        match data {
+            Ok(mut data) => {
+                data.pop();
+                if let Err(e) = self
+                    .client_handle
+                    .blocking_send(ClientFunction::HandleRemoteCopy(data.into_bytes()))
+                {
+                    error!("Can't send format_data_response: {:?}", e);
+                }
+            }
+            Err(_) => {
+                error!("Can't convert string");
+            }
+        };
     }
 
     fn on_file_contents_request(&mut self, _: FileContentsRequest) {
@@ -155,7 +204,7 @@ where
 
 impl<F> ClipboardFnInternal<F>
 where
-    F: Fn(&Cliprdr, &Option<String>) -> PduResult<CliprdrSvcMessages> + Send + 'static,
+    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages> + Send + 'static,
 {
     fn new(name: &'static str, closure: F) -> Self {
         Self { name, closure }
@@ -178,4 +227,24 @@ where
     fn call(&self, cliprdr: &Cliprdr) -> PduResult<CliprdrSvcMessages> {
         (self.closure)(cliprdr)
     }
+}
+
+pub fn available_formats(data: &Option<String>) -> Vec<ClipboardFormat> {
+    match data {
+        Some(s) => {
+            let mut formats = vec![ClipboardFormat::new(ClipboardFormatId::CF_UNICODETEXT)];
+            if s.is_ascii() {
+                formats.push(ClipboardFormat::new(ClipboardFormatId::CF_TEXT))
+            }
+            formats
+        }
+        None => vec![],
+    }
+}
+
+pub fn as_clipboard_fn<F>(name: &'static str, f: F) -> Box<dyn ClipboardFn>
+where
+    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages> + Send + 'static,
+{
+    Box::new(ClipboardFnInternal::new(name, f))
 }
