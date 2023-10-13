@@ -48,8 +48,15 @@ func (p *Plugin) getAccessLists(_ http.ResponseWriter, r *http.Request, _ httpro
 				return nil, trace.Wrap(err)
 			}
 
-			membersCount := len(members)
+			if trace.IsAccessDenied(err) {
+				accessLists = append(accessLists, &ui.AccessList{
+					AccessList:   accessList,
+					MembersCount: nil,
+				})
+				continue
+			}
 
+			membersCount := len(members)
 			accessLists = append(accessLists, &ui.AccessList{
 				AccessList:   accessList,
 				MembersCount: &membersCount,
@@ -246,4 +253,37 @@ func memberToAccessListMember(accessListName string, member accesslist.AccessLis
 			AddedBy:    member.AddedBy,
 		},
 	}
+}
+
+// reviewAccessList is the handler for POST /v1/enterprise/accesslist/:accessListId/review.
+func (p *Plugin) reviewAccessList(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
+	var req ui.ReviewAccessListRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// The following fields has to be filled, even though
+	// they get set (replaced) in the back. These fillers are
+	// required because the request converting from proto
+	// does a check that these fields are not empty:
+	//  - header.Metadata.Name
+	//  - reviewSpec.Reviewers  // filled by client web UI
+	//  - reviewSpec.ReviewDate // filled by client web UI
+	review, err := accesslist.NewReview(header.Metadata{Name: uuid.New().String()}, req.ReviewSpec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, nextReviewDate, err := clt.AccessListClient().CreateAccessListReview(r.Context(), review)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ui.ReviewAccessListResponse{
+		NextAuditDate: nextReviewDate,
+	}, nil
 }

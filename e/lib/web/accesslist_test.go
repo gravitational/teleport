@@ -283,6 +283,41 @@ func addMemberToAccessList(t *testing.T, webPack *authWebPack, s *webSuite, acce
 	require.Equal(t, http.StatusOK, resp.Code())
 }
 
+func TestReviewAccessList(t *testing.T) {
+	s := newWebSuite(t)
+	webPack := s.newAuthWebPack(t, "foo")
+
+	accessListName := createTestAccessList(t, webPack, s)
+
+	review := accesslist.ReviewSpec{
+		AccessList: accessListName,
+		Reviewers:  []string{"does-not-matter"},
+		ReviewDate: s.clock.Now(),
+		Changes: accesslist.ReviewChanges{
+			MembershipRequirementsChanged: &accesslist.Requires{Roles: []string{"access"}},
+		},
+	}
+
+	endpoint := webPack.clt.Endpoint("enterprise", "accesslist", accessListName, "reviews")
+	resp, err := webPack.clt.PostJSON(s.ctx, endpoint, ui.ReviewAccessListRequest{
+		ReviewSpec: review,
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	var reviewResp ui.ReviewAccessListResponse
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &reviewResp))
+	require.NotEmpty(t, reviewResp.NextAuditDate)
+
+	// Fetch the updated access list to test the review date matches.
+	updatedList := getAccessList(t, webPack, s, accessListName)
+	require.Equal(t, updatedList.AccessList.Spec.Audit.NextAuditDate, reviewResp.NextAuditDate)
+
+	// Check that membership required roles was added.
+	accessListResp := getAccessList(t, webPack, s, accessListName)
+	require.Equal(t, []string{"access"}, accessListResp.AccessList.AccessList.GetMembershipRequires().Roles)
+}
+
 func createTestAccessList(t *testing.T, webPack *authWebPack, s *webSuite) string {
 	t.Helper()
 

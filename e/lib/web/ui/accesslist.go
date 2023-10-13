@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/gravitational/teleport/api/types/accesslist"
+import (
+	"time"
+
+	"github.com/gravitational/teleport/api/types/accesslist"
+)
 
 // AccessList is a UI representation of an access list.
 type AccessList struct {
@@ -9,7 +13,10 @@ type AccessList struct {
 	// Members is a list of users and roles that are allowed to access the cluster.
 	Members []accesslist.AccessListMemberSpec `json:"members,omitempty"`
 	// MembersCount is the number of members in the access list.
-	MembersCount *int `json:"membersCount,omitempty"`
+	// A `nil` membersCount means the caller did not have access
+	// to list members (eg: a user can read access list that
+	// they are a member of but not other members).
+	MembersCount *int `json:"membersCount"`
 }
 
 // AccessListResponse is a UI representation of an access list response.
@@ -37,4 +44,14 @@ type AddAccessListMemberRequest struct {
 // AddAccessListMemberResponse is a UI representation of an add access list member response.
 type AddAccessListMemberResponse struct {
 	Members []accesslist.AccessListMemberSpec `json:"members,omitempty"`
+}
+
+// ReviewAccessListRequest is a UI representation for reviewing an access list request.
+type ReviewAccessListRequest struct {
+	accesslist.ReviewSpec
+}
+
+// ReviewAccessList is a UI representation for reviewing an access list request.
+type ReviewAccessListResponse struct {
+	NextAuditDate time.Time `json:"nextAuditDate,omitempty"`
 }
