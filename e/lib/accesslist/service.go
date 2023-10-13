@@ -1336,19 +1336,14 @@ func (s *Service) createAccessListReview(ctx context.Context, review *accesslist
 	review.Spec.Reviewers = []string{username}
 	review.Spec.ReviewDate = s.clock.Now()
 
-	updatedReview, err := s.accessListReviews.CreateAccessListReview(ctx, review)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	accessList, err := s.accessLists.GetAccessList(ctx, review.Spec.AccessList)
+	updatedReview, nextAuditDate, err := s.accessListReviews.CreateAccessListReview(ctx, review)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &accesslistv1.CreateAccessListReviewResponse{
 		ReviewName:    updatedReview.GetName(),
-		NextAuditDate: timestamppb.New(accessList.Spec.Audit.NextAuditDate),
+		NextAuditDate: timestamppb.New(nextAuditDate),
 	}, nil
 }
 
