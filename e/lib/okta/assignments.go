@@ -166,7 +166,6 @@ func (a *assignmentReconciler) wait(ctx context.Context) {
 // Stop will stop and close any lingering resources in the assignmentReconciler.
 func (a *assignmentReconciler) stop() {
 	close(a.stopCh)
-	close(a.reconcileCh)
 	if a.watcher != nil {
 		a.watcher.Close()
 	}
