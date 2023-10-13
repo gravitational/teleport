@@ -16,7 +16,7 @@
 
 import React from 'react';
 
-import { Text, Indicator, Box } from 'design';
+import { Text, Indicator, Box, Flex } from 'design';
 import * as Icons from 'design/Icon';
 
 import { StyledTable, StyledPanel, StyledTableWrapper } from './StyledTable';
@@ -36,6 +36,8 @@ export function Table<T>({
   state,
   onSort,
   emptyText,
+  emptyHint,
+  emptyButton,
   nextPage,
   prevPage,
   setSearchValue,
@@ -122,7 +124,14 @@ export function Table<T>({
       return <tbody>{rows}</tbody>;
     }
 
-    return <EmptyIndicator emptyText={emptyText} colSpan={columns.length} />;
+    return (
+      <EmptyIndicator
+        emptyText={emptyText}
+        emptyHint={emptyHint}
+        emptyButton={emptyButton}
+        colSpan={columns.length}
+      />
+    );
   };
 
   if (serversideProps) {
@@ -330,27 +339,63 @@ function ServersideTable<T>({
 
 const EmptyIndicator = ({
   emptyText,
+  emptyHint,
+  emptyButton,
   colSpan,
 }: {
   emptyText: string;
+  emptyHint: string | undefined;
+  emptyButton: JSX.Element | undefined;
   colSpan: number;
 }) => (
   <tfoot>
     <tr>
       <td colSpan={colSpan}>
-        <Text
-          typography="paragraph"
+        <Flex
           m="4"
-          color="text.main"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+          gap={2}
+          flexDirection="column"
+          alignItems="center"
+          justifyContent="center"
         >
-          <Icons.Database mr={2} />
-          {emptyText}
-        </Text>
+          <Flex
+            gap={2}
+            flexWrap="nowrap"
+            alignItems="flex-start"
+            justifyContent="center"
+          >
+            <Icons.Database
+              color="text.main"
+              // line-height and height must match line-height of Text below for the icon to be
+              // aligned to the first line of Text if Text spans multiple lines.
+              css={`
+                line-height: 32px;
+                height: 32px;
+              `}
+            />
+            <Text
+              textAlign="center"
+              typography="paragraph"
+              m="0"
+              color="text.main"
+            >
+              {emptyText}
+            </Text>
+          </Flex>
+
+          {emptyHint && (
+            <Text
+              textAlign="center"
+              typography="paragraph"
+              m="0"
+              color="text.main"
+            >
+              {emptyHint}
+            </Text>
+          )}
+
+          {emptyButton}
+        </Flex>
       </td>
     </tr>
   </tfoot>

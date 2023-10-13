@@ -21,23 +21,26 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 export const MockWorkspaceContextProvider: React.FC<{
-  rootClusterUri: RootClusterUri;
+  rootClusterUri?: RootClusterUri;
 }> = props => {
   const appContext = useAppContext();
+
+  const rootClusterUri =
+    props.rootClusterUri || appContext.workspacesService.getRootClusterUri();
 
   return (
     <WorkspaceContextProvider
       value={{
         accessRequestsService:
           appContext.workspacesService.getWorkspaceAccessRequestsService(
-            props.rootClusterUri
+            rootClusterUri
           ),
         documentsService:
           appContext.workspacesService.getWorkspaceDocumentService(
-            props.rootClusterUri
+            rootClusterUri
           ),
-        localClusterUri: props.rootClusterUri,
-        rootClusterUri: props.rootClusterUri,
+        localClusterUri: rootClusterUri,
+        rootClusterUri,
       }}
     >
       {props.children}

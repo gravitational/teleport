@@ -50,12 +50,17 @@ type ClusterUserPreferencesResponse struct {
 	PinnedResources []string `json:"pinnedResources"`
 }
 
+type UnifiedResourcePreferencesResponse struct {
+	DefaultTab userpreferencesv1.DefaultTab `json:"defaultTab"`
+}
+
 // UserPreferencesResponse is the JSON response for the user preferences.
 type UserPreferencesResponse struct {
-	Assist             AssistUserPreferencesResponse  `json:"assist"`
-	Theme              userpreferencesv1.Theme        `json:"theme"`
-	Onboard            OnboardUserPreferencesResponse `json:"onboard"`
-	ClusterPreferences ClusterUserPreferencesResponse `json:"clusterPreferences,omitempty"`
+	Assist                     AssistUserPreferencesResponse      `json:"assist"`
+	Theme                      userpreferencesv1.Theme            `json:"theme"`
+	UnifiedResourcePreferences UnifiedResourcePreferencesResponse `json:"unifiedResourcePreferences"`
+	Onboard                    OnboardUserPreferencesResponse     `json:"onboard"`
+	ClusterPreferences         ClusterUserPreferencesResponse     `json:"clusterPreferences,omitempty"`
 }
 
 func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
@@ -69,7 +74,7 @@ func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	return resp.Preferences.ClusterPreferences, nil
+	return clusterPreferencesResponse(resp.Preferences.ClusterPreferences), nil
 }
 
 // updateUserClusterPreferences is a handler for PUT /webapi/user/preferences.
@@ -113,6 +118,9 @@ func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.Upser
 	return &userpreferencesv1.UpsertUserPreferencesRequest{
 		Preferences: &userpreferencesv1.UserPreferences{
 			Theme: req.Theme,
+			UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+				DefaultTab: req.UnifiedResourcePreferences.DefaultTab,
+			},
 			Assist: &userpreferencesv1.AssistUserPreferences{
 				PreferredLogins: req.Assist.PreferredLogins,
 				ViewMode:        req.Assist.ViewMode,
@@ -159,10 +167,11 @@ func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, 
 // userPreferencesResponse creates a JSON response for the user preferences.
 func userPreferencesResponse(resp *userpreferencesv1.UserPreferences) *UserPreferencesResponse {
 	jsonResp := &UserPreferencesResponse{
-		Assist:             assistUserPreferencesResponse(resp.Assist),
-		Theme:              resp.Theme,
-		Onboard:            onboardUserPreferencesResponse(resp.Onboard),
-		ClusterPreferences: clusterPreferencesResponse(resp.ClusterPreferences),
+		Assist:                     assistUserPreferencesResponse(resp.Assist),
+		Theme:                      resp.Theme,
+		Onboard:                    onboardUserPreferencesResponse(resp.Onboard),
+		ClusterPreferences:         clusterPreferencesResponse(resp.ClusterPreferences),
+		UnifiedResourcePreferences: unifiedResourcePreferencesResponse(resp.UnifiedResourcePreferences),
 	}
 
 	return jsonResp
@@ -184,6 +193,13 @@ func assistUserPreferencesResponse(resp *userpreferencesv1.AssistUserPreferences
 	jsonResp.PreferredLogins = append(jsonResp.PreferredLogins, resp.PreferredLogins...)
 
 	return jsonResp
+}
+
+// unifiedResourcePreferencesResponse creates a JSON response for the assist user preferences.
+func unifiedResourcePreferencesResponse(resp *userpreferencesv1.UnifiedResourcePreferences) UnifiedResourcePreferencesResponse {
+	return UnifiedResourcePreferencesResponse{
+		DefaultTab: resp.DefaultTab,
+	}
 }
 
 // onboardUserPreferencesResponse creates a JSON response for the onboard user preferences.

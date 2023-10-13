@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-import { Cluster } from 'teleterm/services/tshd/types';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
-
 import * as tsh from 'teleterm/services/tshd/types';
 
 /**
@@ -29,20 +27,16 @@ import * as tsh from 'teleterm/services/tshd/types';
  * https://github.com/gravitational/teleport/pull/28346#discussion_r1246653846
  * */
 export function hasConnectMyComputerPermissions(
-  rootCluster: Cluster,
+  loggedInUser: tsh.LoggedInUser,
   runtimeSettings: RuntimeSettings
 ): boolean {
-  if (rootCluster.leaf) {
-    return false;
-  }
-
   const isUnix =
     runtimeSettings.platform === 'darwin' ||
     runtimeSettings.platform === 'linux';
 
   return (
     isUnix &&
-    rootCluster.loggedInUser?.acl?.tokens.create &&
-    rootCluster.loggedInUser?.userType == tsh.UserType.USER_TYPE_LOCAL
+    loggedInUser?.acl?.tokens.create &&
+    loggedInUser?.userType === tsh.UserType.USER_TYPE_LOCAL
   );
 }
