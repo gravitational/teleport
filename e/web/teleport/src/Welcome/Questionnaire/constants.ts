@@ -4,9 +4,8 @@ import database from 'design/assets/resources/database.png';
 import kubernetes from 'design/assets/resources/kubernetes.png';
 import stack from 'design/assets/resources/stack.png';
 import { Option } from 'shared/components/Select';
+import { assertUnreachable } from 'shared/utils/assertUnreachable';
 import { ClusterResource } from 'teleport/services/userPreferences/types';
-
-import { assertUnreachable } from 'teleterm/ui/utils';
 
 import {
   EmployeeOption,

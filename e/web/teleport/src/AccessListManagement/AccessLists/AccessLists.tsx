@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { ButtonPrimary, Box, Indicator, Alert, Flex } from 'design';
-import useTeleport from 'teleport/useTeleport';
 import {
   FeatureBox,
   FeatureHeader,
@@ -11,6 +10,8 @@ import {
 } from 'teleport/components/Layout';
 import { ApiError } from 'teleport/services/api/parseError';
 
+import { accessListRequiresReview } from 'e-teleport/stores/storeNotificationsE';
+import useTeleport from 'e-teleport/useTeleportE';
 import {
   accessManagementService,
   AccessList,
@@ -26,6 +27,7 @@ import { AccessCard } from './AccessCard';
 
 export type AccessListWithModifiedGrants = Omit<AccessList, 'grants'> & {
   grants: AccessListGrant & { traitList: string[] };
+  needsReviewBy: Date | null;
 };
 
 export function AccessLists() {
@@ -47,6 +49,15 @@ export function AccessLists() {
       .fetchAccessLists()
       .then(fetchedLists => {
         setAttempt({ status: 'success' });
+
+        // Update notifications for access lists.
+        ctx.storeNotifications.setNotificationsForAccessListsRequiringReview(
+          fetchedLists,
+          ctx.storeUser.state
+        );
+
+        // Process traits.
+        const todayDate = new Date();
         const updatedAccessList = fetchedLists.map(r => {
           const traitList = [];
           const definedTraitKeys = Object.keys(r.grants.traits);
@@ -55,7 +66,16 @@ export function AccessLists() {
               traitList.push(makeTraitLabel(key, r.grants.traits[key]));
             });
           }
-          return { ...r, grants: { ...r.grants, traitList: traitList.sort() } };
+          return {
+            ...r,
+            grants: { ...r.grants, traitList: traitList.sort() },
+            needsReviewBy: accessListRequiresReview({
+              todayDate,
+              reviewDate: r.audit.nextDate,
+            })
+              ? r.audit.nextDate
+              : null,
+          };
         });
         setAccesses(updatedAccessList);
         setFilteredAccesses(updatedAccessList);

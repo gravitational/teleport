@@ -1,7 +1,8 @@
 import React from 'react';
-import { Flex, ButtonSecondary } from 'design';
+import styled from 'styled-components';
+import { Flex, ButtonSecondary, ButtonIcon, Box } from 'design';
 import { Cell } from 'design/DataTable';
-import { Warning } from 'design/Icon';
+import { Pencil, Warning } from 'design/Icon';
 import { Option } from 'shared/components/Select';
 
 import {
@@ -15,6 +16,7 @@ import {
   matchRoles,
   matchTraits,
   UserOption,
+  TruncatingLabel,
 } from '../Shared/Shared';
 
 export const CustomCell: React.FC<{ disabled: boolean }> = ({
@@ -42,16 +44,21 @@ export const UserRevokeButtonCell = ({
   btnTitle,
   onClick,
   ineligibleReason,
+  hideIneligibleReason = false,
 }: {
   disabled: boolean;
   btnTitle: string;
   onClick(): void;
   ineligibleReason: string;
+  // when reviewing, hide ineligible reason
+  // since deleting a member during review isn't
+  // a dynamic change.
+  hideIneligibleReason?: boolean;
 }) => {
   return (
     <Cell align="right">
       <Flex alignItems="center" justifyContent="flex-end">
-        {ineligibleReason && (
+        {!hideIneligibleReason && ineligibleReason && (
           <ToolTipText
             tipContent={
               <div css={{ maxWidth: '220px' }}>{ineligibleReason}</div>
@@ -141,3 +148,79 @@ export function filterExistingUsersAndConvertToOption(
       .map(u => ({ label: u.value.name, value: u.value.name }))
   );
 }
+
+export function ButtonPencil({
+  onClick,
+  disabled = false,
+  title = '',
+  mt = 0,
+}: {
+  onClick(): void;
+  disabled?: boolean;
+  title?: string;
+  mt?: number;
+}) {
+  return (
+    <ButtonIcon
+      alignItems="center"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      css={mt && { marginTop: `${mt}px` }}
+    >
+      <Pencil size={16} />
+    </ButtonIcon>
+  );
+}
+
+const TextNoEllipsis = styled(Box)`
+  font-size: ${p => p.theme.fontSizes[1]}px;
+`;
+
+const renderTruncatingLabels = (labels: string[] = []) => {
+  const $labels = labels.map((label, index) => (
+    <TruncatingLabel
+      mr={index === labels.length - 1 ? 0 : 1}
+      key={`${label}${index}`}
+      kind="secondary"
+      title={label}
+    >
+      {label}
+    </TruncatingLabel>
+  ));
+
+  return <Flex flexWrap="wrap">{$labels}</Flex>;
+};
+
+export const RoleAndTraitLabels = ({
+  roles,
+  traits,
+  required = false,
+}: {
+  roles: string[];
+  traits: string[];
+  required?: boolean;
+}) => {
+  let renderRoles = true;
+  let renderTraits = true;
+  if (required) {
+    renderRoles = roles.length > 0;
+    renderTraits = traits.length > 0;
+  }
+  return (
+    <>
+      {renderRoles && (
+        <Flex alignItems="center">
+          <TextNoEllipsis mr={1}>Roles:</TextNoEllipsis>
+          {renderTruncatingLabels(roles)}
+        </Flex>
+      )}
+      {renderTraits && (
+        <Flex alignItems="center">
+          <TextNoEllipsis mr={1}>Traits:</TextNoEllipsis>
+          {renderTruncatingLabels(traits)}
+        </Flex>
+      )}
+    </>
+  );
+};

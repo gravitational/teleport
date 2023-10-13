@@ -1,4 +1,5 @@
 import React from 'react';
+import { format } from 'date-fns';
 import { useHistory } from 'react-router';
 import styled from 'styled-components';
 import { Flex, Box, Text } from 'design';
@@ -18,7 +19,8 @@ export type Props = {
 // consider moving shared styles to a more general place eg: `SingleLineBox`
 // and `TruncatingLabel`
 export function AccessCard({ accessList }: Props) {
-  const { id, title, description, membersCount, grants } = accessList;
+  const { id, title, description, membersCount, grants, needsReviewBy } =
+    accessList;
   const history = useHistory();
 
   function handleOnClick() {
@@ -34,10 +36,20 @@ export function AccessCard({ accessList }: Props) {
     truncatedDesc = `${description.substring(0, 110)}...`;
   }
 
-  const canViewMembers = membersCount != null && membersCount > 0;
+  // Users can have permission levels of Member, Owner, or Admin.
+  // If the value of `membersCount` is null, the user does not
+  // have permission to list other members, which is only the
+  // case for Members.
+  const isMember = membersCount == null;
+  const canViewMembers = !isMember && membersCount >= 0;
 
   return (
     <AccessCardContainer key={id} onClick={handleOnClick}>
+      {needsReviewBy && !isMember && (
+        <ReviewBadge>
+          Needs review by {format(needsReviewBy, 'MM/dd')}
+        </ReviewBadge>
+      )}
       <Box width="100%">
         <SingleLineBox bold title={title}>
           {title}
@@ -107,6 +119,7 @@ const renderRolesAndTraits = ({
 };
 
 const AccessCardContainer = styled(Flex)`
+  position: relative;
   transition: all 150ms;
 
   border-radius: ${props => props.theme.radii[2]}px;
@@ -139,4 +152,19 @@ const SingleLineBox = styled(Text)`
   white-space: nowrap;
   text-overflow: ellipsis;
   width: 100%;
+`;
+
+const ReviewBadge = styled.div`
+  position: absolute;
+  background-color: ${p => p.theme.colors.warning.main};
+  width: 115px;
+  height: 20px;
+  right: 0;
+  border-bottom-left-radius: ${p => p.theme.radii[2]}px;
+  border-top-left-radius: ${p => p.theme.radii[2]}px;
+  font-size: ${p => p.theme.fontSizes[0]}px;
+  display: flex;
+  align-items: center;
+  flex-direction: row-reverse;
+  padding-right: ${p => p.theme.space[2]}px;
 `;

@@ -12,6 +12,7 @@ import {
   AddMembersToAccessListRequest,
   ReviewFrequency,
   ReviewFrequencyBackendParsableValue,
+  ReviewAccessListRequest,
 } from './types';
 
 export const accessManagementService = {
@@ -40,6 +41,26 @@ export const accessManagementService = {
     return api
       .post(cfg.getAccessManagementListUrl(), req)
       .then(resp => makeAccessList(resp.accessList));
+  },
+  reviewAccessList(req: ReviewAccessListRequest): Promise<Date> {
+    const madeReq = {
+      access_list: req.name,
+      reviewers: [req.reviewer],
+      review_date: new Date(),
+      notes: req.notes,
+      changes: {
+        membership_requirements_changed: req.membershipRequires,
+        removed_members: req.membersDeleted?.map(m => m.name),
+        review_frequency_changed:
+          convertReviewFrequencyIntoBackendParsableValue(
+            req.auditRecurrence.frequency
+          ),
+        review_day_of_month_changed: req.auditRecurrence.dayOfMonth,
+      },
+    };
+    return api
+      .post(cfg.getAccessListReviewUrl(req.name), madeReq)
+      .then(req => new Date(req.nextAuditDate));
   },
   // updateAccessList will construct a backend model of AccessList
   // with the original object, replacing field values requested to
@@ -218,5 +239,7 @@ export function convertReviewFrequencyIntoBackendParsableValue(
       return '6m';
     case ReviewFrequency.OneYear:
       return '12m';
+    default:
+      return null;
   }
 }

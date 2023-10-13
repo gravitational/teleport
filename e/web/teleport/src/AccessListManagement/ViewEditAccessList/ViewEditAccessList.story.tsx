@@ -1,9 +1,15 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { ContextProvider } from 'teleport';
-import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
+import { getAcl } from 'teleport/mocks/contexts';
 
-import { IneligibleStatus } from 'e-teleport/services/accessmanagement';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+
+import {
+  IneligibleStatus,
+  ReviewDayOfMonth,
+  ReviewFrequency,
+} from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
 
 import { ViewEditAccessList } from './ViewEditAccessList';
@@ -120,7 +126,7 @@ export const ViewingAsAdmin = () => {
 };
 
 const Provider = props => {
-  const ctx = createTeleportContext({ customAcl: props.customAcl });
+  const ctx = createTeleportContextE({ customAcl: props.customAcl });
 
   return (
     <MemoryRouter>
@@ -171,8 +177,11 @@ const mockAccessList = {
       traits: { fruit: ['apple'] },
     },
     audit: {
-      frequency: '730h0m0s',
-      next_audit_date: '2023-08-12T17:48:15.78579Z',
+      recurrence: {
+        frequency: ReviewFrequency.OneMonth,
+        dayOfMonth: ReviewDayOfMonth.FifteenthDayOfMonth,
+      },
+      next_audit_date: new Date().toString(),
     },
     ownership_requires: {
       roles: ['admin'],

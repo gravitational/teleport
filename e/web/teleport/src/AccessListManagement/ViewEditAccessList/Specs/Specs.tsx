@@ -1,18 +1,9 @@
 import React, { useState } from 'react';
-import styled from 'styled-components';
-import { Flex, Text, Box, ButtonIcon } from 'design';
-import {
-  UserIdBadge,
-  Pencil,
-  CircleCheck,
-  NotificationsActive,
-} from 'design/Icon';
+import { Flex, Text, Box } from 'design';
+import { UserIdBadge, CircleCheck, NotificationsActive } from 'design/Icon';
 import { Option } from 'shared/components/Select';
 
-import {
-  TruncatingLabel,
-  EditKind,
-} from 'e-teleport/AccessListManagement/Shared/Shared';
+import { EditKind } from 'e-teleport/AccessListManagement/Shared/Shared';
 import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
 import {
   getReviewDayOfMonthOption,
@@ -20,6 +11,7 @@ import {
 } from 'e-teleport/AccessListManagement/Shared/Audit';
 
 import { AccessListModified, EditAccess } from '../ViewEditAccessList';
+import { ButtonPencil, RoleAndTraitLabels } from '../Shared';
 
 import { EditEligibilityOrGrantRoles } from './EditEligibilityOrGrants';
 import { EditAudit } from './EditAudit';
@@ -68,18 +60,10 @@ export function Specs({
                   disabled={!editAccess.owners.hasAccess}
                 />
               </Flex>
-              {ownershipRequires.roles.length > 0 && (
-                <Flex alignItems="center">
-                  <TextNoEllipsis mr={1}>Roles:</TextNoEllipsis>
-                  {renderRoles(ownershipRequires.roles)}
-                </Flex>
-              )}
-              {ownershipRequires.traitList.length > 0 && (
-                <Flex alignItems="center">
-                  <TextNoEllipsis mr={1}>Traits:</TextNoEllipsis>
-                  {renderRoles(ownershipRequires.traitList)}
-                </Flex>
-              )}
+              <RoleAndTraitLabels
+                roles={ownershipRequires.roles}
+                traits={ownershipRequires.traitList}
+              />
             </Box>
 
             {/* Members section */}
@@ -94,18 +78,10 @@ export function Specs({
                   disabled={!editAccess.members.hasAccess}
                 />
               </Flex>
-              {membershipRequires.roles.length > 0 && (
-                <Flex alignItems="center">
-                  <TextNoEllipsis mr={1}>Roles:</TextNoEllipsis>
-                  {renderRoles(membershipRequires.roles)}
-                </Flex>
-              )}
-              {membershipRequires.traitList.length > 0 && (
-                <Flex alignItems="center">
-                  <TextNoEllipsis mr={1}>Traits:</TextNoEllipsis>
-                  {renderRoles(membershipRequires.traitList)}
-                </Flex>
-              )}
+              <RoleAndTraitLabels
+                roles={membershipRequires.roles}
+                traits={membershipRequires.traitList}
+              />
             </Box>
           </Box>
         </Flex>
@@ -123,18 +99,11 @@ export function Specs({
               disabled={!editAccess.grants.hasAccess}
             />
           </Flex>
-          {grants.roles.length > 0 && (
-            <Flex alignItems="center">
-              <TextNoEllipsis mr={1}>Roles:</TextNoEllipsis>
-              {renderRoles(grants.roles)}
-            </Flex>
-          )}
-          {grants.traitList.length > 0 && (
-            <Flex alignItems="center">
-              <TextNoEllipsis mr={1}>Traits:</TextNoEllipsis>
-              {renderRoles(grants.traitList)}
-            </Flex>
-          )}
+          <RoleAndTraitLabels
+            roles={grants.roles}
+            traits={grants.traitList}
+            required={true}
+          />
         </Box>
 
         {/* Audit section */}
@@ -179,43 +148,3 @@ export function Specs({
     </>
   );
 }
-
-function ButtonPencil({
-  onClick,
-  disabled,
-  title,
-}: {
-  onClick(): void;
-  disabled: boolean;
-  title: string;
-}) {
-  return (
-    <ButtonIcon
-      alignItems="center"
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-    >
-      <Pencil size={16} />
-    </ButtonIcon>
-  );
-}
-
-const renderRoles = (labels: string[] = []) => {
-  const $labels = labels.map((label, index) => (
-    <TruncatingLabel
-      mr={index === labels.length - 1 ? 0 : 1}
-      key={`${label}${index}`}
-      kind="secondary"
-      title={label}
-    >
-      {label}
-    </TruncatingLabel>
-  ));
-
-  return <Flex flexWrap="wrap">{$labels}</Flex>;
-};
-
-const TextNoEllipsis = styled(Box)`
-  font-size: ${p => p.theme.fontSizes[1]}px;
-`;

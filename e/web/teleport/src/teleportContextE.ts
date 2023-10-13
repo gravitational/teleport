@@ -1,9 +1,7 @@
+import { getErrMessage } from 'shared/utils/errorType';
 import TeleportContext from 'teleport/teleportContext';
-
 import localStorage from 'teleport/services/localStorage';
-
 import * as service from 'teleport/services/userPreferences';
-
 import cfg from 'teleport/config';
 
 import WorkflowService from 'e-teleport/services/workflow';
@@ -23,9 +21,15 @@ import { pluginsService } from './services/plugins';
 
 import { upgradeWindowService } from './services/upgradeWindow';
 import { IdpService } from './services/idp';
+import { accessManagementService } from './services/accessmanagement';
+import { StoreNotificationsE } from './stores/storeNotificationsE';
 
 class TeleportEContext extends TeleportContext {
+  // stores
   storeAccessRequests = new StoreAccessRequests();
+  storeNotifications = new StoreNotificationsE();
+
+  // services
   workflowService = new WorkflowService();
   resourceService = new ResourceService();
   cloudService = new CloudService();
@@ -41,6 +45,35 @@ class TeleportEContext extends TeleportContext {
   // block.
   async init() {
     await super.init();
+
+    try {
+      const accessLists = await accessManagementService.fetchAccessLists();
+      this.storeNotifications.setNotificationsForAccessListsRequiringReview(
+        accessLists,
+        this.storeUser.state
+      );
+    } catch (err) {
+      // An error is most likely from access denied, so we'll
+      // ignore it.
+      //
+      // An access list can only be fetched if this user is either
+      // admin (rbac) or is an owner or member of access lists,
+      // otherwise returns an error.
+      //
+      // There could be a possiblilty that the error is not a type of
+      // access denied (eg: network blip), but chose to ignore it anyways
+      // for the following reasons:
+      //   1) upon refreshing the browser, the app reboots, so fetching
+      //      access lists will be attempted again
+      //   2) when a user visits the page for listing access lists,
+      //      the notifications for access list will be updated with
+      //      the access lists that were fetched for this page
+      //      (b/c it's fresher data)
+      //   3) we give users two weeks advance notice for due dates,
+      //      which should give users plenty of chances to get this notice
+      console.warn('Failed to set notifications: ', getErrMessage(err));
+    }
+
     const survey = localStorage.getOnboardSurvey();
     if (survey) {
       const { clusterResources, marketingParams, ...rest } = survey;

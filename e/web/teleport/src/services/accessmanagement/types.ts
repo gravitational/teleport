@@ -91,10 +91,15 @@ export type AccessListOwner = {
   ineligibleReason?: string;
 };
 
+type AccessListAuditRecurrence = {
+  frequency: ReviewFrequency;
+  dayOfMonth: ReviewDayOfMonth;
+};
+
 // AccessListAudit describes the frequency that this
 // access list must be audited.
 export type AccessListAudit = {
-  recurrence: { frequency: ReviewFrequency; dayOfMonth: ReviewDayOfMonth };
+  recurrence: AccessListAuditRecurrence;
   nextDate: Date;
 };
 
@@ -132,4 +137,13 @@ export type UpsertAccessListRequest = {
 
 export type AddMembersToAccessListRequest = {
   members: MemberRequest[];
+};
+
+export type ReviewAccessListRequest = {
+  name: string;
+  reviewer: string;
+  notes?: string;
+  membershipRequires?: AccessListRequires;
+  membersDeleted?: AccessListMember[];
+  auditRecurrence?: AccessListAuditRecurrence;
 };

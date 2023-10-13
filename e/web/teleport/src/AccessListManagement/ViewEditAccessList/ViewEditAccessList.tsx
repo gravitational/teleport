@@ -1,16 +1,28 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router';
+import { format } from 'date-fns';
+import styled from 'styled-components';
+import { useParams, useLocation, useHistory } from 'react-router';
 import { Link } from 'react-router-dom';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { Box, Indicator, Alert, Flex, Text, ButtonSecondary } from 'design';
-import { ArrowBack } from 'design/Icon';
-import useTeleport from 'teleport/useTeleport';
+import {
+  Box,
+  Indicator,
+  Alert,
+  Flex,
+  Text,
+  ButtonSecondary,
+  ButtonBorder,
+} from 'design';
+import { ArrowBack, ListMagnifyingGlass, ArrowForward } from 'design/Icon';
+import { fade } from 'design/theme/utils/colorManipulator';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import { Access } from 'teleport/services/user';
+
+import useTeleport from 'e-teleport/useTeleportE';
 
 import {
   accessManagementService,
@@ -19,9 +31,12 @@ import {
   AccessListGrant,
 } from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
+import { accessListRequiresReview } from 'e-teleport/stores/storeNotificationsE';
 
 import { useFetchUserAndRoles } from '../useFetchUsersAndRoles';
 import { TraitConvenience, convertToTraitConvenience } from '../Traits';
+
+import { ReviewAccessList } from './ReviewAccessList';
 
 import { OwnersList } from './Owners/OwnersList';
 import { MembersList } from './Members/MembersList';
@@ -38,11 +53,14 @@ export type AccessListModified = AccessList & {
   membershipRequires: AccessListRequiresWithTraitConvenience;
   ownershipRequires: AccessListRequiresWithTraitConvenience;
   grants: AccessListGrantWithTraitConvenience;
+  requiresReview: boolean;
 };
 
 export function ViewEditAccessList() {
   const ctx = useTeleport();
   const { accessListId } = useParams<{ accessListId: string }>();
+  const loc = useLocation<{ reviewed: boolean }>();
+  const history = useHistory();
 
   const attemptObj = useAttempt('processing');
   const { setAttempt, attempt } = attemptObj;
@@ -52,6 +70,7 @@ export function ViewEditAccessList() {
     useFetchUserAndRoles(attemptObj);
 
   const [editAccess, setEditAccess] = useState<EditAccess>(getEditAccess({}));
+  const [reviewing, setReviewing] = useState(false);
 
   // If this api call succeeded, user is either an owner or
   // has `access_list` list/read rules defined.
@@ -79,8 +98,15 @@ export function ViewEditAccessList() {
               fetchedAccessList.membershipRequires.traits
             ),
           },
+          requiresReview: accessListRequiresReview({
+            todayDate: new Date(),
+            reviewDate: fetchedAccessList.audit.nextDate,
+          }),
         };
         setAccessList(modifiedAccessList);
+        ctx.storeNotifications.updateOrRemoveAccessListNotification(
+          fetchedAccessList
+        );
 
         const accessListAccess = ctx.storeUser.getAccessListAccess();
         const isOwner = fetchedAccessList.owners.some(
@@ -104,9 +130,56 @@ export function ViewEditAccessList() {
       );
   }
 
+  // On initial run, this effect will fetch an access list
+  // and the list of users and roles.
+  //
+  // Users and roles will be used as dropdown option items.
+  //
+  // On subsequent runs (when the accessListId changes in the URL),
+  // it will only fetch an access list. The list of users and roles
+  // are cached since it is unlikely to change and we can save
+  // some api calls.
+  //
+  // The accessListId can change if a user clicks on a different
+  // access list in the notification dropdown.
   useEffect(() => {
-    fetchAccessList(true).then(success => success && fetchUsersAndRoles());
-  }, []);
+    setReviewing(false);
+
+    let isInitialFetch = true;
+    if (userOptions.length || roleOptions.length) {
+      isInitialFetch = false;
+    }
+
+    fetchAccessList(isInitialFetch).then(fetchAccessListSuccess => {
+      if (fetchAccessListSuccess && isInitialFetch) {
+        fetchUsersAndRoles();
+      }
+    });
+  }, [accessListId]);
+
+  useEffect(() => {
+    if (!loc.state?.reviewed) {
+      return;
+    }
+
+    // User has finished reviewing.
+    // Re-fetching access list to get the latest.
+
+    history.replace({ state: {} }); // clear state
+    setReviewing(false);
+    fetchAccessList();
+  }, [loc.state]);
+
+  if (reviewing) {
+    return (
+      <ReviewAccessList
+        reviewer={ctx.storeUser.getUsername()}
+        accessList={accessList}
+        roleOptions={roleOptions}
+        cancelReview={() => setReviewing(false)}
+      />
+    );
+  }
 
   let FeatureTitle;
   let MainContent: React.ReactElement;
@@ -141,6 +214,22 @@ export function ViewEditAccessList() {
 
     MainContent = (
       <>
+        {accessList.requiresReview && editAccess.isOwnerOrAdmin && (
+          <ReviewBanner>
+            <Flex alignItems="center">
+              <ReviewBannerIcon size={18} />
+              This Access List needs review by{' '}
+              {format(accessList.audit.nextDate, 'MM/dd')}.
+            </Flex>
+            <ButtonBorder
+              justifyContent="space-between"
+              onClick={() => setReviewing(true)}
+            >
+              Start Review
+              <ArrowForward size={18} ml={2} />
+            </ButtonBorder>
+          </ReviewBanner>
+        )}
         <Box mb={6}>
           <Specs
             editAccess={editAccess}
@@ -209,7 +298,7 @@ export function ViewEditAccessList() {
   );
 }
 
-type EditAccessMeta = {
+export type EditAccessMeta = {
   hasAccess: boolean;
   // Hover titles for buttons.
   // Can be empty if user hasAccess == true.
@@ -218,7 +307,12 @@ type EditAccessMeta = {
 
 // EditAccess determines what kinds of editing actions the viewing
 // user can take on this access list.
+//
+// TODO: Explore using a PermissionLevel enum instead
+// (Owner, Admin, Member) and try to centralize the calculation of
+// which type a given user is.
 export type EditAccess = {
+  isOwnerOrAdmin: boolean;
   // Update owner list and owner eligibility.
   owners: EditAccessMeta;
   // Update member list and member eligility.
@@ -235,7 +329,7 @@ function getEditAccess({
 }: {
   accessListAccess?: Access;
   isOwner?: boolean;
-}) {
+}): EditAccess {
   const genericNoAccessListMsg =
     'You do not have access to create and update an access_list';
 
@@ -243,6 +337,7 @@ function getEditAccess({
   const canDeleteAccessList = accessListAccess?.remove;
 
   return {
+    isOwnerOrAdmin: isOwner || isAdmin,
     owners: {
       hasAccess: isAdmin,
       btnTitle: isAdmin ? '' : genericNoAccessListMsg,
@@ -267,3 +362,24 @@ function getEditAccess({
     },
   };
 }
+
+const ReviewBanner = styled(Flex)`
+  width: 100%;
+  border-radius: ${p => p.theme.radii[2]}px;
+  border: 2px solid ${p => p.theme.colors.link};
+  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
+  margin-bottom: ${p => p.theme.space[4]}px;
+  background-color: ${p => fade(p.theme.colors.link, 0.1)};
+  align-items: center;
+  justify-content: space-between;
+  font-weight: bold;
+`;
+
+const ReviewBannerIcon = styled(ListMagnifyingGlass)`
+  background-color: ${p => p.theme.colors.link};
+  border-radius: 100px;
+  height: 32px;
+  width: 32px;
+  color: ${p => p.theme.colors.text.primaryInverse};
+  margin-right: ${p => p.theme.space[2]}px;
+`;

@@ -1,7 +1,10 @@
 import React from 'react';
+import { addWeeks } from 'date-fns';
 import { MemoryRouter } from 'react-router';
 import { ContextProvider } from 'teleport';
-import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
+import { getAcl } from 'teleport/mocks/contexts';
+
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
 import cfg from 'e-teleport/config';
 
@@ -73,7 +76,7 @@ export const List = () => {
 };
 
 const Provider = props => {
-  const ctx = createTeleportContext({ customAcl: props.customAcl });
+  const ctx = createTeleportContextE({ customAcl: props.customAcl });
 
   return (
     <MemoryRouter>
@@ -88,11 +91,12 @@ const mock = [
     spec: {
       title: 'Interns',
       description: 'lorem ipsum description',
-      audit: {},
+      audit: { frequency: '', next_audit_date: new Date() },
       grants: { roles: ['access', 'editor'] },
       ownership_requires: { roles: [] },
       owners: [],
     },
+    membersCount: 0,
   },
   {
     metadata: { name: 'bbb' },
@@ -117,13 +121,14 @@ const mock = [
       owners: [],
     },
     members: Array(243).fill({}),
+    membersCount: 243,
   },
   {
     metadata: { name: 'ccc' },
     spec: {
       title: 'All Employees',
       description: 'lorem ipsum some kind of generic description',
-      audit: {},
+      audit: { frequency: '', next_audit_date: addWeeks(new Date(), 2) },
       grants: {
         roles: ['access'],
         traits: { drink: ['banana', 'carrot', 'apple'] },
@@ -132,6 +137,7 @@ const mock = [
       owners: [],
     },
     members: Array(15).fill({}),
+    membersCount: 15,
   },
   {
     metadata: { name: 'ddd' },
@@ -144,6 +150,7 @@ const mock = [
       owners: [],
     },
     members: Array(1).fill({}),
+    membersCount: 1,
   },
   {
     metadata: { name: 'eee' },
@@ -155,6 +162,7 @@ const mock = [
       owners: [],
     },
     members: Array(1).fill({}),
+    membersCount: 1,
   },
   {
     metadata: { name: 'fff' },
@@ -162,7 +170,7 @@ const mock = [
       title: 'Kubernetes Access',
       description:
         'test long description to test ellipsis lorem ipsum descriptionlorem ipsum descriptionlorem ipsum description lorem ipsum description',
-      audit: {},
+      audit: { frequency: '', next_audit_date: addWeeks(new Date(), 1) },
       grants: {
         roles: [
           'reallyreallyobnoxiouslonglabeltesting',
@@ -174,5 +182,6 @@ const mock = [
       owners: [],
     },
     members: Array(20000).fill({}),
+    membersCount: 20000,
   },
 ];

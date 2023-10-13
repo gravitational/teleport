@@ -1,0 +1,61 @@
+import React from 'react';
+import { Option } from 'shared/components/Select';
+import { Box, Text } from 'design';
+
+import { AccessListRequires } from 'e-teleport/services/accessmanagement';
+
+import { EligibilityOrGrantRolesFieldSelectAndCreate } from '../../CreateAccessList/Shared';
+import { TraitConvenience, TraitLabel, TraitsCreator } from '../../Traits';
+
+export type MembershipRequires = Omit<TraitConvenience, 'traitList'> &
+  Omit<AccessListRequires, 'traits'>;
+
+type Props = {
+  roleOptions: Option[];
+  editedMembershipRequires: MembershipRequires;
+  setEditedMembershipRequires(g: MembershipRequires): void;
+};
+
+export function ReviewMembershipRequires({
+  roleOptions,
+  editedMembershipRequires,
+  setEditedMembershipRequires,
+}: Props) {
+  return (
+    <>
+      <Text fontSize={4} mb={3}>
+        Membership Requirements
+      </Text>
+      <EligibilityOrGrantRolesFieldSelectAndCreate
+        options={roleOptions}
+        isDisabled={false}
+        onChange={(vals: Option[]) =>
+          setEditedMembershipRequires({
+            ...editedMembershipRequires,
+            roles: vals ? vals.map(o => o.value) : [],
+          })
+        }
+        selected={editedMembershipRequires.roles.map(r => ({
+          value: r,
+          label: r,
+        }))}
+        autoFocus={true}
+        editKind="Member"
+        optional={true}
+      />
+      <Box mt={2}>
+        <TraitsCreator
+          kind={'Member'}
+          traitLabels={editedMembershipRequires.traitLabels}
+          isDisabled={false}
+          updateTraitLabels={(traitLabels: TraitLabel[]) =>
+            setEditedMembershipRequires({
+              ...editedMembershipRequires,
+              traitLabels,
+            })
+          }
+        />
+      </Box>
+    </>
+  );
+}

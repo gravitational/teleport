@@ -1,0 +1,134 @@
+import React from 'react';
+import { addWeeks } from 'date-fns';
+import { Info } from 'design/Alert';
+import { MemoryRouter } from 'react-router';
+import { Option } from 'shared/components/Select';
+
+import {
+  ReviewDayOfMonth,
+  ReviewFrequency,
+} from 'e-teleport/services/accessmanagement';
+
+import { convertToTraitConvenience } from '../../Traits';
+import { AccessListModified } from '../ViewEditAccessList';
+
+import { ReviewAccessList } from './ReviewAccessList';
+
+export default {
+  title: 'Teleport/AccessLists/Review',
+};
+
+export const WithFullAccessList = () => {
+  return (
+    <MemoryRouter>
+      <Info>Devs: Click the buttons to see each step</Info>
+      <ReviewAccessList
+        cancelReview={() => null}
+        accessList={mockAccessListFull}
+        roleOptions={mockRoleOptions}
+        reviewer="llama"
+      />
+    </MemoryRouter>
+  );
+};
+
+export const WithSparseAccessList = () => {
+  return (
+    <MemoryRouter>
+      <Info>Devs: Click the buttons to see each step</Info>
+      <ReviewAccessList
+        cancelReview={() => null}
+        accessList={mockAccessListSparse}
+        roleOptions={mockRoleOptions}
+        reviewer="llama"
+      />
+    </MemoryRouter>
+  );
+};
+
+const mockAccessListFull: AccessListModified = {
+  id: 'b59c9b50-b534-52ca-870e-9f7069b205dc',
+  title: 'Interns',
+  audit: {
+    recurrence: {
+      frequency: ReviewFrequency.OneYear,
+      dayOfMonth: ReviewDayOfMonth.FifteenthDayOfMonth,
+    },
+    nextDate: addWeeks(new Date(), 1),
+  },
+  grants: {
+    roles: ['foo', 'bar', 'baz'],
+    traits: { os: ['window'] },
+    ...convertToTraitConvenience({ os: ['window'] }),
+  },
+  ownershipRequires: {
+    roles: ['admin'],
+    traits: { power: ['admin-trait'] },
+    ...convertToTraitConvenience({ power: ['admin-trait'] }),
+  },
+  membershipRequires: {
+    roles: ['access', 'editor'],
+    traits: { holiday: ['christmas'] },
+    ...convertToTraitConvenience({ holiday: ['christmas'] }),
+  },
+  owners: [{ name: 'some-owner' }],
+  members: [
+    {
+      name: 'alpaca',
+      joined: new Date(),
+      addedBy: 'lisa',
+      ineligibleReason: 'should not show up',
+    },
+    {
+      name: 'llama',
+      joined: new Date(),
+      addedBy: 'lisa',
+      ineligibleReason: 'should not show up',
+    },
+    {
+      name: 'donkey',
+      joined: new Date(),
+      addedBy: 'some-owner',
+    },
+    {
+      name: 'shrek',
+      joined: new Date(),
+      addedBy: 'fiona',
+    },
+  ],
+  requiresReview: true,
+};
+
+const mockAccessListSparse: AccessListModified = {
+  id: 'b59c9b50-b534-52ca-870e-9f7069b205dc',
+  title: 'Interns',
+  audit: {
+    recurrence: {
+      frequency: ReviewFrequency.SixMonths,
+      dayOfMonth: ReviewDayOfMonth.LastDayOfMonth,
+    },
+    nextDate: addWeeks(new Date(), 1),
+  },
+  grants: { roles: ['access'], traits: {}, traitLabels: [], traitList: [] },
+  ownershipRequires: { roles: [], traits: {}, traitLabels: [], traitList: [] },
+  owners: [],
+  members: [],
+  membershipRequires: {
+    roles: [],
+    traits: {},
+    traitLabels: [],
+    traitList: [],
+  },
+  requiresReview: true,
+};
+
+const mockRoleOptions: Option[] = [
+  { value: 'access', label: 'access' },
+  { value: 'admin', label: 'admin' },
+  { value: 'editor', label: 'editor' },
+  { value: 'foo', label: 'foo' },
+  { value: 'bar', label: 'bar' },
+  { value: 'baz', label: 'baz' },
+  { value: 'apple', label: 'apple' },
+  { value: 'banana', label: 'banana' },
+];

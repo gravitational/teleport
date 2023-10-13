@@ -45,6 +45,7 @@ const cfg = {
   api: {
     accessListManagementPath: '/v1/enterprise/accesslist/:accessListId?',
     accessListAddMembersPath: '/v1/enterprise/accesslist/:accessListId/members',
+    accessListReviewPath: '/v1/enterprise/accesslist/:accessListId/reviews',
     accessListSuggestionsPath:
       '/v1/enterprise/accessrequest/:requestId/suggestions/accesslist',
 
@@ -127,6 +128,10 @@ const cfg = {
 
   getAccessListMembersUrl(accessListId: string) {
     return generatePath(cfg.api.accessListAddMembersPath, { accessListId });
+  },
+
+  getAccessListReviewUrl(accessListId: string) {
+    return generatePath(cfg.api.accessListReviewPath, { accessListId });
   },
 
   getAccessListSuggestionsUrl(requestId: string) {
