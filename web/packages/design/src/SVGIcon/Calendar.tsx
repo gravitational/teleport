@@ -48,7 +48,7 @@ export function Calendar({ size = 24, fill }: SVGIconProps) {
   return (
     <SVGIcon
       size={size}
-      color={fill}
+      fill={fill}
       className="icon icon-calendar"
       viewBox="0 0 24 24"
     >

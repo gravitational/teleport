@@ -52,7 +52,7 @@ export function ListMagnifyingGlass({
   return (
     <SVGIcon
       size={size}
-      color={fill}
+      fill={fill}
       className="icon icon-listmagnifyingglass"
       viewBox="0 0 24 24"
       {...otherProps}
