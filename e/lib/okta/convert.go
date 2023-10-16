@@ -30,12 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/app"
 )
 
-const (
-	oktaActive        = "ACTIVE"
-	oktaAdminConsole  = "Okta Admin Console"
-	oktaGroupEveryone = "Everyone"
-)
-
 // oktaGroupToUserGroup converts an Okta group object to a types.UserGroup object.
 func (s *Service) oktaGroupToUserGroup(oktaGroup *okta.Group, appIDs []string) (types.UserGroup, error) {
 	if err := isGroupValid(oktaGroup); err != nil {
@@ -75,12 +69,14 @@ func (s *Service) oktaGroupToUserGroup(oktaGroup *okta.Group, appIDs []string) (
 }
 
 type embeddedLinks struct {
-	AppLinks []appLinks `mapstructure:"appLinks"`
+	AppLinks []appLink `mapstructure:"appLinks"`
+	Metadata *appLink  `mapstructure:"metadata"`
 }
 
-type appLinks struct {
+type appLink struct {
 	Name string `mapstructure:"name"`
 	Href string `mapstructure:"href"`
+	Type string `mapstructure:"type"`
 }
 
 // oktaAppToApps converts an Okta app object to types.Application objects. This will convert

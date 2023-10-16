@@ -23,6 +23,7 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -48,10 +49,12 @@ import (
 )
 
 const (
-	testOrgURL      = "https://test-url.com"
-	testHostname    = "test-host"
-	testHostID      = "test-host-id"
-	testClusterName = "test-cluster-name"
+	testOrgURL        = "https://test-url.com"
+	testHostname      = "test-host"
+	testHostID        = "test-host-id"
+	testConnectorName = "okta-test"
+	testClusterName   = "test-cluster-name"
+	testClusterURL    = "https://test-cluster.example.com"
 )
 
 var testProxyIDs = []string{"proxy-ids"}
@@ -169,7 +172,7 @@ func (t *testProxyGetter) GetProxyIDs() []string {
 }
 
 // newTestService creates a new test Okta service.
-func newTestService(t *testing.T, ap auth.OktaAccessPoint) (*Service, *testOktaClient, *eventstest.ChannelEmitter) {
+func newTestService(t *testing.T, ap *testAccessPoint) (*Service, *testOktaClient, *eventstest.ChannelEmitter) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -221,6 +224,7 @@ func newTestService(t *testing.T, ap auth.OktaAccessPoint) (*Service, *testOktaC
 
 // testOktaClient is a testing Okta client that is backed by fixed values.
 type testOktaClient struct {
+	oktaUsers  []*okta.User
 	oktaGroups []*okta.Group
 	oktaApps   []okta.App
 	oktaOrgURL string
@@ -240,6 +244,16 @@ type testOktaClient struct {
 
 	unassignGroupErr map[string]error
 	unassignAppErr   map[string]error
+
+	// monkeyPatch allows individual tests to override the default
+	// testOktaClient behavior in cases where it is difficult to rig the
+	// internal state in the way necessary for a test.
+	monkeyPatch struct {
+		createApp                    func(ctx context.Context, app okta.App) (okta.App, error)
+		assignGroupToApplicationByID func(ctx context.Context, groupId, appId string) error
+		doHttp                       func(context.Context, string, *url.URL, []string) ([]byte, error)
+		orgName                      func(context.Context) (string, error)
+	}
 }
 
 func newTestClient() *testOktaClient {
@@ -254,10 +268,26 @@ func newTestClient() *testOktaClient {
 	}
 }
 
+// iterateUsers will iterate over the list of all Okta users.
+func (t *testOktaClient) iterateUsers(_ context.Context, fn func(*okta.User) error) error {
+	for _, oktaUser := range t.oktaUsers {
+		if err := fn(oktaUser); err != nil {
+			if err == stopIteration {
+				break
+			}
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
 // iterateGroups will iterate over the list of all Okta groups.
 func (t *testOktaClient) iterateGroups(_ context.Context, fn func(*okta.Group) error) error {
 	for _, oktaGroup := range t.oktaGroups {
 		if err := fn(oktaGroup); err != nil {
+			if err == stopIteration {
+				break
+			}
 			return trace.Wrap(err)
 		}
 	}
@@ -268,6 +298,9 @@ func (t *testOktaClient) iterateGroups(_ context.Context, fn func(*okta.Group) e
 func (t *testOktaClient) iterateApps(_ context.Context, fn func(okta.App) error) error {
 	for _, oktaApp := range t.oktaApps {
 		if err := fn(oktaApp); err != nil {
+			if err == stopIteration {
+				break
+			}
 			return trace.Wrap(err)
 		}
 	}
@@ -418,9 +451,37 @@ func (t *testOktaClient) unassignUserFromApplication(_ context.Context, username
 	return nil
 }
 
+func (t *testOktaClient) assignGroupToApplicationByID(ctx context.Context, groupId, appId string) error {
+	if t.monkeyPatch.assignGroupToApplicationByID != nil {
+		return t.monkeyPatch.assignGroupToApplicationByID(ctx, groupId, appId)
+	}
+	return trace.NotImplemented("assignGroupToApplicationByID")
+}
+
+func (t *testOktaClient) createApplication(ctx context.Context, app okta.App) (okta.App, error) {
+	if t.monkeyPatch.createApp != nil {
+		return t.monkeyPatch.createApp(ctx, app)
+	}
+	return nil, trace.NotImplemented("createApp")
+}
+
 // getOrgURL will return the org URL for the client.
 func (t *testOktaClient) orgURL() string {
 	return t.oktaOrgURL
+}
+
+func (t *testOktaClient) orgName(ctx context.Context) (string, error) {
+	if t.monkeyPatch.orgName != nil {
+		return t.monkeyPatch.orgName(ctx)
+	}
+	return "", nil
+}
+
+func (t *testOktaClient) doHttp(ctx context.Context, method string, url *url.URL, accept []string) ([]byte, error) {
+	if t.monkeyPatch.doHttp != nil {
+		return t.monkeyPatch.doHttp(ctx, method, url, accept)
+	}
+	return nil, trace.NotImplemented("doHttp")
 }
 
 // generateTestTLSConfig will generate a TLS config for testing.

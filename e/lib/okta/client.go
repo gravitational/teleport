@@ -19,6 +19,8 @@ package okta
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/url"
 
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
@@ -36,7 +38,9 @@ const (
 
 var _ oktaClient = (*wrappedClient)(nil)
 
-// wrappedClient is a client type that is backed by an Okta SDK client.
+// wrappedClient is a wrapper around an Okta SDK client that provides
+// higher-level operations and for interacting with an Okta server
+// over using the basic SDK client (e.g. result pagination)
 type wrappedClient struct {
 	log              *logrus.Entry
 	client           *okta.Client
@@ -44,7 +48,43 @@ type wrappedClient struct {
 	pluginStatusSink common.StatusSink
 }
 
-// iterateGroups will iterate over the list of all Okta groups.
+// iterateUsers iterates over all users in the Okta system, invoking the
+// supplied function for every user. The user callback may return the
+// `stopIteration` error to signal that it doesn't want any more users.
+func (w *wrappedClient) iterateUsers(ctx context.Context, fn func(*okta.User) error) error {
+	// We'll use the max page size of 200 here to minimize API calls.
+	// https://developer.okta.com/docs/reference/api/users/#list-users
+	users, resp, err := w.client.User.ListUsers(ctx, query.NewQueryParams(
+		query.WithLimit(200),
+	))
+
+	for {
+		if err != nil {
+			return trace.Wrap(w.oktaErrToTrace(ctx, err), "error while iterating over okta users")
+		}
+
+		for _, user := range users {
+			if err = fn(user); err != nil {
+				if err == stopIteration {
+					break
+				}
+				return trace.Wrap(w.oktaErrToTrace(ctx, err), "error while inspecting okta user %s", user.Id)
+			}
+		}
+
+		if !resp.HasNextPage() {
+			break
+		}
+
+		resp, err = resp.Next(ctx, &users)
+	}
+
+	return nil
+}
+
+// iterateGroups will iterate over the list of all Okta groups, invoking the
+// supplied function for every group record. The callback may return the
+// `stopIteration` error to signal that it doesn't want any more groups.
 func (w *wrappedClient) iterateGroups(ctx context.Context, fn func(*okta.Group) error) error {
 	// The default page size is 10000 here, but that seems to be beyond what the HTTP client built
 	// into the go Okta client can handle, so I'm limiting it to 200.
@@ -59,6 +99,9 @@ func (w *wrappedClient) iterateGroups(ctx context.Context, fn func(*okta.Group) 
 
 		for _, oktaGroup := range oktaGroups {
 			if err := fn(oktaGroup); err != nil {
+				if err == stopIteration {
+					break
+				}
 				return trace.Wrap(err)
 			}
 		}
@@ -73,7 +116,9 @@ func (w *wrappedClient) iterateGroups(ctx context.Context, fn func(*okta.Group) 
 	return nil
 }
 
-// iterateApps will iterate over the list of all Okta applications.
+// iterateApps will iterate over the list of all Okta applications. The callback
+// may return the `stopIteration` error to signal that it doesn't want any more
+// apps.
 func (w *wrappedClient) iterateApps(ctx context.Context, fn func(okta.App) error) error {
 	// The default for application listing is 20 per page. Here we'll bump it
 	// to the max of 200 per page to minimize API calls.
@@ -88,6 +133,9 @@ func (w *wrappedClient) iterateApps(ctx context.Context, fn func(okta.App) error
 
 		for _, oktaApp := range oktaApps {
 			if err := fn(oktaApp); err != nil {
+				if err == stopIteration {
+					break
+				}
 				return trace.Wrap(err)
 			}
 		}
@@ -191,29 +239,16 @@ func (w *wrappedClient) getAppGroups(ctx context.Context, appID string) ([]strin
 func (w *wrappedClient) listUsers(ctx context.Context) (map[string]string, error) {
 	usernameToUserID := map[string]string{}
 
-	// We'll use the max page size of 200 here to minimize API calls.
-	// https://developer.okta.com/docs/reference/api/users/#list-users
-	users, resp, err := w.client.User.ListUsers(ctx, query.NewQueryParams(
-		query.WithLimit(200),
-	))
-
-	for {
-		if err != nil {
-			return nil, trace.Wrap(w.oktaErrToTrace(ctx, err), "error while listing users")
+	err := w.iterateUsers(ctx, func(user *okta.User) error {
+		profile := user.Profile
+		if profile != nil {
+			usernameToUserID[fmt.Sprintf("%s", (*profile)[oktaUserProfileLogin])] = user.Id
 		}
+		return nil
+	})
 
-		for _, user := range users {
-			profile := user.Profile
-			if profile != nil {
-				usernameToUserID[fmt.Sprintf("%s", (*profile)[oktaUserProfileLogin])] = user.Id
-			}
-		}
-
-		if !resp.HasNextPage() {
-			break
-		}
-
-		resp, err = resp.Next(ctx, &users)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return usernameToUserID, nil
@@ -254,6 +289,17 @@ func (w *wrappedClient) assignUserToApplication(ctx context.Context, username, a
 	return nil
 }
 
+// assignGroupToApplicationByID assigns the given group to the given application
+// using the OktaGroupID, rather than the group name as in other methods.
+func (w *wrappedClient) assignGroupToApplicationByID(ctx context.Context, groupId, applicationId string) error {
+	body := okta.ApplicationGroupAssignment{}
+	if _, _, err := w.client.Application.CreateApplicationGroupAssignment(ctx, applicationId, groupId, body); err != nil {
+		return w.oktaErrToTrace(ctx, err)
+	}
+
+	return nil
+}
+
 // unassignUserFromApplication will unassign the given user from the application.
 func (w *wrappedClient) unassignUserFromApplication(ctx context.Context, username, applicationId string) error {
 	user, _, err := w.client.User.GetUser(ctx, username)
@@ -269,9 +315,50 @@ func (w *wrappedClient) unassignUserFromApplication(ctx context.Context, usernam
 	return nil
 }
 
+func (w *wrappedClient) createApplication(ctx context.Context, application okta.App) (okta.App, error) {
+	app, _, err := w.client.Application.CreateApplication(ctx, application, nil)
+	if err != nil {
+		return nil, w.oktaErrToTrace(ctx, err)
+	}
+	return app, nil
+}
+
+func (w *wrappedClient) orgName(ctx context.Context) (string, error) {
+	settings, _, err := w.client.OrgSetting.GetOrgSettings(ctx)
+	if err != nil {
+		return "", w.oktaErrToTrace(ctx, err)
+	}
+	return settings.CompanyName, nil
+}
+
 // getOrgURL will return the org URL for the client.
 func (w *wrappedClient) orgURL() string {
 	return w.oktaOrgURL
+}
+
+func (w *wrappedClient) doHttp(ctx context.Context, method string, url *url.URL, accept []string) ([]byte, error) {
+	requester := w.client.CloneRequestExecutor()
+	for _, contentType := range accept {
+		requester.WithAccept(contentType)
+	}
+
+	req, err := requester.NewRequest(method, "", nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.URL = url
+
+	resp, err := requester.Do(ctx, req, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	if body, err := io.ReadAll(resp.Body); err != nil {
+		return nil, trace.Wrap(err)
+	} else {
+		return body, nil
+	}
 }
 
 const (

@@ -151,63 +151,6 @@ func installDiscordPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 	return ui, nil
 }
 
-func installOktaPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
-	orgURLText := r.FormValue("orgURL")
-	apiToken := r.FormValue("apiToken")
-
-	// If the user supplies an invalid URL or bare hostame, then the
-	// integration will appear to install but fail to start with obscure
-	// errors only visible in the Teleport log file.
-	//
-	// To avoid this, we helpfully supply a sensible-default `https`
-	// scheme if necessary
-	orgURL, err := lib.AddrToURL(orgURLText)
-	if err != nil {
-		return nil, trace.Wrap(err, "malformed Okta url")
-	}
-
-	req := &pluginspb.CreatePluginRequest{
-		Plugin: &types.PluginV1{
-			SubKind: types.PluginSubkindAccess,
-			Metadata: types.Metadata{
-				Labels: map[string]string{
-					plugins.HostedPluginLabel: "true",
-				},
-				Name: types.PluginTypeOkta,
-			},
-			Spec: types.PluginSpecV1{
-				Settings: &types.PluginSpecV1_Okta{
-					Okta: &types.PluginOktaSettings{
-						OrgUrl: orgURL.String(),
-					},
-				},
-			},
-		},
-		StaticCredentials: &types.PluginStaticCredentialsV1{
-			ResourceHeader: types.ResourceHeader{
-				Metadata: types.Metadata{
-					Labels: map[string]string{
-						"okta/org-url": orgURL.String(),
-					},
-					Name: types.PluginTypeOkta,
-				},
-			},
-			Spec: &types.PluginStaticCredentialsSpecV1{
-				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
-					APIToken: apiToken,
-				},
-			},
-		},
-	}
-
-	ui, err := installPlugin(ctx, sessCtx, req, p)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ui, nil
-}
-
 func installOpsgeniePlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
 	apiEndpoint := r.FormValue("apiEndpoint")
 	apiKey := r.FormValue("apiKey")

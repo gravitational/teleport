@@ -24,6 +24,7 @@ import (
 	"errors"
 	"math"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -102,7 +103,8 @@ type Config struct {
 	// Emitter is events emitter, used to submit discrete events
 	Emitter apievents.Emitter
 
-	// AccessPoint is the caching access point for the Okta service.
+	// AccessPoint is the caching access point used by the Okta service to
+	// manipulate the Teleport cluster.
 	AccessPoint auth.OktaAccessPoint
 
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
@@ -177,12 +179,29 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
+// stopIteration is a sentinel value that iterator functions can use to
+// signals oktaClient iterate* methods to stop iterating without it
+// being passed up the call stack.
+var stopIteration error = errors.New("stop iterating")
+
 // oktaClient is an Okta client interface that can be mocked for testing.
 type oktaClient interface {
-	// iterateGroups will iterate over the list of all Okta groups.
+	// iterateUsers will iterate over the list of all Okta users. The supplied
+	// iterator callback may return stopIteration to signal that it does not want
+	// to continue receiving users. All other non-nil return values are
+	// considered an error and will be propagated to the caller.
+	iterateUsers(context.Context, func(*okta.User) error) error
+
+	// iterateGroups will iterate over the list of all Okta groups. The supplied
+	// iterator callback may return stopIteration to signal that it does not want
+	// to continue receiving groups. All other non-nil return values are
+	// considered an error and will be propagated to the caller.
 	iterateGroups(context.Context, func(*okta.Group) error) error
 
-	// iterateApps will iterate over the list of all Okta applications.
+	// iterateApps will iterate over the list of all Okta applications. The
+	// supplied iterator callback may return stopIteration to signal that it
+	// does not want to continue receiving apps. All other non-nil return values
+	// are considered an error and will be propagated to the caller.
 	iterateApps(context.Context, func(okta.App) error) error
 
 	// getGroupAssignments will return the list of users assigned to a group.
@@ -206,14 +225,31 @@ type oktaClient interface {
 	// assignUserToApplication will assign the given user to the application.
 	assignUserToApplication(ctx context.Context, username, applicationId string) error
 
+	// assignGroupToApplicationByID assigns the given group to the application.
+	// Note that the group is indicated using the Okta group ID, rather than the
+	// group name as in other methods.
+	assignGroupToApplicationByID(ctx context.Context, groupID, applicationID string) error
+
 	// unassignUserFromApplication will unassign the given user from the application.
 	unassignUserFromApplication(ctx context.Context, username, applicationId string) error
 
+	// createApplication attempts to create a new Okta application from the
+	// supplied application request.
+	createApplication(ctx context.Context, application okta.App) (okta.App, error)
+
 	// getOrgURL will return the org URL for the client.
 	orgURL() string
+
+	// orgName returns the configured
+	orgName(context.Context) (string, error)
+
+	// doHttp executes a HTTP request on the supplied URL using the same
+	// credentials and headers used by underlying Okta client
+	doHttp(ctx context.Context, method string, url *url.URL, accept []string) ([]byte, error)
 }
 
-// Service is the Okta service.
+// Service is the core data for the Okta integration service. The running
+// service synchronizes data with an upstream Okta IdP.
 type Service struct {
 	log        *logrus.Entry
 	clock      clockwork.Clock
@@ -226,6 +262,8 @@ type Service struct {
 	rotationGetter services.RotationGetter
 	proxyGetter    ProxyGetter
 
+	// accessPoint is a caching AccessPoint with Okta Extensions, used by this
+	// service to interact with the Teleport cluster.
 	accessPoint  auth.OktaAccessPoint
 	onHeartbeat  func(error)
 	client       oktaClient
@@ -326,39 +364,88 @@ func (r *rateLimitingHTTPTransport) CloseIdleConnections() {
 	r.delegate.CloseIdleConnections()
 }
 
+// ClientConfig holds the various parameters for creating an Okta client.
+type ClientConfig struct {
+	// Endpoint is an URL indicating the root endpoint of the Okta API service
+	Endpoint string
+
+	// Token is an Okta-supplied user API access token
+	Token string
+
+	// Log receives any log info
+	Log *logrus.Entry
+
+	// StatusSink receives status update information from the OktaClient.
+	// May be nil, in which case status updates will be dropped.
+	StatusSink common.StatusSink
+}
+
+// Check validates the state of the ClientConfig, returning a non-nil error
+// if the config is invalid.
+func (cfg *ClientConfig) Check() error {
+	if cfg.Endpoint == "" {
+		return trace.BadParameter("missing Okta Client parameter EndPoint")
+	}
+	if cfg.Token == "" {
+		return trace.BadParameter("missing Okta Client parameter Token")
+	}
+	if cfg.Log == nil {
+		return trace.BadParameter("missing OktaCLient parameter Log")
+	}
+	return nil
+}
+
+// NewClient creates and initializes a new okta client
+func NewClient(ctx context.Context, cfg ClientConfig) (oktaClient, error) {
+	if err := cfg.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, client, err := okta.NewClient(ctx,
+		okta.WithCache(false), // We don't want a cache as we need up to date info.
+		okta.WithOrgUrl(cfg.Endpoint),
+		okta.WithToken(cfg.Token),
+		okta.WithHttpClientPtr(&http.Client{
+			Transport: &rateLimitingHTTPTransport{
+				// This transport was taken from the Okta client.
+				delegate: &http.Transport{
+					IdleConnTimeout: oktaTransportIdleTimeout,
+				},
+				rateLimiter: rate.NewLimiter(
+					rate.Every(time.Second/time.Duration(oktaAPICallsPerSecond)), 1),
+			},
+			Timeout: oktaConnectionTimeout,
+		}),
+
+		// This will retry until the request timeout has passed, doing a backoff
+		// of up to 30 seconds.
+		okta.WithRequestTimeout(oktaRequestTimeoutSeconds),
+		okta.WithRateLimitMaxRetries(math.MaxInt32),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &wrappedClient{
+		log:              cfg.Log,
+		client:           client,
+		oktaOrgURL:       cfg.Endpoint,
+		pluginStatusSink: cfg.StatusSink,
+	}, nil
+}
+
 // New will create a new Okta service.
 func New(ctx context.Context, config Config) (*Service, error) {
-	return newWithClientCreator(ctx, config, func(context.Context, Config) (oktaClient, error) {
-		_, client, err := okta.NewClient(ctx,
-			okta.WithCache(false), // We don't want a cache as we need up to date info.
-			okta.WithOrgUrl(config.OktaAPIEndpoint),
-			okta.WithToken(config.OktaAPIToken),
-			okta.WithHttpClientPtr(&http.Client{
-				Transport: &rateLimitingHTTPTransport{
-					// This transport was taken from the Okta client.
-					delegate: &http.Transport{
-						IdleConnTimeout: oktaTransportIdleTimeout,
-					},
-					rateLimiter: rate.NewLimiter(rate.Every(time.Second/time.Duration(oktaAPICallsPerSecond)), 1),
-				},
-				Timeout: oktaConnectionTimeout,
-			}),
+	clientFactory := func(context.Context, Config) (oktaClient, error) {
+		return NewClient(ctx, ClientConfig{
+			Endpoint:   config.OktaAPIEndpoint,
+			Token:      config.OktaAPIToken,
+			Log:        config.Log,
+			StatusSink: config.PluginStatusSink,
+		})
+	}
 
-			// This will retry until the request timeout has passed, doing a backoff of up to 30 seconds.
-			okta.WithRequestTimeout(oktaRequestTimeoutSeconds),
-			okta.WithRateLimitMaxRetries(math.MaxInt32),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &wrappedClient{
-			log:              config.Log,
-			client:           client,
-			oktaOrgURL:       config.OktaAPIEndpoint,
-			pluginStatusSink: config.PluginStatusSink,
-		}, nil
-	})
+	return newWithClientCreator(ctx, config, clientFactory)
 }
 
 // oktaClientFn is a function interface for creating Okta client.
