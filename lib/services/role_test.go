@@ -32,6 +32,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -4350,6 +4351,34 @@ func TestGetCreateDatabaseCreateMode(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			require.Equal(t, tc.expectedMode, tc.roleSet.GetCreateDatabaseUserMode())
+		})
+	}
+}
+
+// TestEncodeCreateDatabaseUserMode guarantees all modes are implemented in the
+// encoder/decoder.
+func TestEncodeDecodeCreateDatabaseUserMode(t *testing.T) {
+	for name, rawMode := range types.CreateDatabaseUserMode_value {
+		t.Run(name, func(t *testing.T) {
+			mode := types.CreateDatabaseUserMode(rawMode)
+
+			t.Run("YAML", func(t *testing.T) {
+				encoded, err := yaml.Marshal(&mode)
+				require.NoError(t, err)
+
+				var decodedMode types.CreateDatabaseUserMode
+				require.NoError(t, yaml.Unmarshal(encoded, &decodedMode))
+				require.Equal(t, mode, decodedMode)
+			})
+
+			t.Run("JSON", func(t *testing.T) {
+				encoded, err := mode.MarshalJSON()
+				require.NoError(t, err)
+
+				var decodedMode types.CreateDatabaseUserMode
+				require.NoError(t, decodedMode.UnmarshalJSON(encoded))
+				require.Equal(t, mode, decodedMode)
+			})
 		})
 	}
 }

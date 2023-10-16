@@ -518,8 +518,7 @@ func (a *accessChecker) CheckDatabaseRoles(database types.Database) (mode types.
 	// First, collect roles from this roleset that have create database user mode set.
 	var autoCreateRoles RoleSet
 	for _, role := range a.RoleSet {
-		mode := role.GetCreateDatabaseUserMode()
-		if mode != types.CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED && mode != types.CreateDatabaseUserMode_DB_USER_MODE_OFF {
+		if role.GetCreateDatabaseUserMode().IsEnabled() {
 			autoCreateRoles = append(autoCreateRoles, role)
 		}
 	}
