@@ -371,9 +371,7 @@ func (c *TokensCommand) Del(ctx context.Context, client auth.ClientI) error {
 // List is called to execute "tokens ls" command.
 func (c *TokensCommand) List(ctx context.Context, client auth.ClientI) error {
 	tokens, err := client.GetTokens(ctx)
-	if tokens == nil {
-		tokens = []types.ProvisionToken{}
-	}
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -387,12 +385,18 @@ func (c *TokensCommand) List(ctx context.Context, client auth.ClientI) error {
 
 	switch c.format {
 	case teleport.JSON:
+		if tokens == nil {
+			tokens = []types.ProvisionToken{}
+		}
 		data, err := json.MarshalIndent(tokens, "", "  ")
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal tokens")
 		}
 		fmt.Fprint(c.stdout, string(data))
 	case teleport.YAML:
+		if tokens == nil {
+			tokens = []types.ProvisionToken{}
+		}
 		data, err := yaml.Marshal(tokens)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal tokens")

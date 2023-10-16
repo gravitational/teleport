@@ -118,13 +118,14 @@ func (c *ACLCommand) List(ctx context.Context, client auth.ClientI) error {
 			break
 		}
 	}
-	if accessLists == nil {
-		accessLists = []*accesslist.AccessList{}
-	}
 
 	if len(accessLists) == 0 && c.format == teleport.Text {
 		fmt.Println("no access lists")
 		return nil
+	}
+
+	if accessLists == nil {
+		accessLists = []*accesslist.AccessList{}
 	}
 
 	return trace.Wrap(displayAccessLists(c.format, accessLists...))

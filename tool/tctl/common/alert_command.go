@@ -181,10 +181,6 @@ func (c *AlertCommand) List(ctx context.Context, client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	if alerts == nil {
-		alerts = []types.ClusterAlert{}
-	}
-
 	if len(alerts) == 0 && c.format == teleport.Text {
 		fmt.Println("no alerts")
 		return nil
@@ -198,6 +194,9 @@ func (c *AlertCommand) List(ctx context.Context, client auth.ClientI) error {
 		displayAlertsText(alerts, c.verbose)
 		return nil
 	case teleport.JSON:
+		if alerts == nil {
+			alerts = []types.ClusterAlert{}
+		}
 		return trace.Wrap(displayAlertsJSON(alerts))
 	default:
 		// technically unreachable since kingpin validates the EnumVar
