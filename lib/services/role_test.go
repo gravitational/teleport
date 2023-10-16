@@ -4326,7 +4326,7 @@ func TestGetCreateDatabaseCreateMode(t *testing.T) {
 				&types.RoleV6{
 					Spec: types.RoleSpecV6{
 						Options: types.RoleOptions{
-							CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_PREFER_DROP,
+							CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
 						},
 					},
 				},
@@ -4345,7 +4345,7 @@ func TestGetCreateDatabaseCreateMode(t *testing.T) {
 					},
 				},
 			},
-			expectedMode: types.CreateDatabaseUserMode_DB_USER_MODE_PREFER_DROP,
+			expectedMode: types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

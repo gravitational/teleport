@@ -106,7 +106,7 @@ func (a *UserProvisioner) Teardown(ctx context.Context, sessionCtx *Session) err
 	switch sessionCtx.AutoCreateUserMode {
 	case types.CreateDatabaseUserMode_DB_USER_MODE_KEEP:
 		err = a.deactivate(ctx, sessionCtx)
-	case types.CreateDatabaseUserMode_DB_USER_MODE_PREFER_DROP:
+	case types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP:
 		err = a.delete(ctx, sessionCtx)
 	}
 

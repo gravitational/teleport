@@ -41,7 +41,7 @@ func TestAutoUsersPostgres(t *testing.T) {
 			expectConnectionErr: false,
 		},
 		"activate/delete users": {
-			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_PREFER_DROP,
+			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
 			databaseRoles:       []string{"reader", "writer"},
 			expectConnectionErr: false,
 		},

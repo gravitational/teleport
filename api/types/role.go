@@ -1921,9 +1921,9 @@ func (h *CreateHostUserMode) UnmarshalJSON(data []byte) error {
 }
 
 const (
-	createDatabaseUserModeOffString        = "off"
-	createDatabaseUserModeKeepString       = "keep"
-	createDatabaseUserModePreferDropString = "preferDrop"
+	createDatabaseUserModeOffString            = "off"
+	createDatabaseUserModeKeepString           = "keep"
+	createDatabaseUserModeBestEffortDropString = "best_effort_drop"
 )
 
 func (h CreateDatabaseUserMode) encode() (string, error) {
@@ -1934,8 +1934,8 @@ func (h CreateDatabaseUserMode) encode() (string, error) {
 		return createDatabaseUserModeOffString, nil
 	case CreateDatabaseUserMode_DB_USER_MODE_KEEP:
 		return createDatabaseUserModeKeepString, nil
-	case CreateDatabaseUserMode_DB_USER_MODE_PREFER_DROP:
-		return createDatabaseUserModePreferDropString, nil
+	case CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP:
+		return createDatabaseUserModeBestEffortDropString, nil
 	}
 
 	return "", trace.BadParameter("invalid database user mode %v", h)
@@ -1957,8 +1957,8 @@ func (h *CreateDatabaseUserMode) decode(val any) error {
 		*h = CreateDatabaseUserMode_DB_USER_MODE_OFF
 	case createDatabaseUserModeKeepString:
 		*h = CreateDatabaseUserMode_DB_USER_MODE_KEEP
-	case createDatabaseUserModePreferDropString:
-		*h = CreateDatabaseUserMode_DB_USER_MODE_PREFER_DROP
+	case createDatabaseUserModeBestEffortDropString:
+		*h = CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP
 	default:
 		return trace.BadParameter("invalid database user mode %v", val)
 	}
