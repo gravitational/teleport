@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
@@ -219,9 +220,15 @@ func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request
 		return trace.Wrap(err)
 	}
 
-	key, err := client.GenerateRSAKey()
+	pk, err := keys.ParsePrivateKey(f.sctx.cfg.Session.GetPriv())
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	key := &client.Key{
+		PrivateKey: pk,
+		Cert:       f.sctx.cfg.Session.GetPub(),
+		TLSCert:    f.sctx.cfg.Session.GetTLSCert(),
 	}
 
 	// Always acquire certs from the root cluster, that is where both the user and their devices are registered.
@@ -240,13 +247,11 @@ func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request
 	}
 
 	key.Cert = cert.SSH
-
 	am, err := key.AsAuthMethod()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	tc.AuthMethods = []ssh.AuthMethod{am}
-
 	return nil
 }
