@@ -1890,7 +1890,12 @@ func (process *TeleportProcess) initAuthService() error {
 
 			accessGraphAddr := cfg.AccessGraph.Addr
 			if accessGraphAddr == "" {
+				log.Errorf("access graph endpoint not configured")
 				return trace.NotFound("access graph endpoint not configured")
+			}
+			if cfg.AccessGraph.CA == "" {
+				log.Errorf("Failed to initialize access graph: access graph CA not configured")
+				return trace.NotFound("access graph CA not configured")
 			}
 
 			const accessGraphRetryPeriod = 5 * time.Second
@@ -1898,7 +1903,13 @@ func (process *TeleportProcess) initAuthService() error {
 			// TODO(jakule): Very excessive retrying, but we need to make sure that
 			// the access graph is initialized before we start serving requests.
 			for {
-				if err := initializeAndWatchAccessGraph(process.GracefulExitContext(), accessGraphAddr, authServer); err != nil {
+				if err := initializeAndWatchAccessGraph(process.GracefulExitContext(),
+					accessGraphServiceConfig{
+						addr:    accessGraphAddr,
+						ca:      cfg.AccessGraph.CA,
+						license: cfg.Auth.LicenseFile,
+					},
+					authServer); err != nil {
 					log.Errorf("Failed to initialize access graph: %v", err)
 					select {
 					case <-process.GracefulExitContext().Done():

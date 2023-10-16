@@ -320,6 +320,9 @@ type AccessGraphConfig struct {
 
 	// Addr of the Access Graph service addr
 	Addr string
+
+	// CA is the path to the CA certificate file
+	CA string
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.

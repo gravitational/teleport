@@ -18,25 +18,42 @@ package service
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"os"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/licensefile"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 )
 
-func initializeAndWatchAccessGraph(ctx context.Context, accessGraphAddr string, authServer *auth.Server) error {
+type accessGraphServiceConfig struct {
+	addr    string
+	ca      string
+	license string
+}
+
+func initializeAndWatchAccessGraph(ctx context.Context, config accessGraphServiceConfig, authServer *auth.Server) error {
 	var opts []grpc.DialOption
+	if os.Getenv("TAG_INSECURE_SKIP_VERIFY") == "true" {
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	} else {
+		opt, err := grpcCredentials(config)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		opts = append(opts, opt)
+	}
 
-	// TODO(jakule): add TLS support
-	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-
-	conn, err := grpc.Dial(accessGraphAddr, opts...)
+	conn, err := grpc.Dial(config.addr, opts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -188,4 +205,36 @@ func sendNodes(ctx context.Context, authServer *auth.Server, accessGraphClient a
 	}
 
 	return nil
+}
+
+func grpcCredentials(config accessGraphServiceConfig) (grpc.DialOption, error) {
+	license, err := licensefile.NewLicenseFile(config.license)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := tls.X509KeyPair(
+		[]byte(license.KeyPair.CertPEM),
+		[]byte(license.KeyPair.KeyPEM),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "cannot parse license authority key pair")
+	}
+
+	pool := x509.NewCertPool()
+	caBytes, err := os.ReadFile(config.ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if pool.AppendCertsFromPEM(caBytes) {
+		return nil, trace.BadParameter("failed to append CA certificate to pool")
+	}
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{
+			cert,
+		},
+		MinVersion: tls.VersionTLS13,
+		RootCAs:    pool,
+	}
+	return grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), nil
 }
