@@ -643,12 +643,13 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
 		session, err := oas.auth.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
-			User:       userState.GetName(),
-			Roles:      userState.GetRoles(),
-			Traits:     userState.GetTraits(),
-			SessionTTL: params.SessionTTL,
-			LoginTime:  oas.auth.GetClock().Now().UTC(),
-			LoginIP:    req.ClientLoginIP,
+			User:             userState.GetName(),
+			Roles:            userState.GetRoles(),
+			Traits:           userState.GetTraits(),
+			SessionTTL:       params.SessionTTL,
+			LoginTime:        oas.auth.GetClock().Now().UTC(),
+			LoginIP:          req.ClientLoginIP,
+			AttestWebSession: true,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")
