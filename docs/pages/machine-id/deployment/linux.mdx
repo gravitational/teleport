@@ -3,16 +3,11 @@ title: Deploying Machine ID on Linux
 description: How to install and configure Machine ID on a Linux host
 ---
 
-This page contains relevant background information and specific steps for
-deploying Machine ID on a Linux host.
+This page explains how to deploy Machine ID on a Linux host.
 
-## Background
-
-### The `token` join method
-
-The process of `tbot` initially authenticating with the Teleport cluster is
-known as joining. A join method is a specific technique for the bot to prove
-its identity.
+The process in which `tbot` initially authenticates with the Teleport cluster is
+known as joining. A join method is a specific technique for the bot to prove its
+identity.
 
 On platforms where there is no form of identity available to the machine, the
 only available join method is `token`. The `token` join method is special as
@@ -20,11 +15,7 @@ it is the only join method that relies on a shared secret. In order to mitigate
 the risks associated with this, the `token` join method is single use and it
 is not possible to use the same token multiple times.
 
-## Guide
-
-In this guide, you will install Machine ID's agent, `tbot`, on a Linux host.
-
-### Prerequisites
+## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
@@ -33,7 +24,7 @@ In this guide, you will install Machine ID's agent, `tbot`, on a Linux host.
 - A Linux user on that host that you wish Machine ID to run as. In the guide,
   we will use `teleport` for this.
 
-### Step 1/4. Install `tbot`
+## Step 1/4. Install `tbot`
 
 **This step is completed on the Linux host.**
 
@@ -44,7 +35,7 @@ Download the appropriate Teleport package for your platform:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-### Step 2/4. Create a role and bot user
+## Step 2/4. Create a role and bot user
 
 **This step is completed on your local machine.**
 
@@ -59,7 +50,7 @@ $ tctl bots add example --roles example-bot
 A join token will be included in the results of `tctl bots add`, record this
 value as it will be needed when configuring `tbot`.
 
-### Step 3/4. Configure `tbot`
+## Step 3/4. Configure `tbot`
 
 **This step is completed on the Linux host.**
 
@@ -91,7 +82,7 @@ This means you may remove the token from the configuration file after the first
 run has completed, but there is no tangible security benefit to doing so.
 </Notice>
 
-#### Prepare the storage directory
+### Prepare the storage directory
 
 When using the `token` join method, `tbot` must be able to persist its state
 across restarts. The destination used to persist this state is known as the
@@ -111,17 +102,17 @@ $ sudo mkdir -p /var/lib/teleport/bot
 $ sudo chown teleport:teleport /var/lib/teleport/bot
 ```
 
-#### Creating a systemd service
+### Create a systemd service
 
 (!docs/pages/includes/machine-id/daemon.mdx!)
 
-### Step 4/4. Configure outputs
+## Step 4/4. Configure outputs
 
 (!docs/pages/includes/machine-id/configure-outputs.mdx!)
 
 ## Next steps
 
-- Follow the [access guides](../access-guides.mdx) to finish configuring `tbot` for
+- Follow the [access guides](../connect-a-bot.mdx) to finish configuring `tbot` for
   your environment.
 - Read the [configuration reference](../reference/configuration.mdx) to explore
   all the available configuration options.
