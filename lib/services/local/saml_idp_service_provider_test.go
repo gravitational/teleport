@@ -77,7 +77,9 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	require.NoError(t, err)
 	err = service.CreateSAMLIdPServiceProvider(ctx, sp3)
 	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err))
+	require.True(t,
+		trace.IsBadParameter(err),
+		"CreateSAMLIdPServiceProvider error mismatch, wanted BadParameter, got %q (%T)", err, trace.Unwrap(err))
 
 	// Initially we expect no service providers.
 	out, nextToken, err := service.ListSAMLIdPServiceProviders(ctx, 200, "")
