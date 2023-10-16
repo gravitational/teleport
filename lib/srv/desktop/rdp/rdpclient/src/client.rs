@@ -514,11 +514,14 @@ pub enum ClientFunction {
     WriteRawPdu(Vec<u8>),
     /// Corresponds to [`Client::write_rdpdr`]
     WriteRdpdr(RdpdrPdu),
+    /// Corresponds to [`Client::write_cliprdr`]
+    WriteCliprdr(Box<dyn ClipboardFn>),
+    /// Corresponds to [`Client::update_clipboard`]
+    UpdateClipboard(String),
+    /// Corresponds to [`Client::handle_remote_copy`]
+    HandleRemoteCopy(Vec<u8>),
     /// Aborts the client by stopping both the read and write loops.
     Stop,
-    WriteCliprdr(Box<dyn ClipboardFn>),
-    UpdateClipboard(String),
-    HandleRemoteCopy(Vec<u8>),
 }
 
 /// `ClientHandle` is used to dispatch [`ClientFunction`]s calls
