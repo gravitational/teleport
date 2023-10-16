@@ -102,9 +102,19 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 
 	e.Log.Infof("Deleting PostgreSQL user %q.", sessionCtx.DatabaseUser)
 
-	_, err = conn.Exec(ctx, deleteQuery, sessionCtx.DatabaseUser)
+	var state string
+	err = conn.QueryRow(ctx, deleteQuery, sessionCtx.DatabaseUser).Scan(&state)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	switch state {
+	case sqlStateUserDropped:
+		e.Log.Debug("User %q deleted successfully.", sessionCtx.DatabaseUser)
+	case sqlStateUserDeactivated:
+		e.Log.Infof("Unable to delete user %q, it was disabled instead", sessionCtx.DatabaseUser)
+	default:
+		e.Log.Warnf("Unable to determine user %q deletion state.", sessionCtx.DatabaseUser)
 	}
 
 	return nil
@@ -163,6 +173,13 @@ const (
 	// teleportAutoUserRole is the name of a PostgreSQL role that all Teleport
 	// managed users will be a part of.
 	teleportAutoUserRole = "teleport-auto-user"
+
+	// sqlStateUserDropped is the state returned by the delete procedure
+	// indicating the user was dropped.
+	sqlStateUserDropped = "TP001"
+	// sqlStateUserDropped is the state returned by the delete procedure
+	// indicating was deactivated.
+	sqlStateUserDeactivated = "TP002"
 )
 
 var (

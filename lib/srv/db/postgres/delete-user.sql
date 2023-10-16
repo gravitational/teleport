@@ -1,4 +1,4 @@
-create or replace procedure teleport_delete_user(username varchar)
+create or replace procedure teleport_delete_user(username varchar, inout state varchar default 'TP001')
 language plpgsql
 as $$
 declare
@@ -12,6 +12,7 @@ begin
             execute format('drop user %I', username);
         exception
             when SQLSTATE '2BP01' then
+                state := 'TP002';
                 -- Drop user/role will fail if user has dependent objects.
                 -- In this scenario, fallback into disabling the user.
                 call teleport_deactivate_user(username);
