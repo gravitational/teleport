@@ -39,9 +39,14 @@ type ExternalCloudAudit struct {
 
 // ExternalCloudAuditSpec is the specification for an external cloud audit.
 type ExternalCloudAuditSpec struct {
-	// IntegrationName is name of existing OIDC intagration used to
+	// IntegrationName is name of existing OIDC integration used to
 	// generate AWS credentials.
 	IntegrationName string `json:"integration_name" yaml:"integration_name"`
+	// PolicyName is the name of the IAM policy to attach to the integration
+	// IAM role.
+	PolicyName string `json:"policy_name" yaml:"policy_name"`
+	// Region is the AWS region where the infrastructure is hosted.
+	Region string `json:"region" yaml:"region"`
 	// SessionsRecordingsURI is s3 path used to store sessions recordings.
 	SessionsRecordingsURI string `json:"sessions_recordings_uri" yaml:"sessions_recordings_uri"`
 	// AthenaWorkgroup is workgroup used by Athena audit logs during queries.
@@ -112,6 +117,12 @@ func (a *ExternalCloudAudit) CheckAndSetDefaults() error {
 
 	if a.Spec.IntegrationName == "" {
 		return trace.BadParameter("external cloud audit integration_name required")
+	}
+	if a.Spec.PolicyName == "" {
+		return trace.BadParameter("external cloud audit policy_name required")
+	}
+	if a.Spec.Region == "" {
+		return trace.BadParameter("external cloud audit region required")
 	}
 	if a.Spec.SessionsRecordingsURI == "" {
 		return trace.BadParameter("external cloud audit sessions_recordings_uri required")

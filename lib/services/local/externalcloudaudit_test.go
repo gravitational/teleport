@@ -16,6 +16,7 @@ package local
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -31,6 +32,7 @@ import (
 )
 
 func TestExternalCloudAuditService(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -140,6 +142,7 @@ func TestExternalCloudAuditService(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})
+
 	t.Run("delete draft", func(t *testing.T) {
 		// Given existing draft
 		// When DeleteDraftExternalAudit
@@ -154,11 +157,53 @@ func TestExternalCloudAuditService(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})
+
+	t.Run("generate", func(t *testing.T) {
+		// Given no draft
+
+		// When GenerateDraftExternalCloudAudit
+		generateResp, err := service.GenerateDraftExternalCloudAudit(ctx, "test-integration", "us-west-2")
+		require.NoError(t, err)
+
+		// Then draft is returned with generated values
+		spec := generateResp.Spec
+		nonce := strings.TrimPrefix(spec.PolicyName, externalCloudAuditPolicyNamePrefix)
+		underscoreNonce := strings.ReplaceAll(nonce, "-", "_")
+		require.Equal(t, "test-integration", spec.IntegrationName)
+		require.Equal(t, externalCloudAuditPolicyNamePrefix+nonce, spec.PolicyName)
+		require.Equal(t, "us-west-2", spec.Region)
+		require.Equal(t, "s3://teleport-longterm-"+nonce+"/sessions", spec.SessionsRecordingsURI)
+		require.Equal(t, "s3://teleport-longterm-"+nonce+"/events", spec.AuditEventsLongTermURI)
+		require.Equal(t, "s3://teleport-transient-"+nonce+"/results", spec.AthenaResultsURI)
+		require.Equal(t, "teleport_events_"+underscoreNonce, spec.AthenaWorkgroup)
+		require.Equal(t, "teleport_events_"+underscoreNonce, spec.GlueDatabase)
+		require.Equal(t, "teleport_events", spec.GlueTable)
+
+		// And GetDraftExternalCloudAudit returns the same draft
+		getResp, err := service.GetDraftExternalCloudAudit(ctx)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(generateResp, getResp, cmpOpts...))
+
+		// And when called repeatedly, the same generated draft is returned
+		generateResp, err = service.GenerateDraftExternalCloudAudit(ctx, "test-integration", "us-west-2")
+		require.NoError(t, err)
+		getResp, err = service.GetDraftExternalCloudAudit(ctx)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(generateResp, getResp, cmpOpts...))
+
+		// And when called with different integration or region it is an error
+		generateResp, err = service.GenerateDraftExternalCloudAudit(ctx, "test-integration-2", "us-west-2")
+		require.Error(t, err)
+		generateResp, err = service.GenerateDraftExternalCloudAudit(ctx, "test-integration", "us-east-1")
+		require.Error(t, err)
+	})
 }
 
 func newSpecWithSessRec(t *testing.T, sessionsRecordingsURI string) externalcloudaudit.ExternalCloudAuditSpec {
 	return externalcloudaudit.ExternalCloudAuditSpec{
 		IntegrationName:        "aws-integration-1",
+		PolicyName:             "test-policy",
+		Region:                 "us-west-2",
 		SessionsRecordingsURI:  sessionsRecordingsURI,
 		AthenaWorkgroup:        "primary",
 		GlueDatabase:           "teleport_db",

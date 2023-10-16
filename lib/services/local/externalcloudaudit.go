@@ -18,8 +18,10 @@ package local
 
 import (
 	"context"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/externalcloudaudit"
@@ -29,11 +31,14 @@ import (
 )
 
 const (
-	externalCloudAuditPrefix      = "external_cloud_audit"
-	externalCloudAuditDraftName   = "draft"
-	externalCloudAuditClusterName = "cluster"
-	externalCloudAuditLockName    = "external_cloud_audit_lock"
-	externalCloudAuditLockTTL     = 10 * time.Second
+	externalCloudAuditPrefix                = "external_cloud_audit"
+	externalCloudAuditDraftName             = "draft"
+	externalCloudAuditClusterName           = "cluster"
+	externalCloudAuditLockName              = "external_cloud_audit_lock"
+	externalCloudAuditLockTTL               = 10 * time.Second
+	externalCloudAuditPolicyNamePrefix      = "ExternalCloudAuditPolicy-"
+	externalCloudAuditLongtermBucketPrefix  = "s3://teleport-longterm-"
+	externalCloudAuditTransientBucketPrefix = "s3://teleport-transient-"
 )
 
 var (
@@ -74,20 +79,89 @@ func (s *ExternalCloudAuditService) UpsertDraftExternalCloudAudit(ctx context.Co
 			TTL:      externalCloudAuditLockTTL,
 		},
 	}, func(ctx context.Context) error {
-		value, err := services.MarshalExternalCloudAudit(in)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		_, err = s.backend.Put(ctx, backend.Item{
-			Key:   draftExternalCloudAuditBackendKey,
-			Value: value,
-		})
-		return trace.Wrap(err)
+		return trace.Wrap(s.upsertDraftExternalCloudAuditLocked(ctx, in))
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return in, nil
+}
+
+func (s *ExternalCloudAuditService) upsertDraftExternalCloudAuditLocked(ctx context.Context, in *externalcloudaudit.ExternalCloudAudit) error {
+	value, err := services.MarshalExternalCloudAudit(in)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = s.backend.Put(ctx, backend.Item{
+		Key:   draftExternalCloudAuditBackendKey,
+		Value: value,
+	})
+	return trace.Wrap(err)
+}
+
+// GenerateDraftExternalCloudAudit create a new draft ExternalCloudAudit with
+// randomized resource names and stores it as the current draft, returning the
+// generated resource.
+// To make this idempotent, if a draft ExternalCloudAudit is already present, it
+// is not changed and is returned.
+func (s *ExternalCloudAuditService) GenerateDraftExternalCloudAudit(ctx context.Context, integrationName, region string) (*externalcloudaudit.ExternalCloudAudit, error) {
+	var draft *externalcloudaudit.ExternalCloudAudit
+
+	err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
+		LockConfiguration: backend.LockConfiguration{
+			Backend:  s.backend,
+			LockName: externalCloudAuditLockName,
+			TTL:      externalCloudAuditLockTTL,
+		},
+	}, func(ctx context.Context) error {
+		current, err := s.GetDraftExternalCloudAudit(ctx)
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		if err == nil {
+			if current.Spec.IntegrationName != integrationName {
+				return trace.BadParameter(
+					"a draft ExternalCloudAudit already exists with integration_name %q not matching given integration_name %q",
+					current.Spec.IntegrationName, integrationName)
+			}
+			if current.Spec.Region != region {
+				return trace.BadParameter(
+					"a draft ExternalCloudAudit already exists with region %q not matching given region %q",
+					current.Spec.IntegrationName, integrationName)
+			}
+			draft = current
+			return nil
+		}
+
+		// S3 bucket names can't use underscores, Glue tables can't use hyphens,
+		// Athena workgroups can use either.
+		// https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
+		// https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html
+		// https://docs.aws.amazon.com/athena/latest/ug/workgroups-settings.html
+		nonce := uuid.NewString()
+		underscoreNonce := strings.ReplaceAll(nonce, "-", "_")
+		draft, err = externalcloudaudit.NewDraftExternalCloudAudit(header.Metadata{},
+			externalcloudaudit.ExternalCloudAuditSpec{
+				IntegrationName:        integrationName,
+				PolicyName:             externalCloudAuditPolicyNamePrefix + nonce,
+				Region:                 region,
+				SessionsRecordingsURI:  externalCloudAuditLongtermBucketPrefix + nonce + "/sessions",
+				AuditEventsLongTermURI: externalCloudAuditLongtermBucketPrefix + nonce + "/events",
+				AthenaResultsURI:       externalCloudAuditTransientBucketPrefix + nonce + "/results",
+				AthenaWorkgroup:        "teleport_events_" + underscoreNonce,
+				GlueDatabase:           "teleport_events_" + underscoreNonce,
+				GlueTable:              "teleport_events",
+			})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return trace.Wrap(s.upsertDraftExternalCloudAuditLocked(ctx, draft))
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return draft, nil
 }
 
 // DeleteDraftExternalAudit removes the draft external cloud audit resource.
