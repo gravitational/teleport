@@ -1,3 +1,4 @@
+use bitflags::Flags;
 use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
 use ironrdp_connector::{Config, ConnectorError};
@@ -99,23 +100,24 @@ impl Client {
             .with_server_addr(server_socket_addr)
             .with_server_name(server_addr)
             .with_credssp_network_client(RequestClientFactory)
-            .with_static_channel(Rdpsnd::new())
             .with_static_channel(Cliprdr::new(Box::new(TeleportCliprdrBackend::new(
                 client_handle.clone(),
-            ))))
-            .with_static_channel(
-                Rdpdr::new(
-                    Box::new(TeleportRdpdrBackend::new(
-                        SCARD_DEVICE_ID,
-                        client_handle.clone(),
-                        params.cert_der,
-                        params.key_der,
-                        pin,
-                    )),
-                    "IronRDP".to_string(),
-                )
-                .with_smartcard(SCARD_DEVICE_ID),
-            );
+            ))));
+        // Temporarily disabled because they were causing problems unrelated to clipboard sharing.
+        // .with_static_channel(Rdpsnd::new()) // required for rdpdr
+        // .with_static_channel(
+        //     Rdpdr::new(
+        //         Box::new(TeleportRdpdrBackend::new(
+        //             SCARD_DEVICE_ID,
+        //             client_handle.clone(),
+        //             params.cert_der,
+        //             params.key_der,
+        //             pin,
+        //         )),
+        //         "IronRDP".to_string(),
+        //     )
+        //     .with_smartcard(SCARD_DEVICE_ID),
+        // );
 
         let should_upgrade = ironrdp_tokio::connect_begin(&mut framed, &mut connector).await?;
 
@@ -313,9 +315,7 @@ impl Client {
                                 let cliprdr = x224_processor
                                     .get_svc_processor_mut::<Cliprdr>()
                                     .ok_or(ClientError::InternalError)?
-                                    .backend
-                                    .as_any_mut()
-                                    .downcast_mut::<TeleportCliprdrBackend>()
+                                    .downcast_backend_mut::<TeleportCliprdrBackend>()
                                     .ok_or(ClientError::InternalError)?;
                                 cliprdr.set_clipboard_data(Some(data.clone()));
                             } // unlock x224_processor
