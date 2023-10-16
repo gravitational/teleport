@@ -206,6 +206,9 @@ type InitConfig struct {
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
 
+	// DiscoveryConfigs is a service that manages DiscoveryConfigs.
+	DiscoveryConfigs services.DiscoveryConfigs
+
 	// Embeddings is a service that manages Embeddings
 	Embeddings services.Embeddings
 
@@ -241,6 +244,9 @@ type InitConfig struct {
 
 	// UserLoginStates is a service that manages user login states.
 	UserLoginState services.UserLoginStates
+
+	// SecReports is a service that manages security reports.
+	SecReports services.SecReports
 
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
@@ -804,12 +810,12 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 // subset
 type PresetUsers interface {
 	// CreateUser creates a new user record based on the supplied `user` instance.
-	CreateUser(ctx context.Context, user types.User) error
+	CreateUser(ctx context.Context, user types.User) (types.User, error)
 	// GetUser fetches a user from the repository by name, optionally fetching
-	// any associated secrets
-	GetUser(username string, withSecrets bool) (types.User, error)
-	// Upsert user creates or updates a user record as needed
-	UpsertUser(user types.User) error
+	// any associated secrets.
+	GetUser(ctx context.Context, username string, withSecrets bool) (types.User, error)
+	// UpsertUser user creates or updates a user record as needed.
+	UpsertUser(ctx context.Context, user types.User) (types.User, error)
 }
 
 // createPresetUsers creates all of the required user presets. No attempt is
@@ -827,13 +833,13 @@ func createPresetUsers(ctx context.Context, um PresetUsers) error {
 
 		if types.IsSystemResource(user) {
 			// System resources *always* get reset on every auth startup
-			if err := um.UpsertUser(user); err != nil {
+			if user, err := um.UpsertUser(ctx, user); err != nil {
 				return trace.Wrap(err, "failed upserting system user %s", user.GetName())
 			}
 			continue
 		}
 
-		if err := um.CreateUser(ctx, user); err != nil && !trace.IsAlreadyExists(err) {
+		if user, err := um.CreateUser(ctx, user); err != nil && !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err, "failed creating preset user %s", user.GetName())
 		}
 	}

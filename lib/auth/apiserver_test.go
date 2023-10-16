@@ -207,8 +207,8 @@ type mockClientI struct {
 	existingRole string
 }
 
-func (c *mockClientI) UpsertUser(user types.User) error {
-	return nil
+func (c *mockClientI) UpsertUser(context.Context, types.User) (types.User, error) {
+	return nil, nil
 }
 func (c *mockClientI) GetRole(_ context.Context, name string) (types.Role, error) {
 	if c.existingRole != name {

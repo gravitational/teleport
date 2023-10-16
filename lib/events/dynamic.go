@@ -327,10 +327,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AccessListMemberDelete{}
 	case AccessListMemberDeleteAllForAccessListEvent:
 		e = &events.AccessListMemberDeleteAllForAccessList{}
+	case SecReportsAuditQueryRunEvent:
+		e = &events.AuditQueryRun{}
+	case SecReportsReportRunEvent:
+		e = &events.SecurityReportRun{}
+
 	case UnknownEvent:
 		e = &events.Unknown{}
 
-	// Cassandra events.
 	case CassandraBatchEventCode:
 		e = &events.CassandraBatch{}
 	case CassandraRegisterEventCode:

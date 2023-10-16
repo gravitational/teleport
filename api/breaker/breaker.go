@@ -103,7 +103,7 @@ func (s State) String() string {
 
 // ErrStateTripped will be returned from executions performed while the CircuitBreaker
 // is in StateTripped
-var ErrStateTripped = trace.ConnectionProblem(nil, "breaker is tripped")
+var ErrStateTripped = &trace.ConnectionProblemError{Message: "breaker is tripped"}
 
 // Config contains configuration of the CircuitBreaker
 type Config struct {
@@ -134,6 +134,9 @@ type Config struct {
 	IsSuccessful func(v interface{}, err error) bool
 	// Logger is the logger
 	Logger logrus.FieldLogger
+	// TrippedErrorMessage is an optional message to use as the error message when the CircuitBreaker
+	// is tripped. Defaults to ErrStateTripped if not provided.
+	TrippedErrorMessage string
 }
 
 // TripFn determines if the CircuitBreaker should be tripped based
@@ -331,7 +334,11 @@ func (c *CircuitBreaker) beforeExecution() (uint64, error) {
 
 	switch {
 	case state == StateTripped:
-		return generation, ErrStateTripped
+		if c.cfg.TrippedErrorMessage != "" {
+			return generation, trace.ConnectionProblem(nil, c.cfg.TrippedErrorMessage)
+		}
+
+		return generation, trace.Wrap(ErrStateTripped)
 	}
 
 	c.metrics.execute()

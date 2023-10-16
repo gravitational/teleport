@@ -199,6 +199,13 @@ const storage = {
     return disabled !== 'true' && notSupported !== 'true';
   },
 
+  arePinnedResourcesDisabled(): boolean {
+    return (
+      window.localStorage.getItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED) ===
+      'true'
+    );
+  },
+
   broadcast(messageType, messageBody) {
     window.localStorage.setItem(messageType, messageBody);
     window.localStorage.removeItem(messageType);

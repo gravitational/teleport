@@ -370,7 +370,7 @@ func newUpack(ctx context.Context, s *SrvCtx, username string, allowedLogins []s
 		return nil, trace.Wrap(err)
 	}
 	user.AddRole(role.GetName())
-	err = auth.UpsertUser(user)
+	user, err = auth.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -815,6 +815,7 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 		kubeUsers     []string
 		kubeGroups    []string
 		remoteCluster bool
+		isProxy       bool
 		inHeaders     http.Header
 		wantHeaders   http.Header
 		errAssertion  require.ErrorAssertionFunc
@@ -935,26 +936,59 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			},
 			errAssertion: require.NoError,
 		},
+		{
+			desc:         "no existing impersonation headers, proxy service",
+			kubeUsers:    []string{"kube-user-a"},
+			kubeGroups:   []string{"kube-group-a", "kube-group-b"},
+			isProxy:      true,
+			inHeaders:    http.Header{},
+			wantHeaders:  http.Header{},
+			errAssertion: require.NoError,
+		},
+		{
+			desc:       "existing impersonation headers, proxy service",
+			kubeUsers:  []string{"kube-user-a"},
+			kubeGroups: []string{"kube-group-a", "kube-group-b"},
+			isProxy:    true,
+			inHeaders: http.Header{
+				ImpersonateGroupHeader: []string{"kube-group-a"},
+			},
+			wantHeaders: http.Header{
+				ImpersonateGroupHeader: []string{"kube-group-a"},
+			},
+			errAssertion: require.NoError,
+		},
 	}
 	for _, tt := range tests {
-		err := setupImpersonationHeaders(
-			logrus.NewEntry(logrus.New()),
-			authContext{
-				kubeUsers:       utils.StringsSet(tt.kubeUsers),
-				kubeGroups:      utils.StringsSet(tt.kubeGroups),
-				teleportCluster: teleportClusterClient{isRemote: tt.remoteCluster},
-			},
-			tt.inHeaders,
-		)
-		tt.errAssertion(t, err)
-
-		if err == nil {
-			// Sort header values to get predictable ordering.
-			for _, vals := range tt.inHeaders {
-				sort.Strings(vals)
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+			var kubeCreds kubeCreds
+			if !tt.isProxy {
+				kubeCreds = &staticKubeCreds{}
 			}
-			require.Empty(t, cmp.Diff(tt.inHeaders, tt.wantHeaders))
-		}
+			err := setupImpersonationHeaders(
+				logrus.NewEntry(logrus.New()),
+				&clusterSession{
+					kubeAPICreds: kubeCreds,
+					authContext: authContext{
+						kubeUsers:       utils.StringsSet(tt.kubeUsers),
+						kubeGroups:      utils.StringsSet(tt.kubeGroups),
+						teleportCluster: teleportClusterClient{isRemote: tt.remoteCluster},
+					},
+				},
+				tt.inHeaders,
+			)
+			tt.errAssertion(t, err)
+
+			if err == nil {
+				// Sort header values to get predictable ordering.
+				for _, vals := range tt.inHeaders {
+					sort.Strings(vals)
+				}
+				require.Empty(t, cmp.Diff(tt.inHeaders, tt.wantHeaders))
+			}
+		},
+		)
 	}
 }
 

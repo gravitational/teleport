@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -335,6 +336,123 @@ func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, res.GetTOTP())
 				require.NotEmpty(t, res.GetWebauthnChallenge())
+			}
+		})
+	}
+}
+
+func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
+	t.Parallel()
+
+	testServer := newTestTLSServer(t)
+	ctx := context.Background()
+
+	adminClient, err := testServer.NewClient(TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err, "NewClient(types.RoleAdmin)")
+
+	// Register a couple of SSH nodes.
+	registerNode := func(node, env string) error {
+		_, err := adminClient.UpsertNode(ctx, &types.ServerV2{
+			Kind:    types.KindNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name: uuid.NewString(),
+				Labels: map[string]string{
+					"env": env,
+				},
+			},
+			Spec: types.ServerSpecV2{
+				Hostname: node,
+			},
+		})
+		return err
+	}
+	const devNode = "node1"
+	const prodNode = "node2"
+	require.NoError(t, registerNode(devNode, "dev"), "registerNode(%q)", devNode)
+	require.NoError(t, registerNode(prodNode, "prod"), "registerNode(%q)", prodNode)
+
+	// Create an MFA required role for "prod" nodes.
+	prodRole, err := types.NewRole("prod_access", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+		Allow: types.RoleConditions{
+			Logins: []string{"{{internal.logins}}"},
+			NodeLabels: types.Labels{
+				"env": []string{"prod"},
+			},
+		},
+	})
+	require.NoError(t, err, "NewRole(prod)")
+	require.NoError(t,
+		adminClient.UpsertRole(ctx, prodRole),
+		"UpsertRole(%q)", prodRole.GetName())
+
+	// Create a user with MFA devices...
+	userCreds, err := createUserWithSecondFactors(testServer)
+	require.NoError(t, err, "createUserWithSecondFactors")
+	username := userCreds.username
+
+	// ...and assign the user a sane unix login, plus the prod role.
+	user, err := adminClient.GetUser(ctx, username, false /* withSecrets */)
+	require.NoError(t, err, "GetUser(%q)", username)
+	const login = "llama"
+	user.SetLogins(append(user.GetLogins(), login))
+	user.AddRole(prodRole.GetName())
+	_, err = adminClient.UpdateUser(ctx, user.(*types.UserV2))
+	require.NoError(t, err, "UpdateUser(%q)", username)
+
+	userClient, err := testServer.NewClient(TestUser(username))
+	require.NoError(t, err, "NewClient(%q)", username)
+
+	createReqForNode := func(node string) *proto.CreateAuthenticateChallengeRequest {
+		return &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+				ContextUser: &proto.ContextUser{},
+			},
+			MFARequiredCheck: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Node{
+					Node: &proto.NodeLogin{
+						Node:  node,
+						Login: login,
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name            string
+		req             *proto.CreateAuthenticateChallengeRequest
+		wantMFARequired proto.MFARequired
+		wantChallenges  bool
+	}{
+		{
+			name:            "MFA not required, no challenges issued",
+			req:             createReqForNode(devNode),
+			wantMFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		},
+		{
+			name:            "MFA required",
+			req:             createReqForNode(prodNode),
+			wantMFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			wantChallenges:  true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			resp, err := userClient.CreateAuthenticateChallenge(ctx, test.req)
+			require.NoError(t, err, "CreateAuthenticateChallenge")
+
+			assert.Equal(t, test.wantMFARequired, resp.MFARequired, "resp.MFARequired mismatch")
+
+			if test.wantChallenges {
+				assert.NotNil(t, resp.GetTOTP(), "resp.TOTP")
+				assert.NotNil(t, resp.GetWebauthnChallenge(), "resp.WebauthnChallenge")
+			} else {
+				assert.Nil(t, resp.GetTOTP(), "resp.TOTP")
+				assert.Nil(t, resp.GetWebauthnChallenge(), "resp.WebauthnChallenge")
 			}
 		})
 	}

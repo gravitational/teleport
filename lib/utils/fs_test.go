@@ -38,10 +38,25 @@ func TestOpenFileLinks(t *testing.T) {
 	// broken-s -> nonexistent
 	// hardfile
 	// hardfile-h -> hardfile
-	rootDir := t.TempDir()
+
+	// macOS is special cased here since t.TempDir() returns a path to a protected directory that doesn't allow symlinks.
+	var rootDir string
+	var err error
+	switch runtime.GOOS {
+	case "darwin":
+		rootDir, err = os.MkdirTemp("/private/tmp", "teleport-test-*")
+		require.NoError(t, err)
+
+		t.Cleanup(func() {
+			err := os.RemoveAll(rootDir)
+			require.NoError(t, err)
+		})
+	default:
+		rootDir = t.TempDir()
+	}
 
 	dirPath := filepath.Join(rootDir, "dir")
-	err := os.Mkdir(dirPath, 0755)
+	err = os.Mkdir(dirPath, 0755)
 	require.NoError(t, err)
 
 	dirFilePath := filepath.Join(dirPath, "file")

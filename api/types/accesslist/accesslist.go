@@ -18,6 +18,7 @@ package accesslist
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -28,6 +29,87 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/utils"
 )
+
+// ReviewFrequency is the review frequency in months.
+type ReviewFrequency int
+
+const (
+	OneMonth    ReviewFrequency = 1
+	ThreeMonths ReviewFrequency = 3
+	SixMonths   ReviewFrequency = 6
+	OneYear     ReviewFrequency = 12
+
+	twoWeeks = 24 * time.Hour * 14
+)
+
+func (r ReviewFrequency) String() string {
+	switch r {
+	case OneMonth:
+		return "1 month"
+	case ThreeMonths:
+		return "3 months"
+	case SixMonths:
+		return "6 months"
+	case OneYear:
+		return "1 year"
+	}
+
+	return ""
+}
+
+func parseReviewFrequency(input string) ReviewFrequency {
+	lowerInput := strings.ReplaceAll(strings.ToLower(input), " ", "")
+	switch lowerInput {
+	case "1month", "1months", "1m", "1":
+		return OneMonth
+	case "3month", "3months", "3m", "3":
+		return ThreeMonths
+	case "6month", "6months", "6m", "6":
+		return SixMonths
+	case "12month", "12months", "12m", "12", "1years", "1year", "1y":
+		return OneYear
+	}
+
+	// We won't return an error here and we'll just let CheckAndSetDefaults handle the rest.
+	return 0
+}
+
+// ReviewDayOfMonth is the day of month the review should be repeated on.
+type ReviewDayOfMonth int
+
+const (
+	FirstDayOfMonth     ReviewDayOfMonth = 1
+	FifteenthDayOfMonth ReviewDayOfMonth = 15
+	LastDayOfMonth      ReviewDayOfMonth = 31
+)
+
+func (r ReviewDayOfMonth) String() string {
+	switch r {
+	case FirstDayOfMonth:
+		return "1"
+	case FifteenthDayOfMonth:
+		return "15"
+	case LastDayOfMonth:
+		return "last"
+	}
+
+	return ""
+}
+
+func parseReviewDayOfMonth(input string) ReviewDayOfMonth {
+	lowerInput := strings.ReplaceAll(strings.ToLower(input), " ", "")
+	switch lowerInput {
+	case "1", "first":
+		return FirstDayOfMonth
+	case "15":
+		return FifteenthDayOfMonth
+	case "last":
+		return LastDayOfMonth
+	}
+
+	// We won't return an error here and we'll just let CheckAndSetDefaults handle the rest.
+	return 0
+}
 
 // AccessList describes the basic building block of access grants, which are
 // similar to access requests but for longer lived permissions that need to be
@@ -82,11 +164,30 @@ type Owner struct {
 
 // Audit describes the audit configuration for an access list.
 type Audit struct {
-	// Frequency is a duration that describes how often an access list must be audited.
-	Frequency time.Duration `json:"frequency" yaml:"frequency"`
-
 	// NextAuditDate is the date that the next audit should be performed.
 	NextAuditDate time.Time `json:"next_audit_date" yaml:"next_audit_date"`
+
+	// Recurrence is the recurrence definition for auditing. Valid values are
+	// 1, first, 15, and last.
+	Recurrence Recurrence `json:"recurrence" yaml:"recurrence"`
+
+	// Notifications is the configuration for notifying users.
+	Notifications Notifications `json:"notifications" yaml:"notifications"`
+}
+
+// Recurrence defines when access list reviews should occur.
+type Recurrence struct {
+	// Frequency is the frequency between access list reviews.
+	Frequency ReviewFrequency `json:"frequency" yaml:"frequency"`
+
+	// DayOfMonth is the day of month subsequent reviews will be scheduled on.
+	DayOfMonth ReviewDayOfMonth `json:"day_of_month" yaml:"day_of_month"`
+}
+
+// Notifications contains the configuration for notifying users of a nearing next audit date.
+type Notifications struct {
+	// Start specifies when to start notifying users that the next audit date is coming up.
+	Start time.Duration `json:"start" yaml:"start"`
 }
 
 // Requires describes a requirement section for an access list. A user must
@@ -157,11 +258,33 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("owners are missing")
 	}
 
-	if a.Spec.Audit.Frequency == 0 {
-		return trace.BadParameter("audit frequency must be greater than 0")
+	if a.Spec.Audit.NextAuditDate.IsZero() {
+		return trace.BadParameter("next audit date is missing")
 	}
 
-	// TODO(mdwn): Next audit date must not be zero.
+	if a.Spec.Audit.Recurrence.Frequency == 0 {
+		a.Spec.Audit.Recurrence.Frequency = SixMonths
+	}
+
+	switch a.Spec.Audit.Recurrence.Frequency {
+	case OneMonth, ThreeMonths, SixMonths, OneYear:
+	default:
+		return trace.BadParameter("recurrence frequency is an invalid value")
+	}
+
+	if a.Spec.Audit.Recurrence.DayOfMonth == 0 {
+		a.Spec.Audit.Recurrence.DayOfMonth = FirstDayOfMonth
+	}
+
+	switch a.Spec.Audit.Recurrence.DayOfMonth {
+	case FirstDayOfMonth, FifteenthDayOfMonth, LastDayOfMonth:
+	default:
+		return trace.BadParameter("recurrence day of month is an invalid value")
+	}
+
+	if a.Spec.Audit.Notifications.Start == 0 {
+		a.Spec.Audit.Notifications.Start = twoWeeks
+	}
 
 	if len(a.Spec.Grants.Roles) == 0 && len(a.Spec.Grants.Traits) == 0 {
 		return trace.BadParameter("grants must specify at least one role or trait")
@@ -197,11 +320,6 @@ func (a *AccessList) GetOwners() []Owner {
 // GetOwners returns the list of owners from the access list.
 func (a *AccessList) SetOwners(owners []Owner) {
 	a.Spec.Owners = owners
-}
-
-// GetAuditFrequency returns the audit frequency from the access list.
-func (a *AccessList) GetAuditFrequency() time.Duration {
-	return a.Spec.Audit.Frequency
 }
 
 // GetMembershipRequires returns the membership requires configuration from the access list.
@@ -242,7 +360,6 @@ func (a *AccessList) CloneResource() types.ResourceWithLabels {
 func (a *Audit) UnmarshalJSON(data []byte) error {
 	type Alias Audit
 	audit := struct {
-		Frequency     string `json:"frequency"`
 		NextAuditDate string `json:"next_audit_date"`
 		*Alias
 	}{
@@ -253,10 +370,6 @@ func (a *Audit) UnmarshalJSON(data []byte) error {
 	}
 
 	var err error
-	a.Frequency, err = time.ParseDuration(audit.Frequency)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	a.NextAuditDate, err = time.Parse(time.RFC3339Nano, audit.NextAuditDate)
 	if err != nil {
 		return trace.Wrap(err)
@@ -267,12 +380,73 @@ func (a *Audit) UnmarshalJSON(data []byte) error {
 func (a Audit) MarshalJSON() ([]byte, error) {
 	type Alias Audit
 	return json.Marshal(&struct {
-		Frequency     string `json:"frequency"`
 		NextAuditDate string `json:"next_audit_date"`
 		Alias
 	}{
 		Alias:         (Alias)(a),
-		Frequency:     a.Frequency.String(),
 		NextAuditDate: a.NextAuditDate.Format(time.RFC3339Nano),
+	})
+}
+
+func (r *Recurrence) UnmarshalJSON(data []byte) error {
+	type Alias Recurrence
+	recurrence := struct {
+		Frequency  string `json:"frequency"`
+		DayOfMonth string `json:"day_of_month"`
+		*Alias
+	}{
+		Alias: (*Alias)(r),
+	}
+	if err := json.Unmarshal(data, &recurrence); err != nil {
+		return trace.Wrap(err)
+	}
+
+	r.Frequency = parseReviewFrequency(recurrence.Frequency)
+	r.DayOfMonth = parseReviewDayOfMonth(recurrence.DayOfMonth)
+	return nil
+}
+
+func (r Recurrence) MarshalJSON() ([]byte, error) {
+	type Alias Recurrence
+	return json.Marshal(&struct {
+		Frequency  string `json:"frequency"`
+		DayOfMonth string `json:"day_of_month"`
+		Alias
+	}{
+		Alias:      (Alias)(r),
+		Frequency:  r.Frequency.String(),
+		DayOfMonth: r.DayOfMonth.String(),
+	})
+}
+
+func (n *Notifications) UnmarshalJSON(data []byte) error {
+	type Alias Notifications
+	notifications := struct {
+		Start string `json:"start"`
+		*Alias
+	}{
+		Alias: (*Alias)(n),
+	}
+	if err := json.Unmarshal(data, &notifications); err != nil {
+		return trace.Wrap(err)
+	}
+
+	var err error
+	n.Start, err = time.ParseDuration(notifications.Start)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (n Notifications) MarshalJSON() ([]byte, error) {
+	type Alias Notifications
+	return json.Marshal(&struct {
+		Start string `json:"start"`
+		Alias
+	}{
+		Alias: (Alias)(n),
+		Start: n.Start.String(),
 	})
 }

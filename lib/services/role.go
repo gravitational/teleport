@@ -848,13 +848,13 @@ func ExtractFromCertificate(cert *ssh.Certificate) ([]string, wrappers.Traits, e
 // ExtractFromIdentity will extract roles and traits from the *x509.Certificate
 // which Teleport passes along as a *tlsca.Identity. If roles and traits do not
 // exist in the certificates, they are extracted from the backend.
-func ExtractFromIdentity(access UserGetter, identity tlsca.Identity) ([]string, wrappers.Traits, error) {
+func ExtractFromIdentity(ctx context.Context, access UserGetter, identity tlsca.Identity) ([]string, wrappers.Traits, error) {
 	// Legacy certs are not encoded with roles or traits,
 	// so we fallback to the traits and roles in the backend.
 	// empty traits are a valid use case in standard certs,
 	// so we only check for whether roles are empty.
 	if len(identity.Groups) == 0 {
-		u, err := access.GetUser(identity.Username, false)
+		u, err := access.GetUser(ctx, identity.Username, false)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -1218,24 +1218,13 @@ func (set RoleSet) getMFARequired(clusterRequireMFAType types.RequireMFAType) MF
 }
 
 // PrivateKeyPolicy returns the enforced private key policy for this role set.
-func (set RoleSet) PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy {
-	if defaultPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
-		// This is the strictest option so we can return now
-		return defaultPolicy
-	}
-
-	policy := defaultPolicy
+func (set RoleSet) PrivateKeyPolicy(authPreferencePolicy keys.PrivateKeyPolicy) (keys.PrivateKeyPolicy, error) {
+	policySet := []keys.PrivateKeyPolicy{authPreferencePolicy}
 	for _, role := range set {
-		switch rolePolicy := role.GetPrivateKeyPolicy(); rolePolicy {
-		case keys.PrivateKeyPolicyHardwareKey:
-			policy = rolePolicy
-		case keys.PrivateKeyPolicyHardwareKeyTouch:
-			// This is the strictest option so we can return now
-			return keys.PrivateKeyPolicyHardwareKeyTouch
-		}
+		policySet = append(policySet, role.GetPrivateKeyPolicy())
 	}
 
-	return policy
+	return keys.PolicyThatSatisfiesSet(policySet)
 }
 
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL

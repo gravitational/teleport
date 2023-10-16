@@ -181,6 +181,10 @@ export const routing = {
     return match && Boolean(match.params.leafClusterId);
   },
 
+  isRootCluster(clusterUri: ClusterUri) {
+    return !this.isLeafCluster(clusterUri);
+  },
+
   belongsToProfile(
     clusterUri: ClusterOrResourceUri,
     resourceUri: ClusterOrResourceUri

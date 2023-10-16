@@ -65,7 +65,8 @@ func TestIntegrationCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	user.AddRole(roleWithFullAccess.GetName())
-	require.NoError(t, authServer.UpsertUser(user))
+	_, err = authServer.UpsertUser(ctx, user)
+	require.NoError(t, err)
 
 	userPassword := uuid.NewString()
 	require.NoError(t, authServer.UpsertPassword(username, []byte(userPassword)))

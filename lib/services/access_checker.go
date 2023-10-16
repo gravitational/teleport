@@ -216,7 +216,7 @@ type AccessChecker interface {
 	GetAccessState(authPref types.AuthPreference) AccessState
 	// PrivateKeyPolicy returns the enforced private key policy for this role set,
 	// or the provided defaultPolicy - whichever is stricter.
-	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy
+	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) (keys.PrivateKeyPolicy, error)
 
 	// GetKubeResources returns the allowed and denied Kubernetes Resources configured
 	// for a user.
@@ -1064,7 +1064,7 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*A
 	// empty traits are a valid use case in standard certs,
 	// so we only check for whether roles are empty.
 	if len(identity.Groups) == 0 {
-		u, err := access.GetUser(identity.Username, false)
+		u, err := access.GetUser(context.TODO(), identity.Username, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

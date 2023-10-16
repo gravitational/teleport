@@ -86,7 +86,7 @@ There is no need to open any ports on your infrastructure for inbound traffic.
 
 If you plan on connecting more than 10,000 nodes or agents, please contact your account executive or customer support to ensure your tenant is properly scaled.
 
-### Should we use Enterprise or Open Source Teleport for connecting resources to our Teleport cluster?
+### Should we use Enterprise or Teleport Community Edition for connecting resources to our Teleport cluster?
 (!docs/pages/includes/ent-vs-community-faq.mdx!)
 
 ### Are dynamic node tokens available?
@@ -134,43 +134,63 @@ Proxy recording mode is disabled for cloud customers
 
 The ability to download recordings for offline viewing will be available in a future release.
 
-## Upgrading
+## Updates
 
-### Will Teleport be automatically upgraded with each release?
+### Will Teleport be updated automatically?
 
-Teleport Cloud follows the Teleport [Upcoming
-Releases](../../upcoming-releases.mdx) timelines.
+The Teleport Auth Service and Teleport Proxy Service for Teleport Team and Teleport Enterprise Cloud 
+are automatically kept up to date with patches and minor releases following the release schedule
+described in [Teleport Upcoming Releases](../../upcoming-releases.mdx).
 
-- Major version upgrades for customer Auth and Proxy Servers occur after the
-  first minor release (for example (=teleport.major_version=).1.0) of Teleport.
-  This typically happens within one month of a new major release of Teleport
-  becoming available.
-- After the first minor release, subsequent minor and patch upgrades typically
-  occur within a week.
+- Major version updates for the Teleport Auth Service and Teleport Proxy Service typically occur 
+  one month after new major versions are released.
+- Minor updates and patches typically occur between one day and a week after a release.
+- Teleport Auth Service and Teleport Proxy Service updates are pushed to Teleport cloud accounts
+  during your scheduled maintenance window.
+- Teleport agents are only updated automatically if you enroll them in automatic updates.
 
-<Admonition type="note" title="Minimum agent version">
-    For major version upgrades (e.g. 12.x to 13.x), your Teleport tenant will NOT be automatically upgraded if any
-    Teleport agents connected to the cluster are not compatible (> 1 major version behind).  This is done to ensure
-    backwards compatibility. To get version information on your agents versions
-    see [here](#how-can-i-find-version-information-on-connected-agents).
+If you have Teleport agents connected to a Teleport Team or Teleport Enterprise cluster that are
+more than one major version behind, you might experience compatibility issues unless your agents
+are enrolled in automatic updates. 
 
-    Please reach out to support if you wish to proceed regardless of this compatibility check.
-</Admonition>
+To get version information for your agents, see [How can I find version information on 
+connected agents?](#how-can-i-find-version-information-on-connected-agents).
+For information about enrolling in automatic agent updates, see [Enroll an agent into automatic 
+updates](../../management/operations/enroll-agent-into-automatic-updates.mdx).
 
-### Are upgrades times configurable for my Teleport Enterprise Cloud tenant?
+For more information about automatic updates and compatibility issues, contact 
+[Teleport support](https://goteleport.com/support/).
 
-Yes, you can set the window start time that works best for your organization
-for upgrades. Teleport provides a scheduled maintenance time window for any
-upgrades, patches and other required updates for all tenants. An upgrade for
-your tenant will not start earlier than the window start time you set.
+### Are updates times configurable for Teleport Enterprise Cloud?
 
-To set the window start time select your username in the Web UI, then the Help
-& Support option from the drop-down. The Scheduled Upgrades section within that
-page allows you to configure the window start time.
+Yes, Teleport provides a scheduled maintenance time window for updates and you can set 
+the start time for the maintenance window that works best for your organization. The  
+scheduled maintenance windows applies for all updates, including patches and agent updates 
+for all Teleport Cloud accounts. Updates for your cluster won't start earlier than the 
+maintenance window start time you set.
 
-Teleport recommends subscribing to the Teleport Enterprise Cloud updates at
-[status.teleport.sh](https://status.teleport.sh) to keep up to date on
+To set the maintenance window start time, select your username in the Teleport Web UI, 
+then click **Help & Support**. Under Scheduled Upgrades, you can see the current
+maintenance window start time. Click **Edit** to set a different start time for 
 scheduled maintenance.
+
+Teleport recommends you check the status of Teleport Cloud at 
+[status.teleport.sh](https://status.teleport.sh). From the status page, click
+**Subscribe to Updates** to get email notifications whenever Teleport Cloud creates, 
+updates, or resolves an incident and stay informed about scheduled maintenance and
+new releases.
+
+### When are agents automatically updated?
+
+Teleport Team and Teleport Enterprise must be set to receive automatic updates
+to use the Teleport Cloud version server for automatic agent updates. With automatic 
+agent updates, agents periodically check the version server for new releases and 
+update the software when new versions are found.
+
+If you enroll in automatic agent updates, Teleport agents are automatically 
+updated after your Teleport cluster is updated during your scheduled maintenance 
+period. For information about enrolling in automatic agent updates, see [Enroll an 
+agent into automatic updates](../../management/operations/enroll-agent-into-automatic-updates.mdx).
 
 ### How can I find version information on connected agents?
 

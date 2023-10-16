@@ -412,6 +412,9 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		if r.Expires != nil {
 			values[i].Expires = time.Unix(*r.Expires, 0).UTC()
 		}
+		if values[i].Revision == "" {
+			values[i].Revision = backend.BlankRevision
+		}
 	}
 	return &backend.GetResult{Items: values}, nil
 }
@@ -503,6 +506,9 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	if r.Expires != nil {
 		item.Expires = time.Unix(*r.Expires, 0)
 	}
+	if item.Revision == "" {
+		item.Revision = backend.BlankRevision
+	}
 	return item, nil
 }
 
@@ -572,6 +578,14 @@ func (b *Backend) Delete(ctx context.Context, key []byte) error {
 // ConditionalUpdate updates the matching item in Dynamo if the provided revision matches
 // the revision of the item in Dynamo.
 func (b *Backend) ConditionalUpdate(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+	if item.Revision == "" {
+		return nil, trace.Wrap(backend.ErrIncorrectRevision)
+	}
+
+	if item.Revision == backend.BlankRevision {
+		item.Revision = ""
+	}
+
 	rev, err := b.create(ctx, item, modeConditionalUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -584,12 +598,19 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, item backend.Item) (*ba
 // ConditionalDelete deletes item by key if the provided revision matches
 // the revision of the item in Dynamo.
 func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string) error {
+	if rev == "" {
+		return trace.Wrap(backend.ErrIncorrectRevision)
+	}
+
 	av, err := dynamodbattribute.MarshalMap(keyLookup{
 		HashKey:  hashKey,
 		FullPath: prependPrefix(key),
 	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if rev == backend.BlankRevision {
+		rev = ""
 	}
 	input := dynamodb.DeleteItemInput{Key: av, TableName: aws.String(b.TableName)}
 	input.SetConditionExpression("Revision = :rev")

@@ -61,8 +61,13 @@ func MarshalUserLoginState(userLoginState *userloginstate.UserLoginState, opts .
 
 	if !cfg.PreserveResourceID {
 		prevID := userLoginState.GetResourceID()
-		defer func() { userLoginState.SetResourceID(prevID) }()
+		prevRev := userLoginState.GetRevision()
+		defer func() {
+			userLoginState.SetResourceID(prevID)
+			userLoginState.SetRevision(prevRev)
+		}()
 		userLoginState.SetResourceID(0)
+		userLoginState.SetRevision("")
 	}
 	return utils.FastMarshal(userLoginState)
 }
@@ -92,4 +97,25 @@ func UnmarshalUserLoginState(data []byte, opts ...MarshalOption) (*userloginstat
 	}
 
 	return uls, nil
+}
+
+// UserOrLoginStateGetter defines an interface that can get user login states or users.
+type UserOrLoginStateGetter interface {
+	UserLoginStatesGetter
+	UserGetter
+}
+
+// GetUserOrLoginState will return the given user or the login state associated with the user.
+func GetUserOrLoginState(ctx context.Context, getter UserOrLoginStateGetter, username string) (UserState, error) {
+	uls, err := getter.GetUserLoginState(ctx, username)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	if err == nil {
+		return uls, nil
+	}
+
+	user, err := getter.GetUser(ctx, username, false)
+	return user, trace.Wrap(err)
 }

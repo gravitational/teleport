@@ -99,6 +99,14 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			DbOrigin:   u.Database.DbOrigin,
 		}
 	}
+	if u.Desktop != nil {
+		sessionStart.Desktop = &prehogv1a.SessionStartDesktopMetadata{
+			DesktopType:       u.Desktop.DesktopType,
+			Origin:            u.Desktop.Origin,
+			WindowsDomain:     a.AnonymizeString(u.Desktop.WindowsDomain),
+			AllowUserCreation: u.Desktop.AllowUserCreation,
+		}
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_SessionStartV2{
 			SessionStartV2: sessionStart,
@@ -833,6 +841,38 @@ func (e *LicenseLimitEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 	}
 }
 
+// DesktopDirectoryShareEvent is emitted when a user shares a directory
+// in a Windows desktop session.
+type DesktopDirectoryShareEvent prehogv1a.DesktopDirectoryShareEvent
+
+func (e *DesktopDirectoryShareEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DesktopDirectoryShare{
+			DesktopDirectoryShare: &prehogv1a.DesktopDirectoryShareEvent{
+				Desktop:       a.AnonymizeString(e.Desktop),
+				UserName:      a.AnonymizeString(e.UserName),
+				DirectoryName: a.AnonymizeString(e.DirectoryName),
+			},
+		},
+	}
+}
+
+// DesktopClipboardEvent is emitted when a user transfers data
+// between their local clipboard and the clipboard on a remote Windows
+// desktop.
+type DesktopClipboardEvent prehogv1a.DesktopClipboardEvent
+
+func (e *DesktopClipboardEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DesktopClipboardTransfer{
+			DesktopClipboardTransfer: &prehogv1a.DesktopClipboardEvent{
+				Desktop:  a.AnonymizeString(e.Desktop),
+				UserName: a.AnonymizeString(e.UserName),
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
@@ -1033,6 +1073,39 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Resource:       discoverResourceToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Resource),
 			Status:         discoverStatusToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Status),
 			ResourcesCount: e.UiDiscoverAutoDiscoveredResourcesEvent.ResourcesCount,
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverEc2InstanceSelection:
+		ret := &UIDiscoverEC2InstanceSelectionEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverEc2InstanceSelection.Metadata, userMD),
+			Resource: discoverResourceToPrehog(e.UiDiscoverEc2InstanceSelection.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverEc2InstanceSelection.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployEice:
+		ret := &UIDiscoverDeployEICEEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployEice.Metadata, userMD),
+			Resource: discoverResourceToPrehog(e.UiDiscoverDeployEice.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverDeployEice.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverCreateNode:
+		ret := &UIDiscoverCreateNodeEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverCreateNode.Metadata, userMD),
+			Resource: discoverResourceToPrehog(e.UiDiscoverCreateNode.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverCreateNode.Status),
 		}
 		if err := ret.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
