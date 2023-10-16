@@ -1051,7 +1051,7 @@ type AccessListReviewMetadata struct {
 	Message string `protobuf:"bytes,1,opt,name=Message,proto3" json:"message,omitempty"`
 	// ReviewID is the ID of the review.
 	ReviewID string `protobuf:"bytes,2,opt,name=ReviewID,proto3" json:"review_id,omitempty"`
-	// MembershipChanged is the ID of the review.
+	// MembershipRequirementsChanged is populated if the memrship requirements have changed..
 	MembershipRequirementsChanged *AccessListReviewMembershipRequirementsChanged `protobuf:"bytes,3,opt,name=MembershipRequirementsChanged,proto3" json:"membership_requirements_changed,omitempty"`
 	// ReviewFrequencyChanged is populated if the review frequency has changed.
 	ReviewFrequencyChanged string `protobuf:"bytes,4,opt,name=ReviewFrequencyChanged,proto3" json:"review_frequency_changed,omitempty"`

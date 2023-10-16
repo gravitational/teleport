@@ -268,7 +268,7 @@ message AccessListReviewMetadata {
   // ReviewID is the ID of the review.
   string ReviewID = 2 [(gogoproto.jsontag) = "review_id,omitempty"];
 
-  // MembershipChanged is the ID of the review.
+  // MembershipRequirementsChanged is populated if the memrship requirements have changed..
   AccessListReviewMembershipRequirementsChanged MembershipRequirementsChanged = 3 [(gogoproto.jsontag) = "membership_requirements_changed,omitempty"];
 
   // ReviewFrequencyChanged is populated if the review frequency has changed.
