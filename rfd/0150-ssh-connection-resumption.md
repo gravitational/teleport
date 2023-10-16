@@ -86,6 +86,10 @@ The client side of the connection is tasked with reconnecting to the server; it 
 
 ## Security
 
+The security of the application bytestream tunneled through the resumption protocol is delegated to the protocol used by the application; in this case the application protocol is SSH, which guarantees that all data is encrypted and authenticated, with a secure key exchange. This prevents any attack on the bytestream from becoming an attack on the application data, and the worst that can happen in that regard is that the connection ends up erroring out due to a MAC failure.
+
+Other concerns are strictly about the additional surface provided by the resumption feature itself, however, and will be discussed here.
+
 ### Source address information
 
 We propagate the source address of connections entering the Teleport cluster, and the address is stored whenever it's relevant to do so in the audit log. We offer the ability to require that client connections have the same source address as the one used to obtain credentials ([IP pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning/)). As connection resumption intrinsically allows the same connection to roam between different source IP addresses (as the user changes their network configuration, for instance by switching from their wired connection to a mobile hotspot), we shall enforce that the source address of the connection stays the same until the SSH authentication is completed and the user is confirmed to have authenticated with credentials that do not require IP pinning. It's possible that a connection loses its underlying transport before the SSH authentication is complete, and a change in source address at that point will cause the connection to fail; this is acceptable, as the user couldn't have used the connection for anything before authentication anyway.
