@@ -342,13 +342,11 @@ func TestSSODiagnostic(t *testing.T) {
 			idp := newFakeIDP(t, false /* tls */)
 
 			// create role referenced in request.
-			role, err := types.NewRole("access", types.RoleSpecV6{
+			_, err := auth.CreateRole(ctx, s.a, "access", types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Logins: []string{"dummy"},
 				},
 			})
-			require.NoError(t, err)
-			err = s.a.CreateRole(ctx, role)
 			require.NoError(t, err)
 
 			// connector spec
@@ -912,11 +910,10 @@ func TestUsernameClaim(t *testing.T) {
 	diagCtx := auth.SSODiagContext{}
 
 	// Create role that will be mapped to the user.
-	role, err := types.NewRole("access", types.RoleSpecV6{
+	_, err := auth.CreateRole(ctx, s.a, "access", types.RoleSpecV6{
 		Allow: types.RoleConditions{},
 	})
 	require.NoError(t, err)
-	err = s.a.CreateRole(ctx, role)
 	require.NoError(t, err)
 
 	// Create claims with "preferred_username" field.

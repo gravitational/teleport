@@ -63,10 +63,15 @@ type testClient struct {
 	services.RoleGetter
 	samlidppb.SAMLIdPServiceServer
 	types.Events
+	services.Access
 
 	// signingCtx is a context that can be injected into the signing service.
 	signingCtx     context.Context
 	signingService *SigningService
+}
+
+func (t testClient) GetRole(ctx context.Context, name string) (types.Role, error) {
+	return t.Access.GetRole(ctx, name)
 }
 
 func (t testClient) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
@@ -126,10 +131,10 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 	eventService := local.NewEventsService(backend)
 
 	// Set up default singletons
-	clusterService.SetAuthPreference(ctx, types.DefaultAuthPreference())
-	clusterService.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
-	clusterService.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
-	clusterService.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	require.NoError(t, clusterService.SetAuthPreference(ctx, types.DefaultAuthPreference()))
+	require.NoError(t, clusterService.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
+	require.NoError(t, clusterService.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
+	require.NoError(t, clusterService.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
 
 	client := &testClient{
 		ClusterConfiguration:    clusterService,
@@ -139,6 +144,7 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 		SAMLIdPSession:          userService,
 		RoleGetter:              accessService,
 		Events:                  eventService,
+		Access:                  accessService,
 	}
 
 	require.NoError(t, clusterService.SetAuthPreference(ctx, types.DefaultAuthPreference()))

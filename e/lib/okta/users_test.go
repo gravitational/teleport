@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -68,7 +69,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	testUser := "test-user@test.user"
 	testRole := "test-role"
 
-	role, err := types.NewRole(testRole, types.RoleSpecV6{
+	role, err := auth.CreateRole(ctx, ap, testRole, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			AppLabels: types.Labels{
 				types.Wildcard: []string{types.Wildcard},
@@ -90,11 +91,11 @@ func TestUserAssignmentCreator(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+
 	user, err := types.NewUser(testUser)
 	require.NoError(t, err)
 	user.SetRoles([]string{role.GetName()})
 
-	require.NoError(t, ap.CreateRole(ctx, role))
 	user, err = ap.CreateUser(ctx, user)
 	require.NoError(t, err)
 

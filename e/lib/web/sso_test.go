@@ -20,6 +20,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -65,7 +66,7 @@ func TestSAML(t *testing.T) {
 			connector, err := services.UnmarshalSAMLConnector(raw.Raw)
 			require.NoError(t, err)
 
-			role, err := types.NewRole(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV6{
+			_, err = auth.CreateRole(ctx, s.testAuthServer.Auth(), connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV6{
 				Options: types.RoleOptions{
 					MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
 				},
@@ -75,11 +76,9 @@ func TestSAML(t *testing.T) {
 					Rules: []types.Rule{
 						types.NewRule(types.Wildcard, services.RW()),
 					},
+					Logins: []string{s.user},
 				},
 			})
-			require.NoError(t, err)
-			role.SetLogins(types.Allow, []string{s.user})
-			err = s.testAuthServer.Auth().UpsertRole(s.ctx, role)
 			require.NoError(t, err)
 
 			err = s.testAuthServer.Auth().UpsertSAMLConnector(ctx, connector)

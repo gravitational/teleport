@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
@@ -345,10 +346,64 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 	teleUser, err := types.NewUser(user)
 	require.NoError(t, err)
 
-	role := services.NewPresetEditorRole()
-	role.SetLogins(types.Allow, []string{login})
-
-	err = s.testAuthServer.Auth().UpsertRole(s.ctx, role)
+	role, err := auth.CreateRole(s.ctx, s.testAuthServer.Auth(), "editor", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			CertificateFormat: constants.CertificateFormatStandard,
+			MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+			PortForwarding:    types.NewBoolOption(true),
+			ForwardAgent:      types.NewBool(true),
+			BPF:               apidefaults.EnhancedEvents(),
+			RecordSession: &types.RecordSession{
+				Desktop: types.NewBoolOption(false),
+			},
+		},
+		Allow: types.RoleConditions{
+			Logins:     []string{login},
+			Namespaces: []string{apidefaults.Namespace},
+			Rules: []types.Rule{
+				types.NewRule(types.KindUser, services.RW()),
+				types.NewRule(types.KindRole, services.RW()),
+				types.NewRule(types.KindOIDC, services.RW()),
+				types.NewRule(types.KindSAML, services.RW()),
+				types.NewRule(types.KindGithub, services.RW()),
+				types.NewRule(types.KindOIDCRequest, services.RW()),
+				types.NewRule(types.KindSAMLRequest, services.RW()),
+				types.NewRule(types.KindGithubRequest, services.RW()),
+				types.NewRule(types.KindClusterAuditConfig, services.RW()),
+				types.NewRule(types.KindClusterAuthPreference, services.RW()),
+				types.NewRule(types.KindAuthConnector, services.RW()),
+				types.NewRule(types.KindClusterName, services.RW()),
+				types.NewRule(types.KindClusterNetworkingConfig, services.RW()),
+				types.NewRule(types.KindSessionRecordingConfig, services.RW()),
+				types.NewRule(types.KindExternalCloudAudit, services.RW()),
+				types.NewRule(types.KindUIConfig, services.RW()),
+				types.NewRule(types.KindTrustedCluster, services.RW()),
+				types.NewRule(types.KindRemoteCluster, services.RW()),
+				types.NewRule(types.KindToken, services.RW()),
+				types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+				types.NewRule(types.KindDatabase, services.RW()),
+				types.NewRule(types.KindDatabaseCertificate, services.RW()),
+				types.NewRule(types.KindInstaller, services.RW()),
+				types.NewRule(types.KindDevice, append(services.RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+				types.NewRule(types.KindDatabaseService, services.RO()),
+				types.NewRule(types.KindInstance, services.RO()),
+				types.NewRule(types.KindLoginRule, services.RW()),
+				types.NewRule(types.KindSAMLIdPServiceProvider, services.RW()),
+				types.NewRule(types.KindUserGroup, services.RW()),
+				types.NewRule(types.KindPlugin, services.RW()),
+				types.NewRule(types.KindOktaImportRule, services.RW()),
+				types.NewRule(types.KindOktaAssignment, services.RW()),
+				types.NewRule(types.KindAssistant, append(services.RW(), types.VerbUse)),
+				types.NewRule(types.KindLock, services.RW()),
+				types.NewRule(types.KindIntegration, append(services.RW(), types.VerbUse)),
+				types.NewRule(types.KindBilling, services.RW()),
+				types.NewRule(types.KindClusterAlert, services.RW()),
+				types.NewRule(types.KindAccessList, services.RW()),
+				types.NewRule(types.KindNode, services.RW()),
+				types.NewRule(types.KindDiscoveryConfig, services.RW()),
+			},
+		},
+	})
 	require.NoError(t, err)
 
 	teleUser.AddRole(role.GetName())

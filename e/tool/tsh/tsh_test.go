@@ -112,14 +112,12 @@ func TestNodeAccess(t *testing.T) {
 
 	setupUserAndRole := func(t *testing.T, name string, roleSpec types.RoleSpecV6) {
 		// create role
-		role, err := types.NewRole(name, roleSpec)
-		require.NoError(t, err)
-		err = authServer.CreateRole(ctx, role)
+		role, err := auth.CreateRole(ctx, authServer, name, roleSpec)
 		require.NoError(t, err)
 
 		// create user
 		user, err := types.NewUser(name)
-		user.SetRoles([]string{name})
+		user.SetRoles([]string{role.GetName()})
 		require.NoError(t, err)
 		_, err = authServer.CreateUser(ctx, user)
 		require.NoError(t, err)

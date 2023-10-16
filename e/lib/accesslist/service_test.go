@@ -34,6 +34,7 @@ import (
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
@@ -645,7 +646,16 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 	})
 	require.NoError(t, err)
 
-	role, err := types.NewRole("access-lists", types.RoleSpecV6{
+	type client struct {
+		services.Access
+		services.Identity
+	}
+	clt := client{
+		Access:   accessService,
+		Identity: userSvc,
+	}
+
+	role, err := auth.CreateRole(ctx, clt, "access-lists", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -656,24 +666,18 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 		},
 	})
 	require.NoError(t, err)
-	roleSvc.CreateRole(ctx, role)
+
+	_, err = auth.CreateRole(ctx, clt, "mrole1", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	mrole, err := types.NewRole("mrole1", types.RoleSpecV6{})
+	_, err = auth.CreateRole(ctx, clt, "mrole2", types.RoleSpecV6{})
 	require.NoError(t, err)
-	roleSvc.CreateRole(ctx, mrole)
 
-	mrole, err = types.NewRole("mrole2", types.RoleSpecV6{})
+	_, err = auth.CreateRole(ctx, clt, "orole1", types.RoleSpecV6{})
 	require.NoError(t, err)
-	roleSvc.CreateRole(ctx, mrole)
 
-	orole, err := types.NewRole("orole1", types.RoleSpecV6{})
+	_, err = auth.CreateRole(ctx, clt, "orole2", types.RoleSpecV6{})
 	require.NoError(t, err)
-	roleSvc.CreateRole(ctx, orole)
-
-	orole, err = types.NewRole("orole2", types.RoleSpecV6{})
-	require.NoError(t, err)
-	roleSvc.CreateRole(ctx, orole)
 
 	user, err := types.NewUser(testUser)
 	require.NoError(t, err)

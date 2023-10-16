@@ -37,7 +37,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -320,9 +322,19 @@ func TestLockUser(t *testing.T) {
 
 func setupUser(t *testing.T, svcs testServices, expireTime time.Time) authz.LocalUser {
 	ctx := context.Background()
-	role, err := types.NewRole("test-group", types.RoleSpecV6{})
+
+	type client struct {
+		services.Access
+		services.Identity
+	}
+
+	clt := client{
+		Access:   svcs.accessService,
+		Identity: svcs.userService,
+	}
+
+	role, err := auth.CreateRole(ctx, clt, "test-group", types.RoleSpecV6{})
 	require.NoError(t, err)
-	require.NoError(t, svcs.accessService.CreateRole(ctx, role))
 
 	user, err := types.NewUser("user1")
 	user.AddRole(role.GetName())

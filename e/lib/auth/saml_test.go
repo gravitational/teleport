@@ -242,9 +242,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 	}
 
 	// SAML connector validation requires the roles in mappings exist.
-	role, err := types.NewRole("admin", types.RoleSpecV6{})
-	require.NoError(t, err)
-	err = a.CreateRole(ctx, role)
+	role, err := auth.CreateRole(ctx, a, "admin", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	connector, err := types.NewSAMLConnector("ping", types.SAMLConnectorSpecV2{
@@ -483,13 +481,11 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	require.Error(t, err)
 
 	// create role referenced in request.
-	role, err := types.NewRole("access", types.RoleSpecV6{
+	_, err = auth.CreateRole(ctx, a, "access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"dummy"},
 		},
 	})
-	require.NoError(t, err)
-	err = a.CreateRole(ctx, role)
 	require.NoError(t, err)
 
 	installLoginRule(ctx, t, a, b, map[string][]string{
@@ -517,9 +513,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	require.NoError(t, err)
 
 	// SAML connector validation requires the roles in mappings exist.
-	connectorRole, err := types.NewRole("baz", types.RoleSpecV6{})
-	require.NoError(t, err)
-	err = a.CreateRole(ctx, connectorRole)
+	connectorRole, err := auth.CreateRole(ctx, a, "baz", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	conn, err := types.NewSAMLConnector("saml-test-conn", types.SAMLConnectorSpecV2{
