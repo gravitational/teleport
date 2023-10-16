@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/client/externalcloudaudit"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/client/userloginstate"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -63,6 +64,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
@@ -785,6 +787,11 @@ func (c *Client) UpsertDeviceResource(ctx context.Context, res *types.DeviceV1) 
 // return "not implemented" errors (as per the default gRPC behavior).
 func (c *Client) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 	return loginrulepb.NewLoginRuleServiceClient(c.conn)
+}
+
+// SecReportsClient returns Security client that can be used to fetch security reports.
+func (c *Client) SecReportsClient() *secreport.Client {
+	return secreport.NewClient(secreportsv1.NewSecReportsServiceClient(c.conn))
 }
 
 // SAMLIdPClient returns an unadorned SAML IdP client, using the underlying

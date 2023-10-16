@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/client/externalcloudaudit"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/client/userloginstate"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -54,6 +55,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
@@ -383,6 +385,15 @@ func (a *ServerWithRoles) ResourceUsageClient() resourceusagepb.ResourceUsageSer
 func (a *ServerWithRoles) UserLoginStateClient() services.UserLoginStates {
 	return userloginstate.NewClient(userloginstatev1.NewUserLoginStateServiceClient(
 		utils.NewGRPCDummyClientConnection("UserLoginStateClient() should not be called on ServerWithRoles")))
+}
+
+// SecReportsClient returns a client for the SecReports service.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) SecReportsClient() *secreport.Client {
+	return secreport.NewClient(secreportsv1.NewSecReportsServiceClient(
+		utils.NewGRPCDummyClientConnection("SecReportsClient() should not be called on ServerWithRoles"),
+	))
 }
 
 // integrationsService returns an Integrations Service.

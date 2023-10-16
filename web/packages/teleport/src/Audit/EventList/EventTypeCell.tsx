@@ -238,6 +238,8 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: Icons.User,
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]:
     Icons.Warning,
+  [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: Icons.Info,
+  [eventCodes.SECURITY_REPORT_RUN]: Icons.Info,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 

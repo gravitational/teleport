@@ -770,7 +770,7 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.TLSServer, err = NewTLSServer(TLSServerConfig{
+	srv.TLSServer, err = NewTLSServer(context.Background(), TLSServerConfig{
 		Listener:      srv.Listener,
 		AccessPoint:   accessPoint,
 		TLS:           tlsConfig,
