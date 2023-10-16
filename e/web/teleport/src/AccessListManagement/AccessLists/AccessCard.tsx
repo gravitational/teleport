@@ -13,12 +13,14 @@ import { AccessListWithModifiedGrants } from './AccessLists';
 
 export type Props = {
   accessList: AccessListWithModifiedGrants;
+  // onlyRender flag makes access card non-interactable.
+  onlyRender?: boolean;
 };
 
 // TODO(lisa): design is very similar to unifiedresources/ResourceCard.tsx
 // consider moving shared styles to a more general place eg: `SingleLineBox`
 // and `TruncatingLabel`
-export function AccessCard({ accessList }: Props) {
+export function AccessCard({ accessList, onlyRender = false }: Props) {
   const { id, title, description, membersCount, grants, needsReviewBy } =
     accessList;
   const history = useHistory();
@@ -32,7 +34,7 @@ export function AccessCard({ accessList }: Props) {
   // TODO(lisa): consider using fixed font size and line height attributes,
   // use a container that fits precisely two lines of text, and then use CSS
   // truncation. This way, you'll get a much more stable and reliable layout.
-  if (description.length > 110) {
+  if (description?.length > 110) {
     truncatedDesc = `${description.substring(0, 110)}...`;
   }
 
@@ -44,7 +46,11 @@ export function AccessCard({ accessList }: Props) {
   const canViewMembers = !isMember && membersCount >= 0;
 
   return (
-    <AccessCardContainer key={id} onClick={handleOnClick}>
+    <AccessCardContainer
+      key={id}
+      onClick={handleOnClick}
+      $onlyRender={onlyRender}
+    >
       {needsReviewBy && !isMember && (
         <ReviewBadge>
           Needs review by {format(needsReviewBy, 'MM/dd')}
@@ -140,6 +146,18 @@ const AccessCardContainer = styled(Flex)`
     border-color: ${props => props.theme.colors.levels.elevated};
     background-color: ${props => props.theme.colors.levels.elevated};
   }
+
+  ${p => {
+    if (p.$onlyRender) {
+      return {
+        pointerEvents: 'none',
+        cursor: 'pointer',
+        boxShadow: p.theme.boxShadow[1],
+        borderColor: p.theme.colors.levels.elevated,
+        backgroundColor: p.theme.colors.levels.elevated,
+      };
+    }
+  }}
 `;
 
 const Description = styled(Text)`

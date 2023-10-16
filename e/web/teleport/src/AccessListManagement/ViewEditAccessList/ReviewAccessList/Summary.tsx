@@ -39,11 +39,6 @@ export function Summary({
   setReviewNotes(s: string): void;
   originalMembers: AccessListMember[];
 }) {
-  const numMembersDeleted = getMembersDeleted(
-    originalMembers,
-    editedMembers
-  ).length;
-
   return (
     <>
       <Box mb={5}>
@@ -71,50 +66,88 @@ export function Summary({
           hideIneligibleReason={true}
         />
       </Box>
-      <Box>
-        <Text fontSize={4} mb={2}>
-          Summary
-        </Text>
-        <List>
-          <li>
-            {getMemberApprovedMsg({
-              numMembersApproved: originalMembers.length - numMembersDeleted,
-              numRolesApproved: editedMembershipRequires.roles.length,
-              numTraitsApproved: editedMembershipRequires.traitLabels.length,
-            })}
-          </li>
-          <li>
-            {numMembersDeleted} {pluralize(numMembersDeleted, 'member')} removed
-          </li>
-        </List>
-        <Box width="500px">
-          <ReviewRecurrence
-            isDisabled={disabled}
-            onChangeFrequency={(o: ReviewFrequencyOption) =>
-              setEditedRecurrence({ ...editedRecurrence, reviewFrequency: o })
-            }
-            onChangeDayOfMonth={(o: ReviewDayOfMonthOption) =>
-              setEditedRecurrence({ ...editedRecurrence, reviewDayOfMonth: o })
-            }
-            selectedFrequency={editedRecurrence.reviewFrequency}
-            selectedDayOfMonth={editedRecurrence.reviewDayOfMonth}
-          />
-        </Box>
-        <LabelInput>Review Notes (Optional)</LabelInput>
-        <FieldTextArea
-          placeholder="Review Notes"
-          value={reviewNotes}
-          onChange={e => setReviewNotes(e.target.value)}
-          resizable={true}
-          readOnly={disabled}
-          textAreaCss={`
-                font-size: 14px;
-                height: 120px;
-                width: 500px;
-                `}
+      <ReviewAudit
+        disabled={disabled}
+        editedMembers={editedMembers}
+        editedMembershipRequires={editedMembershipRequires}
+        editedRecurrence={editedRecurrence}
+        setEditedRecurrence={setEditedRecurrence}
+        reviewNotes={reviewNotes}
+        setReviewNotes={setReviewNotes}
+        originalMembers={originalMembers}
+      />
+    </>
+  );
+}
+
+export function ReviewAudit({
+  disabled,
+  editedMembers,
+  editedMembershipRequires,
+  editedRecurrence,
+  setEditedRecurrence,
+  reviewNotes,
+  setReviewNotes,
+  originalMembers,
+}: {
+  disabled: boolean;
+  editedMembers: AccessListMember[];
+  editedMembershipRequires: MembershipRequires;
+  editedRecurrence: EditedRecurrence;
+  setEditedRecurrence(e: EditedRecurrence): void;
+  reviewNotes: string;
+  setReviewNotes(s: string): void;
+  originalMembers: AccessListMember[];
+}) {
+  const numMembersDeleted = getMembersDeleted(
+    originalMembers,
+    editedMembers
+  ).length;
+
+  return (
+    <Box>
+      <Text fontSize={4} mb={2}>
+        Summary
+      </Text>
+      <List>
+        <li>
+          {getMemberApprovedMsg({
+            numMembersApproved: originalMembers.length - numMembersDeleted,
+            numRolesApproved: editedMembershipRequires.roles.length,
+            numTraitsApproved: editedMembershipRequires.traitLabels.length,
+          })}
+        </li>
+        <li>
+          {numMembersDeleted} {pluralize(numMembersDeleted, 'member')} removed
+        </li>
+      </List>
+      <Box width="500px">
+        <ReviewRecurrence
+          isDisabled={disabled}
+          onChangeFrequency={(o: ReviewFrequencyOption) =>
+            setEditedRecurrence({ ...editedRecurrence, reviewFrequency: o })
+          }
+          onChangeDayOfMonth={(o: ReviewDayOfMonthOption) =>
+            setEditedRecurrence({ ...editedRecurrence, reviewDayOfMonth: o })
+          }
+          selectedFrequency={editedRecurrence.reviewFrequency}
+          selectedDayOfMonth={editedRecurrence.reviewDayOfMonth}
         />
       </Box>
-    </>
+      <LabelInput>Review Notes (Optional)</LabelInput>
+      <FieldTextArea
+        placeholder="Review Notes"
+        value={reviewNotes}
+        onChange={e => setReviewNotes(e.target.value)}
+        resizable={true}
+        readOnly={disabled}
+        textAreaCss={`
+                font-size: 14px;
+                height: 95px;
+                width: 500px;
+                `}
+      />
+    </Box>
   );
 }
 

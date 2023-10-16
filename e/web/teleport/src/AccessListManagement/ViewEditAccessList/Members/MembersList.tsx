@@ -86,11 +86,13 @@ export const AccessListMemberTable = ({
   memberEditAccess,
   onDeleteMember = null,
   hideIneligibleReason = false,
+  hideReasonCol = false,
 }: {
   members: AccessListMember[];
   memberEditAccess: EditAccessMeta;
   onDeleteMember?(m: AccessListMember): void;
   hideIneligibleReason?: boolean;
+  hideReasonCol?: boolean;
 }) => {
   return (
     <Table
@@ -116,7 +118,7 @@ export const AccessListMemberTable = ({
             </CustomCell>
           ),
         },
-        {
+        !hideReasonCol && {
           key: 'reason',
           headerText: 'Reason',
           isSortable: true,

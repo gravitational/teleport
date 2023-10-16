@@ -23,7 +23,7 @@ import { NoAccessState } from '../NoAccessState';
 import { makeTraitLabel } from '../Traits';
 import { LimitedPreviewNotice } from '../LimitedPreviewNotice';
 
-import { EmptyState } from './EmptyState';
+import { EmptyState } from './EmptyState/EmptyState';
 import { AccessCard } from './AccessCard';
 
 export type AccessListWithModifiedGrants = Omit<AccessList, 'grants'> & {
@@ -134,6 +134,7 @@ export function AccessLists() {
 
   let MainContent: React.ReactElement;
   let showCreateBtn = true;
+  let showFeatureHeader = true;
   if (attempt.status === '') {
     MainContent = <NoAccessState />;
   } else if (attempt.status === 'processing') {
@@ -148,6 +149,7 @@ export function AccessLists() {
   } else if (attempt.status === 'success' && accesses.length === 0) {
     MainContent = <EmptyState />;
     showCreateBtn = false;
+    showFeatureHeader = false;
   } else {
     MainContent = (
       <>
@@ -174,25 +176,29 @@ export function AccessLists() {
   const noPermToCreate = !canUpsertAsAdmin && attempt.status === '';
   return (
     <FeatureBox>
-      <FeatureHeader alignItems="center" justifyContent="space-between">
-        <FeatureHeaderTitle>Access Lists</FeatureHeaderTitle>
-        {showCreateBtn && (
-          <ButtonPrimary
-            title={
-              noPermToCreate
-                ? `Only Teleport administrators can create new Access Lists`
-                : ''
-            }
-            disabled={noPermToCreate || attempt.status === 'processing'}
-            width="240px"
-            as={Link}
-            to={cfg.routes.accessListNew}
-          >
-            Create New Access List
-          </ButtonPrimary>
-        )}
-      </FeatureHeader>
-      {attempt.status !== 'failed' && <LimitedPreviewNotice />}
+      {showFeatureHeader && (
+        <>
+          <FeatureHeader alignItems="center" justifyContent="space-between">
+            <FeatureHeaderTitle>Access Lists</FeatureHeaderTitle>
+            {showCreateBtn && (
+              <ButtonPrimary
+                title={
+                  noPermToCreate
+                    ? `Only Teleport administrators can create new Access Lists`
+                    : ''
+                }
+                disabled={noPermToCreate || attempt.status === 'processing'}
+                width="240px"
+                as={Link}
+                to={cfg.routes.accessListNew}
+              >
+                Create New Access List
+              </ButtonPrimary>
+            )}
+          </FeatureHeader>
+          {attempt.status !== 'failed' && <LimitedPreviewNotice />}
+        </>
+      )}
       {MainContent}
     </FeatureBox>
   );

@@ -1,0 +1,141 @@
+import {
+  AccessListMember,
+  IneligibleStatus,
+} from 'e-teleport/services/accessmanagement';
+import { getIneligibleReason } from 'e-teleport/services/accessmanagement/accessmanagement';
+
+import { AccessListWithModifiedGrants } from '../AccessLists';
+
+export const mockAccessLists: AccessListWithModifiedGrants[] = [
+  {
+    id: '1',
+    title: 'All Employees',
+    description: 'Adding new hires!',
+    grants: { roles: ['core-apps'], traitList: [], traits: {} },
+    membersCount: 273,
+    audit: {} as any,
+    ownershipRequires: {} as any,
+    owners: [],
+    needsReviewBy: null,
+  },
+  {
+    id: '2',
+    title: 'Design',
+    description: 'Allocating PostHog so Design Team...',
+    grants: {
+      traits: {},
+      traitList: [],
+      roles: ['auditor', 'editor', 'reviewer'],
+    },
+    membersCount: 8,
+    audit: {} as any,
+    ownershipRequires: {} as any,
+    owners: [],
+    needsReviewBy: null,
+  },
+  {
+    id: '3',
+    title: 'Engineering',
+    description: 'Adding new engineers to eng team res...',
+    grants: {
+      traits: {},
+      traitList: [],
+      roles: ['auditor', 'editor', 'reviewer'],
+    },
+    membersCount: 186,
+    audit: {} as any,
+    ownershipRequires: {} as any,
+    owners: [],
+    needsReviewBy: null,
+  },
+  {
+    id: '4',
+    title: 'Finance',
+    description: 'Removed deprecated procurement platform...',
+    grants: {
+      traits: {},
+      traitList: [],
+      roles: ['auditor', 'editor', 'reviewer'],
+    },
+    membersCount: 6,
+    audit: {} as any,
+    ownershipRequires: {} as any,
+    owners: [],
+    needsReviewBy: null,
+  },
+  {
+    id: '5',
+    title: 'HR',
+    description: 'All things human resource...',
+    grants: {
+      traits: {},
+      traitList: [],
+      roles: ['auditor', 'editor', 'reviewer'],
+    },
+    membersCount: 6,
+    audit: {} as any,
+    ownershipRequires: {} as any,
+    owners: [],
+    needsReviewBy: null,
+  },
+  {
+    id: '6',
+    title: 'Marketing',
+    description: 'All things marketing...',
+    grants: {
+      traits: {},
+      traitList: [],
+      roles: ['auditor', 'editor', 'reviewer'],
+    },
+    membersCount: 4,
+    audit: {} as any,
+    ownershipRequires: {} as any,
+    owners: [],
+    needsReviewBy: null,
+  },
+];
+
+export const mockMembers: AccessListMember[] = [
+  {
+    name: 'barkley@example.com',
+    joined: new Date('September 09, 2023'),
+    expires: new Date('October 02, 2023'),
+    addedBy: 'admin',
+    ineligibleReason: '',
+  },
+  {
+    name: 'bob@example.com',
+    joined: new Date('May 12, 2023'),
+    expires: new Date('November 12, 2023'),
+    addedBy: 'admin',
+    ineligibleReason: '',
+  },
+  {
+    name: 'betty.lou@example.com',
+    joined: new Date('May 12, 2023'),
+    expires: new Date('November 12, 2023'),
+    addedBy: 'admin',
+    ineligibleReason: '',
+  },
+  {
+    name: 'ernie@example.com',
+    joined: new Date('May 12, 2023'),
+    expires: new Date('November 12, 2023'),
+    addedBy: 'admin',
+    ineligibleReason: getIneligibleReason(IneligibleStatus.MissingRequirements),
+  },
+  {
+    name: 'jane@example.com',
+    joined: new Date('May 12, 2023'),
+    expires: new Date('November 12, 2023'),
+    addedBy: 'admin',
+    ineligibleReason: '',
+  },
+  {
+    name: 'sherlock@example.com',
+    joined: new Date('May 12, 2023'),
+    expires: new Date('November 12, 2023'),
+    addedBy: 'admin',
+    ineligibleReason: getIneligibleReason(IneligibleStatus.UserNotExist),
+  },
+];

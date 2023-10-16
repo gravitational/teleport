@@ -1,0 +1,45 @@
+import React from 'react';
+import { Flex } from 'design';
+
+import { AccessCard } from '../AccessCard';
+
+import { Description, Feature, FeatureProps, Title } from './Shared';
+import { mockAccessLists } from './fixtures';
+
+export const GetVisibility = ({ active, onClick, isSliding }: FeatureProps) => {
+  return (
+    <Feature $active={active} onClick={onClick} $isSliding={isSliding}>
+      <Title>Get visibility into access</Title>
+      <Description>
+        <span css={{ display: 'var(--feature-text-display)' }}>
+          See why access has been granted and who has granted it.{' '}
+        </span>
+        See people responsible for access.
+      </Description>
+    </Feature>
+  );
+};
+
+export const GetVisibilityPreview = () => {
+  return (
+    <Flex
+      flexWrap="wrap"
+      gap={3}
+      css={`
+        transform: var(--feature-preview-scale);
+        max-width: 700px;
+        @media (max-width: 1445px) {
+          margin-top: -70px;
+        }
+      `}
+    >
+      {mockAccessLists.map(accessList => (
+        <AccessCard
+          key={accessList.id}
+          onlyRender={true}
+          accessList={accessList}
+        />
+      ))}
+    </Flex>
+  );
+};

@@ -304,7 +304,7 @@ export type EditAccessMeta = {
   hasAccess: boolean;
   // Hover titles for buttons.
   // Can be empty if user hasAccess == true.
-  btnTitle: string;
+  btnTitle?: string;
 };
 
 // EditAccess determines what kinds of editing actions the viewing

@@ -185,7 +185,7 @@ function makeAccessList(json: any): AccessList {
   };
 }
 
-function getIneligibleReason(ineligibleStatus: IneligibleStatus) {
+export function getIneligibleReason(ineligibleStatus: IneligibleStatus) {
   if (ineligibleStatus === IneligibleStatus.UserNotExist) {
     return 'User does not exist';
   }
