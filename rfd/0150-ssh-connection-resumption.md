@@ -107,3 +107,13 @@ It's possible to fill the replay buffer on the remote side of a resumable connec
 The connection limit for a given source address should be reduced upon receiving a connection but should not be increased again until the connection is properly cleaned up by the server or until a new underlying connection replaces the old one. This should be documented, as it might cause issues if connection limits are deliberately kept very low and some connection ends up being lost or not terminated correctly.
 
 ## Future development
+
+### Other protocols
+
+The same resumption mechanism could be employed for other protocols, since losing a long-lived database connection or a desktop session due to a Teleport proxy restart can be annoying. This can only be done whenever a client in our total control is at play, however, and not when the proxy is terminating connections (that would be pointless); that means using `tsh proxy db`, `tsh proxy kube` or some yet-to-exist desktop client for our Desktop Access sessions.
+
+### Persisting SSH connections across Teleport node restarts
+
+We currently re-execute Teleport to handle various user bookkeeping tasks, but the SSH connection itself is handled by the single monolithic `teleport` process; in direct dial mode it would be possible for a child process to handle the incoming connection on its own (similarly to how OpenSSH does it), but since the connection could not outlive the main process handling the reverse tunnel connection in tunnel mode, this was never explored.
+
+Connection resumption lets us do that, however; as long as any Teleport agent is running and can forward connections to the child processes, it would be possible for the SSH connection to survive and be used across a Teleport agent restart or upgrade.
