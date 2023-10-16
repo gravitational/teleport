@@ -99,9 +99,29 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				},
 			},
 			expected: &userpreferencesv1.UserPreferences{
-				Assist:             defaultPref.Assist,
-				Onboard:            defaultPref.Onboard,
-				Theme:              userpreferencesv1.Theme_THEME_DARK,
+				Assist:                     defaultPref.Assist,
+				Onboard:                    defaultPref.Onboard,
+				Theme:                      userpreferencesv1.Theme_THEME_DARK,
+				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
+				ClusterPreferences:         defaultPref.ClusterPreferences,
+			},
+		},
+		{
+			name: "update the unified tab preference only",
+			req: &userpreferencesv1.UpsertUserPreferencesRequest{
+				Preferences: &userpreferencesv1.UserPreferences{
+					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+						DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
+					},
+				},
+			},
+			expected: &userpreferencesv1.UserPreferences{
+				Assist:  defaultPref.Assist,
+				Onboard: defaultPref.Onboard,
+				Theme:   defaultPref.Theme,
+				UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+					DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
+				},
 				ClusterPreferences: defaultPref.ClusterPreferences,
 			},
 		},
@@ -119,8 +139,9 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				},
 			},
 			expected: &userpreferencesv1.UserPreferences{
-				Theme:   defaultPref.Theme,
-				Onboard: defaultPref.Onboard,
+				Theme:                      defaultPref.Theme,
+				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
+				Onboard:                    defaultPref.Onboard,
 				Assist: &userpreferencesv1.AssistUserPreferences{
 					PreferredLogins: []string{"foo", "bar"},
 					ViewMode:        defaultPref.Assist.ViewMode,
@@ -138,8 +159,9 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				},
 			},
 			expected: &userpreferencesv1.UserPreferences{
-				Theme:   defaultPref.Theme,
-				Onboard: defaultPref.Onboard,
+				Theme:                      defaultPref.Theme,
+				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
+				Onboard:                    defaultPref.Onboard,
 				Assist: &userpreferencesv1.AssistUserPreferences{
 					PreferredLogins: defaultPref.Assist.PreferredLogins,
 					ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP_EXPANDED_SIDEBAR_VISIBLE,
@@ -163,8 +185,9 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				},
 			},
 			expected: &userpreferencesv1.UserPreferences{
-				Assist: defaultPref.Assist,
-				Theme:  defaultPref.Theme,
+				Assist:                     defaultPref.Assist,
+				Theme:                      defaultPref.Theme,
+				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
 				Onboard: &userpreferencesv1.OnboardUserPreferences{
 					PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_DATABASES},
 					MarketingParams: &userpreferencesv1.MarketingParams{
@@ -189,9 +212,10 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				},
 			},
 			expected: &userpreferencesv1.UserPreferences{
-				Assist:  defaultPref.Assist,
-				Theme:   defaultPref.Theme,
-				Onboard: defaultPref.Onboard,
+				Assist:                     defaultPref.Assist,
+				Theme:                      defaultPref.Theme,
+				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
+				Onboard:                    defaultPref.Onboard,
 				ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
 					PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
 						ResourceIds: []string{"node1", "node2"},
@@ -204,6 +228,9 @@ func TestUserPreferencesCRUD(t *testing.T) {
 			req: &userpreferencesv1.UpsertUserPreferencesRequest{
 				Preferences: &userpreferencesv1.UserPreferences{
 					Theme: userpreferencesv1.Theme_THEME_LIGHT,
+					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+						DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
+					},
 					Assist: &userpreferencesv1.AssistUserPreferences{
 						PreferredLogins: []string{"baz"},
 						ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP,
@@ -226,6 +253,9 @@ func TestUserPreferencesCRUD(t *testing.T) {
 			},
 			expected: &userpreferencesv1.UserPreferences{
 				Theme: userpreferencesv1.Theme_THEME_LIGHT,
+				UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+					DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
+				},
 				Assist: &userpreferencesv1.AssistUserPreferences{
 					PreferredLogins: []string{"baz"},
 					ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP,

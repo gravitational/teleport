@@ -1631,6 +1631,28 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		Kinds:               req.Kinds,
 	}
 
+	// Apply any requested additional search_as_roles and/or preview_as_roles
+	// for the duration of the search.
+	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
+		extendedContext, err := a.authContextForSearch(ctx, &proto.ListResourcesRequest{
+			UseSearchAsRoles:    req.UseSearchAsRoles,
+			UsePreviewAsRoles:   req.UsePreviewAsRoles,
+			ResourceType:        types.KindUnifiedResource,
+			Namespace:           apidefaults.Namespace,
+			Labels:              req.Labels,
+			PredicateExpression: req.PredicateExpression,
+			SearchKeywords:      req.SearchKeywords,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		baseContext := a.context
+		a.context = *extendedContext
+		defer func() {
+			a.context = baseContext
+		}()
+	}
+
 	resourceChecker, err := a.newResourceAccessChecker(types.KindUnifiedResource)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1644,7 +1666,15 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			return &proto.ListUnifiedResourcesResponse{}, nil
 		}
 		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) bool {
-			if err := resourceChecker.CanAccess(resource); err != nil {
+			var err error
+			switch r := resource.(type) {
+			// TODO (avatus) we should add this type into the `resourceChecker.CanAccess` method
+			case types.SAMLIdPServiceProvider:
+				err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList)
+			default:
+				err = resourceChecker.CanAccess(r)
+			}
+			if err != nil {
 				return false
 			}
 			match, _ := services.MatchResourceByFilters(resource, filter, nil)
@@ -1652,6 +1682,13 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "getting unified resources by ID")
+		}
+
+		// we need to sort pinned resources manually because they are fetched in the order they were pinned
+		if req.SortBy.Field != "" {
+			if err := unifiedResources.SortByCustom(req.SortBy); err != nil {
+				return nil, trace.Wrap(err, "sorting unified resources")
+			}
 		}
 	} else {
 		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
@@ -5425,6 +5462,12 @@ func (a *ServerWithRoles) GetResources(ctx context.Context, req *proto.ListResou
 func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 	if !hasLocalUserRole(a.context) && !hasRemoteUserRole(a.context) {
 		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
+	}
+	// Certain hardware-key based private key policies are treated as MFA verification.
+	if a.context.Identity.GetIdentity().PrivateKeyPolicy.MFAVerified() {
+		return &proto.IsMFARequiredResponse{
+			Required: false,
+		}, nil
 	}
 	return a.authServer.isMFARequired(ctx, a.context.Checker, req)
 }

@@ -37,7 +37,7 @@ test('extracting params from URL with simple search and sort params', () => {
   const history = createMemoryHistory({ initialEntries: [url] });
 
   let result;
-  result = renderHook(() => useUrlFiltering(initialSort), {
+  result = renderHook(() => useUrlFiltering(initialParams), {
     wrapper: Wrapper,
     wrapperProps: { history },
   });
@@ -62,7 +62,7 @@ test('extracting params from URL with advanced search and sort params', () => {
   const history = createMemoryHistory({ initialEntries: [url] });
 
   let result;
-  result = renderHook(() => useUrlFiltering(initialSort), {
+  result = renderHook(() => useUrlFiltering(initialParams), {
     wrapper: Wrapper,
     wrapperProps: { history },
   });
@@ -83,7 +83,7 @@ test('extracting params from URL with simple search param but no sort param', ()
   const history = createMemoryHistory({ initialEntries: [url] });
 
   let result;
-  result = renderHook(() => useUrlFiltering(initialSort), {
+  result = renderHook(() => useUrlFiltering(initialParams), {
     wrapper: Wrapper,
     wrapperProps: { history },
   });
@@ -103,7 +103,7 @@ test('extracting params from URL with no search param and with sort param with u
   const history = createMemoryHistory({ initialEntries: [url] });
 
   let result;
-  result = renderHook(() => useUrlFiltering(initialSort), {
+  result = renderHook(() => useUrlFiltering(initialParams), {
     wrapper: Wrapper,
     wrapperProps: { history },
   });
@@ -122,7 +122,7 @@ test('extracting params from URL with resource kinds', () => {
 
   const history = createMemoryHistory({ initialEntries: [url] });
 
-  const { current } = renderHook(() => useUrlFiltering(initialSort), {
+  const { current } = renderHook(() => useUrlFiltering(initialParams), {
     wrapper: Wrapper,
     wrapperProps: { history },
   });
@@ -134,6 +134,8 @@ const initialSort: SortType = {
   fieldName: 'description',
   dir: 'ASC',
 };
+
+const initialParams = { sort: initialSort };
 
 function Wrapper(props: any) {
   return <Router history={props.history}>{props.children}</Router>;

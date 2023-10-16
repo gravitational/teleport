@@ -1818,6 +1818,10 @@ message AuthPreferenceSpecV2 {
   // Okta is a set of options related to the Okta service in Teleport.
   // Requires Teleport Enterprise.
   OktaOptions Okta = 17 [(gogoproto.jsontag) = "okta,omitempty"];
+
+  // PIVSlot is a PIV slot that Teleport clients should use instead of the
+  // default based on private key policy. For example, "9a" or "9e".
+  string PIVSlot = 18 [(gogoproto.jsontag) = "piv_slot,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -5329,9 +5333,8 @@ enum RequireMFAType {
   // and login sessions must use a private key backed by a hardware key.
   SESSION_AND_HARDWARE_KEY = 2;
   // HARDWARE_KEY_TOUCH means login sessions must use a hardware private key that
-  // requires touch to be used. This touch requirement applies to all API requests
-  // rather than only session requests. This touch is different from MFA, so to prevent
-  // requiring double touch on session requests, normal Session MFA is disabled.
+  // requires touch to be used. This touch is required for all private key operations,
+  // so the key is always treated as MFA verified for sessions.
   HARDWARE_KEY_TOUCH = 3;
 }
 

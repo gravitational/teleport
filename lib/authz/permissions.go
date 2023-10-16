@@ -245,7 +245,7 @@ func (c *Context) GetAccessState(authPref types.AuthPreference) services.AccessS
 	// Builtin services (like proxy_service and kube_service) are not gated
 	// on MFA and only need to pass normal RBAC action checks.
 	_, isService := c.Identity.(BuiltinRole)
-	state.MFAVerified = isService || identity.MFAVerified != ""
+	state.MFAVerified = isService || identity.IsMFAVerified()
 
 	state.EnableDeviceVerification = !c.disableDeviceAuthorization
 	state.DeviceVerified = isService || dtauthz.IsTLSDeviceVerified(&identity.DeviceExtensions)
@@ -616,6 +616,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindDatabaseService, services.RO()),
 				types.NewRule(types.KindSAMLIdPServiceProvider, services.RO()),
 				types.NewRule(types.KindUserGroup, services.RO()),
+				types.NewRule(types.KindClusterMaintenanceConfig, services.RO()),
 				types.NewRule(types.KindIntegration, append(services.RO(), types.VerbUse)),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.

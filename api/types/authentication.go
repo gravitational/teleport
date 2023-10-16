@@ -96,6 +96,8 @@ type AuthPreference interface {
 	GetRequireMFAType() RequireMFAType
 	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
+	// GetPIVSlot returns the configured piv slot for the cluster.
+	GetPIVSlot() keys.PIVSlot
 
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
@@ -390,6 +392,11 @@ func (c *AuthPreferenceV2) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 	default:
 		return keys.PrivateKeyPolicyNone
 	}
+}
+
+// GetPIVSlot returns the configured piv slot for the cluster.
+func (c *AuthPreferenceV2) GetPIVSlot() keys.PIVSlot {
+	return keys.PIVSlot(c.Spec.PIVSlot)
 }
 
 // GetDisconnectExpiredCert returns disconnect expired certificate setting
@@ -853,7 +860,7 @@ func (d *MFADevice) UnmarshalJSON(buf []byte) error {
 
 // IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.
 func (r RequireMFAType) IsSessionMFARequired() bool {
-	return r == RequireMFAType_SESSION || r == RequireMFAType_SESSION_AND_HARDWARE_KEY
+	return r != RequireMFAType_OFF
 }
 
 // MarshalJSON marshals RequireMFAType to boolean or string.

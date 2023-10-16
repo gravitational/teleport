@@ -446,7 +446,7 @@ func TestOIDCLogin(t *testing.T) {
 			if event.Type != types.OpPut {
 				panic(fmt.Sprintf("unexpected event type: %v\n", event))
 			}
-			err = authServer.SetAccessRequestState(ctx, types.AccessRequestUpdate{
+			err := authServer.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 				RequestID: event.Resource.(types.AccessRequest).GetName(),
 				State:     types.RequestState_APPROVED,
 			})
