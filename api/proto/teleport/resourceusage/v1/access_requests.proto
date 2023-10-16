@@ -19,7 +19,7 @@ package teleport.resourceusage.v1;
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1;resourceusagev1";
 
 // AccessRequestsUsage defines the usage limits for access requests.
-// Currently this is limited on the basis of access requests used per calendar month.
+// Usage is limited on the basis of access requests used per calendar month.
 message AccessRequestsUsage {
   // MonthlyLimit is the amount of requests that are allowed per month
   int32 monthly_limit = 1;
