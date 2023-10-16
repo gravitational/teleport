@@ -59,14 +59,14 @@ type activateUserDetails struct {
 	//
 	// Reference:
 	// https://dev.mysql.com/doc/refman/8.0/en/information-schema-user-attributes-table.html
-	//
-	// To check current user's attribute for MariaDB:
-	// SELECT * FROM teleport.V_user_attributes
 	Attributes struct {
 		// User is the original Teleport user name.
 		//
-		// Find a Teleport user (with "admin" privilege):
+		// Find a Teleport user (with "admin" privilege) for MySQL:
 		// SELECT * FROM INFORMATION_SCHEMA.USER_ATTRIBUTES WHERE ATTRIBUTE->"$.user" = "teleport-user-name";
+		//
+		// Find a Teleport user (with "admin" privilege) for MariaDB:
+		// SELECT * FROM teleport.user_attributes WHERE JSON_VALUE(Attributes,"$.user") = "teleport-user-name";
 		User string `json:"user"`
 	} `json:"attributes"`
 }
@@ -331,6 +331,13 @@ func checkMariaDBSupportedVersion(serverVersion string) error {
 	// serverVersion may look like these:
 	// 5.5.5-10.7.8-MariaDB-1:10.7.8+maria~ubu2004
 	// 5.5.5-10.11.5-MariaDB
+	// 11.0.3-MariaDB-1:11.0.3+maria~ubu2204
+	//
+	// Note that the "5.5.5-" prefix (aka "replication version hack") was
+	// introduced when MariaDB bumped the major version to 10. The prefix is
+	// removed in version 11. References:
+	// https://stackoverflow.com/questions/56601304/what-does-the-first-part-of-the-mariadb-version-string-mean
+	// https://github.com/php/php-src/pull/7963
 	serverVersion, _, _ = strings.Cut(serverVersion, "-MariaDB")
 	serverVersion = strings.TrimPrefix(serverVersion, "5.5.5-")
 
@@ -547,9 +554,7 @@ var (
 	//   Note that roles_mapping tracks both role assignments and role "owners".
 	//   "Owners" are tracked in rows with Admin_option = 'Y'.
 	// - MariaDB does not have built-in user attributes field. Instead, the
-	//   procedure will create an `user_attributes` table for tracking this. A
-	//   view `V_user_attributes` is also created so that each logged-in user
-	//   can see their own attributes.
+	//   procedure will create an `user_attributes` table for tracking this.
 	// - MariaDB cannot `SET DEFAULT ROLE ALL`. To workaround this, a role
 	//   `tp-role-<username>` is created and assigned to the database user
 	//   while all roles are assigned to this all-in-one role. Then `SET

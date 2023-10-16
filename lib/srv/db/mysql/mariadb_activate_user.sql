@@ -57,13 +57,8 @@ proc_label:BEGIN
 
         -- Set up user attributes.
         CREATE TABLE IF NOT EXISTS user_attributes(User char(128), Attributes JSON, Primary Key (User));
-        CREATE OR REPLACE VIEW V_user_attributes AS SELECT * FROM user_attributes WHERE SUBSTRING_INDEX(SESSION_USER(),'@',1) = User ;
         SET @attributes := JSON_EXTRACT(details,"$.attributes");
         INSERT INTO user_attributes VALUES(username, @attributes) ON DUPLICATE KEY UPDATE Attributes=@attributes;
-        SET @sql := CONCAT_WS(' ', 'GRANT SELECT ON V_user_attributes TO', QUOTE(username));
-        PREPARE stmt FROM @sql;
-        EXECUTE stmt;
-        DEALLOCATE PREPARE stmt;
     END IF;
 
     -- Strip current roles and assign new roles to all-in-one role.

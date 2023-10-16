@@ -207,7 +207,7 @@ func Test_checkMariaDBSupportedVersion(t *testing.T) {
 			checkError: require.NoError,
 		},
 		{
-			input:      "5.5.5-11.0.0-MariaDB",
+			input:      "11.0.3-MariaDB-1:11.0.3+maria~ubu2204",
 			checkError: require.NoError,
 		},
 		{
