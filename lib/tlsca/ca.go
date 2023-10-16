@@ -322,6 +322,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		AccessRequests:          id.ActiveRequests,
 		DisallowReissue:         id.DisallowReissue,
 		AllowedResourceIDs:      events.ResourceIDs(id.AllowedResourceIDs),
+		PrivateKeyPolicy:        string(id.PrivateKeyPolicy),
 	}
 }
 
@@ -1048,6 +1049,14 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		GCPServiceAccount: id.RouteToApp.GCPServiceAccount,
 		AccessRequests:    id.ActiveRequests,
 		TrustedDevice:     device,
+	}
+}
+
+func (id Identity) GetSessionMetadata(sid string) events.SessionMetadata {
+	return events.SessionMetadata{
+		SessionID:        sid,
+		WithMFA:          id.MFAVerified,
+		PrivateKeyPolicy: string(id.PrivateKeyPolicy),
 	}
 }
 
