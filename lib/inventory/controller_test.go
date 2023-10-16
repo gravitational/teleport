@@ -139,6 +139,9 @@ func TestSSHServerBasics(t *testing.T) {
 	handle, ok := controller.GetControlStream(serverID)
 	require.True(t, ok)
 
+	// verify that hb counter has been incremented
+	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Counter.Load())
+
 	// send a fake ssh server heartbeat
 	err := downstream.Send(ctx, proto.InventoryHeartbeat{
 		SSHServer: &types.ServerV2{
@@ -248,6 +251,11 @@ func TestSSHServerBasics(t *testing.T) {
 		t.Fatal("timeout waiting for handle closure")
 	}
 
+	// verify that hb counter has been decremented (counter is decremented concurrently, but
+	// always *before* closure is propagated to downstream handle, hence being safe to load
+	// here).
+	require.Equal(t, int64(0), controller.instanceHBVariableDuration.Counter.Load())
+
 	// verify that the peer address of the control stream was used to override
 	// zero-value IPs for heartbeats.
 	auth.mu.Lock()
@@ -290,6 +298,18 @@ func TestInstanceHeartbeat_Disabled(t *testing.T) {
 	awaitEvents(t, events,
 		deny(instanceHeartbeatOk, instanceHeartbeatErr, instanceCompareFailed, handlerClose),
 	)
+}
+
+func TestInstanceHeartbeatDisabledEnv(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_ENABLE_INSTANCE_HB", "no")
+
+	controller := NewController(
+		&fakeAuth{},
+		usagereporter.DiscardUsageReporter{},
+	)
+	defer controller.Close()
+
+	require.False(t, controller.instanceHBEnabled)
 }
 
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.

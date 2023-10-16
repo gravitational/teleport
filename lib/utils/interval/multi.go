@@ -63,6 +63,12 @@ type SubInterval[T any] struct {
 	// applied, this represents the upper bound of the range).
 	Duration time.Duration
 
+	// VariableDuration, if supplied, replaces the 'Duration' paramater with a
+	// variable duration generator. Variable durations are used to calculate
+	// some heartbeat intervals so that the time between heartbeats scales up
+	// as concurrent load increases.
+	VariableDuration *VariableDuration
+
 	// FirstDuration is an optional special duration to be used for the first
 	// "tick" of the interval.  This duration is not jittered.
 	FirstDuration time.Duration
@@ -102,6 +108,9 @@ func (s *subIntervalEntry[T]) duration(now time.Time) time.Duration {
 
 func (s *subIntervalEntry[T]) reset(now time.Time) {
 	d := s.Duration
+	if s.VariableDuration != nil {
+		d = s.VariableDuration.Duration()
+	}
 	if s.Jitter != nil {
 		d = s.Jitter(d)
 	}
@@ -131,7 +140,7 @@ func NewMulti[T comparable](intervals ...SubInterval[T]) *MultiInterval[T] {
 	// check and initialize our sub-intervals.
 	now := time.Now()
 	for _, sub := range intervals {
-		if sub.Duration <= 0 {
+		if sub.Duration <= 0 && (sub.VariableDuration == nil || sub.VariableDuration.Duration() <= 0) {
 			panic(errors.New("non-positive sub interval for interval.NewMulti"))
 		}
 		entry := subIntervalEntry[T]{
@@ -155,7 +164,7 @@ func NewMulti[T comparable](intervals ...SubInterval[T]) *MultiInterval[T] {
 // Push adds a new sub-interval, potentially overwriting an existing sub-interval with the same key.
 // This method panics on non-positive durations (equivalent to time.NewTicker).
 func (i *MultiInterval[T]) Push(sub SubInterval[T]) {
-	if sub.Duration <= 0 {
+	if sub.Duration <= 0 && (sub.VariableDuration == nil || sub.VariableDuration.Duration() <= 0) {
 		panic(errors.New("non-positive sub interval for MultiInterval.Push"))
 	}
 	entry := subIntervalEntry[T]{

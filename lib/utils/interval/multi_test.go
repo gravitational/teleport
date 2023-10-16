@@ -125,6 +125,81 @@ func TestMultiIntervalBasics(t *testing.T) {
 	require.Greater(t, fast, slow)
 }
 
+// TestMultiIntervalVariableDuration verifies that variable durations within a multiinterval function
+// as expected.
+func TestMultiIntervalVariableDuration(t *testing.T) {
+	t.Parallel()
+
+	foo := &VariableDuration{
+		MinDuration: time.Millisecond * 8,
+		MaxDuration: time.Hour,
+		Step:        1,
+	}
+
+	foo.Counter.Store(1)
+
+	bar := &VariableDuration{
+		MinDuration: time.Millisecond * 8,
+		MaxDuration: time.Hour,
+		Step:        1,
+	}
+
+	bar.Counter.Store(1)
+
+	interval := NewMulti[string](
+		SubInterval[string]{
+			Key:              "foo",
+			VariableDuration: foo,
+		},
+		SubInterval[string]{
+			Key:              "bar",
+			VariableDuration: bar,
+		},
+	)
+	defer interval.Stop()
+
+	var fooct, barct int
+	var prevT time.Time
+	for i := 0; i < 60; i++ {
+		tick := <-interval.Next()
+		require.True(t, !tick.Time.IsZero())
+		require.True(t, tick.Time.After(prevT) || tick.Time == prevT)
+		prevT = tick.Time
+		switch tick.Key {
+		case "foo":
+			fooct++
+		case "bar":
+			barct++
+		}
+	}
+	require.Equal(t, 60, fooct+barct, "fooct=%d, barct=%d", fooct, barct)
+	// intervals should be firing at the same rate
+	require.InDelta(t, fooct, barct, 1)
+
+	foo.Counter.Store(2)
+	bar.Counter.Store(200_000)
+
+	fooct = 0
+	barct = 0
+	for i := 0; i < 60; i++ {
+		tick := <-interval.Next()
+		switch tick.Key {
+		case "foo":
+			fooct++
+		case "bar":
+			barct++
+		}
+	}
+
+	require.Equal(t, 60, fooct+barct, "fooct=%d, barct=%d", fooct, barct)
+
+	// foo should have fired *way* more than twice as often, but time-based tests are flaky
+	// so we're checking for a very conservative difference in frequency here. the point is just
+	// to prove that when the variable duration increases the firing duration increases as well.
+	// covering specifics are left to the variable duration output tests, which are not time-based.
+	require.Greater(t, fooct, barct*2, "fooct=%d, barct=%d", fooct, barct)
+}
+
 // TestMultiIntervalPush verifies the expected behavior of MultiInterval.Push, both in terms of
 // its ability to add new sub-intervals, and to overwrite existing sub-intervals.
 func TestMultiIntervalPush(t *testing.T) {
