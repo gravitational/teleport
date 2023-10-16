@@ -53,7 +53,7 @@ func initializeAndWatchAccessGraph(ctx context.Context, accessGraphAddr string, 
 		return trace.Wrap(err)
 	}
 
-	if resp.GetCacheInitialized() {
+	if !resp.GetCacheInitialized() {
 		// Order of sending matters here. Roles must go first.
 		// TODO(jakule): Order should not matter.
 		if err := sendRoles(ctx, authServer, accessGraphClient); err != nil {
