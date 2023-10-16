@@ -21,11 +21,11 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // DevicesUsage holds aggregated information about trusted device usage.
 message DevicesUsage {
   // Devices usage limit.
-  // Always zero if the account usage type is UNLIMITED.
+  // Always zero if the account usage type is ACCOUNT_USAGE_TYPE_UNLIMITED.
   int32 devices_usage_limit = 1;
 
   // Devices in use.
   // May be greater than [devices_usage_limit] in some cases.
-  // Always zero if the account usage type is UNLIMITED.
+  // Always zero if the account usage type is ACCOUNT_USAGE_TYPE_UNLIMITED.
   int32 devices_in_use = 2;
 }
