@@ -2950,6 +2950,46 @@ func (g *GRPCServer) GetOIDCConnectors(ctx context.Context, req *types.Resources
 	}, nil
 }
 
+// CreateOIDCConnector creates a new OIDC connector.
+func (g *GRPCServer) CreateOIDCConnector(ctx context.Context, req *authpb.CreateOIDCConnectorRequest) (*types.OIDCConnectorV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := auth.ServerWithRoles.CreateOIDCConnector(ctx, req.Connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	v3, ok := created.(*types.OIDCConnectorV3)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected OIDC connector type: %T", created)
+	}
+
+	return v3, nil
+}
+
+// UpdateOIDCConnector updates an existing OIDC connector.
+func (g *GRPCServer) UpdateOIDCConnector(ctx context.Context, req *authpb.UpdateOIDCConnectorRequest) (*types.OIDCConnectorV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := auth.ServerWithRoles.UpdateOIDCConnector(ctx, req.Connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	v3, ok := updated.(*types.OIDCConnectorV3)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected OIDC connector type: %T", updated)
+	}
+
+	return v3, nil
+}
+
 // UpsertOIDCConnector upserts an OIDC connector.
 func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV3) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -3037,6 +3077,46 @@ func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.Resources
 	return &types.SAMLConnectorV2List{
 		SAMLConnectors: samlConnectorsV2,
 	}, nil
+}
+
+// CreateSAMLConnector creates a new SAML connector.
+func (g *GRPCServer) CreateSAMLConnector(ctx context.Context, req *authpb.CreateSAMLConnectorRequest) (*types.SAMLConnectorV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := auth.ServerWithRoles.CreateSAMLConnector(ctx, req.Connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	v2, ok := created.(*types.SAMLConnectorV2)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected SAML connector type: %T", created)
+	}
+
+	return v2, nil
+}
+
+// UpdateSAMLConnector updates an existing SAML connector.
+func (g *GRPCServer) UpdateSAMLConnector(ctx context.Context, req *authpb.UpdateSAMLConnectorRequest) (*types.SAMLConnectorV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := auth.ServerWithRoles.UpdateSAMLConnector(ctx, req.Connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	v2, ok := updated.(*types.SAMLConnectorV2)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected SAML connector type: %T", updated)
+	}
+
+	return v2, nil
 }
 
 // UpsertSAMLConnector upserts a SAML connector.
@@ -3142,6 +3222,52 @@ func (g *GRPCServer) UpsertGithubConnector(ctx context.Context, connector *types
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
+}
+
+// UpdateGithubConnector updates an existing Github connector.
+func (g *GRPCServer) UpdateGithubConnector(ctx context.Context, req *authpb.UpdateGithubConnectorRequest) (*types.GithubConnectorV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	githubConnector, err := services.InitGithubConnector(req.Connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := auth.ServerWithRoles.UpdateGithubConnector(ctx, githubConnector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	githubConnectorV3, ok := updated.(*types.GithubConnectorV3)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected GitHub connector type: %T", updated)
+	}
+	return githubConnectorV3, nil
+}
+
+// CreateGithubConnector creates a new  Github connector.
+func (g *GRPCServer) CreateGithubConnector(ctx context.Context, req *authpb.CreateGithubConnectorRequest) (*types.GithubConnectorV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	githubConnector, err := services.InitGithubConnector(req.Connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := auth.ServerWithRoles.CreateGithubConnector(ctx, githubConnector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	githubConnectorV3, ok := created.(*types.GithubConnectorV3)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected GitHub connector type: %T", created)
+	}
+	return githubConnectorV3, nil
 }
 
 // DeleteGithubConnector deletes a Github connector by name.

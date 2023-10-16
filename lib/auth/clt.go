@@ -494,7 +494,11 @@ type WebService interface {
 
 // IdentityService manages identities and users
 type IdentityService interface {
-	// UpsertOIDCConnector updates or creates OIDC connector
+	// CreateOIDCConnector creates a new OIDC connector.
+	CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
+	// UpdateOIDCConnector updates an existing OIDC connector.
+	UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
+	// UpsertOIDCConnector updates or creates an OIDC connector.
 	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error
 	// GetOIDCConnector returns OIDC connector information by id
 	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
@@ -509,7 +513,11 @@ type IdentityService interface {
 	// ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error)
 
-	// UpsertSAMLConnector updates or creates SAML connector
+	// CreateSAMLConnector creates a new SAML connector.
+	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+	// UpdateSAMLConnector updates an existing SAML connector
+	UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+	// UpsertSAMLConnector updates or creates a SAML connector
 	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
 	// GetSAMLConnector returns SAML connector information by id
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
@@ -524,7 +532,11 @@ type IdentityService interface {
 	// GetSAMLAuthRequest returns SAML auth request if found
 	GetSAMLAuthRequest(ctx context.Context, authRequestID string) (*types.SAMLAuthRequest, error)
 
-	// UpsertGithubConnector creates or updates a Github connector
+	// CreateGithubConnector creates a new Github connector.
+	CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
+	// UpdateGithubConnector updates an existing Github connector.
+	UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
+	// UpsertGithubConnector creates or updates a Github connector.
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
 	// GetGithubConnectors returns all configured Github connectors
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)

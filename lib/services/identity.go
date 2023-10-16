@@ -23,6 +23,7 @@ package services
 import (
 	"context"
 	"crypto"
+	"crypto/x509"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -163,7 +164,11 @@ type Identity interface {
 	// DeleteMFADevice deletes an MFA device for the user by ID.
 	DeleteMFADevice(ctx context.Context, user, id string) error
 
-	// UpsertOIDCConnector upserts OIDC Connector
+	// CreateOIDCConnector creates a new OIDC connector.
+	CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
+	// UpdateOIDCConnector updates an existing OIDC connector.
+	UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
+	// UpsertOIDCConnector updates or creates an OIDC connector.
 	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error
 
 	// DeleteOIDCConnector deletes OIDC Connector
@@ -181,7 +186,11 @@ type Identity interface {
 	// GetOIDCAuthRequest returns OIDC auth request if found
 	GetOIDCAuthRequest(ctx context.Context, stateToken string) (*types.OIDCAuthRequest, error)
 
-	// UpsertSAMLConnector upserts SAML Connector
+	// CreateSAMLConnector creates a new SAML connector.
+	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+	// UpdateSAMLConnector updates an existing SAML connector
+	UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+	// UpsertSAMLConnector updates or creates a SAML connector
 	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
 
 	// DeleteSAMLConnector deletes OIDC Connector
@@ -205,7 +214,11 @@ type Identity interface {
 	// GetSSODiagnosticInfo returns SSO diagnostic info records.
 	GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error)
 
-	// UpsertGithubConnector creates or updates a new Github connector
+	// CreateGithubConnector creates a new Github connector.
+	CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
+	// UpdateGithubConnector updates an existing Github connector.
+	UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
+	// UpsertGithubConnector creates or updates a Github connector.
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
 
 	// GetGithubConnectors returns all configured Github connectors
@@ -405,4 +418,21 @@ func LastFailed(x int, attempts []LoginAttempt) bool {
 		}
 	}
 	return false
+}
+
+// NewWebSessionAttestationData creates attestation data for a web session key.
+// Inserting data to the Auth server will allow certificates generated for the
+// web session key to pass private key policies that are unobtainable in the web
+// (hardware key policies). In exchange, these keys must be kept strictly in the
+// Auth and Proxy processes and Auth storage. These keys and certs can only be
+// retrieved by users in the form of web session cookies.
+func NewWebSessionAttestationData(pub crypto.PublicKey) (*keys.AttestationData, error) {
+	pubDER, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &keys.AttestationData{
+		PublicKeyDER:     pubDER,
+		PrivateKeyPolicy: keys.PrivateKeyPolicyWebSession,
+	}, nil
 }
