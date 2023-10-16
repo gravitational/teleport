@@ -90,7 +90,7 @@ func openSymlinksMode(path string, mode OpenMode, symlinksMode SymlinksMode) (*o
 	case SymlinksSecure:
 		file, err = openSecure(path, mode)
 		if err == unix.ENOSYS {
-			return trace.Errorf("openSecure failed due to missing syscall; configure `symlinks: insecure` for %q", path)
+			return nil, trace.Errorf("openSecure failed due to missing syscall; configure `symlinks: insecure` for %q", path)
 		} else if err != nil {
 			return nil, trace.Wrap(err)
 		}
