@@ -16,7 +16,7 @@ limitations under the License.
 
 import cfg from 'teleport/config';
 
-import { StoreNav, StoreUserContext } from './stores';
+import { StoreNav, StoreUserContext, StoreNotifications } from './stores';
 import * as types from './types';
 import AuditService from './services/audit';
 import RecordingsService from './services/recordings';
@@ -39,6 +39,7 @@ class TeleportContext implements types.Context {
   // stores
   storeNav = new StoreNav();
   storeUser = new StoreUserContext();
+  storeNotifications = new StoreNotifications();
 
   // services
   auditService = new AuditService();

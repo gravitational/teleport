@@ -472,9 +472,10 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	accessList2Review1.Spec.Changes.RemovedMembers = nil
 	accessList2Review1.Spec.Changes.ReviewFrequencyChanged = 0
 	accessList2Review1.Spec.Changes.ReviewDayOfMonthChanged = 0
+	var nextReviewDate time.Time
 
 	// Add access list review.
-	accessList1Review1, err = service.CreateAccessListReview(ctx, accessList1Review1)
+	accessList1Review1, nextReviewDate, err = service.CreateAccessListReview(ctx, accessList1Review1)
 	require.NoError(t, err)
 
 	// Verify changes to access list.
@@ -487,6 +488,8 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff(*(accessList1Review1.Spec.Changes.MembershipRequirementsChanged), accessList1Updated.Spec.MembershipRequires))
 	require.Equal(t, accessList1Review1.Spec.Changes.ReviewFrequencyChanged, accessList1Updated.Spec.Audit.Recurrence.Frequency)
 	require.Equal(t, accessList1Review1.Spec.Changes.ReviewDayOfMonthChanged, accessList1Updated.Spec.Audit.Recurrence.DayOfMonth)
+	// The Correct value is returned through the API.
+	require.Equal(t, accessList1Updated.Spec.Audit.NextAuditDate, nextReviewDate)
 
 	_, err = service.GetAccessListMember(ctx, accessList1.GetName(), accessList1Member1.GetName())
 	require.True(t, trace.IsNotFound(err))
@@ -494,7 +497,7 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 
 	// Add another review
-	accessList1Review2, err = service.CreateAccessListReview(ctx, accessList1Review2)
+	accessList1Review2, nextReviewDate, err = service.CreateAccessListReview(ctx, accessList1Review2)
 	require.NoError(t, err)
 
 	// Verify changes to the access list again.
@@ -514,9 +517,10 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff(*(accessList1Review1.Spec.Changes.MembershipRequirementsChanged), accessList1Updated.Spec.MembershipRequires))
 	require.Equal(t, accessList1Review1.Spec.Changes.ReviewFrequencyChanged, accessList1Updated.Spec.Audit.Recurrence.Frequency)
 	require.Equal(t, accessList1Review1.Spec.Changes.ReviewDayOfMonthChanged, accessList1Updated.Spec.Audit.Recurrence.DayOfMonth)
+	require.Equal(t, accessList1Updated.Spec.Audit.NextAuditDate, nextReviewDate)
 
 	// Review that doesn't change anything
-	accessList2Review1, err = service.CreateAccessListReview(ctx, accessList2Review1)
+	accessList2Review1, nextReviewDate, err = service.CreateAccessListReview(ctx, accessList2Review1)
 	require.NoError(t, err)
 
 	accessList2Updated, err := service.GetAccessList(ctx, accessList2.GetName())
@@ -528,6 +532,7 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff(accessList2.Spec.MembershipRequires, accessList2Updated.Spec.MembershipRequires))
 	require.Equal(t, accessList2.Spec.Audit.Recurrence.Frequency, accessList2Updated.Spec.Audit.Recurrence.Frequency)
 	require.Equal(t, accessList2.Spec.Audit.Recurrence.DayOfMonth, accessList2Updated.Spec.Audit.Recurrence.DayOfMonth)
+	require.Equal(t, accessList2Updated.Spec.Audit.NextAuditDate, nextReviewDate)
 
 	_, err = service.GetAccessListMember(ctx, accessList2.GetName(), accessList2Member1.GetName())
 	require.NoError(t, err)

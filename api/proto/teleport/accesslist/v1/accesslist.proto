@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.accesslist.v1;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/resourceheader.proto";
 import "teleport/trait/v1/trait.proto";
@@ -87,6 +88,9 @@ message AccessListAudit {
 
   // recurrence is the recurrence definition
   Recurrence recurrence = 3;
+
+  // notifications is the configuration for notifying users.
+  Notifications notifications = 4;
 }
 
 // ReviewFrequency is the frequency of reviews.
@@ -113,6 +117,12 @@ message Recurrence {
 
   // day_of_month is the day of month that reviews will be scheduled on.
   ReviewDayOfMonth day_of_month = 2;
+}
+
+// Notifications contains the configuration for notifying users of a nearing next audit date.
+message Notifications {
+  // start specifies when to start notifying users that the next audit date is coming up.
+  google.protobuf.Duration start = 1;
 }
 
 // AccessListRequires describes a requirement section for an access list. A user must
