@@ -14,6 +14,7 @@ import (
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	externalcloudauditv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
@@ -23,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/accesslist"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
+	"github.com/gravitational/teleport/e/lib/externalcloudaudit/externalcloudauditv1"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	"github.com/gravitational/teleport/e/lib/loginrule/loginrulev1"
@@ -151,6 +153,12 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 
 	if err := p.registerLoginRuleService(p.authServer); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if modules.GetModules().Features().Cloud && !modules.GetModules().Features().IsUsageBasedBilling {
+		if err := p.registerExternalCloudAuditService(p.authServer); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Create a SAMLService and register it with the auth.Server
@@ -361,6 +369,26 @@ func (p *Plugin) registerLoginRuleService(server *auth.GRPCServer) error {
 		return trace.Wrap(err)
 	}
 	loginrulepb.RegisterLoginRuleServiceServer(grpcServer, service)
+
+	return nil
+}
+
+func (p *Plugin) registerExternalCloudAuditService(server *auth.GRPCServer) error {
+	externalCloudAudit := local.NewExternalCloudAuditService(p.authServer.GetBackend())
+
+	externalauditSvc, err := externalcloudauditv1.NewService(&externalcloudauditv1.ServiceConfig{
+		Authorizer:         p.authServer.Authorizer,
+		ExternalCloudAudit: externalCloudAudit,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	grpcServer, err := server.GetServer()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	externalcloudauditv1pb.RegisterExternalCloudAuditServiceServer(grpcServer, externalauditSvc)
 
 	return nil
 }
