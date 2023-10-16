@@ -90,9 +90,7 @@ func openSymlinksMode(path string, mode OpenMode, symlinksMode SymlinksMode) (*o
 	case SymlinksSecure:
 		file, err = openSecure(path, mode)
 		if err == unix.ENOSYS {
-			return nil, trace.Errorf("openSecure(%q) failed due to missing "+
-				"syscall; `symlinks: insecure` may be required for this "+
-				"system", path)
+			return trace.Errorf("openSecure(%q) failed due to missing syscall; configure `symlinks: insecure` for %q", path, path)
 		} else if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -100,10 +98,7 @@ func openSymlinksMode(path string, mode OpenMode, symlinksMode SymlinksMode) (*o
 		file, err = openSecure(path, mode)
 		if err == unix.ENOSYS {
 			missingSyscallWarning.Do(func() {
-				log.Warnf("Failed to write to %q securely due to missing "+
-					"syscall; falling back to regular file write. Set "+
-					"`symlinks: insecure` on this destination to disable this "+
-					"warning.", path)
+				log.Warnf("Failed to open %q securely due to missing syscall; falling back to regular file handling. Configure `symlinks: insecure` for %q to disable this warning.", path, path)
 			})
 
 			file, err = openStandard(path, mode)
@@ -169,9 +164,7 @@ func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 	case SymlinksSecure:
 		if err := createSecure(path, isDir); err != nil {
 			if err == unix.ENOSYS {
-				return trace.Errorf("createSecure(%q) failed due to missing "+
-					"syscall; `symlinks: insecure` may be required for this "+
-					"system", path)
+				return trace.Errorf("createSecure(%q) failed due to missing syscall; configure `symlinks: insecure` for %q", path, path)
 			}
 
 			return trace.Wrap(err)
@@ -191,9 +184,7 @@ func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 		// It's a bit gross to stuff this sync.Once into a global, but
 		// hopefully that's forgivable since it just manages a log message.
 		missingSyscallWarning.Do(func() {
-			log.Warnf("Failed to create %q securely due to missing syscall; "+
-				"falling back to regular file creation. Set `symlinks: "+
-				"insecure` on this destination to disable this warning.", path)
+			log.Warnf("Failed to create %q securely due to missing syscall; falling back to regular file handling. Configure `symlinks: insecure` for %q to disable this warning.", path, path)
 		})
 
 		return trace.Wrap(createStandard(path, isDir))
@@ -440,6 +431,9 @@ func HasACLSupport() (bool, error) {
 // HasSecureWriteSupport determines if `CreateSecure()` should be supported
 // on this OS / kernel version. Note that it just checks the kernel version,
 // so this should be treated as a fallible hint.
+//
+// We've encountered this being incorrect in environments where access to the
+// kernel is hampered e.g. seccomp/apparmor/container runtimes.
 func HasSecureWriteSupport() (bool, error) {
 	minKernel := semver.New(Openat2MinKernel)
 	version, err := utils.KernelVersion()
