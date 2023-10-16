@@ -500,7 +500,14 @@ func (s *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 		}
 	}
 
-	sess, err := s.createUserWebSession(ctx, user, loginIP)
+	sess, err := s.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
+		User:             user.GetName(),
+		LoginIP:          loginIP,
+		Roles:            user.GetRoles(),
+		Traits:           user.GetTraits(),
+		LoginTime:        s.clock.Now().UTC(),
+		AttestWebSession: true,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

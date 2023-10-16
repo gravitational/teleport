@@ -307,9 +307,12 @@ func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *C
 	// Check that the required private key policy, defined by roles and auth pref,
 	// is met by this Identity's tls certificate.
 	identityPolicy := authContext.Identity.GetIdentity().PrivateKeyPolicy
-	requiredPolicy := authContext.Checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if err := requiredPolicy.VerifyPolicy(identityPolicy); err != nil {
+	requiredPolicy, err := authContext.Checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if err != nil {
 		return trace.Wrap(err)
+	}
+	if !requiredPolicy.IsSatisfiedBy(identityPolicy) {
+		return keys.NewPrivateKeyPolicyError(requiredPolicy)
 	}
 
 	return nil
@@ -616,6 +619,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindDatabaseService, services.RO()),
 				types.NewRule(types.KindSAMLIdPServiceProvider, services.RO()),
 				types.NewRule(types.KindUserGroup, services.RO()),
+				types.NewRule(types.KindClusterMaintenanceConfig, services.RO()),
 				types.NewRule(types.KindIntegration, append(services.RO(), types.VerbUse)),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.

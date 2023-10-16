@@ -484,6 +484,9 @@ type CLIConf struct {
 
 	// LeafClusterName is the optional name of a leaf cluster to connect to instead
 	LeafClusterName string
+
+	// PIVSlot specifies a specific PIV slot to use with hardware key support.
+	PIVSlot string
 }
 
 // Stdout returns the stdout writer.
@@ -692,6 +695,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		Envar(mlockModeEnvVar).
 		StringVar(&cf.MlockMode)
 	app.HelpFlag.Short('h')
+	app.Flag("piv-slot", "Specify a PIV slot key to use for Hardware Key support instead of the default. Ex: \"9d\"").Envar("TELEPORT_PIV_SLOT").StringVar(&cf.PIVSlot)
 
 	ver := app.Command("version", "Print the tsh client and Proxy server versions for the current context.")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
@@ -3572,6 +3576,13 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		return nil, trace.Wrap(err)
 	}
 
+	if cf.PIVSlot != "" {
+		c.PIVSlot = keys.PIVSlot(cf.PIVSlot)
+		if err = c.PIVSlot.Validate(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	c.ClientStore, err = initClientStore(cf, proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4155,8 +4166,8 @@ func onStatus(cf *CLIConf) error {
 		return nil
 	}
 
-	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
-		log.Debug("Skipping cluster alerts due to Hardware Key Touch requirement.")
+	if tc.PrivateKeyPolicy.MFAVerified() {
+		log.Debug("Skipping cluster alerts due to Hardware Key PIN/Touch requirement.")
 	} else {
 		if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
 			types.AlertSeverity_HIGH); err != nil {

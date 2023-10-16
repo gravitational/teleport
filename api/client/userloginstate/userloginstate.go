@@ -71,7 +71,9 @@ func (c *Client) GetUserLoginState(ctx context.Context, name string) (*userlogin
 
 // UpsertUserLoginState creates or updates a user login state resource.
 func (c *Client) UpsertUserLoginState(ctx context.Context, uls *userloginstate.UserLoginState) (*userloginstate.UserLoginState, error) {
-	resp, err := c.grpcClient.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{})
+	resp, err := c.grpcClient.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{
+		UserLoginState: conv.ToProto(uls),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
