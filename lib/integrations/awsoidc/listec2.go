@@ -165,10 +165,8 @@ func ListEC2(ctx context.Context, clt ListEC2Client, req ListEC2Request) (*ListE
 		return nil, trace.Wrap(err)
 	}
 
-	ret := &ListEC2Response{}
-
-	if aws.ToString(ec2Instances.NextToken) != "" {
-		ret.NextToken = *ec2Instances.NextToken
+	ret := &ListEC2Response{
+		NextToken: aws.ToString(ec2Instances.NextToken),
 	}
 
 	ret.Servers = make([]types.Server, 0, len(ec2Instances.Reservations))
