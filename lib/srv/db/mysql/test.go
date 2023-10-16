@@ -364,7 +364,7 @@ func (h *testHandler) handleCallProcedure(query string, args []interface{}) (*my
 			Active:       true,
 		}
 
-	case deactivateUserProcedureName:
+	case deactivateUserProcedureName, deleteUserProcedureName:
 		if len(args) != 1 {
 			return nil, trace.BadParameter("invalid number of parameters: %v", args)
 		}
