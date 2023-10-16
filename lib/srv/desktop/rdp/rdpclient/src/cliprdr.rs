@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use futures_util::future::err;
 use std::fmt::{Debug, Formatter};
 
 use ironrdp_cliprdr::backend::CliprdrBackend;
@@ -37,6 +38,7 @@ static CF_TEXT: ClipboardFormat = ClipboardFormat::new(ClipboardFormatId::CF_TEX
 pub struct TeleportCliprdrBackend {
     client_handle: ClientHandle,
     clipboard_data: Option<String>,
+    requested_formats: Vec<ClipboardFormatId>,
 }
 
 impl TeleportCliprdrBackend {
@@ -44,6 +46,7 @@ impl TeleportCliprdrBackend {
         Self {
             client_handle,
             clipboard_data: None,
+            requested_formats: vec![],
         }
     }
 
@@ -111,6 +114,7 @@ impl CliprdrBackend for TeleportCliprdrBackend {
             return;
         };
 
+        self.requested_formats.push(format);
         self.send("remote_copy", move |c| c.initiate_paste(format));
     }
 
@@ -137,15 +141,23 @@ impl CliprdrBackend for TeleportCliprdrBackend {
 
     fn on_format_data_response(&mut self, response: FormatDataResponse) {
         trace!("CLIPRDR: on_format_data_response");
+        if self.requested_formats.is_empty() {
+            error!("Received data response but no format was requested");
+            return;
+        }
+        let format = self.requested_formats.remove(0);
         if response.is_error() {
             error!("Received error in format_data_response");
             return;
         }
         let data = response.data().to_vec();
-        let data = if data.ends_with(&[0u8, 0u8]) {
-            util::from_unicode(data).ok()
-        } else {
-            util::from_utf8(data).ok()
+        let data = match format {
+            ClipboardFormatId::CF_UNICODETEXT => util::from_unicode(data).ok(),
+            ClipboardFormatId::CF_TEXT => util::from_utf8(data).ok(),
+            _ => {
+                error!("Requested unknown format! This should never happen!");
+                return;
+            }
         };
         match data {
             Some(mut data) => {
