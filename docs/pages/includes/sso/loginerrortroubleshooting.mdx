@@ -58,7 +58,7 @@ spec:
 version: v5
 ```
 
-### Single sign-on fails fails with OIDC
+### Single sign-on fails with OIDC
 
 The error typically indicates a discrepancy between the algorithm used to sign the JWT token and the algorithm(s) supported by the JSON Web Key Set (JWKS). Specifically, the token might be signed with one algorithm, e.g., HS256, while the JWKS only lists keys for a different algorithm. e.g., RS256. This issue predominantly arises when using identity providers that offer extremely low-level functionality.
 
