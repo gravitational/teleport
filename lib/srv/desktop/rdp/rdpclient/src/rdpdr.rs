@@ -357,6 +357,10 @@ impl RdpdrBackend for TeleportRdpdrBackend {
             ScardCall::GetStatusChangeCall(call) => self.handle_get_status_change(req, call),
             ScardCall::ConnectCall(call) => self.handle_connect(req, call),
             ScardCall::Unsupported => Ok(()),
+            _ => Err(custom_err!(
+                "TeleportRdpdrBackend::handle_scard_call",
+                TeleportRdpdrBackendError(format!("got unsupported ScardCall [{:?}]", call))
+            )),
         }
     }
 }
