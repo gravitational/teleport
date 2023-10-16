@@ -479,6 +479,9 @@ func (u *UserCommand) List(ctx context.Context, client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if users == nil {
+		users = []types.User{}
+	}
 	if u.format == teleport.Text {
 		if len(users) == 0 {
 			fmt.Println("No users found")
@@ -492,9 +495,6 @@ func (u *UserCommand) List(ctx context.Context, client auth.ClientI) error {
 		}
 		fmt.Println(t.AsBuffer().String())
 	} else {
-		if users == nil {
-			users = []types.User{}
-		}
 		out, err := json.MarshalIndent(users, "", "  ")
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal users")
