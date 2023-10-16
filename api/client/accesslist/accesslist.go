@@ -92,6 +92,25 @@ func (c *Client) GetAccessList(ctx context.Context, name string) (*accesslist.Ac
 	return accessList, trace.Wrap(err)
 }
 
+// GetAccessListsToReview returns access lists that the user needs to review.
+func (c *Client) GetAccessListsToReview(ctx context.Context) ([]*accesslist.AccessList, error) {
+	resp, err := c.grpcClient.GetAccessListsToReview(ctx, &accesslistv1.GetAccessListsToReviewRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
+	for i, accessList := range resp.AccessLists {
+		var err error
+		accessLists[i], err = conv.FromProto(accessList)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return accessLists, nil
+}
+
 // UpsertAccessList creates or updates an access list resource.
 func (c *Client) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
 	resp, err := c.grpcClient.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{
