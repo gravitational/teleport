@@ -2630,7 +2630,7 @@ message RoleOptions {
 
   // CreateDatabaseUserMode allows users to be automatically created on a
   // database when not set to off.
-  CreateDatabaseUserMode CreateDatabaseUserMode = 29 [(gogoproto.jsontag) = "create_database_user_mode,omitempty"];
+  CreateDatabaseUserMode CreateDatabaseUserMode = 29 [(gogoproto.jsontag) = "create_db_user_mode,omitempty"];
 }
 
 message RecordSession {
