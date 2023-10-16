@@ -446,7 +446,7 @@ func writeJSON(c ResourceCollection, w io.Writer) error {
 		return utils.WriteJSON(w, []types.Resource{})
 	}
 
-	return utils.WriteJSON(w, c.resources())
+	return utils.WriteJSON(w, resources)
 }
 
 func writeYAML(c ResourceCollection, w io.Writer) error {
@@ -455,7 +455,7 @@ func writeYAML(c ResourceCollection, w io.Writer) error {
 	if resources == nil {
 		return utils.WriteYAML(w, []types.Resource{})
 	}
-	return utils.WriteYAML(w, c.resources())
+	return utils.WriteYAML(w, resources)
 }
 
 type semaphoreCollection struct {
