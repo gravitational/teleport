@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::fmt::{Debug, Formatter};
-use std::ops::Deref;
-use std::sync::{Arc, Mutex};
-
+use crate::client::{ClientFunction, ClientHandle};
 use byteorder::LittleEndian;
 use ironrdp_cliprdr::backend::CliprdrBackend;
 use ironrdp_cliprdr::pdu::{
@@ -24,22 +21,26 @@ use ironrdp_cliprdr::pdu::{
 };
 use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
 use ironrdp_pdu::PduResult;
+use ironrdp_svc::impl_as_any;
+use std::fmt::{Debug, Formatter};
 use utf16string::WString;
-
-use crate::client::{ClientFunction, ClientHandle};
 
 #[derive(Debug)]
 pub struct TeleportCliprdrBackend {
     client_handle: ClientHandle,
-    clipboard_data: Arc<Mutex<Option<String>>>,
+    clipboard_data: Option<String>,
 }
 
 impl TeleportCliprdrBackend {
-    pub fn new(client_handle: ClientHandle, clipboard_data: Arc<Mutex<Option<String>>>) -> Self {
+    pub fn new(client_handle: ClientHandle) -> Self {
         Self {
             client_handle,
-            clipboard_data,
+            clipboard_data: None,
         }
+    }
+
+    pub fn set_clipboard_data(&mut self, data: Option<String>) {
+        self.clipboard_data = data;
     }
 
     fn send<F>(&self, name: &'static str, f: F)
@@ -67,7 +68,7 @@ impl CliprdrBackend for TeleportCliprdrBackend {
 
     fn on_request_format_list(&mut self) {
         trace!("CLIPRDR: on_request_format_list");
-        let formats = available_formats(self.clipboard_data.lock().unwrap().deref());
+        let formats = available_formats(&self.clipboard_data);
         self.send("request_format_list", move |c| c.initiate_copy(&formats));
     }
 
@@ -86,42 +87,47 @@ impl CliprdrBackend for TeleportCliprdrBackend {
             "CLIPRDR: on_remote_copy, available formats: {:?}",
             available_formats
         );
-        // always use CF_UNICODETEXT if available
-        // let mut format = available_formats
-        //     .iter()
-        //     .find(|cf| cf.id() == ClipboardFormatId::CF_UNICODETEXT);
-        // // if not fallback to CF_TEXT
-        let mut format: Option<&ClipboardFormat> = None;
-        if format.is_none() {
-            format = available_formats
-                .iter()
-                .find(|cf| cf.id() == ClipboardFormatId::CF_TEXT);
-        }
-        if let Some(format) = format.map(ClipboardFormat::id) {
+
+        let format = available_formats
+            .iter()
+            .find(|cf| {
+                cf.id() == ClipboardFormatId::CF_UNICODETEXT
+                    || cf.id() == ClipboardFormatId::CF_TEXT
+            })
+            .map(ClipboardFormat::id);
+
+        if let Some(format) = format {
             self.send("remote_copy", move |c| c.initiate_paste(format))
+        } else {
+            debug!(
+                "data was copied on the remote desktop, but no supported formats were found: {:?}",
+                available_formats
+            );
         }
     }
 
     fn on_format_data_request(&mut self, format: FormatDataRequest) {
         trace!("CLIPRDR: on_format_data_request");
-        let data = self.clipboard_data.lock().unwrap().clone();
-        let response = data.as_ref().and_then(|data| match format.format {
-            ClipboardFormatId::CF_UNICODETEXT => {
-                let utf16: WString<LittleEndian> = data.as_str().into();
-                let mut utf16 = utf16.into_bytes();
-                utf16.extend_from_slice(&[0u8, 0u8]);
-                Some(utf16)
-            }
-            ClipboardFormatId::CF_TEXT => {
-                if !data.is_ascii() {
-                    return None;
+        let response = self
+            .clipboard_data
+            .as_ref()
+            .and_then(|data| match format.format {
+                ClipboardFormatId::CF_UNICODETEXT => {
+                    let utf16: WString<LittleEndian> = data.as_str().into();
+                    let mut utf16 = utf16.into_bytes();
+                    utf16.extend_from_slice(&[0u8, 0u8]);
+                    Some(utf16)
                 }
-                let mut data = data.clone().into_bytes();
-                data.push(0u8);
-                Some(data)
-            }
-            _ => None,
-        });
+                ClipboardFormatId::CF_TEXT => {
+                    if !data.is_ascii() {
+                        return None;
+                    }
+                    let mut data = data.clone().into_bytes();
+                    data.push(0u8);
+                    Some(data)
+                }
+                _ => None,
+            });
         self.send("format_data_request", move |c| {
             let response = match response.clone() {
                 None => FormatDataResponse::new_error(),
@@ -137,7 +143,7 @@ impl CliprdrBackend for TeleportCliprdrBackend {
             error!("Received error in format_data_response");
             return;
         }
-        let mut data = response.data().to_vec();
+        let data = response.data().to_vec();
         let data = if data.ends_with(&[0u8, 0u8]) {
             WString::from_utf16le(data)
                 .map(|s| s.to_utf8())
@@ -177,6 +183,8 @@ impl CliprdrBackend for TeleportCliprdrBackend {
         warn!("CLIPRDR locking not implemented");
     }
 }
+
+impl_as_any!(TeleportCliprdrBackend);
 
 pub trait ClipboardFn: Send + Debug + 'static {
     fn call(&self, cliprdr: &Cliprdr) -> PduResult<CliprdrSvcMessages>;

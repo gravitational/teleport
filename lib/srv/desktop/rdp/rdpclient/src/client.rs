@@ -1,10 +1,3 @@
-use std::fmt::{Debug, Display, Formatter};
-use std::io::Error as IoError;
-use std::net::ToSocketAddrs;
-use std::ops::Deref;
-use std::sync::{Arc, Mutex, MutexGuard};
-
-use bitflags::Flags;
 use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
 use ironrdp_connector::{Config, ConnectorError};
@@ -26,6 +19,10 @@ use ironrdp_tls::TlsStream;
 use ironrdp_tokio::{Framed, TokioStream};
 use rand::{Rng, SeedableRng};
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
+use std::fmt::{Debug, Display, Formatter};
+use std::io::Error as IoError;
+use std::net::ToSocketAddrs;
+use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
@@ -53,7 +50,6 @@ pub struct Client {
     write_stream: Option<RdpWriteStream>,
     function_receiver: Option<FunctionReceiver>,
     x224_processor: Arc<Mutex<X224Processor>>,
-    clipboard_data: Arc<Mutex<Option<String>>>,
 }
 
 impl Client {
@@ -99,8 +95,6 @@ impl Client {
         let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
         let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
 
-        let clipboard_data = Arc::new(Mutex::new(None));
-
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
             .with_server_addr(server_socket_addr)
             .with_server_name(server_addr)
@@ -108,7 +102,6 @@ impl Client {
             .with_static_channel(Rdpsnd::new())
             .with_static_channel(Cliprdr::new(Box::new(TeleportCliprdrBackend::new(
                 client_handle.clone(),
-                clipboard_data.clone(),
             ))))
             .with_static_channel(
                 Rdpdr::new(
@@ -169,7 +162,6 @@ impl Client {
         Ok(Self {
             cgo_handle,
             client_handle,
-            clipboard_data,
             read_stream: Some(read_stream),
             write_stream: Some(write_stream),
             function_receiver: Some(function_receiver),
@@ -223,7 +215,6 @@ impl Client {
             write_stream,
             function_receiver,
             self.x224_processor.clone(),
-            self.clipboard_data.clone(),
         );
 
         // Wait for either loop to finish. When one does, abort the other and return the result.
@@ -281,7 +272,6 @@ impl Client {
         mut write_stream: RdpWriteStream,
         mut write_receiver: FunctionReceiver,
         x224_processor: Arc<Mutex<X224Processor>>,
-        clipboard_data: Arc<Mutex<Option<String>>>,
     ) -> tokio::task::JoinHandle<ClientResult<()>> {
         global::TOKIO_RT.spawn(async move {
             loop {
@@ -318,7 +308,18 @@ impl Client {
                             ClientResult::from(code)?;
                         }
                         ClientFunction::UpdateClipboard(data) => {
-                            *(clipboard_data.lock().unwrap()) = Some(data.clone());
+                            {
+                                let mut x224_processor = Self::x224_lock(&x224_processor)?;
+                                let cliprdr = x224_processor
+                                    .get_svc_processor_mut::<Cliprdr>()
+                                    .ok_or(ClientError::InternalError)?
+                                    .backend
+                                    .as_any_mut()
+                                    .downcast_mut::<TeleportCliprdrBackend>()
+                                    .ok_or(ClientError::InternalError)?;
+                                cliprdr.set_clipboard_data(Some(data.clone()));
+                            } // unlock x224_processor
+
                             let formats = available_formats(&Some(data));
                             Self::write_cliprdr(
                                 x224_processor.clone(),
@@ -344,7 +345,7 @@ impl Client {
 
     async fn write_cliprdr(
         processor: Arc<Mutex<X224Processor>>,
-        mut write_stream: &mut RdpWriteStream,
+        write_stream: &mut RdpWriteStream,
         fun: Box<dyn ClipboardFn>,
     ) -> ClientResult<()> {
         let x224_processor = processor.clone();
