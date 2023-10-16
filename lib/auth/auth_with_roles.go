@@ -4626,7 +4626,12 @@ func (a *ServerWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) 
 	if proxyClusterName != "" &&
 		proxyClusterName != clusterName.GetClusterName() &&
 		proxyClusterName != identityClusterName {
-		log.Warnf("received Kube CSR for %v", identityClusterName)
+		log.WithFields(
+			logrus.Fields{
+				"proxy_cluster_name":    proxyClusterName,
+				"identity_cluster_name": identityClusterName,
+			},
+		).Warn("KubeCSR request denied because the proxy and identity clusters didn't match")
 		return nil, trace.AccessDenied("can not sign certs for users via a different cluster proxy")
 	}
 	return a.authServer.ProcessKubeCSR(req)
