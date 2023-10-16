@@ -40,6 +40,7 @@ import {
 import { reviewFrequencyOpts, reviewDayOfMonthOpts } from '../Shared/Audit';
 import { useFetchUserAndRoles } from '../useFetchUsersAndRoles';
 import { convertTraitLabelsToAllUserTraits } from '../Traits';
+import { LimitedPreviewNotice } from '../LimitedPreviewNotice';
 
 import { Spec, SpecSection } from './SpecSection';
 import { Members, MembersSection } from './MemberSection';
@@ -210,7 +211,12 @@ export function CreateAccessList() {
 
   let MainContent: React.ReactElement;
   if (!canCreate) {
-    MainContent = <NoAccessState action="create" />;
+    MainContent = (
+      <>
+        <LimitedPreviewNotice />
+        <NoAccessState action="create" />
+      </>
+    );
   } else if (initAttempt.status === 'processing') {
     MainContent = (
       <Box textAlign="center" m={10}>
@@ -222,6 +228,7 @@ export function CreateAccessList() {
   } else if (initAttempt.status === 'success') {
     MainContent = (
       <>
+        {createAttempt.status !== 'failed' && <LimitedPreviewNotice />}
         {createAttempt.status === 'failed' && (
           <Alert children={createAttempt.statusText} />
         )}

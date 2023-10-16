@@ -35,6 +35,7 @@ import { accessListRequiresReview } from 'e-teleport/stores/storeNotificationsE'
 
 import { useFetchUserAndRoles } from '../useFetchUsersAndRoles';
 import { TraitConvenience, convertToTraitConvenience } from '../Traits';
+import { LimitedPreviewNotice } from '../LimitedPreviewNotice';
 
 import { ReviewAccessList } from './ReviewAccessList';
 
@@ -214,6 +215,7 @@ export function ViewEditAccessList() {
 
     MainContent = (
       <>
+        <LimitedPreviewNotice />
         {accessList.requiresReview && editAccess.isOwnerOrAdmin && (
           <ReviewBanner>
             <Flex alignItems="center">

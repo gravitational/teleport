@@ -21,6 +21,7 @@ import cfg from 'e-teleport/config';
 
 import { NoAccessState } from '../NoAccessState';
 import { makeTraitLabel } from '../Traits';
+import { LimitedPreviewNotice } from '../LimitedPreviewNotice';
 
 import { EmptyState } from './EmptyState';
 import { AccessCard } from './AccessCard';
@@ -191,6 +192,7 @@ export function AccessLists() {
           </ButtonPrimary>
         )}
       </FeatureHeader>
+      {attempt.status !== 'failed' && <LimitedPreviewNotice />}
       {MainContent}
     </FeatureBox>
   );
