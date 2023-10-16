@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { Flex } from 'design';
+import { Cog } from 'design/Icon';
 
 import { MenuIcon, MenuButton, MenuItem } from '.';
 
@@ -24,20 +25,40 @@ export default {
 };
 
 export const Menu = () => (
-  <Flex
-    mx="auto"
-    width="200px"
-    height="100px"
-    justifyContent="space-around"
-    alignItems="center"
-  >
-    <MenuIcon>
-      <MenuItem>Edit...</MenuItem>
-      <MenuItem>Delete...</MenuItem>
-    </MenuIcon>
-    <MenuButton>
-      <MenuItem>Edit...</MenuItem>
-      <MenuItem>Delete...</MenuItem>
-    </MenuButton>
+  <Flex gap={11} flexWrap="wrap">
+    <Flex flexDirection="column">
+      MenuIcon
+      <MenuIcon
+        menuProps={{
+          anchorOrigin: { vertical: 'top', horizontal: 'left' },
+          transformOrigin: { vertical: 'top', horizontal: 'left' },
+        }}
+      >
+        <MenuItem>Edit…</MenuItem>
+        <MenuItem>Delete…</MenuItem>
+      </MenuIcon>
+    </Flex>
+
+    <Flex flexDirection="column">
+      MenuIcon with a custom icon
+      <MenuIcon
+        Icon={Cog}
+        menuProps={{
+          anchorOrigin: { vertical: 'top', horizontal: 'left' },
+          transformOrigin: { vertical: 'top', horizontal: 'left' },
+        }}
+      >
+        <MenuItem>Edit…</MenuItem>
+        <MenuItem>Delete…</MenuItem>
+      </MenuIcon>
+    </Flex>
+
+    <Flex flexDirection="column">
+      MenuButton
+      <MenuButton>
+        <MenuItem>Edit…</MenuItem>
+        <MenuItem>Delete…</MenuItem>
+      </MenuButton>
+    </Flex>
   </Flex>
 );

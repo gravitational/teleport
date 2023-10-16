@@ -43,9 +43,10 @@ func TestOpenTunnelRequest(t *testing.T) {
 
 	baseReqFn := func() OpenTunnelEC2Request {
 		return OpenTunnelEC2Request{
-			Region:     "us-east-1",
-			VPCID:      "vpc-id",
-			EC2Address: "127.0.0.1:22",
+			Region:        "us-east-1",
+			VPCID:         "vpc-id",
+			EC2Address:    "127.0.0.1:22",
+			EC2InstanceID: "i-12345",
 		}
 	}
 
@@ -81,6 +82,15 @@ func TestOpenTunnelRequest(t *testing.T) {
 			errCheck: isBadParamErrFn,
 		},
 		{
+			name: "missing instance id",
+			req: func() OpenTunnelEC2Request {
+				r := baseReqFn()
+				r.EC2InstanceID = ""
+				return r
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
 			name: "missing EC2Address",
 			req: func() OpenTunnelEC2Request {
 				r := baseReqFn()
@@ -106,6 +116,7 @@ func TestOpenTunnelRequest(t *testing.T) {
 				Region:             "us-east-1",
 				VPCID:              "vpc-id",
 				EC2Address:         "127.0.0.1:22",
+				EC2InstanceID:      "i-12345",
 				ec2OpenSSHPort:     "22",
 				ec2PrivateHostname: "127.0.0.1",
 			},
@@ -202,6 +213,7 @@ func TestOpenTunnelEC2(t *testing.T) {
 		Region:            "us-east-1",
 		VPCID:             "vpc-123",
 		EC2Address:        ec2Listener.Addr().String(),
+		EC2InstanceID:     "i-12345",
 		websocketCustomCA: eiceWebsocketServer.Certificate(),
 	})
 	require.NoError(t, err)

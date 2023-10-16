@@ -1818,6 +1818,10 @@ message AuthPreferenceSpecV2 {
   // Okta is a set of options related to the Okta service in Teleport.
   // Requires Teleport Enterprise.
   OktaOptions Okta = 17 [(gogoproto.jsontag) = "okta,omitempty"];
+
+  // PIVSlot is a PIV slot that Teleport clients should use instead of the
+  // default based on private key policy. For example, "9a" or "9e".
+  string PIVSlot = 18 [(gogoproto.jsontag) = "piv_slot,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -4977,6 +4981,9 @@ message SessionTrackerSpecV1 {
 
   // TargetSubKind is the sub kind of the target server.
   string TargetSubKind = 22 [(gogoproto.jsontag) = "target_sub_kind,omitempty"];
+
+  // InitialCommand is the command that was executed to start this session.
+  repeated string InitialCommand = 23 [(gogoproto.jsontag) = "initial_command,omitempty"];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker
@@ -5326,9 +5333,14 @@ enum RequireMFAType {
   // and login sessions must use a private key backed by a hardware key.
   SESSION_AND_HARDWARE_KEY = 2;
   // HARDWARE_KEY_TOUCH means login sessions must use a hardware private key that
-  // requires touch to be used. This touch is required for all private key operations,
-  // so the key is always treated as MFA verified for sessions.
+  // requires touch to be used.
   HARDWARE_KEY_TOUCH = 3;
+  // HARDWARE_KEY_PIN means login sessions must use a hardware private key that
+  // requires pin to be used.
+  HARDWARE_KEY_PIN = 4;
+  // HARDWARE_KEY_TOUCH_AND_PIN means login sessions must use a hardware private key that
+  // requires touch and pin to be used.
+  HARDWARE_KEY_TOUCH_AND_PIN = 5;
 }
 
 // Plugin describes a single instance of a Teleport Plugin

@@ -22,7 +22,7 @@ import { Box } from 'design';
 import { FeatureBox } from 'teleport/components/Layout';
 
 import { Navigation } from 'teleport/Discover/Navigation/Navigation';
-import { SelectResource } from 'teleport/Discover/SelectResource';
+import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource';
 import cfg from 'teleport/config';
 
 import { EViewConfigs } from './types';

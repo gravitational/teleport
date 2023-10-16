@@ -138,7 +138,7 @@ You can specify the architecture of an image by appending a suffix to its tag.
 We support the following architecture suffixes: `amd64`, `arm`, and `arm64`. For
 example, if you want to pull the ARM64 image for
 `public.ecr.aws/gravitational/teleport`, you can use
-`public.ecr.aws/gravitational/teleport:(=teleport.version=)-arm64`. 
+`public.ecr.aws/gravitational/teleport:(=teleport.version=)-arm64`.
 
 `*-distroless` and `*-distroless-debug` images support multiple architectures
 natively, and do not require (or support) image suffixes. You can specify an
@@ -184,13 +184,13 @@ We also provide the following images for FIPS builds of Teleport Enterprise:
 
 | Image name | Includes troubleshooting tools | Image base |
 | - | - | - |
-| `gravitational/teleport-ent-fips-distroless` | No | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
-| `gravitational/teleport-ent-fips-distroless-debug` | Yes | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+| `public.ecr.aws/gravitational/teleport-ent-fips-distroless:(=teleport.version=)` | No | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+| `public.ecr.aws/gravitational/teleport-ent-fips-distroless-debug:(=teleport.version=)` | Yes | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
 
 For testing, we always recommend that you use the latest release version of
 Teleport Enterprise, which is currently `(=teleport.latest_ent_docker_image=)`.
 
-[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)-based images for non-FIPS 
+[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)-based images for non-FIPS
 Teleport are available from our [Legacy Amazon ECR Public repository](https://gallery.ecr.aws/gravitational/teleport-ent).
 
 </TabItem>
@@ -225,7 +225,7 @@ this location in the Teleport container's data directory.
 
 Depending on the configuration settings you assign on your Teleport container,
 you will need to make sure that any file paths you name are mounted on the
-container. 
+container.
 
 For example, if you are running the Teleport Proxy Service on a container, you
 need to mount the directory containing TLS credentials to your Teleport
@@ -252,11 +252,11 @@ container to expose.
 #### Extracting certificates from distroless images
 
 Extracting certificates created with `tctl auth sign` from a container running
-a distroless image can be tricky due to the absence of a shell and other OS tools. 
+a distroless image can be tricky due to the absence of a shell and other OS tools.
 
-Where possible you should log into the Teleport cluster using `tsh` and use 
+Where possible you should log into the Teleport cluster using `tsh` and use
 `tctl auth sign` locally to generate certificates. This way the action will be
-logged against your Teleport user and be subject to all of the usual Teleport 
+logged against your Teleport user and be subject to all of the usual Teleport
 RBAC policies in your cluster.
 
 If this is not possible, use `tctl auth sign --tar` to collect all the files
@@ -278,7 +278,7 @@ x alice.local.cas
 ### Example of running a Teleport container
 
 In this example, we will show you how to run the Teleport Auth and Proxy
-Services on a local Docker container using Teleport Community Edition. 
+Services on a local Docker container using Teleport Community Edition.
 
 Since this container uses a self-signed certificate, we do not recommend using
 this configuration to protect any infrastructure outside your workstation. You
@@ -364,31 +364,31 @@ from a trusted CA, e.g., Let's Encrypt.
 ## Amazon EC2
 
 We provide pre-built `amd64` Amazon Linux 2023 based EC2 AMIs with Teleport
-pre-installed. 
+pre-installed.
 
-These images are primarily intended for deploying a Teleport cluster using our 
+These images are primarily intended for deploying a Teleport cluster using our
 [reference Terraform code](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/aws/terraform).
 
-See the [Starter Cluster Terraform](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/aws/terraform/starter-cluster)
-and the [Running Teleport Enterprise in High Availability mode on AWS](deploy-a-cluster/deployments/aws-terraform.mdx)
+See the [AWS Single-Instance Deployment](deploy-a-cluster/deployments/aws-starter-cluster-terraform.mdx)
+and the [Running Teleport Enterprise in High Availability mode on AWS using Terraform](deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform.mdx)
 guide for detailed usage examples.
 
 In order to use these AMIs outside of the reference Terraform, you can configure
-the Teleport installation by setting configuration variables in the 
+the Teleport installation by setting configuration variables in the
 `/etc/teleport.d/conf` file on the EC2 instance. See the [Starter Cluster Configuration Template](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/aws/terraform/starter-cluster/data.tpl)
 for a list of the available configuration options.
 
 The image names all include the build timestamp (shown as `$TIMESTAMP` in the table
 below), and are tagged for easier searching.
 
-| Image name | Edition | FIPS support | AMI Tags | Owner Account ID | 
+| Image name | Edition | FIPS support | AMI Tags | Owner Account ID |
 | - | - | - | - | - |
-| `teleport-oss-(=teleport.version=)-$TIMESTAMP` | OSS | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` | 146628656107 | 
+| `teleport-oss-(=teleport.version=)-$TIMESTAMP` | OSS | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` | 146628656107 |
 | `teleport-ent-(=teleport.version=)-$TIMESTAMP` | Enterprise | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: false` | 146628656107 |
 | `teleport-oss-(=teleport.version=)-fips-$TIMESTAMP` | Enterprise | Yes | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: true` | 146628656107 |
 
 All images are based on Amazon Linux 2023 and have been hardened using the
-Amazon EC2 ImageBuilder [STIG](https://public.cyber.mil/stigs/) hardening 
+Amazon EC2 ImageBuilder [STIG](https://public.cyber.mil/stigs/) hardening
 component.
 
 Teleport AMIs are automatically published to all [non-opt-in AWS regions](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html#concepts-available-regions).

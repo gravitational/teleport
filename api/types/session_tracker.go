@@ -125,6 +125,9 @@ type SessionTracker interface {
 
 	// GetTargetSubKind returns the sub kind of the target server.
 	GetTargetSubKind() string
+
+	// GetCommand returns the command that initiated the session.
+	GetCommand() []string
 }
 
 func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
@@ -342,6 +345,11 @@ func (s *SessionTrackerV1) GetLastActive() time.Time {
 // GetTargetSubKind returns the sub kind of the target server.
 func (s *SessionTrackerV1) GetTargetSubKind() string {
 	return s.Spec.TargetSubKind
+}
+
+// GetCommand returns command that intiated the session.
+func (s *SessionTrackerV1) GetCommand() []string {
+	return s.Spec.InitialCommand
 }
 
 // Match checks if a given session tracker matches this filter.

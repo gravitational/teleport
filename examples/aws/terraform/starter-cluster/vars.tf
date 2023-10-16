@@ -119,6 +119,5 @@ variable "kms_alias_name" {
 
 // Instance type for cluster
 variable "cluster_instance_type" {
-  type    = string
-  default = "t3.nano"
+  type = string
 }

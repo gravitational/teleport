@@ -722,7 +722,7 @@ func (s *WebSuite) authPackWithMFA(t *testing.T, name string, roles ...types.Rol
 	}
 
 	user.AddRole(userRole.GetName())
-	err = s.server.Auth().CreateUser(s.ctx, user)
+	_, err = s.server.Auth().CreateUser(s.ctx, user)
 	require.NoError(t, err)
 
 	clt := s.client(t)
@@ -810,7 +810,7 @@ func (s *WebSuite) createUser(t *testing.T, user string, login string, pass stri
 	teleUser.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: "some-auth-user"},
 	})
-	err = s.server.Auth().CreateUser(s.ctx, teleUser)
+	_, err = s.server.Auth().CreateUser(s.ctx, teleUser)
 	require.NoError(t, err)
 
 	err = s.server.Auth().UpsertPassword(user, []byte(pass))
@@ -1213,7 +1213,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Equal(t, types.KindNode, res.Items[0].Kind)
+	require.Equal(t, types.KindWindowsDesktop, res.Items[0].Kind)
 
 	// test with no access
 	noAccessRole, err := types.NewRole(services.RoleNameForUser("test-no-access@example.com"), types.RoleSpecV6{})
@@ -5357,7 +5357,8 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	// Creaet a username that is not a valid email format for recovery.
 	teleUser, err := types.NewUser("invalid-name-for-recovery")
 	require.NoError(t, err)
-	require.NoError(t, env.server.Auth().CreateUser(ctx, teleUser))
+	_, err = env.server.Auth().CreateUser(ctx, teleUser)
+	require.NoError(t, err)
 
 	// Create a reset password token and secrets.
 	resetToken, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
@@ -5388,7 +5389,8 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	// Create a user that is valid for recovery.
 	teleUser, err = types.NewUser("valid-username@example.com")
 	require.NoError(t, err)
-	require.NoError(t, env.server.Auth().CreateUser(ctx, teleUser))
+	_, err = env.server.Auth().CreateUser(ctx, teleUser)
+	require.NoError(t, err)
 
 	// Create a reset password token and secrets.
 	resetToken, err = env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
@@ -5448,7 +5450,8 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 	// Create a user that is valid for recovery.
 	teleUser, err := types.NewUser("valid-username@example.com")
 	require.NoError(t, err)
-	require.NoError(t, env.server.Auth().CreateUser(ctx, teleUser))
+	_, err = env.server.Auth().CreateUser(ctx, teleUser)
+	require.NoError(t, err)
 
 	// Create a reset password token and secrets.
 	resetToken, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
@@ -5577,7 +5580,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 
 			user.AddRole(role.GetName())
 
-			err = s.server.Auth().CreateUser(s.ctx, user)
+			user, err = s.server.Auth().CreateUser(s.ctx, user)
 			require.NoError(t, err)
 
 			users[i] = user
@@ -5819,7 +5822,8 @@ func TestGetUserOrResetToken(t *testing.T) {
 	teleUser, err := types.NewUser(username)
 	require.NoError(t, err)
 	teleUser.SetLogins([]string{"login1"})
-	require.NoError(t, env.server.Auth().CreateUser(ctx, teleUser))
+	_, err = env.server.Auth().CreateUser(ctx, teleUser)
+	require.NoError(t, err)
 
 	// Create a reset password token and secrets.
 	resetToken, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
@@ -7213,7 +7217,7 @@ func (mock authProviderMock) MaintainSessionPresence(ctx context.Context) (authp
 	return nil, nil
 }
 
-func (mock authProviderMock) GetUser(_ string, _ bool) (types.User, error) {
+func (mock authProviderMock) GetUser(_ context.Context, _ string, _ bool) (types.User, error) {
 	return nil, nil
 }
 
@@ -8072,7 +8076,7 @@ func (r *testProxy) createUser(ctx context.Context, t *testing.T, user, login, p
 		User: types.UserRef{Name: "some-auth-user"},
 	})
 
-	err = r.auth.Auth().CreateUser(ctx, teleUser)
+	_, err = r.auth.Auth().CreateUser(ctx, teleUser)
 	require.NoError(t, err)
 
 	err = r.auth.Auth().UpsertPassword(user, []byte(pass))

@@ -26,6 +26,9 @@ import (
 const (
 	// automaticUpgradesEnvar defines the env var to lookup when deciding whether to enable AutomaticUpgrades feature.
 	automaticUpgradesEnvar = "TELEPORT_AUTOMATIC_UPGRADES"
+
+	// automaticUpgradesChannelEnvar defines a customer automatic upgrades version release channel.
+	automaticUpgradesChannelEnvar = "TELEPORT_AUTOMATIC_UPGRADES_CHANNEL"
 )
 
 // IsEnabled reads the TELEPORT_AUTOMATIC_UPGRADES and returns whether Automatic Upgrades are enabled or disabled.
@@ -45,4 +48,11 @@ func IsEnabled() bool {
 	}
 
 	return automaticUpgrades
+}
+
+// GetChannel returns the TELEPORT_AUTOMATIC_UPGRADES_CHANNEL value.
+// Example of an acceptable value for TELEPORT_AUTOMATIC_UPGRADES_CHANNEL is:
+// https://updates.releases.teleport.dev/v1/stable/cloud
+func GetChannel() string {
+	return os.Getenv(automaticUpgradesChannelEnvar)
 }
