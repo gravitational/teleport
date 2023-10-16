@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -90,6 +91,9 @@ func (c *RecordingsCommand) ListRecordings(ctx context.Context, tc auth.ClientI)
 		apidefaults.DefaultChunkSize, types.EventOrderDescending, c.maxRecordingsToShow, tc)
 	if err != nil {
 		return trace.Errorf("getting session events: %v", err)
+	}
+	if recordings == nil {
+		recordings = []events.AuditEvent{}
 	}
 	return trace.Wrap(common.ShowSessions(recordings, c.format, os.Stdout))
 }

@@ -492,6 +492,9 @@ func (u *UserCommand) List(ctx context.Context, client auth.ClientI) error {
 		}
 		fmt.Println(t.AsBuffer().String())
 	} else {
+		if users == nil {
+			users = []types.User{}
+		}
 		out, err := json.MarshalIndent(users, "", "  ")
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal users")

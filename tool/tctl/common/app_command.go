@@ -104,6 +104,10 @@ func (c *AppsCommand) ListApps(ctx context.Context, clt auth.ClientI) error {
 		}
 	}
 
+	if servers == nil {
+		servers = []types.AppServer{}
+	}
+
 	coll := &appServerCollection{servers: servers}
 
 	switch c.format {
