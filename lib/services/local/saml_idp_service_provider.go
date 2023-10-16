@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/crewjam/saml/samlsp"
@@ -164,6 +165,9 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 func validateSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
 	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
 	if err != nil {
+		if strings.Contains(err.Error(), "invalid url") {
+			return trace.BadParameter(err.Error())
+		}
 		return trace.Wrap(err)
 	}
 
