@@ -1293,6 +1293,8 @@ message GetMFADevicesResponse {
 }
 
 // UserSingleUseCertsRequest is a request for a single-use user certificate.
+//
+// Deprecated: Use [AuthService.GenerateUserCerts] instead.
 message UserSingleUseCertsRequest {
   oneof Request {
     UserCertsRequest Init = 1;
@@ -1301,6 +1303,8 @@ message UserSingleUseCertsRequest {
 }
 
 // UserSingleUseCertsResponse is a response with a single-use user certificate.
+//
+// Deprecated: Use [AuthService.GenerateUserCerts] instead.
 message UserSingleUseCertsResponse {
   oneof Response {
     MFAAuthenticateChallenge MFAChallenge = 1;
@@ -2521,6 +2525,8 @@ service AuthService {
   rpc GenerateHostCerts(HostCertsRequest) returns (Certs);
   // GenerateUserSingleUseCerts generates a set of single-use user
   // certificates.
+  //
+  // Deprecated: Superseded by GenerateUserCerts.
   rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest) returns (stream UserSingleUseCertsResponse);
   // GenerateOpenSSHCert signs a SSH certificate that can be used
   // to connect to Agentless nodes.
