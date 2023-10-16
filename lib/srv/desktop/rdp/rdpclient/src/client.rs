@@ -12,7 +12,7 @@ use ironrdp_pdu::{PduError, PduParsing};
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
 use ironrdp_rdpsnd::Rdpsnd;
-use ironrdp_session::x224::Processor as X224Processor;
+use ironrdp_session::x224::{Processor as X224Processor, Processor};
 use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{StaticVirtualChannelProcessor, SvcMessage, SvcProcessorMessages};
@@ -294,41 +294,14 @@ impl Client {
                                 .await?;
                         }
                         ClientFunction::WriteCliprdr(f) => {
-                            Self::write_cliprdr(x224_processor.clone(), &mut write_stream, f)
+                            Client::write_cliprdr(x224_processor.clone(), &mut write_stream, f)
                                 .await?;
                         }
-                        ClientFunction::HandleRemoteCopy(mut data) => {
-                            let code = global::TOKIO_RT
-                                .spawn_blocking(move || unsafe {
-                                    handle_remote_copy(
-                                        cgo_handle,
-                                        data.as_mut_ptr(),
-                                        data.len() as u32,
-                                    )
-                                })
-                                .await?;
-                            ClientResult::from(code)?;
+                        ClientFunction::HandleRemoteCopy(data) => {
+                            Client::handle_remote_copy(cgo_handle, data).await?;
                         }
                         ClientFunction::UpdateClipboard(data) => {
-                            {
-                                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                                let cliprdr = x224_processor
-                                    .get_svc_processor_mut::<Cliprdr>()
-                                    .ok_or(ClientError::InternalError)?
-                                    .downcast_backend_mut::<TeleportCliprdrBackend>()
-                                    .ok_or(ClientError::InternalError)?;
-                                cliprdr.set_clipboard_data(Some(data.clone()));
-                            } // unlock x224_processor
-
-                            let formats = available_formats(&Some(data));
-                            Self::write_cliprdr(
-                                x224_processor.clone(),
-                                &mut write_stream,
-                                cliprdr::as_clipboard_fn("update_clipboard", move |c| {
-                                    c.initiate_copy(&formats)
-                                }),
-                            )
-                            .await?;
+                            Client::update_clipboard(x224_processor.clone(), data).await?;
                         }
                         ClientFunction::Stop => {
                             // Stop this write loop. The read loop will then be stopped by the caller.
@@ -341,6 +314,32 @@ impl Client {
                 }
             }
         })
+    }
+
+    async fn update_clipboard(x224_processor: Arc<Mutex<Processor>>, data: String) -> ClientResult<()>{
+        global::TOKIO_RT.spawn_blocking(move ||{
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let cliprdr = x224_processor
+                .get_svc_processor_mut::<Cliprdr>()
+                .ok_or(ClientError::InternalError)?
+                .downcast_backend_mut::<TeleportCliprdrBackend>()
+                .ok_or(ClientError::InternalError)?;
+            cliprdr.set_clipboard_data(data.clone());
+            Ok(())
+        }).await?
+    }
+
+    async fn handle_remote_copy(cgo_handle: CgoHandle, mut data: Vec<u8>) -> ClientResult<()>{
+        let code = global::TOKIO_RT
+            .spawn_blocking(move || unsafe {
+                handle_remote_copy(
+                    cgo_handle,
+                    data.as_mut_ptr(),
+                    data.len() as u32,
+                )
+            })
+            .await?;
+        ClientResult::from(code)
     }
 
     async fn write_cliprdr(

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::client::{ClientFunction, ClientHandle};
-use byteorder::LittleEndian;
+use std::fmt::{Debug, Formatter};
+
 use ironrdp_cliprdr::backend::CliprdrBackend;
 use ironrdp_cliprdr::pdu::{
     ClipboardFormat, ClipboardFormatId, ClipboardGeneralCapabilityFlags, FileContentsRequest,
@@ -22,8 +22,16 @@ use ironrdp_cliprdr::pdu::{
 use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
 use ironrdp_pdu::PduResult;
 use ironrdp_svc::impl_as_any;
-use std::fmt::{Debug, Formatter};
-use utf16string::WString;
+use static_init::dynamic;
+
+use crate::client::{ClientFunction, ClientHandle};
+use crate::util;
+
+#[dynamic]
+static CF_UNICODETEXT: ClipboardFormat = ClipboardFormat::new(ClipboardFormatId::CF_UNICODETEXT);
+
+#[dynamic]
+static CF_TEXT: ClipboardFormat = ClipboardFormat::new(ClipboardFormatId::CF_TEXT);
 
 #[derive(Debug)]
 pub struct TeleportCliprdrBackend {
@@ -39,8 +47,9 @@ impl TeleportCliprdrBackend {
         }
     }
 
-    pub fn set_clipboard_data(&mut self, data: Option<String>) {
-        self.clipboard_data = data;
+    pub fn set_clipboard_data(&mut self, data: String) {
+        self.clipboard_data = Some(data);
+        self.on_request_format_list();
     }
 
     fn send<F>(&self, name: &'static str, f: F)
@@ -49,7 +58,9 @@ impl TeleportCliprdrBackend {
     {
         let res = self
             .client_handle
-            .blocking_send(ClientFunction::WriteCliprdr(as_clipboard_fn(name, f)));
+            .blocking_send(ClientFunction::WriteCliprdr(Box::new(
+                ClipboardFnInternal::new(name, f),
+            )));
         if let Err(e) = res {
             error!("Couldn't send request for {}: {:?}", name, e);
         }
@@ -88,46 +99,33 @@ impl CliprdrBackend for TeleportCliprdrBackend {
             available_formats
         );
 
-        let format = available_formats
-            .iter()
-            .find(|cf| {
-                cf.id() == ClipboardFormatId::CF_UNICODETEXT
-                    || cf.id() == ClipboardFormatId::CF_TEXT
-            })
-            .map(ClipboardFormat::id);
-
-        if let Some(format) = format {
-            self.send("remote_copy", move |c| c.initiate_paste(format))
+        let format = if available_formats.contains(&CF_UNICODETEXT) {
+            ClipboardFormatId::CF_UNICODETEXT
+        } else if available_formats.contains(&CF_TEXT) {
+            ClipboardFormatId::CF_TEXT
         } else {
             debug!(
                 "data was copied on the remote desktop, but no supported formats were found: {:?}",
                 available_formats
             );
-        }
+            return;
+        };
+
+        self.send("remote_copy", move |c| c.initiate_paste(format));
     }
 
     fn on_format_data_request(&mut self, format: FormatDataRequest) {
         trace!("CLIPRDR: on_format_data_request");
-        let response = self
-            .clipboard_data
-            .as_ref()
-            .and_then(|data| match format.format {
-                ClipboardFormatId::CF_UNICODETEXT => {
-                    let utf16: WString<LittleEndian> = data.as_str().into();
-                    let mut utf16 = utf16.into_bytes();
-                    utf16.extend_from_slice(&[0u8, 0u8]);
-                    Some(utf16)
-                }
-                ClipboardFormatId::CF_TEXT => {
-                    if !data.is_ascii() {
-                        return None;
-                    }
-                    let mut data = data.clone().into_bytes();
-                    data.push(0u8);
-                    Some(data)
-                }
-                _ => None,
-            });
+        let response = match self.clipboard_data.as_ref() {
+            Some(data) => convert_string(&data, format.format),
+            None => {
+                debug!(
+                    "format {:?} was requested but no data is available",
+                    format.format
+                );
+                None
+            }
+        };
         self.send("format_data_request", move |c| {
             let response = match response.clone() {
                 None => FormatDataResponse::new_error(),
@@ -145,14 +143,12 @@ impl CliprdrBackend for TeleportCliprdrBackend {
         }
         let data = response.data().to_vec();
         let data = if data.ends_with(&[0u8, 0u8]) {
-            WString::from_utf16le(data)
-                .map(|s| s.to_utf8())
-                .map_err(|_| ())
+            util::from_unicode(data).ok()
         } else {
-            String::from_utf8(data).map_err(|_| ())
+            util::from_utf8(data).ok()
         };
         match data {
-            Ok(mut data) => {
+            Some(mut data) => {
                 data.pop();
                 if let Err(e) = self
                     .client_handle
@@ -161,7 +157,7 @@ impl CliprdrBackend for TeleportCliprdrBackend {
                     error!("Can't send format_data_response: {:?}", e);
                 }
             }
-            Err(_) => {
+            None => {
                 error!("Can't convert string");
             }
         };
@@ -235,21 +231,95 @@ where
 }
 
 pub fn available_formats(data: &Option<String>) -> Vec<ClipboardFormat> {
-    match data {
-        Some(s) => {
-            let mut formats = vec![ClipboardFormat::new(ClipboardFormatId::CF_UNICODETEXT)];
-            if s.is_ascii() {
-                formats.push(ClipboardFormat::new(ClipboardFormatId::CF_TEXT))
-            }
-            formats
+    if let Some(s) = data {
+        let mut formats = vec![CF_UNICODETEXT.to_owned()];
+        if s.is_ascii() {
+            formats.push(CF_TEXT.to_owned())
         }
-        None => vec![],
+        return formats;
+    }
+    vec![]
+}
+
+fn adjust_new_lines(data: &str) -> String {
+    // convert LF to CRLF, as required by CF_TEXT and CF_UNICODETEXT
+    let mut converted = String::with_capacity(data.len());
+    let mut prev = '_';
+    for current in data.chars() {
+        match current {
+            '\n' if prev != '\r' => {
+                // convert LF to CRLF, so long as the previous character
+                // wasn't CR (in which case there's no conversion necessary)
+                converted.push('\r');
+                converted.push('\n');
+            }
+            c => converted.push(c),
+        }
+        prev = current;
+    }
+    converted
+}
+
+fn convert_string(data: &String, format_id: ClipboardFormatId) -> Option<Vec<u8>> {
+    match format_id {
+        ClipboardFormatId::CF_UNICODETEXT => Some(util::to_unicode(&adjust_new_lines(data), true)),
+        ClipboardFormatId::CF_TEXT if data.is_ascii() => {
+            let mut data = adjust_new_lines(data).into_bytes();
+            if data.last().unwrap_or(&1u8) != &0u8 {
+                data.push(0u8);
+            }
+            Some(data)
+        }
+        _ => {
+            debug!("incorrect format requested: {:?}", format_id);
+            None
+        }
     }
 }
 
-pub fn as_clipboard_fn<F>(name: &'static str, f: F) -> Box<dyn ClipboardFn>
-where
-    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages> + Send + 'static,
-{
-    Box::new(ClipboardFnInternal::new(name, f))
+#[cfg(test)]
+mod tests {
+    use ironrdp_cliprdr::pdu::ClipboardFormatId;
+
+    use crate::cliprdr::convert_string;
+
+    #[test]
+    fn update_clipboard_conversion() {
+        struct Item(&'static str, Option<Vec<u8>>, ClipboardFormatId);
+        for Item(input, expected, format) in [
+            Item("🤑", None, ClipboardFormatId::CF_TEXT), //can't convert non-ascii to CF_TEXT
+            Item("abc\0", Some(b"abc\0".to_vec()), ClipboardFormatId::CF_TEXT), // already null-terminated, no conversion necessary
+            Item(
+                "\n123",
+                Some(b"\r\n123\0".to_vec()),
+                ClipboardFormatId::CF_TEXT,
+            ), // starts with LF
+            Item(
+                "def\r\n",
+                Some(b"def\r\n\0".to_vec()),
+                ClipboardFormatId::CF_TEXT,
+            ), // already CRLF, no conversion necessary
+            Item(
+                "gh\r\nij\nk",
+                Some(b"gh\r\nij\r\nk\0".to_vec()),
+                ClipboardFormatId::CF_TEXT,
+            ), // mixture of both
+            Item(
+                "🤑\n",
+                Some(vec![62, 216, 17, 221, b'\r', 0, b'\n', 0, 0, 0]),
+                ClipboardFormatId::CF_UNICODETEXT,
+            ), // detection and utf8 -> utf16 conversion & CRLF conversion
+            Item(
+                "🤑\r\n",
+                Some(vec![62, 216, 17, 221, b'\r', 0, b'\n', 0, 0, 0]),
+                ClipboardFormatId::CF_UNICODETEXT,
+            ), // detection and utf8 -> utf16 conversion & no CRLF conversion
+        ] {
+            assert_eq!(
+                expected,
+                convert_string(&input.to_string(), format),
+                "testing {input}",
+            );
+        }
+    }
 }
