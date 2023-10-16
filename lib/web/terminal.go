@@ -33,7 +33,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -98,7 +97,8 @@ type AuthProvider interface {
 	GetSessionEvents(namespace string, sid session.ID, after int) ([]events.EventFields, error)
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 	IsMFARequired(ctx context.Context, req *authproto.IsMFARequiredRequest) (*authproto.IsMFARequiredResponse, error)
-	GenerateUserSingleUseCerts(ctx context.Context) (authproto.AuthService_GenerateUserSingleUseCertsClient, error)
+	CreateAuthenticateChallenge(ctx context.Context, req *authproto.CreateAuthenticateChallengeRequest) (*authproto.MFAAuthenticateChallenge, error)
+	GenerateUserCerts(ctx context.Context, req authproto.UserCertsRequest) (*authproto.Certs, error)
 	MaintainSessionPresence(ctx context.Context) (authproto.AuthService_MaintainSessionPresenceClient, error)
 }
 
@@ -496,132 +496,59 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	ctx, span := t.tracer.Start(ctx, "terminal/issueSessionMFACerts")
 	defer span.End()
 
-	// Always acquire single-use certificates from the root cluster, that's where
-	// both the user and their devices are registered.
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
-	stream, err := t.ctx.cfg.RootClient.GenerateUserSingleUseCerts(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer func() {
-		stream.CloseSend()
-		stream.Recv()
-	}()
 
+	// Prepare MFA check request.
+	mfaRequiredReq := &authproto.IsMFARequiredRequest{
+		Target: &authproto.IsMFARequiredRequest_Node{
+			Node: &authproto.NodeLogin{
+				Node:  t.sessionData.ServerID,
+				Login: tc.HostLogin,
+			},
+		},
+	}
+
+	// Prepare UserCertsRequest.
 	pk, err := keys.ParsePrivateKey(t.ctx.cfg.Session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	key := &client.Key{
 		PrivateKey: pk,
 		Cert:       t.ctx.cfg.Session.GetPub(),
 		TLSCert:    t.ctx.cfg.Session.GetTLSCert(),
 	}
-
 	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if err := stream.Send(
-		&authproto.UserSingleUseCertsRequest{
-			Request: &authproto.UserSingleUseCertsRequest_Init{
-				Init: &authproto.UserCertsRequest{
-					PublicKey:      key.MarshalSSHPublicKey(),
-					Username:       tlsCert.Subject.CommonName,
-					Expires:        tlsCert.NotAfter,
-					RouteToCluster: t.sessionData.ClusterName,
-					NodeName:       t.sessionData.ServerID,
-					Usage:          authproto.UserCertsRequest_SSH,
-					Format:         tc.CertificateFormat,
-					SSHLogin:       tc.HostLogin,
-				},
-			},
-		}); err != nil {
-		return nil, trail.FromGRPC(err)
+	certsReq := &authproto.UserCertsRequest{
+		PublicKey:      key.MarshalSSHPublicKey(),
+		Username:       tlsCert.Subject.CommonName,
+		Expires:        tlsCert.NotAfter,
+		RouteToCluster: t.sessionData.ClusterName,
+		NodeName:       t.sessionData.ServerID,
+		Usage:          authproto.UserCertsRequest_SSH,
+		Format:         tc.CertificateFormat,
+		SSHLogin:       tc.HostLogin,
 	}
 
-	resp, err := stream.Recv()
-	if err != nil {
-		err = trail.FromGRPC(err)
-		// If connecting to a host in a leaf cluster and MFA failed check to see
-		// if the leaf cluster requires MFA. If it doesn't return an error indicating
-		// that MFA was not required instead of the error received from the root cluster.
-		if t.sessionData.ClusterName != tc.SiteName {
-			check, err := t.authProvider.IsMFARequired(ctx, &authproto.IsMFARequiredRequest{
-				Target: &authproto.IsMFARequiredRequest_Node{
-					Node: &authproto.NodeLogin{
-						Node:  t.sessionData.ServerID,
-						Login: tc.HostLogin,
-					},
-				},
-			})
-			if err != nil {
-				return nil, trace.Wrap(client.MFARequiredUnknown(err))
-			}
-			if !check.Required {
-				return nil, trace.Wrap(services.ErrSessionMFANotRequired)
-			}
-		}
-
-		return nil, trail.FromGRPC(err)
-	}
-
-	challenge := resp.GetMFAChallenge()
-	if challenge == nil {
-		return nil, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected MFAChallenge", resp.Response)
-	}
-
-	switch challenge.MFARequired {
-	case authproto.MFARequired_MFA_REQUIRED_NO:
-		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
-	case authproto.MFARequired_MFA_REQUIRED_UNSPECIFIED:
-		mfaRequiredResp, err := t.authProvider.IsMFARequired(ctx, &authproto.IsMFARequiredRequest{
-			Target: &authproto.IsMFARequiredRequest_Node{
-				Node: &authproto.NodeLogin{
-					Node:  t.sessionData.ServerID,
-					Login: tc.HostLogin,
-				},
-			},
-		})
-		if err != nil {
-			return nil, trace.Wrap(client.MFARequiredUnknown(trail.FromGRPC(err)))
-		}
-
-		if !mfaRequiredResp.Required {
-			return nil, trace.Wrap(services.ErrSessionMFANotRequired)
-		}
-	case authproto.MFARequired_MFA_REQUIRED_YES:
-	}
-
-	span.AddEvent("prompting user with mfa challenge")
-	assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{})(ctx, challenge)
+	key, _, err = client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
+		CurrentAuthClient: t.authProvider,
+		RootAuthClient:    t.ctx.cfg.RootClient,
+		PromptMFA: func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+			span.AddEvent("prompting user with mfa challenge")
+			assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{})(ctx, chal)
+			span.AddEvent("user completed mfa challenge")
+			return assertion, trace.Wrap(err)
+		},
+		MFAAgainstRoot: t.ctx.cfg.RootClusterName == tc.SiteName,
+		MFARequiredReq: mfaRequiredReq,
+		CertsReq:       certsReq,
+		Key:            key,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	span.AddEvent("user completed mfa challenge")
-
-	err = stream.Send(&authproto.UserSingleUseCertsRequest{Request: &authproto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: assertion}})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	resp, err = stream.Recv()
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	certResp := resp.GetCert()
-	if certResp == nil {
-		return nil, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected SingleUseUserCert", resp.Response)
-	}
-
-	switch crt := certResp.Cert.(type) {
-	case *authproto.SingleUseUserCert_SSH:
-		key.Cert = crt.SSH
-	default:
-		return nil, trace.BadParameter("server sent a %T SingleUseUserCert in response", certResp.Cert)
 	}
 
 	key.ClusterName = t.sessionData.ClusterName
@@ -630,7 +557,6 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return []ssh.AuthMethod{am}, nil
 }
 

@@ -7205,7 +7205,11 @@ func (mock authProviderMock) IsMFARequired(ctx context.Context, req *authproto.I
 	return nil, nil
 }
 
-func (mock authProviderMock) GenerateUserSingleUseCerts(ctx context.Context) (authproto.AuthService_GenerateUserSingleUseCertsClient, error) {
+func (mock authProviderMock) CreateAuthenticateChallenge(ctx context.Context, req *authproto.CreateAuthenticateChallengeRequest) (*authproto.MFAAuthenticateChallenge, error) {
+	return nil, nil
+}
+
+func (mock authProviderMock) GenerateUserCerts(ctx context.Context, req authproto.UserCertsRequest) (*authproto.Certs, error) {
 	return nil, nil
 }
 
