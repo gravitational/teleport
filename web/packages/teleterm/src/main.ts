@@ -32,6 +32,12 @@ import {
 } from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
+import { CONNECT_CUSTOM_PROTOCOL } from 'teleterm/ui/uri';
+
+// Set the app as a default protocol client only if it wasn't started through `electron .`.
+if (!process.defaultApp) {
+  app.setAsDefaultProtocolClient(CONNECT_CUSTOM_PROTOCOL);
+}
 
 if (app.requestSingleInstanceLock()) {
   initializeApp();
@@ -127,6 +133,14 @@ function initializeApp(): void {
   app.on('second-instance', () => {
     windowsManager.focusWindow();
   });
+
+  // Since setUpDeepLinks adds another listener for second-instance, it's important to call it after
+  // the listener which calls windowsManager.focusWindow. This way the focus will be brought to the
+  // window before processing the listener for deep links.
+  //
+  // The setup must be done synchronously when starting the app, otherwise the listeners won't get
+  // triggered on macOS if the app is not already running when the user opens a deep link.
+  setUpDeepLinks(logger, windowsManager, settings);
 
   app.whenReady().then(() => {
     if (mainProcess.settings.dev) {
@@ -253,4 +267,57 @@ function createFileStorages(userDataDir: string) {
       debounceWrites: false,
     }),
   };
+}
+
+// Important: Deep links work only with a packaged version of the app.
+//
+// Technically, Windows could support deep links with a non-packaged version of the app, but for
+// simplicity's sake we don't support this.
+function setUpDeepLinks(
+  logger: Logger,
+  windowsManager: WindowsManager,
+  settings: types.RuntimeSettings
+) {
+  // The setup is done according to the docs:
+  // https://www.electronjs.org/docs/latest/tutorial/launch-app-from-url-in-another-app
+
+  if (settings.platform === 'darwin') {
+    // Deep link click on macOS.
+    app.on('open-url', (event, url) => {
+      // macOS does bring focus to the _application_ itself. However, if the app has one window and
+      // the window is minimized, it'll remain so. So we have to focus the window ourselves.
+      windowsManager.focusWindow();
+
+      logger.info(`Deep link launch from open-url, URL: ${url}`);
+    });
+    return;
+  }
+
+  // Do not handle deep links if the app was started from `electron .`, as custom protocol URLs
+  // won't be forwarded to the app on Linux in this case.
+  if (process.defaultApp) {
+    return;
+  }
+
+  // Deep link click if the app is already opened (Windows or Linux).
+  app.on('second-instance', (event, argv) => {
+    const url = findCustomProtocolUrlInArgv(argv);
+    if (url) {
+      logger.info(`Deep link launch from second-instance, URI: ${url}`);
+    }
+  });
+
+  // Deep link click if the app is not running (Windows or Linux).
+  const url = findCustomProtocolUrlInArgv(process.argv);
+
+  if (!url) {
+    return;
+  }
+  logger.info(`Deep link launch from process.argv, URL: ${url}`);
+}
+
+// We don't know the exact position of the URL is in argv. Chromium might inject its own arguments
+// into argv. See https://www.electronjs.org/docs/latest/api/app#event-second-instance.
+function findCustomProtocolUrlInArgv(argv: string[]) {
+  return argv.find(arg => arg.startsWith(`${CONNECT_CUSTOM_PROTOCOL}://`));
 }
