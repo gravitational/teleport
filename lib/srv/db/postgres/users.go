@@ -109,9 +109,9 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	}
 
 	switch state {
-	case sqlStateUserDropped:
+	case common.SQLStateUserDropped:
 		e.Log.Debug("User %q deleted successfully.", sessionCtx.DatabaseUser)
-	case sqlStateUserDeactivated:
+	case common.SQLStateUserDeactivated:
 		e.Log.Infof("Unable to delete user %q, it was disabled instead", sessionCtx.DatabaseUser)
 	default:
 		e.Log.Warnf("Unable to determine user %q deletion state.", sessionCtx.DatabaseUser)
@@ -173,13 +173,6 @@ const (
 	// teleportAutoUserRole is the name of a PostgreSQL role that all Teleport
 	// managed users will be a part of.
 	teleportAutoUserRole = "teleport-auto-user"
-
-	// sqlStateUserDropped is the state returned by the delete procedure
-	// indicating the user was dropped.
-	sqlStateUserDropped = "TP001"
-	// sqlStateUserDropped is the state returned by the delete procedure
-	// indicating was deactivated.
-	sqlStateUserDeactivated = "TP002"
 )
 
 var (
