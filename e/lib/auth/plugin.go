@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"net/http"
+	"sync"
 	"time"
 
 	liblicense "github.com/gravitational/license"
@@ -17,6 +18,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/accesslist"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
@@ -29,6 +31,9 @@ import (
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/plugins/pluginsv1"
 	"github.com/gravitational/teleport/e/lib/resourceusage/resourceusagev1"
+	"github.com/gravitational/teleport/e/lib/secreports"
+	"github.com/gravitational/teleport/e/lib/secreports/limiter"
+	"github.com/gravitational/teleport/e/lib/secreports/query/athena"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
@@ -59,6 +64,9 @@ type Config struct {
 	License License
 
 	HostedPlugins servicecfg.HostedPluginsConfig
+
+	// AccessMonitoring holds the configuration for the Access Monitoring feature.
+	AccessMonitoring *servicecfg.AccessMonitoringOptions
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -71,7 +79,6 @@ func NewPlugin(cfg Config) (*Plugin, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return &Plugin{
 		Config: cfg,
 	}, nil
@@ -80,13 +87,15 @@ func NewPlugin(cfg Config) (*Plugin, error) {
 // Plugin extends OSS auth server API with enterprise features
 type Plugin struct {
 	Config
-	// cloudClient is a client of the Cloud API server
-	cloudClient cloudapi.TenantsServiceClient
 	// authServer is the authServer passed into RegisterAuthServices on
 	// startup.
 	authServer *auth.GRPCServer
 	// plugins is the plugins backend service.
 	plugins services.Plugins
+	// mtx protects the cloudClient field.
+	mtx sync.Mutex
+	// cloudClient is a client of the Cloud API server
+	cloudClient cloudapi.TenantsServiceClient
 }
 
 // GetName returns plugin name
@@ -96,7 +105,16 @@ func (p *Plugin) GetName() string {
 
 // EnableCloud enables cloud features
 func (p *Plugin) EnableCloud(client cloudapi.TenantsServiceClient) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
 	p.cloudClient = client
+}
+
+// GetCloudClient returns cloud client
+func (p *Plugin) GetCloudClient() cloudapi.TenantsServiceClient {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	return p.cloudClient
 }
 
 // RegisterProxyWebHandlers registers to proxy web handler
@@ -105,7 +123,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 }
 
 // RegisterAuthServices registers Auth Services (GRPC)
-func (p *Plugin) RegisterAuthServices(server interface{}) error {
+func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) error {
 	var ok bool
 	p.authServer, ok = server.(*auth.GRPCServer)
 	if !ok {
@@ -230,6 +248,10 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	}
 	accesslistv1.RegisterAccessListServiceServer(gRPCServer, accessListSvc)
 
+	if err := p.initAndRegisterSecurityReport(ctx, gRPCServer); err != nil {
+		return trace.Wrap(err)
+	}
+
 	p.authServer.AuthServer.RegisterLoginHook(uac.OnLogin)
 
 	if err := p.registerResourceUsageService(p.authServer); err != nil {
@@ -239,9 +261,64 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	return nil
 }
 
+func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC grpc.ServiceRegistrar) error {
+	if p.AccessMonitoring == nil || !p.AccessMonitoring.Enabled {
+		return nil
+	}
+	log.Infof("Access Monitoring Enabled.")
+	auditConf, err := p.authServer.AuthServer.GetClusterAuditConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	athenaURI, ok := athena.GetAthenaURI(auditConf.AuditEventsURIs())
+	if !ok {
+		log.Warn("Access Monitoring Enabled but Athena backend is not configured.")
+		return nil
+	}
+	storage, err := local.NewSecReportsService(p.authServer.GetBackend(), p.authServer.AuthServer.GetClock())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	limiter, err := limiter.NewLimiter(limiter.Config{
+		Store:      storage,
+		Semaphore:  p.authServer.AuthServer,
+		Log:        log,
+		Clock:      p.authServer.AuthServer.GetClock(),
+		TotalLimit: p.AccessMonitoring.DataLimit,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	go limiter.UpdateLimiterBasedOnCloudProduct(ctx, p)
+
+	secReportsSvc, err := secreports.NewService(secreports.ServiceConfig{
+		Limiter:          limiter,
+		AccessMonitoring: p.AccessMonitoring,
+		AthenaURL:        athenaURI,
+		Authorizer:       p.authServer.Authorizer,
+		Backend:          p.authServer.GetBackend(),
+		Clock:            p.authServer.AuthServer.GetClock(),
+		Emitter:          p.authServer.Emitter,
+		LimiterStorage:   storage,
+		Logger:           log.WithField(trace.Component, "mon"),
+		ProcessContext:   ctx,
+		Region:           auditConf.Region(),
+		Semaphore:        p.authServer.AuthServer,
+		Storage:          storage,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := secReportsSvc.Init(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	secreportsv1.RegisterSecReportsServiceServer(serviceGRPC, secReportsSvc)
+	return nil
+}
+
 func registerDeviceTrustService(s *grpc.Server, authGRPC *auth.GRPCServer) error {
 	authServer := authGRPC.AuthServer
-
 	deviceStorage, err := dtstorage.New(dtstorage.Params{
 		Backend:      authGRPC.GetBackend(),
 		UsersService: authServer.Services,

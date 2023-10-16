@@ -62,14 +62,43 @@ func (*stubProxySettings) GetProxySettings(ctx context.Context) (*webclient.Prox
 	return &webclient.ProxySettings{}, nil
 }
 
-// stubTunnel stubs out the reversetunnelclient.Server for the web.Handler. None of
+type mockSite struct {
+	name string
+	reversetunnelclient.RemoteSite
+}
+
+func (m mockSite) GetName() string {
+	return m.name
+}
+
+// stubTunnel stubs out the reversetunnelclient.Server for the web.Handler.
 // tests here require the reversetunnelclient server so we use a stubbed implementation.
-type stubTunnel struct{}
+type stubTunnel struct {
+	site reversetunnelclient.RemoteSite
+}
 
-func (*stubTunnel) GetSites() ([]reversetunnelclient.RemoteSite, error)      { return nil, nil }
-func (*stubTunnel) GetSite(n string) (reversetunnelclient.RemoteSite, error) { return nil, nil }
+func (*stubTunnel) GetSites() ([]reversetunnelclient.RemoteSite, error) { return nil, nil }
+func (s *stubTunnel) GetSite(n string) (reversetunnelclient.RemoteSite, error) {
+	return s.site, nil
+}
 
-func newWebSuite(t *testing.T) *webSuite {
+type webSuiteOption func(*webSuiteOptions)
+
+func withPlugin(p plugin.Plugin) webSuiteOption {
+	return func(o *webSuiteOptions) {
+		o.customPlugin = p
+	}
+}
+
+type webSuiteOptions struct {
+	customPlugin plugin.Plugin
+}
+
+func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
+	var options webSuiteOptions
+	for _, v := range opts {
+		v(&options)
+	}
 	u, err := user.Current()
 	require.NoError(t, err)
 
@@ -104,6 +133,11 @@ func newWebSuite(t *testing.T) *webSuite {
 	require.NoError(t, err)
 	err = pluginRegistry.Add(authPlugin)
 	require.NoError(t, err)
+
+	if options.customPlugin != nil {
+		err = pluginRegistry.Add(options.customPlugin)
+		require.NoError(t, err)
+	}
 
 	s.testAuthServer, err = auth.NewTestServer(auth.TestServerConfig{
 		Auth: auth.TestAuthServerConfig{
@@ -146,7 +180,9 @@ func newWebSuite(t *testing.T) *webSuite {
 	s.webServer = httptest.NewUnstartedServer(nil)
 
 	handler, err := web.NewHandler(web.Config{
-		Proxy:                           &stubTunnel{},
+		Proxy: &stubTunnel{
+			site: &mockSite{name: "localhost"},
+		},
 		ProxyWebAddr:                    *utils.MustParseAddr(s.webServer.Listener.Addr().String()),
 		AuthServers:                     utils.FromAddr(s.testAuthServer.TLS.Addr()),
 		DomainName:                      s.testAuthServer.ClusterName(),

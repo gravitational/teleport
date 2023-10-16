@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -94,7 +95,7 @@ func (p *Plugin) GetAccessPoint() auth.ProxyAccessPoint {
 }
 
 // RegisterAuthServices registers GRPC services
-func (p *Plugin) RegisterAuthServices(grpcServer interface{}) error {
+func (p *Plugin) RegisterAuthServices(ctx context.Context, grpcServer interface{}) error {
 	return nil
 }
 
@@ -202,6 +203,22 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET("/enterprise/plugin", h.WithAuth(p.getPluginsHandle))
 	// get supported plugins
 	h.GET("/enterprise/plugins/types", h.WithAuth(p.getAvailablePluginTypesHandle))
+
+	// Security reports API
+	h.GET("/webapi/sites/:site/audit/reports/:name", h.WithClusterAuth(p.getSecurityReport))
+	h.DELETE("/webapi/sites/:site/audit/reports/:name", h.WithClusterAuth(p.deleteSecurityReport))
+	h.GET("/webapi/sites/:site/audit/reports", h.WithClusterAuth(p.listSecurityReports))
+	h.POST("/webapi/sites/:site/audit/reports", h.WithClusterAuth(p.upsertSecurityReport))
+	h.GET("/webapi/sites/:site/audit/queries/:name", h.WithClusterAuth(p.getAuditQuery))
+	h.DELETE("/webapi/sites/:site/audit/queries/:name", h.WithClusterAuth(p.deleteAuditQuery))
+	h.GET("/webapi/sites/:site/audit/queries", h.WithClusterAuth(p.listAuditQueries))
+	h.POST("/webapi/sites/:site/audit/queries", h.WithClusterAuth(p.upsertAuditQuery))
+	h.GET("/webapi/sites/:site/audit/schema", h.WithClusterAuth(p.getSchema))
+	h.POST("/webapi/sites/:site/audit/queries/run", h.WithClusterAuth(p.runAuditQuery))
+	h.POST("/webapi/sites/:site/audit/queries/result", h.WithClusterAuth(p.getQueryResult))
+	h.POST("/webapi/sites/:site/audit/reports/:name/run", h.WithClusterAuth(p.runSecurityReport))
+	h.GET("/webapi/sites/:site/audit/reports/:name/result/days/:days", h.WithClusterAuth(p.getSecurityReportResult))
+	h.GET("/webapi/sites/:site/audit/reports/:name/state/days/:days", h.WithClusterAuth(p.getSecurityReportState))
 
 	if p.h.ClusterFeatures.GetCloud() {
 		h.DELETE("/enterprise/cloud/card", p.withCloudAuth(p.removeCardHandle))
