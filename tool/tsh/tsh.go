@@ -59,6 +59,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -1732,7 +1733,7 @@ func onLogin(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 
-			return trace.Wrap(printProfiles(cf, profile, profiles))
+			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
 
 		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) &&
@@ -1954,7 +1955,7 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// Print status to show information of the logged in user.
-	if err := printProfiles(cf, profile, profiles); err != nil {
+	if err := printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4036,9 +4037,8 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	fmt.Printf("\n")
 }
 
-// printProfiles displays the provided profile information
-// to the user.
-func printProfiles(cf *CLIConf, profile *client.ProfileStatus, profiles []*client.ProfileStatus) error {
+// printLoginInformation displays the provided profile information to the user.
+func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles []*client.ProfileStatus, accessListsToReview []*accesslist.AccessList) error {
 	env := getTshEnv()
 	active, others := makeAllProfileInfo(profile, profiles, env)
 
@@ -4076,6 +4076,16 @@ func printProfiles(cf *CLIConf, profile *client.ProfileStatus, profiles []*clien
 		}
 	}
 
+	if len(accessListsToReview) > 0 {
+		fmt.Printf("Access lists that need to be reviewed:\n")
+		now := time.Now()
+
+		for _, accessList := range accessListsToReview {
+			fmt.Printf("\t%s (%s left to review)\n", accessList.GetName(), accessList.Spec.Audit.NextAuditDate.Sub(now).Round(time.Second).String())
+		}
+		fmt.Println()
+	}
+
 	return nil
 }
 
@@ -4094,7 +4104,14 @@ func onStatus(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := printProfiles(cf, profile, profiles); err != nil {
+	// make the teleport client and retrieve the certificate from the proxy:
+	tc, err := makeClient(cf)
+	if err != nil {
+		log.WithError(err).Warn("Failed to make client for retrieving cluster alerts.")
+		return trace.Wrap(err)
+	}
+
+	if err := printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4105,12 +4122,6 @@ func onStatus(cf *CLIConf) error {
 	duration := time.Until(profile.ValidUntil)
 	if !profile.ValidUntil.IsZero() && duration.Nanoseconds() <= 0 {
 		return trace.NotFound("Active profile expired.")
-	}
-
-	tc, err := makeClient(cf)
-	if err != nil {
-		log.WithError(err).Warn("Failed to make client for retrieving cluster alerts.")
-		return nil
 	}
 
 	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
@@ -4907,6 +4918,28 @@ func onHeadlessApprove(cf *CLIConf) error {
 		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID, !cf.headlessSkipConfirm)
 	})
 	return trace.Wrap(err)
+}
+
+// getAccessListsToReview will return access lists that the logged in user needs to review. On error,
+// this will return an empty list.
+func (cf *CLIConf) getAccessListsToReview(tc *client.TeleportClient) []*accesslist.AccessList {
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		log.WithError(err).Debug("Error connecting to the cluster")
+		return nil
+	}
+	defer func() {
+		clusterClient.Close()
+	}()
+
+	// Get the access lists to review. If the call returns NotImplemented, ignore it, as we may be communicating with an OSS
+	// server, which does not support access lists.
+	accessListsToReview, err := clusterClient.AuthClient.AccessListClient().GetAccessListsToReview(cf.Context)
+	if err != nil && !trace.IsNotImplemented(err) {
+		log.WithError(err).Debug("Error getting access lists to review")
+	}
+
+	return accessListsToReview
 }
 
 var mlockModes = []string{mlockModeNo, mlockModeAuto, mlockModeBestEffort, mlockModeStrict}
