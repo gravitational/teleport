@@ -382,7 +382,14 @@ func (s *Service) onCreateGroup(ctx context.Context, resource types.ResourceWith
 	}
 
 	if err := s.accessPoint.CreateUserGroup(ctx, group); err != nil {
-		return trace.Wrap(err)
+		// If the user group already exists, we'll try to update it in the backend instead.
+		if !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err)
+		}
+
+		if err := s.accessPoint.UpdateUserGroup(ctx, group); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	s.groupsMu.Lock()
@@ -406,7 +413,14 @@ func (s *Service) onUpdateGroup(ctx context.Context, resource types.ResourceWith
 	}
 
 	if err := s.accessPoint.UpdateUserGroup(ctx, group); err != nil {
-		return trace.Wrap(err)
+		// If the user group already does not exist, we'll try to create it in the backend.
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+
+		if err := s.accessPoint.CreateUserGroup(ctx, group); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	s.groupsMu.Lock()
@@ -429,7 +443,8 @@ func (s *Service) onDeleteGroup(ctx context.Context, resource types.ResourceWith
 		return trace.BadParameter("expected type types.UserGroup, got %T", resource)
 	}
 
-	if err := s.accessPoint.DeleteUserGroup(ctx, group.GetName()); err != nil {
+	// It's okay to delete a user group that isn't found.
+	if err := s.accessPoint.DeleteUserGroup(ctx, group.GetName()); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 

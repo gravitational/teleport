@@ -35,6 +35,8 @@ import (
 )
 
 func TestSynchronizeGroups(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	svc, client, emitter := newTestService(t, ap)
@@ -200,9 +202,44 @@ func TestSynchronizeGroups(t *testing.T) {
 		require.Equal(t, int32(1), event.Updated)
 		require.Equal(t, int32(0), event.Deleted)
 	})
+
+	// We need to simulate the user group backend getting out of sync with the reconciler here.
+
+	// This will cause create to be re-run on group 3, which should be handled.
+	delete(svc.groups, group3.GetName())
+
+	// This will cause update to be run on a non-existent group, which should be handled.
+	require.NoError(t, ap.DeleteUserGroup(ctx, group4.GetName()))
+	svc.groups[group4.GetName()].GetMetadata().Labels["dummy"] = "update"
+
+	require.NoError(t, svc.synchronize(ctx))
+
+	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
+		require.Equal(t, events.OktaGroupsUpdateEvent, event.GetType())
+		require.Equal(t, events.OktaGroupsUpdateCode, event.GetCode())
+		require.Equal(t, int32(1), event.Added)
+		require.Equal(t, int32(1), event.Updated)
+		require.Equal(t, int32(0), event.Deleted)
+	})
+
+	// This will cause delete to be run on a non-existent group, which should be handled.
+	require.NoError(t, ap.DeleteUserGroup(ctx, group4.GetName()))
+	client.oktaGroups = client.oktaGroups[0:1]
+
+	require.NoError(t, svc.synchronize(ctx))
+
+	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
+		require.Equal(t, events.OktaGroupsUpdateEvent, event.GetType())
+		require.Equal(t, events.OktaGroupsUpdateCode, event.GetCode())
+		require.Equal(t, int32(0), event.Added)
+		require.Equal(t, int32(0), event.Updated)
+		require.Equal(t, int32(1), event.Deleted)
+	})
 }
 
 func TestSynchronizeApplications(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	svc, client, emitter := newTestService(t, ap)
