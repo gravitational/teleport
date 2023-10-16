@@ -36,6 +36,14 @@ This guide will help you to:
 
 - AWS account with RDS and Aurora databases and permissions to create and attach
   IAM policies.
+  <Admonition type="warning" title="IAM authentication">
+  Your RDS and Aurora databases must have password and IAM authentication
+  enabled.
+
+  If IAM authentication is not enabled on the target RDS and Aurora databases,
+  the Database Service will attempt to enable IAM authentication by modifying
+  them using respective APIs.
+  </Admonition>
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
 - (!docs/pages/includes/tctl.mdx!)
@@ -81,6 +89,13 @@ Service access to AWS credentials.
 (!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
 
 (!docs/pages/includes/database-access/aws-bootstrap.mdx!)
+
+<Admonition type="note">
+Teleport uses `rds:ModifyDBInstance` and `rds:ModifyDBCluster` to automatically
+enable IAM authentication on the RDS instance and the Aurora cluster,
+respectively. You can omit these permissions if IAM authentication is already
+enabled.
+</Admonition>
 
 ## Step 4/6. Start the Database Service
 
