@@ -86,4 +86,20 @@ The client side of the connection is tasked with reconnecting to the server; it 
 
 ## Security
 
+### Source address information
+
+We propagate the source address of connections entering the Teleport cluster, and the address is stored whenever it's relevant to do so in the audit log. We offer the ability to require that client connections have the same source address as the one used to obtain credentials ([IP pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning/)). As connection resumption intrinsically allows the same connection to roam between different source IP addresses (as the user changes their network configuration, for instance by switching from their wired connection to a mobile hotspot), we shall enforce that the source address of the connection stays the same until the SSH authentication is completed and the user is confirmed to have authenticated with credentials that do not require IP pinning. It's possible that a connection loses its underlying transport before the SSH authentication is complete, and a change in source address at that point will cause the connection to fail; this is acceptable, as the user couldn't have used the connection for anything before authentication anyway.
+
+### Protocol
+
+The protocol in its current form is entirely cleartext; the intended transport for the protocol, however, is secure between the client and the proxy, it's secure between proxies, and it's secure from the proxy to tunneled nodes. An attacker that's able to read traffic between the proxy and direct dial nodes will be able to learn the resumption token, and - with the ability to open connections to the node - the attacker will be able to disrupt the connection. An attacker knowing about a resumption token doesn't have the ability to communicate with the client but, by repeatedly resuming a pre-authentication connection, it's possible for an attacker to take the connection from the intended user and use it as its own. Nothing, however, can be realistically gained from this.
+
+By examining the acknowledgements in the data frames it's possible to gain slightly more timing and traffic information than it would otherwise be available. We could employ some mitigations at the resumption protocol level, or just rely on the mitigations already included in the SSH protocol and implementations.
+
+### Resource exhaustion
+
+It's possible to fill the replay buffer on the remote side of a resumable connection just by not acknowledging any received data; such memory consumption can only be achieved by tricking the remote side into sending the data (which is not very realistic pre-SSH authentication, but should be kept in mind if this ends up being used to resume other protocols), and can only really last until some timeout that closes the connection anyway. As a big replay buffer is only required for throughput, it's also possible to limit the buffer size until the SSH handshake is successful.
+
+The connection limit for a given source address should be reduced upon receiving a connection but should not be increased again until the connection is properly cleaned up by the server or until a new underlying connection replaces the old one. This should be documented, as it might cause issues if connection limits are deliberately kept very low.
+
 ## Future development
