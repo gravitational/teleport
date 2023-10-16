@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import fs from 'fs/promises';
+// Both versions are imported because some operations need to be sync.
+import fsAsync from 'node:fs/promises';
+import fs from 'node:fs';
 
 import { debounce } from 'shared/utils/highbar';
 
@@ -44,12 +46,25 @@ export interface FileStorage {
   getFileLoadingError(): Error | undefined;
 }
 
-export async function createFileStorage(opts: {
+/**
+ * createFileStorage reads and parses existing JSON structure from filePath or creates a new file
+ * under filePath with an empty object if the file is missing.
+ *
+ * createFileStorage itself uses blocking filesystem APIs but the functions of the returned
+ * FileStorage interface, such as write and replace, are async.
+ */
+// createFileStorage needs to be kept sync so that initialization of the app in main.ts can be sync.
+// createFileStorage is called only during initialization, so blocking the main process during that
+// time is acceptable.
+//
+// However, functions such as write or replace returned by createFileStorage need to be async as
+// those are called after initialization.
+export function createFileStorage(opts: {
   filePath: string;
   debounceWrites: boolean;
   /** Prevents state updates when the file has not been loaded correctly, so its content will not be overwritten. */
   discardUpdatesOnLoadError?: boolean;
-}): Promise<FileStorage> {
+}): FileStorage {
   if (!opts || !opts.filePath) {
     throw Error('missing filePath');
   }
@@ -58,7 +73,7 @@ export async function createFileStorage(opts: {
 
   let state: any, error: Error | undefined;
   try {
-    state = await loadState(filePath);
+    state = loadStateSync(filePath);
   } catch (e) {
     state = {};
     error = e;
@@ -121,18 +136,19 @@ export async function createFileStorage(opts: {
   };
 }
 
-async function loadState(filePath: string): Promise<any> {
-  const file = await readOrCreateFile(filePath);
+function loadStateSync(filePath: string): any {
+  const file = readOrCreateFileSync(filePath);
   return JSON.parse(file);
 }
 
-async function readOrCreateFile(filePath: string): Promise<string> {
+const defaultValue = '{}' as const;
+
+function readOrCreateFileSync(filePath: string): string {
   try {
-    return await fs.readFile(filePath, { encoding: 'utf-8' });
+    return fs.readFileSync(filePath, { encoding: 'utf-8' });
   } catch (error) {
-    const defaultValue = '{}';
     if (error?.code === 'ENOENT') {
-      await fs.writeFile(filePath, defaultValue);
+      fs.writeFileSync(filePath, defaultValue);
       return defaultValue;
     }
     throw error;
@@ -149,6 +165,6 @@ const writeFileDebounced = debounce(
 );
 
 const writeFile = (filePath: string, text: string) =>
-  fs.writeFile(filePath, text).catch(error => {
+  fsAsync.writeFile(filePath, text).catch(error => {
     logger.error(`Cannot update ${filePath} file`, error);
   });

@@ -28,9 +28,11 @@ import (
 	"time"
 
 	"github.com/buildkite/bintest/v3"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -75,6 +77,7 @@ func TestOneOffScript(t *testing.T) {
 		require.NoError(t, err)
 
 		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			assert.Equal(t, "/teleport-v13.1.0-linux-amd64-bin.tar.gz", req.URL.Path)
 			http.ServeContent(w, req, "teleport-v13.1.0-linux-amd64-bin.tar.gz", time.Now(), bytes.NewReader(teleportBinTarball.Bytes()))
 		}))
 		defer func() { testServer.Close() }()
@@ -150,6 +153,76 @@ func TestOneOffScript(t *testing.T) {
 		// validate
 		require.Error(t, err, string(out))
 		require.Contains(t, string(out), "Invalid Linux architecture apple-silicon.")
+	})
+
+	t.Run("invalid flavor should return an error", func(t *testing.T) {
+		_, err := BuildScript(OneOffScriptParams{
+			BinUname:        unameMock.Path,
+			BinMktemp:       mktempMock.Path,
+			CDNBaseURL:      "dummyURL",
+			TeleportVersion: "v13.1.0",
+			TeleportArgs:    "version",
+			SuccessMessage:  "Test was a success.",
+			TeleportFlavor:  "../not-teleport",
+		})
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %+v", err)
+	})
+
+	t.Run("if enterprise build, it uses the enterprise package name", func(t *testing.T) {
+		// set up
+		testWorkingDir := t.TempDir()
+		require.NoError(t, os.Mkdir(testWorkingDir+"/bin/", 0o755))
+		scriptLocation := testWorkingDir + "/" + scriptName
+
+		teleportMock, err := bintest.NewMock(testWorkingDir + "/bin/teleport")
+		require.NoError(t, err)
+		defer func() {
+			assert.NoError(t, teleportMock.Close())
+		}()
+
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+		})
+		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport-ent/teleport"}, singleFileFS{file: teleportMock.Path})
+		require.NoError(t, err)
+
+		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			assert.Equal(t, "/teleport-ent-v13.1.0-linux-amd64-bin.tar.gz", req.URL.Path)
+			http.ServeContent(w, req, "teleport-ent-v13.1.0-linux-amd64-bin.tar.gz", time.Now(), bytes.NewReader(teleportBinTarball.Bytes()))
+		}))
+		defer func() { testServer.Close() }()
+
+		script, err := BuildScript(OneOffScriptParams{
+			BinUname:        unameMock.Path,
+			BinMktemp:       mktempMock.Path,
+			CDNBaseURL:      testServer.URL,
+			TeleportVersion: "v13.1.0",
+			TeleportArgs:    "version",
+			SuccessMessage:  "Test was a success.",
+		})
+		require.NoError(t, err)
+
+		unameMock.Expect("-s").AndWriteToStdout("Linux")
+		unameMock.Expect("-m").AndWriteToStdout("x86_64")
+		mktempMock.Expect("-d").AndWriteToStdout(testWorkingDir)
+		teleportMock.Expect("version").AndWriteToStdout(teleportVersionOutput)
+
+		err = os.WriteFile(scriptLocation, []byte(script), 0700)
+		require.NoError(t, err)
+
+		// execute script
+		out, err := exec.Command("bash", scriptLocation).CombinedOutput()
+
+		// validate
+		require.NoError(t, err, string(out))
+
+		require.True(t, unameMock.Check(t))
+		require.True(t, mktempMock.Check(t))
+		require.True(t, teleportMock.Check(t))
+
+		require.Contains(t, string(out), "> ./bin/teleport version")
+		require.Contains(t, string(out), teleportVersionOutput)
+		require.Contains(t, string(out), "Test was a success.")
 	})
 }
 

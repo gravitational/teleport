@@ -103,6 +103,10 @@ func databaseNameMatcher(dbProtocol, database string) *services.DatabaseNameMatc
 		defaults.ProtocolOpenSearch,
 		// DynamoDB integration doesn't support schema access control.
 		defaults.ProtocolDynamoDB,
+		// Snowflake integration doesn't support schema access control.
+		defaults.ProtocolSnowflake,
+		// Oracle integration doesn't support schema access control.
+		defaults.ProtocolOracle,
 		// Clickhouse Database Access doesn't support schema access control
 		defaults.ProtocolClickHouse,
 		defaults.ProtocolClickHouseHTTP:

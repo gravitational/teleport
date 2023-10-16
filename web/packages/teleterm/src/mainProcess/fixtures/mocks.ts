@@ -130,6 +130,8 @@ export const makeRuntimeSettings = (
 ): RuntimeSettings => ({
   platform: 'darwin' as const,
   dev: true,
+  debug: true,
+  insecure: true,
   userDataDir: '',
   sessionDataDir: '',
   tempDataDir: '',
@@ -140,7 +142,6 @@ export const makeRuntimeSettings = (
   logsDir: '',
   defaultShell: '',
   tshd: {
-    insecure: true,
     requestedNetworkAddress: '',
     binaryPath: '',
     homeDir: '',

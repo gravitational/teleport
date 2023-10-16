@@ -192,6 +192,10 @@ func (c *Client) Run(ctx context.Context) error {
 	return nil
 }
 
+func (c *Client) GetClientUsername() string {
+	return c.username
+}
+
 func (c *Client) readClientUsername() error {
 	for {
 		msg, err := c.cfg.Conn.ReadMessage()

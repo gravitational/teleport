@@ -142,6 +142,9 @@ func UnmarshalWebToken(bytes []byte, opts ...MarshalOption) (types.WebToken, err
 		if config.ID != 0 {
 			token.SetResourceID(config.ID)
 		}
+		if config.Revision != "" {
+			token.SetRevision(config.Revision)
+		}
 		if !config.Expires.IsZero() {
 			token.Metadata.SetExpiry(config.Expires)
 		}

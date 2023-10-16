@@ -36,7 +36,7 @@ import (
 // AuthProvider is a subset of the full Auth API that must be connected
 // to the root cluster.
 type AuthProvider interface {
-	GetUser(username string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, username string, withSecrets bool) (types.User, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
 
@@ -59,7 +59,7 @@ type SignerCreator func(ctx context.Context, certGen CertGenerator) (ssh.Signer,
 // as the target node.
 func SignerFromSSHCertificate(cert *ssh.Certificate, authClient AuthProvider, clusterName, teleportUser string) SignerCreator {
 	return func(ctx context.Context, certGen CertGenerator) (ssh.Signer, error) {
-		u, err := authClient.GetUser(teleportUser, false)
+		u, err := authClient.GetUser(ctx, teleportUser, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

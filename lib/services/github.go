@@ -18,6 +18,7 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -26,6 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// ErrRequiresEnterprise indicates that a feature requires
+// Teleport Enterprise.
 var ErrRequiresEnterprise = &trace.AccessDeniedError{Message: "this feature requires Teleport Enterprise"}
 
 // githubConnectorMutex is a mutex for the GitHub auth connector
@@ -174,7 +177,7 @@ func MarshalOSSGithubConnector(githubConnector types.GithubConnector, opts ...Ma
 	switch githubConnector := githubConnector.(type) {
 	case *types.GithubConnectorV3:
 		if githubConnector.Spec.EndpointURL != "" {
-			return nil, trace.Wrap(ErrRequiresEnterprise)
+			return nil, fmt.Errorf("GitHub endpoint URL is set: %w", ErrRequiresEnterprise)
 		}
 
 		if !cfg.PreserveResourceID {
