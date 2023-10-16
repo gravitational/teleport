@@ -55,10 +55,10 @@ func (m mockListEC2Client) DescribeInstances(ctx context.Context, params *ec2.De
 	stateFilter := false
 	platformFilter := false
 	for _, filter := range params.Filters {
-		if *filter.Name == "instance-state-name" && len(filter.Values) == 1 && filter.Values[0] == "running" {
+		if aws.ToString(filter.Name) == "instance-state-name" && len(filter.Values) == 1 && filter.Values[0] == "running" {
 			stateFilter = true
 		}
-		if *filter.Name == "platform-details" && len(filter.Values) == 1 && filter.Values[0] == "Linux/UNIX" {
+		if aws.ToString(filter.Name) == "platform-details" && len(filter.Values) == 1 && filter.Values[0] == "Linux/UNIX" {
 			platformFilter = true
 		}
 	}
