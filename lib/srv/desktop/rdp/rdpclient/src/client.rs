@@ -316,48 +316,49 @@ impl Client {
         })
     }
 
-    async fn update_clipboard(x224_processor: Arc<Mutex<Processor>>, data: String) -> ClientResult<()>{
-        global::TOKIO_RT.spawn_blocking(move ||{
-            let mut x224_processor = Self::x224_lock(&x224_processor)?;
-            let cliprdr = x224_processor
-                .get_svc_processor_mut::<Cliprdr>()
-                .ok_or(ClientError::InternalError)?
-                .downcast_backend_mut::<TeleportCliprdrBackend>()
-                .ok_or(ClientError::InternalError)?;
-            cliprdr.set_clipboard_data(data.clone());
-            Ok(())
-        }).await?
+    async fn update_clipboard(
+        x224_processor: Arc<Mutex<Processor>>,
+        data: String,
+    ) -> ClientResult<()> {
+        global::TOKIO_RT
+            .spawn_blocking(move || {
+                let mut x224_processor = Self::x224_lock(&x224_processor)?;
+                let cliprdr = x224_processor
+                    .get_svc_processor_mut::<Cliprdr>()
+                    .ok_or(ClientError::InternalError)?
+                    .downcast_backend_mut::<TeleportCliprdrBackend>()
+                    .ok_or(ClientError::InternalError)?;
+                cliprdr.set_clipboard_data(data.clone());
+                Ok(())
+            })
+            .await?
     }
 
-    async fn handle_remote_copy(cgo_handle: CgoHandle, mut data: Vec<u8>) -> ClientResult<()>{
+    async fn handle_remote_copy(cgo_handle: CgoHandle, mut data: Vec<u8>) -> ClientResult<()> {
         let code = global::TOKIO_RT
             .spawn_blocking(move || unsafe {
-                handle_remote_copy(
-                    cgo_handle,
-                    data.as_mut_ptr(),
-                    data.len() as u32,
-                )
+                handle_remote_copy(cgo_handle, data.as_mut_ptr(), data.len() as u32)
             })
             .await?;
         ClientResult::from(code)
     }
 
     async fn write_cliprdr(
-        processor: Arc<Mutex<X224Processor>>,
+        x224_processor: Arc<Mutex<X224Processor>>,
         write_stream: &mut RdpWriteStream,
         fun: Box<dyn ClipboardFn>,
     ) -> ClientResult<()> {
-        let x224_processor = processor.clone();
+        let processor = x224_processor.clone();
         let messages: ClientResult<CliprdrSvcMessages> = global::TOKIO_RT
             .spawn_blocking(move || {
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
+                let mut x224_processor = Self::x224_lock(&processor)?;
                 let cliprdr = x224_processor
                     .get_svc_processor::<Cliprdr>()
                     .ok_or(ClientError::InternalError)?;
                 Ok(fun.call(cliprdr)?)
             })
             .await?;
-        let encoded = Client::x224_process_svc_messages(processor, messages?).await?;
+        let encoded = Client::x224_process_svc_messages(x224_processor, messages?).await?;
         write_stream.write_all(&encoded).await?;
         Ok(())
     }
