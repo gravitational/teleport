@@ -1,21 +1,20 @@
-create or replace procedure teleport_deactivate_user(username varchar)
-language plpgsql
-as $$
-declare
+CREATE OR REPLACE PROCEDURE teleport_deactivate_user(username varchar)
+LANGUAGE plpgsql
+AS $$
+DECLARE
     rec record;
-begin
+BEGIN
     -- Only deactivate if the user doesn't have other active sessions.
     -- Update to pg_stat_activity is delayed for a few hundred ms. Use
     -- stv_sessions instead.
-    if exists (select user_name from stv_sessions where user_name = concat('IAM:', username)) then
-        raise exception 'User has active connections';
-    else
+    IF EXISTS (SELECT user_name FROM stv_sessions WHERE user_name = CONCAT('IAM:', username)) THEN
+        RAISE EXCEPTION 'User has active connections';
+    ELSE
         -- Revoke all role memberships except teleport-auto-user.
-        for rec in select role_name from svv_user_grants where user_name = username and admin_option = false and role_name != 'teleport-auto-user'
-        loop
-             execute 'revoke role ' || quote_ident(rec.role_name) || ' from ' || quote_ident(username);
-        end loop;
+        FOR rec IN select role_name FROM svv_user_grants WHERE user_name = username AND admin_option = false AND role_name != 'teleport-auto-user' LOOP
+             EXECUTE 'REVOKE ROLE ' || QUOTE_IDENT(rec.role_name) || ' FROM ' || QUOTE_IDENT(username);
+        END LOOP;
         -- Disable ability to login for the user.
-        execute 'alter user ' || quote_ident(username) || 'with connection limit 0';
-    end if;
-end;$$;
+        EXECUTE 'ALTER USER ' || QUOTE_IDENT(username) || 'WITH CONNECTION LIMIT 0';
+    END IF;
+END;$$;

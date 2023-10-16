@@ -58,12 +58,12 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	e.Log.Infof("Activating PostgreSQL user %q with roles %v.", sessionCtx.DatabaseUser, roles)
 
 	_, err = conn.Exec(ctx, activateQuery, sessionCtx.DatabaseUser, roles)
-	if err == nil {
-		return nil
+	if err != nil {
+		e.Log.Debugf("Call teleport_activate_user failed: %v", err)
+		return trace.Wrap(convertActivateError(sessionCtx, err))
 	}
+	return nil
 
-	e.Log.Debugf("Call teleport_activate_user failed: %v", err)
-	return trace.Wrap(convertActivateError(sessionCtx, err))
 }
 
 // DeactivateUser disables the database user.
