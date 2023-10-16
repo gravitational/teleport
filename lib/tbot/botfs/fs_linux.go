@@ -90,7 +90,7 @@ func openSymlinksMode(path string, mode OpenMode, symlinksMode SymlinksMode) (*o
 	case SymlinksSecure:
 		file, err = openSecure(path, mode)
 		if err == unix.ENOSYS {
-			return trace.Errorf("openSecure(%q) failed due to missing syscall; configure `symlinks: insecure` for %q", path, path)
+			return trace.Errorf("openSecure failed due to missing syscall; configure `symlinks: insecure` for %q", path)
 		} else if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -98,7 +98,7 @@ func openSymlinksMode(path string, mode OpenMode, symlinksMode SymlinksMode) (*o
 		file, err = openSecure(path, mode)
 		if err == unix.ENOSYS {
 			missingSyscallWarning.Do(func() {
-				log.Warnf("Failed to open %q securely due to missing syscall; falling back to regular file handling. Configure `symlinks: insecure` for %q to disable this warning.", path, path)
+				log.Warnf("Failed to open file securely due to missing syscall; falling back to regular file handling. Configure `symlinks: insecure` for %q to disable this warning.", path)
 			})
 
 			file, err = openStandard(path, mode)
@@ -164,7 +164,7 @@ func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 	case SymlinksSecure:
 		if err := createSecure(path, isDir); err != nil {
 			if err == unix.ENOSYS {
-				return trace.Errorf("createSecure(%q) failed due to missing syscall; configure `symlinks: insecure` for %q", path, path)
+				return trace.Errorf("createSecure failed due to missing syscall; configure `symlinks: insecure` for %q", path)
 			}
 
 			return trace.Wrap(err)
@@ -184,7 +184,7 @@ func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 		// It's a bit gross to stuff this sync.Once into a global, but
 		// hopefully that's forgivable since it just manages a log message.
 		missingSyscallWarning.Do(func() {
-			log.Warnf("Failed to create %q securely due to missing syscall; falling back to regular file handling. Configure `symlinks: insecure` for %q to disable this warning.", path, path)
+			log.Warnf("Failed to create file securely due to missing syscall; falling back to regular file handling. Configure `symlinks: insecure` for %q to disable this warning.", path)
 		})
 
 		return trace.Wrap(createStandard(path, isDir))
