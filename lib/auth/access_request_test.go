@@ -433,8 +433,8 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 
 	// Create the bot
 	adminClient, err := testPack.tlsServer.NewClient(TestAdmin())
-	defer adminClient.Close()
 	require.NoError(t, err)
+	defer adminClient.Close()
 	bot, err := adminClient.CreateBot(ctx, &proto.CreateBotRequest{
 		Name: "request-approver",
 		Roles: []string{
