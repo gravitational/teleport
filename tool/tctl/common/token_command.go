@@ -371,10 +371,13 @@ func (c *TokensCommand) Del(ctx context.Context, client auth.ClientI) error {
 // List is called to execute "tokens ls" command.
 func (c *TokensCommand) List(ctx context.Context, client auth.ClientI) error {
 	tokens, err := client.GetTokens(ctx)
+	if tokens == nil {
+		tokens = []types.ProvisionToken{}
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(tokens) == 0 {
+	if len(tokens) == 0 && c.format == teleport.Text {
 		fmt.Fprintln(c.stdout, "No active tokens found.")
 		return nil
 	}

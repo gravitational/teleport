@@ -109,6 +109,10 @@ func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if users == nil {
+		users = []types.User{}
+	}
 	if c.format == teleport.Text {
 		if len(users) == 0 {
 			fmt.Println("No users found")

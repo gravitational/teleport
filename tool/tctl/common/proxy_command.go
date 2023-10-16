@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
@@ -49,6 +50,9 @@ func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI auth.ClientI)
 	proxies, err := clusterAPI.GetProxies()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if proxies == nil {
+		proxies = []types.Server{}
 	}
 
 	sc := &serverCollection{proxies}
