@@ -26,6 +26,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	certificatesv1 "k8s.io/api/certificates/v1"
 	corev1 "k8s.io/api/core/v1"
+	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	networkingv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -491,6 +492,66 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
+	case *extensionsv1beta1.Ingress:
+		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		if err != nil {
+			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+		}
+		// if err is not nil or result is false, we should not include it.
+		return result, false, nil
+	case *extensionsv1beta1.IngressList:
+		o.Items = pointerArrayToArray(
+			filterResourceList(
+				d.kind, d.verb,
+				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+		)
+		return len(o.Items) > 0, true, nil
+
+	case *extensionsv1beta1.DaemonSet:
+		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		if err != nil {
+			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+		}
+		// if err is not nil or result is false, we should not include it.
+		return result, false, nil
+	case *extensionsv1beta1.DaemonSetList:
+		o.Items = pointerArrayToArray(
+			filterResourceList(
+				d.kind, d.verb,
+				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+		)
+		return len(o.Items) > 0, true, nil
+
+	case *extensionsv1beta1.Deployment:
+		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		if err != nil {
+			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+		}
+		// if err is not nil or result is false, we should not include it.
+		return result, false, nil
+	case *extensionsv1beta1.DeploymentList:
+		o.Items = pointerArrayToArray(
+			filterResourceList(
+				d.kind, d.verb,
+				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+		)
+		return len(o.Items) > 0, true, nil
+
+	case *extensionsv1beta1.ReplicaSet:
+		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		if err != nil {
+			d.log.WithError(err).Warn("Unable to compile regex expressions within kubernetes_resources.")
+		}
+		// if err is not nil or result is false, we should not include it.
+		return result, false, nil
+	case *extensionsv1beta1.ReplicaSetList:
+		o.Items = pointerArrayToArray(
+			filterResourceList(
+				d.kind, d.verb,
+				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
+		)
+		return len(o.Items) > 0, true, nil
+
 	case *unstructured.Unstructured:
 		if o.IsList() {
 			hasElemts := filterUnstructuredList(d.verb, o, d.allowedResources, d.deniedResources, d.log)
@@ -514,7 +575,6 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 			return false, false, trace.Wrap(err)
 		}
 		return len(o.Rows) > 0, true, nil
-
 	default:
 		// It's important default types are never blindly forwarded or protocol
 		// extensions could result in information disclosures.

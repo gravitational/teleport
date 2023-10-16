@@ -254,6 +254,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.DiscoveryConfigs == nil {
+		cfg.DiscoveryConfigs, err = local.NewDiscoveryConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.Embeddings == nil {
 		cfg.Embeddings = local.NewEmbeddingsService(cfg.Backend)
 	}
@@ -315,6 +321,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SessionTrackerService:   cfg.SessionTrackerService,
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
 		Integrations:            cfg.Integrations,
+		DiscoveryConfigs:        cfg.DiscoveryConfigs,
 		Embeddings:              cfg.Embeddings,
 		Okta:                    cfg.Okta,
 		AccessLists:             cfg.AccessLists,
@@ -451,6 +458,7 @@ type Services struct {
 	services.ConnectionsDiagnostic
 	services.StatusInternal
 	services.Integrations
+	services.DiscoveryConfigs
 	services.Okta
 	services.AccessLists
 	services.UserLoginStates
@@ -481,6 +489,11 @@ func (r *Services) OktaClient() services.Okta {
 
 // AccessListClient returns the access list client.
 func (r *Services) AccessListClient() services.AccessLists {
+	return r
+}
+
+// DiscoveryConfigClient returns the DiscoveryConfig client.
+func (r *Services) DiscoveryConfigClient() services.DiscoveryConfigs {
 	return r
 }
 
@@ -1733,17 +1746,7 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 
 // GetUserOrLoginState will return the given user or the login state associated with the user.
 func (a *Server) GetUserOrLoginState(ctx context.Context, username string) (services.UserState, error) {
-	uls, err := a.GetUserLoginState(ctx, username)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	if err == nil {
-		return uls, nil
-	}
-
-	user, err := a.GetUser(username, false)
-	return user, trace.Wrap(err)
+	return services.GetUserOrLoginState(ctx, a, username)
 }
 
 func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
@@ -2357,7 +2360,10 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 	}
 
 	attestedKeyPolicy := keys.PrivateKeyPolicyNone
-	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	requiredKeyPolicy, err := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if !req.skipAttestation && requiredKeyPolicy != keys.PrivateKeyPolicyNone {
 		// verify that the required private key policy for the requesting identity
 		// is met by the provided attestation statement.
@@ -3376,6 +3382,14 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		accessRequests = nil
 	}
 
+	// Create a new web session with the same private key. This way, if the
+	// original session was an attested web session, the extended session will
+	// also be an attested web session.
+	prevKey, err := keys.ParsePrivateKey(prevSession.GetPriv())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
 	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:                 req.User,
@@ -3385,6 +3399,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		SessionTTL:           sessionTTL,
 		AccessRequests:       accessRequests,
 		RequestedResourceIDs: allowedResourceIDs,
+		PrivateKey:           prevKey,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4011,19 +4026,35 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 		return nil, trace.Wrap(err)
 	}
 
-	priv, pub, err := native.GenerateKeyPair()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if req.PrivateKey == nil {
+		req.PrivateKey, err = native.GeneratePrivateKey()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+
 	sessionTTL := req.SessionTTL
 	if sessionTTL == 0 {
 		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
 	}
+
+	if req.AttestWebSession {
+		// Upsert web session attestation data so that this key's certs
+		// will be marked with the web session private key policy.
+		webAttData, err := services.NewWebSessionAttestationData(req.PrivateKey.Public())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err = a.UpsertKeyAttestationData(ctx, webAttData, sessionTTL); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	certs, err := a.generateUserCert(certRequest{
 		user:           userState,
 		loginIP:        req.LoginIP,
 		ttl:            sessionTTL,
-		publicKey:      pub,
+		publicKey:      req.PrivateKey.MarshalSSHPublicKey(),
 		checker:        checker,
 		traits:         req.Traits,
 		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
@@ -4048,7 +4079,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 
 	sessionSpec := types.WebSessionSpecV2{
 		User:               req.User,
-		Priv:               priv,
+		Priv:               req.PrivateKey.PrivateKeyPEM(),
 		Pub:                certs.SSH,
 		TLSCert:            certs.TLS,
 		Expires:            startTime.UTC().Add(sessionTTL),

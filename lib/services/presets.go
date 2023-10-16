@@ -39,7 +39,7 @@ func NewSystemAutomaticAccessApproverRole() types.Role {
 	}
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemAutomaticAccessApprovalRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -162,6 +162,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindClusterAlert, RW()),
 					types.NewRule(types.KindAccessList, RW()),
 					types.NewRule(types.KindNode, RW()),
+					types.NewRule(types.KindDiscoveryConfig, RW()),
 				},
 			},
 		},

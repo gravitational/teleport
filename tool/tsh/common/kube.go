@@ -575,9 +575,18 @@ func serializeKubeSessions(sessions []types.SessionTracker, format string) (stri
 }
 
 func printSessions(output io.Writer, sessions []types.SessionTracker) {
-	table := asciitable.MakeTable([]string{"ID", "State", "Created", "Hostname", "Address", "Login", "Reason"})
+	table := asciitable.MakeTable([]string{"ID", "State", "Created", "Hostname", "Address", "Login", "Reason", "Command"})
 	for _, s := range sessions {
-		table.AddRow([]string{s.GetSessionID(), s.GetState().String(), s.GetCreated().Format(time.RFC3339), s.GetHostname(), s.GetAddress(), s.GetLogin(), s.GetReason()})
+		table.AddRow([]string{
+			s.GetSessionID(),
+			s.GetState().String(),
+			s.GetCreated().Format(time.RFC3339),
+			s.GetHostname(),
+			s.GetAddress(),
+			s.GetLogin(),
+			s.GetReason(),
+			strings.Join(s.GetCommand(), " "),
+		})
 	}
 
 	tableOutput := table.AsBuffer().String()
@@ -788,7 +797,18 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 	// via the RBAC rules, but we also need to make sure that the user has
 	// access to the cluster with at least one kubernetes_user or kubernetes_group
 	// defined.
-	if err := checkIfCertsAreAllowedToAccessCluster(k, c.kubeCluster); err != nil {
+	// This is a safety check in order to print a better message to the user even
+	// before hitting Teleport Kubernetes Proxy.
+	// We only enforce this check for root clusters, since we don't have knowledge
+	// of the RBAC role mappings for remote clusters.
+	rootClusterName, err := tc.RootClusterName(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkIfCertsAreAllowedToAccessCluster(k,
+		rootClusterName,
+		c.teleportCluster,
+		c.kubeCluster); err != nil {
 		return trace.Wrap(err)
 	}
 	// Cache the new cert on disk for reuse.
@@ -819,7 +839,14 @@ func (c *kubeCredentialsCommand) checkLocalProxyRequirement(profile *profile.Pro
 // defined. If not, it returns an error.
 // This is a safety check in order to print a better message to the user even
 // before hitting Teleport Kubernetes Proxy.
-func checkIfCertsAreAllowedToAccessCluster(k *client.Key, kubeCluster string) error {
+func checkIfCertsAreAllowedToAccessCluster(k *client.Key, rootCluster, teleportCluster, kubeCluster string) error {
+	// This is a safety check in order to print a better message to the user even
+	// before hitting Teleport Kubernetes Proxy.
+	// We only enforce this check for root clusters, since we don't have knowledge
+	// of the RBAC role mappings for remote clusters.
+	if rootCluster != teleportCluster {
+		return nil
+	}
 	for k8sCluster, cert := range k.KubeTLSCerts {
 		if k8sCluster != kubeCluster {
 			continue

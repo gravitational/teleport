@@ -1192,17 +1192,6 @@ func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
 }
 
 func (set RoleSet) getMFARequired(clusterRequireMFAType types.RequireMFAType) MFARequired {
-	// per-session MFA is overridden by hardware key PIV touch requirement.
-	// check if the auth pref or any roles have this option.
-	if clusterRequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-		return MFARequiredNever
-	}
-	for _, role := range set {
-		if role.GetOptions().RequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-			return MFARequiredNever
-		}
-	}
-
 	// MFA is always required according to the cluster auth pref.
 	if clusterRequireMFAType.IsSessionMFARequired() {
 		return MFARequiredAlways
@@ -1229,24 +1218,13 @@ func (set RoleSet) getMFARequired(clusterRequireMFAType types.RequireMFAType) MF
 }
 
 // PrivateKeyPolicy returns the enforced private key policy for this role set.
-func (set RoleSet) PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy {
-	if defaultPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
-		// This is the strictest option so we can return now
-		return defaultPolicy
-	}
-
-	policy := defaultPolicy
+func (set RoleSet) PrivateKeyPolicy(authPreferencePolicy keys.PrivateKeyPolicy) (keys.PrivateKeyPolicy, error) {
+	policySet := []keys.PrivateKeyPolicy{authPreferencePolicy}
 	for _, role := range set {
-		switch rolePolicy := role.GetPrivateKeyPolicy(); rolePolicy {
-		case keys.PrivateKeyPolicyHardwareKey:
-			policy = rolePolicy
-		case keys.PrivateKeyPolicyHardwareKeyTouch:
-			// This is the strictest option so we can return now
-			return keys.PrivateKeyPolicyHardwareKeyTouch
-		}
+		policySet = append(policySet, role.GetPrivateKeyPolicy())
 	}
 
-	return policy
+	return keys.PolicyThatSatisfiesSet(policySet)
 }
 
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL

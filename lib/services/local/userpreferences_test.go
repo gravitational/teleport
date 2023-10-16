@@ -43,6 +43,37 @@ func newUserPreferencesService(t *testing.T) *local.UserPreferencesService {
 	return local.NewUserPreferencesService(backend)
 }
 
+func TestUserPreferences_ClusterPreferences(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	defaultPref := local.DefaultUserPreferences()
+	defaultPref.ClusterPreferences = &userpreferencesv1.ClusterUserPreferences{
+		PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
+			ResourceIds: []string{"123", "234"},
+		},
+	}
+
+	username := "something"
+	identity := newUserPreferencesService(t)
+
+	err := identity.UpsertUserPreferences(ctx, username, defaultPref)
+	require.NoError(t, err)
+
+	res, err := identity.GetUserPreferences(ctx, username)
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(defaultPref, res, protocmp.Transform()))
+
+	// send empty preferences, cluster prefs should be overwritten
+	reqPrefs := local.DefaultUserPreferences()
+	err = identity.UpsertUserPreferences(ctx, username, reqPrefs)
+	require.NoError(t, err)
+	res, err = identity.GetUserPreferences(ctx, username)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(reqPrefs, res, protocmp.Transform()))
+}
+
 func TestUserPreferencesCRUD(t *testing.T) {
 	t.Parallel()
 
@@ -68,9 +99,30 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				},
 			},
 			expected: &userpreferencesv1.UserPreferences{
+				Assist:                     defaultPref.Assist,
+				Onboard:                    defaultPref.Onboard,
+				Theme:                      userpreferencesv1.Theme_THEME_DARK,
+				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
+				ClusterPreferences:         defaultPref.ClusterPreferences,
+			},
+		},
+		{
+			name: "update the unified tab preference only",
+			req: &userpreferencesv1.UpsertUserPreferencesRequest{
+				Preferences: &userpreferencesv1.UserPreferences{
+					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+						DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
+					},
+				},
+			},
+			expected: &userpreferencesv1.UserPreferences{
 				Assist:  defaultPref.Assist,
 				Onboard: defaultPref.Onboard,
-				Theme:   userpreferencesv1.Theme_THEME_DARK,
+				Theme:   defaultPref.Theme,
+				UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+					DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
+				},
+				ClusterPreferences: defaultPref.ClusterPreferences,
 			},
 		},
 		{
@@ -87,12 +139,14 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				},
 			},
 			expected: &userpreferencesv1.UserPreferences{
-				Theme:   defaultPref.Theme,
-				Onboard: defaultPref.Onboard,
+				Theme:                      defaultPref.Theme,
+				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
+				Onboard:                    defaultPref.Onboard,
 				Assist: &userpreferencesv1.AssistUserPreferences{
 					PreferredLogins: []string{"foo", "bar"},
 					ViewMode:        defaultPref.Assist.ViewMode,
 				},
+				ClusterPreferences: defaultPref.ClusterPreferences,
 			},
 		},
 		{
@@ -105,12 +159,14 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				},
 			},
 			expected: &userpreferencesv1.UserPreferences{
-				Theme:   defaultPref.Theme,
-				Onboard: defaultPref.Onboard,
+				Theme:                      defaultPref.Theme,
+				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
+				Onboard:                    defaultPref.Onboard,
 				Assist: &userpreferencesv1.AssistUserPreferences{
 					PreferredLogins: defaultPref.Assist.PreferredLogins,
 					ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP_EXPANDED_SIDEBAR_VISIBLE,
 				},
+				ClusterPreferences: defaultPref.ClusterPreferences,
 			},
 		},
 		{
@@ -129,8 +185,9 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				},
 			},
 			expected: &userpreferencesv1.UserPreferences{
-				Assist: defaultPref.Assist,
-				Theme:  defaultPref.Theme,
+				Assist:                     defaultPref.Assist,
+				Theme:                      defaultPref.Theme,
+				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
 				Onboard: &userpreferencesv1.OnboardUserPreferences{
 					PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_DATABASES},
 					MarketingParams: &userpreferencesv1.MarketingParams{
@@ -140,6 +197,30 @@ func TestUserPreferencesCRUD(t *testing.T) {
 						Intent:   "i_1",
 					},
 				},
+				ClusterPreferences: defaultPref.ClusterPreferences,
+			},
+		},
+		{
+			name: "update cluster preference only",
+			req: &userpreferencesv1.UpsertUserPreferencesRequest{
+				Preferences: &userpreferencesv1.UserPreferences{
+					ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
+						PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
+							ResourceIds: []string{"node1", "node2"},
+						},
+					},
+				},
+			},
+			expected: &userpreferencesv1.UserPreferences{
+				Assist:                     defaultPref.Assist,
+				Theme:                      defaultPref.Theme,
+				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
+				Onboard:                    defaultPref.Onboard,
+				ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
+					PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
+						ResourceIds: []string{"node1", "node2"},
+					},
+				},
 			},
 		},
 		{
@@ -147,6 +228,9 @@ func TestUserPreferencesCRUD(t *testing.T) {
 			req: &userpreferencesv1.UpsertUserPreferencesRequest{
 				Preferences: &userpreferencesv1.UserPreferences{
 					Theme: userpreferencesv1.Theme_THEME_LIGHT,
+					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+						DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
+					},
 					Assist: &userpreferencesv1.AssistUserPreferences{
 						PreferredLogins: []string{"baz"},
 						ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP,
@@ -160,10 +244,18 @@ func TestUserPreferencesCRUD(t *testing.T) {
 							Intent:   "i_2",
 						},
 					},
+					ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
+						PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
+							ResourceIds: []string{"node1", "node2"},
+						},
+					},
 				},
 			},
 			expected: &userpreferencesv1.UserPreferences{
 				Theme: userpreferencesv1.Theme_THEME_LIGHT,
+				UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+					DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
+				},
 				Assist: &userpreferencesv1.AssistUserPreferences{
 					PreferredLogins: []string{"baz"},
 					ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP,
@@ -175,6 +267,11 @@ func TestUserPreferencesCRUD(t *testing.T) {
 						Source:   "s_2",
 						Medium:   "m_2",
 						Intent:   "i_2",
+					},
+				},
+				ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
+					PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
+						ResourceIds: []string{"node1", "node2"},
 					},
 				},
 			},

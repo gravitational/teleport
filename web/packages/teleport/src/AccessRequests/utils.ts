@@ -105,3 +105,43 @@ export function middleValues(
     duration: getInterval(d),
   }));
 }
+
+// Generate a list of middle values between now and the session TTL.
+export function requestTtlMiddleValues(
+  created: Date,
+  sessionTTL: Date
+): TimeDuration[] {
+  const getInterval = (d: Date) =>
+    roundToNearestTenMinutes(
+      intervalToDuration({
+        start: created,
+        end: d,
+      })
+    );
+
+  if (isAfter(addHours(created, 1), sessionTTL)) {
+    return [
+      {
+        timestamp: sessionTTL.getTime(),
+        duration: getInterval(sessionTTL),
+      },
+    ];
+  }
+
+  const points: Date[] = [];
+  // Staggered hour options, up to the maximum possible session TTL.
+  const hourOptions = [1, 2, 3, 4, 6, 8, 12, 18, 24, 30];
+
+  for (const h of hourOptions) {
+    const t = addHours(created, h);
+    if (isAfter(t, sessionTTL)) {
+      break;
+    }
+    points.push(t);
+  }
+
+  return points.map(d => ({
+    timestamp: d.getTime(),
+    duration: getInterval(d),
+  }));
+}

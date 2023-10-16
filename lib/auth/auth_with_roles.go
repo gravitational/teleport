@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/accesslist"
+	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/userloginstate"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
@@ -345,6 +347,14 @@ func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 func (a *ServerWithRoles) AccessListClient() services.AccessLists {
 	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(
 		utils.NewGRPCDummyClientConnection("AccessListClient() should not be called on ServerWithRoles")))
+}
+
+// DiscoveryConfigClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) DiscoveryConfigClient() services.DiscoveryConfigs {
+	return discoveryconfig.NewClient(discoveryconfigv1.NewDiscoveryConfigServiceClient(
+		utils.NewGRPCDummyClientConnection("DiscoveryConfigClient() should not be called on ServerWithRoles")))
 }
 
 // ResourceUsageClient allows ServerWithRoles to implement ClientI.
@@ -1610,24 +1620,10 @@ func (s *ServerWithRoles) MakePaginatedResources(requestType string, resources [
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	// Fetch full list of resources in the backend.
 	var (
-		elapsedFetch      time.Duration
-		elapsedFilter     time.Duration
-		unifiedResources  types.ResourcesWithLabels
-		filteredResources types.ResourcesWithLabels
+		unifiedResources types.ResourcesWithLabels
+		nextKey          string
 	)
 
-	defer func() {
-		log.WithFields(logrus.Fields{
-			"user":           a.context.User.GetName(),
-			"elapsed_fetch":  elapsedFetch,
-			"elapsed_filter": elapsedFilter,
-		}).Debugf(
-			"ListUnifiedResources(%v->%v) in %v.",
-			len(unifiedResources), len(filteredResources), elapsedFetch+elapsedFilter)
-	}()
-
-	startFetch := time.Now()
-	startFilter := time.Now()
 	filter := services.MatchResourceFilter{
 		Labels:              req.Labels,
 		SearchKeywords:      req.SearchKeywords,
@@ -1635,27 +1631,88 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		Kinds:               req.Kinds,
 	}
 
+	// Apply any requested additional search_as_roles and/or preview_as_roles
+	// for the duration of the search.
+	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
+		extendedContext, err := a.authContextForSearch(ctx, &proto.ListResourcesRequest{
+			UseSearchAsRoles:    req.UseSearchAsRoles,
+			UsePreviewAsRoles:   req.UsePreviewAsRoles,
+			ResourceType:        types.KindUnifiedResource,
+			Namespace:           apidefaults.Namespace,
+			Labels:              req.Labels,
+			PredicateExpression: req.PredicateExpression,
+			SearchKeywords:      req.SearchKeywords,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		baseContext := a.context
+		a.context = *extendedContext
+		defer func() {
+			a.context = baseContext
+		}()
+	}
+
 	resourceChecker, err := a.newResourceAccessChecker(types.KindUnifiedResource)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	unifiedResources, nextKey, err := a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
-		if err := resourceChecker.CanAccess(resource); err != nil {
-			if trace.IsAccessDenied(err) {
-				return false, nil
-			}
-			return false, trace.Wrap(err)
+	if req.PinnedOnly {
+		prefs, err := a.authServer.GetUserPreferences(ctx, a.context.User.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err, "getting user preferences")
 		}
-		match, err := services.MatchResourceByFilters(resource, filter, nil)
-		return match, trace.Wrap(err)
-	}, req)
-	if err != nil {
-		return nil, trace.Wrap(err, "filtering unified resources")
-	}
+		if len(prefs.ClusterPreferences.PinnedResources.ResourceIds) == 0 {
+			return &proto.ListUnifiedResourcesResponse{}, nil
+		}
+		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) bool {
+			var err error
+			switch r := resource.(type) {
+			// TODO (avatus) we should add this type into the `resourceChecker.CanAccess` method
+			case types.SAMLIdPServiceProvider:
+				err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList)
+			default:
+				err = resourceChecker.CanAccess(r)
+			}
+			if err != nil {
+				return false
+			}
+			match, _ := services.MatchResourceByFilters(resource, filter, nil)
+			return match
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "getting unified resources by ID")
+		}
 
-	elapsedFetch = time.Since(startFetch)
-	elapsedFilter = time.Since(startFilter)
+		// we need to sort pinned resources manually because they are fetched in the order they were pinned
+		if req.SortBy.Field != "" {
+			if err := unifiedResources.SortByCustom(req.SortBy); err != nil {
+				return nil, trace.Wrap(err, "sorting unified resources")
+			}
+		}
+	} else {
+		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
+			var err error
+			switch r := resource.(type) {
+			case types.SAMLIdPServiceProvider:
+				err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList)
+			default:
+				err = resourceChecker.CanAccess(r)
+			}
+
+			if err != nil {
+				if trace.IsAccessDenied(err) {
+					return false, nil
+				}
+				return false, trace.Wrap(err)
+			}
+			match, err := services.MatchResourceByFilters(resource, filter, nil)
+			return match, trace.Wrap(err)
+		}, req)
+		if err != nil {
+			return nil, trace.Wrap(err, "filtering unified resources")
+		}
+	}
 
 	paginatedResources, err := services.MakePaginatedResources(types.KindUnifiedResource, unifiedResources)
 	if err != nil {
@@ -2402,10 +2459,8 @@ func (a *ServerWithRoles) WebSessions() types.WebSessionInterface {
 
 // Get returns the web session specified with req.
 func (r *webSessionsWithRoles) Get(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	if err := r.c.currentUserAction(req.User); err != nil {
-		if err := r.c.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := r.c.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return r.ws.Get(ctx, req)
 }
@@ -3973,8 +4028,7 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) error
 	}
 
 	// check that the given RequireMFAType is supported in this build.
-	switch role.GetOptions().RequireMFAType {
-	case types.RequireMFAType_SESSION_AND_HARDWARE_KEY, types.RequireMFAType_HARDWARE_KEY_TOUCH:
+	if role.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 		}
@@ -4283,8 +4337,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 	}
 
 	// check that the given RequireMFAType is supported in this build.
-	switch newAuthPref.GetRequireMFAType() {
-	case types.RequireMFAType_SESSION_AND_HARDWARE_KEY, types.RequireMFAType_HARDWARE_KEY_TOUCH:
+	if newAuthPref.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 		}
@@ -5405,6 +5458,12 @@ func (a *ServerWithRoles) GetResources(ctx context.Context, req *proto.ListResou
 func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 	if !hasLocalUserRole(a.context) && !hasRemoteUserRole(a.context) {
 		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
+	}
+	// Certain hardware-key based private key policies are treated as MFA verification.
+	if a.context.Identity.GetIdentity().PrivateKeyPolicy.MFAVerified() {
+		return &proto.IsMFARequiredResponse{
+			Required: false,
+		}, nil
 	}
 	return a.authServer.isMFARequired(ctx, a.context.Checker, req)
 }

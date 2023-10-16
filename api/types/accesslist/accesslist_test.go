@@ -169,12 +169,15 @@ func TestAuditMarshaling(t *testing.T) {
 			Frequency:  SixMonths,
 			DayOfMonth: LastDayOfMonth,
 		},
+		Notifications: Notifications{
+			Start: 4 * time.Hour,
+		},
 	}
 
 	data, err := json.Marshal(&audit)
 	require.NoError(t, err)
 
-	require.Equal(t, `{"next_audit_date":"2023-02-02T00:00:00Z","recurrence":{"frequency":"6 months","day_of_month":"last"}}`, string(data))
+	require.Equal(t, `{"next_audit_date":"2023-02-02T00:00:00Z","recurrence":{"frequency":"6 months","day_of_month":"last"},"notifications":{"start":"4h0m0s"}}`, string(data))
 }
 
 func TestAuditUnmarshaling(t *testing.T) {
@@ -183,6 +186,9 @@ func TestAuditUnmarshaling(t *testing.T) {
 		"recurrence": map[string]interface{}{
 			"frequency":    "3 months",
 			"day_of_month": "1",
+		},
+		"notifications": map[string]interface{}{
+			"start": twoWeeks.String(),
 		},
 	}
 
@@ -195,4 +201,5 @@ func TestAuditUnmarshaling(t *testing.T) {
 	require.Equal(t, time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC), audit.NextAuditDate)
 	require.Equal(t, ThreeMonths, audit.Recurrence.Frequency)
 	require.Equal(t, FirstDayOfMonth, audit.Recurrence.DayOfMonth)
+	require.Equal(t, twoWeeks, audit.Notifications.Start)
 }

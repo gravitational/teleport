@@ -31,8 +31,10 @@ export function useDatabases(ctx: Ctx) {
   const accessRequestId = ctx.storeUser.getAccessRequestId();
 
   const { params, search, ...filteringProps } = useUrlFiltering({
-    fieldName: 'name',
-    dir: 'ASC',
+    sort: {
+      fieldName: 'name',
+      dir: 'ASC',
+    },
   });
 
   const { fetch, ...paginationProps } = useServerSidePagination({

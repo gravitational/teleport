@@ -56,7 +56,7 @@ The top bar of Teleport Connect consists of:
   between them.
 - The **search bar** (in the middle), which allows you to search for resources across clusters.
 - The **cluster selector** (to the left of the search bar), which shows up only if you have set up
-  Trusted Clusters and there are leaf clusters connected to the root cluster. It lets you browse
+  trusted clusters and there are leaf clusters connected to the root cluster. It lets you browse
   leaf cluster resources. Also, the "Open new terminal" action will bind new terminal tabs to the selected cluster.
 - The **additional actions menu** (to the left of the profile selector), containing options such as
   opening a config file or creating an access request in an Enterprise cluster.
@@ -85,7 +85,7 @@ this by setting the environment variables `TELEPORT_PROXY` and `TELEPORT_CLUSTER
 Additionally, Teleport Connect prepends the `PATH`/`Path` environment variable in the session with the
 directory containing the tsh binary, even if [tsh is not globally available](#using-tsh-outside-of-teleport-connect).
 
-When using [Trusted Clusters](../management/admin/trustedclusters.mdx), the cluster selector allows
+When using [trusted clusters](../management/admin/trustedclusters.mdx), the cluster selector allows
 you to determine which cluster the shell session will be bound to. The selected cluster will be
 reflected in both the tab title and the status bar.
 
@@ -263,27 +263,39 @@ The changes will take effect at the next launch.
 
 ## Troubleshooting
 
-Logging out of a cluster, closing the app and logging in again resets all app state related to that
-cluster. This can help if you encounter a bug which renders the user interface partially unusable.
-It might also help if you have issues with connecting to an active cluster that don't happen in the
-Web UI.
+Resetting the app state might help with UI crashes caused by Teleport Connect getting into an
+abnormal state. This might happen after downgrading Teleport Connect or performing substantial
+server-side changes. Those UI crashes typically manifest as a blank window or an Internal Error
+alert.
+
+To reset the state related to a particular cluster:
+
+1. Log out of the cluster.
+1. Close Teleport Connect.
+1. Open Teleport Connect, then log back in to the cluster.
+
+To completely wipe all app state:
+
+1. Close Teleport Connect.
+1. Remove the internal `tsh` folder and the `app_state.json` file to log out of all clusters and
+   clear all remembered tabs and connections.
 
 <Tabs>
 <TabItem label="macOS">
-To force the app to log you out of all clusters, close the app and remove the `~/Library/Application
-Support/Teleport Connect/tsh` folder. Removing the file `~/Library/Application
-Support/Teleport Connect/app_state.json` will clear all remembered tabs and connections.
+```code
+$ rm -rf ~/Library/Application\ Support/Teleport\ Connect/{tsh,app_state.json}
+```
 </TabItem>
 <TabItem label="Linux">
-To force the app to log you out of all clusters, close the app and remove the `~/.config/Teleport
-Connect/tsh` folder. Removing the file `/.config/Teleport Connect/app_state.json` will clear
-all remembered tabs and connections.
+```code
+$ rm -rf ~/.config/Teleport\ Connect/{tsh,app_state.json}
+```
 </TabItem>
 <TabItem label="Windows">
-To force the app to log you out of all clusters, close the app and remove the
-`C:\Users\%UserName%\AppData\Roaming\Teleport Connect\tsh` folder. Removing the file
-`C:\Users\%UserName%\AppData\Roaming\Teleport Connect\app_state.json` will clear all remembered tabs
-and connections.
+```code
+$ rmdir /s /q C:\Users\%UserName%\AppData\Roaming\"Teleport Connect"\tsh
+$ del C:\Users\%UserName%\AppData\Roaming\"Teleport Connect"\app_state.json
+```
 </TabItem>
 </Tabs>
 
@@ -294,33 +306,39 @@ and follow the *Submit a Bug* link.
 
 <Tabs>
 <TabItem label="macOS">
-Be sure to attach logs, which can be found under `~/Library/Application Support/Teleport Connect/logs`.
-The version of the app can be found in the app menu under the About Teleport Connect menu item.
+Be sure to attach logs, which can be found in the app menu under Help -> Open Logs Directory. The
+logs are stored in `~/Library/Application Support/Teleport Connect/logs`.
 
-To get more detailed logs, run Teleport Connect with the `--debug` flag:
+The app version can be found in the app menu under Teleport Connect -> About Teleport Connect.
 
-(!docs/pages/connect-your-client/includes/launch-connect-with-flags-macos.mdx flags="--debug"!)
+To get more detailed logs, run Teleport Connect with the `--connect-debug` flag:
+
+(!docs/pages/connect-your-client/includes/launch-connect-with-flags-macos.mdx flags="--connect-debug"!)
 </TabItem>
 <TabItem label="Linux">
-Be sure to attach logs, which can be found under `~/.config/Teleport Connect/logs`. The app version
-can be found by pressing `Alt` to access the app menu, then -> Help -> About Teleport Connect.
+Be sure to attach logs, which can be found by pressing `Alt` to access the app menu, then Help ->
+Open Logs Directory. The logs are stored in `~/.config/Teleport Connect/logs`.
 
-To get more detailed logs, run Teleport Connect with the `--debug` flag:
+The app version can be found under Help -> About Teleport Connect.
+
+To get more detailed logs, run Teleport Connect with the `--connect-debug` flag:
 
 ```code
-$ teleport-connect --debug
+$ teleport-connect --connect-debug
 ````
 </TabItem>
 <TabItem label="Windows">
-Be sure to attach logs, which can be found under `C:\Users\%UserName%\AppData\Roaming\Teleport Connect\logs`.
+Be sure to attach logs, which can be found by pressing `Alt` to access the app menu, then Help ->
+Open Logs Directory. The logs are stored in `C:\Users\%UserName%\AppData\Roaming\Teleport
+Connect\logs`.
 You may need to adjust File Explorer to [view hidden files and folders](https://support.microsoft.com/en-us/search?query=how%20to%20view%20hidden%20files%20in%20windows%2010).
-The app version can be found by pressing `Alt` to access the app menu -> Help -> About Teleport Connect.
 
+The app version can be found under Help -> About Teleport Connect.
 
-To get more detailed logs, open Teleport Connect from the Command Prompt with the `--debug` flag:
+To get more detailed logs, open Teleport Connect from the Command Prompt with the `--connect-debug` flag:
 
 ```code
-$ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --debug
+$ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --connect-debug
 ````
 </TabItem>
 </Tabs>
@@ -370,7 +388,7 @@ $ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --insecure
 Remove Teleport Connect for MacOS from the Applications directory with this command:
 
 ```code
-$ sudo rm -f /Applications/Teleport\ Connect.app
+$ sudo rm -rf /Applications/Teleport\ Connect.app
 ```
 
 To remove the local user data directory:

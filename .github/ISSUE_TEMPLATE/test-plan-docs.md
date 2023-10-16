@@ -67,7 +67,7 @@ to select "Version 12.0" in the documentation version switcher.
 ### Installation
 
 - [ ] General [installation page](../../docs/pages/installation.mdx): ensure that
-  installation methods support the new release candidate. 
+  installation methods support the new release candidate.
 - [ ] Enterprise Cloud [downloads
   page](../../docs/pages/choose-an-edition/teleport-cloud/downloads.mdx): ensure that
   the release cnadidate is available at the repositories we link to.
@@ -80,7 +80,7 @@ to select "Version 12.0" in the documentation version switcher.
 - [ ] [Teleport Enterprise with
   Helm](../../docs/pages/deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx)
 - [ ] [Teleport Enterprise with
-  Terraform](../../docs/pages/deploy-a-cluster/deployments/aws-terraform.mdx)
+  Terraform](../../docs/pages/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform.mdx)
 
 ### New feature docs
 

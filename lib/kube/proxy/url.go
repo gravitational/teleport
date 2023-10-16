@@ -203,6 +203,10 @@ var defaultRBACResources = rbacSupportedResources{
 	{apiGroup: "batch", resourceKind: "jobs"}:                                     types.KindKubeJob,
 	{apiGroup: "certificates.k8s.io", resourceKind: "certificatesigningrequests"}: types.KindKubeCertificateSigningRequest,
 	{apiGroup: "networking.k8s.io", resourceKind: "ingresses"}:                    types.KindKubeIngress,
+	{apiGroup: "extensions", resourceKind: "deployments"}:                         types.KindKubeDeployment,
+	{apiGroup: "extensions", resourceKind: "replicasets"}:                         types.KindKubeReplicaSet,
+	{apiGroup: "extensions", resourceKind: "daemonsets"}:                          types.KindKubeDaemonSet,
+	{apiGroup: "extensions", resourceKind: "ingresses"}:                           types.KindKubeIngress,
 }
 
 // getResourceFromRequest returns a KubernetesResource if the user tried to access

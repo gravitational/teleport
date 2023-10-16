@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
@@ -594,6 +595,13 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 	}
 	state := accessChecker.GetAccessState(authPref)
 	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
+
+	// Certain hardware-key based private key policies are treated as MFA verification.
+	if policyString, ok := cert.Extensions[teleport.CertExtensionPrivateKeyPolicy]; ok {
+		if keys.PrivateKeyPolicy(policyString).MFAVerified() {
+			state.MFAVerified = true
+		}
+	}
 
 	// we don't need to check the RBAC for the node if they are only allowed to join sessions
 	if osUser == teleport.SSHSessionJoinPrincipal &&
