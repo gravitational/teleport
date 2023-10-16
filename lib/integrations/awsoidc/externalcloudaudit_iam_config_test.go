@@ -37,7 +37,7 @@ func TestConfigureExternalCloudAudit(t *testing.T) {
 
 	for _, tc := range []struct {
 		desc                 string
-		params               *config.IntegrationConfExternalCloudAuditIAM
+		params               *config.IntegrationConfExternalCloudAudit
 		stsAccount           string
 		existingRolePolicies map[string]map[string]string
 		expectedRolePolicies map[string]map[string]string
@@ -46,7 +46,7 @@ func TestConfigureExternalCloudAudit(t *testing.T) {
 		{
 			// A passing case with the account from sts:GetCallerIdentity
 			desc: "passing",
-			params: &config.IntegrationConfExternalCloudAuditIAM{
+			params: &config.IntegrationConfExternalCloudAudit{
 				Partition:            "aws",
 				Region:               "us-west-2",
 				Role:                 "test-role",
@@ -115,7 +115,7 @@ func TestConfigureExternalCloudAudit(t *testing.T) {
 		},
 		{
 			desc: "alternate partition and region",
-			params: &config.IntegrationConfExternalCloudAuditIAM{
+			params: &config.IntegrationConfExternalCloudAudit{
 				Partition:            "aws-cn",
 				Region:               "cn-north-1",
 				Role:                 "test-role",
@@ -184,7 +184,7 @@ func TestConfigureExternalCloudAudit(t *testing.T) {
 		},
 		{
 			desc: "bad uri",
-			params: &config.IntegrationConfExternalCloudAuditIAM{
+			params: &config.IntegrationConfExternalCloudAudit{
 				Partition:            "aws",
 				Region:               "us-west-2",
 				Role:                 "test-role",
@@ -206,7 +206,7 @@ func TestConfigureExternalCloudAudit(t *testing.T) {
 		},
 		{
 			desc: "role not found",
-			params: &config.IntegrationConfExternalCloudAuditIAM{
+			params: &config.IntegrationConfExternalCloudAudit{
 				Partition:            "aws",
 				Region:               "us-west-2",
 				Role:                 "bad-role",
