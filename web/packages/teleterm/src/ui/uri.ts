@@ -202,15 +202,15 @@ export const routing = {
   },
 
   isRootCluster(clusterUri: ClusterUri) {
-    return !this.isLeafCluster(clusterUri);
+    return !routing.isLeafCluster(clusterUri);
   },
 
   belongsToProfile(
     clusterUri: ClusterOrResourceUri,
     resourceUri: ClusterOrResourceUri
   ) {
-    const rootClusterUri = this.ensureRootClusterUri(clusterUri);
-    const resourceRootClusterUri = this.ensureRootClusterUri(resourceUri);
+    const rootClusterUri = routing.ensureRootClusterUri(clusterUri);
+    const resourceRootClusterUri = routing.ensureRootClusterUri(resourceUri);
 
     return resourceRootClusterUri === rootClusterUri;
   },
