@@ -57,8 +57,9 @@ func TestCreateIncident(t *testing.T) {
 	assert.NoError(t, err)
 
 	expected := Incident{
-		ShortDescription: "Access request from someUser",
-		Description:      "someUser requested permissions for roles role1, role2 on Teleport at 01 Jan 01 00:00 UTC.\nReason: someReason\n\n",
+		ShortDescription: "Teleport access request from user someUser",
+		Description:      "Teleport user someUser submitted access request for roles role1, role2 on Teleport cluster .\nReason: someReason\n\n",
+		Caller:           "someUser",
 	}
 	var got Incident
 	err = json.Unmarshal([]byte(recievedReq), &got)
