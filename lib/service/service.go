@@ -70,7 +70,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/ai"
@@ -1378,23 +1377,6 @@ func adminCreds() (*int, *int, error) {
 	return &uid, &gid, nil
 }
 
-type tagEventWatcher struct {
-	ctx context.Context
-
-	accessGraphClient accessgraphv1.AccessGraphServiceClient
-}
-
-func (t *tagEventWatcher) Context() context.Context {
-	return t.ctx
-}
-
-func (t *tagEventWatcher) Send(event *proto.Event) error {
-	_, err := t.accessGraphClient.SendEvent(t.ctx, &accessgraphv1.SendEventRequest{
-		Event: event,
-	})
-	return trace.Wrap(err)
-}
-
 // initAuthUploadHandler initializes the auth server's upload handler based upon the configuration.
 // When configured to store session recordings in external storage, this will be an API client for
 // cloud-provider storage. Otherwise a local file-based handler is used which stores the recordings
@@ -1879,46 +1861,6 @@ func (process *TeleportProcess) initAuthService() error {
 			}
 			log.Debugf("Starting embedding processor")
 			return embeddingProcessor.Run(process.GracefulExitContext(), embeddingInitialDelay, embeddingPeriod)
-		})
-	}
-
-	if cfg.AccessGraph.Enabled {
-		log.Debugf("Access Graph integration enabled")
-
-		process.RegisterFunc("access-graph-service", func() error {
-			log.Infof("Starting access graph service")
-
-			accessGraphAddr := cfg.AccessGraph.Addr
-			if accessGraphAddr == "" {
-				log.Errorf("access graph endpoint not configured")
-				return trace.NotFound("access graph endpoint not configured")
-			}
-			if cfg.AccessGraph.CA == "" {
-				log.Errorf("Failed to initialize access graph: access graph CA not configured")
-				return trace.NotFound("access graph CA not configured")
-			}
-
-			const accessGraphRetryPeriod = 5 * time.Second
-
-			// TODO(jakule): Very excessive retrying, but we need to make sure that
-			// the access graph is initialized before we start serving requests.
-			for {
-				if err := initializeAndWatchAccessGraph(process.GracefulExitContext(),
-					accessGraphServiceConfig{
-						addr:    accessGraphAddr,
-						ca:      cfg.AccessGraph.CA,
-						license: cfg.Auth.LicenseFile,
-					},
-					authServer); err != nil {
-					log.Errorf("Failed to initialize access graph: %v", err)
-					select {
-					case <-process.GracefulExitContext().Done():
-						return trace.Wrap(err)
-					case <-time.After(accessGraphRetryPeriod):
-						continue
-					}
-				}
-			}
 		})
 	}
 
