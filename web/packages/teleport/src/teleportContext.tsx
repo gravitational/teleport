@@ -135,6 +135,13 @@ class TeleportContext implements types.Context {
       return !cfg.isDashboard;
     }
 
+    function hasAccessMonitoringAccess() {
+      return (
+        userContext.getAuditQueryAccess().list ||
+        userContext.getSecurityReportAccess().list
+      );
+    }
+
     return {
       audit: userContext.getEventAccess().list,
       recordings: userContext.getSessionsAccess().list,
@@ -164,6 +171,7 @@ class TeleportContext implements types.Context {
       newLocks:
         userContext.getLockAccess().create && userContext.getLockAccess().edit,
       assist: userContext.getAssistantAccess().list && this.assistEnabled,
+      accessMonitoring: hasAccessMonitoringAccess(),
       managementSection: hasManagementSectionAccess(),
     };
   }
@@ -196,6 +204,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   newLocks: false,
   assist: false,
   managementSection: false,
+  accessMonitoring: false,
 };
 
 export default TeleportContext;

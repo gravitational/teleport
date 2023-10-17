@@ -719,12 +719,13 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
 		session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
-			User:       userState.GetName(),
-			Roles:      userState.GetRoles(),
-			Traits:     userState.GetTraits(),
-			SessionTTL: params.SessionTTL,
-			LoginTime:  a.clock.Now().UTC(),
-			LoginIP:    req.ClientLoginIP,
+			User:             userState.GetName(),
+			Roles:            userState.GetRoles(),
+			Traits:           userState.GetTraits(),
+			SessionTTL:       params.SessionTTL,
+			LoginTime:        a.clock.Now().UTC(),
+			LoginIP:          req.ClientLoginIP,
+			AttestWebSession: true,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")

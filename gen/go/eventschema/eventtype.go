@@ -43,4 +43,5 @@ var eventTypes = []string{
 	"user.password_change",
 	"windows.desktop.session.end",
 	"windows.desktop.session.start",
+	"kube.request",
 }

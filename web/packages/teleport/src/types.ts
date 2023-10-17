@@ -59,6 +59,7 @@ export enum NavTitle {
   AccessLists = 'Access Lists',
   SessionAndIdentityLocks = 'Session & Identity Locks',
   TrustedDevices = 'Trusted Devices',
+  AccessMonitoring = 'Access Monitoring',
 
   // Resources Requests
   NewRequest = 'New Request',
@@ -158,6 +159,7 @@ export interface FeatureFlags {
   locks: boolean;
   newLocks: boolean;
   assist: boolean;
+  accessMonitoring: boolean;
   // Whether or not the management section should be available.
   managementSection: boolean;
 }

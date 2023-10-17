@@ -42,6 +42,10 @@ const SemaphoreKindKubernetesConnection = "kubernetes_connection"
 // the number of operations that can occur on a unix user to one at a time
 const SemaphoreKindHostUserModification = "host_user_modification"
 
+// SemaphoreKindAccessMonitoringLimiter is the semaphore kind used by
+// the Access Monitoring feature during handling user queries.
+const SemaphoreKindAccessMonitoringLimiter = "access_monitoring_limiter"
+
 // Semaphore represents distributed semaphore concept
 type Semaphore interface {
 	// Resource contains common resource values
