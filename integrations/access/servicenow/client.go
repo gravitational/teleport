@@ -162,7 +162,7 @@ func (snc *Client) CreateIncident(ctx context.Context, reqID string, reqData Req
 		return Incident{}, errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
 
-	return result.Result, nil
+	return Incident{IncidentID: result.Result.IncidentID}, nil
 }
 
 // PostReviewNote posts a note once a new request review appears.

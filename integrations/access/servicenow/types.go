@@ -105,5 +105,8 @@ type userResult struct {
 }
 
 type incidentResult struct {
-	Result Incident `json:"result"`
+	Result struct{
+		// IncidentID is the sys_id of the incident
+		IncidentID string `json:"sys_id,omitempty"`
+	} `json:"result"`
 }
