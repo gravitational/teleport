@@ -41,16 +41,18 @@ func (s *RestrictionsService) SetNetworkRestrictions(ctx context.Context, nr typ
 	if err := nr.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := nr.GetRevision()
 	value, err := services.MarshalNetworkRestrictions(nr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(restrictionsPrefix, network),
-		Value:   value,
-		Expires: nr.Expiry(),
-		ID:      nr.GetResourceID(),
+		Key:      backend.Key(restrictionsPrefix, network),
+		Value:    value,
+		Expires:  nr.Expiry(),
+		ID:       nr.GetResourceID(),
+		Revision: rev,
 	}
 
 	_, err = s.Put(ctx, item)
@@ -66,7 +68,7 @@ func (s *RestrictionsService) GetNetworkRestrictions(ctx context.Context) (types
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalNetworkRestrictions(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // SetNetworkRestrictions upserts NetworkRestrictions

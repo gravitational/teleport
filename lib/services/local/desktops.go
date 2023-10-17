@@ -47,7 +47,7 @@ func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter t
 	var desktops []types.WindowsDesktop
 	for _, item := range result.Items {
 		desktop, err := services.UnmarshalWindowsDesktop(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -91,15 +91,17 @@ func (s *WindowsDesktopService) UpdateWindowsDesktop(ctx context.Context, deskto
 	if err := desktop.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := desktop.GetRevision()
 	value, err := services.MarshalWindowsDesktop(desktop)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
-		Value:   value,
-		Expires: desktop.Expiry(),
-		ID:      desktop.GetResourceID(),
+		Key:      backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
+		Value:    value,
+		Expires:  desktop.Expiry(),
+		ID:       desktop.GetResourceID(),
+		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
 	if err != nil {
@@ -113,15 +115,17 @@ func (s *WindowsDesktopService) UpsertWindowsDesktop(ctx context.Context, deskto
 	if err := desktop.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := desktop.GetRevision()
 	value, err := services.MarshalWindowsDesktop(desktop)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
-		Value:   value,
-		Expires: desktop.Expiry(),
-		ID:      desktop.GetResourceID(),
+		Key:      backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
+		Value:    value,
+		Expires:  desktop.Expiry(),
+		ID:       desktop.GetResourceID(),
+		Revision: rev,
 	}
 	_, err = s.Put(ctx, item)
 	if err != nil {
@@ -184,7 +188,7 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 			}
 
 			desktop, err := services.UnmarshalWindowsDesktop(item.Value,
-				services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+				services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 			if err != nil {
 				return false, trace.Wrap(err)
 			}
@@ -249,7 +253,7 @@ func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, 
 			}
 
 			desktop, err := services.UnmarshalWindowsDesktopService(item.Value,
-				services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+				services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 			if err != nil {
 				return false, trace.Wrap(err)
 			}

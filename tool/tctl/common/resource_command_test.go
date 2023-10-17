@@ -1039,7 +1039,7 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	resources = mustDecodeJSON[[]T](t, buf)
 	require.Len(t, resources, 3)
 	require.Empty(t, cmp.Diff([]T{test.fooResource, test.fooBar1Resource, test.fooBar2Resource}, resources,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
 	))
 
 	// Fetch specific resource.
@@ -1049,7 +1049,7 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	resources = mustDecodeJSON[[]T](t, buf)
 	require.Len(t, resources, 1)
 	require.Empty(t, cmp.Diff([]T{test.fooResource}, resources,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
 	))
 
 	// Remove a resource.
@@ -1062,7 +1062,7 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	resources = mustDecodeJSON[[]T](t, buf)
 	require.Len(t, resources, 2)
 	require.Empty(t, cmp.Diff([]T{test.fooBar1Resource, test.fooBar2Resource}, resources,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
 	))
 
 	if !test.runDiscoveredNameChecks {
@@ -1076,7 +1076,7 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	resources = mustDecodeJSON[[]T](t, buf)
 	require.Len(t, resources, 2)
 	require.Empty(t, cmp.Diff([]T{test.fooBar1Resource, test.fooBar2Resource}, resources,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
 	))
 
 	// Removing multiple resources ("foo-bar-1" and "foo-bar-2") by discovered name is an error.
@@ -1093,7 +1093,7 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	resources = mustDecodeJSON[[]T](t, buf)
 	require.Len(t, resources, 1)
 	require.Empty(t, cmp.Diff([]T{test.fooBar1Resource}, resources,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
 	))
 }
 

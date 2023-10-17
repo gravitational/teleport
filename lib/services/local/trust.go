@@ -84,15 +84,17 @@ func (s *CA) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) er
 		}
 	}
 
+	rev := ca.GetRevision()
 	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
-		Value:   value,
-		Expires: ca.Expiry(),
-		ID:      ca.GetResourceID(),
+		Key:      backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
+		Value:    value,
+		Expires:  ca.Expiry(),
+		ID:       ca.GetResourceID(),
+		Revision: rev,
 	}
 
 	_, err = s.Put(ctx, item)
@@ -125,14 +127,16 @@ func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) erro
 		return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
 	}
 
+	rev := new.GetRevision()
 	newValue, err := services.MarshalCertAuthority(new)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	newItem := backend.Item{
-		Key:     key,
-		Value:   newValue,
-		Expires: new.Expiry(),
+		Key:      key,
+		Value:    newValue,
+		Expires:  new.Expiry(),
+		Revision: rev,
 	}
 
 	_, err = s.CompareAndSwap(context.TODO(), *actualItem, newItem)
@@ -177,7 +181,7 @@ func (s *CA) ActivateCertAuthority(id types.CertAuthID) error {
 	}
 
 	certAuthority, err := services.UnmarshalCertAuthority(
-		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -211,15 +215,17 @@ func (s *CA) DeactivateCertAuthority(id types.CertAuthID) error {
 		return trace.Wrap(err)
 	}
 
+	rev := certAuthority.GetRevision()
 	value, err := services.MarshalCertAuthority(certAuthority)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName),
-		Value:   value,
-		Expires: certAuthority.Expiry(),
-		ID:      certAuthority.GetResourceID(),
+		Key:      backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName),
+		Value:    value,
+		Expires:  certAuthority.Expiry(),
+		ID:       certAuthority.GetResourceID(),
+		Revision: rev,
 	}
 
 	_, err = s.Put(context.TODO(), item)
@@ -240,7 +246,7 @@ func (s *CA) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSign
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := services.UnmarshalCertAuthority(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	ca, err := services.UnmarshalCertAuthority(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -275,7 +281,7 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 	// Marshal values into a []types.CertAuthority slice.
 	cas := make([]types.CertAuthority, len(result.Items))
 	for i, item := range result.Items {
-		ca, err := services.UnmarshalCertAuthority(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		ca, err := services.UnmarshalCertAuthority(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -307,14 +313,16 @@ func (s *CA) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types
 
 	actual.SetRoleMap(roleMap)
 
+	rev := actual.GetRevision()
 	newValue, err := services.MarshalCertAuthority(actual)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	newItem := backend.Item{
-		Key:     key,
-		Value:   newValue,
-		Expires: actual.Expiry(),
+		Key:      key,
+		Value:    newValue,
+		Expires:  actual.Expiry(),
+		Revision: rev,
 	}
 	_, err = s.CompareAndSwap(ctx, *actualItem, newItem)
 	if err != nil {

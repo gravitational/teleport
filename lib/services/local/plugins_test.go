@@ -76,14 +76,14 @@ func TestPluginsCRUD(t *testing.T) {
 	out, err = service.GetPlugins(ctx, true)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Plugin{plugin1, plugin2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a specific plugin.
 	cluster, err := service.GetPlugin(ctx, plugin2.GetName(), true)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(plugin2, cluster,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to fetch a plugin that doesn't exist.
@@ -104,7 +104,7 @@ func TestPluginsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	// Fields other than Status should remain unchanged
 	require.Empty(t, cmp.Diff(plugin1, cluster,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		cmpopts.IgnoreFields(types.PluginV1{}, "Status"),
 	))
 	require.Empty(t, cmp.Diff(status, cluster.GetStatus()))
@@ -124,7 +124,7 @@ func TestPluginsCRUD(t *testing.T) {
 	out, err = service.GetPlugins(ctx, true)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Plugin{plugin2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete a plugin that doesn't exist.
@@ -192,7 +192,7 @@ func TestListPlugins(t *testing.T) {
 		fetchedPlugins = append(fetchedPlugins, page3...)
 
 		require.Empty(t, cmp.Diff(insertedPlugins, fetchedPlugins,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	})
 
@@ -202,7 +202,7 @@ func TestListPlugins(t *testing.T) {
 		require.Empty(t, nextKey)
 
 		require.Empty(t, cmp.Diff(insertedPlugins, fetchedPlugins,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	})
 }

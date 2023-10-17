@@ -59,7 +59,7 @@ func TestAccessListCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 	}
 
 	// Create both access lists.
@@ -181,7 +181,7 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 	accessList1 := newAccessList(t, "accessList1", clock)
 
 	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 	}
 
 	t.Run("create access list", func(t *testing.T) {
@@ -258,7 +258,7 @@ func TestAccessListMembersCRUD(t *testing.T) {
 	accessList2 := newAccessList(t, "accessList2", clock)
 
 	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 	}
 
 	// Create both access lists.
