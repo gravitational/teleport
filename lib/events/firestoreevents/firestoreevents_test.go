@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"cloud.google.com/go/firestore"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -88,12 +89,19 @@ func (tt *firestoreContext) setupTest(t *testing.T) {
 	if len(docSnaps) == 0 {
 		return
 	}
-	batch := tt.log.svc.Batch()
+	batch := tt.log.svc.BulkWriter(tt.log.svcContext)
+	jobs := make([]*firestore.BulkWriterJob, 0, len(docSnaps))
 	for _, docSnap := range docSnaps {
-		batch.Delete(docSnap.Ref)
+		job, err := batch.Delete(docSnap.Ref)
+		require.NoError(t, err)
+		jobs = append(jobs, job)
 	}
-	_, err = batch.Commit(ctx)
-	require.NoError(t, err)
+
+	batch.End()
+	for _, job := range jobs {
+		_, err := job.Results()
+		require.NoError(t, err)
+	}
 }
 
 func (tt *firestoreContext) Close(t *testing.T) {
