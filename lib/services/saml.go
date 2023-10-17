@@ -299,6 +299,9 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConn
 		if cfg.ID != 0 {
 			c.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			c.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			c.SetExpiry(cfg.Expires)
 		}
@@ -327,6 +330,7 @@ func MarshalSAMLConnector(samlConnector types.SAMLConnector, opts ...MarshalOpti
 			// to prevent unexpected data races
 			copy := *samlConnector
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			samlConnector = &copy
 		}
 		return utils.FastMarshal(samlConnector)
