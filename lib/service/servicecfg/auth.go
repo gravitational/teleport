@@ -147,6 +147,11 @@ type AccessMonitoringOptions struct {
 	ReportResults string `yaml:"report_results,omitempty"`
 }
 
+// IsAccessMonitoringEnabled returns true if access monitoring is enabled.
+func (a *AuthConfig) IsAccessMonitoringEnabled() bool {
+	return a.AccessMonitoring != nil && a.AccessMonitoring.Enabled
+}
+
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (a *AccessMonitoringOptions) CheckAndSetDefaults() error {
 	var err error

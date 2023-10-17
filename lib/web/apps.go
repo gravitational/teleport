@@ -61,7 +61,6 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	page, err := apiclient.GetResourcePage[types.AppServerOrSAMLIdPServiceProvider](r.Context(), clt, req)
-
 	if err != nil {
 		// If the error returned is due to types.KindAppOrSAMLIdPServiceProvider being unsupported, then fallback to attempting to just fetch types.AppServers.
 		// This is for backwards compatibility with leaf clusters that don't support this new type yet.
@@ -279,8 +278,9 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 			ServerNamespace: apidefaults.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{
-			SessionID: identity.RouteToApp.SessionID,
-			WithMFA:   identity.MFAVerified,
+			SessionID:        identity.RouteToApp.SessionID,
+			WithMFA:          identity.MFAVerified,
+			PrivateKeyPolicy: string(identity.PrivateKeyPolicy),
 		},
 		UserMetadata: userMetadata,
 		ConnectionMetadata: apievents.ConnectionMetadata{

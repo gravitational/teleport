@@ -86,6 +86,14 @@ func NewAudit(config AuditConfig) (Audit, error) {
 	}, nil
 }
 
+func getSessionMetadata(identity *tlsca.Identity) apievents.SessionMetadata {
+	return apievents.SessionMetadata{
+		SessionID:        identity.RouteToApp.SessionID,
+		WithMFA:          identity.MFAVerified,
+		PrivateKeyPolicy: string(identity.PrivateKeyPolicy),
+	}
+}
+
 // OnSessionStart is called when new app session starts.
 func (a *audit) OnSessionStart(ctx context.Context, serverID string, identity *tlsca.Identity, app types.Application) error {
 	event := &apievents.AppSessionStart{
@@ -98,11 +106,8 @@ func (a *audit) OnSessionStart(ctx context.Context, serverID string, identity *t
 			ServerID:        serverID,
 			ServerNamespace: apidefaults.Namespace,
 		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: identity.RouteToApp.SessionID,
-			WithMFA:   identity.MFAVerified,
-		},
-		UserMetadata: identity.GetUserMetadata(),
+		SessionMetadata: getSessionMetadata(identity),
+		UserMetadata:    identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: identity.LoginIP,
 		},
@@ -127,11 +132,8 @@ func (a *audit) OnSessionEnd(ctx context.Context, serverID string, identity *tls
 			ServerID:        serverID,
 			ServerNamespace: apidefaults.Namespace,
 		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: identity.RouteToApp.SessionID,
-			WithMFA:   identity.MFAVerified,
-		},
-		UserMetadata: identity.GetUserMetadata(),
+		SessionMetadata: getSessionMetadata(identity),
+		UserMetadata:    identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: identity.LoginIP,
 		},
@@ -156,11 +158,8 @@ func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, id
 			ServerID:        serverID,
 			ServerNamespace: apidefaults.Namespace,
 		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: identity.RouteToApp.SessionID,
-			WithMFA:   identity.MFAVerified,
-		},
-		UserMetadata: identity.GetUserMetadata(),
+		SessionMetadata: getSessionMetadata(identity),
+		UserMetadata:    identity.GetUserMetadata(),
 		AppMetadata: apievents.AppMetadata{
 			AppURI:        app.GetURI(),
 			AppPublicAddr: app.GetPublicAddr(),
