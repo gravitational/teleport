@@ -48,7 +48,7 @@ There are two options for enrolling a Kubernetes cluster as a resource:
 - You can follow the guided enrollment steps in the Teleport Web UI.
 - You run commands and edit files manually in a terminal.
 
-The guided enrollment simplifies the deployment process by prepopulating commands
+The guided enrollment simplifies the deployment process by pre-populating commands
 and files with required information—for example, the token used to provision the
 Kubernetes cluster—and information you specify, such as the Kubernetes namespace,
 users, and groups to grant access to.
@@ -208,7 +208,7 @@ one Kubernetes group named `viewers` and one Kubernetes user.
    tsh kube ls
    Kube Cluster Name Labels Selected 
    ----------------- ------ -------- 
-   pistolas-minikube        *        
+   example-minikube        *        
    ```
    
    If you have more than one cluster enrolled, you can switch between clusters 
@@ -224,8 +224,8 @@ one Kubernetes group named `viewers` and one Kubernetes user.
 
    ```
    NAME                              READY   STATUS    RESTARTS   AGE
-   balanced-567b5f87b5-pvkvr         1/1     Running   0          143m
-   hello-minikube-59d4768566-tcnv6   1/1     Running   0          144m
+   balanced-567b5f87b5-abcde         1/1     Running   0          143m
+   hello-minikube-59d4768566-abcde   1/1     Running   0          144m
    ```
 
 ## Enroll Kubernetes manually
