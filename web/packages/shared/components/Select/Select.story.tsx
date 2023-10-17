@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import { Flex, Box } from 'design';
 
-import Select, { DarkStyledSelect, SelectCreatable, Option } from '../Select';
+import Select, { DarkStyledSelect } from '../Select';
 
 export default {
   title: 'Shared/Select',
@@ -28,7 +28,6 @@ export const Selects = () => {
     <Flex>
       <SelectDefault {...props} />
       <SelectDark {...props} />
-      <SelectCreatableDefault />
     </Flex>
   );
 };
@@ -110,48 +109,6 @@ function SelectDark({ value, onChange, options }) {
           placeholder="Click to select a role"
         />
       </DarkStyledSelect>
-    </Flex>
-  );
-}
-
-function SelectCreatableDefault() {
-  const [input, setInput] = React.useState('');
-  const [selected, setSelected] = React.useState<Option[]>();
-
-  return (
-    <Flex flexDirection="column" width="330px" mr={5}>
-      <Box mb="200px">
-        <SelectCreatable
-          placeholder="Example"
-          isMulti
-          isClearable
-          isSearchable
-          inputValue={input}
-          value={selected}
-          onInputChange={v => setInput(v)}
-          onChange={v => setSelected((v as Option[] | null) || [])}
-        />
-      </Box>
-      <Box mb="200px">
-        <SelectCreatable
-          placeholder="Example"
-          inputValue={input}
-          value={selected}
-          onInputChange={v => setInput(v)}
-          onChange={v => setSelected((v as Option[] | null) || [])}
-        />
-      </Box>
-      <Box>
-        <DarkStyledSelect>
-          <SelectCreatable
-            placeholder="Example"
-            inputValue={input}
-            value={selected}
-            onInputChange={v => setInput(v)}
-            onChange={v => setSelected((v as Option[] | null) || [])}
-          />
-        </DarkStyledSelect>
-      </Box>
     </Flex>
   );
 }
