@@ -7190,6 +7190,8 @@ func (m *GetMFADevicesResponse) GetDevices() []*types.MFADevice {
 }
 
 // UserSingleUseCertsRequest is a request for a single-use user certificate.
+//
+// Deprecated: Use [AuthService.GenerateUserCerts] instead.
 type UserSingleUseCertsRequest struct {
 	// Types that are valid to be assigned to Request:
 	//	*UserSingleUseCertsRequest_Init
@@ -7279,6 +7281,8 @@ func (*UserSingleUseCertsRequest) XXX_OneofWrappers() []interface{} {
 }
 
 // UserSingleUseCertsResponse is a response with a single-use user certificate.
+//
+// Deprecated: Use [AuthService.GenerateUserCerts] instead.
 type UserSingleUseCertsResponse struct {
 	// Types that are valid to be assigned to Response:
 	//	*UserSingleUseCertsResponse_MFAChallenge
@@ -15734,6 +15738,8 @@ type AuthServiceClient interface {
 	GenerateHostCerts(ctx context.Context, in *HostCertsRequest, opts ...grpc.CallOption) (*Certs, error)
 	// GenerateUserSingleUseCerts generates a set of single-use user
 	// certificates.
+	//
+	// Deprecated: Superseded by GenerateUserCerts.
 	GenerateUserSingleUseCerts(ctx context.Context, opts ...grpc.CallOption) (AuthService_GenerateUserSingleUseCertsClient, error)
 	// GenerateOpenSSHCert signs a SSH certificate that can be used
 	// to connect to Agentless nodes.
@@ -19059,6 +19065,8 @@ type AuthServiceServer interface {
 	GenerateHostCerts(context.Context, *HostCertsRequest) (*Certs, error)
 	// GenerateUserSingleUseCerts generates a set of single-use user
 	// certificates.
+	//
+	// Deprecated: Superseded by GenerateUserCerts.
 	GenerateUserSingleUseCerts(AuthService_GenerateUserSingleUseCertsServer) error
 	// GenerateOpenSSHCert signs a SSH certificate that can be used
 	// to connect to Agentless nodes.

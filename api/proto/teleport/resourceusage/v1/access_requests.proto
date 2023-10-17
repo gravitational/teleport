@@ -14,20 +14,15 @@
 
 syntax = "proto3";
 
-package teleport.devicetrust.v1;
+package teleport.resourceusage.v1;
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1;resourceusagev1";
 
-// Superseded by ResourceUsageService.GetUsage.
-enum AccountUsageType {
-  ACCOUNT_USAGE_TYPE_UNSPECIFIED = 0;
-  ACCOUNT_USAGE_TYPE_UNLIMITED = 1;
-  ACCOUNT_USAGE_TYPE_USAGE_BASED = 2;
-}
-
-// Superseded by ResourceUsageService.GetUsage.
-message DevicesUsage {
-  AccountUsageType account_usage_type = 1;
-  int32 devices_usage_limit = 2;
-  int32 devices_in_use = 3;
+// AccessRequestsUsage defines the usage limits for access requests.
+// Usage is limited on the basis of access requests used per calendar month.
+message AccessRequestsUsage {
+  // MonthlyLimit is the amount of requests that are allowed per month
+  int32 monthly_limit = 1;
+  // MonthlyUsed is the amount of requests that have been used this month
+  int32 monthly_used = 2;
 }

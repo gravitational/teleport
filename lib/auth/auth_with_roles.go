@@ -77,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -3511,6 +3512,11 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.O
 		}
 	}
 
+	// Only the Proxy service can create web sessions via OIDC connector.
+	if req.CreateWebSession && !a.hasBuiltinRole(types.RoleProxy) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
 	oidcReq, err := a.authServer.CreateOIDCAuthRequest(ctx, req)
 	if err != nil {
 		emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodOIDC, err, req.SSOTestFlow)
@@ -3531,7 +3537,17 @@ func (a *ServerWithRoles) GetOIDCAuthRequest(ctx context.Context, id string) (*t
 
 func (a *ServerWithRoles) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
 	// auth callback is it's own authz, no need to check extra permissions
-	return a.authServer.ValidateOIDCAuthCallback(ctx, q)
+	resp, err := a.authServer.ValidateOIDCAuthCallback(ctx, q)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Only the Proxy service can create web sessions via OIDC connector.
+	if resp.Session != nil && !a.hasBuiltinRole(types.RoleProxy) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
+	return resp, nil
 }
 
 func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID string) error {
@@ -3625,6 +3641,11 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 		}
 	}
 
+	// Only the Proxy service can create web sessions via SAML connector.
+	if req.CreateWebSession && !a.hasBuiltinRole(types.RoleProxy) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
 	samlReq, err := a.authServer.CreateSAMLAuthRequest(ctx, req)
 	if err != nil {
 		emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodSAML, err, req.SSOTestFlow)
@@ -3637,7 +3658,17 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 // ValidateSAMLResponse validates SAML auth response.
 func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
 	// auth callback is it's own authz, no need to check extra permissions
-	return a.authServer.ValidateSAMLResponse(ctx, re, connectorID)
+	resp, err := a.authServer.ValidateSAMLResponse(ctx, re, connectorID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Only the Proxy service can create web sessions via SAML connector.
+	if resp.Session != nil && !a.hasBuiltinRole(types.RoleProxy) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
+	return resp, nil
 }
 
 // GetSAMLAuthRequest returns SAML auth request if found.
@@ -3785,6 +3816,11 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(ctx context.Context, req types
 		}
 	}
 
+	// Only the Proxy service can create web sessions via Github connector.
+	if req.CreateWebSession && !a.hasBuiltinRole(types.RoleProxy) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
 	githubReq, err := a.authServer.CreateGithubAuthRequest(ctx, req)
 	if err != nil {
 		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, req.SSOTestFlow)
@@ -3804,7 +3840,18 @@ func (a *ServerWithRoles) GetGithubAuthRequest(ctx context.Context, stateToken s
 }
 
 func (a *ServerWithRoles) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
-	return a.authServer.ValidateGithubAuthCallback(ctx, q)
+	// auth callback is it's own authz, no need to check extra permissions
+	resp, err := a.authServer.ValidateGithubAuthCallback(ctx, q)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Only the Proxy service can create web sessions via Github connector.
+	if resp.Session != nil && !a.hasBuiltinRole(types.RoleProxy) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
+	return resp, nil
 }
 
 // EmitAuditEvent emits a single audit event
@@ -4782,7 +4829,42 @@ func (a *ServerWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) 
 	if !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyClusterName := a.context.Identity.GetIdentity().TeleportCluster
+	identityClusterName, err := extractOriginalClusterNameFromCSR(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if proxyClusterName != "" &&
+		proxyClusterName != clusterName.GetClusterName() &&
+		proxyClusterName != identityClusterName {
+		log.WithFields(
+			logrus.Fields{
+				"proxy_cluster_name":    proxyClusterName,
+				"identity_cluster_name": identityClusterName,
+			},
+		).Warn("KubeCSR request denied because the proxy and identity clusters didn't match")
+		return nil, trace.AccessDenied("can not sign certs for users via a different cluster proxy")
+	}
 	return a.authServer.ProcessKubeCSR(req)
+}
+
+func extractOriginalClusterNameFromCSR(req KubeCSR) (string, error) {
+	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// Extract identity from the CSR. Pass zero time for id.Expiry, it won't be
+	// used here.
+	id, err := tlsca.FromSubject(csr.Subject, time.Time{})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return id.TeleportCluster, nil
 }
 
 // GetDatabaseServers returns all registered database servers.
