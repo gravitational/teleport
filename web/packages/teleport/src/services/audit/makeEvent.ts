@@ -1542,6 +1542,21 @@ export const formatters: Formatters = {
     format: ({ access_list_name, updated_by }) =>
       `User [${updated_by}] failed to remove all members from access list [${access_list_name}]`,
   },
+  [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: {
+    type: 'secreports.audit.query.run"',
+    desc: 'Access Monitoring Query Executed',
+    format: ({ user, query }) =>
+      `User [${user}] executed Access Monitoring query [${truncateStr(
+        query,
+        80
+      )}]`,
+  },
+  [eventCodes.SECURITY_REPORT_RUN]: {
+    type: 'secreports.report.run""',
+    desc: 'Access Monitoring Report Executed',
+    format: ({ user, name }) =>
+      `User [${user}] executed [${name}] access monitoring report`,
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',

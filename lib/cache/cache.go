@@ -37,6 +37,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -118,6 +119,9 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindHeadlessAuthentication},
 		{Kind: types.KindUserLoginState},
 		{Kind: types.KindDiscoveryConfig},
+		{Kind: types.KindAuditQuery},
+		{Kind: types.KindSecurityReport},
+		{Kind: types.KindSecurityReportState},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -164,6 +168,9 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindIntegration},
+		{Kind: types.KindAuditQuery},
+		{Kind: types.KindSecurityReport},
+		{Kind: types.KindSecurityReportState},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -476,6 +483,7 @@ type Cache struct {
 	integrationsCache            services.Integrations
 	discoveryConfigsCache        services.DiscoveryConfigs
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
+	secReportsCache              services.SecReports
 	userLoginStateCache          services.UserLoginStates
 	eventsFanout                 *services.FanoutSet
 
@@ -634,6 +642,8 @@ type Config struct {
 	DiscoveryConfigs services.DiscoveryConfigs
 	// UserLoginStates is the user login state service.
 	UserLoginStates services.UserLoginStates
+	// SecEvents is the security report service.
+	SecReports services.SecReports
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -809,6 +819,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	secReprotsCache, err := local.NewSecReportsService(config.Backend, config.Clock)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	userLoginStatesCache, err := local.NewUserLoginStateService(config.Backend)
 	if err != nil {
 		cancel()
@@ -845,6 +861,7 @@ func New(config Config) (*Cache, error) {
 		integrationsCache:            integrationsCache,
 		discoveryConfigsCache:        discoveryConfigsCache,
 		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
+		secReportsCache:              secReprotsCache,
 		userLoginStateCache:          userLoginStatesCache,
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
@@ -2503,6 +2520,123 @@ func (c *Cache) GetDiscoveryConfig(ctx context.Context, name string) (*discovery
 	}
 	defer rg.Release()
 	return rg.reader.GetDiscoveryConfig(ctx, name)
+}
+
+// GetSecurityAuditQuery  returns the specified audit query resource.
+func (c *Cache) GetSecurityAuditQuery(ctx context.Context, name string) (*secreports.AuditQuery, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityAuditQuery")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.auditQueries)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetSecurityAuditQuery(ctx, name)
+}
+
+// GetSecurityAuditQueries returns a list of all audit query resources.
+func (c *Cache) GetSecurityAuditQueries(ctx context.Context) ([]*secreports.AuditQuery, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityAuditQueries")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.auditQueries)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetSecurityAuditQueries(ctx)
+}
+
+// ListSecurityAuditQueries returns a paginated list of all audit query resources.
+func (c *Cache) ListSecurityAuditQueries(ctx context.Context, pageSize int, nextKey string) ([]*secreports.AuditQuery, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListSecurityAuditQueries")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.auditQueries)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListSecurityAuditQueries(ctx, pageSize, nextKey)
+}
+
+// GetSecurityReport returns the specified security report resource.
+func (c *Cache) GetSecurityReport(ctx context.Context, name string) (*secreports.Report, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReport")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.secReports)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetSecurityReport(ctx, name)
+}
+
+// GetSecurityReports returns a list of all security report resources.
+func (c *Cache) GetSecurityReports(ctx context.Context) ([]*secreports.Report, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReports")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.secReports)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetSecurityReports(ctx)
+}
+
+// ListSecurityReports returns a paginated list of all security report resources.
+func (c *Cache) ListSecurityReports(ctx context.Context, pageSize int, nextKey string) ([]*secreports.Report, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListSecurityReports")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.secReports)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListSecurityReports(ctx, pageSize, nextKey)
+}
+
+// GetSecurityReportState returns the specified security report state resource.
+func (c *Cache) GetSecurityReportState(ctx context.Context, name string) (*secreports.ReportState, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReportState")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.secReportsStates)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetSecurityReportState(ctx, name)
+}
+
+// GetSecurityReportsStates returns a list of all security report resources.
+func (c *Cache) GetSecurityReportsStates(ctx context.Context) ([]*secreports.ReportState, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReportsStates")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.secReportsStates)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetSecurityReportsStates(ctx)
+}
+
+// ListSecurityReportsStates returns a paginated list of all security report resources.
+func (c *Cache) ListSecurityReportsStates(ctx context.Context, pageSize int, nextKey string) ([]*secreports.ReportState, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListSecurityReportsStates")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.secReportsStates)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListSecurityReportsStates(ctx, pageSize, nextKey)
 }
 
 // GetUserLoginStates returns the all user login state resources.
