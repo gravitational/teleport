@@ -22,7 +22,7 @@ import { useRule } from 'shared/components/Validation';
 
 import Select, { Props as SelectProps } from '../Select';
 
-import { LabelTip, defaultRule } from './types';
+import { LabelTip, defaultRule } from './shared';
 
 export default function FieldSelect({
   components,

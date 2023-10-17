@@ -25,7 +25,7 @@ import {
   CreatableProps as SelectCreatableProps,
 } from '../Select';
 
-import { LabelTip, defaultRule } from './types';
+import { LabelTip, defaultRule } from './shared';
 
 export function FieldSelectCreatable({
   components,
