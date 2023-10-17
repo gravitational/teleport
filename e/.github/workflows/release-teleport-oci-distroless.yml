@@ -127,6 +127,7 @@ jobs:
           # FIPS release is currently amd64-only
           - release: 'fips'
             repo-enterprise-infix: '-ent-fips'
+            dockerfile-suffix: '-fips'
             architectures: amd64
     uses: ./.github/workflows/oci-image-build.yml
     with:
@@ -146,6 +147,7 @@ jobs:
       architectures: ${{ matrix.architectures }}
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport_version }}
+      image-build-dockerfile: Dockerfile-distroless${{ matrix.dockerfile-suffix }}
       allow-overwrites: false
     secrets:
       deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}

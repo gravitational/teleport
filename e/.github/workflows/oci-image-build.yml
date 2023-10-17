@@ -352,7 +352,6 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ inputs.base-image }}@${{ env.BASE_IMAGE_HASH }}            
             TELEPORT_RELEASE_INFIX=${{ env.DEB_RELEASE_INFIX }}
-            TELEPORT_FIPS_INFIX=${{ env.DEB_FIPS_INFIX }}
             ${{ inputs.image-build-args }}
 
       - name: Sign image using signing key and GitHub OIDC Token
