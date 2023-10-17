@@ -109,7 +109,7 @@ func (cfg *TeleportConfig) CheckTLSConfig() error {
 	return nil
 }
 
-func newIdentityFileWatcher(ctx context.Context, path string, interval time.Duration) (*client.DynamicIdentityFileCreds, error) {
+func NewIdentityFileWatcher(ctx context.Context, path string, interval time.Duration) (*client.DynamicIdentityFileCreds, error) {
 	dynamicCred, err := client.NewDynamicIdentityFileCreds(path)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating dynamic identity file watcher")
@@ -151,7 +151,7 @@ func (cfg TeleportConfig) NewClient(ctx context.Context) (*client.Client, error)
 	case cfg.Identity != "" && !cfg.RefreshIdentity:
 		creds = []client.Credentials{client.LoadIdentityFile(cfg.Identity)}
 	case cfg.Identity != "" && cfg.RefreshIdentity:
-		cred, err := newIdentityFileWatcher(ctx, cfg.Identity, cfg.RefreshIdentityInterval)
+		cred, err := NewIdentityFileWatcher(ctx, cfg.Identity, cfg.RefreshIdentityInterval)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
