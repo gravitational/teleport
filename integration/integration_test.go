@@ -6099,6 +6099,7 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 }
 
 func waitForNodesToRegister(t *testing.T, teleport *helpers.TeleInstance, site string) {
+	t.Helper()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// once the tunnel is established we need to wait until we have a
 		// connection to the remote auth
