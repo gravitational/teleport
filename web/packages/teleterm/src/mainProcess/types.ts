@@ -86,6 +86,19 @@ export type RuntimeSettings = {
 };
 
 export type MainProcessClient = {
+  /** Subscribes to updates of the native theme. Returns a cleanup function. */
+  subscribeToNativeThemeUpdate: (
+    listener: (value: { shouldUseDarkColors: boolean }) => void
+  ) => {
+    cleanup: () => void;
+  };
+  subscribeToAgentUpdate: (
+    rootClusterUri: RootClusterUri,
+    listener: (state: AgentProcessState) => void
+  ) => {
+    cleanup: () => void;
+  };
+
   getRuntimeSettings(): RuntimeSettings;
   getResolvedChildProcessAddresses(): Promise<ChildProcessAddresses>;
   openTerminalContextMenu(): void;
@@ -114,12 +127,6 @@ export type MainProcessClient = {
   /** Opens config file and returns a path to it. */
   openConfigFile(): Promise<string>;
   shouldUseDarkColors(): boolean;
-  /** Subscribes to updates of the native theme. Returns a cleanup function. */
-  subscribeToNativeThemeUpdate: (
-    listener: (value: { shouldUseDarkColors: boolean }) => void
-  ) => {
-    cleanup: () => void;
-  };
   downloadAgent(): Promise<void>;
   createAgentConfigFile(
     properties: AgentConfigFileClusterProperties
@@ -135,14 +142,6 @@ export type MainProcessClient = {
   removeAgentDirectory(args: { rootClusterUri: RootClusterUri }): Promise<void>;
   getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
   getAgentLogs(args: { rootClusterUri: RootClusterUri }): string;
-  subscribeToAgentUpdate: SubscribeToAgentUpdate;
-};
-
-export type SubscribeToAgentUpdate = (
-  rootClusterUri: RootClusterUri,
-  listener: (state: AgentProcessState) => void
-) => {
-  cleanup: () => void;
 };
 
 export type ChildProcessAddresses = {
