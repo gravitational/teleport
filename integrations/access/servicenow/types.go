@@ -88,6 +88,8 @@ type RequestData struct {
 	Resolution Resolution
 	// SystemAnnotations contains key value annotations for the request.
 	SystemAnnotations types.Labels
+	// Resources are the resources being requested.
+	Resources []string
 }
 
 type onCallResult struct {
@@ -105,7 +107,7 @@ type userResult struct {
 }
 
 type incidentResult struct {
-	Result struct{
+	Result struct {
 		// IncidentID is the sys_id of the incident
 		IncidentID string `json:"sys_id,omitempty"`
 	} `json:"result"`
