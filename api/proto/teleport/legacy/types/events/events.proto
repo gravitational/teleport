@@ -251,10 +251,34 @@ message AccessListMember {
   string MemberName = 4 [(gogoproto.jsontag) = "member_name,omitempty"];
 }
 
+// AccessListReviewMembershipRequirementsChanged contains information for when membership requirements change as part of a review.
+message AccessListReviewMembershipRequirementsChanged {
+  // Roles are the roles that changed as part of a review.
+  repeated string Roles = 1 [(gogoproto.jsontag) = "roles,omitempty"];
+
+  // Traits are the traits that changed as part of a review.
+  map<string, string> Traits = 2 [(gogoproto.jsontag) = "traits,omitempty"];
+}
+
 // AccessListReviewMetadata contains metadata for access list review events.
 message AccessListReviewMetadata {
   // Message is the message that was supplied during the review.
   string Message = 1 [(gogoproto.jsontag) = "message,omitempty"];
+
+  // ReviewID is the ID of the review.
+  string ReviewID = 2 [(gogoproto.jsontag) = "review_id,omitempty"];
+
+  // MembershipRequirementsChanged is populated if the memrship requirements have changed..
+  AccessListReviewMembershipRequirementsChanged MembershipRequirementsChanged = 3 [(gogoproto.jsontag) = "membership_requirements_changed,omitempty"];
+
+  // ReviewFrequencyChanged is populated if the review frequency has changed.
+  string ReviewFrequencyChanged = 4 [(gogoproto.jsontag) = "review_frequency_changed,omitempty"];
+
+  // ReviewDayOfMonthChanged is populated if the review day of month has changed.
+  string ReviewDayOfMonthChanged = 5 [(gogoproto.jsontag) = "review_day_of_month_changed,omitempty"];
+
+  // RemovedMembers are the members that were removed as part of the review.
+  repeated string RemovedMembers = 6 [(gogoproto.jsontag) = "removed_members,omitempty"];
 }
 
 // SessionStart is a session start event
