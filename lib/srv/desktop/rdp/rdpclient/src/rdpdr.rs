@@ -19,11 +19,12 @@ mod scard;
 pub(crate) mod tdp;
 
 use self::path::{UnixPath, WindowsPath};
-use self::scard::{Contexts, IoctlCode};
+use self::scard::{padded_atr, Contexts, IoctlCode, TRANSMIT_DATA_LIMIT};
 use crate::client::{ClientFunction, ClientHandle};
 use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error,
 };
+use crate::rdpdr::scard::TELEPORT_READER_NAME;
 use crate::{util, vchan, Encode, Message, Messages, Payload, MAX_ALLOWED_VCHAN_MSG_SIZE};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 pub use consts::CHANNEL_NAME;
@@ -34,11 +35,13 @@ use consts::{
     GENERAL_CAPABILITY_VERSION_02, I64_SIZE, I8_SIZE, NTSTATUS, SCARD_DEVICE_ID,
     SMARTCARD_CAPABILITY_VERSION_01, TDP_FALSE, U32_SIZE, U8_SIZE, VERSION_MAJOR, VERSION_MINOR,
 };
+use ironrdp_pdu::utils::CharacterSet;
 use ironrdp_pdu::{custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::esc::{
-    rpce, CardProtocol, CardStateFlags, ConnectCall, ConnectReturn, EstablishContextCall,
-    EstablishContextReturn, GetStatusChangeCall, GetStatusChangeReturn, ListReadersCall,
-    ListReadersReturn, ReaderStateCommonCall, ScardCall,
+    rpce, CardProtocol, CardState, CardStateFlags, ConnectCall, ConnectReturn, ContextCall,
+    EstablishContextCall, EstablishContextReturn, GetStatusChangeCall, GetStatusChangeReturn,
+    HCardAndDispositionCall, ListReadersCall, ListReadersReturn, ReaderStateCommonCall, ScardCall,
+    StatusCall, StatusReturn, TransmitCall, TransmitReturn,
 };
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::{
@@ -50,6 +53,7 @@ use ironrdp_rdpdr::{
     },
     RdpdrBackend,
 };
+use iso7816::command::Command as CardCommand;
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::tpkt;
 use rdp::model::error::Error as RdpError;
@@ -117,10 +121,9 @@ impl TeleportRdpdrBackend {
         Ok(self.active_device_ids[0])
     }
 
-    fn handle_access_started(
+    fn handle_access_started_event(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
-        _call: ScardAccessStartedEventCall,
     ) -> PduResult<()> {
         let scard_device_id = self.get_scard_device_id()?;
         if req.header.device_id != scard_device_id {
@@ -142,7 +145,6 @@ impl TeleportRdpdrBackend {
     fn handle_establish_context(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
-        _call: EstablishContextCall,
     ) -> PduResult<()> {
         let ctx = self.contexts.establish();
 
@@ -152,11 +154,7 @@ impl TeleportRdpdrBackend {
         )
     }
 
-    fn handle_list_readers(
-        &mut self,
-        req: DeviceControlRequest<ScardIoCtlCode>,
-        _call: ListReadersCall,
-    ) -> PduResult<()> {
+    fn handle_list_readers(&mut self, req: DeviceControlRequest<ScardIoCtlCode>) -> PduResult<()> {
         self.write_rdpdr_dev_ctl_resp(
             req,
             Box::new(ListReadersReturn::new(
@@ -244,6 +242,85 @@ impl TeleportRdpdrBackend {
         )
     }
 
+    fn handle_begin_transaction(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+    ) -> PduResult<()> {
+        self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
+    }
+
+    fn handle_transmit(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        call: TransmitCall,
+    ) -> PduResult<()> {
+        let cmd =
+            CardCommand::<TRANSMIT_DATA_LIMIT>::try_from(&call.send_buffer).map_err(|err| {
+                custom_err!(
+                    "TeleportRdpdrBackend::handle_transmit",
+                    TeleportRdpdrBackendError(format!(
+                        "failed to parse smartcard command {:?}: {:?}",
+                        &call.send_buffer, err
+                    ))
+                )
+            })?;
+
+        let card = self.contexts.get_card(&call.handle)?;
+        let resp = card.handle(cmd)?;
+
+        self.write_rdpdr_dev_ctl_resp(
+            req,
+            Box::new(TransmitReturn::new(
+                ReturnCode::Success,
+                None,
+                resp.encode(),
+            )),
+        )
+    }
+
+    fn handle_status(&mut self, req: DeviceControlRequest<ScardIoCtlCode>) -> PduResult<()> {
+        let enc = match req.io_control_code {
+            ScardIoCtlCode::StatusW => CharacterSet::Unicode,
+            ScardIoCtlCode::StatusA => CharacterSet::Ansi,
+            _ => {
+                return Err(custom_err!(
+                    "TeleportRdpdrBackend::handle_status",
+                    TeleportRdpdrBackendError(format!(
+                        "got unexpected ScardIoCtlCode with a StatusCall: {:?}",
+                        req.io_control_code
+                    ))
+                ));
+            }
+        };
+
+        let (atr_length, atr) = padded_atr::<32>();
+
+        self.write_rdpdr_dev_ctl_resp(
+            req,
+            Box::new(StatusReturn::new(
+                ReturnCode::Success,
+                vec![TELEPORT_READER_NAME.to_string()],
+                // SPECIFICMODE state means that the card is ready to handle commands in a specific
+                // mode, no other negotiation is necessary. Real smartcards would probably negotiate
+                // some mode first.
+                CardState::SpecificMode,
+                CardProtocol::SCARD_PROTOCOL_T1,
+                atr,
+                atr_length,
+                enc,
+            )),
+        )
+    }
+
+    fn handle_release_context(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        call: ContextCall,
+    ) -> PduResult<()> {
+        self.contexts.release(call.context.value);
+        self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
+    }
+
     fn create_get_status_change_return(
         call: GetStatusChangeCall,
     ) -> rpce::Pdu<GetStatusChangeReturn> {
@@ -312,13 +389,24 @@ impl TeleportRdpdrBackend {
             )))
             .map_err(|e| {
                 custom_err!(
-                    "write_rdpdr_dev_ctl_resp",
+                    "TeleportRdpdrBackend::write_rdpdr_dev_ctl_resp",
                     // Due to a long chain of trait dependencies in IronRDP that are impractical to unwind at this point,
                     // we can't put _e in the source field of the error because it isn't Sync (because ClientFunction itself
                     // isn't sync). We compromise here by just wrapping its Debug output in a TeleportRdpdrBackendError.
                     TeleportRdpdrBackendError(format!("{:?}", e))
                 )
             })
+    }
+
+    /// This function returns the error for unsupported combinations of [`ScardIoCtlCode`] and [`ScardCall`].
+    fn unsupported_combo_error(ioctl: ScardIoCtlCode, call: ScardCall) -> PduResult<()> {
+        Err(custom_err!(
+            "TeleportRdpdrBackend::unsupported_combo_error",
+            TeleportRdpdrBackendError(format!(
+                "received unsupported combination of ScardIoCtlCode [{:?}] with ScardCall [{:?}]",
+                ioctl, call
+            ))
+        ))
     }
 }
 
@@ -350,16 +438,49 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: ScardCall,
     ) -> PduResult<()> {
-        match call {
-            ScardCall::AccessStartedEventCall(call) => self.handle_access_started(req, call),
-            ScardCall::EstablishContextCall(call) => self.handle_establish_context(req, call),
-            ScardCall::ListReadersCall(call) => self.handle_list_readers(req, call),
-            ScardCall::GetStatusChangeCall(call) => self.handle_get_status_change(req, call),
-            ScardCall::ConnectCall(call) => self.handle_connect(req, call),
-            ScardCall::Unsupported => Ok(()),
+        match req.io_control_code {
+            ScardIoCtlCode::AccessStartedEvent => match call {
+                ScardCall::AccessStartedEventCall(_) => self.handle_access_started_event(req),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::EstablishContext => match call {
+                ScardCall::EstablishContextCall(_) => self.handle_establish_context(req),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::ListReadersW => match call {
+                ScardCall::ListReadersCall(_) => self.handle_list_readers(req),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::GetStatusChangeW => match call {
+                ScardCall::GetStatusChangeCall(call) => self.handle_get_status_change(req, call),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::ConnectW => match call {
+                ScardCall::ConnectCall(call) => self.handle_connect(req, call),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::BeginTransaction => match call {
+                ScardCall::HCardAndDispositionCall(_) => self.handle_begin_transaction(req),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::Transmit => match call {
+                ScardCall::TransmitCall(call) => self.handle_transmit(req, call),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::StatusW | ScardIoCtlCode::StatusA => match call {
+                ScardCall::StatusCall(_) => self.handle_status(req),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::ReleaseContext => match call {
+                ScardCall::ContextCall(call) => self.handle_release_context(req, call),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
             _ => Err(custom_err!(
                 "TeleportRdpdrBackend::handle_scard_call",
-                TeleportRdpdrBackendError(format!("got unsupported ScardCall [{:?}]", call))
+                TeleportRdpdrBackendError(format!(
+                    "received unhandled ScardIoCtlCode: {:?}",
+                    req.io_control_code
+                ))
             )),
         }
     }
@@ -367,7 +488,7 @@ impl RdpdrBackend for TeleportRdpdrBackend {
 
 /// A generic error type for the TeleportRdpdrBackend that can contain any arbitrary error message.
 #[derive(Debug)]
-struct TeleportRdpdrBackendError(String);
+pub struct TeleportRdpdrBackendError(pub String);
 
 impl std::fmt::Display for TeleportRdpdrBackendError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
