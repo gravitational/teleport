@@ -80,6 +80,7 @@ func MarshalAccessList(accessList *accesslist.AccessList, opts ...MarshalOption)
 	if !cfg.PreserveResourceID {
 		copy := *accessList
 		copy.SetResourceID(0)
+		copy.SetRevision("")
 		accessList = &copy
 	}
 	return utils.FastMarshal(accessList)
@@ -103,6 +104,9 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 	}
 	if cfg.ID != 0 {
 		accessList.SetResourceID(cfg.ID)
+	}
+	if cfg.Revision != "" {
+		accessList.SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
 		accessList.SetExpiry(cfg.Expires)
@@ -146,6 +150,7 @@ func MarshalAccessListMember(member *accesslist.AccessListMember, opts ...Marsha
 	if !cfg.PreserveResourceID {
 		copy := *member
 		copy.SetResourceID(0)
+		copy.SetRevision("")
 		member = &copy
 	}
 	return utils.FastMarshal(member)
@@ -169,6 +174,9 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 	}
 	if cfg.ID != 0 {
 		member.SetResourceID(cfg.ID)
+	}
+	if cfg.Revision != "" {
+		member.SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
 		member.SetExpiry(cfg.Expires)
@@ -322,6 +330,7 @@ func MarshalAccessListReview(review *accesslist.Review, opts ...MarshalOption) (
 	if !cfg.PreserveResourceID {
 		copy := *review
 		copy.SetResourceID(0)
+		copy.SetRevision("")
 		review = &copy
 	}
 	return utils.FastMarshal(review)
@@ -345,6 +354,9 @@ func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.
 	}
 	if cfg.ID != 0 {
 		review.SetResourceID(cfg.ID)
+	}
+	if cfg.Revision != "" {
+		review.SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
 		review.SetExpiry(cfg.Expires)

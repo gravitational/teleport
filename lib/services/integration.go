@@ -62,6 +62,7 @@ func MarshalIntegration(ig types.Integration, opts ...MarshalOption) ([]byte, er
 		if !cfg.PreserveResourceID {
 			copy := *g
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			g = &copy
 		}
 		return utils.FastMarshal(g)
@@ -90,6 +91,9 @@ func UnmarshalIntegration(data []byte, opts ...MarshalOption) (types.Integration
 
 	if cfg.ID != 0 {
 		ig.SetResourceID(cfg.ID)
+	}
+	if cfg.Revision != "" {
+		ig.SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
 		ig.SetExpiry(cfg.Expires)

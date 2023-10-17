@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -144,7 +145,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		expectedRes,
 		res,
 		cmpopts.EquateEmpty(),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
 	))
@@ -171,7 +172,8 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		expectedRes,
 		res,
 		cmpopts.EquateEmpty(),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
 	))

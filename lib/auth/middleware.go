@@ -138,7 +138,7 @@ type TLSServer struct {
 }
 
 // NewTLSServer returns new unstarted TLS server
-func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
+func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -221,7 +221,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	}
 
 	if cfg.PluginRegistry != nil {
-		if err := cfg.PluginRegistry.RegisterAuthServices(server.grpcServer); err != nil {
+		if err := cfg.PluginRegistry.RegisterAuthServices(ctx, server.grpcServer); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

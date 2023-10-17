@@ -102,15 +102,17 @@ func (s *PresenceService) UpsertInstance(ctx context.Context, instance types.Ins
 		return trace.BadParameter("unexpected type %T, expected %T", instance, v1)
 	}
 
+	rev := instance.GetRevision()
 	value, err := utils.FastMarshal(v1)
 	if err != nil {
 		return trace.Errorf("failed to marshal Instance: %v", err)
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(instancePrefix, instance.GetName()),
-		Value:   value,
-		Expires: instance.Expiry(),
+		Key:      backend.Key(instancePrefix, instance.GetName()),
+		Value:    value,
+		Expires:  instance.Expiry(),
+		Revision: rev,
 	}
 
 	_, err = s.Backend.Put(ctx, item)

@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
@@ -242,6 +243,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.SecReports == nil {
+		cfg.SecReports, err = local.NewSecReportsService(cfg.Backend, cfg.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.AccessLists == nil {
 		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock)
 		if err != nil {
@@ -325,6 +332,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Embeddings:              cfg.Embeddings,
 		Okta:                    cfg.Okta,
 		AccessLists:             cfg.AccessLists,
+		SecReports:              cfg.SecReports,
 		UserLoginStates:         cfg.UserLoginState,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
@@ -334,27 +342,28 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
-		bk:                  cfg.Backend,
-		clock:               cfg.Clock,
-		limiter:             limiter,
-		Authority:           cfg.Authority,
-		AuthServiceName:     cfg.AuthServiceName,
-		ServerID:            cfg.HostUUID,
-		githubClients:       make(map[string]*githubClient),
-		cancelFunc:          cancelFunc,
-		closeCtx:            closeCtx,
-		emitter:             cfg.Emitter,
-		Streamer:            cfg.Streamer,
-		Unstable:            local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
-		Services:            services,
-		Cache:               services,
-		keyStore:            keyStore,
-		traceClient:         cfg.TraceClient,
-		fips:                cfg.FIPS,
-		loadAllCAs:          cfg.LoadAllCAs,
-		httpClientForAWSSTS: cfg.HTTPClientForAWSSTS,
-		embeddingsRetriever: cfg.EmbeddingRetriever,
-		embedder:            cfg.EmbeddingClient,
+		bk:                      cfg.Backend,
+		clock:                   cfg.Clock,
+		limiter:                 limiter,
+		Authority:               cfg.Authority,
+		AuthServiceName:         cfg.AuthServiceName,
+		ServerID:                cfg.HostUUID,
+		githubClients:           make(map[string]*githubClient),
+		cancelFunc:              cancelFunc,
+		closeCtx:                closeCtx,
+		emitter:                 cfg.Emitter,
+		Streamer:                cfg.Streamer,
+		Unstable:                local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
+		Services:                services,
+		Cache:                   services,
+		keyStore:                keyStore,
+		traceClient:             cfg.TraceClient,
+		fips:                    cfg.FIPS,
+		loadAllCAs:              cfg.LoadAllCAs,
+		httpClientForAWSSTS:     cfg.HTTPClientForAWSSTS,
+		embeddingsRetriever:     cfg.EmbeddingRetriever,
+		embedder:                cfg.EmbeddingClient,
+		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
 	}
 	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
@@ -468,6 +477,12 @@ type Services struct {
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
+	services.SecReports
+}
+
+// SecReportsClient returns the security reports client.
+func (r *Services) SecReportsClient() *secreport.Client {
+	return nil
 }
 
 // GetWebSession returns existing web session described by req.
@@ -773,6 +788,9 @@ type Server struct {
 
 	// embedder is an embedder client used to generate embeddings.
 	embedder embedding.Embedder
+
+	// accessMonitoringEnabled is a flag that indicates whether access monitoring is enabled.
+	accessMonitoringEnabled bool
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -5038,11 +5056,16 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	if err != nil {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
+	features := modules.GetModules().Features().ToProto()
+
+	if a.accessMonitoringEnabled {
+		features.IdentityGovernance = a.accessMonitoringEnabled
+	}
 
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
 		ServerVersion:   teleport.Version,
-		ServerFeatures:  modules.GetModules().Features().ToProto(),
+		ServerFeatures:  features,
 		ProxyPublicAddr: a.getProxyPublicAddr(),
 		IsBoring:        modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:      a.loadAllCAs,

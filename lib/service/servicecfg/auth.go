@@ -16,9 +16,12 @@ package servicecfg
 
 import (
 	"github.com/coreos/go-oidc/oauth2"
+	"github.com/dustin/go-humanize"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -110,6 +113,59 @@ type AuthConfig struct {
 	// AssistAPIKey is the OpenAI API key.
 	// TODO: This key will be moved to a plugin once support for plugins is implemented.
 	AssistAPIKey string
+
+	// AccessMonitoring configures access monitoring.
+	AccessMonitoring *AccessMonitoringOptions
+}
+
+// AccessMonitoringOptions configures access monitoring.
+type AccessMonitoringOptions struct {
+	// EnabledString is the string representation of the Enabled field.
+	EnabledString string `yaml:"enabled"`
+	// Enabled is true if access monitoring is enabled.
+	Enabled bool `yaml:"-"`
+
+	// RoleARN is the ARN of the IAM role to assume when accessing Athena.
+	RoleARN string `yaml:"role_arn,omitempty"`
+	// RoleTags are the tags to use when assuming the IAM role.
+	RoleTags map[string]string `yaml:"role_tags,omitempty"`
+
+	// DataLimitString is the string representation of the DataLimit field.
+	DataLimitString string `yaml:"data_limit,omitempty"`
+	// DataLimit is the maximum amount of data that can be returned by a query.
+	DataLimit uint64 `yaml:"-"`
+
+	// Database is the name of the database to use.
+	Database string `yaml:"database,omitempty"`
+	// Table is the name of the table to use.
+	Table string `yaml:"table,omitempty"`
+	// Workgroup is the name of the Athena workgroup to use.
+	Workgroup string `yaml:"workgroup,omitempty"`
+	// QueryResults is the S3 bucket to use for query results.
+	QueryResults string `yaml:"query_results,omitempty"`
+	// ReportResults is the S3 bucket to use for report results.
+	ReportResults string `yaml:"report_results,omitempty"`
+}
+
+// IsAccessMonitoringEnabled returns true if access monitoring is enabled.
+func (a *AuthConfig) IsAccessMonitoringEnabled() bool {
+	return a.AccessMonitoring != nil && a.AccessMonitoring.Enabled
+}
+
+// CheckAndSetDefaults checks and sets default values for any missing fields.
+func (a *AccessMonitoringOptions) CheckAndSetDefaults() error {
+	var err error
+	if a.DataLimitString != "" {
+		if a.DataLimit, err = humanize.ParseBytes(a.DataLimitString); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if a.EnabledString != "" {
+		if a.Enabled, err = apiutils.ParseBool(a.EnabledString); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // HostedPluginsConfig configures the hosted plugin runtime.

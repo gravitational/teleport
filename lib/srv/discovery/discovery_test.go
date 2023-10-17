@@ -1483,7 +1483,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
 				require.NoError(t, err)
 				require.Empty(t, cmp.Diff(tc.expectDatabases, actualDatabases,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 				))
 			case <-time.After(time.Second):

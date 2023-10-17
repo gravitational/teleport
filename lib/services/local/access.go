@@ -54,7 +54,7 @@ func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
 	out := make([]types.Role, 0, len(result.Items))
 	for _, item := range result.Items {
 		role, err := services.UnmarshalRole(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			// Try to get the role name for the error, it allows admins to take action
 			// against the "bad" role.
@@ -100,16 +100,18 @@ func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) error {
 		return trace.Wrap(err)
 	}
 
+	rev := role.GetRevision()
 	value, err := services.MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
-		Value:   value,
-		Expires: role.Expiry(),
-		ID:      role.GetResourceID(),
+		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  role.Expiry(),
+		ID:       role.GetResourceID(),
+		Revision: rev,
 	}
 
 	_, err = s.Put(ctx, item)
@@ -132,7 +134,7 @@ func (s *AccessService) GetRole(ctx context.Context, name string) (types.Role, e
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalRole(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // DeleteRole deletes a role from the backend
@@ -161,7 +163,7 @@ func (s *AccessService) GetLock(ctx context.Context, name string) (types.Lock, e
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalLock(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	return services.UnmarshalLock(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
@@ -174,7 +176,7 @@ func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets 
 
 	out := []types.Lock{}
 	for _, item := range result.Items {
-		lock, err := services.UnmarshalLock(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		lock, err := services.UnmarshalLock(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -199,15 +201,17 @@ func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets 
 
 // UpsertLock upserts a lock.
 func (s *AccessService) UpsertLock(ctx context.Context, lock types.Lock) error {
+	rev := lock.GetRevision()
 	value, err := services.MarshalLock(lock)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(locksPrefix, lock.GetName()),
-		Value:   value,
-		Expires: lock.Expiry(),
-		ID:      lock.GetResourceID(),
+		Key:      backend.Key(locksPrefix, lock.GetName()),
+		Value:    value,
+		Expires:  lock.Expiry(),
+		ID:       lock.GetResourceID(),
+		Revision: rev,
 	}
 
 	if _, err = s.Put(ctx, item); err != nil {
@@ -256,15 +260,17 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 			if !strings.HasPrefix(lock.GetName(), clusterName) {
 				lock.SetName(clusterName + "/" + lock.GetName())
 			}
+			rev := lock.GetRevision()
 			value, err := services.MarshalLock(lock)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			item := backend.Item{
-				Key:     backend.Key(locksPrefix, lock.GetName()),
-				Value:   value,
-				Expires: lock.Expiry(),
-				ID:      lock.GetResourceID(),
+				Key:      backend.Key(locksPrefix, lock.GetName()),
+				Value:    value,
+				Expires:  lock.Expiry(),
+				ID:       lock.GetResourceID(),
+				Revision: rev,
 			}
 			newRemoteLocksToStore[string(item.Key)] = item
 		}

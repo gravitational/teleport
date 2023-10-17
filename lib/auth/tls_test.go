@@ -1118,7 +1118,7 @@ func TestGetCurrentUser(t *testing.T) {
 
 	currentUser, err := client1.GetCurrentUser(ctx)
 	require.NoError(t, err)
-	require.Equal(t, &types.UserV2{
+	require.Empty(t, cmp.Diff(&types.UserV2{
 		Kind:    "user",
 		SubKind: "",
 		Version: "v2",
@@ -1128,12 +1128,11 @@ func TestGetCurrentUser(t *testing.T) {
 			Description: "",
 			Labels:      nil,
 			Expires:     nil,
-			ID:          currentUser.GetMetadata().ID,
 		},
 		Spec: types.UserSpecV2{
 			Roles: []string{"user:user1"},
 		},
-	}, currentUser)
+	}, currentUser, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestGetCurrentUserRoles(t *testing.T) {
@@ -1148,7 +1147,7 @@ func TestGetCurrentUserRoles(t *testing.T) {
 
 	roles, err := client1.GetCurrentUserRoles(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(roles, []types.Role{user1Role}, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+	require.Empty(t, cmp.Diff(roles, []types.Role{user1Role}, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestAuthPreferenceSettings(t *testing.T) {
@@ -4106,7 +4105,7 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.token,
 					token,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				))
 			}
 		})
@@ -4283,7 +4282,7 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.token,
 					token,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				))
 			}
 		})
@@ -4373,7 +4372,7 @@ func TestGRPCServer_GetTokens(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					expectTokens,
 					tokens,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				))
 			} else {
 				require.Empty(t, tokens)
@@ -4443,7 +4442,7 @@ func TestGRPCServer_GetToken(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					token,
 					pt,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				))
 			} else {
 				require.Nil(t, token)
