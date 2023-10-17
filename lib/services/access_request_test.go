@@ -146,6 +146,8 @@ func (m *mockGetter) GetClusterName(opts ...MarshalOption) (types.ClusterName, e
 
 // TestReviewThresholds tests various review threshold scenarios
 func TestReviewThresholds(t *testing.T) {
+	ctx := context.Background()
+
 	// describes a collection of roles with various approval/review
 	// permissions.
 	roleDesc := map[string]types.RoleConditions{
@@ -641,10 +643,10 @@ func TestReviewThresholds(t *testing.T) {
 
 			// perform request validation (necessary in order to initialize internal
 			// request variables like annotations and thresholds).
-			validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, ExpandVars(true))
+			validator, err := NewRequestValidator(ctx, clock, g, tt.requestor, ExpandVars(true))
 			require.NoError(t, err, "scenario=%q", tt.desc)
 
-			require.NoError(t, validator.Validate(context.Background(), req, identity), "scenario=%q", tt.desc)
+			require.NoError(t, validator.Validate(ctx, req, identity), "scenario=%q", tt.desc)
 
 		Inner:
 			for ri, rt := range tt.reviews {
@@ -652,7 +654,7 @@ func TestReviewThresholds(t *testing.T) {
 					rt.expect = types.RequestState_PENDING
 				}
 
-				checker, err := NewReviewPermissionChecker(context.TODO(), g, rt.author)
+				checker, err := NewReviewPermissionChecker(ctx, g, rt.author, nil)
 				require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
 
 				canReview, err := checker.CanReviewRequest(req)

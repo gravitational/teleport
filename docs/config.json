@@ -954,8 +954,8 @@
           "slug": "/connect-your-client/teleport-connect/"
         },
         {
-          "title": "Using PuTTY",
-          "slug": "/connect-your-client/putty/"
+          "title": "Using PuTTY and WinSCP",
+          "slug": "/connect-your-client/putty-winscp/"
         },
         {
           "title": "Database GUI Clients",
@@ -3103,6 +3103,11 @@
     {
       "source": "/management/guides/terraform-provider/",
       "destination": "/management/dynamic-resources/terraform-provider/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/putty/",
+      "destination": "/connect-your-client/putty-winscp/",
       "permanent": true
     },
     {

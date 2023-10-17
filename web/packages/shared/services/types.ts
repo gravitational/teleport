@@ -14,8 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { privateKeyEnablingPolicies } from './consts';
-
 export type AuthProviderType = 'oidc' | 'saml' | 'github';
 
 export type Auth2faType = 'otp' | 'off' | 'optional' | 'on' | 'webauthn';
@@ -44,7 +42,3 @@ export type AuthProvider = {
   type: AuthProviderType;
   url: string;
 };
-
-export type PrivateKeyPolicy =
-  | 'none'
-  | typeof privateKeyEnablingPolicies[number];

@@ -216,7 +216,7 @@ type AccessChecker interface {
 	GetAccessState(authPref types.AuthPreference) AccessState
 	// PrivateKeyPolicy returns the enforced private key policy for this role set,
 	// or the provided defaultPolicy - whichever is stricter.
-	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy
+	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) (keys.PrivateKeyPolicy, error)
 
 	// GetKubeResources returns the allowed and denied Kubernetes Resources configured
 	// for a user.

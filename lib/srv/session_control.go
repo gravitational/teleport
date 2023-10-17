@@ -40,13 +40,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-var (
-	userSessionLimitHitCount = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricUserMaxConcurrentSessionsHit,
-			Help: "Number of times a user exceeded their max concurrent ssh connections",
-		},
-	)
+var userSessionLimitHitCount = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricUserMaxConcurrentSessionsHit,
+		Help: "Number of times a user exceeded their max concurrent ssh connections",
+	},
 )
 
 func init() {
@@ -219,10 +217,13 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 
 	// Check that the required private key policy, defined by roles and auth pref,
 	// is met by this Identity's ssh certificate.
-	identityPolicy := identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy]
-	requiredPolicy := identity.AccessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if err := requiredPolicy.VerifyPolicy(keys.PrivateKeyPolicy(identityPolicy)); err != nil {
-		return ctx, trace.Wrap(err)
+	identityPolicy := keys.PrivateKeyPolicy(identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy])
+	requiredPolicy, err := identity.AccessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !requiredPolicy.IsSatisfiedBy(identityPolicy) {
+		return ctx, keys.NewPrivateKeyPolicyError(requiredPolicy)
 	}
 
 	// Don't apply the following checks in non-node contexts.
