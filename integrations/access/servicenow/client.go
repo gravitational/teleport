@@ -261,23 +261,22 @@ func (snc *Client) CheckHealth(ctx context.Context) error {
 	}
 	defer resp.RawResponse.Body.Close()
 
-	defer func() {
-		if snc.StatusSink != nil {
-			var code types.PluginStatusCode
-			switch {
-			case resp.StatusCode() == http.StatusUnauthorized:
-				code = types.PluginStatusCode_UNAUTHORIZED
-			case resp.StatusCode() >= 200 && resp.StatusCode() < 400:
-				code = types.PluginStatusCode_RUNNING
-			default:
-				code = types.PluginStatusCode_OTHER_ERROR
-			}
-			if err := snc.StatusSink.Emit(ctx, &types.PluginStatusV1{Code: code}); err != nil {
-				log := logger.Get(resp.Request.Context())
-				log.WithError(err).Errorf("Error while emitting servicenow plugin status: %v", err)
-			}
+	if snc.StatusSink != nil {
+		var code types.PluginStatusCode
+		switch {
+		case resp.StatusCode() == http.StatusUnauthorized:
+			code = types.PluginStatusCode_UNAUTHORIZED
+		case resp.StatusCode() >= 200 && resp.StatusCode() < 400:
+			code = types.PluginStatusCode_RUNNING
+		default:
+			code = types.PluginStatusCode_OTHER_ERROR
 		}
-	}()
+		if err := snc.StatusSink.Emit(ctx, &types.PluginStatusV1{Code: code}); err != nil {
+			log := logger.Get(resp.Request.Context())
+			log.WithError(err).Errorf("Error while emitting servicenow plugin status: %v", err)
+		}
+	}
+
 	if resp.IsError() {
 		return errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
