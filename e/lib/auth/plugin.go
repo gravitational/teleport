@@ -147,7 +147,8 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 		plugin: p,
 	})
 
-	if err := registerDeviceTrustService(gRPCServer, p.authServer); err != nil {
+	deviceService, err := registerDeviceTrustService(gRPCServer, p.authServer)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -262,7 +263,9 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 
 	p.authServer.AuthServer.RegisterLoginHook(uac.OnLogin)
 
-	if err := p.registerResourceUsageService(p.authServer); err != nil {
+	if err := p.registerResourceUsageService(p.authServer, resourceusagev1.ServiceConfig{
+		GetDevicesUsageFunc: deviceService.GetResourceDevicesUsage,
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -325,14 +328,14 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 	return nil
 }
 
-func registerDeviceTrustService(s *grpc.Server, authGRPC *auth.GRPCServer) error {
+func registerDeviceTrustService(s *grpc.Server, authGRPC *auth.GRPCServer) (*devicetrustv1.Service, error) {
 	authServer := authGRPC.AuthServer
 	deviceStorage, err := dtstorage.New(dtstorage.Params{
 		Backend:      authGRPC.GetBackend(),
 		UsersService: authServer.Services,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	deviceService, err := devicetrustv1.New(devicetrustv1.ServiceParams{
@@ -343,11 +346,11 @@ func registerDeviceTrustService(s *grpc.Server, authGRPC *auth.GRPCServer) error
 		Storage:            deviceStorage,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	devicepb.RegisterDeviceTrustServiceServer(s, deviceService)
-	return nil
+	return deviceService, nil
 }
 
 func (p *Plugin) registerLoginRuleService(server *auth.GRPCServer) error {
@@ -426,22 +429,20 @@ func (p *Plugin) registerPluginsService(server *auth.GRPCServer) error {
 	return nil
 }
 
-func (p *Plugin) registerResourceUsageService(server *auth.GRPCServer) error {
+func (p *Plugin) registerResourceUsageService(server *auth.GRPCServer, cfg resourceusagev1.ServiceConfig) error {
 	grpcServer, err := server.GetServer()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	service, err := resourceusagev1.New(resourceusagev1.ServiceConfig{
-		Authorizer: p.authServer.Authorizer,
-		AuditLog:   p.authServer.AuditLog,
-	})
+	cfg.Authorizer = p.authServer.Authorizer
+	cfg.AuditLog = p.authServer.AuditLog
+	service, err := resourceusagev1.New(cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	resourceusagepb.RegisterResourceUsageServiceServer(grpcServer, service)
-
 	return nil
 }
 

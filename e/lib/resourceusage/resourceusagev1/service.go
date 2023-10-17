@@ -5,6 +5,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -16,23 +18,25 @@ import (
 
 // ServiceConfig contains parameters and dependencies for the resource usage Service.
 type ServiceConfig struct {
-	AuditLog   events.AuditLogger
-	Authorizer authz.Authorizer
-	Clock      clockwork.Clock
+	AuditLog            events.AuditLogger
+	Authorizer          authz.Authorizer
+	Clock               clockwork.Clock
+	GetDevicesUsageFunc func(ctx context.Context, f *modules.Features) (*resourceusagepb.DevicesUsage, error)
 }
 
 // checkAndSetDefaults checks and sets the defaults.
 func (c *ServiceConfig) checkAndSetDefaults() error {
-	if c.AuditLog == nil {
-		return trace.BadParameter("AuditLog must be specified")
-	}
-	if c.Authorizer == nil {
-		return trace.BadParameter("Authorizer must be specified")
+	switch {
+	case c.AuditLog == nil:
+		return trace.BadParameter("param AuditLog must be specified")
+	case c.Authorizer == nil:
+		return trace.BadParameter("param Authorizer must be specified")
+	case c.GetDevicesUsageFunc == nil:
+		return trace.BadParameter("param GetDevicesUsageFunc must be specified")
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
-
 	return nil
 }
 
@@ -40,9 +44,10 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 type Service struct {
 	resourceusagepb.UnimplementedResourceUsageServiceServer
 
-	auditLog   events.AuditLogger
-	authorizer authz.Authorizer
-	clock      clockwork.Clock
+	auditLog            events.AuditLogger
+	authorizer          authz.Authorizer
+	clock               clockwork.Clock
+	getDevicesUsageFunc func(ctx context.Context, f *modules.Features) (*resourceusagepb.DevicesUsage, error)
 }
 
 // New creates a new Service according to the config.
@@ -52,48 +57,66 @@ func New(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		auditLog:   cfg.AuditLog,
-		authorizer: cfg.Authorizer,
-		clock:      cfg.Clock,
+		auditLog:            cfg.AuditLog,
+		authorizer:          cfg.Authorizer,
+		clock:               cfg.Clock,
+		getDevicesUsageFunc: cfg.GetDevicesUsageFunc,
 	}, nil
 }
 
 // GetUsage implements resourceusagev1.ResourceUsageServiceServer.
 func (s *Service) GetUsage(ctx context.Context, in *resourceusagepb.GetUsageRequest) (*resourceusagepb.GetUsageResponse, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
+	if _, err := authz.AuthorizeWithVerbs(
+		ctx, log.StandardLogger(), s.authorizer, false /* quiet */, types.KindBilling, types.VerbRead,
+	); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if s.hasBuiltinRole(*authCtx, types.RoleNop) {
-		return nil, trace.AccessDenied("resource usage information is not available to unauthenticated clients")
 	}
 
 	f := modules.GetModules().Features()
 	if !f.IsUsageBasedBilling {
-		return &resourceusagepb.GetUsageResponse{}, nil // unlimited
+		return &resourceusagepb.GetUsageResponse{
+			AccountUsageType: resourceusagepb.AccountUsageType_ACCOUNT_USAGE_TYPE_UNLIMITED,
+			AccessRequests:   &resourceusagepb.AccessRequestsUsage{},
+			DevicesUsage:     &resourceusagepb.DevicesUsage{},
+		}, nil // unlimited
 	}
-	monthlyLimit := f.AccessRequests.MonthlyRequestLimit
 
-	usage, err := resourceusage.GetAccessRequestMonthlyUsage(ctx, s.auditLog, s.clock.Now().UTC())
-	if err != nil {
+	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(4) // arbitrary
+
+	var accessRequests *resourceusagepb.AccessRequestsUsage
+	g.Go(func() error {
+		var err error
+		accessRequests, err = s.getAccessRequestsUsage(gCtx, &f)
+		return trace.Wrap(err)
+	})
+
+	var devicesUsage *resourceusagepb.DevicesUsage
+	g.Go(func() error {
+		var err error
+		devicesUsage, err = s.getDevicesUsageFunc(gCtx, &f)
+		return trace.Wrap(err)
+	})
+
+	if err := g.Wait(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &resourceusagepb.GetUsageResponse{
-		AccessRequests: &resourceusagepb.AccessRequestsUsage{
-			MonthlyLimit: int32(monthlyLimit),
-			MonthlyUsed:  int32(usage),
-		},
+		AccountUsageType: resourceusagepb.AccountUsageType_ACCOUNT_USAGE_TYPE_USAGE_BASED,
+		AccessRequests:   accessRequests,
+		DevicesUsage:     devicesUsage,
 	}, nil
 }
 
-// hasBuiltinRole checks that the attached identity is a builtin role and
-// whether any of the given roles match the role set.
-func (s *Service) hasBuiltinRole(ctx authz.Context, roles ...types.SystemRole) bool {
-	for _, role := range roles {
-		if authz.HasBuiltinRole(ctx, string(role)) {
-			return true
-		}
+func (s *Service) getAccessRequestsUsage(ctx context.Context, f *modules.Features) (*resourceusagepb.AccessRequestsUsage, error) {
+	monthlyUsed, err := resourceusage.GetAccessRequestMonthlyUsage(ctx, s.auditLog, s.clock.Now().UTC())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return false
+
+	return &resourceusagepb.AccessRequestsUsage{
+		MonthlyLimit: int32(f.AccessRequests.MonthlyRequestLimit),
+		MonthlyUsed:  int32(monthlyUsed),
+	}, nil
 }

@@ -45,7 +45,10 @@ type AnonymizeAndSubmitFunc func(event ...usagereporter.Anonymizable)
 
 // E is an integrated test environment for device trust.
 type E struct {
-	DevicesClient   devicepb.DeviceTrustServiceClient
+	DevicesClient devicepb.DeviceTrustServiceClient
+	// DevicesService is the underlying devicetrustv1.Service.
+	// Most callers should test through DevicesClient instead.
+	DevicesService  *devicetrustv1.Service
 	IdentityService *local.IdentityService
 
 	augmentCertsFunc       AugmentContextCertsFunc
@@ -179,7 +182,7 @@ func New(opts ...Opt) (*E, error) {
 	logger.SetLevel(log.PanicLevel) // Silence logging for tests.
 
 	// Device service.
-	dtV1, err := devicetrustv1.New(devicetrustv1.ServiceParams{
+	e.DevicesService, err = devicetrustv1.New(devicetrustv1.ServiceParams{
 		Logger: logger,
 		AuthServer: &fakeAuthServer{
 			augmentFunc:            e.augmentCertsFunc,
@@ -213,7 +216,7 @@ func New(opts ...Opt) (*E, error) {
 	})
 
 	// Register service.
-	devicepb.RegisterDeviceTrustServiceServer(s, dtV1)
+	devicepb.RegisterDeviceTrustServiceServer(s, e.DevicesService)
 
 	// Start.
 	go func() {

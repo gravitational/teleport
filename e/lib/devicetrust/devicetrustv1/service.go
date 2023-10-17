@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
@@ -867,27 +868,33 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 	return trace.Wrap(syncer.SyncInventory(stream))
 }
 
-func (s *Service) GetDevicesUsage(ctx context.Context, req *devicepb.GetDevicesUsageRequest) (*devicepb.DevicesUsage, error) {
-	if _, err := s.authorizeAccess(ctx, types.KindBilling, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	f := modules.GetModules().Features()
-	if !f.IsUsageBasedBilling {
-		return &devicepb.DevicesUsage{
-			AccountUsageType: devicepb.AccountUsageType_ACCOUNT_USAGE_TYPE_UNLIMITED,
-		}, nil
+// GetResourceDevicesUsage returns the trusted device limit and usage for
+// usage-based accounts.
+//
+// Unlike other service methods, this is not an RPC.
+//
+// Returns a default instance for non-usage-based accounts.
+func (s *Service) GetResourceDevicesUsage(ctx context.Context, f *modules.Features) (*resourceusagepb.DevicesUsage, error) {
+	switch {
+	case f == nil:
+		return nil, trace.BadParameter("features cannot be nil")
+	case !f.IsUsageBasedBilling:
+		return &resourceusagepb.DevicesUsage{}, nil
 	}
 
 	usage, err := s.storage.GetDevicesUsage(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &devicepb.DevicesUsage{
-		AccountUsageType:  devicepb.AccountUsageType_ACCOUNT_USAGE_TYPE_USAGE_BASED,
+
+	return &resourceusagepb.DevicesUsage{
 		DevicesUsageLimit: int32(f.DeviceTrust.DevicesUsageLimit),
 		DevicesInUse:      int32(usage.NumEnrolled),
 	}, nil
+}
+
+func (s *Service) GetDevicesUsage(ctx context.Context, req *devicepb.GetDevicesUsageRequest) (*devicepb.DevicesUsage, error) {
+	return nil, trace.BadParameter("deprecated, use ResourceUsageService.GetUsage instead")
 }
 
 func (s *Service) redactDataDriftErr(dev *devicepb.Device, err error) error {

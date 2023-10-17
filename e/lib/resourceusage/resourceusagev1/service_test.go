@@ -5,10 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -17,6 +19,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	eventstest "github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -26,26 +29,32 @@ type fakeAuthorizer struct {
 
 // Authorize implements authz.Authorizer
 func (a *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
-	if a.authorize {
-		user, err := types.NewUser("alice")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &authz.Context{
-			User: user,
-			Identity: &authz.LocalUser{
-				Username: "alice",
-				Identity: tlsca.Identity{
-					Groups: []string{"dev"},
-				},
-			},
-		}, nil
+	if !a.authorize {
+		return nil, trace.AccessDenied("not authorized")
 	}
 
-	return authz.ContextForBuiltinRole(authz.BuiltinRole{
-		Role:     types.RoleNop,
-		Username: string(types.RoleNop),
-	}, &types.SessionRecordingConfigV2{})
+	user, err := types.NewUser("alice")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &authz.Context{
+		User:    user,
+		Checker: fakeChecker{},
+		Identity: &authz.LocalUser{
+			Username: "alice",
+			Identity: tlsca.Identity{
+				Groups: []string{"dev"},
+			},
+		},
+	}, nil
+}
+
+type fakeChecker struct {
+	services.AccessChecker
+}
+
+func (fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, rule string, verb string, silent bool) error {
+	return nil
 }
 
 func Test_GetUsage(t *testing.T) {
@@ -73,9 +82,18 @@ func Test_GetUsage(t *testing.T) {
 			auditLog: nil, // not invoked in this case
 			clock:    clock,
 		}
-		usage, err := svc.GetUsage(ctx, &resourceusagepb.GetUsageRequest{})
-		require.NoError(t, err)
-		require.Equal(t, &resourceusagepb.GetUsageResponse{}, usage, "response should be empty for non usage-based billing plans")
+
+		got, err := svc.GetUsage(ctx, &resourceusagepb.GetUsageRequest{})
+		require.NoError(t, err, "GetUsage")
+
+		want := &resourceusagepb.GetUsageResponse{
+			AccountUsageType: resourceusagepb.AccountUsageType_ACCOUNT_USAGE_TYPE_UNLIMITED,
+			AccessRequests:   &resourceusagepb.AccessRequestsUsage{},
+			DevicesUsage:     &resourceusagepb.DevicesUsage{},
+		}
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("GetUsage mismatch (-want +got)\n%s", diff)
+		}
 	})
 
 	t.Run("usage-based billing", func(t *testing.T) {
@@ -115,20 +133,34 @@ func Test_GetUsage(t *testing.T) {
 			TestFeatures: features,
 		})
 
+		devicesUsage := &resourceusagepb.DevicesUsage{
+			DevicesUsageLimit: 10,
+			DevicesInUse:      5,
+		}
 		svc := &Service{
 			authorizer: &fakeAuthorizer{
 				authorize: true,
 			},
 			auditLog: al,
 			clock:    clock,
+			getDevicesUsageFunc: func(ctx context.Context, f *modules.Features) (*resourceusagepb.DevicesUsage, error) {
+				return devicesUsage, nil
+			},
 		}
-		usage, err := svc.GetUsage(ctx, &resourceusagepb.GetUsageRequest{})
-		require.NoError(t, err)
-		require.Equal(t, &resourceusagepb.GetUsageResponse{
+
+		got, err := svc.GetUsage(ctx, &resourceusagepb.GetUsageRequest{})
+		require.NoError(t, err, "GetUsage")
+
+		want := &resourceusagepb.GetUsageResponse{
+			AccountUsageType: resourceusagepb.AccountUsageType_ACCOUNT_USAGE_TYPE_USAGE_BASED,
 			AccessRequests: &resourceusagepb.AccessRequestsUsage{
 				MonthlyLimit: monthlyLimit,
 				MonthlyUsed:  int32(len(mockEvents)),
 			},
-		}, usage)
+			DevicesUsage: devicesUsage,
+		}
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("GetUsage mismatch (-want +got)\n%s", diff)
+		}
 	})
 }

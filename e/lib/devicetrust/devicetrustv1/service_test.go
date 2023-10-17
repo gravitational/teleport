@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
@@ -247,19 +248,6 @@ func TestService_authz(t *testing.T) {
 				return err
 			},
 			assertErr: trace.IsBadParameter,
-		},
-		{
-			name: "GetDevicesUsage",
-			checker: &ruleVerifyingChecker{
-				want: []wantRuleVerb{
-					{rule: types.KindBilling, verb: types.VerbRead},
-				},
-			},
-			rpc: func() error {
-				_, err := devices.GetDevicesUsage(ctx, &devicepb.GetDevicesUsageRequest{})
-				return err
-			},
-			assertErr: func(err error) bool { return err == nil },
 		},
 	}
 	for _, test := range tests {
@@ -2299,10 +2287,11 @@ func TestService_dataDriftErrorsRedacted(t *testing.T) {
 	}
 }
 
-func TestService_GetDevicesUsage(t *testing.T) {
+func TestService_GetResourceDevicesUsage(t *testing.T) {
 	env := testenv.NewUsingT(t)
 
 	devices := env.DevicesClient
+	service := env.DevicesService
 	ctx := context.Background()
 
 	// Safe because of NewUsingT.
@@ -2319,13 +2308,11 @@ func TestService_GetDevicesUsage(t *testing.T) {
 	tests := []struct {
 		name           string
 		modifyFeatures func(f *modules.Features)
-		want           *devicepb.DevicesUsage
+		want           *resourceusagepb.DevicesUsage
 	}{
 		{
 			name: "unlimited account",
-			want: &devicepb.DevicesUsage{
-				AccountUsageType: devicepb.AccountUsageType_ACCOUNT_USAGE_TYPE_UNLIMITED,
-			},
+			want: &resourceusagepb.DevicesUsage{},
 		},
 		{
 			name: "usage-based account",
@@ -2333,8 +2320,7 @@ func TestService_GetDevicesUsage(t *testing.T) {
 				f.IsUsageBasedBilling = true
 				f.DeviceTrust.DevicesUsageLimit = 5
 			},
-			want: &devicepb.DevicesUsage{
-				AccountUsageType:  devicepb.AccountUsageType_ACCOUNT_USAGE_TYPE_USAGE_BASED,
+			want: &resourceusagepb.DevicesUsage{
 				DevicesUsageLimit: 5,
 				DevicesInUse:      1,
 			},
@@ -2346,13 +2332,14 @@ func TestService_GetDevicesUsage(t *testing.T) {
 				test.modifyFeatures(&m.TestFeatures)
 			}
 
-			got, err := devices.GetDevicesUsage(ctx, &devicepb.GetDevicesUsageRequest{})
+			f := m.Features()
+			got, err := service.GetResourceDevicesUsage(ctx, &f)
 			if err != nil {
-				t.Fatalf("GetDevicesUsage failed: %v", err)
+				t.Fatalf("GetResourceDevicesUsage failed: %v", err)
 			}
 
 			if diff := cmp.Diff(test.want, got, protocmp.Transform()); diff != "" {
-				t.Errorf("GetDevicesUsage mismatch (-want +got)\n%s", diff)
+				t.Errorf("GetResourceDevicesUsage mismatch (-want +got)\n%s", diff)
 			}
 		})
 	}
