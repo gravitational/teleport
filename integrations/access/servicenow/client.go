@@ -272,9 +272,9 @@ func (snc *Client) CheckHealth(ctx context.Context) error {
 			code = types.PluginStatusCode_OTHER_ERROR
 		}
 		log := logger.Get(resp.Request.Context())
-		log.Infof("Emitting servicenow plugin status: %v", code)
 		if err := snc.StatusSink.Emit(ctx, &types.PluginStatusV1{Code: code}); err != nil {
-			log.WithError(err).Errorf("Error while emitting servicenow plugin status: %v", err)
+			log := logger.Get(resp.Request.Context())
+			log.WithError(err).WithField("code", resp.StatusCode()).Errorf("Error while emitting servicenow plugin status: %v", err)
 		}
 	}
 
