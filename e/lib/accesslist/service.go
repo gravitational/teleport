@@ -1027,7 +1027,7 @@ func (s *Service) UpsertAccessListWithMembers(ctx context.Context, req *accessli
 		}
 		if len(modifiedMembers.deleted) > 0 {
 			s.emitDeleteAccessListMemberEvent(ctx, username, accessListName, upsertErr,
-				accessListMembersForEvent(s.clock.Now(), time.Time{}, accessListMembersToMemberEventMetadata(modifiedMembers.deleted)...)...,
+				accessListMembersForEvent(time.Time{}, s.clock.Now(), accessListMembersToMemberEventMetadata(modifiedMembers.deleted)...)...,
 			)
 
 			if upsertErr == nil {
@@ -1551,7 +1551,7 @@ func accessListMembersForEvent(joinTime, removeTime time.Time, members ...*membe
 		}
 
 		joinedOn := member.joinedOn
-		if !joinTime.IsZero() {
+		if joinedOn.IsZero() {
 			joinedOn = joinTime
 		}
 
