@@ -27,8 +27,10 @@ var eventTypes = []string{
 	"db.session.start",
 	"device.authenticate",
 	"device.enroll",
+	"exec",
 	"instance.join",
 	"join_token.create",
+	"kube.request",
 	"lock.created",
 	"lock.deleted",
 	"recovery_code.used",
@@ -43,5 +45,4 @@ var eventTypes = []string{
 	"user.password_change",
 	"windows.desktop.session.end",
 	"windows.desktop.session.start",
-	"kube.request",
 }
