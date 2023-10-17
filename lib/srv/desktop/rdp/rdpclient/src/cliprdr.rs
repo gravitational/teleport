@@ -120,8 +120,8 @@ impl CliprdrBackend for TeleportCliprdrBackend {
 
     fn on_format_data_request(&mut self, format: FormatDataRequest) {
         trace!("CLIPRDR: on_format_data_request");
-        let response = match self.clipboard_data.as_ref() {
-            Some(data) => convert_string(&data, format.format),
+        let response = match &self.clipboard_data {
+            Some(data) => convert_string(data, format.format),
             None => {
                 debug!(
                     "format {:?} was requested but no data is available",
