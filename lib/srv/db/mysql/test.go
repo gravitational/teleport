@@ -309,7 +309,7 @@ func (h *testHandler) HandleQuery(query string) (*mysql.Result, error) {
 		}, nil
 	}
 
-	return TestQueryResponse, nil
+	return newTestQueryResponse(), nil
 }
 
 func (h *testHandler) HandleStmtPrepare(prepare string) (int, int, interface{}, error) {
@@ -321,7 +321,7 @@ func (h *testHandler) HandleStmtExecute(_ interface{}, query string, args []inte
 	if strings.HasPrefix(query, "CALL ") {
 		return h.handleCallProcedure(query, args)
 	}
-	return TestQueryResponse, nil
+	return newTestQueryResponse(), nil
 }
 
 func (h *testHandler) handleCallProcedure(query string, args []interface{}) (*mysql.Result, error) {
@@ -382,11 +382,18 @@ func (h *testHandler) handleCallProcedure(query string, args []interface{}) (*my
 			Active:       false,
 		}
 	}
-	return TestQueryResponse, nil
+	return newTestQueryResponse(), nil
 }
 
 // TestQueryResponse is what test MySQL server returns to every query.
 var TestQueryResponse = &mysql.Result{
 	InsertId:     1,
 	AffectedRows: 0,
+}
+
+func newTestQueryResponse() *mysql.Result {
+	return &mysql.Result{
+		InsertId:     1,
+		AffectedRows: 0,
+	}
 }
