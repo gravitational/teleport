@@ -37,8 +37,8 @@ use consts::{
 use ironrdp_pdu::{custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::esc::{
     rpce, CardProtocol, CardStateFlags, ConnectCall, ConnectReturn, EstablishContextCall,
-    EstablishContextReturn, GetStatusChangeCall, GetStatusChangeReturn, ListReadersCall,
-    ListReadersReturn, ReaderStateCommonCall, ScardCall,
+    EstablishContextReturn, GetStatusChangeCall, GetStatusChangeReturn, HCardAndDispositionCall,
+    ListReadersCall, ListReadersReturn, ReaderStateCommonCall, ScardCall,
 };
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::{
@@ -244,6 +244,14 @@ impl TeleportRdpdrBackend {
         )
     }
 
+    fn handle_begin_transaction(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        _call: HCardAndDispositionCall,
+    ) -> PduResult<()> {
+        self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
+    }
+
     fn create_get_status_change_return(
         call: GetStatusChangeCall,
     ) -> rpce::Pdu<GetStatusChangeReturn> {
@@ -356,6 +364,14 @@ impl RdpdrBackend for TeleportRdpdrBackend {
             ScardCall::ListReadersCall(call) => self.handle_list_readers(req, call),
             ScardCall::GetStatusChangeCall(call) => self.handle_get_status_change(req, call),
             ScardCall::ConnectCall(call) => self.handle_connect(req, call),
+            ScardCall::HCardAndDispositionCall(call) => match req.io_control_code {
+                ScardIoCtlCode::BeginTransaction => self.handle_begin_transaction(req, call),
+                _ => Err(other_err!(
+                    "TeleportRdpdrBackend::handle_scard_call",
+                    "got unexpected ScardIoCtlCode with a HCardAndDispositionCall",
+                )),
+            },
+
             ScardCall::Unsupported => Ok(()),
         }
     }

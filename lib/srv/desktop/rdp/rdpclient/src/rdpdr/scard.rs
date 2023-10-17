@@ -20,7 +20,6 @@ use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use ironrdp_pdu::{other_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::DeviceControlResponse;
-use ironrdp_rdpdr::pdu::esc::ndr::{self, Encode as NdrEncode};
 use ironrdp_rdpdr::pdu::esc::{ScardContext, ScardHandle};
 use iso7816::command::Command as CardCommand;
 use num_traits::{FromPrimitive, ToPrimitive};
