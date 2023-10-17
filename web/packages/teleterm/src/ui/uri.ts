@@ -65,6 +65,18 @@ export type ClusterOrResourceUri = ResourceUri | ClusterUri;
  * These are for actions that can be performed by clicking on teleport-connect links.
  */
 
+export const TELEPORT_CUSTOM_PROTOCOL = 'teleport' as const;
+
+export type DeepLinkUri = ConnectMyComputerUri;
+
+/**
+ * DeepLinkParsedUri values are passed through webContents.send and thus they must contain only
+ * values that work with the structured clone algorithm.
+ *
+ * https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Structured_clone_algorithm
+ */
+export type DeepLinkParsedUri = ConnectMyComputerParsedUri;
+
 export type ConnectMyComputerUri =
   `/clusters/${RootClusterId}/connect_my_computer`;
 export type ConnectMyComputerParsedUri = match<ConnectMyComputerUriParams> & {
@@ -92,8 +104,6 @@ export type DocumentUri = `/docs/${DocumentId}`;
 
 type GatewayId = string;
 export type GatewayUri = `/gateways/${GatewayId}`;
-
-export const TELEPORT_CUSTOM_PROTOCOL = 'teleport' as const;
 
 export const paths = {
   // Resources.
@@ -142,6 +152,16 @@ export const routing = {
   },
 
   /**
+   * parseDeepLinkUri returns extracted params from a URI if it matches one of the supported deep
+   * link paths. Returns null otherwise.
+   *
+   * @param uri - uri is expected to follow the format of DeepLinkUri.
+   */
+  parseDeepLinkUri(uri: string): DeepLinkParsedUri {
+    return routing.parseConnectMyComputerUri(uri);
+  },
+
+  /**
    * Returns extracted params from a URI if it matches the path of ConnectMyComputerUri. Returns
    * null otherwise.
    *
@@ -165,7 +185,7 @@ export const routing = {
     try {
       // The second argument doesn't play any role beyond making the URL constructor correctly parse
       // the passed in uri, which in essence is just the pathname part of a URL.
-      url = new whatwg.URL(uri, `${CONNECT_CUSTOM_PROTOCOL}://`);
+      url = new whatwg.URL(uri, `${TELEPORT_CUSTOM_PROTOCOL}://`);
     } catch (error) {
       if (error instanceof TypeError) {
         // Invalid URL. Return null to behave like matchPath.
