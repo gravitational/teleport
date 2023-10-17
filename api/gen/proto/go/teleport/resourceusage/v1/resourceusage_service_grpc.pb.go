@@ -40,7 +40,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ResourceUsageServiceClient interface {
-	// GetUsage returns usage information for all limited resources
+	// GetUsage returns usage information for all limited resources.
 	GetUsage(ctx context.Context, in *GetUsageRequest, opts ...grpc.CallOption) (*GetUsageResponse, error)
 }
 
@@ -65,7 +65,7 @@ func (c *resourceUsageServiceClient) GetUsage(ctx context.Context, in *GetUsageR
 // All implementations must embed UnimplementedResourceUsageServiceServer
 // for forward compatibility
 type ResourceUsageServiceServer interface {
-	// GetUsage returns usage information for all limited resources
+	// GetUsage returns usage information for all limited resources.
 	GetUsage(context.Context, *GetUsageRequest) (*GetUsageResponse, error)
 	mustEmbedUnimplementedResourceUsageServiceServer()
 }

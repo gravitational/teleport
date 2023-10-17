@@ -201,46 +201,89 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *Clus
 		return nil, trace.Wrap(err)
 	}
 
-	return performMFACeremony(ctx, performMFACeremonyParams{
-		currentAuthClient: c.AuthClient,
-		rootAuthClient:    rootClient.AuthClient,
-		promptMFA:         c.tc.PromptMFA,
-		mfaAgainstRoot:    c.cluster == rootClient.cluster,
-		mfaRequiredReq:    params.isMFARequiredRequest(c.tc.HostLogin),
-		certsReq:          certsReq,
-		key:               key,
+	key, _, err = PerformMFACeremony(ctx, PerformMFACeremonyParams{
+		CurrentAuthClient: c.AuthClient,
+		RootAuthClient:    rootClient.AuthClient,
+		PromptMFA:         c.tc.PromptMFA,
+		MFAAgainstRoot:    c.cluster == rootClient.cluster,
+		MFARequiredReq:    params.isMFARequiredRequest(c.tc.HostLogin),
+		CertsReq:          certsReq,
+		Key:               key,
 	})
+	return key, trace.Wrap(err)
 }
 
-type performMFACeremonyParams struct {
-	currentAuthClient auth.ClientI
-	rootAuthClient    auth.ClientI
-	promptMFA         PromptMFAFunc
-
-	mfaAgainstRoot bool
-	mfaRequiredReq *proto.IsMFARequiredRequest
-	certsReq       *proto.UserCertsRequest
-
-	key *Key
+// PerformMFARootClient is a subset of Auth methods required for MFA.
+// Used by [PerformMFACeremony].
+type PerformMFARootClient interface {
+	CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 }
 
-func performMFACeremony(ctx context.Context, params performMFACeremonyParams) (*Key, error) {
-	rootClient := params.rootAuthClient
-	currentClient := params.currentAuthClient
+// PerformMFACurrentClient is a subset of Auth methods required for MFA.
+// Used by [PerformMFACeremony].
+type PerformMFACurrentClient interface {
+	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
+}
 
-	mfaRequiredReq := params.mfaRequiredReq
+// PerformMFACeremonyParams are the input parameters for [PerformMFACeremony].
+type PerformMFACeremonyParams struct {
+	// CurrentAuthClient is the Auth client for the target cluster.
+	// Unused if MFAAgainstRoot is true.
+	CurrentAuthClient PerformMFACurrentClient
+	// RootAuthClient is the Auth client for the root cluster.
+	// This is the client used to acquire the authn challenge and issue the user
+	// certificates.
+	RootAuthClient PerformMFARootClient
+	// PromptMFA is used to prompt the user for an MFA solution.
+	PromptMFA PromptMFAFunc
+
+	// MFAAgainstRoot tells whether to run the MFA required check against root or
+	// current cluster.
+	MFAAgainstRoot bool
+	// MFARequiredReq is the request for the MFA verification check.
+	MFARequiredReq *proto.IsMFARequiredRequest
+	// CertsReq is the request for new certificates.
+	CertsReq *proto.UserCertsRequest
+
+	// Key is the client key to add the new certificates to.
+	// Optional.
+	Key *Key
+}
+
+// PerformMFACeremony issues single-use certificates via GenerateUserCerts,
+// following its recommended RPC flow.
+//
+// It is a lower-level, less opinionated variant of
+// [ProxyClient.IssueUserCertsWithMFA].
+//
+// It does the following:
+//
+//  1. if !params.MFAAgainstRoot: Call CurrentAuthClient.IsMFARequired, abort if
+//     MFA is not required.
+//  2. Call RootAuthClient.CreateAuthenticateChallenge, abort if MFA is not
+//     required
+//  3. Call params.PromptMFA to solve the authn challenge
+//  4. Call RootAuthClient.GenerateUserCerts
+//
+// Returns the modified params.Key and the GenerateUserCertsResponse, or an error.
+func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*Key, *proto.Certs, error) {
+	rootClient := params.RootAuthClient
+	currentClient := params.CurrentAuthClient
+
+	mfaRequiredReq := params.MFARequiredReq
 
 	// If connecting to a host in a leaf cluster and MFA failed check to see
 	// if the leaf cluster requires MFA. If it doesn't return an error indicating
 	// that MFA was not required instead of the error received from the root cluster.
-	if mfaRequiredReq != nil && !params.mfaAgainstRoot {
+	if mfaRequiredReq != nil && !params.MFAAgainstRoot {
 		mfaRequiredResp, err := currentClient.IsMFARequired(ctx, mfaRequiredReq)
 		log.Debugf("MFA requirement acquired from leaf, MFARequired=%s", mfaRequiredResp.GetMFARequired())
 		switch {
 		case err != nil:
-			return nil, trace.Wrap(MFARequiredUnknown(err))
+			return nil, nil, trace.Wrap(MFARequiredUnknown(err))
 		case !mfaRequiredResp.Required:
-			return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+			return nil, nil, trace.Wrap(services.ErrSessionMFANotRequired)
 		}
 		mfaRequiredReq = nil // Already checked, don't check again at root.
 	}
@@ -253,53 +296,68 @@ func performMFACeremony(ctx context.Context, params performMFACeremonyParams) (*
 		MFARequiredCheck: mfaRequiredReq,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	log.Debugf("MFA requirement from CreateAuthenticateChallenge, MFARequired=%s", authnChal.GetMFARequired())
 	if authnChal.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
-		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+		return nil, nil, trace.Wrap(services.ErrSessionMFANotRequired)
 	}
 
 	// Prompt user for solution (eg, security key touch).
-	authnSolved, err := params.promptMFA(ctx, authnChal)
+	authnSolved, err := params.PromptMFA(ctx, authnChal)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// Issue certificate.
-	certsReq := params.certsReq
+	certsReq := params.CertsReq
 	certsReq.MFAResponse = authnSolved
 	certsReq.Purpose = proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
 	log.Debug("Issuing single-use certificate from unary GenerateUserCerts")
 	newCerts, err := rootClient.GenerateUserCerts(ctx, *certsReq)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	key := params.key
+	key := params.Key
+
+	// Nothing more to do.
+	if key == nil {
+		return nil, newCerts, nil
+	}
+
 	switch {
 	case len(newCerts.SSH) > 0:
 		key.Cert = newCerts.SSH
 	case len(newCerts.TLS) > 0:
 		switch certsReq.Usage {
 		case proto.UserCertsRequest_Kubernetes:
+			if key.KubeTLSCerts == nil {
+				key.KubeTLSCerts = make(map[string][]byte)
+			}
 			key.KubeTLSCerts[certsReq.KubernetesCluster] = newCerts.TLS
 
 		case proto.UserCertsRequest_Database:
 			dbCert, err := makeDatabaseClientPEM(certsReq.RouteToDatabase.Protocol, newCerts.TLS, key)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, nil, trace.Wrap(err)
+			}
+			if key.DBTLSCerts == nil {
+				key.DBTLSCerts = make(map[string][]byte)
 			}
 			key.DBTLSCerts[certsReq.RouteToDatabase.ServiceName] = dbCert
 
 		case proto.UserCertsRequest_WindowsDesktop:
+			if key.WindowsDesktopCerts == nil {
+				key.WindowsDesktopCerts = make(map[string][]byte)
+			}
 			key.WindowsDesktopCerts[certsReq.RouteToWindowsDesktop.WindowsDesktop] = newCerts.TLS
 
 		default:
-			return nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", certsReq.Usage)
+			return nil, nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", certsReq.Usage)
 		}
 	}
 	key.ClusterName = certsReq.RouteToCluster
 
-	return key, nil
+	return key, newCerts, nil
 }

@@ -520,6 +520,8 @@ message Features {
   AccessRequestsFeature AccessRequests = 21 [(gogoproto.jsontag) = "access_requests,omitempty"];
   // CustomTheme holds the name of WebUI custom theme.
   string CustomTheme = 22 [(gogoproto.jsontag) = "custom_theme,omitempty"];
+  // IdentityGovernance holds the Identity Governance feature settings (Access Monitoring)
+  bool IdentityGovernance = 23 [(gogoproto.jsontag) = "identity_governance,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -1293,6 +1295,8 @@ message GetMFADevicesResponse {
 }
 
 // UserSingleUseCertsRequest is a request for a single-use user certificate.
+//
+// Deprecated: Use [AuthService.GenerateUserCerts] instead.
 message UserSingleUseCertsRequest {
   oneof Request {
     UserCertsRequest Init = 1;
@@ -1301,6 +1305,8 @@ message UserSingleUseCertsRequest {
 }
 
 // UserSingleUseCertsResponse is a response with a single-use user certificate.
+//
+// Deprecated: Use [AuthService.GenerateUserCerts] instead.
 message UserSingleUseCertsResponse {
   oneof Response {
     MFAAuthenticateChallenge MFAChallenge = 1;
@@ -2521,6 +2527,8 @@ service AuthService {
   rpc GenerateHostCerts(HostCertsRequest) returns (Certs);
   // GenerateUserSingleUseCerts generates a set of single-use user
   // certificates.
+  //
+  // Deprecated: Superseded by GenerateUserCerts.
   rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest) returns (stream UserSingleUseCertsResponse);
   // GenerateOpenSSHCert signs a SSH certificate that can be used
   // to connect to Agentless nodes.

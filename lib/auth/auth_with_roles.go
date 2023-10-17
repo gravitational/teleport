@@ -77,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -153,7 +154,7 @@ func (a *ServerWithRoles) action(namespace, resource string, verbs ...string) er
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
 func (a *ServerWithRoles) currentUserAction(username string) error {
-	if hasLocalUserRole(a.context) && username == a.context.User.GetName() {
+	if authz.IsCurrentUser(a.context, username) {
 		return nil
 	}
 	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
@@ -278,18 +279,6 @@ func HasRemoteBuiltinRole(authContext authz.Context, name string) bool {
 // name matches.
 func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 	return HasRemoteBuiltinRole(a.context, name)
-}
-
-// hasRemoteUserRole checks if the identity is a remote user or not.
-func hasRemoteUserRole(authContext authz.Context) bool {
-	_, ok := authContext.UnmappedIdentity.(authz.RemoteUser)
-	return ok
-}
-
-// hasLocalUserRole checks if the identity is a local user or not.
-func hasLocalUserRole(authContext authz.Context) bool {
-	_, ok := authContext.UnmappedIdentity.(authz.LocalUser)
-	return ok
 }
 
 // DevicesClient allows ServerWithRoles to implement ClientI.
@@ -1483,7 +1472,7 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(kind types.WatchKind) error 
 
 		// Users can only watch their own headless authentications, meaning we don't fallback to
 		// the generalized verb-kind-action check below.
-		if !hasLocalUserRole(a.context) {
+		if !authz.IsLocalUser(a.context) {
 			return trace.AccessDenied("non-local user roles cannot watch headless authentications")
 		} else if filter.Username == "" {
 			return trace.AccessDenied("user cannot watch headless authentications without a filter for their username")
@@ -3511,6 +3500,11 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.O
 		}
 	}
 
+	// Only the Proxy service can create web sessions via OIDC connector.
+	if req.CreateWebSession && !a.hasBuiltinRole(types.RoleProxy) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
 	oidcReq, err := a.authServer.CreateOIDCAuthRequest(ctx, req)
 	if err != nil {
 		emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodOIDC, err, req.SSOTestFlow)
@@ -3531,7 +3525,17 @@ func (a *ServerWithRoles) GetOIDCAuthRequest(ctx context.Context, id string) (*t
 
 func (a *ServerWithRoles) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
 	// auth callback is it's own authz, no need to check extra permissions
-	return a.authServer.ValidateOIDCAuthCallback(ctx, q)
+	resp, err := a.authServer.ValidateOIDCAuthCallback(ctx, q)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Only the Proxy service can create web sessions via OIDC connector.
+	if resp.Session != nil && !a.hasBuiltinRole(types.RoleProxy) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
+	return resp, nil
 }
 
 func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID string) error {
@@ -3625,6 +3629,11 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 		}
 	}
 
+	// Only the Proxy service can create web sessions via SAML connector.
+	if req.CreateWebSession && !a.hasBuiltinRole(types.RoleProxy) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
 	samlReq, err := a.authServer.CreateSAMLAuthRequest(ctx, req)
 	if err != nil {
 		emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodSAML, err, req.SSOTestFlow)
@@ -3637,7 +3646,17 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 // ValidateSAMLResponse validates SAML auth response.
 func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
 	// auth callback is it's own authz, no need to check extra permissions
-	return a.authServer.ValidateSAMLResponse(ctx, re, connectorID)
+	resp, err := a.authServer.ValidateSAMLResponse(ctx, re, connectorID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Only the Proxy service can create web sessions via SAML connector.
+	if resp.Session != nil && !a.hasBuiltinRole(types.RoleProxy) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
+	return resp, nil
 }
 
 // GetSAMLAuthRequest returns SAML auth request if found.
@@ -3785,6 +3804,11 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(ctx context.Context, req types
 		}
 	}
 
+	// Only the Proxy service can create web sessions via Github connector.
+	if req.CreateWebSession && !a.hasBuiltinRole(types.RoleProxy) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
 	githubReq, err := a.authServer.CreateGithubAuthRequest(ctx, req)
 	if err != nil {
 		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, req.SSOTestFlow)
@@ -3804,7 +3828,18 @@ func (a *ServerWithRoles) GetGithubAuthRequest(ctx context.Context, stateToken s
 }
 
 func (a *ServerWithRoles) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
-	return a.authServer.ValidateGithubAuthCallback(ctx, q)
+	// auth callback is it's own authz, no need to check extra permissions
+	resp, err := a.authServer.ValidateGithubAuthCallback(ctx, q)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Only the Proxy service can create web sessions via Github connector.
+	if resp.Session != nil && !a.hasBuiltinRole(types.RoleProxy) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
+	return resp, nil
 }
 
 // EmitAuditEvent emits a single audit event
@@ -4782,7 +4817,42 @@ func (a *ServerWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) 
 	if !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyClusterName := a.context.Identity.GetIdentity().TeleportCluster
+	identityClusterName, err := extractOriginalClusterNameFromCSR(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if proxyClusterName != "" &&
+		proxyClusterName != clusterName.GetClusterName() &&
+		proxyClusterName != identityClusterName {
+		log.WithFields(
+			logrus.Fields{
+				"proxy_cluster_name":    proxyClusterName,
+				"identity_cluster_name": identityClusterName,
+			},
+		).Warn("KubeCSR request denied because the proxy and identity clusters didn't match")
+		return nil, trace.AccessDenied("can not sign certs for users via a different cluster proxy")
+	}
 	return a.authServer.ProcessKubeCSR(req)
+}
+
+func extractOriginalClusterNameFromCSR(req KubeCSR) (string, error) {
+	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// Extract identity from the CSR. Pass zero time for id.Expiry, it won't be
+	// used here.
+	id, err := tlsca.FromSubject(csr.Subject, time.Time{})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return id.TeleportCluster, nil
 }
 
 // GetDatabaseServers returns all registered database servers.
@@ -5481,7 +5551,7 @@ func (a *ServerWithRoles) GetResources(ctx context.Context, req *proto.ListResou
 }
 
 func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
-	if !hasLocalUserRole(a.context) && !hasRemoteUserRole(a.context) {
+	if !authz.IsLocalOrRemoteUser(a.context) {
 		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
 	}
 
@@ -6699,7 +6769,7 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 
 // GetHeadlessAuthentication gets a headless authentication from the backend.
 func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
-	if !hasLocalUserRole(a.context) {
+	if !authz.IsLocalUser(a.context) {
 		return nil, trace.AccessDenied("non-local user roles cannot get headless authentication resources")
 	}
 	username := a.context.User.GetName()
@@ -6714,7 +6784,7 @@ func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, name st
 // GetHeadlessAuthenticationFromWatcher gets a headless authentication from the headless
 // authentication watcher.
 func (a *ServerWithRoles) GetHeadlessAuthenticationFromWatcher(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
-	if !hasLocalUserRole(a.context) {
+	if !authz.IsLocalUser(a.context) {
 		return nil, trace.AccessDenied("non-local user roles cannot get headless authentication resources")
 	}
 	username := a.context.User.GetName()
@@ -6732,7 +6802,7 @@ func (a *ServerWithRoles) GetHeadlessAuthenticationFromWatcher(ctx context.Conte
 // look for this stub before inserting the headless authentication resource into the
 // backend as a form of indirect authorization.
 func (a *ServerWithRoles) UpsertHeadlessAuthenticationStub(ctx context.Context) error {
-	if !hasLocalUserRole(a.context) {
+	if !authz.IsLocalUser(a.context) {
 		return trace.AccessDenied("non-local user roles cannot create headless authentication stubs")
 	}
 	username := a.context.User.GetName()
@@ -6743,7 +6813,7 @@ func (a *ServerWithRoles) UpsertHeadlessAuthenticationStub(ctx context.Context) 
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
 func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, name string, state types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
-	if !hasLocalUserRole(a.context) {
+	if !authz.IsLocalUser(a.context) {
 		return trace.AccessDenied("non-local user roles cannot approve or deny headless authentication resources")
 	}
 	username := a.context.User.GetName()
@@ -6793,7 +6863,7 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 // Headless login processes will look for this stub before inserting the headless authentication
 // resource into the backend as a form of indirect authorization.
 func (a *ServerWithRoles) MaintainHeadlessAuthenticationStub(ctx context.Context) error {
-	if !hasLocalUserRole(a.context) {
+	if !authz.IsLocalUser(a.context) {
 		return trace.AccessDenied("non-local user roles cannot create headless authentication stubs")
 	}
 	username := a.context.User.GetName()
@@ -6821,7 +6891,7 @@ func (a *ServerWithRoles) MaintainHeadlessAuthenticationStub(ctx context.Context
 
 // WatchPendingHeadlessAuthentications creates a watcher for pending headless authentication for the current user.
 func (a *ServerWithRoles) WatchPendingHeadlessAuthentications(ctx context.Context) (types.Watcher, error) {
-	if !hasLocalUserRole(a.context) {
+	if !authz.IsLocalUser(a.context) {
 		return nil, trace.AccessDenied("non-local user roles cannot watch headless authentications")
 	}
 	username := a.context.User.GetName()

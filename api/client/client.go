@@ -1654,7 +1654,9 @@ func (c *Client) GetMFADevices(ctx context.Context, in *proto.GetMFADevicesReque
 	return resp, nil
 }
 
+// Deprecated: Use GenerateUserCerts instead.
 func (c *Client) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {
+	//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 	stream, err := c.grpc.GenerateUserSingleUseCerts(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
