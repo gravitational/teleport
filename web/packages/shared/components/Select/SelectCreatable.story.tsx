@@ -17,13 +17,13 @@ limitations under the License.
 import React from 'react';
 import { Flex, Box } from 'design';
 
-import Select, { DarkStyledSelect, SelectCreatable, Option } from '../Select';
+import { SelectCreatable, Option } from '../Select';
 
 export default {
   title: 'Shared/SelectCreatable',
 };
 
-function SelectCreatableDefault() {
+export const Selects = () => {
   const [input, setInput] = React.useState('');
   const [selected, setSelected] = React.useState<Option[]>();
 
@@ -57,26 +57,6 @@ function SelectCreatableDefault() {
           onChange={v => setSelected((v as Option[] | null) || [])}
         />
       </Box>
-      <Box>
-        <DarkStyledSelect>
-          Single input (dark)
-          <SelectCreatable
-            placeholder="Example"
-            inputValue={input}
-            value={selected}
-            onInputChange={v => setInput(v)}
-            onChange={v => setSelected((v as Option[] | null) || [])}
-          />
-        </DarkStyledSelect>
-      </Box>
-    </Flex>
-  );
-}
-
-export const Selects = () => {
-  return (
-    <Flex>
-      <SelectCreatableDefault />
     </Flex>
   );
 };
