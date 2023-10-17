@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -284,6 +285,10 @@ type TerminalHandler struct {
 
 	// clock to use for presence checking
 	clock clockwork.Clock
+
+	// closedByClient indicates if the websocket connection was closed by the
+	// user (closing the browser tab, exiting the session, etc).
+	closedByClient atomic.Bool
 }
 
 // ServeHTTP builds a connection to the remote node and then pumps back two types of
@@ -399,6 +404,20 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	}
 
 	t.log.Debug("Creating websocket stream")
+
+	defaultCloseHandler := ws.CloseHandler()
+	ws.SetCloseHandler(func(code int, text string) error {
+		t.closedByClient.Store(true)
+		t.log.Debug("web socket was closed by client - terminating session")
+
+		// Call the default close handler if one was set.
+		if defaultCloseHandler != nil {
+			err := defaultCloseHandler(code, text)
+			return trace.NewAggregate(err, t.Close())
+		}
+
+		return trace.Wrap(t.Close())
+	})
 
 	// Start sending ping frames through websocket to client.
 	go startPingLoop(ctx, ws, t.keepAliveInterval, t.log, t.Close)
@@ -767,8 +786,13 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
 	if err = nc.RunInteractiveShell(ctx, t.participantMode, t.tracker, beforeStart); err != nil {
-		t.log.WithError(err).Warn("Unable to stream terminal - failure running interactive shell")
-		t.stream.writeError(err.Error())
+		if !t.closedByClient.Load() {
+			t.stream.writeError(err.Error())
+		}
+		return
+	}
+
+	if t.closedByClient.Load() {
 		return
 	}
 
