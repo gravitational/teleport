@@ -46,7 +46,7 @@ func (s *DatabaseService) GetDatabases(ctx context.Context) ([]types.Database, e
 	databases := make([]types.Database, len(result.Items))
 	for i, item := range result.Items {
 		database, err := services.UnmarshalDatabase(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -65,7 +65,7 @@ func (s *DatabaseService) GetDatabase(ctx context.Context, name string) (types.D
 		return nil, trace.Wrap(err)
 	}
 	database, err := services.UnmarshalDatabase(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -99,15 +99,17 @@ func (s *DatabaseService) UpdateDatabase(ctx context.Context, database types.Dat
 	if err := database.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := database.GetRevision()
 	value, err := services.MarshalDatabase(database)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(databasesPrefix, database.GetName()),
-		Value:   value,
-		Expires: database.Expiry(),
-		ID:      database.GetResourceID(),
+		Key:      backend.Key(databasesPrefix, database.GetName()),
+		Value:    value,
+		Expires:  database.Expiry(),
+		ID:       database.GetResourceID(),
+		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
 	if err != nil {

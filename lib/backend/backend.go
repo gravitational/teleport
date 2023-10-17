@@ -160,7 +160,10 @@ type Lease struct {
 	// Key is an object representing lease
 	Key []byte
 	// ID is a lease ID, could be empty
+	// Deprecated: use Revision instead
 	ID int64
+	// Revision is the last known version of the object.
+	Revision string
 }
 
 // IsEmpty returns true if the lease is empty value
@@ -224,11 +227,14 @@ type Item struct {
 	Value []byte
 	// Expires is an optional record expiry time
 	Expires time.Time
-	// ID is a record ID, newer records have newer ids
+	// ID is a lease ID, could be empty.
+	// Deprecated: use Revision instead
 	ID int64
 	// LeaseID is a lease ID, could be set on objects
 	// with TTL
 	LeaseID int64
+	// Revision is the last known version of the object.
+	Revision string
 }
 
 func (e Event) String() string {

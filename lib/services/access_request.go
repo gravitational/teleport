@@ -902,10 +902,66 @@ Outer:
 	return len(needsAllow) == 0, nil
 }
 
-func NewReviewPermissionChecker(ctx context.Context, getter RequestValidatorGetter, username string) (ReviewPermissionChecker, error) {
+type userStateRoleOverride struct {
+	UserState
+	Roles []string
+}
+
+func (u userStateRoleOverride) GetRoles() []string {
+	return u.Roles
+}
+
+func NewReviewPermissionChecker(
+	ctx context.Context,
+	getter RequestValidatorGetter,
+	username string,
+	identity *tlsca.Identity,
+) (ReviewPermissionChecker, error) {
 	uls, err := GetUserOrLoginState(ctx, getter, username)
 	if err != nil {
 		return ReviewPermissionChecker{}, trace.Wrap(err)
+	}
+
+	// By default, the users freshly fetched roles are used rather than the
+	// roles on the x509 identity. This prevents recursive access request
+	// review.
+	//
+	// For bots, however, the roles on the identity must be used. This is
+	// because the certs output by a bot always use role impersonation and the
+	// role directly assigned to a bot has minimal permissions.
+	if uls.IsBot() {
+		if identity == nil {
+			// Handle an edge case where SubmitAccessReview is being invoked
+			// in-memory but as a bot user.
+			return ReviewPermissionChecker{}, trace.BadParameter(
+				"bot user provided but identity parameter is nil",
+			)
+		}
+		if identity.Username != username {
+			// It should not be possible for these to be different as a
+			// guard in AuthorizeAccessReviewRequest prevents submitting a
+			// request as another user unless you have the admin role. This
+			// safeguard protects against that regressing and creating an
+			// inconsistent state.
+			return ReviewPermissionChecker{}, trace.BadParameter(
+				"bot identity username and review author mismatch",
+			)
+		}
+		if len(identity.ActiveRequests) > 0 {
+			// It should not be possible for a bot's output certificates to
+			// have active requests - but this additional check safeguards us
+			// against a regression elsewhere and prevents recursive access
+			// requests occurring.
+			return ReviewPermissionChecker{}, trace.BadParameter(
+				"bot should not have active requests",
+			)
+		}
+
+		// Override list of roles to roles currently present on the x509 ident.
+		uls = userStateRoleOverride{
+			UserState: uls,
+			Roles:     identity.Groups,
+		}
 	}
 
 	c := ReviewPermissionChecker{
@@ -1591,6 +1647,9 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (types.AccessReq
 	if cfg.ID != 0 {
 		req.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		req.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		req.SetExpiry(cfg.Expires)
 	}
@@ -1615,6 +1674,7 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 			// to prevent unexpected data races
 			copy := *accessRequest
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			accessRequest = &copy
 		}
 		return utils.FastMarshal(accessRequest)

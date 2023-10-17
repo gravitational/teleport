@@ -32,7 +32,7 @@ import (
 // MarshalFunc is a type signature for a marshaling function.
 type MarshalFunc[T types.Resource] func(T, ...services.MarshalOption) ([]byte, error)
 
-// UnmarshalFunc is a type signature for an unmarshaling function.
+// UnmarshalFunc is a type signature for an unmarshalling function.
 type UnmarshalFunc[T types.Resource] func([]byte, ...services.MarshalOption) (T, error)
 
 // ServiceConfig is the configuration for the service configuration.
@@ -126,7 +126,7 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 
 	out := make([]T, 0, len(result.Items))
 	for _, item := range result.Items {
-		resource, err := s.unmarshalFunc(item.Value)
+		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -156,7 +156,7 @@ func (s *Service[T]) ListResources(ctx context.Context, pageSize int, pageToken 
 
 	out := make([]T, 0, len(result.Items))
 	for _, item := range result.Items {
-		resource, err := s.unmarshalFunc(item.Value)
+		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -183,7 +183,7 @@ func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, 
 		return resource, trace.Wrap(err)
 	}
 	resource, err = s.unmarshalFunc(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	return resource, trace.Wrap(err)
 }
 
@@ -257,7 +257,7 @@ func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, mod
 	}
 
 	resource, err := s.unmarshalFunc(existingItem.Value,
-		services.WithResourceID(existingItem.ID), services.WithExpires(existingItem.Expires))
+		services.WithResourceID(existingItem.ID), services.WithExpires(existingItem.Expires), services.WithRevision(existingItem.Revision))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -282,15 +282,17 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 	if err := resource.CheckAndSetDefaults(); err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
+	rev := resource.GetRevision()
 	value, err := s.marshalFunc(resource)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     s.MakeKey(name),
-		Value:   value,
-		Expires: resource.Expiry(),
-		ID:      resource.GetResourceID(),
+		Key:      s.MakeKey(name),
+		Value:    value,
+		Expires:  resource.Expiry(),
+		ID:       resource.GetResourceID(),
+		Revision: rev,
 	}
 
 	return item, nil

@@ -202,6 +202,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -315,6 +320,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -463,6 +473,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -603,6 +618,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -721,6 +741,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -933,6 +958,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -1121,6 +1151,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -1316,6 +1351,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -1628,6 +1668,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -1773,6 +1818,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -1792,6 +1842,146 @@ var events = map[string]*Event{
 			{
 				Name:        "updated_by",
 				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+		},
+	},
+	"AuditQueryRun": {
+		Description: "is emitted when a user runs an audit query",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "data_scanned_in_bytes",
+				Description: "is the amount of data scanned by the query",
+				Type:        "integer",
+			},
+			{
+				Name:        "days",
+				Description: "is the number of days time range for the query",
+				Type:        "integer",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "query",
+				Description: "is the query that was run",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "total_execution_time_in_millis",
+				Description: "is the total execution time of the query",
+				Type:        "integer",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
 				Type:        "string",
 			},
 			{
@@ -1913,6 +2103,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -2011,6 +2206,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -2113,6 +2313,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -2211,6 +2416,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -2512,6 +2722,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -2703,6 +2918,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -2903,6 +3123,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -3097,6 +3322,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -3558,6 +3788,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -3746,6 +3981,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -3864,6 +4104,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -4059,6 +4304,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -4245,6 +4495,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -4461,6 +4716,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -4726,6 +4986,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -4919,6 +5184,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -5059,6 +5329,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -5192,6 +5467,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -5404,6 +5684,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -5557,6 +5842,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -5729,6 +6019,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -5784,6 +6079,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -5893,6 +6193,11 @@ var events = map[string]*Event{
 								Type:        "string",
 							},
 							{
+								Name:        "device_origin",
+								Description: "origin",
+								Type:        "integer",
+							},
+							{
 								Name:        "os_type",
 								Description: "of the device",
 								Type:        "integer",
@@ -5958,6 +6263,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -6030,6 +6340,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -6242,6 +6557,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -6470,6 +6790,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -6718,6 +7043,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -6831,6 +7161,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -6953,6 +7288,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -7047,6 +7387,11 @@ var events = map[string]*Event{
 			{
 				Name:        "time",
 				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "token_expires",
+				Description: "contain information about token expiration time. In case of static token the TokenExpiration time is to the Unix epoch start time",
 				Type:        "string",
 			},
 			{
@@ -7244,6 +7589,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "sid",
+				Description: "is a unique UUID of the session",
+				Type:        "string",
+			},
+			{
 				Name:        "time",
 				Description: "is event time",
 				Type:        "string",
@@ -7269,6 +7619,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -7288,6 +7643,11 @@ var events = map[string]*Event{
 			{
 				Name:        "verb",
 				Description: "is the HTTP verb used for this request (e.g. GET, POST, etc)",
+				Type:        "string",
+			},
+			{
+				Name:        "with_mfa",
+				Description: "is a UUID of an MFA device used to start this session",
 				Type:        "string",
 			},
 		},
@@ -7397,6 +7757,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -7517,6 +7882,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -7652,6 +8022,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -7826,6 +8201,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -7944,6 +8324,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -8066,6 +8451,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -8184,6 +8574,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -8311,6 +8706,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -8424,6 +8824,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -8614,6 +9019,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -8800,6 +9210,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -8995,6 +9410,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -9186,6 +9606,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -9381,6 +9806,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -9574,6 +10004,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -9760,6 +10195,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -9963,6 +10403,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -10154,6 +10599,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -10357,6 +10807,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -10555,6 +11010,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -10748,6 +11208,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -10939,6 +11404,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -11144,6 +11614,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -11257,6 +11732,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -11377,6 +11857,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -11997,6 +12482,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -12135,6 +12625,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -12338,6 +12833,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -12536,6 +13036,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -12727,6 +13232,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -12930,6 +13440,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -13128,6 +13643,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -13254,6 +13774,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -13362,6 +13887,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -13479,6 +14009,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -13577,6 +14112,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -13810,6 +14350,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -13923,6 +14468,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -14045,6 +14595,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -14165,6 +14720,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -14283,6 +14843,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -14423,6 +14988,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -14870,6 +15440,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -15130,6 +15705,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -15336,6 +15916,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -15420,6 +16005,176 @@ var events = map[string]*Event{
 			{
 				Name:        "uid",
 				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+		},
+	},
+	"SecurityReportRun": {
+		Description: " is emitted when a user runs an audit query",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "audit_queries",
+				Description: "is the list of audit queries that were run",
+				Type:        "array",
+				Items: &EventField{
+					Type: "object",
+					Fields: []*EventField{
+						{
+							Name:        "data_scanned_in_bytes",
+							Description: "is the amount of data scanned by the query",
+							Type:        "integer",
+						},
+						{
+							Name:        "days",
+							Description: "is the number of days time range for the query",
+							Type:        "integer",
+						},
+						{
+							Name:        "query",
+							Description: "is the query that was run",
+							Type:        "string",
+						},
+						{
+							Name:        "total_execution_time_in_millis",
+							Description: "is the total execution time of the query",
+							Type:        "integer",
+						},
+					},
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "data_scanned_in_bytes",
+				Description: "is the amount of data scanned by the query",
+				Type:        "integer",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is the query that was run",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "total_execution_time_in_millis",
+				Description: "is the total execution time of the query",
+				Type:        "integer",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "version",
+				Description: "is the version of security report",
 				Type:        "string",
 			},
 		},
@@ -15592,6 +16347,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -15864,6 +16624,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -16052,6 +16817,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -16326,6 +17096,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -16532,6 +17307,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -16700,6 +17480,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -16897,6 +17682,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -17067,6 +17857,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -17235,6 +18030,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -17481,6 +18281,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -17661,6 +18466,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -17769,6 +18579,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -17891,6 +18706,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -18009,6 +18829,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -18176,6 +19001,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -18309,6 +19139,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -18427,6 +19262,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -18609,6 +19449,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -18712,6 +19557,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -18822,6 +19672,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -18985,6 +19840,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
@@ -19167,6 +20027,11 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
@@ -19315,6 +20180,11 @@ var events = map[string]*Event{
 						Name:        "device_id",
 						Description: "of the device",
 						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
 					},
 					{
 						Name:        "os_type",
