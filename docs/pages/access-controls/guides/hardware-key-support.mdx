@@ -82,14 +82,12 @@ like `tctl edit`. With touch required, hardware key support provides better secu
 
 Hardware key support is not required by default. 
 
-There are three primary options for hardware key support, in order of security benefit:
-  - `hardware_key`: User keys are stored on their hardware key without touch/pin protection. A separate MFA check is used for
+There are three primary options for hardware key support:
+  - `hardware_key`: User keys are stored on their hardware key without touch/PIN protection. A separate MFA check is used for
   sessions and other MFA-reliant features, like moderated sessions.
-  - `hardware_key_touch`: User keys are stored on their hardware key with touch protection, meaning on each request the user will
-  be required to touch their hardware key.
-  - `hardware_key_touch_and_pin`: User keys will be stored on their hardware key with touch and pin protection, meaning on each
-  request the user will be required to touch their hardware key and enter their PIV pin.
-    - If the user has not yet set a PIV pin, they will be prompted to set it during login.
+  - `hardware_key_touch`: User keys are stored on their hardware key with touch protection. On each request, users  must touch their hardware key.
+  - `hardware_key_touch_and_pin`: User keys will be stored on their hardware key with touch and PIN protection. On each request, users musr touch their hardware key and enter their PIV pin.
+    - Users who have not set a PIV code are prompted to set it during login.
 
 You can enforce hardware key support for specific roles, as shown here:
 
@@ -215,15 +213,16 @@ By default, Teleport clients use the following PIV slots for each option:
   - `hardware_key_pin`: slot `9d`
   - `hardware_key_and_pin`: slot `9e`
 
-If you are using any other PIV applications, you may need to specify a different slot to be used.
-For example, `yubikey-agent` uses slot `9a`, so a user with the `hardware_key` requirement would need
-to specify a different slot to avoid overwriting their `yubikey-agent` key and cert.
+If you are using any other PIV applications, you might need to specify a different slot.
+For example, `yubikey-agent` uses slot `9a`. To avoid overwriting the `yubikey-agent` key and certificate,
+a user with the `hardware_key` requirement would need to specify a different slot.
 
-During login, users can specify a piv slot themselves with the `tsh` flag or env var:
+During login, users can specify a PIV slot using the `--piv-slot` command-line option or an environment variable.
+For example:
   - `tsh login --piv-slot=9c`
   - `TELEPORT_PIV_SLOT=9c tsh login`
 
-The PIV slot can also be set cluster wide with a config option:
+The PIV slot can also be set cluster-wide with a configuration option:
 
 ```yaml
 kind: cluster_auth_preference
@@ -240,15 +239,15 @@ version: v2
 
 ### Custom Key
 
-Teleport Clients generate keys in the slots specified above using the default management key.
+Teleport clients generate keys in the slots specified using the default management key.
 
-If your PIV key has a differement management key set, you will need to generate the key yourself.
-This can be done with the [yubikey manager tool command](https://developers.yubico.com/yubikey-manager/):
+If your PIV key uses a different management key, you must generate the key yourself.
+This can be done with the [YubiKey Manager CLI](https://developers.yubico.com/yubikey-manager/):
 
 `ykman piv keys generate -a ECCP256 [slot] --touch-policy=[never|cached|always] --pin-policy=[never|once|always] -`
 
-You'll be prompted to enter your management key to complete the request. Make sure that the touch and pin policy satisfy
-the hardware key requirement for your cluster and roles.
+After running this command, you're prompted to enter your management key to complete the request. 
+Make sure that the touch and PIN policy satisfy the hardware key requirement for your cluster and roles.
 
 ## Troubleshooting
 
@@ -260,13 +259,13 @@ If you see this error, make sure that your client is up to date (v11.0.0+).
 
 ### `ERROR: authenticating with management key: auth challenge: smart card error 6982: security status not satisfied`
 
-Smart card auth challenge errors can appear when the wrong Management key is used.
+Smart card auth challenge errors can appear when the wrong management key is used.
 
-Teleport clients expect a fresh PIV key with the default Management key. 
+Teleport clients expect a fresh PIV key with the default management key. 
 You can reset this key, along with any existing PIV keys and certificates, with the 
-[yubikey manager tool command](https://developers.yubico.com/yubikey-manager/) `ykman piv reset`.
+[YubiKey Manager CLI](https://developers.yubico.com/yubikey-manager/) `ykman piv reset`.
 
-If you want to use a different management key, you can follow the [custom PIV setup instructions](#custom-piv-setup).
+If you want to use a different management key, follow the [custom PIV setup instructions](#custom-piv-setup).
 
 ### `ERROR: ssh: handshake failed: command failed: transmitting request: an attempt was made to end a non-existent transaction`
 
