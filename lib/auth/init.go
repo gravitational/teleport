@@ -264,6 +264,9 @@ type InitConfig struct {
 
 	// Tracer used to create spans.
 	Tracer oteltrace.Tracer
+
+	// AccessMonitoringEnabled is true if access monitoring is enabled.
+	AccessMonitoringEnabled bool
 }
 
 // Init instantiates and configures an instance of AuthServer

@@ -92,8 +92,8 @@ func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 }
 
 // NewUserContext returns user context
-func NewUserContext(user types.User, userRoles services.RoleSet, features proto.Features, desktopRecordingEnabled bool) (*UserContext, error) {
-	acl := services.NewUserACL(user, userRoles, features, desktopRecordingEnabled)
+func NewUserContext(user types.User, userRoles services.RoleSet, features proto.Features, desktopRecordingEnabled, accessMonitoringEnabled bool) (*UserContext, error) {
+	acl := services.NewUserACL(user, userRoles, features, desktopRecordingEnabled, accessMonitoringEnabled)
 	accessStrategy := getAccessStrategy(userRoles)
 
 	// local user
