@@ -48,7 +48,7 @@ export function Notification({ size = 24, fill, ...otherProps }: SVGIconProps) {
   return (
     <SVGIcon
       size={size}
-      color={fill}
+      fill={fill}
       className="icon icon-notification"
       viewBox="0 0 24 24"
       {...otherProps}
