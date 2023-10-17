@@ -520,6 +520,8 @@ message Features {
   AccessRequestsFeature AccessRequests = 21 [(gogoproto.jsontag) = "access_requests,omitempty"];
   // CustomTheme holds the name of WebUI custom theme.
   string CustomTheme = 22 [(gogoproto.jsontag) = "custom_theme,omitempty"];
+  // Access Monitoring enables the Access Monitoring feature.
+  bool AccessMonitoring = 23 [(gogoproto.jsontag) = "access_monitoring,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based

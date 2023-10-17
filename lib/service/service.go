@@ -1769,6 +1769,7 @@ func (process *TeleportProcess) initAuthService() error {
 			TraceClient:             traceClt,
 			FIPS:                    cfg.FIPS,
 			LoadAllCAs:              cfg.Auth.LoadAllCAs,
+			AccessMonitoringEnabled: cfg.Auth.IsAccessMonitoringEnabled(),
 			Clock:                   cfg.Clock,
 			HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
 			EmbeddingRetriever:      embeddingsRetriever,

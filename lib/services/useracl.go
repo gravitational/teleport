@@ -168,8 +168,13 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	discoveryConfigsAccess := newAccess(userRoles, ctx, types.KindDiscoveryConfig)
 	lockAccess := newAccess(userRoles, ctx, types.KindLock)
 	accessListAccess := newAccess(userRoles, ctx, types.KindAccessList)
-	auditQuery := newAccess(userRoles, ctx, types.KindAuditQuery)
-	securityReports := newAccess(userRoles, ctx, types.KindSecurityReport)
+
+	var auditQuery ResourceAccess
+	var securityReports ResourceAccess
+	if features.AccessMonitoring {
+		auditQuery = newAccess(userRoles, ctx, types.KindAuditQuery)
+		securityReports = newAccess(userRoles, ctx, types.KindSecurityReport)
+	}
 
 	return UserACL{
 		AccessRequests:          requestAccess,
