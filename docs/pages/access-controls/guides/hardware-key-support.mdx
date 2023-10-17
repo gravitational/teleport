@@ -86,7 +86,7 @@ There are three primary options for hardware key support:
   - `hardware_key`: User keys are stored on their hardware key without touch/PIN protection. A separate MFA check is used for
   sessions and other MFA-reliant features, like moderated sessions.
   - `hardware_key_touch`: User keys are stored on their hardware key with touch protection. On each request, users  must touch their hardware key.
-  - `hardware_key_touch_and_pin`: User keys will be stored on their hardware key with touch and PIN protection. On each request, users musr touch their hardware key and enter their PIV pin.
+  - `hardware_key_touch_and_pin`: User keys will be stored on their hardware key with touch and PIN protection. On each request, users must touch their hardware key and enter their PIV pin.
     - Users who have not set a PIV code are prompted to set it during login.
 
 You can enforce hardware key support for specific roles, as shown here:
