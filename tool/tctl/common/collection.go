@@ -439,12 +439,10 @@ func formatLastHeartbeat(t time.Time) string {
 }
 
 func writeJSON(c ResourceCollection, w io.Writer) error {
-
 	return utils.WriteJSONArray(w, c.resources())
 }
 
 func writeYAML(c ResourceCollection, w io.Writer) error {
-
 	return utils.WriteYAML(w, c.resources())
 }
 
