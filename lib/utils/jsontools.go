@@ -125,7 +125,6 @@ func WriteJSONArray[T any](w io.Writer, values []T) error {
 
 // WriteJSONObject marshals m as a JSON object.
 func WriteJSONObject[M ~map[K]V, K comparable, V any](w io.Writer, m M) error {
-
 	if len(m) == 0 {
 		_, err := w.Write([]byte("[]"))
 		return err
