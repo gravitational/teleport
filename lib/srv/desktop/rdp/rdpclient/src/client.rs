@@ -99,10 +99,13 @@ impl Client {
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
             .with_server_addr(server_socket_addr)
             .with_server_name(server_addr)
-            .with_credssp_network_client(RequestClientFactory)
-            .with_static_channel(Cliprdr::new(Box::new(TeleportCliprdrBackend::new(
-                client_handle.clone(),
-            ))));
+            .with_credssp_network_client(RequestClientFactory);
+
+        if params.allow_clipboard {
+            connector = connector.with_static_channel(Cliprdr::new(Box::new(
+                TeleportCliprdrBackend::new(client_handle.clone()),
+            )));
+        }
         // Temporarily disabled because they were causing problems unrelated to clipboard sharing.
         // .with_static_channel(Rdpsnd::new()) // required for rdpdr
         // .with_static_channel(
