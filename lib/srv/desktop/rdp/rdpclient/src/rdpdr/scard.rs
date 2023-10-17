@@ -401,7 +401,7 @@ impl Client {
             .get(req.handle.value)
             .ok_or_else(|| invalid_data_error("unknown handle ID"))?;
 
-        let resp = card.handle(cmd)?;
+        let resp = card.handle_deprecated(cmd)?;
 
         let resp = Transmit_Return::new(ReturnCode::SCARD_S_SUCCESS, resp.encode());
         debug!("sending {:?}", resp);
@@ -514,7 +514,7 @@ impl Client {
 }
 
 // TRANSMIT_DATA_LIMIT is the maximum size of transmit request/response short data, in bytes.
-const TRANSMIT_DATA_LIMIT: usize = 1024;
+pub const TRANSMIT_DATA_LIMIT: usize = 1024;
 
 #[derive(Debug, FromPrimitive, ToPrimitive, Copy, Clone)]
 #[allow(non_camel_case_types)]
@@ -1827,8 +1827,7 @@ impl Transmit_Call {
         send_pci.decode_value(payload)?;
 
         let send_length = payload.read_u32::<LittleEndian>()?;
-        let mut send_buffer = vec![];
-        send_buffer.resize(send_length as usize, 0);
+        let mut send_buffer = vec![0; send_length as usize];
         payload.read_exact(&mut send_buffer)?;
 
         let recv_pci = if recv_pci_ptr != 0 {
@@ -2393,6 +2392,15 @@ impl Contexts {
         resp: DeviceControlResponse,
     ) -> PduResult<()> {
         self.get_internal_mut(id)?.set_scard_cancel_response(resp)
+    }
+
+    pub fn get_card(
+        &mut self,
+        handle: &ScardHandle,
+    ) -> PduResult<&mut piv::Card<TRANSMIT_DATA_LIMIT>> {
+        self.get_internal_mut(handle.context.value)?
+            .get(handle.value)
+            .ok_or_else(|| other_err!("Contexts::get_card", "unknown ScardHandle"))
     }
 
     fn get_internal_mut_deprecated(&mut self, id: u32) -> RdpResult<&mut ContextInternal> {

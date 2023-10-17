@@ -19,7 +19,7 @@ mod scard;
 pub(crate) mod tdp;
 
 use self::path::{UnixPath, WindowsPath};
-use self::scard::{Contexts, IoctlCode};
+use self::scard::{Contexts, IoctlCode, TRANSMIT_DATA_LIMIT};
 use crate::client::{ClientFunction, ClientHandle};
 use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error,
@@ -38,7 +38,8 @@ use ironrdp_pdu::{custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::esc::{
     rpce, CardProtocol, CardStateFlags, ConnectCall, ConnectReturn, EstablishContextCall,
     EstablishContextReturn, GetStatusChangeCall, GetStatusChangeReturn, HCardAndDispositionCall,
-    ListReadersCall, ListReadersReturn, ReaderStateCommonCall, ScardCall,
+    ListReadersCall, ListReadersReturn, ReaderStateCommonCall, ScardCall, TransmitCall,
+    TransmitReturn,
 };
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::{
@@ -50,6 +51,7 @@ use ironrdp_rdpdr::{
     },
     RdpdrBackend,
 };
+use iso7816::command::Command as CardCommand;
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::tpkt;
 use rdp::model::error::Error as RdpError;
@@ -252,6 +254,35 @@ impl TeleportRdpdrBackend {
         self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
     }
 
+    fn handle_transmit(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        call: TransmitCall,
+    ) -> PduResult<()> {
+        let cmd =
+            CardCommand::<TRANSMIT_DATA_LIMIT>::try_from(&call.send_buffer).map_err(|err| {
+                custom_err!(
+                    "TeleportRdpdrBackend::handle_transmit",
+                    TeleportRdpdrBackendError(format!(
+                        "failed to parse smartcard command {:?}: {:?}",
+                        &call.send_buffer, err
+                    ))
+                )
+            })?;
+
+        let card = self.contexts.get_card(&call.handle)?;
+        let resp = card.handle(cmd)?;
+
+        self.write_rdpdr_dev_ctl_resp(
+            req,
+            Box::new(TransmitReturn::new(
+                ReturnCode::Success,
+                None,
+                resp.encode(),
+            )),
+        )
+    }
+
     fn create_get_status_change_return(
         call: GetStatusChangeCall,
     ) -> rpce::Pdu<GetStatusChangeReturn> {
@@ -320,7 +351,7 @@ impl TeleportRdpdrBackend {
             )))
             .map_err(|e| {
                 custom_err!(
-                    "write_rdpdr_dev_ctl_resp",
+                    "TeleportRdpdrBackend::write_rdpdr_dev_ctl_resp",
                     // Due to a long chain of trait dependencies in IronRDP that are impractical to unwind at this point,
                     // we can't put _e in the source field of the error because it isn't Sync (because ClientFunction itself
                     // isn't sync). We compromise here by just wrapping its Debug output in a TeleportRdpdrBackendError.
@@ -371,6 +402,7 @@ impl RdpdrBackend for TeleportRdpdrBackend {
                     "got unexpected ScardIoCtlCode with a HCardAndDispositionCall",
                 )),
             },
+            ScardCall::TransmitCall(call) => self.handle_transmit(req, call),
 
             ScardCall::Unsupported => Ok(()),
         }
@@ -379,7 +411,7 @@ impl RdpdrBackend for TeleportRdpdrBackend {
 
 /// A generic error type for the TeleportRdpdrBackend that can contain any arbitrary error message.
 #[derive(Debug)]
-struct TeleportRdpdrBackendError(String);
+pub struct TeleportRdpdrBackendError(pub String);
 
 impl std::fmt::Display for TeleportRdpdrBackendError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
