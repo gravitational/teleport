@@ -72,9 +72,6 @@ func (c *DesktopCommand) ListDesktop(ctx context.Context, client auth.ClientI) e
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if desktops == nil {
-		desktops = []types.WindowsDesktop{}
-	}
 	coll := windowsDesktopCollection{
 		desktops: desktops,
 	}

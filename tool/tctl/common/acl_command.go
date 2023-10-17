@@ -124,10 +124,6 @@ func (c *ACLCommand) List(ctx context.Context, client auth.ClientI) error {
 		return nil
 	}
 
-	if accessLists == nil {
-		accessLists = []*accesslist.AccessList{}
-	}
-
 	return trace.Wrap(displayAccessLists(c.format, accessLists...))
 }
 
@@ -226,7 +222,7 @@ func displayAccessLists(format string, accessLists ...*accesslist.AccessList) er
 	case teleport.YAML:
 		return trace.Wrap(utils.WriteYAML(os.Stdout, accessLists))
 	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSON(os.Stdout, accessLists))
+		return trace.Wrap(utils.WriteJSONArray(os.Stdout, accessLists))
 	case teleport.Text:
 		return trace.Wrap(displayAccessListsText(accessLists...))
 	}

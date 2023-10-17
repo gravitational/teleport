@@ -248,9 +248,6 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	if nodes == nil {
-		nodes = []types.Server{}
-	}
 	coll := &serverCollection{servers: nodes}
 	switch c.lsFormat {
 	case teleport.Text:

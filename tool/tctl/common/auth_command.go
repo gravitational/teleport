@@ -414,10 +414,6 @@ func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI auth.Clien
 		return trace.Wrap(err)
 	}
 
-	if servers == nil {
-		servers = []types.Server{}
-	}
-
 	sc := &serverCollection{servers}
 
 	switch a.format {
