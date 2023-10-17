@@ -58,7 +58,8 @@ function ServerList(props: State) {
   const { documentsService, rootClusterUri } = useWorkspaceContext();
   const { clusterUri } = useClusterContext();
   const loggedInUser = useWorkspaceLoggedInUser();
-  const { canUse: canUseConnectMyComputer } = useConnectMyComputerContext();
+  const { canUse: hasPermissionsForConnectMyComputer, agentCompatibility } =
+    useConnectMyComputerContext();
 
   const servers = fetchAttempt.data?.agentsList.map(makeServer) || [];
   const disabled = fetchAttempt.status === 'processing';
@@ -70,13 +71,16 @@ function ServerList(props: State) {
     agentFilter.search || agentFilter.query,
     canAddResources
   );
+  const canUseConnectMyComputer =
+    isRootCluster &&
+    hasPermissionsForConnectMyComputer &&
+    agentCompatibility === 'compatible';
   let { emptyText, emptyHint } = getEmptyTableText(emptyTableStatus, 'servers');
   let emptyButton: JSX.Element;
 
   if (
     emptyTableStatus.status === 'no-resources' &&
     emptyTableStatus.showEnrollingResourcesHint &&
-    isRootCluster &&
     canUseConnectMyComputer
   ) {
     emptyHint =
