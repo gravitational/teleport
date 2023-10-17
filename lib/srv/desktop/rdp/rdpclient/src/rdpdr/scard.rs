@@ -2386,6 +2386,11 @@ impl Contexts {
         Ok(handle)
     }
 
+    pub fn disconnect(&mut self, id: u32) -> PduResult<()> {
+        self.get_internal_mut(id)?.disconnect(id);
+        Ok(())
+    }
+
     pub fn set_scard_cancel_response(
         &mut self,
         id: u32,

@@ -328,6 +328,15 @@ impl TeleportRdpdrBackend {
         self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
     }
 
+    fn handle_disconnect(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        call: HCardAndDispositionCall,
+    ) -> PduResult<()> {
+        self.contexts.disconnect(call.handle.value)?;
+        self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
+    }
+
     fn create_get_status_change_return(
         call: GetStatusChangeCall,
     ) -> rpce::Pdu<GetStatusChangeReturn> {
@@ -484,6 +493,10 @@ impl RdpdrBackend for TeleportRdpdrBackend {
             },
             ScardIoCtlCode::EndTransaction => match call {
                 ScardCall::HCardAndDispositionCall(_) => self.handle_end_transaction(req),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::Disconnect => match call {
+                ScardCall::HCardAndDispositionCall(call) => self.handle_disconnect(req, call),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
             _ => Err(custom_err!(
