@@ -161,7 +161,6 @@ impl CliprdrBackend for TeleportCliprdrBackend {
         };
         match data {
             Some(mut data) => {
-                data.pop();
                 if let Err(e) = self
                     .client_handle
                     .blocking_send(ClientFunction::HandleRemoteCopy(data.into_bytes()))
