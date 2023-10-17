@@ -44,7 +44,7 @@ func TestNewUserContext(t *testing.T) {
 	role2.SetNamespaces(types.Allow, []string{apidefaults.Namespace})
 
 	roleSet := []types.Role{role1, role2}
-	userContext, err := NewUserContext(user, roleSet, proto.Features{}, true)
+	userContext, err := NewUserContext(user, roleSet, proto.Features{}, true, false)
 	require.NoError(t, err)
 
 	// test user name
@@ -59,7 +59,7 @@ func TestNewUserContext(t *testing.T) {
 
 	// test sso auth type
 	user.Spec.GithubIdentities = []types.ExternalIdentity{{ConnectorID: "foo", Username: "bar"}}
-	userContext, err = NewUserContext(user, roleSet, proto.Features{}, true)
+	userContext, err = NewUserContext(user, roleSet, proto.Features{}, true, false)
 	require.NoError(t, err)
 	require.Equal(t, userContext.AuthType, authSSO)
 }
@@ -78,7 +78,7 @@ func TestNewUserContextCloud(t *testing.T) {
 
 	roleSet := []types.Role{role}
 
-	userContext, err := NewUserContext(user, roleSet, proto.Features{Cloud: true}, true)
+	userContext, err := NewUserContext(user, roleSet, proto.Features{Cloud: true}, true, false)
 	require.NoError(t, err)
 
 	require.Equal(t, userContext.Name, "root")
