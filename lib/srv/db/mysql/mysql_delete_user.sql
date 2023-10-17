@@ -3,8 +3,6 @@ BEGIN
     -- Defaults to dropping user.
     DECLARE state VARCHAR(5) DEFAULT 'TP003';
     DECLARE is_active INT DEFAULT 0;
-    DECLARE is_procedure_definer INT DEFAULT 0;
-    DECLARE is_view_definer INT DEFAULT 0;
 
     -- Views and procedures rely on the definer to work correctly. Dropping the
     -- definer causes them to stop working. Given this, the DROP USER command

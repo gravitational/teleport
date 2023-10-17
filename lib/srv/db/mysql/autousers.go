@@ -197,7 +197,7 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 
 	switch readDeleteUserResult(result) {
 	case common.SQLStateUserDropped:
-		e.Log.Debug("User %q deleted successfully.", sessionCtx.DatabaseUser)
+		e.Log.Debugf("User %q deleted successfully.", sessionCtx.DatabaseUser)
 	case common.SQLStateUserDeactivated:
 		e.Log.Infof("Unable to delete user %q, it was disabled instead.", sessionCtx.DatabaseUser)
 	default:
