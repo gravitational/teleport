@@ -92,6 +92,90 @@ pub struct TeleportRdpdrBackend {
     pin: String,
 }
 
+impl RdpdrBackend for TeleportRdpdrBackend {
+    fn handle_server_device_announce_response(
+        &mut self,
+        pdu: ServerDeviceAnnounceResponse,
+    ) -> PduResult<()> {
+        if !self.active_device_ids.contains(&pdu.device_id) {
+            return Err(other_err!(
+                "TeleportRdpdrBackend::handle_server_device_announce_response",
+                "got ServerDeviceAnnounceResponse for unknown device_id",
+            ));
+        }
+
+        if pdu.result_code != NtStatus::Success {
+            return Err(other_err!(
+                "TeleportRdpdrBackend::handle_server_device_announce_response",
+                "ServerDeviceAnnounceResponse for smartcard redirection failed"
+            ));
+        }
+
+        // Nothing to send back to the server
+        Ok(())
+    }
+
+    fn handle_scard_call(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        call: ScardCall,
+    ) -> PduResult<()> {
+        match req.io_control_code {
+            ScardIoCtlCode::AccessStartedEvent => match call {
+                ScardCall::AccessStartedEventCall(_) => self.handle_access_started_event(req),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::EstablishContext => match call {
+                ScardCall::EstablishContextCall(_) => self.handle_establish_context(req),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::ListReadersW => match call {
+                ScardCall::ListReadersCall(_) => self.handle_list_readers(req),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::GetStatusChangeW => match call {
+                ScardCall::GetStatusChangeCall(call) => self.handle_get_status_change(req, call),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::ConnectW => match call {
+                ScardCall::ConnectCall(call) => self.handle_connect(req, call),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::BeginTransaction => match call {
+                ScardCall::HCardAndDispositionCall(_) => self.handle_begin_transaction(req),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::Transmit => match call {
+                ScardCall::TransmitCall(call) => self.handle_transmit(req, call),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::StatusW | ScardIoCtlCode::StatusA => match call {
+                ScardCall::StatusCall(_) => self.handle_status(req),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::ReleaseContext => match call {
+                ScardCall::ContextCall(call) => self.handle_release_context(req, call),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::EndTransaction => match call {
+                ScardCall::HCardAndDispositionCall(_) => self.handle_end_transaction(req),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::Disconnect => match call {
+                ScardCall::HCardAndDispositionCall(call) => self.handle_disconnect(req, call),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            _ => Err(custom_err!(
+                "TeleportRdpdrBackend::handle_scard_call",
+                TeleportRdpdrBackendError(format!(
+                    "received unhandled ScardIoCtlCode: {:?}",
+                    req.io_control_code
+                ))
+            )),
+        }
+    }
+}
+
 impl TeleportRdpdrBackend {
     pub fn new(
         smartcard_device_id: u32,
@@ -423,90 +507,6 @@ impl TeleportRdpdrBackend {
                 ioctl, call
             ))
         ))
-    }
-}
-
-impl RdpdrBackend for TeleportRdpdrBackend {
-    fn handle_server_device_announce_response(
-        &mut self,
-        pdu: ServerDeviceAnnounceResponse,
-    ) -> PduResult<()> {
-        if !self.active_device_ids.contains(&pdu.device_id) {
-            return Err(other_err!(
-                "TeleportRdpdrBackend::handle_server_device_announce_response",
-                "got ServerDeviceAnnounceResponse for unknown device_id",
-            ));
-        }
-
-        if pdu.result_code != NtStatus::Success {
-            return Err(other_err!(
-                "TeleportRdpdrBackend::handle_server_device_announce_response",
-                "ServerDeviceAnnounceResponse for smartcard redirection failed"
-            ));
-        }
-
-        // Nothing to send back to the server
-        Ok(())
-    }
-
-    fn handle_scard_call(
-        &mut self,
-        req: DeviceControlRequest<ScardIoCtlCode>,
-        call: ScardCall,
-    ) -> PduResult<()> {
-        match req.io_control_code {
-            ScardIoCtlCode::AccessStartedEvent => match call {
-                ScardCall::AccessStartedEventCall(_) => self.handle_access_started_event(req),
-                _ => Self::unsupported_combo_error(req.io_control_code, call),
-            },
-            ScardIoCtlCode::EstablishContext => match call {
-                ScardCall::EstablishContextCall(_) => self.handle_establish_context(req),
-                _ => Self::unsupported_combo_error(req.io_control_code, call),
-            },
-            ScardIoCtlCode::ListReadersW => match call {
-                ScardCall::ListReadersCall(_) => self.handle_list_readers(req),
-                _ => Self::unsupported_combo_error(req.io_control_code, call),
-            },
-            ScardIoCtlCode::GetStatusChangeW => match call {
-                ScardCall::GetStatusChangeCall(call) => self.handle_get_status_change(req, call),
-                _ => Self::unsupported_combo_error(req.io_control_code, call),
-            },
-            ScardIoCtlCode::ConnectW => match call {
-                ScardCall::ConnectCall(call) => self.handle_connect(req, call),
-                _ => Self::unsupported_combo_error(req.io_control_code, call),
-            },
-            ScardIoCtlCode::BeginTransaction => match call {
-                ScardCall::HCardAndDispositionCall(_) => self.handle_begin_transaction(req),
-                _ => Self::unsupported_combo_error(req.io_control_code, call),
-            },
-            ScardIoCtlCode::Transmit => match call {
-                ScardCall::TransmitCall(call) => self.handle_transmit(req, call),
-                _ => Self::unsupported_combo_error(req.io_control_code, call),
-            },
-            ScardIoCtlCode::StatusW | ScardIoCtlCode::StatusA => match call {
-                ScardCall::StatusCall(_) => self.handle_status(req),
-                _ => Self::unsupported_combo_error(req.io_control_code, call),
-            },
-            ScardIoCtlCode::ReleaseContext => match call {
-                ScardCall::ContextCall(call) => self.handle_release_context(req, call),
-                _ => Self::unsupported_combo_error(req.io_control_code, call),
-            },
-            ScardIoCtlCode::EndTransaction => match call {
-                ScardCall::HCardAndDispositionCall(_) => self.handle_end_transaction(req),
-                _ => Self::unsupported_combo_error(req.io_control_code, call),
-            },
-            ScardIoCtlCode::Disconnect => match call {
-                ScardCall::HCardAndDispositionCall(call) => self.handle_disconnect(req, call),
-                _ => Self::unsupported_combo_error(req.io_control_code, call),
-            },
-            _ => Err(custom_err!(
-                "TeleportRdpdrBackend::handle_scard_call",
-                TeleportRdpdrBackendError(format!(
-                    "received unhandled ScardIoCtlCode: {:?}",
-                    req.io_control_code
-                ))
-            )),
-        }
     }
 }
 
