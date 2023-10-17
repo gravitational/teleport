@@ -13,6 +13,12 @@ const cfg = {
     accessLists: '/web/accesslists/:accessListId?',
     accessListNew: '/web/accesslists/new',
 
+    accessMonitoring: {
+      base: '/web/accessmonitoring',
+      queryEditor: '/web/accessmonitoring/query',
+      report: '/web/accessmonitoring/report/:name/:days',
+    },
+
     requests: '/web/requests/:requestId?',
     requestNew: '/web/cluster/:clusterId/requests/new',
 
@@ -92,6 +98,18 @@ const cfg = {
 
     surveyPath: '/v1/enterprise/cloud/survey',
     surveyCompanyPath: '/v1/enterprise/cloud/survey/company',
+
+    accessMonitoring: {
+      schema: '/v1/webapi/sites/:clusterId/audit/schema',
+      reports: '/v1/webapi/sites/:clusterId/audit/reports',
+      reportRun: '/v1/webapi/sites/:clusterId/audit/reports/:name/run',
+      reportResult:
+        '/v1/webapi/sites/:clusterId/audit/reports/:name/result/days/:timeframe',
+      reportState:
+        '/v1/webapi/sites/:clusterId/audit/reports/:name/state/days/:timeframe',
+      queryRun: '/v1/webapi/sites/:clusterId/audit/queries/run',
+      result: '/v1/webapi/sites/:clusterId/audit/queries/result',
+    },
   },
 
   getTrustedDevicesUrl(params: UrlResourcesParams) {
@@ -176,6 +194,59 @@ const cfg = {
 
   getPluginUrl(name?: string) {
     return generatePath(cfg.api.pluginPath, { name });
+  },
+
+  getAccessMonitoringReportRoute(name: string, days: number) {
+    return generatePath(cfg.routes.accessMonitoring.report, { name, days });
+  },
+
+  getAccessMonitoringReportsUrl(clusterId: string) {
+    return generatePath(cfg.api.accessMonitoring.reports, { clusterId });
+  },
+
+  getAccessMonitoringSchemaUrl(clusterId: string) {
+    return generatePath(cfg.api.accessMonitoring.schema, { clusterId });
+  },
+
+  getAccessMonitoringReportUrl(
+    clusterId: string,
+    reportName: string,
+    timeframe: number
+  ) {
+    return generatePath(cfg.api.accessMonitoring.reportResult, {
+      clusterId,
+      name: reportName,
+      timeframe,
+    });
+  },
+
+  getAccessMonitoringReportRunUrl(clusterId: string, reportName: string) {
+    return generatePath(cfg.api.accessMonitoring.reportRun, {
+      clusterId,
+      name: reportName,
+    });
+  },
+
+  getAccessMonitoringQueryRunUrl(clusterId: string) {
+    return generatePath(cfg.api.accessMonitoring.queryRun, { clusterId });
+  },
+
+  getAccessMonitoringQueryResultUrl(clusterId: string) {
+    return generatePath(cfg.api.accessMonitoring.result, {
+      clusterId,
+    });
+  },
+
+  getAccessMonitoringReportStateUrl(
+    clusterId: string,
+    reportName: string,
+    timeframe: number
+  ) {
+    return generatePath(cfg.api.accessMonitoring.reportState, {
+      clusterId,
+      name: reportName,
+      timeframe,
+    });
   },
 
   init(json: object) {

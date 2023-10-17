@@ -16,6 +16,7 @@ import {
   Profile,
   Invoices,
   UserList,
+  Graph,
 } from 'design/Icon';
 
 import { NavTitle } from 'teleport/types';
@@ -57,6 +58,7 @@ const DiscoverE = lazy(() => import('e-teleport/Discover'));
 const AccessListManagement = lazy(
   () => import('e-teleport/AccessListManagement')
 );
+const AccessMonitoring = lazy(() => import('e-teleport/AccessMonitoring'));
 
 // ****************************
 // Resource Features
@@ -258,6 +260,30 @@ class FeatureSupport implements TeleportFeature {
 // Management Features
 // ****************************
 
+class FeatureAccessMonitoring implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Identity;
+
+  route = {
+    title: 'Access Monitoring',
+    path: cfg.routes.accessMonitoring.base,
+    exact: false,
+    component: AccessMonitoring,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.accessMonitoring;
+  }
+
+  navigationItem = {
+    title: NavTitle.AccessMonitoring,
+    icon: <Graph />,
+    getLink() {
+      return cfg.routes.accessMonitoring.base;
+    },
+  };
+}
+
 class FeatureAuthConnectors extends OSS.FeatureAuthConnectors {
   route = {
     title: 'Manage Auth Connectors',
@@ -397,6 +423,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new OSS.FeatureLocks(),
     new FeatureNewLock(),
     new FeatureDeviceTrust(),
+    new FeatureAccessMonitoring(),
 
     // - Activity
     new OSS.FeatureRecordings(),
