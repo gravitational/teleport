@@ -1055,7 +1055,7 @@ type ReviewChanges struct {
 	RemovedMembers []string `protobuf:"bytes,3,rep,name=removed_members,json=removedMembers,proto3" json:"removed_members,omitempty"`
 	// review_frequency_changed is populated if the review frequency has changed.
 	ReviewFrequencyChanged ReviewFrequency `protobuf:"varint,4,opt,name=review_frequency_changed,json=reviewFrequencyChanged,proto3,enum=teleport.accesslist.v1.ReviewFrequency" json:"review_frequency_changed,omitempty"`
-	// review_day_of_month changed is populated if the review day of month has changed.
+	// review_day_of_month_changed is populated if the review day of month has changed.
 	ReviewDayOfMonthChanged ReviewDayOfMonth `protobuf:"varint,5,opt,name=review_day_of_month_changed,json=reviewDayOfMonthChanged,proto3,enum=teleport.accesslist.v1.ReviewDayOfMonth" json:"review_day_of_month_changed,omitempty"`
 }
 
