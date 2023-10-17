@@ -44,7 +44,7 @@ Going over the goals again, we end up with this list:
 
 1. OpenSSH compatibility via `tsh proxy ssh` should be able to survive a connection drop.
 
-1. Resilience against connection drops should include SSH servers running in "direct dial" mode, not just servers connected to a Teleport cluster via reverse tunnel.
+1. Resilience against connection drops should include SSH servers running in "direct dial" mode - i.e. Teleport SSH service agents that receive TCP connections from the Teleport proxies - not just servers connected to a Teleport cluster via reverse tunnel.
 
 This RFD's proposal to fulfill these goals is an end-to-end protocol, whose early handshake degrades gracefully into a standard SSH version handshake, that establishes a single uninterrupted bytestream across separate fallible bytestream connections (both connections coming through a reverse tunnel, or direct TCP connections). This approach allows for session persistence across not only restarts of the Proxy, but general loss of end-to-end connectivity.
 
