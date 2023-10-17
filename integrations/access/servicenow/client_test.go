@@ -58,7 +58,7 @@ func TestCreateIncident(t *testing.T) {
 
 	expected := Incident{
 		ShortDescription: "Teleport access request from user someUser",
-		Description:      "Teleport user someUser submitted access request for roles (or resources, for resource-based requests) role1, role2 on Teleport cluster .\nReason: someReason\n\n",
+		Description:      "Teleport user someUser submitted access request for roles role1, role2 on Teleport cluster .\nReason: someReason\n\n",
 		Caller:           "someUser",
 	}
 	var got Incident
