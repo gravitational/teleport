@@ -1003,6 +1003,24 @@ message GetRolesResponse {
   repeated types.RoleV6 Roles = 1;
 }
 
+// Request for CreateRole.
+message CreateRoleRequest {
+  // Role to be created.
+  types.RoleV6 Role = 1;
+}
+
+// Request for UpdateRole.
+message UpdateRoleRequest {
+  // Role to be updated.
+  types.RoleV6 Role = 1;
+}
+
+// Request for UpsertRole.
+message UpsertRoleRequest {
+  // Role to be upserted.
+  types.RoleV6 Role = 1;
+}
+
 // DeleteRoleRequest is a request to delete a role.
 message DeleteRoleRequest {
   // Name is the role name to delete.
@@ -2719,8 +2737,18 @@ service AuthService {
   rpc GetRole(GetRoleRequest) returns (types.RoleV6);
   // GetRole retrieves all roles.
   rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
+  // CreateRole creates a new role.
+  rpc CreateRole(CreateRoleRequest) returns (types.RoleV6);
+  // UpdateRole updates an existing role.
+  rpc UpdateRole(UpdateRoleRequest) returns (types.RoleV6);
+  // UpsertRoleV2 creates or overwrites an existing role.
+  rpc UpsertRoleV2(UpsertRoleRequest) returns (types.RoleV6);
   // UpsertRole upserts a role in a backend.
-  rpc UpsertRole(types.RoleV6) returns (google.protobuf.Empty);
+  //
+  // Deprecated: use UpsertRoleV2 instead.
+  rpc UpsertRole(types.RoleV6) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // DeleteRole deletes an existing role in a backend described by the given request.
   rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty);
 
