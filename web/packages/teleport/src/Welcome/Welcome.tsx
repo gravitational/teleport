@@ -28,6 +28,7 @@ import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 import { NewCredentialsContainerProps } from 'teleport/Welcome/NewCredentials';
 
+import { CLOUD_INVITE_URL_PARAM } from './const';
 import { CardWelcome } from './CardWelcome';
 
 type WelcomeProps = {
@@ -42,8 +43,8 @@ export default function Welcome({ NewCredentials }: WelcomeProps) {
     // We need to pass through the `invite` query parameter (if it exists) to
     // render the invite collaborators form for Cloud users.
     let suffix = '';
-    if (new URLSearchParams(search).has(cfg.welcomeShowCloudInviteForm)) {
-      suffix = `?${cfg.welcomeShowCloudInviteForm}`;
+    if (new URLSearchParams(search).has(CLOUD_INVITE_URL_PARAM)) {
+      suffix = `?${CLOUD_INVITE_URL_PARAM}`;
     }
 
     history.push(`${cfg.getUserInviteTokenContinueRoute(tokenId)}${suffix}`);

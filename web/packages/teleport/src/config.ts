@@ -275,8 +275,6 @@ const cfg = {
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
   },
 
-  welcomeShowCloudInviteForm: 'invite',
-
   getUserClusterPreferencesUrl(clusterId: string) {
     return generatePath(cfg.api.userClusterPreferencesPath, {
       clusterId,
