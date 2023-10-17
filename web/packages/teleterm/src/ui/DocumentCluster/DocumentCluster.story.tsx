@@ -269,8 +269,8 @@ function renderState({
   const appContext = new MockAppContext({ platform });
   appContext.clustersService.state = state;
 
+  const rootClusterUri = routing.ensureRootClusterUri(doc.clusterUri);
   appContext.workspacesService.setState(draftState => {
-    const rootClusterUri = routing.ensureRootClusterUri(doc.clusterUri);
     draftState.rootClusterUri = rootClusterUri;
     draftState.workspaces[rootClusterUri] = {
       localClusterUri: doc.clusterUri,
@@ -286,7 +286,7 @@ function renderState({
   return (
     <AppContextProvider value={appContext}>
       <MockWorkspaceContextProvider>
-        <ConnectMyComputerContextProvider rootClusterUri={doc.clusterUri}>
+        <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
           <ResourcesContextProvider>
             <Wrapper>
               <DocumentCluster visible={true} doc={doc} />
