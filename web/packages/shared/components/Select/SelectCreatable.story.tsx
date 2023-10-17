@@ -28,9 +28,13 @@ function SelectCreatableDefault() {
   const [selected, setSelected] = React.useState<Option[]>();
 
   return (
+    // Note that these examples don't provide for great UX. Implementations
+    // should consider adding an `onKeyDown` handler to split entries on
+    // keypress (tab, comma, enter, etc) rather than relying on react-select's
+    // "Create [foo]" dropdown.
     <Flex flexDirection="column" width="330px" mr={5}>
       <Box mb="200px">
-        Multi select
+        Multiple input
         <SelectCreatable
           placeholder="Example"
           isMulti
@@ -44,7 +48,7 @@ function SelectCreatableDefault() {
         Note: accept new candidate with Enter or mouse click
       </Box>
       <Box mb="200px">
-        Single select
+        Single input
         <SelectCreatable
           placeholder="Example"
           inputValue={input}
@@ -55,7 +59,7 @@ function SelectCreatableDefault() {
       </Box>
       <Box>
         <DarkStyledSelect>
-          Single select (dark)
+          Single input (dark)
           <SelectCreatable
             placeholder="Example"
             inputValue={input}
