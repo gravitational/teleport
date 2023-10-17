@@ -169,6 +169,10 @@ impl RdpdrBackend for TeleportRdpdrBackend {
                 ScardCall::ContextCall(call) => self.handle_cancel(req, call),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
+            ScardIoCtlCode::IsValidContext => match call {
+                ScardCall::ContextCall(_) => self.handle_is_valid_context(req),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
             _ => Err(custom_err!(
                 "TeleportRdpdrBackend::handle_scard_call",
                 TeleportRdpdrBackendError(format!(
@@ -434,6 +438,15 @@ impl TeleportRdpdrBackend {
             .contexts
             .take_scard_cancel_response(call.context.value)?;
         self.send_device_ctl_response(resp)?;
+        self.write_rdpdr_response(req, Box::new(LongReturn::new(ReturnCode::Success)))
+    }
+
+    fn handle_is_valid_context(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+    ) -> PduResult<()> {
+        // TODO: Currently we're always just sending ReturnCode::Success (based on awly's pre-
+        // IronRDP code). Should we instead be checking if we have such a context in our cache?
         self.write_rdpdr_response(req, Box::new(LongReturn::new(ReturnCode::Success)))
     }
 
