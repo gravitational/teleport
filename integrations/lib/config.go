@@ -109,6 +109,33 @@ func (cfg *TeleportConfig) CheckTLSConfig() error {
 	return nil
 }
 
+func newIdentityFileWatcher(ctx context.Context, path string, interval time.Duration) (*client.DynamicIdentityFileCreds, error) {
+	dynamicCred, err := client.NewDynamicIdentityFileCreds(path)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating dynamic identity file watcher")
+	}
+
+	go func() {
+		timer := time.NewTimer(interval)
+		defer timer.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+			}
+
+			if err := dynamicCred.Reload(); err != nil {
+				log.WithError(err).Error("Failed to reload identity file from disk.")
+			}
+			timer.Reset(interval)
+		}
+	}()
+
+	return dynamicCred, nil
+}
+
 func (cfg TeleportConfig) NewClient(ctx context.Context) (*client.Client, error) {
 	addr := "localhost:3025"
 	switch {
@@ -121,8 +148,14 @@ func (cfg TeleportConfig) NewClient(ctx context.Context) (*client.Client, error)
 
 	var creds []client.Credentials
 	switch {
-	case cfg.Identity != "":
+	case cfg.Identity != "" && !cfg.RefreshIdentity:
 		creds = []client.Credentials{client.LoadIdentityFile(cfg.Identity)}
+	case cfg.Identity != "" && cfg.RefreshIdentity:
+		cred, err := newIdentityFileWatcher(ctx, cfg.Identity, cfg.RefreshIdentityInterval)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		creds = []client.Credentials{cred}
 	case cfg.ClientCrt != "" && cfg.ClientKey != "" && cfg.RootCAs != "":
 		creds = []client.Credentials{client.LoadKeyPair(cfg.ClientCrt, cfg.ClientKey, cfg.RootCAs)}
 	default:
