@@ -104,7 +104,7 @@ export default class MainProcess {
           return;
         }
         window.webContents.send(
-          'main-process-connect-my-computer-agent-update',
+          'renderer-connect-my-computer-agent-update',
           rootClusterUri,
           state
         );

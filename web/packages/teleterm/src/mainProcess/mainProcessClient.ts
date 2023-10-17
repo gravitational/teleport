@@ -33,6 +33,38 @@ import {
 
 export default function createMainProcessClient(): MainProcessClient {
   return {
+    /*
+     * Listeners for messages received by the renderer from the main process.
+     */
+    subscribeToNativeThemeUpdate: listener => {
+      const onThemeChange = (_, value: { shouldUseDarkColors: boolean }) =>
+        listener(value);
+      const channel = 'renderer-native-theme-update';
+      ipcRenderer.addListener(channel, onThemeChange);
+      return {
+        cleanup: () => ipcRenderer.removeListener(channel, onThemeChange),
+      };
+    },
+    subscribeToAgentUpdate: (rootClusterUri, listener) => {
+      const onChange = (
+        _,
+        eventRootClusterUri: RootClusterUri,
+        eventState: AgentProcessState
+      ) => {
+        if (eventRootClusterUri === rootClusterUri) {
+          listener(eventState);
+        }
+      };
+      const channel = 'renderer-connect-my-computer-agent-update';
+      ipcRenderer.addListener(channel, onChange);
+      return {
+        cleanup: () => ipcRenderer.removeListener(channel, onChange),
+      };
+    },
+
+    /*
+     * Messages sent from the renderer to the main process.
+     */
     getRuntimeSettings() {
       return ipcRenderer.sendSync('main-process-get-runtime-settings');
     },
@@ -65,15 +97,6 @@ export default function createMainProcessClient(): MainProcessClient {
     },
     shouldUseDarkColors() {
       return ipcRenderer.sendSync('main-process-should-use-dark-colors');
-    },
-    subscribeToNativeThemeUpdate: listener => {
-      const onThemeChange = (_, value: { shouldUseDarkColors: boolean }) =>
-        listener(value);
-      const channel = 'main-process-native-theme-update';
-      ipcRenderer.addListener(channel, onThemeChange);
-      return {
-        cleanup: () => ipcRenderer.removeListener(channel, onThemeChange),
-      };
     },
     downloadAgent() {
       return ipcRenderer.invoke(
@@ -133,22 +156,6 @@ export default function createMainProcessClient(): MainProcessClient {
         'main-process-connect-my-computer-get-agent-logs',
         clusterProperties
       );
-    },
-    subscribeToAgentUpdate: (rootClusterUri, listener) => {
-      const onChange = (
-        _,
-        eventRootClusterUri: RootClusterUri,
-        eventState: AgentProcessState
-      ) => {
-        if (eventRootClusterUri === rootClusterUri) {
-          listener(eventState);
-        }
-      };
-      const channel = 'main-process-connect-my-computer-agent-update';
-      ipcRenderer.addListener(channel, onChange);
-      return {
-        cleanup: () => ipcRenderer.removeListener(channel, onChange),
-      };
     },
   };
 }
