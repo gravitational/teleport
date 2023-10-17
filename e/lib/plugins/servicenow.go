@@ -58,6 +58,7 @@ func serviceNowInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps
 				Username:    username,
 				APIToken:    password,
 				CloseCode:   serviceNowSpec.CloseCode,
+				StatusSink:  deps.statusSink,
 			},
 		},
 		pluginType: types.PluginTypeServiceNow,
