@@ -321,6 +321,13 @@ impl TeleportRdpdrBackend {
         self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
     }
 
+    fn handle_end_transaction(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+    ) -> PduResult<()> {
+        self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
+    }
+
     fn create_get_status_change_return(
         call: GetStatusChangeCall,
     ) -> rpce::Pdu<GetStatusChangeReturn> {
@@ -473,6 +480,10 @@ impl RdpdrBackend for TeleportRdpdrBackend {
             },
             ScardIoCtlCode::ReleaseContext => match call {
                 ScardCall::ContextCall(call) => self.handle_release_context(req, call),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::EndTransaction => match call {
+                ScardCall::HCardAndDispositionCall(_) => self.handle_end_transaction(req),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
             _ => Err(custom_err!(
