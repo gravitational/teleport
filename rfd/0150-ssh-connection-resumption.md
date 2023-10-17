@@ -117,3 +117,11 @@ The same resumption mechanism could be employed for other protocols, since losin
 We currently re-execute Teleport to handle various user bookkeeping tasks, but the SSH connection itself is handled by the single monolithic `teleport` process; in direct dial mode it would be possible for a child process to handle the incoming connection on its own (similarly to how OpenSSH does it), but since the connection could not outlive the main process handling the reverse tunnel connection in tunnel mode, this was never explored.
 
 Connection resumption lets us do that, however; as long as any Teleport agent is running and can forward connections to the child processes, it would be possible for the SSH connection to survive and be used across a Teleport agent restart or upgrade.
+
+### Proxy-terminated connection resumption
+
+This proposal defines connection resumption from a resumption-aware client to a resumption-aware server, intending for the latter to be a Teleport SSH service agent reached directly from a user's machine. If the SSH connection is terminated and forwarded on a Teleport proxy, we have the option to allow connection resumption on both sides, if possible.
+
+Connection resumption from the client to the proxy is only possible if we introduce a method for a user machine to get a connection to a specific proxy - this, at a minimum, requires proxy peering - and only helps against network problems between the user and the proxy, since a restart of the proxy that's doing the termination and forward will still cause the connection to be killed.
+
+Connection resumption from the proxy to the node can be useful (there might be other hops between the proxy doing the SSH termination and the agent, because of proxy peering or trusted cluster connectivity) but still requires the node to be a Teleport SSH server, and the main reason why a SSH connection might be terminated at the Proxy would be if the node is a registered OpenSSH/agentless node, which is not going to support connection resumption anyway (unless we provide some sort of frontend for it). In the very specific case of a Teleport cluster configured in proxy recording mode and an agent connected over proxy peering or an agent in a leaf cluster we might see some benefit from proxy-node connection resumption.
