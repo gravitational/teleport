@@ -53,7 +53,12 @@ func (process *TeleportProcess) initDeployServiceUpdater() error {
 		return trace.Wrap(err)
 	}
 
-	resp, err := process.getInstanceClient().Ping(process.GracefulExitContext())
+	authClient := process.getInstanceClient()
+	if authClient == nil {
+		return trace.Errorf("instance client not yet initialized")
+	}
+
+	resp, err := authClient.Ping(process.GracefulExitContext())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -81,14 +86,14 @@ func (process *TeleportProcess) initDeployServiceUpdater() error {
 		return trace.Wrap(err)
 	}
 
-	clusterNameConfig, err := process.getInstanceClient().GetClusterName()
+	clusterNameConfig, err := authClient.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	updater, err := NewDeployServiceUpdater(DeployServiceUpdaterConfig{
 		Log:                    process.log.WithField(trace.Component, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater")),
-		AuthClient:             process.getInstanceClient(),
+		AuthClient:             authClient,
 		Clock:                  process.Clock,
 		TeleportClusterName:    clusterNameConfig.GetClusterName(),
 		TeleportClusterVersion: resp.GetServerVersion(),
