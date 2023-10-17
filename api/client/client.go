@@ -44,8 +44,10 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
+	"github.com/gravitational/teleport/api/client/externalcloudaudit"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/client/userloginstate"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -54,6 +56,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	externalcloudauditv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -61,6 +64,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
@@ -785,6 +789,11 @@ func (c *Client) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 	return loginrulepb.NewLoginRuleServiceClient(c.conn)
 }
 
+// SecReportsClient returns Security client that can be used to fetch security reports.
+func (c *Client) SecReportsClient() *secreport.Client {
+	return secreport.NewClient(secreportsv1.NewSecReportsServiceClient(c.conn))
+}
+
 // SAMLIdPClient returns an unadorned SAML IdP client, using the underlying
 // Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,
@@ -792,6 +801,15 @@ func (c *Client) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 // return "not implemented" errors (as per the default gRPC behavior).
 func (c *Client) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	return samlidppb.NewSAMLIdPServiceClient(c.conn)
+}
+
+// ExternalCloudAuditClient returns an unadorned External Cloud Audit client,
+// using the underlying Auth gRPC connection.
+// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+// still get a external audit client when calling this method, but all RPCs will
+// return "not implemented" errors (as per the default gRPC behavior).
+func (c *Client) ExternalCloudAuditClient() *externalcloudaudit.Client {
+	return externalcloudaudit.NewClient(externalcloudauditv1.NewExternalCloudAuditServiceClient(c.conn))
 }
 
 // TrustClient returns an unadorned Trust client, using the underlying
@@ -828,34 +846,43 @@ func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster
 }
 
 // CreateUser creates a new user from the specified descriptor.
-func (c *Client) CreateUser(ctx context.Context, user types.User) error {
+func (c *Client) CreateUser(ctx context.Context, user types.User) (types.User, error) {
 	userV2, ok := user.(*types.UserV2)
 	if !ok {
-		return trace.BadParameter("unsupported user type %T", user)
+		return nil, trace.BadParameter("unsupported user type %T", user)
 	}
 
-	_, err := c.grpc.CreateUser(ctx, userV2)
-	return trace.Wrap(err)
+	if _, err := c.grpc.CreateUser(ctx, userV2); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := c.GetUser(ctx, user.GetName(), false)
+	return created, trace.Wrap(err)
 }
 
 // UpdateUser updates an existing user in a backend.
-func (c *Client) UpdateUser(ctx context.Context, user types.User) error {
+func (c *Client) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	userV2, ok := user.(*types.UserV2)
 	if !ok {
-		return trace.BadParameter("unsupported user type %T", user)
+		return nil, trace.BadParameter("unsupported user type %T", user)
 	}
 
 	_, err := c.grpc.UpdateUser(ctx, userV2)
-	return trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := c.GetUser(ctx, userV2.GetName(), false)
+	return updated, trace.Wrap(err)
 }
 
 // GetUser returns a list of usernames registered in the system.
 // withSecrets controls whether authentication details are returned.
-func (c *Client) GetUser(name string, withSecrets bool) (types.User, error) {
+func (c *Client) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing username")
 	}
-	user, err := c.grpc.GetUser(context.TODO(), &proto.GetUserRequest{
+	user, err := c.grpc.GetUser(ctx, &proto.GetUserRequest{
 		Name:        name,
 		WithSecrets: withSecrets,
 	})
@@ -893,8 +920,8 @@ func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) 
 
 // GetUsers returns a list of users.
 // withSecrets controls whether authentication details are returned.
-func (c *Client) GetUsers(withSecrets bool) ([]types.User, error) {
-	stream, err := c.grpc.GetUsers(context.TODO(), &proto.GetUsersRequest{
+func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
+	stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
 		WithSecrets: withSecrets,
 	})
 	if err != nil {
@@ -1627,7 +1654,9 @@ func (c *Client) GetMFADevices(ctx context.Context, in *proto.GetMFADevicesReque
 	return resp, nil
 }
 
+// Deprecated: Use GenerateUserCerts instead.
 func (c *Client) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {
+	//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 	stream, err := c.grpc.GenerateUserSingleUseCerts(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1670,13 +1699,39 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 	return oidcConnectors, nil
 }
 
+// CreateOIDCConnector creates an OIDC connector.
+func (c *Client) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	oidcConnector, ok := connector.(*types.OIDCConnectorV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", connector)
+	}
+	conn, err := c.grpc.CreateOIDCConnector(ctx, &proto.CreateOIDCConnectorRequest{Connector: oidcConnector})
+	return conn, trace.Wrap(err)
+}
+
+// UpdateOIDCConnector updates an OIDC connector.
+func (c *Client) UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	oidcConnector, ok := connector.(*types.OIDCConnectorV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", oidcConnector)
+	}
+	conn, err := c.grpc.UpdateOIDCConnector(ctx, &proto.UpdateOIDCConnectorRequest{Connector: oidcConnector})
+	return conn, trace.Wrap(err)
+}
+
 // UpsertOIDCConnector creates or updates an OIDC connector.
 func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OIDCConnector) error {
 	connector, ok := oidcConnector.(*types.OIDCConnectorV3)
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
-	_, err := c.grpc.UpsertOIDCConnector(ctx, connector)
+
+	_, err := c.grpc.UpsertOIDCConnectorV2(ctx, &proto.UpsertOIDCConnectorRequest{Connector: connector})
+	// TODO(tross) DELETE IN 16.0.0
+	if err != nil && trace.IsNotImplemented(err) {
+		_, err := c.grpc.UpsertOIDCConnector(ctx, connector) //nolint:staticcheck // SA1019. Kept for backward compatibility.
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(err)
 }
 
@@ -1735,13 +1790,39 @@ func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]typ
 	return samlConnectors, nil
 }
 
+// CreateSAMLConnector creates a SAML connector.
+func (c *Client) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	samlConnectorV2, ok := connector.(*types.SAMLConnectorV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", connector)
+	}
+	conn, err := c.grpc.CreateSAMLConnector(ctx, &proto.CreateSAMLConnectorRequest{Connector: samlConnectorV2})
+	return conn, trace.Wrap(err)
+}
+
+// UpdateSAMLConnector updates a SAML connector.
+func (c *Client) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	samlConnectorV2, ok := connector.(*types.SAMLConnectorV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", connector)
+	}
+	conn, err := c.grpc.UpdateSAMLConnector(ctx, &proto.UpdateSAMLConnectorRequest{Connector: samlConnectorV2})
+	return conn, trace.Wrap(err)
+}
+
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (c *Client) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
-	samlConnectorV2, ok := connector.(*types.SAMLConnectorV2)
+	samlConnector, ok := connector.(*types.SAMLConnectorV2)
 	if !ok {
 		return trace.BadParameter("invalid type %T", connector)
 	}
-	_, err := c.grpc.UpsertSAMLConnector(ctx, samlConnectorV2)
+
+	_, err := c.grpc.UpsertSAMLConnectorV2(ctx, &proto.UpsertSAMLConnectorRequest{Connector: samlConnector})
+	// TODO(tross) DELETE IN 16.0.0
+	if err != nil && trace.IsNotImplemented(err) {
+		_, err := c.grpc.UpsertSAMLConnector(ctx, samlConnector) //nolint:staticcheck // SA1019. Kept for backward compatibility.
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(err)
 }
 
@@ -1800,13 +1881,38 @@ func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]t
 	return githubConnectors, nil
 }
 
+// CreateGithubConnector creates a Github connector.
+func (c *Client) CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	githubConnector, ok := connector.(*types.GithubConnectorV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", connector)
+	}
+	conn, err := c.grpc.CreateGithubConnector(ctx, &proto.CreateGithubConnectorRequest{Connector: githubConnector})
+	return conn, trace.Wrap(err)
+}
+
+// UpdateGithubConnector updates a Github connector.
+func (c *Client) UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	githubConnector, ok := connector.(*types.GithubConnectorV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", connector)
+	}
+	conn, err := c.grpc.UpdateGithubConnector(ctx, &proto.UpdateGithubConnectorRequest{Connector: githubConnector})
+	return conn, trace.Wrap(err)
+}
+
 // UpsertGithubConnector creates or updates a Github connector.
 func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
 	githubConnector, ok := connector.(*types.GithubConnectorV3)
 	if !ok {
 		return trace.BadParameter("invalid type %T", connector)
 	}
-	_, err := c.grpc.UpsertGithubConnector(ctx, githubConnector)
+	_, err := c.grpc.UpsertGithubConnectorV2(ctx, &proto.UpsertGithubConnectorRequest{Connector: githubConnector})
+	// TODO(tross) DELETE IN 16.0.0
+	if err != nil && trace.IsNotImplemented(err) {
+		_, err := c.grpc.UpsertGithubConnector(ctx, githubConnector) //nolint:staticcheck // SA1019. Kept for backward compatibility testing.
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(err)
 }
 
@@ -3908,6 +4014,22 @@ func (c *Client) ListIntegrations(ctx context.Context, pageSize int, nextKey str
 	}
 
 	return integrations, resp.GetNextKey(), nil
+}
+
+// ListAllIntegrations returns the list of all Integrations.
+func (c *Client) ListAllIntegrations(ctx context.Context) ([]types.Integration, error) {
+	var result []types.Integration
+	var nextKey string
+	for {
+		integrations, nextKey, err := c.ListIntegrations(ctx, 0, nextKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result = append(result, integrations...)
+		if nextKey == "" {
+			return result, nil
+		}
+	}
 }
 
 // GetIntegration returns an Integration by its name.

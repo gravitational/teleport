@@ -113,11 +113,22 @@ type SessionCreds struct {
 
 // AuthenticateUser authenticates user based on the request type.
 // Returns the username of the authenticated user.
-func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (services.UserState, error) {
+func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
 	username := req.Username
 
 	mfaDev, actualUsername, err := s.authenticateUser(ctx, req)
-	// err is handled below.
+	if err != nil {
+		// Log event after authentication failure
+		if err := s.emitAuthAuditEvent(ctx, authAuditProps{
+			username:       req.Username,
+			clientMetadata: req.ClientMetadata,
+			authErr:        err,
+		}); err != nil {
+			log.WithError(err).Warn("Failed to emit login event.")
+		}
+		return nil, nil, trace.Wrap(err)
+	}
+
 	switch {
 	case username != "" && actualUsername != "" && username != actualUsername:
 		log.Warnf("Authenticate user mismatch (%q vs %q). Using request user (%q)", username, actualUsername, username)
@@ -126,61 +137,103 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		username = actualUsername
 	}
 
-	event := &apievents.UserLogin{
-		Metadata: apievents.Metadata{
-			Type: events.UserLoginEvent,
-			Code: events.UserLocalLoginFailureCode,
-		},
-		UserMetadata: apievents.UserMetadata{
-			User: username,
-		},
-		Method: events.LoginMethodLocal,
-	}
-	if mfaDev != nil {
-		m := mfaDeviceEventMetadata(mfaDev)
-		event.MFADevice = &m
-	}
-	if req.ClientMetadata != nil {
-		event.RemoteAddr = req.ClientMetadata.RemoteAddr
-		if len(req.ClientMetadata.UserAgent) > maxUserAgentLen {
-			event.UserAgent = req.ClientMetadata.UserAgent[:maxUserAgentLen-3] + "..."
-		} else {
-			event.UserAgent = req.ClientMetadata.UserAgent
-		}
-	}
-
-	var userState services.UserState
+	user, err := s.GetUser(ctx, username, false /* withSecrets */)
 	if err != nil {
-		event.Code = events.UserLocalLoginFailureCode
-		event.Status.Success = false
-		event.Status.Error = err.Error()
-	} else {
-		event.Code = events.UserLocalLoginCode
-		event.Status.Success = true
-
-		var err error
-		user, err := s.GetUser(username, false /* withSecrets */)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// After we're sure that the user has been logged in successfully, we should call
-		// the registered login hooks. Login hooks can be registered by other processes to
-		// execute arbitrary operations after a successful login.
-		if err := s.CallLoginHooks(ctx, user); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		userState, err = s.GetUserOrLoginState(ctx, username)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		return nil, nil, trace.Wrap(err)
 	}
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, event); err != nil {
+
+	// After we're sure that the user has been logged in successfully, we should call
+	// the registered login hooks. Login hooks can be registered by other processes to
+	// execute arbitrary operations after a successful login.
+	if err := s.CallLoginHooks(ctx, user); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	userState, err := s.GetUserOrLoginState(ctx, user.GetName())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	clusterName, err := s.GetClusterName()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	accessInfo := services.AccessInfoFromUserState(userState)
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Log event after authentication success
+	if err := s.emitAuthAuditEvent(ctx, authAuditProps{
+		username:       username,
+		clientMetadata: req.ClientMetadata,
+		mfaDevice:      mfaDev,
+		checker:        checker,
+	}); err != nil {
 		log.WithError(err).Warn("Failed to emit login event.")
 	}
 
-	return userState, trace.Wrap(err)
+	return userState, checker, trace.Wrap(err)
+}
+
+type authAuditProps struct {
+	username       string
+	clientMetadata *ForwardedClientMetadata
+	mfaDevice      *types.MFADevice
+	checker        services.AccessChecker
+	authErr        error
+}
+
+func (s *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) error {
+	event := &apievents.UserLogin{
+		Metadata: apievents.Metadata{
+			Type: events.UserLoginEvent,
+			Code: events.UserLocalLoginCode,
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: props.username,
+		},
+		Method: events.LoginMethodLocal,
+	}
+
+	if props.authErr != nil {
+		event.Code = events.UserLocalLoginFailureCode
+		event.Status.Success = false
+		event.Status.Error = props.authErr.Error()
+	}
+
+	if props.clientMetadata != nil {
+		event.RemoteAddr = props.clientMetadata.RemoteAddr
+		if len(props.clientMetadata.UserAgent) > maxUserAgentLen {
+			event.UserAgent = props.clientMetadata.UserAgent[:maxUserAgentLen-3] + "..."
+		} else {
+			event.UserAgent = props.clientMetadata.UserAgent
+		}
+	}
+
+	if props.mfaDevice != nil {
+		m := mfaDeviceEventMetadata(props.mfaDevice)
+		event.MFADevice = &m
+	}
+
+	// Add required key policy to the event.
+	if props.checker != nil {
+		authPref, err := s.GetAuthPreference(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		privateKeyPolicy, err := props.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		event.RequiredPrivateKeyPolicy = string(privateKeyPolicy)
+	}
+
+	return trace.Wrap(s.emitter.EmitAuditEvent(s.closeCtx, event))
 }
 
 var (
@@ -261,7 +314,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 	}
 	if authenticateFn != nil {
 		var dev *types.MFADevice
-		err := s.WithUserLock(user, func() error {
+		err := s.WithUserLock(ctx, user, func() error {
 			var err error
 			dev, err = authenticateFn()
 			return err
@@ -317,7 +370,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		log.Warningf("MFA bypass attempt by user %q, access denied.", user)
 		return nil, "", trace.AccessDenied("missing second factor")
 	}
-	if err = s.WithUserLock(user, func() error {
+	if err = s.WithUserLock(ctx, user, func() error {
 		return s.checkPasswordWOToken(user, req.Pass.Password)
 	}); err != nil {
 		if fieldErr := getErrorByTraceField(err); fieldErr != nil {
@@ -346,7 +399,7 @@ func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 	// A distinction between passwordless and "plain" MFA is that we can't
 	// acquire the user lock beforehand (or at all on failures!)
 	// We do grab it here so successful logins go through the regular process.
-	if err := s.WithUserLock(user, func() error { return nil }); err != nil {
+	if err := s.WithUserLock(ctx, user, func() error { return nil }); err != nil {
 		log.Debugf("WithUserLock for user %q failed during passwordless authentication: %v", user, err)
 		return nil, user, trace.Wrap(authenticateWebauthnError)
 	}
@@ -487,7 +540,7 @@ func (s *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 		return session, nil
 	}
 
-	user, err := s.AuthenticateUser(ctx, req)
+	user, _, err := s.AuthenticateUser(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -500,7 +553,14 @@ func (s *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 		}
 	}
 
-	sess, err := s.createUserWebSession(ctx, user, loginIP)
+	sess, err := s.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
+		User:             user.GetName(),
+		LoginIP:          loginIP,
+		Roles:            user.GetRoles(),
+		Traits:           user.GetTraits(),
+		LoginTime:        s.clock.Now().UTC(),
+		AttestWebSession: true,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -615,18 +675,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 
 	// It's safe to extract the roles and traits directly from services.User as
 	// this endpoint is only used for local accounts.
-	user, err := s.AuthenticateUser(ctx, req.AuthenticateUserRequest)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	userState, err := s.GetUserOrLoginState(ctx, user.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	accessInfo := services.AccessInfoFromUserState(userState)
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
+	user, checker, err := s.AuthenticateUser(ctx, req.AuthenticateUserRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -656,12 +705,12 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 	}
 
 	certReq := certRequest{
-		user:                 userState,
+		user:                 user,
 		ttl:                  req.TTL,
 		publicKey:            req.PublicKey,
 		compatibility:        req.CompatibilityMode,
 		checker:              checker,
-		traits:               userState.GetTraits(),
+		traits:               user.GetTraits(),
 		routeToCluster:       req.RouteToCluster,
 		kubernetesCluster:    req.KubernetesCluster,
 		loginIP:              clientIP,

@@ -480,20 +480,25 @@ func databaseServerWithActiveConnection(t *testing.T, ctx context.Context) (*Ser
 	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres(databaseName))
 	go testCtx.startHandlingConnections()
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"*"}, []string{"*"})
-	dbTestServer, ok := testCtx.postgres[databaseName]
-	require.True(t, ok)
 
 	connCtx, cancelConn := context.WithCancel(ctx)
 	t.Cleanup(cancelConn)
 	connErrCh := make(chan error)
 
-	go func() {
-		conn, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
-		if err != nil {
-			connErrCh <- err
-			return
-		}
+	conn, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
+	require.NoError(t, err, "failed to establish connection")
 
+	// Immediately sends a query. This ensures the connection is healthy and
+	// active.
+	_, err = conn.Exec(ctx, "select 1").ReadAll()
+	if err != nil {
+		conn.Close(ctx)
+		require.Fail(t, "failed to send initial query")
+	}
+
+	require.Equal(t, int32(1), testCtx.server.activeConnections.Load(), "expected one active connection, but got none")
+
+	go func() {
 		ticker := time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
 		defer conn.Close(ctx)
@@ -512,25 +517,6 @@ func databaseServerWithActiveConnection(t *testing.T, ctx context.Context) (*Ser
 			}
 		}
 	}()
-
-	require.Eventually(t, func() bool {
-		select {
-		case err := <-connErrCh:
-			assert.Failf(t, "unexpected connection close", "conn error: %v", err)
-		default:
-		}
-		return testCtx.server.activeConnections.Load() == int32(1)
-	}, time.Second, 100*time.Millisecond, "expected one active connection, but got none")
-
-	// Ensures the first query has been received.
-	require.Eventually(t, func() bool {
-		select {
-		case err := <-connErrCh:
-			assert.Failf(t, "unexpected connection close", "conn error: %v", err)
-		default:
-		}
-		return dbTestServer.db.QueryCount() >= uint32(1)
-	}, time.Second, 100*time.Millisecond, "database test server hasn't received queries")
 
 	return testCtx.server, connErrCh, cancelConn
 }

@@ -60,7 +60,7 @@ func (s *IdentityService) getSession(ctx context.Context, keyParts ...string) (t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := services.UnmarshalWebSession(item.Value)
+	session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -78,7 +78,7 @@ func (s *IdentityService) ListAppSessions(ctx context.Context, pageSize int, pag
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
 func (s *IdentityService) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
-	startKey := backend.Key(snowflakePrefix, sessionsPrefix)
+	startKey := backend.ExactKey(snowflakePrefix, sessionsPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -86,7 +86,7 @@ func (s *IdentityService) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 
 	out := make([]types.WebSession, len(result.Items))
 	for i, item := range result.Items {
-		session, err := services.UnmarshalWebSession(item.Value)
+		session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -103,7 +103,7 @@ func (s *IdentityService) ListSAMLIdPSessions(ctx context.Context, pageSize int,
 // listSessions gets a paginated list of sessions.
 func (s *IdentityService) listSessions(ctx context.Context, pageSize int, pageToken, user string, keyPrefix ...string) ([]types.WebSession, string, error) {
 	rangeStart := backend.Key(append(keyPrefix, pageToken)...)
-	rangeEnd := backend.RangeEnd(backend.Key(keyPrefix...))
+	rangeEnd := backend.RangeEnd(backend.ExactKey(keyPrefix...))
 
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > maxPageSize {
@@ -124,7 +124,7 @@ func (s *IdentityService) listSessions(ctx context.Context, pageSize int, pageTo
 
 		out = make([]types.WebSession, 0, len(result.Items))
 		for _, item := range result.Items {
-			session, err := services.UnmarshalWebSession(item.Value)
+			session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
@@ -138,7 +138,7 @@ func (s *IdentityService) listSessions(ctx context.Context, pageSize int, pageTo
 					break
 				}
 
-				session, err := services.UnmarshalWebSession(item.Value)
+				session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
 				if err != nil {
 					return false, trace.Wrap(err)
 				}
@@ -181,14 +181,16 @@ func (s *IdentityService) UpsertSAMLIdPSession(ctx context.Context, session type
 
 // upsertSession creates a web session.
 func (s *IdentityService) upsertSession(ctx context.Context, session types.WebSession, keyPrefix ...string) error {
+	rev := session.GetRevision()
 	value, err := services.MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(append(keyPrefix, session.GetName())...),
-		Value:   value,
-		Expires: session.GetExpiryTime(),
+		Key:      backend.Key(append(keyPrefix, session.GetName())...),
+		Value:    value,
+		Expires:  session.GetExpiryTime(),
+		Revision: rev,
 	}
 
 	if _, err = s.Put(ctx, item); err != nil {
@@ -277,7 +279,7 @@ func (s *IdentityService) DeleteUserSAMLIdPSessions(ctx context.Context, user st
 
 // DeleteAllAppSessions removes all application web sessions.
 func (s *IdentityService) DeleteAllAppSessions(ctx context.Context) error {
-	startKey := backend.Key(appsPrefix, sessionsPrefix)
+	startKey := backend.ExactKey(appsPrefix, sessionsPrefix)
 	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -286,7 +288,7 @@ func (s *IdentityService) DeleteAllAppSessions(ctx context.Context) error {
 
 // DeleteAllSnowflakeSessions removes all Snowflake web sessions.
 func (s *IdentityService) DeleteAllSnowflakeSessions(ctx context.Context) error {
-	startKey := backend.Key(snowflakePrefix, sessionsPrefix)
+	startKey := backend.ExactKey(snowflakePrefix, sessionsPrefix)
 	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -295,7 +297,7 @@ func (s *IdentityService) DeleteAllSnowflakeSessions(ctx context.Context) error 
 
 // DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
 func (s *IdentityService) DeleteAllSAMLIdPSessions(ctx context.Context) error {
-	startKey := backend.Key(samlIdPPrefix, sessionsPrefix)
+	startKey := backend.ExactKey(samlIdPPrefix, sessionsPrefix)
 	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -316,7 +318,7 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := services.UnmarshalWebSession(item.Value)
+	session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -326,13 +328,13 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 
 // List gets all regular web sessions.
 func (r *webSessions) List(ctx context.Context) (out []types.WebSession, err error) {
-	key := backend.Key(webPrefix, sessionsPrefix)
-	result, err := r.backend.GetRange(ctx, key, backend.RangeEnd(key), backend.NoLimit)
+	startKey := backend.ExactKey(webPrefix, sessionsPrefix)
+	result, err := r.backend.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	for _, item := range result.Items {
-		session, err := services.UnmarshalWebSession(item.Value)
+		session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -349,15 +351,17 @@ func (r *webSessions) List(ctx context.Context) (out []types.WebSession, err err
 
 // Upsert updates the existing or inserts a new web session.
 func (r *webSessions) Upsert(ctx context.Context, session types.WebSession) error {
+	rev := session.GetRevision()
 	value, err := services.MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	sessionMetadata := session.GetMetadata()
 	item := backend.Item{
-		Key:     webSessionKey(session.GetName()),
-		Value:   value,
-		Expires: backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry()),
+		Key:      webSessionKey(session.GetName()),
+		Value:    value,
+		Expires:  backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry()),
+		Revision: rev,
 	}
 	_, err = r.backend.Put(ctx, item)
 	if err != nil {
@@ -376,14 +380,14 @@ func (r *webSessions) Delete(ctx context.Context, req types.DeleteWebSessionRequ
 
 // DeleteAll removes all regular web sessions.
 func (r *webSessions) DeleteAll(ctx context.Context) error {
-	startKey := backend.Key(webPrefix, sessionsPrefix)
+	startKey := backend.ExactKey(webPrefix, sessionsPrefix)
 	return trace.Wrap(r.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
 // DELETE IN 7.x.
 // listLegacySessions lists web sessions under a legacy path /web/users/<user>/sessions/<id>
 func (r *webSessions) listLegacySessions(ctx context.Context) ([]types.WebSession, error) {
-	startKey := backend.Key(webPrefix, usersPrefix)
+	startKey := backend.ExactKey(webPrefix, usersPrefix)
 	result, err := r.backend.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -397,7 +401,7 @@ func (r *webSessions) listLegacySessions(ctx context.Context) ([]types.WebSessio
 		if suffix != sessionsPrefix {
 			continue
 		}
-		session, err := services.UnmarshalWebSession(item.Value)
+		session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -425,7 +429,7 @@ func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (type
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, err := services.UnmarshalWebToken(item.Value)
+	token, err := services.UnmarshalWebToken(item.Value, services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -434,13 +438,13 @@ func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (type
 
 // List gets all web tokens.
 func (r *webTokens) List(ctx context.Context) (out []types.WebToken, err error) {
-	key := backend.Key(webPrefix, tokensPrefix)
-	result, err := r.backend.GetRange(ctx, key, backend.RangeEnd(key), backend.NoLimit)
+	startKey := backend.ExactKey(webPrefix, tokensPrefix)
+	result, err := r.backend.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	for _, item := range result.Items {
-		token, err := services.UnmarshalWebToken(item.Value)
+		token, err := services.UnmarshalWebToken(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -451,15 +455,17 @@ func (r *webTokens) List(ctx context.Context) (out []types.WebToken, err error) 
 
 // Upsert updates the existing or inserts a new web token.
 func (r *webTokens) Upsert(ctx context.Context, token types.WebToken) error {
+	rev := token.GetRevision()
 	bytes, err := services.MarshalWebToken(token, services.WithVersion(types.V3))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	metadata := token.GetMetadata()
 	item := backend.Item{
-		Key:     webTokenKey(token.GetToken()),
-		Value:   bytes,
-		Expires: metadata.Expiry(),
+		Key:      webTokenKey(token.GetToken()),
+		Value:    bytes,
+		Expires:  metadata.Expiry(),
+		Revision: rev,
 	}
 	_, err = r.backend.Put(ctx, item)
 	if err != nil {
@@ -478,7 +484,7 @@ func (r *webTokens) Delete(ctx context.Context, req types.DeleteWebTokenRequest)
 
 // DeleteAll removes all web tokens.
 func (r *webTokens) DeleteAll(ctx context.Context) error {
-	startKey := backend.Key(webPrefix, tokensPrefix)
+	startKey := backend.ExactKey(webPrefix, tokensPrefix)
 	if err := r.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
 		return trace.Wrap(err)
 	}

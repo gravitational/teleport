@@ -547,11 +547,8 @@ func (s *session) launch() error {
 			ServerHostname:  s.sess.teleportCluster.name,
 			ServerAddr:      s.sess.kubeAddress,
 		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: s.id.String(),
-			WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
-		},
-		UserMetadata: s.ctx.eventUserMeta(),
+		SessionMetadata: s.getSessionMetadata(),
+		UserMetadata:    s.ctx.eventUserMeta(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: s.req.RemoteAddr,
 			LocalAddr:  s.sess.kubeAddress,
@@ -657,10 +654,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 				ServerMetadata: apievents.ServerMetadata{
 					ServerNamespace: s.forwarder.cfg.Namespace,
 				},
-				SessionMetadata: apievents.SessionMetadata{
-					SessionID: s.id.String(),
-					WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
-				},
+				SessionMetadata:           s.getSessionMetadata(),
 				UserMetadata:              s.ctx.eventUserMeta(),
 				TerminalSize:              params.Serialize(),
 				KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
@@ -751,10 +745,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			ServerNamespace: s.forwarder.cfg.Namespace,
 		}
 
-		sessionMetadata := apievents.SessionMetadata{
-			SessionID: s.id.String(),
-			WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
-		}
+		sessionMetadata := s.getSessionMetadata()
 
 		conMetadata := apievents.ConnectionMetadata{
 			RemoteAddr: s.req.RemoteAddr,
@@ -783,7 +774,6 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		if errExec != nil {
 			execEvent.Code = events.ExecFailureCode
 			execEvent.Error, execEvent.ExitCode = exitCode(err)
-
 		}
 
 		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, execEvent); err != nil {
@@ -885,10 +875,8 @@ func (s *session) join(p *party) error {
 			KubernetesGroups:  []string{},
 			KubernetesLabels:  s.ctx.kubeClusterLabels,
 		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: s.id.String(),
-		},
-		UserMetadata: p.Ctx.eventUserMetaWithLogin("root"),
+		SessionMetadata: s.getSessionMetadata(),
+		UserMetadata:    p.Ctx.eventUserMetaWithLogin("root"),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: s.params.ByName("podName"),
 		},
@@ -1021,10 +1009,8 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 			Code:        events.SessionJoinCode,
 			ClusterName: s.ctx.teleportCluster.name,
 		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: s.id.String(),
-		},
-		UserMetadata: party.Ctx.eventUserMetaWithLogin("root"),
+		SessionMetadata: s.getSessionMetadata(),
+		UserMetadata:    party.Ctx.eventUserMetaWithLogin("root"),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: s.params.ByName("podName"),
 		},
@@ -1206,6 +1192,7 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		Reason:            s.reason,
 		Invited:           s.invitedUsers,
 		HostID:            s.forwarder.cfg.HostID,
+		InitialCommand:    s.req.URL.Query()["command"],
 	}
 
 	s.log.Debug("Creating session tracker")
@@ -1245,4 +1232,8 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 	}()
 
 	return nil
+}
+
+func (s *session) getSessionMetadata() apievents.SessionMetadata {
+	return s.ctx.Identity.GetIdentity().GetSessionMetadata(s.id.String())
 }

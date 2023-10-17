@@ -51,9 +51,6 @@ import (
 )
 
 const (
-	teleportOSSPackageName = "teleport"
-	teleportEntPackageName = "teleport-ent"
-
 	stableCloudChannelRepo = "stable/cloud"
 )
 
@@ -80,9 +77,9 @@ type scriptSettings struct {
 	databaseInstallMode bool
 	installUpdater      bool
 
-	// automaticUpgradesVersionBaseURL is the base URL for getting the version when using the cloud/stable channel.
+	// automaticUpgradesVersionURL is the URL for getting the version when using the cloud/stable channel.
 	// Optional.
-	automaticUpgradesVersionBaseURL string
+	automaticUpgradesVersionURL string
 }
 
 // automaticUpgrades returns whether automaticUpgrades should be enabled.
@@ -384,9 +381,9 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		}
 	}
 
-	packageName := teleportOSSPackageName
+	packageName := types.PackageNameOSS
 	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		packageName = teleportEntPackageName
+		packageName = types.PackageNameEnt
 	}
 
 	// By default, it will use `stable/v<majorVersion>`, eg stable/v12
@@ -398,7 +395,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	// This ensures the initial installed version is the same as the `teleport-ent-updater` would install.
 	if settings.installUpdater {
 		repoChannel = stableCloudChannelRepo
-		cloudStableVersion, err := automaticupgrades.Version(ctx, settings.automaticUpgradesVersionBaseURL)
+		cloudStableVersion, err := automaticupgrades.Version(ctx, settings.automaticUpgradesVersionURL)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}

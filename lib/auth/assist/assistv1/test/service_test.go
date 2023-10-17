@@ -409,7 +409,7 @@ func initSvc(t *testing.T) (map[string]context.Context, *assistv1.Service) {
 		user.AddRole(role.GetName())
 		require.NoError(t, err)
 
-		err = userSvc.CreateUser(user)
+		user, err = userSvc.CreateUser(ctx, user)
 		require.NoError(t, err)
 
 		ctx = authz.ContextWithUser(ctx, authz.LocalUser{

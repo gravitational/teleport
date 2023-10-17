@@ -850,12 +850,19 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	cfg.Auth.LoadAllCAs = fc.Auth.LoadAllCAs
 
-	if fc.Auth.HostedPlugins.Enabled {
-		cfg.Auth.HostedPlugins.Enabled = true
-		cfg.Auth.HostedPlugins.OAuthProviders, err = fc.Auth.HostedPlugins.OAuthProviders.Parse()
-		if err != nil {
-			return trace.Wrap(err)
+	// Setting this to true at all times to allow self hosting
+	// of plugins that were previously cloud only.
+	cfg.Auth.HostedPlugins.Enabled = true
+	cfg.Auth.HostedPlugins.OAuthProviders, err = fc.Auth.HostedPlugins.OAuthProviders.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if fc.Auth.AccessMonitoring != nil {
+		if fc.Auth.AccessMonitoring.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "failed to validate access monitoring config")
 		}
+		cfg.Auth.AccessMonitoring = fc.Auth.AccessMonitoring
 	}
 
 	return nil
@@ -1932,6 +1939,8 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		ServerName:         fc.WindowsDesktop.LDAP.ServerName,
 		CA:                 cert,
 	}
+
+	cfg.WindowsDesktop.PKIDomain = fc.WindowsDesktop.PKIDomain
 
 	var hlrs []servicecfg.HostLabelRule
 	for _, rule := range fc.WindowsDesktop.HostLabels {

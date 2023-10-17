@@ -137,19 +137,6 @@ export const SuccessReset = () =>
     resetMode: true,
   });
 
-export const SuccessAndPrivateKeyEnabledRegister = () =>
-  renderNewCredentials({
-    success: true,
-    privateKeyPolicyEnabled: true,
-  });
-
-export const SuccessAndPrivateKeyEnabledReset = () =>
-  renderNewCredentials({
-    success: true,
-    resetMode: true,
-    privateKeyPolicyEnabled: true,
-  });
-
 export const SuccessRegisterDashboard = () =>
   renderNewCredentials({
     success: true,
@@ -198,7 +185,6 @@ const makeNewCredProps = (
       success: false,
       finishedRegister: () => null,
       recoveryCodes: null,
-      privateKeyPolicyEnabled: false,
       resetToken: {
         user: 'john@example.com',
         tokenId: 'test123',

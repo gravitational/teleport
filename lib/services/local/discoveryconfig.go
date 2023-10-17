@@ -103,6 +103,19 @@ func (s *DiscoveryConfigService) UpdateDiscoveryConfig(ctx context.Context, dc *
 	return dc, nil
 }
 
+// UpsertDiscoveryConfigs upserts a DiscoveryConfig resource.
+func (s *DiscoveryConfigService) UpsertDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
+	if err := dc.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.svc.UpsertResource(ctx, dc); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return dc, nil
+}
+
 // DeleteDiscoveryConfigs removes the specified DiscoveryConfig resource.
 func (s *DiscoveryConfigService) DeleteDiscoveryConfig(ctx context.Context, name string) error {
 	return trace.Wrap(s.svc.DeleteResource(ctx, name))

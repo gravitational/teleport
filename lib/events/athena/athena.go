@@ -86,6 +86,9 @@ type Config struct {
 	// GetQueryResultsInterval is used to define how long query will wait before
 	// checking again for results status if previous status was not ready (optional).
 	GetQueryResultsInterval time.Duration
+	// DisableSearchCostOptimization is used to opt-out from search cost optimization
+	// used for paginated queries (optional). Default is enabled.
+	DisableSearchCostOptimization bool
 
 	// LimiterRefillTime determines the duration of time between the addition of tokens to the bucket (optional).
 	LimiterRefillTime time.Duration
@@ -308,6 +311,13 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 		}
 		cfg.GetQueryResultsInterval = dur
 	}
+	if val := url.Query().Get("disableSearchCostOptimization"); val != "" {
+		boolVal, err := strconv.ParseBool(val)
+		if err != nil {
+			return trace.BadParameter("invalid disableSearchCostOptimization value: %v", err)
+		}
+		cfg.DisableSearchCostOptimization = boolVal
+	}
 	refillAmountInString := url.Query().Get("limiterRefillAmount")
 	if refillAmountInString != "" {
 		refillAmount, err := strconv.Atoi(refillAmountInString)
@@ -386,15 +396,16 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	}
 
 	querier, err := newQuerier(querierConfig{
-		tablename:               cfg.TableName,
-		database:                cfg.Database,
-		workgroup:               cfg.Workgroup,
-		queryResultsS3:          cfg.QueryResultsS3,
-		getQueryResultsInterval: cfg.GetQueryResultsInterval,
-		awsCfg:                  cfg.AWSConfig,
-		logger:                  cfg.LogEntry,
-		clock:                   cfg.Clock,
-		tracer:                  cfg.Tracer,
+		tablename:                    cfg.TableName,
+		database:                     cfg.Database,
+		workgroup:                    cfg.Workgroup,
+		queryResultsS3:               cfg.QueryResultsS3,
+		getQueryResultsInterval:      cfg.GetQueryResultsInterval,
+		disableQueryCostOptimization: cfg.DisableSearchCostOptimization,
+		awsCfg:                       cfg.AWSConfig,
+		logger:                       cfg.LogEntry,
+		clock:                        cfg.Clock,
+		tracer:                       cfg.Tracer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

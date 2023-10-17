@@ -34,7 +34,7 @@ type OIDCService interface {
 	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error)
 }
 
-var errOIDCNotImplemented = trace.AccessDenied("OIDC is only available in enterprise subscriptions")
+var errOIDCNotImplemented = &trace.AccessDeniedError{Message: "OIDC is only available in enterprise subscriptions"}
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
 func (a *Server) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error {
@@ -55,6 +55,50 @@ func (a *Server) UpsertOIDCConnector(ctx context.Context, connector types.OIDCCo
 	}
 
 	return nil
+}
+
+// UpdateOIDCConnector updates an existing OIDC connector.
+func (a *Server) UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	updated, err := a.Services.UpdateOIDCConnector(ctx, connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorCreate{
+		Metadata: apievents.Metadata{
+			Type: events.OIDCConnectorCreatedEvent,
+			Code: events.OIDCConnectorCreatedCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: connector.GetName(),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit OIDC connector create event.")
+	}
+
+	return updated, nil
+}
+
+// CreateOIDCConnector creates a new OIDC connector.
+func (a *Server) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	created, err := a.Services.CreateOIDCConnector(ctx, connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorCreate{
+		Metadata: apievents.Metadata{
+			Type: events.OIDCConnectorCreatedEvent,
+			Code: events.OIDCConnectorCreatedCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: connector.GetName(),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit OIDC connector create event.")
+	}
+
+	return created, nil
 }
 
 // DeleteOIDCConnector deletes an OIDC connector by name.
