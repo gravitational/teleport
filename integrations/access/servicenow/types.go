@@ -50,6 +50,8 @@ type Incident struct {
 	IncidentState string `json:"incident_state,omitempty"`
 	// WorkNotes contains comments on the progress of the incident.
 	WorkNotes string `json:"work_notes,omitempty"`
+	// Caller is the user on whose behalf the incident is being created. (Must be an existing servicenow user)
+	Caller string `json:"caller_id,omitempty"`
 }
 
 const (

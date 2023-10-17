@@ -40,9 +40,9 @@ const (
 
 var (
 	incidentBodyTemplate = template.Must(template.New("incident body").Parse(
-		`{{.User}} requested permissions for roles {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}} on Teleport at {{.Created.Format .TimeFormat}}.
+		`Teleport user {{.User}} submitted access request for roles (or resources, for resource-based requests) {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}} on Teleport cluster {{.ClusterName}}.
 {{if .RequestReason}}Reason: {{.RequestReason}}{{end}}
-{{if .RequestLink}}To approve or deny the request, proceed to {{.RequestLink}}{{end}}
+{{if .RequestLink}}Click this link to review the request in Teleport: {{.RequestLink}}{{end}}
 `,
 	))
 	reviewNoteTemplate = template.Must(template.New("review note").Parse(
@@ -72,6 +72,9 @@ type ClientConfig struct {
 	// WebProxyURL is the Teleport address used when building the bodies of the incidents
 	// allowing links to the access requests to be built
 	WebProxyURL *url.URL
+
+	// ClusterName is the name of the Teleport cluster.
+	ClusterName string
 
 	// Username is the username used by the client for basic auth.
 	Username string
@@ -134,8 +137,9 @@ func (snc *Client) CreateIncident(ctx context.Context, reqID string, reqData Req
 	}
 
 	body := Incident{
-		ShortDescription: fmt.Sprintf("Access request from %s", reqData.User),
+		ShortDescription: fmt.Sprintf("Teleport access request from user %s", reqData.User),
 		Description:      bodyDetails,
+		Caller:           reqData.User,
 	}
 
 	var result incidentResult
@@ -296,11 +300,13 @@ func (snc *Client) buildIncidentBody(webProxyURL *url.URL, reqID string, reqData
 		ID          string
 		TimeFormat  string
 		RequestLink string
+		ClusterName string
 		RequestData
 	}{
 		ID:          reqID,
 		TimeFormat:  time.RFC822,
 		RequestLink: requestLink,
+		ClusterName: snc.ClusterName,
 		RequestData: reqData,
 	})
 	if err != nil {
