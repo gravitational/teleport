@@ -165,6 +165,10 @@ impl RdpdrBackend for TeleportRdpdrBackend {
                 ScardCall::HCardAndDispositionCall(call) => self.handle_disconnect(req, call),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
+            ScardIoCtlCode::Cancel => match call {
+                ScardCall::ContextCall(call) => self.handle_cancel(req, call),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
             _ => Err(custom_err!(
                 "TeleportRdpdrBackend::handle_scard_call",
                 TeleportRdpdrBackendError(format!(
@@ -223,7 +227,7 @@ impl TeleportRdpdrBackend {
             ));
         }
 
-        self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
+        self.write_rdpdr_response(req, Box::new(LongReturn::new(ReturnCode::Success)))
     }
 
     fn handle_establish_context(
@@ -232,14 +236,14 @@ impl TeleportRdpdrBackend {
     ) -> PduResult<()> {
         let ctx = self.contexts.establish();
 
-        self.write_rdpdr_dev_ctl_resp(
+        self.write_rdpdr_response(
             req,
             Box::new(EstablishContextReturn::new(ReturnCode::Success, ctx)),
         )
     }
 
     fn handle_list_readers(&mut self, req: DeviceControlRequest<ScardIoCtlCode>) -> PduResult<()> {
-        self.write_rdpdr_dev_ctl_resp(
+        self.write_rdpdr_response(
             req,
             Box::new(ListReadersReturn::new(
                 ReturnCode::Success,
@@ -299,7 +303,7 @@ impl TeleportRdpdrBackend {
         }
 
         // We have some status change to report, send it to the server.
-        self.write_rdpdr_dev_ctl_resp(req, Box::new(get_status_change_ret))
+        self.write_rdpdr_response(req, Box::new(get_status_change_ret))
     }
 
     fn handle_connect(
@@ -316,7 +320,7 @@ impl TeleportRdpdrBackend {
             self.pin.clone(),
         )?;
 
-        self.write_rdpdr_dev_ctl_resp(
+        self.write_rdpdr_response(
             req,
             Box::new(ConnectReturn::new(
                 ReturnCode::Success,
@@ -330,7 +334,7 @@ impl TeleportRdpdrBackend {
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
     ) -> PduResult<()> {
-        self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
+        self.write_rdpdr_response(req, Box::new(LongReturn::new(ReturnCode::Success)))
     }
 
     fn handle_transmit(
@@ -352,7 +356,7 @@ impl TeleportRdpdrBackend {
         let card = self.contexts.get_card(&call.handle)?;
         let resp = card.handle(cmd)?;
 
-        self.write_rdpdr_dev_ctl_resp(
+        self.write_rdpdr_response(
             req,
             Box::new(TransmitReturn::new(
                 ReturnCode::Success,
@@ -379,7 +383,7 @@ impl TeleportRdpdrBackend {
 
         let (atr_length, atr) = padded_atr::<32>();
 
-        self.write_rdpdr_dev_ctl_resp(
+        self.write_rdpdr_response(
             req,
             Box::new(StatusReturn::new(
                 ReturnCode::Success,
@@ -402,14 +406,14 @@ impl TeleportRdpdrBackend {
         call: ContextCall,
     ) -> PduResult<()> {
         self.contexts.release(call.context.value);
-        self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
+        self.write_rdpdr_response(req, Box::new(LongReturn::new(ReturnCode::Success)))
     }
 
     fn handle_end_transaction(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
     ) -> PduResult<()> {
-        self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
+        self.write_rdpdr_response(req, Box::new(LongReturn::new(ReturnCode::Success)))
     }
 
     fn handle_disconnect(
@@ -418,7 +422,19 @@ impl TeleportRdpdrBackend {
         call: HCardAndDispositionCall,
     ) -> PduResult<()> {
         self.contexts.disconnect(call.handle.value)?;
-        self.write_rdpdr_dev_ctl_resp(req, Box::new(LongReturn::new(ReturnCode::Success)))
+        self.write_rdpdr_response(req, Box::new(LongReturn::new(ReturnCode::Success)))
+    }
+
+    fn handle_cancel(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        call: ContextCall,
+    ) -> PduResult<()> {
+        let resp = self
+            .contexts
+            .take_scard_cancel_response(call.context.value)?;
+        self.send_device_ctl_response(resp)?;
+        self.write_rdpdr_response(req, Box::new(LongReturn::new(ReturnCode::Success)))
     }
 
     fn create_get_status_change_return(
@@ -477,12 +493,16 @@ impl TeleportRdpdrBackend {
             .all(|state| state.current_state == state.event_state)
     }
 
-    fn write_rdpdr_dev_ctl_resp(
+    fn write_rdpdr_response(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
         resp: Box<dyn rpce::Encode>,
     ) -> PduResult<()> {
         let resp = DeviceControlResponse::new(req, NtStatus::Success, resp);
+        self.send_device_ctl_response(resp)
+    }
+
+    fn send_device_ctl_response(&mut self, resp: DeviceControlResponse) -> PduResult<()> {
         self.client_handle
             .blocking_send(ClientFunction::WriteRdpdr(RdpdrPdu::DeviceControlResponse(
                 resp,
