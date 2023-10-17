@@ -135,7 +135,7 @@ Today's date is DATE('%s')`, time.Now().Format("2006-01-02")),
 		},
 		{
 			Role:    openai.ChatMessageRoleUser,
-			Content: fmt.Sprintf("The schema of the table `%s` is:\n\n%s", eventType, tableSchema),
+			Content: fmt.Sprintf("The schema of the table `%s` is:\n\n%s", eventschema.SQLViewNameForEvent(eventType), tableSchema),
 		},
 		{
 			Role:    openai.ChatMessageRoleUser,
