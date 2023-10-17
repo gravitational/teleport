@@ -97,10 +97,6 @@ func (c *KubeCommand) ListKube(ctx context.Context, clt auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	if kubes == nil {
-		kubes = []types.KubeServer{}
-	}
-
 	coll := &kubeServerCollection{servers: kubes}
 	switch c.format {
 	case teleport.Text:

@@ -97,10 +97,6 @@ func (c *DBCommand) ListDatabases(ctx context.Context, clt auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	if servers == nil {
-		servers = []types.DatabaseServer{}
-	}
-
 	coll := &databaseServerCollection{servers: servers}
 	switch c.format {
 	case teleport.Text:
