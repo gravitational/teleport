@@ -425,7 +425,7 @@ impl TeleportRdpdrBackend {
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: HCardAndDispositionCall,
     ) -> PduResult<()> {
-        self.contexts.disconnect(call.handle.value)?;
+        self.contexts.disconnect(call.handle)?;
         self.write_rdpdr_response(req, Box::new(LongReturn::new(ReturnCode::Success)))
     }
 
@@ -437,7 +437,11 @@ impl TeleportRdpdrBackend {
         let resp = self
             .contexts
             .take_scard_cancel_response(call.context.value)?;
-        self.send_device_ctl_response(resp)?;
+        if let Some(resp) = resp {
+            self.send_device_ctl_response(resp)?;
+        } else {
+            warn!("Received SCARD_IOCTL_CANCEL for a context without a pending SCARD_IOCTL_GETSTATUSCHANGEW");
+        }
         self.write_rdpdr_response(req, Box::new(LongReturn::new(ReturnCode::Success)))
     }
 

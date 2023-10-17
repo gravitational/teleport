@@ -2386,8 +2386,9 @@ impl Contexts {
         Ok(handle)
     }
 
-    pub fn disconnect(&mut self, id: u32) -> PduResult<()> {
-        self.get_internal_mut(id)?.disconnect(id);
+    pub fn disconnect(&mut self, handle: ScardHandle) -> PduResult<()> {
+        self.get_internal_mut(handle.context.value)?
+            .disconnect(handle.value);
         Ok(())
     }
 
@@ -2399,8 +2400,11 @@ impl Contexts {
         self.get_internal_mut(id)?.set_scard_cancel_response(resp)
     }
 
-    pub fn take_scard_cancel_response(&mut self, id: u32) -> PduResult<DeviceControlResponse> {
-        self.get_internal_mut(id)?.take_scard_cancel_response()
+    pub fn take_scard_cancel_response(
+        &mut self,
+        id: u32,
+    ) -> PduResult<Option<DeviceControlResponse>> {
+        Ok(self.get_internal_mut(id)?.take_scard_cancel_response())
     }
 
     pub fn get_card(
@@ -2474,18 +2478,8 @@ impl ContextInternal {
         Ok(())
     }
 
-    fn take_scard_cancel_response(&mut self) -> PduResult<DeviceControlResponse> {
-        if let Some(resp) = self.scard_cancel_response.take() {
-            Ok(resp)
-        } else {
-            // Note: pre IronRDP we logged a warning rather than propagating an error here,
-            // we may need to switch back to that behavior if this is causing unecessary session
-            // interruptions.
-            Err(other_err!(
-                "ContextInternal::take_scard_cancel_response",
-                "Received SCARD_IOCTL_CANCEL for a context without a pending SCARD_IOCTL_GETSTATUSCHANGEW."
-            ))
-        }
+    fn take_scard_cancel_response(&mut self) -> Option<DeviceControlResponse> {
+        self.scard_cancel_response.take()
     }
 
     fn set_scard_cancel_response_deprecated(
