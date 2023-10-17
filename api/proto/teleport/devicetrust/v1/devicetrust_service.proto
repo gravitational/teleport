@@ -145,8 +145,10 @@ service DeviceTrustService {
   // "device" permissions (create/update/delete).
   rpc SyncInventory(stream SyncInventoryRequest) returns (stream SyncInventoryResponse);
 
-  // Superseded by ResourceUsageService.GetUsage. Use it instead.
-  rpc GetDevicesUsage(GetDevicesUsageRequest) returns (DevicesUsage);
+  // Superseded by ResourceUsageService.GetUsage.
+  rpc GetDevicesUsage(GetDevicesUsageRequest) returns (DevicesUsage) {
+    option deprecated = true;
+  }
 }
 
 // Request for CreateDevice.
