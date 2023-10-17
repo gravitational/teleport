@@ -384,12 +384,12 @@ func (c *TokensCommand) List(ctx context.Context, client auth.ClientI) error {
 
 	switch c.format {
 	case teleport.JSON:
-		err := utils.WriteJSONArray(os.Stdout, tokens)
+		err := utils.WriteJSONArray(c.stdout, tokens)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal tokens")
 		}
 	case teleport.YAML:
-		err := utils.WriteYAML(os.Stdout, tokens)
+		err := utils.WriteYAML(c.stdout, tokens)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal tokens")
 		}
