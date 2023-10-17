@@ -972,7 +972,13 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	}
 	desktopRecordingEnabled := recConfig.GetMode() != types.RecordOff
 
-	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), h.ClusterFeatures, desktopRecordingEnabled)
+	pingResp, err := clt.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessMonitoringEnabled := pingResp.ServerFeatures != nil && pingResp.ServerFeatures.AccessMonitoring
+
+	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), h.ClusterFeatures, desktopRecordingEnabled, accessMonitoringEnabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
