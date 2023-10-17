@@ -74,7 +74,7 @@ func TestAutoUsersPostgres(t *testing.T) {
 			role.SetOptions(options)
 			role.SetDatabaseRoles(types.Allow, tc.databaseRoles)
 			role.SetDatabaseNames(types.Allow, []string{"*"})
-			err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
+			_, err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
 			require.NoError(t, err)
 
 			// Try to connect to the database as this user.
@@ -156,7 +156,7 @@ func TestAutoUsersMySQL(t *testing.T) {
 			role.SetOptions(options)
 			role.SetDatabaseRoles(types.Allow, []string{"reader", "writer"})
 			role.SetDatabaseNames(types.Allow, []string{"*"})
-			err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
+			_, err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
 			require.NoError(t, err)
 
 			// DatabaseUser must match identity.

@@ -4038,17 +4038,7 @@ func (a *ServerWithRoles) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return a.authServer.GetRoles(ctx)
 }
 
-// CreateRole not implemented: can only be called locally.
-func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// UpsertRole creates or updates role.
-func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) error {
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
+func (a *ServerWithRoles) validateRole(ctx context.Context, role types.Role) error {
 	if downgradeReason := role.GetMetadata().Labels[types.TeleportDowngradedLabel]; downgradeReason != "" {
 		return trace.BadParameter("refusing to upsert role because %s label is set with reason %q",
 			types.TeleportDowngradedLabel, downgradeReason)
@@ -4085,7 +4075,49 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) error
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.UpsertRole(ctx, role)
+	return nil
+}
+
+// CreateRole creates a new role.
+func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
+	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.validateRole(ctx, role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := a.authServer.CreateRole(ctx, role)
+	return created, trace.Wrap(err)
+}
+
+// UpdateRole updates an existing role.
+func (a *ServerWithRoles) UpdateRole(ctx context.Context, role types.Role) (types.Role, error) {
+	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.validateRole(ctx, role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := a.authServer.UpdateRole(ctx, role)
+	return updated, trace.Wrap(err)
+}
+
+// UpsertRole creates or updates role.
+func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
+	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.validateRole(ctx, role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	upserted, err := a.authServer.UpsertRole(ctx, role)
+	return upserted, trace.Wrap(err)
 }
 
 func checkRoleFeatureSupport(role types.Role) error {
@@ -4561,7 +4593,7 @@ func (a *ServerWithRoles) DeleteAllReverseTunnels() error {
 }
 
 // DeleteAllRoles not implemented: can only be called locally.
-func (a *ServerWithRoles) DeleteAllRoles() error {
+func (a *ServerWithRoles) DeleteAllRoles(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 

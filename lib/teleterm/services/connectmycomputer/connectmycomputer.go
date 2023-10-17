@@ -113,7 +113,7 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 		if err != nil {
 			return noCertsReloaded, trace.Wrap(err)
 		}
-		if err = accessAndIdentity.UpsertRole(ctx, role); err != nil {
+		if role, err = accessAndIdentity.UpsertRole(ctx, role); err != nil {
 			return noCertsReloaded, trace.Wrap(err, "creating role %v", role.GetName())
 		}
 	} else {
@@ -154,8 +154,8 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 			timeoutCtx, cancel := context.WithTimeout(ctx, resourceUpdateTimeout)
 			defer cancel()
 			err = s.syncResourceUpdate(timeoutCtx, accessAndIdentity, existingRole, func(ctx context.Context) error {
-				return trace.Wrap(accessAndIdentity.UpsertRole(ctx, existingRole),
-					"updating role %v", existingRole.GetName())
+				existingRole, err := accessAndIdentity.UpsertRole(ctx, existingRole)
+				return trace.Wrap(err, "updating role %v", existingRole.GetName())
 			})
 			if err != nil {
 				return noCertsReloaded, trace.Wrap(err)
@@ -231,7 +231,7 @@ type AccessAndIdentity interface {
 	// See services.Access.GetRole.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// See services.Access.UpsertRole.
-	UpsertRole(context.Context, types.Role) error
+	UpsertRole(context.Context, types.Role) (types.Role, error)
 	// See auth.Cache.NewWatcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 

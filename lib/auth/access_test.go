@@ -42,14 +42,14 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 
 	// Creating a role should emit a RoleCreatedEvent.
-	err = p.a.UpsertRole(ctx, role)
+	role, err = p.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.RoleCreatedEvent)
 	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.RoleCreate).Name, role.GetName())
 	p.mockEmitter.Reset()
 
 	// Updating a role should emit a RoleCreatedEvent.
-	err = p.a.UpsertRole(ctx, role)
+	role, err = p.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.RoleCreatedEvent)
 	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.RoleCreate).Name, role.GetName())

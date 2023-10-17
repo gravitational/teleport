@@ -613,7 +613,7 @@ func TestAuthorizeWithVerbs(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = accessService.CreateRole(context.Background(), role)
+	_, err = accessService.CreateRole(context.Background(), role)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -900,7 +900,7 @@ func createUserAndRole(client *testClient, username string, allowedLogins []stri
 		role.SetRules(types.Allow, allowRules)
 	}
 
-	err = client.UpsertRole(ctx, role)
+	role, err = client.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
