@@ -91,21 +91,21 @@ func NewFakeServiceNow(concurrency int) *FakeServiceNow {
 		serviceNow.newIncidents <- incident
 
 		err = json.NewEncoder(rw).Encode(incidentResult{Result: struct {
-			IncidentID string `json:"sys_id,omitempty"`
+			IncidentID       string `json:"sys_id,omitempty"`
 			ShortDescription string `json:"short_description,omitempty"`
-			Description string `json:"description,omitempty"`
-			CloseCode string `json:"close_code,omitempty"`
-			CloseNotes string `json:"close_notes,omitempty"`
-			IncidentState string `json:"incident_state,omitempty"`
-			WorkNotes string `json:"work_notes,omitempty"`
+			Description      string `json:"description,omitempty"`
+			CloseCode        string `json:"close_code,omitempty"`
+			CloseNotes       string `json:"close_notes,omitempty"`
+			IncidentState    string `json:"incident_state,omitempty"`
+			WorkNotes        string `json:"work_notes,omitempty"`
 		}{
-			IncidentID: incident.IncidentID,
+			IncidentID:       incident.IncidentID,
 			ShortDescription: incident.ShortDescription,
-			Description: incident.Description,
-			CloseCode: incident.CloseCode,
-			CloseNotes: incident.CloseNotes,
-			IncidentState: incident.IncidentState,
-			WorkNotes: incident.WorkNotes,
+			Description:      incident.Description,
+			CloseCode:        incident.CloseCode,
+			CloseNotes:       incident.CloseNotes,
+			IncidentState:    incident.IncidentState,
+			WorkNotes:        incident.WorkNotes,
 		}})
 		panicIf(err)
 	})
