@@ -215,7 +215,13 @@ func (m *Manager) runInner(ctx context.Context) error {
 }
 
 func (m *Manager) dispatchEvent(ctx context.Context, e types.Event) error {
-	if e.Resource == nil {
+	// Ignore watch status events because they are sent on watch start
+	// to indicate the current state of the watched resources. We don't
+	// need to do anything with them and they just serve to inform the program that
+	// the watch has started successfully and report which resources are currently
+	// being watched - this behavior was introduced when we introduced the
+	// partial watch feature.
+	if e.Resource == nil || e.Resource.GetKind() == types.KindWatchStatus {
 		return nil
 	}
 	name := e.Resource.GetName()
