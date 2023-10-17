@@ -30,7 +30,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 const (
@@ -82,6 +84,10 @@ type ClientConfig struct {
 	APIToken string
 	// CloseCode is the ServiceNow close code that incidents will be closed with.
 	CloseCode string
+
+	// StatusSink receives any status updates from the plugin for
+	// further processing. Status updates will be ignored if not set.
+	StatusSink common.StatusSink
 }
 
 // NewClient creates a new Servicenow client for managing incidents.
@@ -254,6 +260,24 @@ func (snc *Client) CheckHealth(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	defer resp.RawResponse.Body.Close()
+
+	defer func() {
+		if snc.StatusSink != nil {
+			var code types.PluginStatusCode
+			switch {
+			case resp.StatusCode() == http.StatusUnauthorized:
+				code = types.PluginStatusCode_UNAUTHORIZED
+			case resp.StatusCode() >= 200 && resp.StatusCode() < 400:
+				code = types.PluginStatusCode_RUNNING
+			default:
+				code = types.PluginStatusCode_OTHER_ERROR
+			}
+			if err := snc.StatusSink.Emit(ctx, &types.PluginStatusV1{Code: code}); err != nil {
+				log := logger.Get(resp.Request.Context())
+				log.WithError(err).Errorf("Error while emitting servicenow plugin status: %v", err)
+			}
+		}
+	}()
 	if resp.IsError() {
 		return errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
