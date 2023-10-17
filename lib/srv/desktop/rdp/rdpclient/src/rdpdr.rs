@@ -39,9 +39,9 @@ use ironrdp_pdu::utils::CharacterSet;
 use ironrdp_pdu::{custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::esc::{
     rpce, CardProtocol, CardState, CardStateFlags, ConnectCall, ConnectReturn, ContextCall,
-    EstablishContextCall, EstablishContextReturn, GetStatusChangeCall, GetStatusChangeReturn,
-    HCardAndDispositionCall, ListReadersCall, ListReadersReturn, ReaderStateCommonCall, ScardCall,
-    StatusCall, StatusReturn, TransmitCall, TransmitReturn,
+    EstablishContextReturn, GetDeviceTypeIdCall, GetDeviceTypeIdReturn, GetStatusChangeCall,
+    GetStatusChangeReturn, HCardAndDispositionCall, ListReadersReturn, ReaderStateCommonCall,
+    ScardCall, StatusReturn, TransmitCall, TransmitReturn,
 };
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::{
@@ -49,7 +49,7 @@ use ironrdp_rdpdr::{
         efs::{
             DeviceControlRequest, DeviceControlResponse, NtStatus, ServerDeviceAnnounceResponse,
         },
-        esc::{LongReturn, ReturnCode, ScardAccessStartedEventCall, ScardIoCtlCode},
+        esc::{LongReturn, ReturnCode, ScardIoCtlCode},
     },
     RdpdrBackend,
 };
@@ -171,6 +171,10 @@ impl RdpdrBackend for TeleportRdpdrBackend {
             },
             ScardIoCtlCode::IsValidContext => match call {
                 ScardCall::ContextCall(_) => self.handle_is_valid_context(req),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::GetDeviceTypeId => match call {
+                ScardCall::GetDeviceTypeIdCall(call) => self.handle_get_device_type_id(req, call),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
             _ => Err(custom_err!(
@@ -452,6 +456,36 @@ impl TeleportRdpdrBackend {
         // TODO: Currently we're always just sending ReturnCode::Success (based on awly's pre-
         // IronRDP code). Should we instead be checking if we have such a context in our cache?
         self.write_rdpdr_response(req, Box::new(LongReturn::new(ReturnCode::Success)))
+    }
+
+    fn handle_get_device_type_id(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        call: GetDeviceTypeIdCall,
+    ) -> PduResult<()> {
+        if self.contexts.exists(call.context.value) {
+            // Reader type describes the type of the physical connection to the smartcard reader (e.g.
+            // USB/serial/TPM). Type "vendor" means a proprietary vendor bus.
+            //
+            // See "ReaderType" in
+            // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/smclib/ns-smclib-_scard_reader_capabilitiesconst SCARD_READER_TYPE_VENDOR: u32 = 0xF0;
+            const SCARD_READER_TYPE_VENDOR: u32 = 0xF0;
+            self.write_rdpdr_response(
+                req,
+                Box::new(GetDeviceTypeIdReturn::new(
+                    ReturnCode::Success,
+                    SCARD_READER_TYPE_VENDOR,
+                )),
+            )
+        } else {
+            Err(custom_err!(
+                "TeleportRdpdrBackend::handle_get_device_type_id",
+                TeleportRdpdrBackendError(format!(
+                    "got GetDeviceTypeIdCall for unknown context [{}]",
+                    call.context.value
+                ))
+            ))
+        }
     }
 
     fn create_get_status_change_return(

@@ -2416,6 +2416,10 @@ impl Contexts {
             .ok_or_else(|| other_err!("Contexts::get_card", "unknown ScardHandle"))
     }
 
+    pub fn exists(&self, id: u32) -> bool {
+        self.contexts.contains_key(&id)
+    }
+
     fn get_internal_mut_deprecated(&mut self, id: u32) -> RdpResult<&mut ContextInternal> {
         self.contexts
             .get_mut(&id)
@@ -2425,7 +2429,7 @@ impl Contexts {
     fn get_internal_mut(&mut self, id: u32) -> PduResult<&mut ContextInternal> {
         self.contexts
             .get_mut(&id)
-            .ok_or_else(|| other_err!("Contexts::get", "unknown context id"))
+            .ok_or_else(|| other_err!("Contexts::get_internal_mut", "unknown context id"))
     }
 
     pub fn release(&mut self, id: u32) {
