@@ -162,11 +162,10 @@ func NewSessionContext(cfg SessionContextConfig) (*SessionContext, error) {
 
 // String returns the text representation of this context
 func (c *SessionContext) String() string {
-	return fmt.Sprintf("WebSession(user=%v,id=%v,expires=%v,bearer=%v,bearer_expires=%v)",
+	return fmt.Sprintf("WebSession(user=%v,id=%v,expires=%v,bearer_expires=%v)",
 		c.cfg.User,
-		c.cfg.Session.GetName(),
+		c.cfg.Session.GetShortName(),
 		c.cfg.Session.GetExpiryTime(),
-		c.cfg.Session.GetBearerToken(),
 		c.cfg.Session.GetBearerTokenExpiryTime(),
 	)
 }
