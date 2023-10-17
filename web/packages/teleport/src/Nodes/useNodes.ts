@@ -32,8 +32,10 @@ export function useNodes(ctx: Ctx) {
   const canCreate = ctx.storeUser.getTokenAccess().create;
 
   const { params, search, ...filteringProps } = useUrlFiltering({
-    fieldName: 'hostname',
-    dir: 'ASC',
+    sort: {
+      fieldName: 'hostname',
+      dir: 'ASC',
+    },
   });
 
   const { fetch, fetchedData, ...paginationProps } = useServerSidePagination({

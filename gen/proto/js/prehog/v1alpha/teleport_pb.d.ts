@@ -164,6 +164,12 @@ export class SessionStartEvent extends jspb.Message {
     setDatabase(value?: SessionStartDatabaseMetadata): SessionStartEvent;
 
 
+    hasDesktop(): boolean;
+    clearDesktop(): void;
+    getDesktop(): SessionStartDesktopMetadata | undefined;
+    setDesktop(value?: SessionStartDesktopMetadata): SessionStartEvent;
+
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SessionStartEvent.AsObject;
     static toObject(includeInstance: boolean, msg: SessionStartEvent): SessionStartEvent.AsObject;
@@ -179,6 +185,7 @@ export namespace SessionStartEvent {
         userName: string,
         sessionType: string,
         database?: SessionStartDatabaseMetadata.AsObject,
+        desktop?: SessionStartDesktopMetadata.AsObject,
     }
 }
 
@@ -208,6 +215,39 @@ export namespace SessionStartDatabaseMetadata {
         dbType: string,
         dbProtocol: string,
         dbOrigin: string,
+    }
+}
+
+export class SessionStartDesktopMetadata extends jspb.Message { 
+    getDesktopType(): string;
+    setDesktopType(value: string): SessionStartDesktopMetadata;
+
+    getOrigin(): string;
+    setOrigin(value: string): SessionStartDesktopMetadata;
+
+    getWindowsDomain(): string;
+    setWindowsDomain(value: string): SessionStartDesktopMetadata;
+
+    getAllowUserCreation(): boolean;
+    setAllowUserCreation(value: boolean): SessionStartDesktopMetadata;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SessionStartDesktopMetadata.AsObject;
+    static toObject(includeInstance: boolean, msg: SessionStartDesktopMetadata): SessionStartDesktopMetadata.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SessionStartDesktopMetadata, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SessionStartDesktopMetadata;
+    static deserializeBinaryFromReader(message: SessionStartDesktopMetadata, reader: jspb.BinaryReader): SessionStartDesktopMetadata;
+}
+
+export namespace SessionStartDesktopMetadata {
+    export type AsObject = {
+        desktopType: string,
+        origin: string,
+        windowsDomain: string,
+        allowUserCreation: boolean,
     }
 }
 
@@ -2152,6 +2192,60 @@ export namespace LicenseLimitEvent {
     }
 }
 
+export class DesktopDirectoryShareEvent extends jspb.Message { 
+    getDesktop(): string;
+    setDesktop(value: string): DesktopDirectoryShareEvent;
+
+    getUserName(): string;
+    setUserName(value: string): DesktopDirectoryShareEvent;
+
+    getDirectoryName(): string;
+    setDirectoryName(value: string): DesktopDirectoryShareEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DesktopDirectoryShareEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: DesktopDirectoryShareEvent): DesktopDirectoryShareEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DesktopDirectoryShareEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DesktopDirectoryShareEvent;
+    static deserializeBinaryFromReader(message: DesktopDirectoryShareEvent, reader: jspb.BinaryReader): DesktopDirectoryShareEvent;
+}
+
+export namespace DesktopDirectoryShareEvent {
+    export type AsObject = {
+        desktop: string,
+        userName: string,
+        directoryName: string,
+    }
+}
+
+export class DesktopClipboardEvent extends jspb.Message { 
+    getDesktop(): string;
+    setDesktop(value: string): DesktopClipboardEvent;
+
+    getUserName(): string;
+    setUserName(value: string): DesktopClipboardEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DesktopClipboardEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: DesktopClipboardEvent): DesktopClipboardEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DesktopClipboardEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DesktopClipboardEvent;
+    static deserializeBinaryFromReader(message: DesktopClipboardEvent, reader: jspb.BinaryReader): DesktopClipboardEvent;
+}
+
+export namespace DesktopClipboardEvent {
+    export type AsObject = {
+        desktop: string,
+        userName: string,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -2547,6 +2641,18 @@ export class SubmitEventRequest extends jspb.Message {
     setUiDiscoverCreateNode(value?: UIDiscoverCreateNodeEvent): SubmitEventRequest;
 
 
+    hasDesktopDirectoryShare(): boolean;
+    clearDesktopDirectoryShare(): void;
+    getDesktopDirectoryShare(): DesktopDirectoryShareEvent | undefined;
+    setDesktopDirectoryShare(value?: DesktopDirectoryShareEvent): SubmitEventRequest;
+
+
+    hasDesktopClipboardTransfer(): boolean;
+    clearDesktopClipboardTransfer(): void;
+    getDesktopClipboardTransfer(): DesktopClipboardEvent | undefined;
+    setDesktopClipboardTransfer(value?: DesktopClipboardEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -2627,6 +2733,8 @@ export namespace SubmitEventRequest {
         uiDiscoverEc2InstanceSelection?: UIDiscoverEC2InstanceSelectionEvent.AsObject,
         uiDiscoverDeployEice?: UIDiscoverDeployEICEEvent.AsObject,
         uiDiscoverCreateNode?: UIDiscoverCreateNodeEvent.AsObject,
+        desktopDirectoryShare?: DesktopDirectoryShareEvent.AsObject,
+        desktopClipboardTransfer?: DesktopClipboardEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2759,6 +2867,10 @@ export namespace SubmitEventRequest {
     UI_DISCOVER_DEPLOY_EICE = 66,
 
     UI_DISCOVER_CREATE_NODE = 67,
+
+    DESKTOP_DIRECTORY_SHARE = 68,
+
+    DESKTOP_CLIPBOARD_TRANSFER = 69,
 
     }
 

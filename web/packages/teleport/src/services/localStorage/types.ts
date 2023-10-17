@@ -28,6 +28,7 @@ export const KeysEnum = {
   UNIFIED_RESOURCES_DISABLED: 'grv_teleport_unified_resources_disabled',
   UNIFIED_RESOURCES_NOT_SUPPORTED:
     'grv_teleport_unified_resources_not_supported',
+  PINNED_RESOURCES_NOT_SUPPORTED: 'grv_teleport_pinned_resources_not_supported',
   CLOUD_USER_INVITES: 'grv_teleport_cloud_user_invites',
 };
 

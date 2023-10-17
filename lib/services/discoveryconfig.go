@@ -35,6 +35,8 @@ type DiscoveryConfigs interface {
 	CreateDiscoveryConfig(context.Context, *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error)
 	// UpdateDiscoveryConfig updates an existing DiscoveryConfig resource.
 	UpdateDiscoveryConfig(context.Context, *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error)
+	// UpsertDiscoveryConfig upserts a DiscoveryConfig resource.
+	UpsertDiscoveryConfig(context.Context, *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error)
 	// DeleteDiscoveryConfig removes the specified DiscoveryConfig resource.
 	DeleteDiscoveryConfig(ctx context.Context, name string) error
 	// DeleteAllDiscoveryConfigs removes all DiscoveryConfigs.

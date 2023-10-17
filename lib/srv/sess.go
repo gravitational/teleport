@@ -503,22 +503,19 @@ func (s *SessionRegistry) NotifyFileTransferRequest(req *fileTransferRequest, re
 		s.log.Debugf("Unable to notify %s, no session found in context.", res)
 		return trace.NotFound("no session found in context")
 	}
-	sid := session.id
 
 	fileTransferEvent := &apievents.FileTransferRequestEvent{
 		Metadata: apievents.Metadata{
 			Type:        string(res),
 			ClusterName: scx.ClusterName,
 		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(sid),
-		},
-		RequestID: req.id,
-		Requester: req.requester,
-		Location:  req.location,
-		Filename:  req.filename,
-		Download:  req.download,
-		Approvers: make([]string, 0),
+		SessionMetadata: session.scx.GetSessionMetadata(),
+		RequestID:       req.id,
+		Requester:       req.requester,
+		Location:        req.location,
+		Filename:        req.filename,
+		Download:        req.download,
+		Approvers:       make([]string, 0),
 	}
 
 	for _, approver := range req.approvers {
@@ -553,7 +550,6 @@ func (s *SessionRegistry) NotifyWinChange(ctx context.Context, params rsession.T
 		s.log.Debug("Unable to update window size, no session found in context.")
 		return nil
 	}
-	sid := session.id
 
 	// Build the resize event.
 	resizeEvent, err := session.Recorder().PrepareSessionEvent(&apievents.Resize{
@@ -562,12 +558,10 @@ func (s *SessionRegistry) NotifyWinChange(ctx context.Context, params rsession.T
 			Code:        events.TerminalResizeCode,
 			ClusterName: scx.ClusterName,
 		},
-		ServerMetadata: session.serverMeta,
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(sid),
-		},
-		UserMetadata: scx.Identity.GetUserMetadata(),
-		TerminalSize: params.Serialize(),
+		ServerMetadata:  session.serverMeta,
+		SessionMetadata: session.scx.GetSessionMetadata(),
+		UserMetadata:    scx.Identity.GetUserMetadata(),
+		TerminalSize:    params.Serialize(),
 	})
 	if err == nil {
 		// Report the updated window size to the session stream (this is so the sessions
@@ -950,11 +944,9 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 			ClusterName: ctx.ClusterName,
 			ID:          uuid.New().String(),
 		},
-		ServerMetadata: s.serverMeta,
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(s.id),
-		},
-		UserMetadata: ctx.Identity.GetUserMetadata(),
+		ServerMetadata:  s.serverMeta,
+		SessionMetadata: s.scx.GetSessionMetadata(),
+		UserMetadata:    ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 			Protocol:   events.EventProtocolSSH,
@@ -996,11 +988,9 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 			Code:        events.SessionJoinCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: s.serverMeta,
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(ctx.SessionID()),
-		},
-		UserMetadata: ctx.Identity.GetUserMetadata(),
+		ServerMetadata:  s.serverMeta,
+		SessionMetadata: ctx.GetSessionMetadata(),
+		UserMetadata:    ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
@@ -1049,11 +1039,9 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 			Code:        events.SessionLeaveCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: s.serverMeta,
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(s.id),
-		},
-		UserMetadata: ctx.Identity.GetUserMetadata(),
+		ServerMetadata:  s.serverMeta,
+		SessionMetadata: s.scx.GetSessionMetadata(),
+		UserMetadata:    ctx.Identity.GetUserMetadata(),
 	}
 	preparedEvent, err := s.Recorder().PrepareSessionEvent(sessionLeaveEvent)
 	if err == nil {
@@ -1104,11 +1092,9 @@ func (s *session) emitSessionEndEvent() {
 			Code:        events.SessionEndCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: s.serverMeta,
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(s.id),
-		},
-		UserMetadata: ctx.Identity.GetUserMetadata(),
+		ServerMetadata:  s.serverMeta,
+		SessionMetadata: s.scx.GetSessionMetadata(),
+		UserMetadata:    ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 			Protocol:   events.EventProtocolSSH,

@@ -2457,6 +2457,19 @@ enum CreateHostUserMode {
   HOST_USER_MODE_KEEP = 3;
 }
 
+// CreateDatabaseUserMode determines whether database user creation should be
+// disabled or if users should be cleaned up or kept after sessions end.
+enum CreateDatabaseUserMode {
+  DB_USER_MODE_UNSPECIFIED = 0;
+  // DB_USER_MODE_OFF disables user creation.
+  DB_USER_MODE_OFF = 1;
+  // DB_USER_MODE_KEEP allows user creation and disable users at session end.
+  DB_USER_MODE_KEEP = 2;
+  // DB_USER_MODE_BEST_EFFORT_DROP allows user creation and tries to drop user
+  // at session end. If the drop fails, fallback to disabling them.
+  DB_USER_MODE_BEST_EFFORT_DROP = 3;
+}
+
 // RoleOptions is a set of role options
 message RoleOptions {
   // ForwardAgent is SSH agent forwarding.
@@ -2618,6 +2631,10 @@ message RoleOptions {
   // CreateHostUserMode allows users to be automatically created on a
   // host when not set to off
   CreateHostUserMode CreateHostUserMode = 28 [(gogoproto.jsontag) = "create_host_user_mode,omitempty"];
+
+  // CreateDatabaseUserMode allows users to be automatically created on a
+  // database when not set to off.
+  CreateDatabaseUserMode CreateDatabaseUserMode = 29 [(gogoproto.jsontag) = "create_db_user_mode,omitempty"];
 }
 
 message RecordSession {
@@ -5333,9 +5350,14 @@ enum RequireMFAType {
   // and login sessions must use a private key backed by a hardware key.
   SESSION_AND_HARDWARE_KEY = 2;
   // HARDWARE_KEY_TOUCH means login sessions must use a hardware private key that
-  // requires touch to be used. This touch is required for all private key operations,
-  // so the key is always treated as MFA verified for sessions.
+  // requires touch to be used.
   HARDWARE_KEY_TOUCH = 3;
+  // HARDWARE_KEY_PIN means login sessions must use a hardware private key that
+  // requires pin to be used.
+  HARDWARE_KEY_PIN = 4;
+  // HARDWARE_KEY_TOUCH_AND_PIN means login sessions must use a hardware private key that
+  // requires touch and pin to be used.
+  HARDWARE_KEY_TOUCH_AND_PIN = 5;
 }
 
 // Plugin describes a single instance of a Teleport Plugin

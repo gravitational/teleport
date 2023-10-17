@@ -31,8 +31,10 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   const consoleCtx = useConsoleContext();
 
   const { params, search, ...filteringProps } = useUrlFiltering({
-    fieldName: 'hostname',
-    dir: 'ASC',
+    sort: {
+      fieldName: 'hostname',
+      dir: 'ASC',
+    },
   });
 
   const { fetch, fetchedData, ...paginationProps } = useServerSidePagination({
