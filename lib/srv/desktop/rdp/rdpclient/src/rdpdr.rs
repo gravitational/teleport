@@ -449,7 +449,6 @@ impl RdpdrBackend for TeleportRdpdrBackend {
                 };
                 self.handle_status(req, call, enc)
             }
-
             ScardCall::Unsupported => Ok(()),
         }
     }
