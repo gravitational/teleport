@@ -17,55 +17,55 @@ limitations under the License.
 package client
 
 import (
+	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewInsecureWebClientHTTPProxy(t *testing.T) {
-	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
-	client := NewInsecureWebClient()
-	//nolint:bodyclose // resp should be nil, so there will be no body to close.
-	resp, err := client.Get("https://fakedomain.example.com")
-	// Client should try to proxy through nonexistent server at localhost.
-	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
-	require.Contains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "lookup fakeproxy.example.com")
-	require.Contains(t, err.Error(), "no such host")
-}
+func TestHTTPTransportProxy(t *testing.T) {
+	proxyURL := "proxy.example.com"
+	target := "target.example.com"
+	tests := []struct {
+		name             string
+		env              map[string]string
+		expectedProxyURL string
+	}{
+		{
+			name: "use http proxy",
+			env: map[string]string{
+				"HTTPS_PROXY": proxyURL,
+			},
+			expectedProxyURL: "http://" + proxyURL,
+		},
+		{
+			name: "ignore proxy when no_proxy is set",
+			env: map[string]string{
+				"HTTPS_PROXY": proxyURL,
+				"NO_PROXY":    target,
+			},
+			expectedProxyURL: "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.env {
+				t.Setenv(k, v)
+			}
 
-func TestNewInsecureWebClientNoProxy(t *testing.T) {
-	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
-	t.Setenv("NO_PROXY", "fakedomain.example.com")
-	client := NewInsecureWebClient()
-	//nolint:bodyclose // resp should be nil, so there will be no body to close.
-	resp, err := client.Get("https://fakedomain.example.com")
-	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
-	require.NotContains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "lookup fakedomain.example.com")
-	require.Contains(t, err.Error(), "no such host")
-}
-
-func TestNewSecureWebClientHTTPProxy(t *testing.T) {
-	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
-	client := newClient(false, nil, nil)
-	//nolint:bodyclose // resp should be nil, so there will be no body to close.
-	resp, err := client.Get("https://fakedomain.example.com")
-	// Client should try to proxy through nonexistent server at localhost.
-	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
-	require.Contains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "lookup fakeproxy.example.com")
-	require.Contains(t, err.Error(), "no such host")
-}
-
-func TestNewSecureWebClientNoProxy(t *testing.T) {
-	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
-	t.Setenv("NO_PROXY", "fakedomain.example.com")
-	client := newClient(false, nil, nil)
-	//nolint:bodyclose // resp should be nil, so there will be no body to close.
-	resp, err := client.Get("https://fakedomain.example.com")
-	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
-	require.NotContains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "lookup fakedomain.example.com")
-	require.Contains(t, err.Error(), "no such host")
+			inputURL, err := url.Parse("https://" + target)
+			require.NoError(t, err)
+			outputURL, err := httpTransport(false, nil).Proxy(&http.Request{
+				URL: inputURL,
+			})
+			require.NoError(t, err)
+			if tc.expectedProxyURL != "" {
+				require.NotNil(t, outputURL)
+				require.Equal(t, tc.expectedProxyURL, outputURL.String())
+			} else {
+				require.Nil(t, outputURL)
+			}
+		})
+	}
 }
