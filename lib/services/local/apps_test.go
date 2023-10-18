@@ -71,14 +71,14 @@ func TestAppsCRUD(t *testing.T) {
 	out, err = service.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a specific application.
 	app, err := service.GetApp(ctx, app2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(app2, app,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to fetch an application that doesn't exist.
@@ -96,7 +96,7 @@ func TestAppsCRUD(t *testing.T) {
 	app, err = service.GetApp(ctx, app1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(app1, app,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Delete an application.
@@ -105,7 +105,7 @@ func TestAppsCRUD(t *testing.T) {
 	out, err = service.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{app2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete an application that doesn't exist.

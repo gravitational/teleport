@@ -507,7 +507,7 @@ func (s *APIServer) upsertUser(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if err := services.ValidateUserRoles(r.Context(), user, auth); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.UpsertUser(user)
+	_, err = auth.UpsertUser(r.Context(), user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -515,7 +515,7 @@ func (s *APIServer) upsertUser(auth ClientI, w http.ResponseWriter, r *http.Requ
 }
 
 func (s *APIServer) getUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user, err := auth.GetUser(p.ByName("user"), false)
+	user, err := auth.GetUser(r.Context(), p.ByName("user"), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -531,7 +531,7 @@ func rawMessage(data []byte, err error) (interface{}, error) {
 }
 
 func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	users, err := auth.GetUsers(false)
+	users, err := auth.GetUsers(r.Context(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -237,6 +237,7 @@ export type AwsOidcDeployServiceRequest = {
   subnetIds: string[];
   taskRoleArn: string;
   databaseAgentMatcherLabels: Label[];
+  securityGroups?: string[];
 };
 
 export type AwsOidcDeployServiceResponse = {
@@ -281,13 +282,7 @@ export type ListEc2InstanceConnectEndpointsResponse = {
 export type Ec2InstanceConnectEndpoint = {
   name: string;
   // state is the current state of the EC2 Instance Connect Endpoint.
-  state:
-    | 'create-in-progress'
-    | 'create-complete'
-    | 'create-failed'
-    | 'delete-in-progress'
-    | 'delete-complete'
-    | 'delete-failed';
+  state: Ec2InstanceConnectEndpointState;
   // stateMessage is an optional message describing the state of the EICE, such as an error message.
   stateMessage?: string;
   // dashboardLink is a URL to AWS Console where the user can see the EC2 Instance Connect Endpoint.
@@ -295,6 +290,14 @@ export type Ec2InstanceConnectEndpoint = {
   // subnetID is the subnet used by the Endpoint. Please note that the Endpoint should be able to reach any subnet within the VPC.
   subnetId: string;
 };
+
+export type Ec2InstanceConnectEndpointState =
+  | 'create-in-progress'
+  | 'create-complete'
+  | 'create-failed'
+  | 'delete-in-progress'
+  | 'delete-complete'
+  | 'delete-failed';
 
 export type DeployEc2InstanceConnectEndpointRequest = {
   region: Regions;
@@ -312,6 +315,7 @@ export type DeployEc2InstanceConnectEndpointResponse = {
 export type ListAwsSecurityGroupsRequest = {
   // VPCID is the VPC to filter Security Groups.
   vpcId: string;
+  region: Regions;
   nextToken?: string;
 };
 

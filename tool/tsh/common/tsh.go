@@ -58,6 +58,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -484,6 +485,9 @@ type CLIConf struct {
 
 	// LeafClusterName is the optional name of a leaf cluster to connect to instead
 	LeafClusterName string
+
+	// PIVSlot specifies a specific PIV slot to use with hardware key support.
+	PIVSlot string
 }
 
 // Stdout returns the stdout writer.
@@ -692,6 +696,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		Envar(mlockModeEnvVar).
 		StringVar(&cf.MlockMode)
 	app.HelpFlag.Short('h')
+	app.Flag("piv-slot", "Specify a PIV slot key to use for Hardware Key support instead of the default. Ex: \"9d\"").Envar("TELEPORT_PIV_SLOT").StringVar(&cf.PIVSlot)
 
 	ver := app.Command("version", "Print the tsh client and Proxy server versions for the current context.")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
@@ -799,8 +804,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyDB.Arg("db", "The name of the database to start local proxy for").StringVar(&cf.DatabaseService)
 	proxyDB.Flag("port", "Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
-	proxyDB.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
-	proxyDB.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
+	proxyDB.Flag("db-user", "Database user to log in as.").StringVar(&cf.DatabaseUser)
+	proxyDB.Flag("db-name", "Database name to log in to.").StringVar(&cf.DatabaseName)
 	proxyDB.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	proxyDB.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	proxyDB.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
@@ -844,8 +849,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").StringVar(&cf.DatabaseService)
 	dbLogin.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	dbLogin.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
-	dbLogin.Flag("db-user", "Optional database user to configure as default.").StringVar(&cf.DatabaseUser)
-	dbLogin.Flag("db-name", "Optional database name to configure as default.").StringVar(&cf.DatabaseName)
+	dbLogin.Flag("db-user", "Database user to configure as default.").StringVar(&cf.DatabaseUser)
+	dbLogin.Flag("db-name", "Database name to configure as default.").StringVar(&cf.DatabaseName)
 	dbLogout := db.Command("logout", "Remove database credentials.")
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
 	dbLogout.Flag("labels", labelHelp).StringVar(&cf.Labels)
@@ -867,8 +872,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)).Short('f').EnumVar(&cf.Format, dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)
 	dbConnect := db.Command("connect", "Connect to a database.")
 	dbConnect.Arg("db", "Database service name to connect to.").StringVar(&cf.DatabaseService)
-	dbConnect.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
-	dbConnect.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
+	dbConnect.Flag("db-user", "Database user to log in as.").StringVar(&cf.DatabaseUser)
+	dbConnect.Flag("db-name", "Database name to log in to.").StringVar(&cf.DatabaseName)
 	dbConnect.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	dbConnect.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 
@@ -1159,40 +1164,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// If TELEPORT_DEBUG was set, it was already enabled by prior call to initLogger().
 	initLogger(&cf)
 
-	// Connect to the span exporter and initialize the trace provider only if
-	// the --trace flag was set.
-	// kubectl is a special case because it is the only command that we re-execute
-	// in order to be able to access the exit code and stdout/stderr of the command
-	// that was run and determine if we should create a new access request from
-	// the output data.
-	// We don't want to enable tracing for the master invocation of tsh kubectl
-	// because the data that we would be tracing would be the tsh kubectl command.
-	// Instead, we want to enable tracing for the re-executed kubectl command and
-	// we do that in the kubectl command handler.
-	cf.TracingProvider = tracing.NoopProvider()
-	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
-	if cf.SampleTraces && cf.command != kubectl.FullCommand() {
-		// login only needs to be ignored if forwarding to auth
-		var ignored []string
-		if cf.TraceExporter == "" {
-			ignored = []string{login.FullCommand()}
-		}
-		provider, err := newTraceProvider(&cf, command, ignored)
-		if err != nil {
-			log.WithError(err).Debug("failed to set up span forwarding.")
-		} else {
-			// ensure that the provider is shutdown on exit to flush any spans
-			// that haven't been forwarded yet.
-			defer func() {
-				shutdownCtx, cancel := context.WithTimeout(cf.Context, 1*time.Second)
-				defer cancel()
-				err := provider.Shutdown(shutdownCtx)
-				if err != nil && !errors.Is(err, context.DeadlineExceeded) {
-					log.WithError(err).Debugf("failed to shutdown trace provider")
-				}
-			}()
-		}
-	}
+	stopTracing := initializeTracing(&cf)
+	defer stopTracing()
 
 	// start the span for the command and update the config context so that all spans created
 	// in the future will be rooted at this span.
@@ -1467,44 +1440,103 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	return trace.Wrap(err)
 }
 
-// newTraceProvider initializes the tracing provider that will export spans for tsh.
-//
-// If an explicit exporter url was provided via --trace-exporter all spans will be
-// send to the provided exporter. Otherwise all recorded spans are exported to the
-// Auth server which then forwards to the telemetry backend. The ignored list contains
-// certain commands to have exporting spans be a no-op. Since the provider requires
-// connecting to the auth server, this means a user may have to login first before
-// the provider can be created. By ignoring the login command we can avoid having
-// users logging in twice at the expense of not exporting spans for the login command.
-func newTraceProvider(cf *CLIConf, command string, ignored []string) (*tracing.Provider, error) {
-	// don't record any spans for commands that have been allowed
-	for _, c := range ignored {
-		if strings.EqualFold(command, c) {
-			return tracing.NoopProvider(), nil
+// cloudAutomaticSamplingRate is the sampling rate at which traces are captured
+// when tracing is automatically enabled for invocations of some tsh commands
+// when performed against a cloud tenant.
+const cloudAutomaticSamplingRate = 0.25
+
+// isCloudTenant determines if the proxy address provided
+// belongs to a cloud tenant. It currently returns true if
+// the tenant is a production tenant.
+func isCloudTenant(proxyAddress string) bool {
+	return strings.HasSuffix(proxyAddress, ".teleport.sh:443")
+}
+
+func initializeTracing(cf *CLIConf) func() {
+	cf.TracingProvider = tracing.NoopProvider()
+	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
+
+	// flush ensures that the spans are all attempted to be written when tsh exits.
+	flush := func(provider *tracing.Provider) func() {
+		return func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			defer cancel()
+			err := provider.Shutdown(shutdownCtx)
+			if err != nil && !errors.Is(err, context.DeadlineExceeded) {
+				log.WithError(err).Debug("failed to shutdown trace provider")
+			}
 		}
 	}
 
-	// an explicit exporter url was provided no need to forward to auth
-	if cf.TraceExporter != "" {
+	// The list of commands that are automatically traced and forward to Cloud.
+	autoForwardedToCloud := []string{"ssh"}
+
+	// A default sampling rate of 1 ensures that all spans for this invocation of
+	// tsh are guaranteed to be recorded. Since Teleport honors the sampling rate
+	// of remote spans this will also cause Teleport to sample any spans it generates
+	// in response to the client request.
+	samplingRate := 1.0
+
+	switch {
+	// kubectl is a special case because it is the only command that we re-execute
+	// in order to be able to access the exit code and stdout/stderr of the command
+	// that was run and determine if we should create a new access request from
+	// the output data.
+	// We don't want to enable tracing for the master invocation of tsh kubectl
+	// because the data that we would be tracing would be the tsh kubectl command.
+	// Instead, we want to enable tracing for the re-executed kubectl command and
+	// we do that in the kubectl command handler.
+	case cf.command == "kubectl":
+		return func() {}
+	// The user explicitly asked for traces to be sent to a particular exporter
+	// instead of forwarding them to Auth. Proceed with creating the provider.
+	case cf.SampleTraces && cf.TraceExporter != "":
 		provider, err := tracing.NewTraceProvider(cf.Context, tracing.Config{
-			Service:     teleport.ComponentTSH,
-			ExporterURL: cf.TraceExporter,
-			// We are using 1 here to record all spans as a result of this tsh command. Teleport
-			// will respect the recording flag of remote spans even if the spans it generates
-			// wouldn't otherwise be recorded due to its configured sampling rate.
-			SamplingRate: 1.0,
+			Service:      teleport.ComponentTSH,
+			ExporterURL:  cf.TraceExporter,
+			SamplingRate: samplingRate,
 		})
+
+		if err != nil {
+			log.WithError(err).Debugf("failed to connect to trace exporter %s", cf.TraceExporter)
+			return func() {}
+		}
 
 		cf.TracingProvider = provider
 		cf.tracer = provider.Tracer(teleport.ComponentTSH)
-		return provider, trace.Wrap(err)
+		return flush(provider)
+	// The login command cannot forward spans to Auth since there is no way to get
+	// an authenticated client to forward with until after the authentication ceremony
+	// is complete. However, if the user explicitly provided an exporter then the login
+	// spans can be sent directly to it.
+	case cf.command == "login":
+		return func() {}
+	// All commands besides ssh are only traced if the user explicitly requested
+	// tracing. For ssh, a random number of spans may be sampled if the Proxy is
+	// for a Cloud tenant.
+	case !cf.SampleTraces && !slices.Contains(autoForwardedToCloud, cf.command):
+		return func() {}
+	case cf.SampleTraces:
 	}
 
-	// create a TeleportClient and generate a provider that forwards
-	// spans to Auth
+	// Parse the config to determine if forwarding is needed for Cloud and
+	// to get a handle to an Auth client.
 	tc, err := makeClient(cf)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		log.WithError(err).Debug("failed to set up span forwarding.")
+		return func() {}
+	}
+
+	if !cf.SampleTraces {
+		// Automatically enable and forward spans to Cloud if the following conditions are met:
+		// 1) The proxy address resembles that of a Cloud tenant
+		// 2) The command being executed is tsh ssh
+		// 3) The user has not already explicitly provided the --trace flag.
+		if isCloudTenant(tc.WebProxyAddr) {
+			samplingRate = cloudAutomaticSamplingRate
+		} else {
+			return func() {}
+		}
 	}
 
 	var provider *tracing.Provider
@@ -1516,12 +1548,9 @@ func newTraceProvider(cf *CLIConf, command string, ignored []string) (*tracing.P
 
 		p, err := tracing.NewTraceProvider(cf.Context,
 			tracing.Config{
-				Service: teleport.ComponentTSH,
-				Client:  clt,
-				// We are using 1 here to record all spans as a result of this tsh command. Teleport
-				// will respect the recording flag of remote spans even if the spans it generates
-				// wouldn't otherwise be recorded due to its configured sampling rate.
-				SamplingRate: 1.0,
+				Service:      teleport.ComponentTSH,
+				Client:       clt,
+				SamplingRate: samplingRate,
 			})
 		if err != nil {
 			return trace.NewAggregate(err, clt.Close())
@@ -1530,12 +1559,13 @@ func newTraceProvider(cf *CLIConf, command string, ignored []string) (*tracing.P
 		provider = p
 		return nil
 	}); err != nil {
-		return nil, trace.Wrap(err)
+		log.WithError(err).Debug("failed to set up span forwarding.")
+		return func() {}
 	}
 
 	cf.TracingProvider = provider
 	cf.tracer = provider.Tracer(teleport.ComponentTSH)
-	return provider, nil
+	return flush(provider)
 }
 
 // onVersion prints version info.
@@ -1794,7 +1824,7 @@ func onLogin(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 
-			return trace.Wrap(printProfiles(cf, profile, profiles))
+			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
 
 		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) &&
@@ -1817,7 +1847,7 @@ func onLogin(cf *CLIConf) error {
 				}
 
 				// Print status to show information of the logged in user.
-				return trace.Wrap(printProfiles(cf, profile, profiles))
+				return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
 			}
 
 		// proxy is unspecified or the same as the currently provided proxy,
@@ -1844,7 +1874,7 @@ func onLogin(cf *CLIConf) error {
 			}
 
 			// Print status to show information of the logged in user.
-			return trace.Wrap(printProfiles(cf, profile, profiles))
+			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but desired roles or request ID is specified, treat this as a
 		// privilege escalation request for the same login session.
@@ -1860,7 +1890,7 @@ func onLogin(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 			// Print status to show information of the logged in user.
-			return trace.Wrap(printProfiles(cf, profile, profiles))
+			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
 
 		// otherwise just pass through to standard login
 		default:
@@ -1903,13 +1933,13 @@ func onLogin(cf *CLIConf) error {
 	// "authoritative" source.
 	cf.Username = tc.Username
 
-	proxyClient, rootAuthClient, err := tc.ConnectToRootCluster(cf.Context, key)
+	clusterClient, rootAuthClient, err := tc.ConnectToRootCluster(cf.Context, key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
 		rootAuthClient.Close()
-		proxyClient.Close()
+		clusterClient.Close()
 	}()
 
 	// TODO(fspmarshall): Refactor access request & cert reissue logic to allow
@@ -2007,7 +2037,7 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// Print status to show information of the logged in user.
-	if err := printProfiles(cf, profile, profiles); err != nil {
+	if err := printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2017,7 +2047,7 @@ func onLogin(cf *CLIConf) error {
 	// don't use the alert API very heavily. If we start to make more use of it, we
 	// could probably add a separate `tsh alerts ls` command, and truncate the list
 	// with a message like "run 'tsh alerts ls' to view N additional alerts".
-	if err := common.ShowClusterAlerts(cf.Context, proxyClient.CurrentCluster(), os.Stderr, map[string]string{
+	if err := common.ShowClusterAlerts(cf.Context, clusterClient.CurrentCluster(), os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",
 	}, types.AlertSeverity_LOW); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
@@ -3572,6 +3602,13 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		return nil, trace.Wrap(err)
 	}
 
+	if cf.PIVSlot != "" {
+		c.PIVSlot = keys.PIVSlot(cf.PIVSlot)
+		if err = c.PIVSlot.Validate(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	c.ClientStore, err = initClientStore(cf, proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4078,9 +4115,8 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	fmt.Printf("\n")
 }
 
-// printProfiles displays the provided profile information
-// to the user.
-func printProfiles(cf *CLIConf, profile *client.ProfileStatus, profiles []*client.ProfileStatus) error {
+// printLoginInformation displays the provided profile information to the user.
+func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles []*client.ProfileStatus, accessListsToReview []*accesslist.AccessList) error {
 	env := getTshEnv()
 	active, others := makeAllProfileInfo(profile, profiles, env)
 
@@ -4118,6 +4154,16 @@ func printProfiles(cf *CLIConf, profile *client.ProfileStatus, profiles []*clien
 		}
 	}
 
+	if len(accessListsToReview) > 0 {
+		fmt.Printf("Access lists that need to be reviewed:\n")
+		now := time.Now()
+
+		for _, accessList := range accessListsToReview {
+			fmt.Printf("\t%s (%s left to review)\n", accessList.GetName(), accessList.Spec.Audit.NextAuditDate.Sub(now).Round(time.Second).String())
+		}
+		fmt.Println()
+	}
+
 	return nil
 }
 
@@ -4136,7 +4182,14 @@ func onStatus(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := printProfiles(cf, profile, profiles); err != nil {
+	// make the teleport client and retrieve the certificate from the proxy:
+	tc, err := makeClient(cf)
+	if err != nil {
+		log.WithError(err).Warn("Failed to make client for retrieving cluster alerts.")
+		return trace.Wrap(err)
+	}
+
+	if err := printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4149,14 +4202,8 @@ func onStatus(cf *CLIConf) error {
 		return trace.NotFound("Active profile expired.")
 	}
 
-	tc, err := makeClient(cf)
-	if err != nil {
-		log.WithError(err).Warn("Failed to make client for retrieving cluster alerts.")
-		return nil
-	}
-
-	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
-		log.Debug("Skipping cluster alerts due to Hardware Key Touch requirement.")
+	if tc.PrivateKeyPolicy.MFAVerified() {
+		log.Debug("Skipping cluster alerts due to Hardware Key PIN/Touch requirement.")
 	} else {
 		if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
 			types.AlertSeverity_HIGH); err != nil {
@@ -4815,6 +4862,28 @@ func onHeadlessApprove(cf *CLIConf) error {
 		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID, !cf.headlessSkipConfirm)
 	})
 	return trace.Wrap(err)
+}
+
+// getAccessListsToReview will return access lists that the logged in user needs to review. On error,
+// this will return an empty list.
+func (cf *CLIConf) getAccessListsToReview(tc *client.TeleportClient) []*accesslist.AccessList {
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		log.WithError(err).Debug("Error connecting to the cluster")
+		return nil
+	}
+	defer func() {
+		clusterClient.Close()
+	}()
+
+	// Get the access lists to review. If the call returns NotImplemented, ignore it, as we may be communicating with an OSS
+	// server, which does not support access lists.
+	accessListsToReview, err := clusterClient.AuthClient.AccessListClient().GetAccessListsToReview(cf.Context)
+	if err != nil && !trace.IsNotImplemented(err) {
+		log.WithError(err).Debug("Error getting access lists to review")
+	}
+
+	return accessListsToReview
 }
 
 var mlockModes = []string{mlockModeNo, mlockModeAuto, mlockModeBestEffort, mlockModeStrict}

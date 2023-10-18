@@ -82,7 +82,11 @@ export default function ClusterSelector({
   }
 
   return (
-    <StyledBox {...styles} className="teleport-cluster-selector">
+    <StyledBox
+      {...styles}
+      className="teleport-cluster-selector"
+      data-testid="cluster-selector"
+    >
       <StyledSelectAsync
         components={{ ValueContainer }}
         noOptionsMessage={getNoOptionsMessage}

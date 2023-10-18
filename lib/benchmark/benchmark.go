@@ -172,14 +172,14 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, suite
 		return Result{}, trace.BadParameter("missing benchmark suite")
 	}
 
+	tc.Stdout = io.Discard
+	tc.Stderr = io.Discard
+	tc.Stdin = &bytes.Buffer{}
+
 	workload, err := suite.BenchBuilder(ctx, tc)
 	if err != nil {
 		return Result{}, trace.Wrap(err)
 	}
-
-	tc.Stdout = io.Discard
-	tc.Stderr = io.Discard
-	tc.Stdin = &bytes.Buffer{}
 
 	var delay time.Duration
 	ctx, cancel := context.WithCancel(ctx)

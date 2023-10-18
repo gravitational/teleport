@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
-export function assertUnreachable(x: never): never {
-  throw new Error(`Unhandled case: ${x}`);
-}
+import { assertUnreachable } from 'shared/utils/assertUnreachable';
+
+/**
+ * @deprecated Import assertUnreachable from `shared/utils/assertUnreachable` instead.
+ */
+export { assertUnreachable };

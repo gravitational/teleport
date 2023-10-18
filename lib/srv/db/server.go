@@ -980,6 +980,14 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 			}
 		}()
 	}()
+
+	// Wrap a client connection into monitor that auto-terminates
+	// idle connection and connection with expired cert.
+	ctx, clientConn, err = s.cfg.ConnectionMonitor.MonitorConn(cancelCtx, sessionCtx.AuthContext, clientConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	engine, err := s.dispatch(sessionCtx, rec, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -994,13 +1002,6 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 			engine.SendError(err)
 		}
 	}()
-
-	// Wrap a client connection into monitor that auto-terminates
-	// idle connection and connection with expired cert.
-	ctx, clientConn, err = s.cfg.ConnectionMonitor.MonitorConn(cancelCtx, sessionCtx.AuthContext, clientConn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	// TODO(jakule): LoginIP should be required starting from 10.0.
 	clientIP := sessionCtx.Identity.LoginIP
@@ -1021,7 +1022,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 	if err != nil {
 		connectionDiagnosticID := sessionCtx.Identity.ConnectionDiagnosticID
 		if connectionDiagnosticID != "" && trace.IsAccessDenied(err) {
-			_, diagErr := s.cfg.AuthClient.AppendDiagnosticTrace(ctx,
+			_, diagErr := s.cfg.AuthClient.AppendDiagnosticTrace(cancelCtx,
 				connectionDiagnosticID,
 				&types.ConnectionDiagnosticTrace{
 					Type:    types.ConnectionDiagnosticTrace_RBAC_DATABASE_LOGIN,
@@ -1123,18 +1124,18 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 
 	id := uuid.New().String()
 	sessionCtx := &common.Session{
-		ID:                id,
-		ClusterName:       identity.RouteToCluster,
-		HostID:            s.cfg.HostID,
-		Database:          database,
-		Identity:          identity,
-		AutoCreateUser:    autoCreate,
-		DatabaseUser:      identity.RouteToDatabase.Username,
-		DatabaseName:      identity.RouteToDatabase.Database,
-		DatabaseRoles:     databaseRoles,
-		AuthContext:       authContext,
-		Checker:           authContext.Checker,
-		StartupParameters: make(map[string]string),
+		ID:                 id,
+		ClusterName:        identity.RouteToCluster,
+		HostID:             s.cfg.HostID,
+		Database:           database,
+		Identity:           identity,
+		AutoCreateUserMode: autoCreate,
+		DatabaseUser:       identity.RouteToDatabase.Username,
+		DatabaseName:       identity.RouteToDatabase.Database,
+		DatabaseRoles:      databaseRoles,
+		AuthContext:        authContext,
+		Checker:            authContext.Checker,
+		StartupParameters:  make(map[string]string),
 		Log: s.log.WithFields(logrus.Fields{
 			"id": id,
 			"db": database.GetName(),

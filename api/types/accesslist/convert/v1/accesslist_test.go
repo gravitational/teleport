@@ -107,6 +107,20 @@ func TestFromProtoNils(t *testing.T) {
 	_, err = FromProto(accessList)
 	require.Error(t, err)
 
+	// Recurrence is nil
+	accessList = ToProto(newAccessList(t, "access-list"))
+	accessList.Spec.Audit.Recurrence = nil
+
+	_, err = FromProto(accessList)
+	require.NoError(t, err)
+
+	// Notifications is nil
+	accessList = ToProto(newAccessList(t, "access-list"))
+	accessList.Spec.Audit.Notifications = nil
+
+	_, err = FromProto(accessList)
+	require.NoError(t, err)
+
 	// MembershipRequires is nil
 	accessList = ToProto(newAccessList(t, "access-list"))
 	accessList.Spec.MembershipRequires = nil
@@ -150,7 +164,6 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency:     time.Hour,
 				NextAuditDate: time.Now(),
 			},
 			MembershipRequires: accesslist.Requires{

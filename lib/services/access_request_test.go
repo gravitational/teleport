@@ -30,6 +30,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -37,6 +39,7 @@ import (
 
 // mockGetter mocks the UserAndRoleGetter interface.
 type mockGetter struct {
+	userStates  map[string]*userloginstate.UserLoginState
 	users       map[string]types.User
 	roles       map[string]types.Role
 	nodes       map[string]types.Server
@@ -50,23 +53,27 @@ type mockGetter struct {
 // user inserts a new user with the specified roles and returns the username.
 func (m *mockGetter) user(t *testing.T, roles ...string) string {
 	name := uuid.New().String()
-	user, err := types.NewUser(name)
+	uls, err := userloginstate.New(header.Metadata{
+		Name: name,
+	}, userloginstate.Spec{
+		Roles: roles,
+	})
 	require.NoError(t, err)
 
-	user.SetRoles(roles)
-	m.users[name] = user
+	m.userStates[name] = uls
 	return name
 }
 
-func (m *mockGetter) GetUser(name string, withSecrets bool) (types.User, error) {
-	if withSecrets {
-		return nil, trace.NotImplemented("mock getter does not store secrets")
-	}
-	user, ok := m.users[name]
+func (m *mockGetter) GetUserLoginStates(context.Context) ([]*userloginstate.UserLoginState, error) {
+	return nil, trace.NotImplemented("GetUserLoginStates is not implemented")
+}
+
+func (m *mockGetter) GetUserLoginState(ctx context.Context, name string) (*userloginstate.UserLoginState, error) {
+	uls, ok := m.userStates[name]
 	if !ok {
-		return nil, trace.NotFound("no such user: %q", name)
+		return nil, trace.NotFound("no such user login state: %q", name)
 	}
-	return user, nil
+	return uls, nil
 }
 
 func (m *mockGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
@@ -75,6 +82,18 @@ func (m *mockGetter) GetRole(ctx context.Context, name string) (types.Role, erro
 		return nil, trace.NotFound("no such role: %q", name)
 	}
 	return role, nil
+}
+
+func (m *mockGetter) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
+	if withSecrets {
+		return nil, trace.NotImplemented("")
+	}
+
+	user, ok := m.users[name]
+	if !ok {
+		return nil, trace.NotFound("no such user: %q", name)
+	}
+	return user, nil
 }
 
 func (m *mockGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
@@ -127,6 +146,8 @@ func (m *mockGetter) GetClusterName(opts ...MarshalOption) (types.ClusterName, e
 
 // TestReviewThresholds tests various review threshold scenarios
 func TestReviewThresholds(t *testing.T) {
+	ctx := context.Background()
+
 	// describes a collection of roles with various approval/review
 	// permissions.
 	roleDesc := map[string]types.RoleConditions{
@@ -241,15 +262,28 @@ func TestReviewThresholds(t *testing.T) {
 	}
 
 	// describes a collection of users with various roles
-	userDesc := map[string][]string{
+	ulsDesc := map[string][]string{
 		"alice": {"populist", "proletariat", "intelligentsia", "military"},
-		"bob":   {"general", "proletariat", "intelligentsia", "military"},
 		"carol": {"conqueror", "proletariat", "intelligentsia", "military"},
-		"dave":  {"populist", "general", "conqueror"},
 		"erika": {"populist", "idealist"},
 	}
 
+	userStates := make(map[string]*userloginstate.UserLoginState)
+	for name, roles := range ulsDesc {
+		uls, err := userloginstate.New(header.Metadata{
+			Name: name,
+		}, userloginstate.Spec{
+			Roles: roles,
+		})
+		require.NoError(t, err)
+		userStates[name] = uls
+	}
+
 	users := make(map[string]types.User)
+	userDesc := map[string][]string{
+		"bob":  {"general", "proletariat", "intelligentsia", "military"},
+		"dave": {"populist", "general", "conqueror"},
+	}
 
 	for name, roles := range userDesc {
 		user, err := types.NewUser(name)
@@ -260,13 +294,15 @@ func TestReviewThresholds(t *testing.T) {
 	}
 
 	g := &mockGetter{
-		roles: roles,
-		users: users,
+		roles:      roles,
+		userStates: userStates,
+		users:      users,
 	}
 
 	const (
 		approve = types.RequestState_APPROVED
 		deny    = types.RequestState_DENIED
+		promote = types.RequestState_PROMOTED
 	)
 
 	type review struct {
@@ -577,64 +613,76 @@ func TestReviewThresholds(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc:      "promoted skips the threshold check",
+			requestor: "bob",
+			reviews: []review{
+				{ // status should be set to promoted despite the approval threshold not being met
+					author:  g.user(t, "intelligentsia"),
+					propose: promote,
+					expect:  promote,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tts {
-
-		if len(tt.roles) == 0 {
-			tt.roles = []string{"dictator"}
-		}
-
-		// create a request for the specified author
-		req, err := types.NewAccessRequest("some-id", tt.requestor, tt.roles...)
-		require.NoError(t, err, "scenario=%q", tt.desc)
-
-		clock := clockwork.NewFakeClock()
-		identity := tlsca.Identity{
-			Expires: clock.Now().UTC().Add(8 * time.Hour),
-		}
-
-		// perform request validation (necessary in order to initialize internal
-		// request variables like annotations and thresholds).
-		validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, ExpandVars(true))
-		require.NoError(t, err, "scenario=%q", tt.desc)
-
-		require.NoError(t, validator.Validate(context.Background(), req, identity), "scenario=%q", tt.desc)
-
-	Inner:
-		for ri, rt := range tt.reviews {
-			if rt.expect.IsNone() {
-				rt.expect = types.RequestState_PENDING
+		t.Run(tt.desc, func(t *testing.T) {
+			if len(tt.roles) == 0 {
+				tt.roles = []string{"dictator"}
 			}
 
-			checker, err := NewReviewPermissionChecker(context.TODO(), g, rt.author)
-			require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
+			// create a request for the specified author
+			req, err := types.NewAccessRequest("some-id", tt.requestor, tt.roles...)
+			require.NoError(t, err, "scenario=%q", tt.desc)
 
-			canReview, err := checker.CanReviewRequest(req)
-			require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
-
-			if rt.noReview {
-				require.False(t, canReview, "scenario=%q, rev=%d", tt.desc, ri)
-				continue Inner
+			clock := clockwork.NewFakeClock()
+			identity := tlsca.Identity{
+				Expires: clock.Now().UTC().Add(8 * time.Hour),
 			}
 
-			rev := types.AccessReview{
-				Author:        rt.author,
-				ProposedState: rt.propose,
+			// perform request validation (necessary in order to initialize internal
+			// request variables like annotations and thresholds).
+			validator, err := NewRequestValidator(ctx, clock, g, tt.requestor, ExpandVars(true))
+			require.NoError(t, err, "scenario=%q", tt.desc)
+
+			require.NoError(t, validator.Validate(ctx, req, identity), "scenario=%q", tt.desc)
+
+		Inner:
+			for ri, rt := range tt.reviews {
+				if rt.expect.IsNone() {
+					rt.expect = types.RequestState_PENDING
+				}
+
+				checker, err := NewReviewPermissionChecker(ctx, g, rt.author, nil)
+				require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
+
+				canReview, err := checker.CanReviewRequest(req)
+				require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
+
+				if rt.noReview {
+					require.False(t, canReview, "scenario=%q, rev=%d", tt.desc, ri)
+					continue Inner
+				}
+
+				rev := types.AccessReview{
+					Author:        rt.author,
+					ProposedState: rt.propose,
+				}
+
+				author, ok := userStates[rt.author]
+				require.True(t, ok, "scenario=%q, rev=%d", tt.desc, ri)
+
+				err = ApplyAccessReview(req, rev, author)
+				if rt.errCheck != nil {
+					rt.errCheck(t, err)
+					continue
+				}
+
+				require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
+				require.Equal(t, rt.expect.String(), req.GetState().String(), "scenario=%q, rev=%d", tt.desc, ri)
 			}
-
-			author, ok := users[rt.author]
-			require.True(t, ok, "scenario=%q, rev=%d", tt.desc, ri)
-
-			err = ApplyAccessReview(req, rev, author)
-			if rt.errCheck != nil {
-				rt.errCheck(t, err)
-				continue
-			}
-
-			require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
-			require.Equal(t, rt.expect.String(), req.GetState().String(), "scenario=%q, rev=%d", tt.desc, ri)
-		}
+		})
 	}
 }
 
@@ -1091,21 +1139,24 @@ func TestRolesForResourceRequest(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			user, err := types.NewUser("test-user")
+			uls, err := userloginstate.New(header.Metadata{
+				Name: "test-user",
+			}, userloginstate.Spec{
+				Roles: tc.currentRoles,
+			})
 			require.NoError(t, err)
-			user.SetRoles(tc.currentRoles)
-			users := map[string]types.User{
-				user.GetName(): user,
+			userStates := map[string]*userloginstate.UserLoginState{
+				uls.GetName(): uls,
 			}
 
 			g := &mockGetter{
 				roles:       roles,
-				users:       users,
+				userStates:  userStates,
 				clusterName: "my-cluster",
 			}
 
 			req, err := types.NewAccessRequestWithResources(
-				"some-id", user.GetName(), tc.requestRoles, tc.requestResourceIDs)
+				"some-id", uls.GetName(), tc.requestRoles, tc.requestResourceIDs)
 			require.NoError(t, err)
 
 			clock := clockwork.NewFakeClock()
@@ -1113,7 +1164,7 @@ func TestRolesForResourceRequest(t *testing.T) {
 				Expires: clock.Now().UTC().Add(8 * time.Hour),
 			}
 
-			validator, err := NewRequestValidator(context.Background(), clock, g, user.GetName(), ExpandVars(true))
+			validator, err := NewRequestValidator(context.Background(), clock, g, uls.GetName(), ExpandVars(true))
 			require.NoError(t, err)
 
 			err = validator.Validate(context.Background(), req, identity)
@@ -1134,6 +1185,7 @@ func TestPruneRequestRoles(t *testing.T) {
 
 	g := &mockGetter{
 		roles:       make(map[string]types.Role),
+		userStates:  make(map[string]*userloginstate.UserLoginState),
 		users:       make(map[string]types.User),
 		nodes:       make(map[string]types.Server),
 		kubeServers: make(map[string]types.KubeServer),
@@ -1228,10 +1280,10 @@ func TestPruneRequestRoles(t *testing.T) {
 	}
 
 	user := g.user(t, "response-team")
-	g.users[user].SetTraits(map[string][]string{
+	g.userStates[user].Spec.Traits = map[string][]string{
 		"logins": {"responder"},
 		"team":   {"response-team"},
-	})
+	}
 
 	nodeDesc := []struct {
 		name   string
@@ -1585,9 +1637,12 @@ func TestRequestTTL(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			// Setup test user "foo" and "bar" and the mock auth server that
 			// will return users and roles.
-			user, err := types.NewUser("foo")
+			uls, err := userloginstate.New(header.Metadata{
+				Name: "foo",
+			}, userloginstate.Spec{
+				Roles: []string{"bar"},
+			})
 			require.NoError(t, err)
-			user.SetRoles([]string{"bar"})
 
 			role, err := types.NewRole("bar", types.RoleSpecV6{
 				Options: types.RoleOptions{
@@ -1597,8 +1652,8 @@ func TestRequestTTL(t *testing.T) {
 			require.NoError(t, err)
 
 			getter := &mockGetter{
-				users: map[string]types.User{"foo": user},
-				roles: map[string]types.Role{"bar": role},
+				userStates: map[string]*userloginstate.UserLoginState{"foo": uls},
+				roles:      map[string]types.Role{"bar": role},
 			}
 
 			validator, err := NewRequestValidator(context.Background(), clock, getter, "foo", ExpandVars(true))
@@ -1662,7 +1717,6 @@ func TestSessionTTL(t *testing.T) {
 			// will return users and roles.
 			user, err := types.NewUser("foo")
 			require.NoError(t, err)
-			user.SetRoles([]string{"bar"})
 
 			role, err := types.NewRole("bar", types.RoleSpecV6{
 				Options: types.RoleOptions{
@@ -1780,22 +1834,24 @@ func TestAutoRequest(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		user, err := types.NewUser("foo")
+		uls, err := userloginstate.New(header.Metadata{
+			Name: "foo",
+		}, userloginstate.Spec{})
 		require.NoError(t, err)
 
 		getter := &mockGetter{
-			users: make(map[string]types.User),
-			roles: make(map[string]types.Role),
+			userStates: make(map[string]*userloginstate.UserLoginState),
+			roles:      make(map[string]types.Role),
 		}
 
 		for _, r := range test.roles {
 			getter.roles[r.GetName()] = r
-			user.AddRole(r.GetName())
+			uls.Spec.Roles = append(uls.Spec.Roles, r.GetName())
 		}
 
-		getter.users[user.GetName()] = user
+		getter.userStates[uls.GetName()] = uls
 
-		validator, err := NewRequestValidator(context.Background(), clock, getter, user.GetName(), ExpandVars(true))
+		validator, err := NewRequestValidator(context.Background(), clock, getter, uls.GetName(), ExpandVars(true))
 		require.NoError(t, err)
 		test.assertion(t, &validator)
 	}
@@ -1873,58 +1929,6 @@ func TestValidateAccessRequestClusterNames(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
-}
-
-type mockResourceLister struct {
-	resources []types.ResourceWithLabels
-}
-
-func (m *mockResourceLister) ListResources(ctx context.Context, _ proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-	return &types.ListResourcesResponse{
-		Resources: m.resources,
-	}, nil
-}
-
-func TestGetResourceDetails(t *testing.T) {
-	clusterName := "cluster"
-
-	presence := &mockResourceLister{
-		resources: []types.ResourceWithLabels{
-			newNode(t, "node1", "hostname 1"),
-			newApp(t, "app1", "friendly app 1", types.OriginDynamic),
-			newApp(t, "app2", "friendly app 2", types.OriginDynamic),
-			newApp(t, "app3", "friendly app 3", types.OriginOkta),
-			newUserGroup(t, "group1", "friendly group 1", types.OriginOkta),
-		},
-	}
-	resourceIDs := []types.ResourceID{
-		newResourceID(clusterName, types.KindNode, "node1"),
-		newResourceID(clusterName, types.KindApp, "app1"),
-		newResourceID(clusterName, types.KindApp, "app2"),
-		newResourceID(clusterName, types.KindApp, "app3"),
-		newResourceID(clusterName, types.KindUserGroup, "group1"),
-	}
-
-	ctx := context.Background()
-
-	details, err := GetResourceDetails(ctx, clusterName, presence, resourceIDs)
-	require.NoError(t, err)
-
-	// Check the resource details to see if friendly names properly propagated.
-
-	// Node should be named for its hostname.
-	require.Equal(t, "hostname 1", details[types.ResourceIDToString(resourceIDs[0])].FriendlyName)
-
-	// app1 and app2 are expected to be empty because they're not Okta sourced resources.
-	require.Empty(t, details[types.ResourceIDToString(resourceIDs[1])].FriendlyName)
-
-	require.Empty(t, details[types.ResourceIDToString(resourceIDs[2])].FriendlyName)
-
-	// This Okta sourced app should have a friendly name.
-	require.Equal(t, "friendly app 3", details[types.ResourceIDToString(resourceIDs[3])].FriendlyName)
-
-	// This Okta sourced user group should have a friendly name.
-	require.Equal(t, "friendly group 1", details[types.ResourceIDToString(resourceIDs[4])].FriendlyName)
 }
 
 func TestMaxDuration(t *testing.T) {
@@ -2146,64 +2150,22 @@ func getMockGetter(t *testing.T, roleDesc roleTestSet, userDesc map[string][]str
 		roles[name] = role
 	}
 
-	users := make(map[string]types.User)
+	userStates := make(map[string]*userloginstate.UserLoginState)
 
 	for name, roles := range userDesc {
-		user, err := types.NewUser(name)
+		uls, err := userloginstate.New(header.Metadata{
+			Name: name,
+		}, userloginstate.Spec{
+			Roles: roles,
+		})
 		require.NoError(t, err)
 
-		user.SetRoles(roles)
-		users[name] = user
+		userStates[name] = uls
 	}
 
 	g := &mockGetter{
-		roles: roles,
-		users: users,
+		roles:      roles,
+		userStates: userStates,
 	}
 	return g
-}
-
-func newNode(t *testing.T, name, hostname string) types.Server {
-	node, err := types.NewServer(name, types.KindNode,
-		types.ServerSpecV2{
-			Hostname: hostname,
-		})
-	require.NoError(t, err)
-	return node
-}
-
-func newApp(t *testing.T, name, description, origin string) types.Application {
-	app, err := types.NewAppV3(types.Metadata{
-		Name:        name,
-		Description: description,
-		Labels: map[string]string{
-			types.OriginLabel: origin,
-		},
-	},
-		types.AppSpecV3{
-			URI:        "https://some-addr.com",
-			PublicAddr: "https://some-addr.com",
-		})
-	require.NoError(t, err)
-	return app
-}
-
-func newUserGroup(t *testing.T, name, description, origin string) types.UserGroup {
-	userGroup, err := types.NewUserGroup(types.Metadata{
-		Name:        name,
-		Description: description,
-		Labels: map[string]string{
-			types.OriginLabel: origin,
-		},
-	}, types.UserGroupSpecV1{})
-	require.NoError(t, err)
-	return userGroup
-}
-
-func newResourceID(clusterName, kind, name string) types.ResourceID {
-	return types.ResourceID{
-		ClusterName: clusterName,
-		Kind:        kind,
-		Name:        name,
-	}
 }

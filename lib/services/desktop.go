@@ -60,6 +60,7 @@ func MarshalWindowsDesktop(s types.WindowsDesktop, opts ...MarshalOption) ([]byt
 			// to prevent unexpected data races
 			copy := *s
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			s = &copy
 		}
 		return utils.FastMarshal(s)
@@ -93,6 +94,9 @@ func UnmarshalWindowsDesktop(data []byte, opts ...MarshalOption) (types.WindowsD
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)
 		}
@@ -119,6 +123,7 @@ func MarshalWindowsDesktopService(s types.WindowsDesktopService, opts ...Marshal
 			// to prevent unexpected data races
 			copy := *s
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			s = &copy
 		}
 		return utils.FastMarshal(s)
@@ -151,6 +156,9 @@ func UnmarshalWindowsDesktopService(data []byte, opts ...MarshalOption) (types.W
 		}
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
+		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
 		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)

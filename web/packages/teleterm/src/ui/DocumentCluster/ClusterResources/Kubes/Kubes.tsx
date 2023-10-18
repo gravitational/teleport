@@ -25,9 +25,12 @@ import { Danger } from 'design/Alert';
 import { SearchPanel, SearchPagination } from 'shared/components/Search';
 
 import { makeKube } from 'teleterm/ui/services/clusters';
+import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
+import { routing } from 'teleterm/ui/uri';
 
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
-import { getEmptyTableText } from '../getEmptyTableText';
+import { getEmptyTableStatus, getEmptyTableText } from '../getEmptyTableText';
+import { useClusterContext } from '../../clusterContext';
 
 import { useKubes, State } from './useKubes';
 
@@ -51,7 +54,16 @@ function KubeList(props: State) {
   } = props;
   const kubes = fetchAttempt.data?.agentsList.map(makeKube) || [];
   const disabled = fetchAttempt.status === 'processing';
-  const emptyText = getEmptyTableText(fetchAttempt.status, 'kubes');
+  const loggedInUser = useWorkspaceLoggedInUser();
+  const { clusterUri } = useClusterContext();
+  const canAddResources =
+    routing.isRootCluster(clusterUri) && loggedInUser?.acl?.tokens.create;
+  const emptyTableStatus = getEmptyTableStatus(
+    fetchAttempt.status,
+    agentFilter.search || agentFilter.query,
+    canAddResources
+  );
+  const { emptyText, emptyHint } = getEmptyTableText(emptyTableStatus, 'kubes');
 
   return (
     <>
@@ -93,6 +105,7 @@ function KubeList(props: State) {
             ]}
             customSort={customSort}
             emptyText={emptyText}
+            emptyHint={emptyHint}
           />
           <SearchPagination prevPage={prevPage} nextPage={nextPage} />
         </DarkenWhileDisabled>

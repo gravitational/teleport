@@ -133,9 +133,9 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 	defer func() {
-		err := e.GetUserProvisioner(e).Deactivate(ctx, sessionCtx)
+		err := e.GetUserProvisioner(e).Teardown(ctx, sessionCtx)
 		if err != nil {
-			e.Log.WithError(err).Error("Failed to deactivate the user.")
+			e.Log.WithError(err).Error("Failed to teardown auto user.")
 		}
 	}()
 	// This is where we connect to the actual Postgres database.
@@ -225,7 +225,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	// When using auto-provisioning, force the database username to be same
 	// as Teleport username. If it's not provided explicitly, some database
 	// clients (e.g. psql) get confused and display incorrect username.
-	if sessionCtx.AutoCreateUser {
+	if sessionCtx.AutoCreateUserMode.IsEnabled() {
 		if sessionCtx.DatabaseUser != sessionCtx.Identity.Username {
 			return trace.AccessDenied("please use your Teleport username (%q) to connect instead of %q",
 				sessionCtx.Identity.Username, sessionCtx.DatabaseUser)
@@ -239,7 +239,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		Database:       sessionCtx.Database,
 		DatabaseUser:   sessionCtx.DatabaseUser,
 		DatabaseName:   sessionCtx.DatabaseName,
-		AutoCreateUser: sessionCtx.AutoCreateUser,
+		AutoCreateUser: sessionCtx.AutoCreateUserMode.IsEnabled(),
 	})
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
@@ -418,8 +418,11 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 	copyReader, copyWriter := io.Pipe()
 	defer copyWriter.Close()
 
+	closeChan := make(chan struct{})
+
 	go func() {
 		defer copyReader.Close()
+		defer close(closeChan)
 
 		// server will never be used to write to server,
 		// which is why we pass io.Discard instead of e.rawServerConn
@@ -454,6 +457,8 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 	if err != nil && !trace.IsConnectionProblem(trace.ConvertSystemError(err)) {
 		log.WithError(err).Warn("Server -> Client copy finished with unexpected error.")
 	}
+
+	<-closeChan
 
 	serverErrCh <- trace.Wrap(err)
 	log.Debugf("Stopped receiving from server. Transferred %v bytes.", total)

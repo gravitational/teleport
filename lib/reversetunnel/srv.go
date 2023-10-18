@@ -1084,6 +1084,13 @@ func (s *server) rejectRequest(ch ssh.NewChannel, reason ssh.RejectionReason, ms
 	}
 }
 
+// TrackUserConnection tracks a user connection that should prevent
+// the server from being terminated if active. The returned function
+// should be called when the connection is terminated.
+func (s *server) TrackUserConnection() (release func()) {
+	return s.srv.TrackUserConnection()
+}
+
 // newRemoteSite helper creates and initializes 'remoteSite' instance
 func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite, error) {
 	connInfo, err := types.NewTunnelConnection(
@@ -1160,7 +1167,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
 	// is signed by the correct certificate authority.
-	certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, srv.localAuthClient)
+	certificateCache, err := newHostCertificateCache(srv.localAuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

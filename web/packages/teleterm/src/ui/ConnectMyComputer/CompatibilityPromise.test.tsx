@@ -24,45 +24,53 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
-import { isAgentCompatible, CompatibilityError } from './CompatibilityPromise';
+import {
+  checkAgentCompatibility,
+  CompatibilityError,
+} from './CompatibilityPromise';
 
 describe('isAgentCompatible', () => {
   const testCases = [
     {
       agentVersion: '2.0.0',
       proxyVersion: '2.0.0',
-      isCompatible: true,
+      expected: 'compatible',
     },
     {
       agentVersion: '2.1.0',
       proxyVersion: '2.0.0',
-      isCompatible: true,
+      expected: 'compatible',
     },
     {
       agentVersion: '3.0.0',
       proxyVersion: '2.0.0',
-      isCompatible: false,
+      expected: 'incompatible',
     },
     {
       agentVersion: '2.0.0',
       proxyVersion: '3.0.0',
-      isCompatible: true,
+      expected: 'compatible',
     },
     {
       agentVersion: '2.0.0',
       proxyVersion: '4.0.0',
-      isCompatible: false,
+      expected: 'incompatible',
+    },
+    {
+      agentVersion: '2.0.0',
+      proxyVersion: '',
+      expected: 'unknown',
     },
   ];
   test.each(testCases)(
-    'should agent $agentVersion and cluster $proxyVersion be compatible? $isCompatible',
-    ({ agentVersion, proxyVersion, isCompatible }) => {
+    'should agent $agentVersion and cluster $proxyVersion be compatible? $expected',
+    ({ agentVersion, proxyVersion, expected }) => {
       expect(
-        isAgentCompatible(
+        checkAgentCompatibility(
           proxyVersion,
           makeRuntimeSettings({ appVersion: agentVersion })
         )
-      ).toBe(isCompatible);
+      ).toBe(expected);
     }
   );
 });

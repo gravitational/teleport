@@ -559,61 +559,62 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		pc, err := tc.ConnectToProxy(cf.Context)
+	ctx := cf.Context
+	if err := client.RetryWithRelogin(ctx, tc, func() error {
+		pc, err := tc.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(cf.Context)
+		aci, err := pc.ConnectToRootCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer aci.Close()
 
-		stream, err := aci.DeleteMFADevice(cf.Context)
+		// Lookup device to delete.
+		// This lets us exit early if the device doesn't exist and enables the
+		// Touch ID cleanup at the end.
+		devicesResp, err := aci.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// Init.
-		if err := stream.Send(&proto.DeleteMFADeviceRequest{Request: &proto.DeleteMFADeviceRequest_Init{
-			Init: &proto.DeleteMFADeviceRequestInit{
-				DeviceName: c.name,
+		var deviceToDelete *types.MFADevice
+		for _, dev := range devicesResp.Devices {
+			if dev.GetName() == c.name {
+				deviceToDelete = dev
+				break
+			}
+		}
+		if deviceToDelete == nil {
+			return trace.NotFound("device %q not found", c.name)
+		}
+
+		// Issue and solve authn challenge.
+		authnChal, err := aci.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+				ContextUser: &proto.ContextUser{},
 			},
-		}}); err != nil {
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		authnSolved, err := tc.PromptMFA(ctx, authnChal)
+		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		// Auth challenge.
-		resp, err := stream.Recv()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		authChallenge := resp.GetMFAChallenge()
-		if authChallenge == nil {
-			return trace.BadParameter("server bug: server sent %T when client expected DeleteMFADeviceResponse_MFAChallenge", resp.Response)
-		}
-		authResp, err := tc.PromptMFA(cf.Context, authChallenge)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := stream.Send(&proto.DeleteMFADeviceRequest{Request: &proto.DeleteMFADeviceRequest_MFAResponse{
-			MFAResponse: authResp,
-		}}); err != nil {
+		// Delete device.
+		if err := aci.DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
+			DeviceName:          c.name,
+			ExistingMFAResponse: authnSolved,
+		}); err != nil {
 			return trace.Wrap(err)
 		}
 
-		// Receive deletion ack.
-		resp, err = stream.Recv()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		ack := resp.GetAck()
-		if ack == nil {
-			return trace.BadParameter("server bug: server sent %T when client expected DeleteMFADeviceResponse_Ack", resp.Response)
-		}
-		// If deleted device was webauthn device, try to delete touch-id credentials.
-		if wanDevice := ack.GetDevice().GetWebauthn(); wanDevice != nil {
+		// If deleted device was a webauthn device, then attempt to delete leftover
+		// Touch ID credentials.
+		if wanDevice := deviceToDelete.GetWebauthn(); wanDevice != nil {
 			deleteTouchIDCredentialIfApplicable(string(wanDevice.CredentialId))
 		}
 

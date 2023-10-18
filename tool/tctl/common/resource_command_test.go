@@ -33,15 +33,20 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/testhelpers"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
@@ -413,6 +418,119 @@ func TestIntegrationResource(t *testing.T) {
 	})
 }
 
+// TestDiscoveryConfigResource tests tctl discoveryConfig commands.
+func TestDiscoveryConfigResource(t *testing.T) {
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+
+	ctx := context.Background()
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+
+	t.Run("get", func(t *testing.T) {
+		// Add a lot of DiscoveryConfigs to test pagination
+		dc, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{
+				Name: "mydiscoveryconfig",
+			},
+			discoveryconfig.Spec{
+				DiscoveryGroup: "prod-resources",
+			},
+		)
+		require.NoError(t, err)
+
+		randomDiscoveryConfigName := ""
+		totalDiscoveryConfigs := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
+		for i := 0; i < totalDiscoveryConfigs; i++ {
+			dc.SetName(uuid.NewString())
+			if i == apidefaults.DefaultChunkSize { // A "random" discoveryConfig name
+				randomDiscoveryConfigName = dc.GetName()
+			}
+			_, err = auth.GetAuthServer().CreateDiscoveryConfig(ctx, dc)
+			require.NoError(t, err)
+		}
+
+		t.Run("test pagination of discovery configs ", func(t *testing.T) {
+			buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDiscoveryConfig, "--format=json"})
+			require.NoError(t, err)
+			out := mustDecodeJSON[[]discoveryconfig.DiscoveryConfig](t, buff)
+			require.Len(t, out, totalDiscoveryConfigs)
+		})
+
+		dcName := fmt.Sprintf("%v/%v", types.KindDiscoveryConfig, randomDiscoveryConfigName)
+
+		t.Run("get specific discovery config", func(t *testing.T) {
+			buff, err := runResourceCommand(t, fileConfig, []string{"get", dcName, "--format=json"})
+			require.NoError(t, err)
+			out := mustDecodeJSON[[]discoveryconfig.DiscoveryConfig](t, buff)
+			require.Len(t, out, 1)
+			require.Equal(t, randomDiscoveryConfigName, out[0].GetName())
+		})
+
+		t.Run("get unknown discovery config", func(t *testing.T) {
+			unknownDiscoveryConfig := fmt.Sprintf("%v/%v", types.KindDiscoveryConfig, "unknown")
+			_, err := runResourceCommand(t, fileConfig, []string{"get", unknownDiscoveryConfig, "--format=json"})
+			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+		})
+
+		t.Run("get specific discovery config with human output", func(t *testing.T) {
+			buff, err := runResourceCommand(t, fileConfig, []string{"get", dcName, "--format=text"})
+			require.NoError(t, err)
+			outputString := buff.String()
+			require.Contains(t, outputString, "prod-resources")
+			require.Contains(t, outputString, randomDiscoveryConfigName)
+		})
+	})
+
+	t.Run("create", func(t *testing.T) {
+		discoveryConfigYAMLPath := filepath.Join(t.TempDir(), "discoveryConfig.yaml")
+		require.NoError(t, os.WriteFile(discoveryConfigYAMLPath, []byte(discoveryConfigYAML), 0644))
+		_, err := runResourceCommand(t, fileConfig, []string{"create", discoveryConfigYAMLPath})
+		require.NoError(t, err)
+
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", "discovery_config/my-discovery-config", "--format=text"})
+		require.NoError(t, err)
+		outputString := buff.String()
+		require.Contains(t, outputString, "my-discovery-config")
+		require.Contains(t, outputString, "mydg1")
+
+		// Update the discovery group to another group
+		discoveryConfigYAMLV2 := strings.ReplaceAll(discoveryConfigYAML, "mydg1", "mydg2")
+		require.NoError(t, os.WriteFile(discoveryConfigYAMLPath, []byte(discoveryConfigYAMLV2), 0644))
+
+		// Trying to create it again should return an error
+		_, err = runResourceCommand(t, fileConfig, []string{"create", discoveryConfigYAMLPath})
+		require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
+
+		// Using the force should be ok and replace the current object
+		_, err = runResourceCommand(t, fileConfig, []string{"create", "--force", discoveryConfigYAMLPath})
+		require.NoError(t, err)
+
+		// The DiscoveryGroup must be updated
+		buff, err = runResourceCommand(t, fileConfig, []string{"get", "discovery_config/my-discovery-config", "--format=text"})
+		require.NoError(t, err)
+		outputString = buff.String()
+		require.Contains(t, outputString, "mydg2")
+	})
+}
+
 func TestCreateLock(t *testing.T) {
 	dynAddr := helpers.NewDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
@@ -620,6 +738,17 @@ metadata:
 spec:
   aws_oidc:
     role_arn: "arn:aws:iam::123456789012:role/OpsTeam"
+`
+
+	discoveryConfigYAML = `kind: discovery_config
+version: v1
+metadata:
+  name: my-discovery-config
+spec:
+  discovery_group: mydg1
+  aws:
+  - types: ["ec2"]
+    regions: ["eu-west-2"]
 `
 )
 
@@ -913,7 +1042,7 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	resources = mustDecodeJSON[[]T](t, buf)
 	require.Len(t, resources, 3)
 	require.Empty(t, cmp.Diff([]T{test.fooResource, test.fooBar1Resource, test.fooBar2Resource}, resources,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
 	))
 
 	// Fetch specific resource.
@@ -923,7 +1052,7 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	resources = mustDecodeJSON[[]T](t, buf)
 	require.Len(t, resources, 1)
 	require.Empty(t, cmp.Diff([]T{test.fooResource}, resources,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
 	))
 
 	// Remove a resource.
@@ -936,7 +1065,7 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	resources = mustDecodeJSON[[]T](t, buf)
 	require.Len(t, resources, 2)
 	require.Empty(t, cmp.Diff([]T{test.fooBar1Resource, test.fooBar2Resource}, resources,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
 	))
 
 	if !test.runDiscoveredNameChecks {
@@ -950,7 +1079,7 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	resources = mustDecodeJSON[[]T](t, buf)
 	require.Len(t, resources, 2)
 	require.Empty(t, cmp.Diff([]T{test.fooBar1Resource, test.fooBar2Resource}, resources,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
 	))
 
 	// Removing multiple resources ("foo-bar-1" and "foo-bar-2") by discovered name is an error.
@@ -967,7 +1096,7 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	resources = mustDecodeJSON[[]T](t, buf)
 	require.Len(t, resources, 1)
 	require.Empty(t, cmp.Diff([]T{test.fooBar1Resource}, resources,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
 	))
 }
 
@@ -1208,4 +1337,69 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 	require.Empty(t, cmp.Diff(types.Databases(want).ToMap(), databases.ToMap(),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace", "Expires"),
 	))
+}
+
+func TestCreateGithubConnector(t *testing.T) {
+	t.Parallel()
+
+	fc, fds := testhelpers.DefaultConfig(t)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, utils.NewLoggerForTests(), fc, fds)
+
+	// Ensure there are no connectors to start
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindGithubConnector, "--format=json"})
+	require.NoError(t, err)
+	connectors := mustDecodeJSON[[]*types.GithubConnectorV3](t, buf)
+	require.Empty(t, connectors)
+
+	const connectorYAML = `kind: github
+metadata:
+  name: github
+spec:
+  client_id: "12345"
+  client_secret: "678910"
+  display: Github
+  redirect_url: https://proxy.example.com/v1/webapi/github/callback
+  teams_to_roles:
+  - organization: acme
+    roles:
+    - access
+    - editor
+    - auditor
+    team: users
+version: v3`
+
+	// Create the connector
+	connectorYAMLPath := filepath.Join(t.TempDir(), "connector.yaml")
+	require.NoError(t, os.WriteFile(connectorYAMLPath, []byte(connectorYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", connectorYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the connector
+	buf, err = runResourceCommand(t, fc, []string{"get", types.KindGithubConnector, "--format=json"})
+	require.NoError(t, err)
+	connectors = mustDecodeJSON[[]*types.GithubConnectorV3](t, buf)
+	require.Len(t, connectors, 1)
+
+	var expected types.GithubConnectorV3
+	require.NoError(t, yaml.Unmarshal([]byte(connectorYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*types.GithubConnectorV3{&expected},
+		connectors,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+		cmpopts.IgnoreFields(types.GithubConnectorSpecV3{}, "ClientSecret"), // get retrieves the connector without secrets
+	))
+
+	// Explicitly change the revision and try creating the user with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	connectorBytes, err := services.MarshalGithubConnector(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(connectorYAMLPath, connectorBytes, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", connectorYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", connectorYAMLPath})
+	require.NoError(t, err)
 }

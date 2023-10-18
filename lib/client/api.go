@@ -430,6 +430,9 @@ type Config struct {
 	// PrivateKeyPolicy is a key policy that this client will try to follow during login.
 	PrivateKeyPolicy keys.PrivateKeyPolicy
 
+	// PIVSlot specifies a specific PIV slot to use with hardware key support.
+	PIVSlot keys.PIVSlot
+
 	// LoadAllCAs indicates that tsh should load the CAs of all clusters
 	// instead of just the current cluster.
 	LoadAllCAs bool
@@ -584,15 +587,15 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	}
 	log.Debugf("Activating relogin on %v.", fnErr)
 
-	// check if the error is a private key policy error.
-	if privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr); err == nil {
-		// The current private key was rejected due to an unmet key policy requirement.
-		fmt.Fprintf(tc.Stderr, "Unmet private key policy %q\n", privateKeyPolicy)
-		fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
+	if keys.IsPrivateKeyPolicyError(fnErr) {
+		privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-		// The current private key was rejected due to an unmet key policy requirement.
-		// Set the private key policy to the expected value and re-login.
-		tc.PrivateKeyPolicy = privateKeyPolicy
+		if err := tc.updatePrivateKeyPolicy(privateKeyPolicy); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if opt.beforeLoginHook != nil {
@@ -707,6 +710,7 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.AuthConnector = profile.AuthConnector
 	c.LoadAllCAs = profile.LoadAllCAs
 	c.PrivateKeyPolicy = profile.PrivateKeyPolicy
+	c.PIVSlot = profile.PIVSlot
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
 		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
@@ -754,6 +758,7 @@ func (c *Config) Profile() *profile.Profile {
 		MFAMode:                       c.AuthenticatorAttachment.String(),
 		LoadAllCAs:                    c.LoadAllCAs,
 		PrivateKeyPolicy:              c.PrivateKeyPolicy,
+		PIVSlot:                       c.PIVSlot,
 	}
 }
 
@@ -2823,17 +2828,19 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 	}
 
 	pclt, err := proxyclient.NewClient(ctx, proxyclient.ClientConfig{
-		ProxyAddress:            cfg.proxyAddress,
-		TLSRoutingEnabled:       tc.TLSRoutingEnabled,
-		TLSConfig:               tlsConfig,
-		DialOpts:                tc.Config.DialOpts,
-		UnaryInterceptors:       []grpc.UnaryClientInterceptor{interceptors.GRPCClientUnaryErrorInterceptor},
-		StreamInterceptors:      []grpc.StreamClientInterceptor{interceptors.GRPCClientStreamErrorInterceptor},
-		SSHConfig:               cfg.ClientConfig,
-		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
-		InsecureSkipVerify:      tc.InsecureSkipVerify,
-		ViaJumpHost:             len(tc.JumpHosts) > 0,
-		PROXYHeaderGetter:       CreatePROXYHeaderGetter(ctx, tc.PROXYSigner),
+		ProxyAddress:       cfg.proxyAddress,
+		TLSRoutingEnabled:  tc.TLSRoutingEnabled,
+		TLSConfig:          tlsConfig,
+		DialOpts:           tc.Config.DialOpts,
+		UnaryInterceptors:  []grpc.UnaryClientInterceptor{interceptors.GRPCClientUnaryErrorInterceptor},
+		StreamInterceptors: []grpc.StreamClientInterceptor{interceptors.GRPCClientStreamErrorInterceptor},
+		SSHConfig:          cfg.ClientConfig,
+		InsecureSkipVerify: tc.InsecureSkipVerify,
+		ViaJumpHost:        len(tc.JumpHosts) > 0,
+		PROXYHeaderGetter:  CreatePROXYHeaderGetter(ctx, tc.PROXYSigner),
+		// Connections are only upgraded through web port. Do not upgrade when
+		// using SSHProxyAddr in separate port mode.
+		ALPNConnUpgradeRequired: tc.TLSRoutingEnabled && tc.TLSRoutingConnUpgradeRequired,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2859,6 +2866,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 		AuthClient:  authClient,
 		Tracer:      tc.Tracer,
 		cluster:     cluster,
+		root:        root,
 	}, nil
 }
 
@@ -3376,7 +3384,13 @@ func (tc *TeleportClient) LoginWeb(ctx context.Context) (*WebClient, types.WebSe
 		return nil, nil, trace.Wrap(err)
 	}
 
-	clt, session, err := tc.webLogin(ctx, webLoginFunc)
+	var clt *WebClient
+	var session types.WebSession
+	_, err = tc.loginWithHardwareKeyRetry(ctx, func(ctx context.Context, priv *keys.PrivateKey) error {
+		clt, session, err = webLoginFunc(ctx, priv)
+		return trace.Wrap(err)
+	})
+
 	return clt, session, trace.Wrap(err)
 }
 
@@ -3747,30 +3761,12 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 	)
 	defer span.End()
 
-	priv, err := tc.GetNewLoginKey(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := sshLoginFunc(ctx, priv)
-	if err != nil {
-		// check if the error is a private key policy error, and relogin if it is.
-		if privateKeyPolicy, parseErr := keys.ParsePrivateKeyPolicyError(err); parseErr == nil {
-			// The current private key was rejected due to an unmet key policy requirement.
-			fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", privateKeyPolicy)
-
-			// Set the private key policy to the expected value and re-login.
-			tc.PrivateKeyPolicy = privateKeyPolicy
-			priv, err = tc.GetNewLoginKey(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
-			response, err = sshLoginFunc(ctx, priv)
-		}
-	}
-
+	var response *auth.SSHLoginResponse
+	priv, err := tc.loginWithHardwareKeyRetry(ctx, func(ctx context.Context, priv *keys.PrivateKey) error {
+		var err error
+		response, err = sshLoginFunc(ctx, priv)
+		return trace.Wrap(err)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3809,33 +3805,48 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 // WebLoginFunc is a function which carries out authn with the web server and returns a web session and cookies.
 type WebLoginFunc func(context.Context, *keys.PrivateKey) (*WebClient, types.WebSession, error)
 
-// webLogin uses the given login function to log the client in via the web api.
-func (tc *TeleportClient) webLogin(ctx context.Context, webLoginFunc WebLoginFunc) (*WebClient, types.WebSession, error) {
+func (tc *TeleportClient) loginWithHardwareKeyRetry(ctx context.Context, login func(ctx context.Context, priv *keys.PrivateKey) error) (*keys.PrivateKey, error) {
 	priv, err := tc.GetNewLoginKey(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	clt, session, err := webLoginFunc(ctx, priv)
-	if err != nil {
-		// check if the error is a private key policy error, and relogin if it is.
-		if privateKeyPolicy, parseErr := keys.ParsePrivateKeyPolicyError(err); parseErr == nil {
-			// The current private key was rejected due to an unmet key policy requirement.
-			fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", privateKeyPolicy)
-
-			// Set the private key policy to the expected value and re-login.
-			tc.PrivateKeyPolicy = privateKeyPolicy
-			priv, err = tc.GetNewLoginKey(ctx)
+	loginErr := login(ctx, priv)
+	if loginErr != nil {
+		if keys.IsPrivateKeyPolicyError(loginErr) {
+			privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(loginErr)
 			if err != nil {
-				return nil, nil, trace.Wrap(err)
+				return nil, trace.Wrap(err)
+			}
+
+			if err := tc.updatePrivateKeyPolicy(privateKeyPolicy); err != nil {
+				return nil, trace.Wrap(err)
 			}
 
 			fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
-			clt, session, err = webLoginFunc(ctx, priv)
+			priv, err = tc.GetNewLoginKey(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			loginErr = login(ctx, priv)
 		}
 	}
 
-	return clt, session, trace.Wrap(err)
+	return priv, trace.Wrap(loginErr)
+}
+
+func (tc *TeleportClient) updatePrivateKeyPolicy(policy keys.PrivateKeyPolicy) error {
+	// The current private key was rejected due to an unmet key policy requirement.
+	fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", policy)
+
+	if tc.PIVSlot != "" {
+		return trace.BadParameter("Private key in specified slot %q does not meet the private key policy requirement %q.", tc.PIVSlot, policy)
+	}
+
+	// Set the private key policy to the expected value and re-login.
+	tc.PrivateKeyPolicy = policy
+	return nil
 }
 
 // GetNewLoginKey gets a new private key for login.
@@ -3847,18 +3858,20 @@ func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (priv *keys.Privat
 	)
 	defer span.End()
 
-	switch tc.PrivateKeyPolicy {
-	case keys.PrivateKeyPolicyHardwareKey:
+	if tc.PrivateKeyPolicy.IsHardwareKeyPolicy() {
 		log.Debugf("Attempting to login with YubiKey private key.")
-		priv, err = keys.GetOrGenerateYubiKeyPrivateKey(false)
-	case keys.PrivateKeyPolicyHardwareKeyTouch:
-		log.Debugf("Attempting to login with YubiKey private key with touch required.")
-		priv, err = keys.GetOrGenerateYubiKeyPrivateKey(true)
-	default:
-		log.Debugf("Attempting to login with a new RSA private key.")
-		priv, err = native.GeneratePrivateKey()
+		if tc.PIVSlot != "" {
+			log.Debugf("Using PIV slot %q specified by client or server settings.", tc.PIVSlot)
+		}
+		priv, err = keys.GetYubiKeyPrivateKey(ctx, tc.PrivateKeyPolicy, tc.PIVSlot)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return priv, nil
 	}
 
+	log.Debugf("Attempting to login with a new RSA private key.")
+	priv, err = native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3867,11 +3880,6 @@ func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (priv *keys.Privat
 
 // new SSHLogin generates a new SSHLogin using the given login key.
 func (tc *TeleportClient) newSSHLogin(priv *keys.PrivateKey) (SSHLogin, error) {
-	attestationStatement, err := keys.GetAttestationStatement(priv)
-	if err != nil {
-		return SSHLogin{}, trace.Wrap(err)
-	}
-
 	return SSHLogin{
 		ProxyAddr:            tc.WebProxyAddr,
 		PubKey:               priv.MarshalSSHPublicKey(),
@@ -3881,7 +3889,7 @@ func (tc *TeleportClient) newSSHLogin(priv *keys.PrivateKey) (SSHLogin, error) {
 		Compatibility:        tc.CertificateFormat,
 		RouteToCluster:       tc.SiteName,
 		KubernetesCluster:    tc.KubernetesCluster,
-		AttestationStatement: attestationStatement,
+		AttestationStatement: priv.GetAttestationStatement(),
 		ExtraHeaders:         tc.ExtraProxyHeaders,
 	}, nil
 }
@@ -4075,7 +4083,7 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 
 // ConnectToRootCluster activates the provided key and connects to the
 // root cluster with its credentials.
-func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *Key) (*ProxyClient, auth.ClientI, error) {
+func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *Key) (*ClusterClient, auth.ClientI, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ConnectToRootCluster",
@@ -4087,21 +4095,21 @@ func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *Key) (*
 		return nil, nil, trace.Wrap(err)
 	}
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
+	rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
 	if err != nil {
-		return nil, nil, trace.NewAggregate(err, proxyClient.Close())
+		return nil, nil, trace.NewAggregate(err, clusterClient.Close())
 	}
 
 	if err := tc.UpdateTrustedCA(ctx, rootAuthClient); err != nil {
-		return nil, nil, trace.NewAggregate(err, rootAuthClient.Close(), proxyClient.Close())
+		return nil, nil, trace.NewAggregate(err, rootAuthClient.Close(), clusterClient.Close())
 	}
 
-	return proxyClient, rootAuthClient, nil
+	return clusterClient, rootAuthClient, nil
 }
 
 // activateKey saves the target session cert into the local
@@ -4159,9 +4167,9 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 		return nil, trace.Wrap(err)
 	}
 
-	// If version checking was requested and the server advertises a minimum version.
-	if tc.CheckVersions && pr.MinClientVersion != "" {
-		if err := utils.CheckVersion(teleport.Version, pr.MinClientVersion); err != nil && trace.IsBadParameter(err) {
+	// Verify server->client and client->server compatibility.
+	if tc.CheckVersions {
+		if !utils.MeetsVersion(teleport.Version, pr.MinClientVersion) {
 			fmt.Fprintf(tc.Stderr, `
 			WARNING
 			Detected potentially incompatible client and server versions.
@@ -4169,6 +4177,18 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 			Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
 			Future versions of tsh will fail when incompatible versions are detected.
 			`, pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
+		}
+
+		// Recent `tsh mfa` changes require at least Teleport v15.
+		const minServerVersion = "15.0.0-aa" // "-aa" matches all development versions
+		if !utils.MeetsVersion(pr.ServerVersion, minServerVersion) {
+			fmt.Fprintf(tc.Stderr, `
+			WARNING
+			Detected incompatible client and server versions.
+			Minimum server version supported by tsh is %v but your server is using %v.
+			Please use a tsh version that matches your server.
+			You may use the --skip-version-check flag to bypass this check.
+			`, minServerVersion, pr.ServerVersion)
 		}
 	}
 
@@ -4449,9 +4469,10 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 // authentication settings, overriding existing fields in tc.
 func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) {
 	tc.LoadAllCAs = authSettings.LoadAllCAs
+	tc.PIVSlot = authSettings.PIVSlot
 
 	// Update the private key policy from auth settings if it is stricter than the saved setting.
-	if authSettings.PrivateKeyPolicy != "" && authSettings.PrivateKeyPolicy.VerifyPolicy(tc.PrivateKeyPolicy) != nil {
+	if authSettings.PrivateKeyPolicy != "" && !authSettings.PrivateKeyPolicy.IsSatisfiedBy(tc.PrivateKeyPolicy) {
 		tc.PrivateKeyPolicy = authSettings.PrivateKeyPolicy
 	}
 }
@@ -4551,7 +4572,7 @@ func connectToSSHAgent() agent.ExtendedAgent {
 	socketPath := os.Getenv(teleport.SSHAuthSock)
 	conn, err := agentconn.Dial(socketPath)
 	if err != nil {
-		log.WithError(err).Errorf("[KEY AGENT] Unable to connect to SSH agent on socket: %q.", socketPath)
+		log.Warnf("[KEY AGENT] Unable to connect to SSH agent on socket %q: %v", socketPath, err)
 		return nil
 	}
 

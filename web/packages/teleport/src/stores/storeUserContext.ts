@@ -202,4 +202,12 @@ export default class StoreUserContext extends Store<UserContext> {
   getAccessListAccess() {
     return this.state.acl.accessList;
   }
+
+  getAuditQueryAccess() {
+    return this.state.acl.auditQuery;
+  }
+
+  getSecurityReportAccess() {
+    return this.state.acl.securityReport;
+  }
 }

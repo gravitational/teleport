@@ -255,6 +255,8 @@ export const eventCodes = {
   ACCESS_LIST_MEMBER_DELETE_FAILURE: 'TAL007E',
   ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST: 'TAL008I',
   ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE: 'TAL008E',
+  SECURITY_REPORT_AUDIT_QUERY_RUN: 'SRE001I',
+  SECURITY_REPORT_RUN: 'SRE002I',
 } as const;
 
 /**
@@ -1377,53 +1379,23 @@ export type RawEvents = {
       updated_by: string;
     }
   >;
-  [eventCodes.ACCESS_LIST_MEMBER_CREATE]: RawEvent<
-    typeof eventCodes.ACCESS_LIST_MEMBER_CREATE,
-    {
-      access_list_name: string;
-      member_name: string;
-      updated_by: string;
-    }
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_CREATE
   >;
-  [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: RawEvent<
-    typeof eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE,
-    {
-      access_list_name: string;
-      member_name: string;
-      updated_by: string;
-    }
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE
   >;
-  [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: RawEvent<
-    typeof eventCodes.ACCESS_LIST_MEMBER_UPDATE,
-    {
-      access_list_name: string;
-      member_name: string;
-      updated_by: string;
-    }
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_UPDATE
   >;
-  [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: RawEvent<
-    typeof eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE,
-    {
-      access_list_name: string;
-      member_name: string;
-      updated_by: string;
-    }
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE
   >;
-  [eventCodes.ACCESS_LIST_MEMBER_DELETE]: RawEvent<
-    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE,
-    {
-      access_list_name: string;
-      member_name: string;
-      updated_by: string;
-    }
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE
   >;
-  [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: RawEvent<
-    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE,
-    {
-      access_list_name: string;
-      member_name: string;
-      updated_by: string;
-    }
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE
   >;
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: RawEvent<
     typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST,
@@ -1437,6 +1409,22 @@ export type RawEvents = {
     {
       access_list_name: string;
       updated_by: string;
+    }
+  >;
+  [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: RawEvent<
+    typeof eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN,
+    {
+      query: string;
+      total_execution_time_in_millis: string;
+      total_data_scanned_in_bytes: string;
+    }
+  >;
+  [eventCodes.SECURITY_REPORT_RUN]: RawEvent<
+    typeof eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN,
+    {
+      name: string;
+      total_execution_time_in_millis: string;
+      total_data_scanned_in_bytes: string;
     }
   >;
 };
@@ -1572,6 +1560,15 @@ type RawEventUserToken<T extends EventCode> = RawEvent<
   {
     name: string;
     ttl: string;
+  }
+>;
+
+type RawEventAccessList<T extends EventCode> = RawEvent<
+  T,
+  {
+    access_list_name: string;
+    members: { member_name: string }[];
+    updated_by: string;
   }
 >;
 

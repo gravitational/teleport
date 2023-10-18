@@ -69,19 +69,19 @@ func TestCRUDs(t *testing.T) {
 	}
 
 	m := &mockedUserAPIGetter{}
-	m.mockCreateUser = func(ctx context.Context, user types.User) error {
-		return nil
+	m.mockCreateUser = func(ctx context.Context, user types.User) (types.User, error) {
+		return user, nil
 	}
 
-	m.mockGetUser = func(name string, withSecrets bool) (types.User, error) {
+	m.mockGetUser = func(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 		return types.NewUser(name)
 	}
 
-	m.mockUpdateUser = func(ctx context.Context, user types.User) error {
-		return nil
+	m.mockUpdateUser = func(ctx context.Context, user types.User) (types.User, error) {
+		return user, nil
 	}
 
-	m.mockGetUsers = func(withSecrets bool) ([]types.User, error) {
+	m.mockGetUsers = func(ctx context.Context, withSecrets bool) ([]types.User, error) {
 		u, err := types.NewUser("testname")
 		return []types.User{u}, err
 	}
@@ -104,7 +104,7 @@ func TestCRUDs(t *testing.T) {
 	require.Contains(t, user.Roles, "newrole")
 
 	// test list
-	users, err := getUsers(m)
+	users, err := getUsers(context.Background(), m)
 	require.Nil(t, err)
 	require.Len(t, users, 1)
 	require.Equal(t, "testname", users[0].Name)
@@ -235,11 +235,11 @@ func TestUpdateUser_setTraits(t *testing.T) {
 			user.SetLogins(defaultLogins)
 
 			m := &mockedUserAPIGetter{}
-			m.mockGetUser = func(name string, withSecrets bool) (types.User, error) {
+			m.mockGetUser = func(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 				return user, nil
 			}
-			m.mockUpdateUser = func(ctx context.Context, user types.User) error {
-				return nil
+			m.mockUpdateUser = func(ctx context.Context, user types.User) (types.User, error) {
+				return user, nil
 			}
 
 			_, err = updateUser(newRequest(t, tt.updateReq), m, "")
@@ -252,7 +252,7 @@ func TestUpdateUser_setTraits(t *testing.T) {
 			require.ElementsMatch(t, user.GetRoles(), defaultRoles)
 
 			// We can read back the user traits
-			uiUser, err := getUser(tt.name, m)
+			uiUser, err := getUser(context.Background(), tt.name, m)
 			require.NoError(t, err)
 
 			require.ElementsMatch(t, uiUser.Traits.Logins, tt.expectedTraits[constants.TraitLogins])
@@ -268,19 +268,19 @@ func TestUpdateUser_setTraits(t *testing.T) {
 
 func TestCRUDErrors(t *testing.T) {
 	m := &mockedUserAPIGetter{}
-	m.mockCreateUser = func(ctx context.Context, user types.User) error {
-		return trace.AlreadyExists("")
+	m.mockCreateUser = func(ctx context.Context, user types.User) (types.User, error) {
+		return nil, trace.AlreadyExists("")
 	}
 
-	m.mockGetUser = func(name string, withSecrets bool) (types.User, error) {
+	m.mockGetUser = func(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 		return nil, trace.NotFound("")
 	}
 
-	m.mockUpdateUser = func(ctx context.Context, user types.User) error {
-		return trace.NotFound("")
+	m.mockUpdateUser = func(ctx context.Context, user types.User) (types.User, error) {
+		return nil, trace.NotFound("")
 	}
 
-	m.mockGetUsers = func(withSecrets bool) ([]types.User, error) {
+	m.mockGetUsers = func(ctx context.Context, withSecrets bool) ([]types.User, error) {
 		return nil, trace.AccessDenied("")
 	}
 
@@ -304,7 +304,7 @@ func TestCRUDErrors(t *testing.T) {
 	require.True(t, trace.IsAlreadyExists(err))
 	require.Nil(t, user)
 
-	users, err := getUsers(m)
+	users, err := getUsers(context.Background(), m)
 	require.True(t, trace.IsAccessDenied(err))
 	require.Nil(t, users)
 
@@ -338,37 +338,37 @@ func newRequest(t *testing.T, body interface{}) *http.Request {
 }
 
 type mockedUserAPIGetter struct {
-	mockGetUser    func(name string, withSecrets bool) (types.User, error)
-	mockCreateUser func(ctx context.Context, user types.User) error
-	mockUpdateUser func(ctx context.Context, user types.User) error
-	mockGetUsers   func(withSecrets bool) ([]types.User, error)
+	mockGetUser    func(ctx context.Context, name string, withSecrets bool) (types.User, error)
+	mockCreateUser func(ctx context.Context, user types.User) (types.User, error)
+	mockUpdateUser func(ctx context.Context, user types.User) (types.User, error)
+	mockGetUsers   func(ctx context.Context, withSecrets bool) ([]types.User, error)
 	mockDeleteUser func(ctx context.Context, user string) error
 }
 
-func (m *mockedUserAPIGetter) GetUser(name string, withSecrets bool) (types.User, error) {
+func (m *mockedUserAPIGetter) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	if m.mockGetUser != nil {
-		return m.mockGetUser(name, withSecrets)
+		return m.mockGetUser(ctx, name, withSecrets)
 	}
 	return nil, trace.NotImplemented("mockGetUser not implemented")
 }
 
-func (m *mockedUserAPIGetter) CreateUser(ctx context.Context, user types.User) error {
+func (m *mockedUserAPIGetter) CreateUser(ctx context.Context, user types.User) (types.User, error) {
 	if m.mockCreateUser != nil {
 		return m.mockCreateUser(ctx, user)
 	}
-	return trace.NotImplemented("mockCreateUser not implemented")
+	return nil, trace.NotImplemented("mockCreateUser not implemented")
 }
 
-func (m *mockedUserAPIGetter) UpdateUser(ctx context.Context, user types.User) error {
+func (m *mockedUserAPIGetter) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	if m.mockUpdateUser != nil {
 		return m.mockUpdateUser(ctx, user)
 	}
-	return trace.NotImplemented("mockUpdateUser not implemented")
+	return nil, trace.NotImplemented("mockUpdateUser not implemented")
 }
 
-func (m *mockedUserAPIGetter) GetUsers(withSecrets bool) ([]types.User, error) {
+func (m *mockedUserAPIGetter) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	if m.mockGetUsers != nil {
-		return m.mockGetUsers(withSecrets)
+		return m.mockGetUsers(ctx, withSecrets)
 	}
 	return nil, trace.NotImplemented("mockGetUsers not implemented")
 }

@@ -180,6 +180,9 @@ func (s *AppServerV3) SetRotation(r Rotation) {
 
 // GetApp returns the app this app server proxies.
 func (s *AppServerV3) GetApp() Application {
+	if s.Spec.App == nil {
+		return nil
+	}
 	return s.Spec.App
 }
 

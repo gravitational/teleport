@@ -38,8 +38,9 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/backend"
@@ -92,9 +93,9 @@ type testPack struct {
 	userGroups              services.UserGroups
 	okta                    services.Okta
 	integrations            services.Integrations
-	accessLists             services.AccessLists
+	discoveryConfigs        services.DiscoveryConfigs
 	userLoginStates         services.UserLoginStates
-	accessListMembers       services.AccessListMembers
+	secReports              services.SecReports
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -246,18 +247,23 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.integrations = igSvc
 
-	alSvc, err := local.NewAccessListService(p.backend, p.backend.Clock())
+	dcSvc, err := local.NewDiscoveryConfigService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	p.accessLists = alSvc
-	p.accessListMembers = alSvc
+	p.discoveryConfigs = dcSvc
 
 	ulsSvc, err := local.NewUserLoginStateService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	p.userLoginStates = ulsSvc
+
+	secReportsSvc, err := local.NewSecReportsService(p.backend, p.backend.Clock())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.secReports = secReportsSvc
 
 	return p, nil
 }
@@ -296,8 +302,9 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
-		AccessLists:             p.accessLists,
+		DiscoveryConfigs:        p.discoveryConfigs,
 		UserLoginStates:         p.userLoginStates,
+		SecReports:              p.secReports,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -336,8 +343,7 @@ func TestCA(t *testing.T) {
 
 	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
-	ca.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(ca, out))
+	require.Empty(t, cmp.Diff(ca, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = p.trustS.DeleteCertAuthority(ctx, ca.GetID())
 	require.NoError(t, err)
@@ -693,8 +699,9 @@ func TestCompletenessInit(t *testing.T) {
 			UserGroups:              p.userGroups,
 			Okta:                    p.okta,
 			Integrations:            p.integrations,
-			AccessLists:             p.accessLists,
+			DiscoveryConfigs:        p.discoveryConfigs,
 			UserLoginStates:         p.userLoginStates,
+			SecReports:              p.secReports,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -763,8 +770,9 @@ func TestCompletenessReset(t *testing.T) {
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
-		AccessLists:             p.accessLists,
+		DiscoveryConfigs:        p.discoveryConfigs,
 		UserLoginStates:         p.userLoginStates,
+		SecReports:              p.secReports,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -945,8 +953,9 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
-		AccessLists:             p.accessLists,
+		DiscoveryConfigs:        p.discoveryConfigs,
 		UserLoginStates:         p.userLoginStates,
+		SecReports:              p.secReports,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1026,8 +1035,9 @@ func initStrategy(t *testing.T) {
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
-		AccessLists:             p.accessLists,
+		DiscoveryConfigs:        p.discoveryConfigs,
 		UserLoginStates:         p.userLoginStates,
+		SecReports:              p.secReports,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1048,7 +1058,6 @@ func initStrategy(t *testing.T) {
 
 	normalizeCA := func(ca types.CertAuthority) types.CertAuthority {
 		ca = ca.Clone()
-		ca.SetResourceID(0)
 		ca.SetExpiry(time.Time{})
 		types.RemoveCASecrets(ca)
 		return ca
@@ -1057,7 +1066,7 @@ func initStrategy(t *testing.T) {
 
 	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
+	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// fail again, make sure last recent data is still served
 	// on errors
@@ -1072,7 +1081,7 @@ func initStrategy(t *testing.T) {
 	out2, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
 	require.Equal(t, out.GetResourceID(), out2.GetResourceID())
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
+	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// add modification and expect the resource to recover
 	ca.SetRoleMap(types.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
@@ -1089,7 +1098,7 @@ func initStrategy(t *testing.T) {
 	// new value is available now
 	out, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
+	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 // TestRecovery tests error recovery scenario
@@ -1132,9 +1141,8 @@ func TestRecovery(t *testing.T) {
 
 	out, err := p.cache.GetCertAuthority(context.Background(), ca2.GetID(), false)
 	require.NoError(t, err)
-	ca2.SetResourceID(out.GetResourceID())
 	types.RemoveCASecrets(ca2)
-	require.Empty(t, cmp.Diff(ca2, out))
+	require.Empty(t, cmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 // TestTokens tests static and dynamic tokens
@@ -1168,8 +1176,7 @@ func TestTokens(t *testing.T) {
 
 	out, err := p.cache.GetStaticTokens()
 	require.NoError(t, err)
-	staticTokens.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(staticTokens, out))
+	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	expires := time.Now().Add(10 * time.Hour).Truncate(time.Second).UTC()
 	token, err := types.NewProvisionToken("token", types.SystemRoles{types.RoleAuth, types.RoleNode}, expires)
@@ -1187,8 +1194,7 @@ func TestTokens(t *testing.T) {
 
 	tout, err := p.cache.GetToken(ctx, token.GetName())
 	require.NoError(t, err)
-	token.SetResourceID(tout.GetResourceID())
-	require.Empty(t, cmp.Diff(token, tout))
+	require.Empty(t, cmp.Diff(token, tout, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = p.provisionerS.DeleteToken(ctx, token.GetName())
 	require.NoError(t, err)
@@ -1230,8 +1236,7 @@ func TestAuthPreference(t *testing.T) {
 	outAuthPref, err := p.cache.GetAuthPreference(ctx)
 	require.NoError(t, err)
 
-	authPref.SetResourceID(outAuthPref.GetResourceID())
-	require.Empty(t, cmp.Diff(outAuthPref, authPref))
+	require.Empty(t, cmp.Diff(outAuthPref, authPref, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestClusterNetworkingConfig(t *testing.T) {
@@ -1260,8 +1265,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 	outNetConfig, err := p.cache.GetClusterNetworkingConfig(ctx)
 	require.NoError(t, err)
 
-	netConfig.SetResourceID(outNetConfig.GetResourceID())
-	require.Empty(t, cmp.Diff(outNetConfig, netConfig))
+	require.Empty(t, cmp.Diff(outNetConfig, netConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestSessionRecordingConfig(t *testing.T) {
@@ -1290,8 +1294,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 	outRecConfig, err := p.cache.GetSessionRecordingConfig(ctx)
 	require.NoError(t, err)
 
-	recConfig.SetResourceID(outRecConfig.GetResourceID())
-	require.Empty(t, cmp.Diff(outRecConfig, recConfig))
+	require.Empty(t, cmp.Diff(outRecConfig, recConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestClusterAuditConfig(t *testing.T) {
@@ -1319,8 +1322,7 @@ func TestClusterAuditConfig(t *testing.T) {
 	outAuditConfig, err := p.cache.GetClusterAuditConfig(ctx)
 	require.NoError(t, err)
 
-	auditConfig.SetResourceID(outAuditConfig.GetResourceID())
-	require.Empty(t, cmp.Diff(outAuditConfig, auditConfig))
+	require.Empty(t, cmp.Diff(outAuditConfig, auditConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestClusterName(t *testing.T) {
@@ -1347,8 +1349,7 @@ func TestClusterName(t *testing.T) {
 	outName, err := p.cache.GetClusterName()
 	require.NoError(t, err)
 
-	clusterName.SetResourceID(outName.GetResourceID())
-	require.Empty(t, cmp.Diff(outName, clusterName))
+	require.Empty(t, cmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 // TestNamespaces tests caching of namespaces
@@ -1376,8 +1377,7 @@ func TestNamespaces(t *testing.T) {
 
 	out, err := p.cache.GetNamespace(ns.GetName())
 	require.NoError(t, err)
-	ns.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(ns, out))
+	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// update namespace metadata
 	ns.Metadata.Labels = map[string]string{"a": "b"}
@@ -1397,8 +1397,7 @@ func TestNamespaces(t *testing.T) {
 
 	out, err = p.cache.GetNamespace(ns.GetName())
 	require.NoError(t, err)
-	ns.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(ns, out))
+	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = p.presenceS.DeleteNamespace(ns.GetName())
 	require.NoError(t, err)
@@ -1424,16 +1423,22 @@ func TestUsers(t *testing.T) {
 		newResource: func(name string) (types.User, error) {
 			return types.NewUser("bob")
 		},
-		create: modifyNoContext(p.usersS.UpsertUser),
+		create: func(ctx context.Context, user types.User) error {
+			_, err := p.usersS.UpsertUser(ctx, user)
+			return err
+		},
 		list: func(ctx context.Context) ([]types.User, error) {
-			return p.usersS.GetUsers(false)
+			return p.usersS.GetUsers(ctx, false)
 		},
 		cacheList: func(ctx context.Context) ([]types.User, error) {
-			return p.cache.GetUsers(false)
+			return p.cache.GetUsers(ctx, false)
 		},
-		update: modifyNoContext(p.usersS.UpsertUser),
-		deleteAll: func(_ context.Context) error {
-			return p.usersS.DeleteAllUsers()
+		update: func(ctx context.Context, user types.User) error {
+			_, err := p.usersS.UpdateUser(ctx, user)
+			return err
+		},
+		deleteAll: func(ctx context.Context) error {
+			return p.usersS.DeleteAllUsers(ctx)
 		},
 	})
 }
@@ -2096,30 +2101,123 @@ func TestIntegrations(t *testing.T) {
 	})
 }
 
-// TestAccessLists tests that CRUD operations on access list resources are
+// TestDiscoveryConfig tests that CRUD operations on DiscoveryConfig resources are
 // replicated from the backend to the cache.
-func TestAccessLists(t *testing.T) {
+func TestDiscoveryConfig(t *testing.T) {
 	t.Parallel()
 
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources(t, p, testFuncs[*accesslist.AccessList]{
-		newResource: func(name string) (*accesslist.AccessList, error) {
-			return newAccessList(t, name), nil
+	testResources(t, p, testFuncs[*discoveryconfig.DiscoveryConfig]{
+		newResource: func(name string) (*discoveryconfig.DiscoveryConfig, error) {
+			dc, err := discoveryconfig.NewDiscoveryConfig(
+				header.Metadata{Name: "mydc"},
+				discoveryconfig.Spec{
+					DiscoveryGroup: "group001",
+				})
+			require.NoError(t, err)
+			return dc, nil
 		},
-		create: func(ctx context.Context, accessList *accesslist.AccessList) error {
-			_, err := p.accessLists.UpsertAccessList(ctx, accessList)
+		create: func(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) error {
+			_, err := p.discoveryConfigs.CreateDiscoveryConfig(ctx, discoveryConfig)
 			return trace.Wrap(err)
 		},
-		list:      p.accessLists.GetAccessLists,
-		cacheGet:  p.cache.GetAccessList,
-		cacheList: p.cache.GetAccessLists,
-		update: func(ctx context.Context, accessList *accesslist.AccessList) error {
-			_, err := p.accessLists.UpsertAccessList(ctx, accessList)
+		list: func(ctx context.Context) ([]*discoveryconfig.DiscoveryConfig, error) {
+			results, _, err := p.discoveryConfigs.ListDiscoveryConfigs(ctx, 0, "")
+			return results, err
+		},
+		cacheGet: p.cache.GetDiscoveryConfig,
+		cacheList: func(ctx context.Context) ([]*discoveryconfig.DiscoveryConfig, error) {
+			results, _, err := p.cache.ListDiscoveryConfigs(ctx, 0, "")
+			return results, err
+		},
+		update: func(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) error {
+			_, err := p.discoveryConfigs.UpdateDiscoveryConfig(ctx, discoveryConfig)
 			return trace.Wrap(err)
 		},
-		deleteAll: p.accessLists.DeleteAllAccessLists,
+		deleteAll: p.discoveryConfigs.DeleteAllDiscoveryConfigs,
+	})
+}
+
+// TestAccessListRules tests that CRUD operations on access list rule resources are
+// replicated from the backend to the cache.
+func TestAuditQuery(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[*secreports.AuditQuery]{
+		newResource: func(name string) (*secreports.AuditQuery, error) {
+			return newAuditQuery(t, name), nil
+		},
+		create: func(ctx context.Context, item *secreports.AuditQuery) error {
+			err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
+			return trace.Wrap(err)
+		},
+		list:      p.secReports.GetSecurityAuditQueries,
+		cacheGet:  p.cache.GetSecurityAuditQuery,
+		cacheList: p.cache.GetSecurityAuditQueries,
+		update: func(ctx context.Context, item *secreports.AuditQuery) error {
+			err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.secReports.DeleteAllSecurityAuditQueries,
+	})
+}
+
+// TestSecurityReportState tests that CRUD operations on security report state resources are
+// replicated from the backend to the cache.
+func TestSecurityReports(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[*secreports.Report]{
+		newResource: func(name string) (*secreports.Report, error) {
+			return newSecurityReport(t, name), nil
+		},
+		create: func(ctx context.Context, item *secreports.Report) error {
+			err := p.secReports.UpsertSecurityReport(ctx, item)
+			return trace.Wrap(err)
+		},
+		list:      p.secReports.GetSecurityReports,
+		cacheGet:  p.cache.GetSecurityReport,
+		cacheList: p.cache.GetSecurityReports,
+		update: func(ctx context.Context, item *secreports.Report) error {
+			err := p.secReports.UpsertSecurityReport(ctx, item)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.secReports.DeleteAllSecurityReports,
+	})
+}
+
+// TestSecurityReportState tests that CRUD operations on security report state resources are
+// replicated from the backend to the cache.
+func TestSecurityReportState(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[*secreports.ReportState]{
+		newResource: func(name string) (*secreports.ReportState, error) {
+			return newSecurityReportState(t, name), nil
+		},
+		create: func(ctx context.Context, item *secreports.ReportState) error {
+			err := p.secReports.UpsertSecurityReportsState(ctx, item)
+			return trace.Wrap(err)
+		},
+		list:      p.secReports.GetSecurityReportsStates,
+		cacheGet:  p.cache.GetSecurityReportState,
+		cacheList: p.cache.GetSecurityReportsStates,
+		update: func(ctx context.Context, item *secreports.ReportState) error {
+			err := p.secReports.UpsertSecurityReportsState(ctx, item)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.secReports.DeleteAllSecurityReportsStates,
 	})
 }
 
@@ -2150,47 +2248,6 @@ func TestUserLoginStates(t *testing.T) {
 	})
 }
 
-// TestAccessListMembers tests that CRUD operations on access list members resources are
-// replicated from the backend to the cache.
-func TestAccessListMembers(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	const accessListName = "test-access-list"
-
-	p.accessLists.UpsertAccessList(context.Background(), newAccessList(t, accessListName))
-
-	testResources(t, p, testFuncs[*accesslist.AccessListMember]{
-		newResource: func(name string) (*accesslist.AccessListMember, error) {
-			return newAccessListMember(t, accessListName, name), nil
-		},
-		create: func(ctx context.Context, member *accesslist.AccessListMember) error {
-			_, err := p.accessListMembers.UpsertAccessListMember(ctx, member)
-			return trace.Wrap(err)
-		},
-		list: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
-			members, _, err := p.accessListMembers.ListAccessListMembers(ctx, accessListName, 0, "")
-			return members, trace.Wrap(err)
-		},
-		cacheGet: func(ctx context.Context, memberName string) (*accesslist.AccessListMember, error) {
-			return p.cache.GetAccessListMember(ctx, accessListName, memberName)
-		},
-		cacheList: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
-			members, _, err := p.cache.ListAccessListMembers(ctx, accessListName, 0, "")
-			return members, trace.Wrap(err)
-		},
-		update: func(ctx context.Context, member *accesslist.AccessListMember) error {
-			_, err := p.accessListMembers.UpsertAccessListMember(ctx, member)
-			return trace.Wrap(err)
-		},
-		deleteAll: func(ctx context.Context) error {
-			return trace.Wrap(p.accessListMembers.DeleteAllAccessListMembersForAccessList(ctx, accessListName))
-		},
-	})
-}
-
 // testResources is a generic tester for resources.
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
@@ -2204,8 +2261,8 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	require.NoError(t, err)
 
 	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
-		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 	}
 
 	// Check that the resource is now in the backend.
@@ -2641,10 +2698,12 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindOktaImportRule:          &types.OktaImportRuleV1{},
 		types.KindOktaAssignment:          &types.OktaAssignmentV1{},
 		types.KindIntegration:             &types.IntegrationV1{},
+		types.KindDiscoveryConfig:         newDiscoveryConfig(t, "discovery-config"),
 		types.KindHeadlessAuthentication:  &types.HeadlessAuthentication{},
-		types.KindAccessList:              newAccessList(t, "access-list"),
 		types.KindUserLoginState:          newUserLoginState(t, "user-login-state"),
-		types.KindAccessListMember:        newAccessListMember(t, "access-list", "member"),
+		types.KindAuditQuery:              newAuditQuery(t, "audit-query"),
+		types.KindSecurityReport:          newSecurityReport(t, "security-report"),
+		types.KindSecurityReportState:     newSecurityReport(t, "security-report-state"),
 	}
 
 	for name, cfg := range cases {
@@ -2685,7 +2744,8 @@ func TestPartialHealth(t *testing.T) {
 
 	user, err := types.NewUser("bob")
 	require.NoError(t, err)
-	require.NoError(t, p.usersS.UpsertUser(user))
+	user, err = p.usersS.UpsertUser(ctx, user)
+	require.NoError(t, err)
 	select {
 	case event := <-p.eventsC:
 		require.Equal(t, EventProcessed, event.Type)
@@ -2695,7 +2755,7 @@ func TestPartialHealth(t *testing.T) {
 	}
 
 	// make sure that the user resource works as normal and gets replicated to cache
-	replicatedUsers, err := p.cache.GetUsers(false)
+	replicatedUsers, err := p.cache.GetUsers(ctx, false)
 	require.NoError(t, err)
 	require.Len(t, replicatedUsers, 1)
 
@@ -2703,10 +2763,11 @@ func TestPartialHealth(t *testing.T) {
 	meta := user.GetMetadata()
 	meta.Labels = map[string]string{"origin": "cache"}
 	user.SetMetadata(meta)
-	require.NoError(t, p.cache.usersCache.UpsertUser(user))
+	_, err = p.cache.usersCache.UpsertUser(ctx, user)
+	require.NoError(t, err)
 
 	// the label on the returned user proves that it came from the cache
-	resultUser, err := p.cache.GetUser("bob", false)
+	resultUser, err := p.cache.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, "cache", resultUser.GetMetadata().Labels["origin"])
 
@@ -2845,54 +2906,79 @@ func TestInvalidDatabases(t *testing.T) {
 	}
 }
 
-func newAccessList(t *testing.T, name string) *accesslist.AccessList {
+func newDiscoveryConfig(t *testing.T, name string) *discoveryconfig.DiscoveryConfig {
 	t.Helper()
 
-	accessList, err := accesslist.NewAccessList(
+	discoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
 		header.Metadata{
 			Name: name,
 		},
-		accesslist.Spec{
-			Title:       "title",
-			Description: "test access list",
-			Owners: []accesslist.Owner{
-				{
-					Name:        "test-user1",
-					Description: "test user 1",
-				},
-				{
-					Name:        "test-user2",
-					Description: "test user 2",
-				},
-			},
-			Audit: accesslist.Audit{
-				Frequency: time.Hour,
-			},
-			MembershipRequires: accesslist.Requires{
-				Roles: []string{"mrole1", "mrole2"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1", "mvalue2"},
-					"mtrait2": {"mvalue3", "mvalue4"},
-				},
-			},
-			OwnershipRequires: accesslist.Requires{
-				Roles: []string{"orole1", "orole2"},
-				Traits: map[string][]string{
-					"otrait1": {"ovalue1", "ovalue2"},
-					"otrait2": {"ovalue3", "ovalue4"},
-				},
-			},
-			Grants: accesslist.Grants{
-				Roles: []string{"grole1", "grole2"},
-				Traits: map[string][]string{
-					"gtrait1": {"gvalue1", "gvalue2"},
-					"gtrait2": {"gvalue3", "gvalue4"},
-				},
-			},
+		discoveryconfig.Spec{
+			DiscoveryGroup: "mygroup",
+			AWS:            []types.AWSMatcher{},
+			Azure:          []types.AzureMatcher{},
+			GCP:            []types.GCPMatcher{},
+			Kube:           []types.KubernetesMatcher{},
 		},
 	)
 	require.NoError(t, err)
-	return accessList
+	return discoveryConfig
+}
+func newAuditQuery(t *testing.T, name string) *secreports.AuditQuery {
+	t.Helper()
+
+	item, err := secreports.NewAuditQuery(
+		header.Metadata{
+			Name: name,
+		},
+		secreports.AuditQuerySpec{
+			Name:        name,
+			Title:       "title",
+			Description: "desc",
+			Query:       "query",
+		},
+	)
+	require.NoError(t, err)
+	return item
+}
+
+func newSecurityReport(t *testing.T, name string) *secreports.Report {
+	t.Helper()
+	item, err := secreports.NewReport(
+		header.Metadata{
+			Name: name,
+		},
+		secreports.ReportSpec{
+			Name:  name,
+			Title: "title",
+			AuditQueries: []*secreports.AuditQuerySpec{
+				{
+					Name:        "name",
+					Title:       "title",
+					Description: "desc",
+					Query:       "query",
+				},
+			},
+			Version: "0.0.0",
+		},
+	)
+	require.NoError(t, err)
+	return item
+}
+
+func newSecurityReportState(t *testing.T, name string) *secreports.ReportState {
+	t.Helper()
+	item, err := secreports.NewReportState(
+		header.Metadata{
+			Name: name,
+		},
+		secreports.ReportStateSpec{
+			Status:    "RUNNING",
+			UpdatedAt: time.Now().UTC(),
+		},
+	)
+	require.NoError(t, err)
+	return item
 }
 
 func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState {
@@ -2912,26 +2998,6 @@ func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState
 	)
 	require.NoError(t, err)
 	return uls
-}
-
-func newAccessListMember(t *testing.T, accessListName, memberName string) *accesslist.AccessListMember {
-	t.Helper()
-
-	member, err := accesslist.NewAccessListMember(
-		header.Metadata{
-			Name: memberName,
-		},
-		accesslist.AccessListMemberSpec{
-			AccessList: accessListName,
-			Name:       memberName,
-			Joined:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-			Expires:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-			Reason:     "because",
-			AddedBy:    "test-user1",
-		},
-	)
-	require.NoError(t, err)
-	return member
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
