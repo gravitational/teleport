@@ -58,9 +58,10 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		// SSO) if desired, but we currently only care about connector type /
 		// method
 		return &UserLoginEvent{
-			UserName:      e.User,
-			ConnectorType: e.Method,
-			DeviceId:      deviceID,
+			UserName:                 e.User,
+			ConnectorType:            e.Method,
+			DeviceId:                 deviceID,
+			RequiredPrivateKeyPolicy: e.RequiredPrivateKeyPolicy,
 		}
 
 	case *apievents.SessionStart:
