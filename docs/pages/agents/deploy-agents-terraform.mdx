@@ -128,13 +128,33 @@ generates tokens for the following Teleport services:
 
 Each EC2 instance runs a script on startup, which we configured above using the
 `user_data` field within the `aws_instance.teleport_agent` resource
-(`examples/agent-pool-terraform/userdata`):
+(`examples/agent-pool-terraform/userdata`). 
 
+Depending on whether you assign the `is_community` input variable to `true` or
+`false`, the Terraform module loads a user data script for either Teleport
+Community Edition or a commercial edition of Teleport (Team, Enterprise, or
+Enterprise Cloud):
+
+<Tabs>
+<TabItem label="Teleport Community Edition">
 ```text
 (!examples/agent-pool-terraform/userdata!)
 ```
+</TabItem>
+<TabItem label="Commercial Editions of Teleport">
+```text
+(!examples/agent-pool-terraform/userdata-ent!)
+```
+</TabItem>
+</Tabs>
 
-This script installs Teleport Community Edition on the host, then writes a
+The user data script, like the Terraform configuration file, assumes that you
+are deploying your Teleport agents on EC2 instances running Amazon Linux 2023.
+If your virtual machines are running another operating system, you will need to
+change the installation script according to the instructions in the
+[Installation](../../installation.mdx) page.
+
+This script installs the `teleport` binary on the host, then writes a
 configuration file to the default location, `/etc/teleport.yaml`. The
 configuration file enables each Teleport service we associated with our token.
 
@@ -157,13 +177,32 @@ The Terraform configuration we show in this guide relies on the following inputs
 In your `agent-pool-terraform` project directory, create a file called
 `main.auto.tfvars` with the following content:
 
+<Tabs>
+<TabItem label="Teleport Community Edition">
 ```hcl
 agent_count=2
-proxy_service_address="mytenant.teleport.sh"
+is_community=true
+proxy_service_address="mytenant.teleport.sh:443"
 aws_region=""
 teleport_version=(=teleport.version=)
 subnet_id=""
 ```
+</TabItem>
+<TabItem label="Commercial Editions of Teleport">
+
+```hcl
+agent_count=2
+proxy_service_address="mytenant.teleport.sh:443"
+aws_region=""
+teleport_version=(=teleport.major_version=)
+subnet_id=""
+```
+
+For commercial editions, the startup script requires only the major version of
+Teleport.
+
+</TabItem>
+</Tabs>
 
 Assign `agent_count` to `2` for high availability. As you scale your Teleport
 usage, you can increase this count to ease the load on each agent. You can
@@ -209,7 +248,8 @@ $ terraform apply
 ```
 
 Once the `apply` command completes, run the following command to verify that the
-two agents have deployed successfully:
+two agents have deployed successfully (it may take a few minutes for the EC2
+instances to launch and run the installation script):
 
 ```code
 $ tsh ls role=agent-pool
