@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.4.23 (10/18/23)
+
+* Web SSH sessions are terminated right away when a user closes the tab. [#33535](https://github.com/gravitational/teleport/pull/33535)
+* Added support for Windows AD root domain for PKI operations. [#33395](https://github.com/gravitational/teleport/pull/33395)
+
 ## 12.4.22 (10/11/23)
 
 ### Security Fixes
