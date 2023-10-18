@@ -22,7 +22,7 @@ Usually, this means that the Smart Card service is not running on the target
 host.
 
 First, make sure that you [enable the Smart Card service in Group
-Policy](./active-directory-manual.mdx#enable-the-smart-card-service).
+Policy](./active-directory-manual.mdx#enable-smart-card-authentication).
 
 If that doesn't help, log into the target host directly, open the "Services"
 program from the "Start" menu and check that the "Smart Card" service is in the
@@ -34,14 +34,16 @@ service changes.
 
 ### Smart card not supported for Account
 
-You connect to a Windows host and get the error message: **"Signing in with a smart card isn't supported for your account."**
-or similar.
+You connect to a Windows host and get the error message: **"Signing in with a smart card 
+isn't supported for your account."** or similar.
 
 **Solution:** Review the Security-Kerberos Log on the Windows host for causes.
 
-The Security-Kerberos Windows Event Log will provide information on Smart Card-based authentication attempts. This is available
-at `Event Viewer->Application and Services Logs->Microsoft->Windows->Security-Kerberos->Operational` in the Windows Event Log. By default this
-log is not enabled. Enable and attempt to connect with Teleport UI to review log entries.
+The Security-Kerberos Windows Event Log provides information on smart card-based 
+authentication attempts. This Event Log is not enabled by default.
+Open the Windows Event Log and navigate to Event Viewer, Application and Services Logs, 
+Microsoft, Windows, Security-Kerberos, Operational. Enable this Event Log and attempt 
+to connect with Teleport Web UI to review log entries.
 
 ### Smart card certificate not trusted
 
@@ -54,16 +56,17 @@ authentication was not trusted"** (or similar).
 This means that the host does not trust the Teleport CA.
 
 First, make sure that you [import the Teleport CA into Group
-Policy](./active-directory-manual.mdx#create-another-gpo-and-import-the-teleport-ca). Note that if the
-Teleport CA was rotated since the last import, you will have to fetch the
-new CA using the following command, assigning <Var name="proxy" /> to the address of your Teleport Proxy Service:
+Policy](./active-directory-manual.mdx#create-the-GPO-for-the-Teleport-certificate). 
+Note that if you have rotated the Teleport CA since the last import, you need to 
+fetch the new CA using the following command, replacing <Var name="teleport.example.com" /> 
+with the address of your Teleport cluster:
 
 ```code
-$ curl -o user-ca.cer https://<Var name="proxy"/>/webapi/auth/export?type=windows
+$ curl -o user-ca.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
 ```
 
 If that doesn't help, log into the target host directly, open PowerShell and
-run `gpupdate.exe /force`. This forces a Group Policy sync and should pick up
+run `gpupdate.exe /force`. This forces a Group Policy update and should pick up
 the new CA.
 
 ### Smart card PIN not detected
@@ -77,35 +80,35 @@ Teleport provides this PIN to the desktop during the RDP connection phase.
 If your group policy prevents the desktop from seeing this PIN, the user will
 remain at the login screen even though the smart card was detected.
 
-**Solution:** ensure that group policy allows specifying credentials during
- RDP connection establishment. This setting can be found under:
+**Solution:** Ensure that group policy allows specifying credentials during
+ RDP connection establishment. 
+ 
+Expand Computer Configuration, Administrative Templates, Windows Components,
+Remote Desktop Services, and Remote Desktop Session Host.
 
- ```text
- Computer Configuration > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
- ```
+Under Remote Desktop Session Host, select **Security**.
 
- Right click `Always prompt for password upon connection` and select **Disabled**.
+Right-click **Always prompt for password upon connection**, select **Edit**, 
+select **Disabled**, then click **OK**.
 
- Note: despite mention of passwords in the name of this policy, no passwords are sent
- on the wire. This mechanism is used only to send the smart card PIN.
+Note: despite mention of passwords in the name of this policy, no passwords are 
+sent on the wire. This mechanism is used only to send the smart card PIN.
 
 ## New session "hangs"
 
 ### Host unreachable
 
-You click `CONNECT` on a Windows host from the Teleport UI, and a new tab opens, but
-nothing is displayed other than the top bar. After a while, an error is
-displayed about a failed connection.
+You click **Connect** on a Windows host from the Teleport Web UI, and a new tab opens, but
+nothing is displayed other than the top bar. After a while, an error is displayed about a 
+failed connection.
+In most case, this error occurs when the `windows_desktop_service` can't reach the target 
+Windows host.
 
-**Solution:** Open Firewall for RDP Traffic
+**Solution:** Modify firewall rules to allow inbound RDP traffic
 
-This happens when the `windows_desktop_service` can't reach the target Windows
-host.
-
-First, make sure that you [open the RDP
-port](./active-directory-manual.mdx#open-firewall-to-inbound-rdp-connections) and [allow
-remote RDP connections in Group
-Policy](./active-directory-manual.mdx#allow-remote-rdp-connections).
+First, make sure that you open the RDP port and [allow remote desktop 
+connections](./active-directory-manual.mdx#allow-remote-desktop-connections) 
+in the group policy object you have configured for Teleport connections.
 
 If that does not help, check if the target host is online and try to `ping` it
 from the Linux server that runs `windows_desktop_service`. If the host is
@@ -130,7 +133,7 @@ instance(s) running Teleport's Windows Desktop Service to the LDAP server
 
 ### RDP connection failed
 
-You click `CONNECT` on a Windows host from the Teleport UI, a new tab opens but
+You click **Connect** on a Windows host from the Teleport Web UI, a new tab opens but
 nothing is displayed other than the top bar. You see an error that refers to a
 failed RDP connection. You may also see errors similar to:
 
@@ -143,7 +146,8 @@ Rdp(Io(Os { code: 54, kind: ConnectionReset, message: "Connection reset by peer"
 This means that the desktop does not support secure cipher suites for TLS
 connections.
 
-Make sure that you [configure a certificate for RDP connections](./active-directory-manual.mdx#step-47-configure-a-certificate-for-rdp-connections).
+Make sure that you [configure a certificate for RDP 
+connections](./active-directory-manual.mdx#step-47-configure-a-certificate-for-rdp-connections).
 
 ## Teleport fails to start
 
@@ -172,9 +176,9 @@ LDAP Result Code 200 "Network Error": dial tcp ad.example.com:389: i/o timeout
 
 **Solution:** Check LDAP Address
 
-This means that your Domain Controller is down or unreachable. Double-check the
+This means that your domain controller is down or unreachable. Double-check the
 `addr` field in the `ldap` section of `windows_desktop_service`. If it's
-correct, check that the Domain Controller is up and reachable from the server
+correct, check that the domain controller is up and reachable from the server
 that runs `windows_desktop_service`.
 
 ### Cannot initialize LDAP over TLS
@@ -290,16 +294,17 @@ Attempts to connect to a desktop fail, and the logs show an error similar to:
 Error during negotiation step: the server requires that the client support enhanced RDP security with CredSSP
 ```
 
-**Solution:** Disable NLA
+**Solution:** Disable Network Level Authentication (NLA)
 
 This means that the RDP server is requiring Network Level Authentication (NLA).
 Teleport currently requires that NLA is disabled in order to perform its
 certificate-based passwordless login.
 
-To disable NLA, follow the instructions in our
-[Desktop Access Manual Setup](./active-directory-manual.mdx#allow-remote-rdp-connections).
+To disable NLA, follow the instructions to [allow remote
+desktop connections](./active-directory-manual.mdx#allow-remote-desktop-connections) 
+in the group policy object you have configured for Teleport connections.
 If you are still encountering this error after disabling NLA in Active Directory,
-run the following command from the Windows Desktop command prompt as an administrator
+run the following command from the Windows Command prompt as an administrator
 to force the policy update:
 
 ```code
