@@ -134,7 +134,10 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Lock} text="Lock" />
     <IconBox IconCmpt={Icon.Logout} text="Logout" />
     <IconBox IconCmpt={Icon.Magnifier} text="Magnifier" />
+    <IconBox IconCmpt={Icon.MagnifyingMinus} text="MagnifyingMinus" />
+    <IconBox IconCmpt={Icon.MagnifyingPlus} text="MagnifyingPlus" />
     <IconBox IconCmpt={Icon.Memory} text="Memory" />
+    <IconBox IconCmpt={Icon.Minus} text="Minus" />
     <IconBox IconCmpt={Icon.Moon} text="Moon" />
     <IconBox IconCmpt={Icon.MoreHoriz} text="MoreHoriz" />
     <IconBox IconCmpt={Icon.MoreVert} text="MoreVert" />
@@ -146,6 +149,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.PaperPlane} text="PaperPlane" />
     <IconBox IconCmpt={Icon.Pencil} text="Pencil" />
     <IconBox IconCmpt={Icon.Planet} text="Planet" />
+    <IconBox IconCmpt={Icon.Plus} text="Plus" />
     <IconBox IconCmpt={Icon.PowerSwitch} text="PowerSwitch" />
     <IconBox IconCmpt={Icon.Profile} text="Profile" />
     <IconBox IconCmpt={Icon.PushPin} text="PushPin" />
