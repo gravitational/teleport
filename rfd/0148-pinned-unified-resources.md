@@ -126,17 +126,6 @@ As of now, there would be no way to manually clean up a pinned resource that isn
 
 If a resource isn't found for whatever reason when fetching, we can display it's name (name/type or hostname/type) in a "disconnected" state. This will allow the user to make the decision themselves to unpin something. Without the resource information the displayable card would only have it's name/type but that should be sufficient enough to know "what" is disconnected. 
 
-### Automatic Cleanup
-The case in which this cap _could_ be reached is when we allow unavailable/unauthorized/unreachable resources to exist and fester in a user's preferences. (lets discuss)
-
-Scenarios that would make a pinned resource ID stale
-1. User loses access to the resource. In that case, I'm not sure we'd want to remove the resource from their pinned. I could see 
-pinning a specific resource after assuming a role, and only caring about that resource's pin when you've assumed the role again.
-2. Resource loses connectivity. We probably wouldn't want to remove a resource's pin due to connection issues unless x amount of time
-has passed. 
-3. Resource changes it's name. Idk how frequent this happens.
-4. ...?
-
 ### Security Concerns
 Pinned resources go through the same RBAC as unified resources so no additional security concerns matter in the listing. 
 
