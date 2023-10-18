@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { KeyboardEvent, FocusEvent } from 'react';
+import React, { FocusEvent } from 'react';
 
 import { StylesConfig } from 'react-select';
 
@@ -30,7 +30,7 @@ export type Props = {
   controlShouldRenderValue?: boolean;
   maxMenuHeight?: number;
   onChange(e: Option<any, any> | Option<any, any>[]): void;
-  onKeyDown?(e: KeyboardEvent): void;
+  onKeyDown?(e: KeyboardEvent | React.KeyboardEvent): void;
   value: null | Option<any, any> | Option<any, any>[];
   isMulti?: boolean;
   autoFocus?: boolean;
