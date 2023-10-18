@@ -54,7 +54,7 @@ Kubernetes cluster—and information you specify, such as the Kubernetes namespa
 users, and groups to grant access to.
 
 If you can't use the Teleport Web UI or want to run commands and edit file manually,
-see [Enroll Kubernetes manually](#enroll-kubernetes-manually).
+see [Enroll Kubernetes manually](./enroll-manually.mdx).
 
 ## Step 2/4. Follow guided enrollment
 
@@ -67,8 +67,8 @@ To enroll a Kubernetes cluster using the Teleport Web UI:
 1. Type all or part of **Kubernetes** in the Search field to filter the resource types 
    displayed, then click **Kubernetes**.
 
-1. Copy the command to add the `teleport-agent` chart to your charts repository and paste 
-   it in a terminal on a target computer where Kubernetes and Helm are installed.
+1. Copy the command to add the `teleport-agent` chart repository and paste 
+   it in a terminal on a workstation where `kubectl` is installed.
 
 1. Type the Teleport service namespace and the display name to use when connecting to 
    this cluster namespace, then click **Next**.
@@ -76,8 +76,8 @@ To enroll a Kubernetes cluster using the Teleport Web UI:
    After you click Next, Teleport generates a script to configure and enroll the 
    Kubernetes cluster as a resource in the Teleport cluster.
 
-1. Copy the command displayed in the Teleport Web UI and run it on a server in 
-   your Kubernetes cluster.
+1. Copy the command displayed in the Teleport Web UI and run it in a terminal with access
+   to your Kubernetes cluster.
 
    The Teleport Web UI displays "Successfully detected your new Kubernetes cluster" as 
    confirmation that your cluster is enrolled. When you see this message, click **Next**
@@ -226,84 +226,14 @@ one Kubernetes group named `viewers` and one Kubernetes user.
    hello-minikube-59d4768566-abcde   1/1     Running   0          144m
    ```
 
-## Enroll Kubernetes manually
-
-If you can't use the Teleport Web UI or want to work exclusively in the terminal,
-you can enroll a Kubernetes cluster manually.
-
-To enroll manually:
-
-1. Sign in to your Teleport cluster from your administrative workstation
-   using your administrative account:
-
-   ```code
-   $ tsh login --proxy=<Var name="teleport.example.com"/> --user=<Var name="email@example.com"/>
-   ```
-
-1. Request a token from the Teleport Auth Service for the Teleport Kubernetes Service to use
-   to join the cluster:
-
-   ```code
-   $ TOKEN=$(tctl tokens add --type=kube,app,discovery --ttl=1h --format=text)
-   $ echo $TOKEN
-   ```
-
-1. Allow Helm to install charts from the Teleport Helm repository:
-
-   ```code
-   $ helm repo add teleport https://charts.releases.teleport.dev && helm repo update
-   ```
-
-1. Set the environment variables for the Teleport cluster address and Kubernetes cluster name:
-
-   ```code
-   PROXY_ADDR=<Var name="teleport.example.com"/>:443
-   CLUSTER=<Var name="my-k8s-cluster"/>
-   ```
-
-1. Create the `values.yaml` file using the appropriate settings for your Kubernetes and Teleport clusters:
-   
-   ```yaml
-   cat > values.yaml << EOF
-   authToken: "${TOKEN}"
-   proxyAddr: "${PROXY_ADDR}"
-   roles: "kube,app,discovery"
-   joinParams:
-     method: "token"
-     tokenName: "${TOKEN}"
-   kubeClusterName: "${CLUSTER}"
-   enterprise: true # Remove this field for Teleport Community Edition
-   EOF
-   ```
-
-1. Install the helm chart with the `values.yaml` settings:
-
-   ```code
-   $ helm install teleport-agent teleport/teleport-kube-agent \
-     -f values.yaml \
-     --create-namespace \
-     --namespace=teleport-agent \
-     --version (=teleport.version=)
-   ```
-
-   The Teleport Kubernetes Service version should be the same as the Teleport cluster version or 
-   no more than one major version behind it. You can override the version by adding 
-   `--set teleportVersionOverride=(=teleport.version=)` as a command-line option.
-
-1. Verify that the Teleport agent pod is running:
-
-   ```code
-   $ kubectl -n teleport-agent get pods
-   ```
-
-   You should see one Teleport agent pod pod with a single ready container:
-   
-   ```
-   NAME               READY   STATUS    RESTARTS   AGE
-   teleport-agent-0   1/1     Running   0          32s
-   ```
-
 ## Next steps
 
-Take a look at a [kube-agent helm chart reference](../reference/helm-reference/teleport-kube-agent.mdx) for 
-a full list of parameters.
+This guide demonstrated how to enroll a Kubernetes cluster by running te=he Teleport
+Kubernetes Service directly on a member of the Kubernetes cluster. 
+
+- For information about discovering Kubernetes clusters hosted on cloud providers, see 
+[Kubernetes Cluster Discovery](./discovery.mdx). 
+- To learn about other ways you can register a Kubernetes cluster with Teleport, see 
+[Registering Kubernetes Clusters with Teleport](./register-clusters.mdx).
+- For a complete list of the parameters you can configure in the `teleport-kube-agent` 
+helm chart, see the [Chart Reference](../reference/helm-reference/teleport-kube-agent.mdx).
