@@ -142,6 +142,7 @@ export type MainProcessClient = {
   removeAgentDirectory(args: { rootClusterUri: RootClusterUri }): Promise<void>;
   getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
   getAgentLogs(args: { rootClusterUri: RootClusterUri }): string;
+  signalFrontendAppReadiness(args: { success: boolean }): void;
 };
 
 export type ChildProcessAddresses = {
