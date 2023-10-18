@@ -26,12 +26,13 @@ workflow](https://github.com/marketplace/actions/teleport-auth).
 Machine ID authenticates itself with your Teleport cluster using one of the
 following methods:
 
+- **Platform-signed document:** The platform that hosts `tbot`, such as a
+  Kubernetes cluster or Amazon EC2 instance, provides a signed identity document
+  that Teleport can verify using the platform's certificate authority. This is
+  the recommended approach because it avoids the use of shared secrets.
 - **Static join token:** Your Teleport client tool generates a string and stores
   it on the Teleport Auth Service. Machine ID provides this string,
   demonstrating to the Auth Service that it belongs in your Teleport cluster.
-- **Platform-signed document:** The platform that hosts `tbot`, such as a
-  Kubernetes cluster or Amazon EC2 instance, provides a signed identity document
-  that Teleport can verify using the platform's certificate authority. 
 
 ## Deployment guides
 

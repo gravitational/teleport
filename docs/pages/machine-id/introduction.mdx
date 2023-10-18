@@ -40,12 +40,12 @@ similarities with human users:
 
 ### Join tokens
 
-A bot authenticates to Teleport with a **join token**, which prevents it from
-needing long-lived secrets that an attacker can exfiltrate. A join token is
-configured within Teleport and specifies which bot user it grants access to and
-what sort of proof (known as the join method) is needed to use this join token.
-This proof is typically an identity issued to the machine by the platform it
-runs on (e.g. AWS IAM).
+Unlike a human Teleport user, a bot does not "log in" using a static username
+and password. Instead, a bot authenticates to Teleport with a **join token**,
+which is configured within Teleport and specifies which bot user it grants
+access to and what sort of proof (known as the **join method**) is needed to use
+this join token. This proof is typically an identity issued to the machine by
+the platform it runs on (e.g. AWS IAM).
 
 ### tbot
 

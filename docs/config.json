@@ -1353,32 +1353,12 @@
           "slug": "/machine-id/deployment/",
           "entries": [
             {
-              "title": "Linux Server",
-              "slug": "/machine-id/deployment/linux/"
-            },
-            {
-              "title": "Google Cloud",
-              "slug": "/machine-id/deployment/gcp/"
-            },
-            {
-              "title": "GitLab",
-              "slug": "/machine-id/deployment/gitlab/"
-            },
-            {
               "title": "AWS",
               "slug": "/machine-id/deployment/aws/"
             },
             {
-              "title": "Kubernetes",
-              "slug": "/machine-id/deployment/kubernetes/"
-            },
-            {
-              "title": "Jenkins",
-              "slug": "/machine-id/deployment/jenkins/"
-            },
-            {
-              "title": "GitHub Actions",
-              "slug": "/machine-id/deployment/github-actions/"
+              "title": "Google Cloud",
+              "slug": "/machine-id/deployment/gcp/"
             },
             {
               "title": "Azure",
@@ -1387,6 +1367,26 @@
             {
               "title": "CircleCI",
               "slug": "/machine-id/deployment/circleci/"
+            },
+            {
+              "title": "GitHub Actions",
+              "slug": "/machine-id/deployment/github-actions/"
+            },
+            {
+              "title": "GitLab",
+              "slug": "/machine-id/deployment/gitlab/"
+            },
+            {
+              "title": "Jenkins",
+              "slug": "/machine-id/deployment/jenkins/"
+            },
+	    {
+              "title": "Linux Server",
+              "slug": "/machine-id/deployment/linux/"
+            },
+            {
+              "title": "Kubernetes",
+              "slug": "/machine-id/deployment/kubernetes/"
             }
           ]
         },
