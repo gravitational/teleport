@@ -820,6 +820,7 @@ type AccessGraph struct {
 	Enabled  bool   `yaml:"enabled"`
 	UseAuth  bool   `yaml:"use_auth"`
 	Endpoint string `yaml:"endpoint"`
+	CA       string `yaml:"ca"`
 }
 
 // Opsgenie represents the configuration for the Opsgenie plugin.
