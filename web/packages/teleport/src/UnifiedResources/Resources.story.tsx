@@ -15,28 +15,23 @@
  */
 
 import React from 'react';
-import { MemoryRouter } from 'react-router';
 
-import { initialize, mswLoader } from 'msw-storybook-addon';
+import { ButtonBorder, Flex } from 'design';
 
-import { rest, ResponseResolver, MockedRequest, RestContext } from 'msw';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import { ContextProvider } from 'teleport';
-import cfg from 'teleport/config';
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
 import { kubes } from 'teleport/Kubes/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
 import { nodes } from 'teleport/Nodes/fixtures';
 
-import { Resources } from './Resources';
+import { UrlResourcesParams } from 'teleport/config';
+import { ResourcesResponse } from 'teleport/services/agents';
 
-initialize();
+import { Resources } from './Resources';
+import { SharedUnifiedResource } from './types';
 
 export default {
   title: 'Teleport/UnifiedResources',
-  loaders: [mswLoader],
 };
 
 const aLotOfLabels = {
@@ -59,49 +54,69 @@ const allResources = [
   ...kubes,
   ...desktops,
   ...nodes,
-];
-
-const story = (resolver: ResponseResolver<MockedRequest, RestContext>) => {
-  const ctx = createTeleportContext();
-
-  const s = () => (
-    <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <Resources />
-      </ContextProvider>
-    </MemoryRouter>
+].map(resource => ({
+  resource,
+  ui: {
+    ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
+  },
+}));
+const story = (
+  fetchFunc: (
+    params: UrlResourcesParams,
+    signal: AbortSignal
+  ) => Promise<ResourcesResponse<SharedUnifiedResource>>
+) => {
+  return () => (
+    <Resources
+      availableKinds={['app', 'db', 'node', 'kube_cluster', 'windows_desktop']}
+      Header={pinAllButton => (
+        <Flex justifyContent="end" height="50px">
+          {pinAllButton}
+        </Flex>
+      )}
+      params={{ sort: { dir: 'ASC', fieldName: 'name' } }}
+      setParams={() => undefined}
+      updateUnifiedResourcesPreferences={() => undefined}
+      pinningNotSupported={false}
+      getClusterPinnedResources={async () => []}
+      onLabelClick={() => undefined}
+      EmptySearchResults={undefined}
+      updateClusterPinnedResources={() => undefined}
+      fetchFunc={fetchFunc}
+    />
   );
-
-  s.parameters = {
-    msw: {
-      handlers: [
-        rest.get(cfg.getUnifiedResourcesUrl('localhost', {}), resolver),
-      ],
-    },
-  };
-  return s;
 };
 
-export const Empty = story((_, res, ctx) => res(ctx.json({ items: [] })));
+export const Empty = story(async () => ({ agents: [], startKey: '' }));
 
-export const List = story((_, res, ctx) =>
-  res(ctx.json({ items: allResources }))
+export const List = story(async () => ({
+  agents: allResources,
+}));
+
+export const Loading = story(
+  (_, signal) =>
+    new Promise<never>((resolve, reject) => {
+      signal.addEventListener('abort', reject);
+    })
 );
 
-export const Loading = story((_, res, ctx) => res(ctx.delay('infinite')));
-
-export const LoadingAfterScrolling = story((req, res, ctx) => {
-  if (req.url.searchParams.get('startKey') === 'next-key') {
-    return res(ctx.delay('infinite'));
+export const LoadingAfterScrolling = story(async params => {
+  if (params.startKey === 'next-key') {
+    return new Promise(() => {});
   }
-  return res(ctx.json({ items: allResources, startKey: 'next-key' }));
+  return {
+    agents: allResources,
+    startKey: 'next-key',
+  };
 });
 
-export const Error = story((_, res, ctx) => res(ctx.status(500)));
+export const Errored = story(async () => {
+  throw new Error('Failed to fetch');
+});
 
-export const ErrorAfterScrolling = story((req, res, ctx) => {
-  if (req.url.searchParams.get('startKey') === 'next-key') {
-    return res(ctx.status(500));
+export const ErroredAfterScrolling = story(async params => {
+  if (params.startKey === 'next-key') {
+    throw new Error('Failed to fetch');
   }
-  return res(ctx.json({ items: allResources, startKey: 'next-key' }));
+  return { agents: allResources, startKey: 'next-key' };
 });

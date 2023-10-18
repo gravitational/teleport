@@ -29,32 +29,11 @@ import { StyledCheckbox } from 'design/Checkbox';
 
 import { ShimmerBox } from 'design/ShimmerBox';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
-import {
-  Copy,
-  Check,
-  Application as ApplicationsIcon,
-  Database as DatabasesIcon,
-  Kubernetes as KubernetesIcon,
-  Server as ServersIcon,
-  Desktop as DesktopsIcon,
-  PushPinFilled,
-  PushPin,
-} from 'design/Icon';
+import { Icon, Copy, Check, PushPinFilled, PushPin } from 'design/Icon';
 
-import {
-  ResourceLabel,
-  UnifiedResource,
-  UnifiedResourceKind,
-} from 'teleport/services/agents';
-import { Database } from 'teleport/services/databases';
+import { HoverTooltip, PINNING_NOT_SUPPORTED_MESSAGE } from './Resources';
 
-import { ResourceActionButton } from './ResourceActionButton';
-import {
-  resourceKey,
-  resourceName,
-  HoverTooltip,
-  PINNING_NOT_SUPPORTED_MESSAGE,
-} from './Resources';
+import type { ResourceLabel } from 'teleport/services/agents';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -73,10 +52,15 @@ const ResTypeIconBox = styled(Box)`
 `;
 
 type Props = {
-  resource: UnifiedResource;
+  name: string;
+  primaryIconName: ResourceIconName;
+  SecondaryIcon: typeof Icon;
+  description: { primary?: string; secondary?: string };
+  labels: ResourceLabel[];
+  ActionButton: React.JSX.Element;
   onLabelClick?: (label: ResourceLabel) => void;
-  pinResource: (id: string) => void;
-  selectResource: (id: string) => void;
+  pinResource: () => void;
+  selectResource: () => void;
   pinned: boolean;
   selected: boolean;
   // this is used to disable pinning functionality if
@@ -88,21 +72,20 @@ type Props = {
 };
 
 export function ResourceCard({
-  resource,
+  name,
+  primaryIconName,
+  SecondaryIcon,
   onLabelClick,
-  pinned = false,
-  selected = false,
+  description,
+  ActionButton,
+  labels,
+  pinningNotSupported,
+  pinned,
   pinResource,
   selectResource,
-  pinningNotSupported = false,
+  selected,
   pinningDisabled,
 }: Props) {
-  const name = resourceName(resource);
-  const id = resourceKey(resource);
-  const resIcon = resourceIconName(resource);
-  const ResTypeIcon = resourceTypeIcon(resource.kind);
-  const description = resourceDescription(resource);
-
   const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
   const [showAllLabels, setShowAllLabels] = useState(false);
   const [numMoreLabels, setNumMoreLabels] = useState(0);
@@ -194,10 +177,6 @@ export function ResourceCard({
     }
   };
 
-  const setPinned = () => {
-    pinResource(id);
-  };
-
   return (
     <CardContainer
       onMouseEnter={() => setHovered(true)}
@@ -217,24 +196,28 @@ export function ResourceCard({
         >
           <HoverTooltip tipContent={<>{selected ? 'Deselect' : 'Select'}</>}>
             <StyledCheckbox
-              id={`select-${id}`}
               css={`
                 position: absolute;
                 top: 16px;
                 left: 16px;
               `}
               checked={selected}
-              onChange={() => selectResource(id)}
+              onChange={selectResource}
             />
           </HoverTooltip>
           <PinButton
             pinningDisabled={pinningDisabled}
             pinningNotSupported={pinningNotSupported}
-            setPinned={setPinned}
+            setPinned={pinResource}
             hovered={hovered}
             pinned={pinned}
           />
-          <ResourceIcon name={resIcon} width="45px" height="45px" ml={2} />
+          <ResourceIcon
+            name={primaryIconName}
+            width="45px"
+            height="45px"
+            ml={2}
+          />
           {/* MinWidth is important to prevent descriptions from overflowing. */}
           <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
             <Flex flexDirection="row" alignItems="center">
@@ -252,11 +235,11 @@ export function ResourceCard({
                 )}
               </SingleLineBox>
               {hovered && <CopyButton name={name} />}
-              <ResourceActionButton resource={resource} />
+              {ActionButton}
             </Flex>
             <Flex flexDirection="row" alignItems="center">
               <ResTypeIconBox>
-                <ResTypeIcon size={18} />
+                <SecondaryIcon size={18} />
               </ResTypeIconBox>
               {description.primary && (
                 <SingleLineBox ml={1} title={description.primary}>
@@ -286,11 +269,11 @@ export function ResourceCard({
                 >
                   + {numMoreLabels} more
                 </MoreLabelsButton>
-                {resource.labels.map((label, i) => {
+                {labels.map((label, i) => {
                   const { name, value } = label;
                   const labelText = `${name}: ${value}`;
                   return (
-                    <ResourceLabel
+                    <StyledLabel
                       key={JSON.stringify([name, value, i])}
                       title={labelText}
                       onClick={() => onLabelClick?.(label)}
@@ -298,7 +281,7 @@ export function ResourceCard({
                       data-is-label=""
                     >
                       {labelText}
-                    </ResourceLabel>
+                    </StyledLabel>
                   );
                 })}
               </LabelsInnerContainer>
@@ -398,85 +381,6 @@ function CopyButton({ name }: { name: string }) {
   );
 }
 
-function resourceDescription(resource: UnifiedResource) {
-  switch (resource.kind) {
-    case 'app':
-      return {
-        primary: resource.description,
-        secondary: resource.addrWithProtocol,
-      };
-    case 'db':
-      return { primary: resource.type, secondary: resource.description };
-    case 'kube_cluster':
-      return { primary: 'Kubernetes' };
-    case 'node':
-      return {
-        primary: resource.subKind || 'SSH Server',
-        secondary: resource.tunnel ? '' : resource.addr,
-      };
-    case 'windows_desktop':
-      return { primary: 'Windows', secondary: resource.addr };
-
-    default:
-      return {};
-  }
-}
-
-function databaseIconName(resource: Database): ResourceIconName {
-  switch (resource.protocol) {
-    case 'postgres':
-      return 'Postgres';
-    case 'mysql':
-      return 'MysqlLarge';
-    case 'mongodb':
-      return 'Mongo';
-    case 'cockroachdb':
-      return 'Cockroach';
-    case 'snowflake':
-      return 'Snowflake';
-    case 'dynamodb':
-      return 'Dynamo';
-    default:
-      return 'Database';
-  }
-}
-
-function resourceIconName(resource: UnifiedResource): ResourceIconName {
-  switch (resource.kind) {
-    case 'app':
-      return resource.guessedAppIconName;
-    case 'db':
-      return databaseIconName(resource);
-    case 'kube_cluster':
-      return 'Kube';
-    case 'node':
-      return 'Server';
-    case 'windows_desktop':
-      return 'Windows';
-
-    default:
-      return 'Server';
-  }
-}
-
-function resourceTypeIcon(kind: UnifiedResourceKind) {
-  switch (kind) {
-    case 'app':
-      return ApplicationsIcon;
-    case 'db':
-      return DatabasesIcon;
-    case 'kube_cluster':
-      return KubernetesIcon;
-    case 'node':
-      return ServersIcon;
-    case 'windows_desktop':
-      return DesktopsIcon;
-
-    default:
-      return ServersIcon;
-  }
-}
-
 /**
  * The outer container's purpose is to reserve horizontal space on the resource
  * grid. It holds the inner container that normally holds a regular layout of
@@ -552,7 +456,7 @@ const LabelsContainer = styled(Box)`
   overflow: hidden;
 `;
 
-const ResourceLabel = styled(Label)`
+const StyledLabel = styled(Label)`
   height: ${labelHeight}px;
   margin: 1px 0;
   overflow: hidden;

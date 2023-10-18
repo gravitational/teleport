@@ -15,4 +15,4 @@ limitations under the License.
 */
 
 // export as default for use with React.lazy
-export { Resources as default } from './Resources';
+export { WebUnifiedResources as default } from './WebUnifiedResources';

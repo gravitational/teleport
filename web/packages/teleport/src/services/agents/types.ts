@@ -35,7 +35,7 @@ export type UnifiedResource =
 
 export type UnifiedResourceKind = UnifiedResource['kind'];
 
-export type ResourcesResponse<T extends UnifiedResource> = {
+export type ResourcesResponse<T> = {
   agents: T[];
   startKey?: string;
   totalCount?: number;

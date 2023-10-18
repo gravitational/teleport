@@ -17,11 +17,7 @@
 import { useState, useRef, useCallback } from 'react';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
-import {
-  ResourcesResponse,
-  ResourceFilter,
-  UnifiedResource,
-} from 'teleport/services/agents';
+import { ResourcesResponse, ResourceFilter } from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
 
 /**
@@ -36,9 +32,8 @@ import { UrlResourcesParams } from 'teleport/config';
  * This hook is an implementation detail of the `useInfiniteScroll` hook and
  * should not be used directly.
  */
-export function useKeyBasedPagination<T extends UnifiedResource>({
+export function useKeyBasedPagination<T>({
   fetchFunc,
-  clusterId,
   filter,
   initialFetchSize = 30,
   fetchMoreSize = 20,
@@ -53,11 +48,11 @@ export function useKeyBasedPagination<T extends UnifiedResource>({
   const abortController = useRef<AbortController | null>(null);
   const pendingPromise = useRef<Promise<ResourcesResponse<T>> | null>(null);
 
-  // This state is used to recognize when the `clusterId` or `filter` props
-  // have changed, and reset the overall state of this hook. It's tempting to use a
+  // This state is used to recognize when the `filter` prop has changed,
+  // and reset the overall state of this hook. It's tempting to use a
   // `useEffect` here, but doing so can cause unwanted behavior where the previous,
   // now stale `fetch` is executed once more before the new one (with the new
-  // `clusterId` or `filter`) is executed. This is because the `useEffect` is
+  // `filter`) is executed. This is because the `useEffect` is
   // executed after the render, and `fetch` is called by an IntersectionObserver
   // in `useInfiniteScroll`. If the render includes `useInfiniteScroll`'s `trigger`
   // element, the old, stale `fetch` will be called before `useEffect` has a chance
@@ -67,11 +62,9 @@ export function useKeyBasedPagination<T extends UnifiedResource>({
   // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes,
   // we can ensure that the state is reset before anything renders, and thereby
   // ensure that the new `fetch` function is used.
-  const [prevClusterId, setPrevClusterId] = useState(clusterId);
   const [prevFilter, setPrevFilter] = useState(filter);
 
-  if (prevClusterId !== clusterId || prevFilter !== filter) {
-    setPrevClusterId(clusterId);
+  if (prevFilter !== filter) {
     setPrevFilter(filter);
 
     abortController.current?.abort();
@@ -101,7 +94,6 @@ export function useKeyBasedPagination<T extends UnifiedResource>({
       abortController.current = new AbortController();
       const limit = resources.length > 0 ? fetchMoreSize : initialFetchSize;
       const newPromise = fetchFunc(
-        clusterId,
         {
           ...filter,
           limit,
@@ -143,14 +135,7 @@ export function useKeyBasedPagination<T extends UnifiedResource>({
     }
   };
 
-  const callbackDeps = [
-    clusterId,
-    filter,
-    startKey,
-    resources,
-    finished,
-    attempt,
-  ];
+  const callbackDeps = [filter, startKey, resources, finished, attempt];
 
   const fetch = useCallback(() => fetchInternal(false), callbackDeps);
   const forceFetch = useCallback(() => fetchInternal(true), callbackDeps);
@@ -168,13 +153,11 @@ const isAbortError = (err: any): boolean =>
   (err instanceof DOMException && err.name === 'AbortError') ||
   (err.cause && isAbortError(err.cause));
 
-export type Props<T extends UnifiedResource> = {
+export type Props<T> = {
   fetchFunc: (
-    clusterId: string,
     params: UrlResourcesParams,
     signal?: AbortSignal
   ) => Promise<ResourcesResponse<T>>;
-  clusterId: string;
   filter: ResourceFilter;
   initialFetchSize?: number;
   fetchMoreSize?: number;
