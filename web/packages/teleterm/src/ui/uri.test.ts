@@ -62,3 +62,60 @@ describe('getServerUri', () => {
   });
   /* eslint-enable jest/no-conditional-expect */
 });
+
+describe('parseConnectMyComputerUri', () => {
+  describe('valid input', () => {
+    const tests: Array<{
+      input: string;
+      output: Pick<
+        ReturnType<typeof routing.parseConnectMyComputerUri>,
+        'url' | 'params' | 'searchParams'
+      >;
+    }> = [
+      {
+        input: '/clusters/foo/connect_my_computer',
+        output: {
+          url: '/clusters/foo/connect_my_computer',
+          params: { rootClusterId: 'foo' },
+          searchParams: { username: null },
+        },
+      },
+      {
+        input:
+          '/clusters/alice.cloud.gravitational.io/connect_my_computer?username=alice',
+        output: {
+          url: '/clusters/alice.cloud.gravitational.io/connect_my_computer',
+          params: { rootClusterId: 'alice.cloud.gravitational.io' },
+          searchParams: { username: 'alice' },
+        },
+      },
+      {
+        input:
+          '/clusters/foo/connect_my_computer?username=alice.bobinson@company.com',
+        output: {
+          url: '/clusters/foo/connect_my_computer',
+          params: { rootClusterId: 'foo' },
+          searchParams: { username: 'alice.bobinson@company.com' },
+        },
+      },
+    ];
+    test.each(tests)('$input', ({ input, output }) => {
+      expect(routing.parseConnectMyComputerUri(input)).toMatchObject(output);
+    });
+  });
+
+  describe('invalid input', () => {
+    const tests: Array<string> = [
+      '/clusters/foo/connect_my_computer/',
+      '/clusters/foo/connect_my_computer/?username=bob',
+      '/clusters/foo/connect_my_computer/bar',
+      '/clusters/foo/connect_my_computer/bar?username=bob',
+      '/clusters/foo/servers/bar',
+      'abcdef',
+    ];
+
+    test.each(tests)('%s', input => {
+      expect(routing.parseConnectMyComputerUri(input)).toBeNull();
+    });
+  });
+});

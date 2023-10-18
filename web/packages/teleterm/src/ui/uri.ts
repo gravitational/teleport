@@ -15,8 +15,9 @@ limitations under the License.
 */
 
 import { matchPath, generatePath } from 'react-router';
+import * as whatwg from 'whatwg-url';
 
-import type { RouteProps } from 'react-router';
+import type { RouteProps, match } from 'react-router';
 
 /*
  * Resource URIs
@@ -60,6 +61,23 @@ export type DatabaseUri = RootClusterDatabaseUri | LeafClusterDatabaseUri;
 export type ClusterOrResourceUri = ResourceUri | ClusterUri;
 
 /*
+ * Deep link URIs
+ * These are for actions that can be performed by clicking on teleport-connect links.
+ */
+
+export type ConnectMyComputerUri =
+  `/clusters/${RootClusterId}/connect_my_computer`;
+export type ConnectMyComputerParsedUri = match<ConnectMyComputerUriParams> & {
+  searchParams: ConnectMyComputerSearchParams;
+};
+export type ConnectMyComputerUriParams = {
+  rootClusterId: string;
+};
+export type ConnectMyComputerSearchParams = SearchParams<{
+  username: string;
+}>;
+
+/*
  * Document URIs
  * These are for documents (tabs) within the app.
  */
@@ -87,6 +105,8 @@ export const paths = {
     '/clusters/:rootClusterId/leaves/:leafClusterId/servers/:serverId',
   kube: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId',
   db: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/dbs/:dbId',
+  // Custom protocols.
+  connectMyComputer: '/clusters/:rootClusterId/connect_my_computer',
   // Documents.
   docHome: '/docs/home',
   doc: '/docs/:docId',
@@ -119,6 +139,67 @@ export const routing = {
 
   parseServerUri(uri: string) {
     return routing.parseUri(uri, paths.server);
+  },
+
+  /**
+   * Returns extracted params from a URI if it matches the path of ConnectMyComputerUri. Returns
+   * null otherwise.
+   *
+   * @param uri - uri is expected to follow the format of ConnectMyComputerUri, with no protocol
+   * prepended, just like other URIs in from routing. It can include a query string with the
+   * `username` search param.
+   */
+  parseConnectMyComputerUri(uri: string): ConnectMyComputerParsedUri {
+    // Parse the string into a URL to separate it into a path and search params. That is because
+    // matchParams doesn't handle search params and will return null when it encounters them.
+    //
+    // whatwg-url is used instead of the built-in URL because when passing a custom protocol as the
+    // second arg there's too many differences between the implementations of this constructor in
+    // Node.js and Chromium. For example, `new URL('/clusters/foo', 'teleport://')` returns totally
+    // different results in Node.js, Chromium and Firefox.
+    //
+    // Example: https://jsdom.github.io/whatwg-url/#url=L2NsdXN0ZXJzL2Zvbw==&base=dGVsZXBvcnQtY29ubmVjdDovLw==
+    //
+    // Additionally, new URL() will catch any malformed URIs if they somehow got to this point.
+    let url: whatwg.URL;
+    try {
+      // The second argument doesn't play any role beyond making the URL constructor correctly parse
+      // the passed in uri, which in essence is just the pathname part of a URL.
+      url = new whatwg.URL(uri, `${CONNECT_CUSTOM_PROTOCOL}://`);
+    } catch (error) {
+      if (error instanceof TypeError) {
+        // Invalid URL. Return null to behave like matchPath.
+        return null;
+      }
+      throw error;
+    }
+
+    const matchParams = matchPath<ConnectMyComputerUriParams>(
+      // url.pathname is the part of the url matching the format of ConnectMyComputerUri.
+      url.pathname,
+      {
+        path: paths.connectMyComputer,
+        // exact means that uri of "/one/two" will not match a path defined as "/one".
+        // https://v5.reactrouter.com/web/api/Route/exact-bool
+        exact: true,
+        // strict means that uri of "/one/" will not match a path defined as "/one".
+        // https://v5.reactrouter.com/web/api/Route/strict-bool
+        strict: true,
+      }
+    );
+
+    if (!matchParams) {
+      return null;
+    }
+
+    const username = url.searchParams.get('username');
+
+    return {
+      ...matchParams,
+      searchParams: {
+        username,
+      },
+    };
   },
 
   parseDbUri(uri: string) {
@@ -226,4 +307,15 @@ export type Params = {
   tabId?: string;
   sid?: string;
   docId?: string;
+};
+
+/**
+ * SearchParams is like Partial but with keys always being present and values being nullable instead
+ * of undefined.
+ *
+ * Arguably, this type doesn't do much without strictNullChecks being enabled. Alas, it does serve
+ * as a documentation.
+ */
+type SearchParams<T> = {
+  [P in keyof T]: T[P] | null;
 };
