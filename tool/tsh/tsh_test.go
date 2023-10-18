@@ -4794,3 +4794,42 @@ func TestMakeProfileInfo_NoInternalLogins(t *testing.T) {
 		})
 	}
 }
+
+// Test when https:// is included in --proxy address
+func TestIgnoreHTTPSPrefix(t *testing.T) {
+	t.Parallel()
+
+	tmpHomePath := t.TempDir()
+
+	connector := mockConnector(t)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	authProcess, proxyProcess := makeTestServers(t,
+		withBootstrap(connector, alice),
+	)
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+
+	proxyAddress := "https://" + proxyAddr.String()
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddress,
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		cf.overrideStderr = &buf
+		return nil
+	})
+	require.NoError(t, err)
+}

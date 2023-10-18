@@ -1012,6 +1012,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		}
 	}
 
+	// Remove HTTPS:// in proxy parameter as https is automatically added
+	cf.Proxy = strings.TrimPrefix(cf.Proxy, "https://")
+	cf.Proxy = strings.TrimPrefix(cf.Proxy, "HTTPS://")
+
 	// prevent Kingpin from calling os.Exit(), we want to handle errors ourselves.
 	// shouldTerminate will be checked after app.Parse() call.
 	var shouldTerminate *int
