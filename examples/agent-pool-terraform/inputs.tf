@@ -3,6 +3,12 @@ variable "agent_count" {
   description = "Number of agents to deploy"
 }
 
+variable "is_community" {
+  type        = bool
+  description = "Whether the user is deploying Teleport Community Edition"
+  default     = false
+}
+
 variable "proxy_service_address" {
   type        = string
   description = "Host and HTTPS port of the Teleport Proxy Service"
