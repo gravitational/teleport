@@ -50,10 +50,7 @@ func WithIMDSClient(client *imds.Client) InstanceMetadataClientOption {
 func NewInstanceMetadataClient(ctx context.Context, opts ...InstanceMetadataClientOption) (*InstanceMetadataClient, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		if _, ok := err.(config.SharedConfigProfileNotExistError); ok {
-			return nil, trace.NotFound(err.Error())
-		}
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(ConvertLoadConfigError(err))
 	}
 
 	clt := &InstanceMetadataClient{
