@@ -19,7 +19,6 @@ package okta
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/url"
 
 	"github.com/gravitational/trace"
@@ -27,8 +26,10 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta/query"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -354,7 +355,7 @@ func (w *wrappedClient) doHttp(ctx context.Context, method string, url *url.URL,
 	}
 	defer resp.Body.Close()
 
-	if body, err := io.ReadAll(resp.Body); err != nil {
+	if body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize); err != nil {
 		return nil, trace.Wrap(err)
 	} else {
 		return body, nil

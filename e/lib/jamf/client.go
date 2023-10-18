@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,6 +13,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ErrJamfClientInvalidCredential is returned by Jamf client when the Jamf API credentials are invalid.
@@ -164,7 +166,7 @@ func (c *Client) doJSONRequest(req *http.Request, jsonResp any) error {
 	}
 
 	// Always drain the body, regardless of the status code.
-	body, err := io.ReadAll(resp.Body)
+	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return trace.Wrap(err)
 	}

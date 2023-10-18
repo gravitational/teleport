@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -931,7 +930,7 @@ func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken s
 			code == http.StatusForbidden || code == http.StatusMethodNotAllowed {
 			return nil, trace.AccessDenied("bad status code: %v", code)
 		}
-		body, err := io.ReadAll(resp.Body)
+		body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
