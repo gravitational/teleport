@@ -48,12 +48,12 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function AccessGraph({ size = 24, color, ...otherProps }: IconProps) {
+export function FlowArrow({ size = 24, color, ...otherProps }: IconProps) {
   return (
     <Icon
       size={size}
       color={color}
-      className="icon icon-accessgraph"
+      className="icon icon-flowarrow"
       {...otherProps}
     >
       <path

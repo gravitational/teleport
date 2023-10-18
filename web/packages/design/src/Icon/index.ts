@@ -22,7 +22,6 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 export { Icon } from './Icon';
 
-export { AccessGraph } from './Icons/AccessGraph';
 export { Add } from './Icons/Add';
 export { AddCircle } from './Icons/AddCircle';
 export { AddUsers } from './Icons/AddUsers';
@@ -93,6 +92,7 @@ export { EnvelopeOpen } from './Icons/EnvelopeOpen';
 export { EqualizersVertical } from './Icons/EqualizersVertical';
 export { Expand } from './Icons/Expand';
 export { Facebook } from './Icons/Facebook';
+export { FlowArrow } from './Icons/FlowArrow';
 export { FolderPlus } from './Icons/FolderPlus';
 export { FolderShared } from './Icons/FolderShared';
 export { GitHub } from './Icons/GitHub';
@@ -112,6 +112,7 @@ export { Lan } from './Icons/Lan';
 export { Laptop } from './Icons/Laptop';
 export { License } from './Icons/License';
 export { LineSegment } from './Icons/LineSegment';
+export { LineSegments } from './Icons/LineSegments';
 export { Link } from './Icons/Link';
 export { Linkedin } from './Icons/Linkedin';
 export { Linux } from './Icons/Linux';

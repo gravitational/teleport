@@ -34,7 +34,6 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 export const Icons = () => (
   <Flex flexWrap="wrap">
-    <IconBox IconCmpt={Icon.AccessGraph} text="AccessGraph" />
     <IconBox IconCmpt={Icon.Add} text="Add" />
     <IconBox IconCmpt={Icon.AddCircle} text="AddCircle" />
     <IconBox IconCmpt={Icon.AddUsers} text="AddUsers" />
@@ -105,6 +104,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.EqualizersVertical} text="EqualizersVertical" />
     <IconBox IconCmpt={Icon.Expand} text="Expand" />
     <IconBox IconCmpt={Icon.Facebook} text="Facebook" />
+    <IconBox IconCmpt={Icon.FlowArrow} text="FlowArrow" />
     <IconBox IconCmpt={Icon.FolderPlus} text="FolderPlus" />
     <IconBox IconCmpt={Icon.FolderShared} text="FolderShared" />
     <IconBox IconCmpt={Icon.GitHub} text="GitHub" />
@@ -124,6 +124,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Laptop} text="Laptop" />
     <IconBox IconCmpt={Icon.License} text="License" />
     <IconBox IconCmpt={Icon.LineSegment} text="LineSegment" />
+    <IconBox IconCmpt={Icon.LineSegments} text="LineSegments" />
     <IconBox IconCmpt={Icon.Link} text="Link" />
     <IconBox IconCmpt={Icon.Linkedin} text="Linkedin" />
     <IconBox IconCmpt={Icon.Linux} text="Linux" />
