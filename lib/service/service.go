@@ -813,8 +813,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		}
 	}
 
-	switch cfg.Auth.Preference.GetRequireMFAType() {
-	case types.RequireMFAType_SESSION_AND_HARDWARE_KEY, types.RequireMFAType_HARDWARE_KEY_TOUCH:
+	if cfg.Auth.Preference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 		}
@@ -1770,6 +1769,7 @@ func (process *TeleportProcess) initAuthService() error {
 			TraceClient:             traceClt,
 			FIPS:                    cfg.FIPS,
 			LoadAllCAs:              cfg.Auth.LoadAllCAs,
+			AccessMonitoringEnabled: cfg.Auth.IsAccessMonitoringEnabled(),
 			Clock:                   cfg.Clock,
 			HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
 			EmbeddingRetriever:      embeddingsRetriever,
@@ -1976,7 +1976,7 @@ func (process *TeleportProcess) initAuthService() error {
 	go mux.Serve()
 	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.GRPCServerLatency}
 
-	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
+	tlsServer, err := auth.NewTLSServer(process.ExitContext(), auth.TLSServerConfig{
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
 		LimiterConfig: cfg.Auth.Limiter,
@@ -2223,9 +2223,10 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		SAMLIdPServiceProviders: cfg.services,
 		UserGroups:              cfg.services,
 		Okta:                    cfg.services.OktaClient(),
-		AccessLists:             cfg.services.AccessListClient(),
+		SecReports:              cfg.services.SecReportsClient(),
 		UserLoginStates:         cfg.services.UserLoginStateClient(),
 		Integrations:            cfg.services,
+		DiscoveryConfigs:        cfg.services.DiscoveryConfigClient(),
 		WebSession:              cfg.services.WebSessions(),
 		WebToken:                cfg.services.WebTokens(),
 		Component:               teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),

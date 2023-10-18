@@ -92,4 +92,6 @@ type AutoUsers interface {
 	ActivateUser(context.Context, *Session) error
 	// DeactivateUser disables a database user.
 	DeactivateUser(context.Context, *Session) error
+	// DeleteUser deletes the database user.
+	DeleteUser(context.Context, *Session) error
 }

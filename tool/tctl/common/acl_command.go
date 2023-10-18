@@ -119,7 +119,7 @@ func (c *ACLCommand) List(ctx context.Context, client auth.ClientI) error {
 		}
 	}
 
-	if len(accessLists) == 0 {
+	if len(accessLists) == 0 && c.format == teleport.Text {
 		fmt.Println("no access lists")
 		return nil
 	}
@@ -222,7 +222,7 @@ func displayAccessLists(format string, accessLists ...*accesslist.AccessList) er
 	case teleport.YAML:
 		return trace.Wrap(utils.WriteYAML(os.Stdout, accessLists))
 	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSON(os.Stdout, accessLists))
+		return trace.Wrap(utils.WriteJSONArray(os.Stdout, accessLists))
 	case teleport.Text:
 		return trace.Wrap(displayAccessListsText(accessLists...))
 	}

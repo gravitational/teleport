@@ -18,7 +18,6 @@ package common
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -29,7 +28,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/spf13/cobra"
@@ -50,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	"github.com/gravitational/teleport/lib/observability/tracing"
 )
 
 var (
@@ -151,26 +148,7 @@ func wrapConfigFn(cf *CLIConf) func(c *rest.Config) *rest.Config {
 // because we need to retry kubectl calls and `kubectl` calls os.Exit in multiple
 // paths.
 func runKubectlCode(cf *CLIConf, args []string) {
-	closeTracer := func() {}
-	cf.TracingProvider = tracing.NoopProvider()
-	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
-	if cf.SampleTraces {
-		provider, err := newTraceProvider(cf, "", nil)
-		if err != nil {
-			log.WithError(err).Debug("Failed to set up span forwarding")
-		} else {
-			// ensure that the provider is shutdown on exit to flush any spans
-			// that haven't been forwarded yet.
-			closeTracer = func() {
-				shutdownCtx, cancel := context.WithTimeout(cf.Context, 1*time.Second)
-				defer cancel()
-				err := provider.Shutdown(shutdownCtx)
-				if err != nil && !errors.Is(err, context.DeadlineExceeded) {
-					log.WithError(err).Debugf("Failed to shutdown trace provider")
-				}
-			}
-		}
-	}
+	closeTracer := initializeTracing(cf)
 	// If the user opted to not sample traces, cf.TracingProvider is pre-initialized
 	// with a noop provider.
 	ctx, span := cf.TracingProvider.Tracer("kubectl").Start(cf.Context, "kubectl")

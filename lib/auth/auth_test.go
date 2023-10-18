@@ -861,24 +861,33 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	s := newAuthSuite(t)
 
 	ctx := context.Background()
-	// test github create event
 	github, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{
-		TeamsToLogins: []types.TeamMapping{
+		TeamsToRoles: []types.TeamRolesMapping{
 			{
 				Organization: "octocats",
 				Team:         "dummy",
-				Logins:       []string{"dummy"},
+				Roles:        []string{"dummy"},
 			},
 		},
 	})
+	// test github create event
 	require.NoError(t, err)
-	err = s.a.upsertGithubConnector(ctx, github)
+	github, err = s.a.createGithubConnector(ctx, github)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test github update event
+	github.SetDisplay("llama")
+	github, err = s.a.updateGithubConnector(ctx, github)
+	require.NoError(t, err)
+	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
+	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
+	s.mockEmitter.Reset()
+
+	// test github upsert event
+	github.SetDisplay("alpaca")
 	err = s.a.upsertGithubConnector(ctx, github)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
@@ -897,7 +906,6 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 	s := newAuthSuite(t)
 
 	ctx := context.Background()
-	// test oidc create event
 	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{
 		ClientID: "a",
 		ClaimsToRoles: []types.ClaimMapping{
@@ -910,13 +918,24 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
-	err = s.a.UpsertOIDCConnector(ctx, oidc)
+
+	// test oidc create event
+	oidc, err = s.a.CreateOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test oidc update event
+	oidc.SetDisplay("llama")
+	oidc, err = s.a.UpdateOIDCConnector(ctx, oidc)
+	require.NoError(t, err)
+	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
+	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorCreatedEvent)
+	s.mockEmitter.Reset()
+
+	// test oidc upsert event
+	oidc.SetDisplay("alpaca")
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
@@ -957,7 +976,6 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	err = s.a.CreateRole(ctx, role)
 	require.NoError(t, err)
 
-	// test saml create
 	saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "a",
 		Issuer:                   "b",
@@ -973,13 +991,23 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = s.a.UpsertSAMLConnector(ctx, saml)
+	// test saml create
+	saml, err = s.a.CreateSAMLConnector(ctx, saml)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test saml update event
+	saml.SetDisplay("llama")
+	saml, err = s.a.UpdateSAMLConnector(ctx, saml)
+	require.NoError(t, err)
+	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
+	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorCreatedEvent)
+	s.mockEmitter.Reset()
+
+	// test saml upsert event
+	saml.SetDisplay("alapaca")
 	err = s.a.UpsertSAMLConnector(ctx, saml)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())

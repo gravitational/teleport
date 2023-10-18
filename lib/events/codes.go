@@ -520,6 +520,12 @@ const (
 	// AccessListMemberDeleteAllForAccessListFailureCode is the access list member delete failure code.
 	AccessListMemberDeleteAllForAccessListFailureCode = "TAL008E"
 
+	// SecReportsAuditQueryRunCode is used when a custom Security Reports Query is run.
+	SecReportsAuditQueryRunCode = "SRE001I"
+
+	// SecReportsReportRunCode is used when a report in run.
+	SecReportsReportRunCode = "SRE002I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
