@@ -37,6 +37,8 @@ service AccessListService {
   rpc DeleteAccessList(DeleteAccessListRequest) returns (google.protobuf.Empty);
   // DeleteAllAccessLists hard deletes all access lists.
   rpc DeleteAllAccessLists(DeleteAllAccessListsRequest) returns (google.protobuf.Empty);
+  // GetAccessListsToReview will return access lists that need to be reviewed by the current user.
+  rpc GetAccessListsToReview(GetAccessListsToReviewRequest) returns (GetAccessListsToReviewResponse);
 
   // ListAccessListMembers returns a paginated list of all access list members.
   rpc ListAccessListMembers(ListAccessListMembersRequest) returns (ListAccessListMembersResponse);
@@ -112,6 +114,14 @@ message DeleteAccessListRequest {
 
 // DeleteAllAccessListsRequest is the request for deleting all access lists.
 message DeleteAllAccessListsRequest {}
+
+// GetAccessListsToReviewRequest is the request for getting access lists that the current user needs to review.
+message GetAccessListsToReviewRequest {}
+
+// GetAccessListsToReviewResponse is the response for getting access lists that the current user needs to review.
+message GetAccessListsToReviewResponse {
+  repeated AccessList access_lists = 1;
+}
 
 // ListAccessListMembersRequest is the request for getting paginated access list members.
 message ListAccessListMembersRequest {

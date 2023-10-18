@@ -788,7 +788,7 @@ func TestUserWithDeviceExtensions(username string, exts tlsca.DeviceExtensions) 
 	}
 }
 
-// TestUser returns a TestIdentity for a local user
+// TestRenewableUser returns a TestIdentity for a local user
 // with renewable credentials.
 func TestRenewableUser(username string, generation uint64) TestIdentity {
 	return TestIdentity{
