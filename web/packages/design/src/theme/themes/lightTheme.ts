@@ -15,7 +15,16 @@ limitations under the License.
 */
 
 import { darken, lighten } from '../utils/colorManipulator';
-import { blue, green, indigo, orange, pink, purple, red, yellow } from '../palette';
+import {
+  blue,
+  green,
+  indigo,
+  orange,
+  pink,
+  purple,
+  red,
+  yellow,
+} from '../palette';
 
 import { sharedColors, sharedStyles } from './sharedStyles';
 import { DataVisualisationColors, Theme, ThemeColors } from './types';
@@ -304,7 +313,6 @@ const colors: ThemeColors = {
           background: indigo[200],
           color: indigo[700],
         },
-
       },
       disallowedRequest: {
         background: lighten(purple[300], 0.9),
