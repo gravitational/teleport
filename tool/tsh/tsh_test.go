@@ -4827,7 +4827,7 @@ func TestIgnoreHTTPSPrefix(t *testing.T) {
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddress,
 	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
-		cf.MockSSOLogin = mockSSOLogin(t, authServer, alice)
+		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.overrideStderr = &buf
 		return nil
 	})
