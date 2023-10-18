@@ -46,9 +46,10 @@ func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UserLogin{
 			UserLogin: &prehogv1a.UserLoginEvent{
-				UserName:      a.AnonymizeString(u.UserName),
-				ConnectorType: u.ConnectorType,
-				DeviceId:      deviceID,
+				UserName:                 a.AnonymizeString(u.UserName),
+				ConnectorType:            u.ConnectorType,
+				DeviceId:                 deviceID,
+				RequiredPrivateKeyPolicy: u.RequiredPrivateKeyPolicy,
 			},
 		},
 	}

@@ -172,9 +172,39 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 
 // DeleteUser deletes the database user.
 func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) error {
-	// TODO(gabrielcorado): implement delete database user. for now, just
-	// fallback to deactivate user.
-	return e.DeactivateUser(ctx, sessionCtx)
+	if sessionCtx.Database.GetAdminUser() == "" {
+		return trace.BadParameter("Teleport does not have admin user configured for this database")
+	}
+
+	conn, err := e.connectAsAdminUser(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer conn.Close()
+
+	e.Log.Infof("Deleting MySQL user %q for %v.", sessionCtx.DatabaseUser, sessionCtx.Identity.Username)
+
+	result, err := conn.Execute(fmt.Sprintf("CALL %s(?)", deleteUserProcedureName), sessionCtx.DatabaseUser)
+	if err != nil {
+		if getSQLState(err) == common.SQLStateActiveUser {
+			e.Log.Debugf("Failed to delete user %q: %v.", sessionCtx.DatabaseUser, err)
+			return nil
+		}
+
+		return trace.Wrap(err)
+	}
+	defer result.Close()
+
+	switch readDeleteUserResult(result) {
+	case common.SQLStateUserDropped:
+		e.Log.Debugf("User %q deleted successfully.", sessionCtx.DatabaseUser)
+	case common.SQLStateUserDeactivated:
+		e.Log.Infof("Unable to delete user %q, it was disabled instead.", sessionCtx.DatabaseUser)
+	default:
+		e.Log.Warnf("Unable to determine user %q deletion state.", sessionCtx.DatabaseUser)
+	}
+
+	return trace.Wrap(err)
 }
 
 func (e *Engine) connectAsAdminUser(ctx context.Context, sessionCtx *common.Session) (*clientConn, error) {
@@ -426,6 +456,14 @@ func doTransaction(conn *clientConn, do func() error) error {
 	return trace.Wrap(conn.Commit())
 }
 
+func readDeleteUserResult(res *mysql.Result) string {
+	if len(res.Values) != 1 && len(res.Values[0]) != 1 {
+		return ""
+	}
+
+	return string(res.Values[0][0].AsString())
+}
+
 const (
 	// procedureVersion is a hard-coded string that is set as procedure
 	// comments to indicate the procedure version.
@@ -450,6 +488,7 @@ const (
 	revokeRolesProcedureName    = "teleport_revoke_roles"
 	activateUserProcedureName   = "teleport_activate_user"
 	deactivateUserProcedureName = "teleport_deactivate_user"
+	deleteUserProcedureName     = "teleport_delete_user"
 )
 
 var (
@@ -459,6 +498,8 @@ var (
 	deactivateUserProcedure string
 	//go:embed mysql_revoke_roles.sql
 	revokeRolesProcedure string
+	//go:embed mysql_delete_user.sql
+	deleteProcedure string
 
 	allProcedures = []struct {
 		name          string
@@ -475,6 +516,10 @@ var (
 		{
 			name:          deactivateUserProcedureName,
 			createCommand: deactivateUserProcedure,
+		},
+		{
+			name:          deleteUserProcedureName,
+			createCommand: deleteProcedure,
 		},
 	}
 )

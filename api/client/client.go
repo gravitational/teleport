@@ -1595,6 +1595,28 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return roles, nil
 }
 
+// CreateRole creates a new role.
+func (c *Client) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
+	r, ok := role.(*types.RoleV6)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", role)
+	}
+
+	created, err := c.grpc.CreateRole(ctx, &proto.CreateRoleRequest{Role: r})
+	return created, trace.Wrap(err)
+}
+
+// UpdateRole updates an already existing role.
+func (c *Client) UpdateRole(ctx context.Context, role types.Role) (types.Role, error) {
+	r, ok := role.(*types.RoleV6)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", role)
+	}
+
+	updated, err := c.grpc.UpdateRole(ctx, &proto.UpdateRoleRequest{Role: r})
+	return updated, trace.Wrap(err)
+}
+
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
 	r, ok := role.(*types.RoleV6)
@@ -1602,7 +1624,13 @@ func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
 		return trace.BadParameter("invalid type %T", role)
 	}
 
-	_, err := c.grpc.UpsertRole(ctx, r)
+	_, err := c.grpc.UpsertRoleV2(ctx, &proto.UpsertRoleRequest{Role: r})
+	if err != nil && trace.IsNotImplemented(err) {
+		//nolint:staticcheck // SA1019. Kept for backward compatibility.
+		_, err := c.grpc.UpsertRole(ctx, r)
+		return trace.Wrap(err)
+	}
+
 	return trace.Wrap(err)
 }
 
