@@ -60,7 +60,7 @@ db_service:
     # Free-form description of the database proxy instance.
     description: "Production database"
 
-    # Database protocol. Can be: "postgres", "mysql", "mongodb", "oracle", "clickhouse", "clickhouse-http", "cockroachdb", "redis", "snowflake", "sqlserver", "cassandra", "elasticsearch", or "dynamodb"
+    # Database protocol. Can be: "postgres", "mysql", "mongodb", "oracle", "cockroachdb", "redis", "snowflake", "sqlserver", "cassandra", "elasticsearch", or "dynamodb"
     protocol: "postgres"
 
     # Database connection endpoint. Must be reachable from Database Service.
