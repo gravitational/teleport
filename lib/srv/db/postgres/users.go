@@ -90,6 +90,12 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 
 // DeleteUser deletes the database user.
 func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) error {
+	// TODO support DeleteUser for Redshift
+	if sessionCtx.Database.IsRedshift() {
+		e.Log.Debug("DeleteUser is not supported for Redshift yet, it was disabled instead.")
+		return trace.Wrap(e.DeactivateUser(ctx, sessionCtx))
+	}
+
 	if sessionCtx.Database.GetAdminUser() == "" {
 		return trace.BadParameter("Teleport does not have admin user configured for this database")
 	}
@@ -112,7 +118,7 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	case common.SQLStateUserDropped:
 		e.Log.Debug("User %q deleted successfully.", sessionCtx.DatabaseUser)
 	case common.SQLStateUserDeactivated:
-		e.Log.Infof("Unable to delete user %q, it was disabled instead", sessionCtx.DatabaseUser)
+		e.Log.Infof("Unable to delete user %q, it was disabled instead.", sessionCtx.DatabaseUser)
 	default:
 		e.Log.Warnf("Unable to determine user %q deletion state.", sessionCtx.DatabaseUser)
 	}
