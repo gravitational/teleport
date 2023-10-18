@@ -28,11 +28,6 @@ import {
 } from 'design';
 import { Magnifier, PushPin } from 'design/Icon';
 import { Danger } from 'design/Alert';
-import {
-  makeEmptyAttempt,
-  makeSuccessAttempt,
-  useAsync,
-} from 'shared/hooks/useAsync';
 
 import './unifiedStyles.css';
 
@@ -41,7 +36,6 @@ import {
   ResourceLabel,
   ResourceFilter,
 } from 'teleport/services/agents';
-import { useInfiniteScroll } from 'teleport/components/hooks';
 import { UrlResourcesParams } from 'teleport/config';
 import { FeatureBox } from 'teleport/components/Layout';
 import { TextIcon } from 'teleport/Discover/Shared';
@@ -49,6 +43,14 @@ import {
   UnifiedTabPreference,
   UnifiedResourcePreferences,
 } from 'teleport/services/userPreferences/types';
+
+import {
+  makeEmptyAttempt,
+  makeSuccessAttempt,
+  useAsync,
+} from 'shared/hooks/useAsync';
+
+import { useInfiniteScroll } from '../../hooks';
 
 import { SharedUnifiedResource } from './types';
 import {
@@ -87,7 +89,7 @@ const tabs: { label: string; value: UnifiedTabPreference }[] = [
   },
 ];
 
-interface ResourcesProps {
+interface UnifiedResourcesProps {
   params: ResourceFilter;
   //TODO(gzdunek): the pin button should be moved to some other place
   //according to the new designs
@@ -108,7 +110,7 @@ interface ResourcesProps {
   ): void;
 }
 
-export function Resources(props: ResourcesProps) {
+export function UnifiedResources(props: UnifiedResourcesProps) {
   const {
     params,
     setParams,

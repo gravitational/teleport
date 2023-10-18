@@ -27,11 +27,11 @@ import { nodes } from 'teleport/Nodes/fixtures';
 import { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 
-import { Resources } from './Resources';
+import { UnifiedResources } from './UnifiedResources';
 import { SharedUnifiedResource } from './types';
 
 export default {
-  title: 'Teleport/UnifiedResources',
+  title: 'Shared/UnifiedResources',
 };
 
 const aLotOfLabels = {
@@ -67,7 +67,7 @@ const story = (
   ) => Promise<ResourcesResponse<SharedUnifiedResource>>
 ) => {
   return () => (
-    <Resources
+    <UnifiedResources
       availableKinds={['app', 'db', 'node', 'kube_cluster', 'windows_desktop']}
       Header={pinAllButton => (
         <Flex justifyContent="end" height="50px">

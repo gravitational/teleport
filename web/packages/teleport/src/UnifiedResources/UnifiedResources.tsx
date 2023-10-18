@@ -2,6 +2,8 @@ import React, { useCallback } from 'react';
 
 import { Flex } from 'design';
 
+import { UnifiedResources as SharedUnifiedResources } from 'shared/components/UnifiedResources';
+
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import localStorage from 'teleport/services/localStorage';
 import { useUser } from 'teleport/User/UserContext';
@@ -17,10 +19,9 @@ import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering'
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 
 import { ResourceActionButton } from './ResourceActionButton';
-import { Resources } from './Resources';
 import SearchPanel from './SearchPanel';
 
-export function WebUnifiedResources() {
+export function UnifiedResources() {
   const teleCtx = useTeleport();
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const enabled = localStorage.areUnifiedResourcesEnabled();
@@ -59,12 +60,12 @@ export function WebUnifiedResources() {
   );
 
   return (
-    <Resources
+    <SharedUnifiedResources
       params={params}
       updateUnifiedResourcesPreferences={preferences => {
         updatePreferences({ unifiedResourcePreferences: preferences });
       }}
-      availableKinds={['node', 'app', 'db', 'kube_cluster', 'windows_desktop']}
+      availableKinds={['app', 'db', 'windows_desktop', 'kube_cluster', 'node']}
       Header={pinAllButton => (
         <>
           <FeatureHeader

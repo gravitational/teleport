@@ -1,7 +1,6 @@
 import React from 'react';
 import { ResourceIconName } from 'design/ResourceIcon';
 
-import { DbProtocol } from 'shared/services/databases';
 import {
   Icon,
   Application as ApplicationIcon,
@@ -10,6 +9,8 @@ import {
   Server as ServerIcon,
   Desktop as DesktopIcon,
 } from 'design/Icon';
+
+import { DbProtocol } from 'shared/services/databases';
 
 import {
   UnifiedResourceKube,
