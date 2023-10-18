@@ -107,7 +107,7 @@ func maybeReadGzip(headers *http.Header, body []byte) ([]byte, error) {
 	}
 	defer bodyGZ.Close()
 
-	body, err = io.ReadAll(bodyGZ)
+	body, err = io.ReadAll(io.LimitReader(bodyGZ, teleport.MaxHTTPRequestSize))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
