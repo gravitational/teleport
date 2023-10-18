@@ -12,6 +12,7 @@ on:
     branches:
       - master
       - branch/**
+      - walt/*
 
 jobs:
   bloat_check:
