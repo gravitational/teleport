@@ -163,12 +163,14 @@ func TestBot(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, rootClient.UpsertRole(ctx, role))
+	_, err = rootClient.UpsertRole(ctx, role)
+	require.NoError(t, err)
 	// Create a blank secondary role that we can use to check that the default
 	// behavior of impersonating all roles available works
 	role, err = types.NewRole(secondaryRole, types.RoleSpecV6{})
 	require.NoError(t, err)
-	require.NoError(t, rootClient.UpsertRole(ctx, role))
+	_, err = rootClient.UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	// Make and join a new bot instance.
 	botParams := testhelpers.MakeBot(t, rootClient, "test", defaultRoles...)

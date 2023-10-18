@@ -1040,6 +1040,6 @@ func setRoleIdleTimeout(t *testing.T, authServer *auth.Server, role types.Role, 
 	opts := role.GetOptions()
 	opts.ClientIdleTimeout = types.Duration(idleTimout)
 	role.SetOptions(opts)
-	err := authServer.UpsertRole(context.Background(), role)
+	_, err := authServer.UpsertRole(context.Background(), role)
 	require.NoError(t, err)
 }

@@ -313,9 +313,9 @@ func TestUpsertRole(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	existingRoles := make(map[string]types.Role)
-	m.mockUpsertRole = func(ctx context.Context, role types.Role) error {
+	m.mockUpsertRole = func(ctx context.Context, role types.Role) (types.Role, error) {
 		existingRoles[role.GetName()] = role
-		return nil
+		return role, nil
 	}
 	m.mockGetRole = func(ctx context.Context, name string) (types.Role, error) {
 		role, ok := existingRoles[name]
@@ -569,7 +569,7 @@ func TestListResources(t *testing.T) {
 type mockedResourceAPIGetter struct {
 	mockGetRole               func(ctx context.Context, name string) (types.Role, error)
 	mockGetRoles              func(ctx context.Context) ([]types.Role, error)
-	mockUpsertRole            func(ctx context.Context, role types.Role) error
+	mockUpsertRole            func(ctx context.Context, role types.Role) (types.Role, error)
 	mockUpsertGithubConnector func(ctx context.Context, connector types.GithubConnector) error
 	mockGetGithubConnectors   func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 	mockGetGithubConnector    func(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
@@ -595,12 +595,12 @@ func (m *mockedResourceAPIGetter) GetRoles(ctx context.Context) ([]types.Role, e
 	return nil, trace.NotImplemented("mockGetRoles not implemented")
 }
 
-func (m *mockedResourceAPIGetter) UpsertRole(ctx context.Context, role types.Role) error {
+func (m *mockedResourceAPIGetter) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
 	if m.mockUpsertRole != nil {
 		return m.mockUpsertRole(ctx, role)
 	}
 
-	return trace.NotImplemented("mockUpsertRole not implemented")
+	return nil, trace.NotImplemented("mockUpsertRole not implemented")
 }
 
 func (m *mockedResourceAPIGetter) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {

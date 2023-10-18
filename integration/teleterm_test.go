@@ -208,11 +208,11 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	require.NoError(t, err)
 
 	// add role that user can request
-	err = authServer.UpsertRole(context.Background(), requestableRole)
+	_, err = authServer.UpsertRole(context.Background(), requestableRole)
 	require.NoError(t, err)
 
 	// add role that allows to request "requestableRole"
-	err = authServer.UpsertRole(context.Background(), userRole)
+	_, err = authServer.UpsertRole(context.Background(), userRole)
 	require.NoError(t, err)
 
 	user, err := types.NewUser(userName)
@@ -473,7 +473,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 					Name: roleName,
 				})
 				existingRole = &role
-				err := authServer.UpsertRole(ctx, &role)
+				_, err := authServer.UpsertRole(ctx, &role)
 				require.NoError(t, err)
 			}
 

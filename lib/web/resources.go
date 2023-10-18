@@ -143,11 +143,12 @@ func upsertRole(ctx context.Context, clt resourcesAPIGetter, content, httpMethod
 		return nil, trace.Wrap(err)
 	}
 
-	if err := clt.UpsertRole(ctx, role); err != nil {
+	upserted, err := clt.UpsertRole(ctx, role)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.NewResourceItem(role)
+	return ui.NewResourceItem(upserted)
 }
 
 func (h *Handler) getGithubConnectorsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -522,7 +523,7 @@ type resourcesAPIGetter interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 	// UpsertRole creates or updates role
-	UpsertRole(ctx context.Context, role types.Role) error
+	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
 	// UpsertGithubConnector creates or updates a Github connector
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
 	// GetGithubConnectors returns all configured Github connectors

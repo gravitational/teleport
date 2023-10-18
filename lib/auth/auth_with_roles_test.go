@@ -247,7 +247,8 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 				role.SetImpersonateConditions(types.Allow, types.ImpersonateConditions{
 					Roles: []string{role.GetName()},
 				})
-				require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+				role, err = srv.Auth().UpsertRole(ctx, role)
+				require.NoError(t, err)
 
 				req.UseRoleRequests = true
 				req.RoleRequests = []string{role.GetName()}
@@ -994,7 +995,8 @@ func TestGenerateDatabaseCert(t *testing.T) {
 		Users: []string{string(types.RoleDatabase)},
 		Roles: []string{string(types.RoleDatabase)},
 	})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, roleDb))
+	_, err = srv.Auth().UpsertRole(ctx, roleDb)
+	require.NoError(t, err)
 
 	tests := []struct {
 		desc     string
@@ -1449,7 +1451,8 @@ func TestGetAndList_Nodes(t *testing.T) {
 
 	// permit user to list all nodes
 	role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	// Convert nodes retrieved earlier as types.ResourcesWithLabels
 	testResources := make([]types.ResourceWithLabels, len(testNodes))
@@ -1470,7 +1473,8 @@ func TestGetAndList_Nodes(t *testing.T) {
 
 	// remove permission for third node
 	role.SetNodeLabels(types.Deny, types.Labels{"name": {testResources[3].GetName()}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	// listing nodes 0-4 should skip the third node and add the fifth to the end.
 	resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
@@ -1697,7 +1701,7 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 	_, role, err := CreateUserAndRoleWithoutRoles(srv.AuthServer, username, nil)
 	require.NoError(t, err)
 	role.SetRules(types.Allow, allowRules)
-	err = srv.AuthServer.UpsertRole(ctx, role)
+	_, err = srv.AuthServer.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	localUser := authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
@@ -1723,14 +1727,16 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 	dev, devRole, err := CreateUserAndRole(srv.Auth(), "dev", nil, nil)
 	require.NoError(t, err)
 	devRole.SetDatabaseLabels(types.Allow, types.Labels{"env": {"dev"}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, devRole))
+	_, err = srv.Auth().UpsertRole(ctx, devRole)
+	require.NoError(t, err)
 	devClt, err := srv.NewClient(TestUser(dev.GetName()))
 	require.NoError(t, err)
 
 	admin, adminRole, err := CreateUserAndRole(srv.Auth(), "admin", nil, nil)
 	require.NoError(t, err)
 	adminRole.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, adminRole))
+	_, err = srv.Auth().UpsertRole(ctx, adminRole)
+	require.NoError(t, err)
 	adminClt, err := srv.NewClient(TestUser(admin.GetName()))
 	require.NoError(t, err)
 
@@ -2038,7 +2044,8 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 
 	// permit user to get the first database
 	role.SetDatabaseLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 	servers, err := clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Len(t, servers, 1)
@@ -2050,7 +2057,8 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 
 	// permit user to get all databases
 	role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 	servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, len(testServers), len(servers))
@@ -2093,7 +2101,8 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 
 	// deny user to get the first database
 	role.SetDatabaseLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 	servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, len(testServers[1:]), len(servers))
@@ -2105,7 +2114,8 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 
 	// deny user to get all databases
 	role.SetDatabaseLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 	servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, servers)
@@ -2161,7 +2171,8 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 
 	// permit user to get the first app
 	role.SetAppLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 	servers, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, len(servers))
@@ -2173,7 +2184,8 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 
 	// permit user to get all apps
 	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, len(testServers), len(servers))
@@ -2216,7 +2228,8 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 
 	// deny user to get the first app
 	role.SetAppLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, len(testServers[1:]), len(servers))
@@ -2228,7 +2241,8 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 
 	// deny user to get all apps
 	role.SetAppLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, len(servers))
@@ -2323,7 +2337,8 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	listRequestAppsOnly := listRequest
 	listRequestAppsOnly.SearchKeywords = []string{"app-server"}
 	role.SetAppLabels(types.Allow, types.Labels{"name": {testAppServers[0].GetName()}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 	servers, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, len(servers))
@@ -2336,7 +2351,8 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	// Permit user to get all apps and saml idp service providers.
 	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	// Test getting all apps and SAML IdP service providers.
 	resp, err = clt.ListResources(ctx, listRequest)
@@ -2384,7 +2400,8 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 
 	// deny user to get the first app
 	role.SetAppLabels(types.Deny, types.Labels{"name": {testAppServers[0].GetName()}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, len(testAppServers[1:]), len(servers))
@@ -2402,7 +2419,8 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 			Verbs:     []string{types.VerbList},
 		},
 	})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, len(servers))
@@ -2423,14 +2441,16 @@ func TestApps(t *testing.T) {
 	dev, devRole, err := CreateUserAndRole(srv.Auth(), "dev", nil, nil)
 	require.NoError(t, err)
 	devRole.SetAppLabels(types.Allow, types.Labels{"env": {"dev"}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, devRole))
+	_, err = srv.Auth().UpsertRole(ctx, devRole)
+	require.NoError(t, err)
 	devClt, err := srv.NewClient(TestUser(dev.GetName()))
 	require.NoError(t, err)
 
 	admin, adminRole, err := CreateUserAndRole(srv.Auth(), "admin", nil, nil)
 	require.NoError(t, err)
 	adminRole.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, adminRole))
+	_, err = srv.Auth().UpsertRole(ctx, adminRole)
+	require.NoError(t, err)
 	adminClt, err := srv.NewClient(TestUser(admin.GetName()))
 	require.NoError(t, err)
 
@@ -2771,7 +2791,7 @@ func TestIsMFARequired_databaseProtocols(t *testing.T) {
 			if tc.modifyRoleFunc != nil {
 				tc.modifyRoleFunc(role)
 			}
-			err = srv.Auth().UpsertRole(ctx, role)
+			_, err = srv.Auth().UpsertRole(ctx, role)
 			require.NoError(t, err)
 
 			cl, err := srv.NewClient(TestUser(user.GetName()))
@@ -2894,7 +2914,8 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 
 	// permit user to get all kubernetes service
 	role.SetKubernetesLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 	servers, err := clt.GetKubernetesServers(ctx)
 	require.NoError(t, err)
 	require.Len(t, testServers, len(testServers))
@@ -2937,7 +2958,8 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 
 	// deny user to get the first kubernetes service
 	role.SetKubernetesLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 	servers, err = clt.GetKubernetesServers(ctx)
 	require.NoError(t, err)
 	require.Len(t, servers, len(testServers)-1)
@@ -2949,7 +2971,8 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 
 	// deny user to get all databases
 	role.SetKubernetesLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 	servers, err = clt.GetKubernetesServers(ctx)
 	require.NoError(t, err)
 	require.Len(t, servers, 0)
@@ -3021,7 +3044,8 @@ func TestListDatabaseServices(t *testing.T) {
 	currentAllowRules := role.GetRules(types.Allow)
 	role.SetRules(types.Allow, append(currentAllowRules, types.NewRule(types.KindDatabaseService, services.RO())))
 	role.SetDatabaseServiceLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	listServicesResp, err = clt.ListResources(ctx,
 		proto.ListResourcesRequest{
@@ -3054,7 +3078,8 @@ func TestListDatabaseServices(t *testing.T) {
 
 	currentAllowRules = role.GetRules(types.Allow)
 	role.SetRules(types.Allow, append(currentAllowRules, types.NewRule(types.KindDatabaseService, services.RW())))
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	_, err = clt.UpsertDatabaseService(ctx, extraDatabaseService)
 	require.NoError(t, err)
@@ -3190,18 +3215,21 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 	searchAsRole.SetName("test_search_role")
 	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[1].GetName()}})
 	searchAsRole.SetLogins(types.Allow, []string{"requester"})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, searchAsRole))
+	_, err = srv.Auth().UpsertRole(ctx, searchAsRole)
+	require.NoError(t, err)
 
 	// create a third role which can see the third node
 	previewAsRole := services.RoleForUser(requester)
 	previewAsRole.SetName("test_preview_role")
 	previewAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[2].GetName()}})
 	previewAsRole.SetLogins(types.Allow, []string{"requester"})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, previewAsRole))
+	_, err = srv.Auth().UpsertRole(ctx, previewAsRole)
+	require.NoError(t, err)
 
 	role.SetSearchAsRoles(types.Allow, []string{searchAsRole.GetName()})
 	role.SetPreviewAsRoles(types.Allow, []string{previewAsRole.GetName()})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	requesterClt, err := srv.NewClient(TestUser(requester.GetName()))
 	require.NoError(t, err)
@@ -3337,7 +3365,8 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 
 	// Permit user to get the first desktop.
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{"name": {testDesktops[0].GetName()}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	desktops, err := clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
@@ -3353,7 +3382,8 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 
 	// Permit user to get all desktops.
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 	desktops, err = clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
 	require.EqualValues(t, len(testDesktops), len(desktops))
@@ -3406,7 +3436,8 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 
 	// Deny user to get the first desktop.
 	role.SetWindowsDesktopLabels(types.Deny, types.Labels{"name": {testDesktops[0].GetName()}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	desktops, err = clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
@@ -3420,7 +3451,8 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 
 	// Deny user all desktops.
 	role.SetWindowsDesktopLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	desktops, err = clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
@@ -3561,7 +3593,8 @@ func TestListResources_KindUserGroup(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, srv.AuthServer.UpsertRole(ctx, role))
+	_, err = srv.AuthServer.UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	user, err := types.NewUser("test-user")
 	require.NoError(t, err)
@@ -3802,7 +3835,8 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 
 	// Permit user to get all resources.
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	// Define some resource names for testing.
 	names := []string{"d", "b", "d", "a", "a", "b"}
@@ -3996,7 +4030,7 @@ func TestListResources_WithRoles(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		err = srv.UpsertRole(ctx, role)
+		_, err = srv.UpsertRole(ctx, role)
 		require.NoError(t, err)
 	}
 
@@ -4392,9 +4426,11 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	// create user, role, and client
 	username := "user"
 	user, role, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
+	require.NoError(t, err)
 	// remove permission from nodes and desktops
 	role.SetNodeLabels(types.Deny, types.Labels{"name": {"mylabel"}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 	require.NoError(t, err)
 	identity := TestUser(user.GetName())
 	clt, err := srv.NewClient(identity)
@@ -4919,7 +4955,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			ctx := context.Background()
 			srv := newTestTLSServer(t)
-			err := srv.Auth().CreateRole(ctx, testCase.role)
+			_, err := srv.Auth().CreateRole(ctx, testCase.role)
 			require.NoError(t, err)
 
 			_, err = srv.Auth().CreateSessionTracker(ctx, testCase.tracker)

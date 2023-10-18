@@ -1617,21 +1617,26 @@ func (c *Client) UpdateRole(ctx context.Context, role types.Role) (types.Role, e
 	return updated, trace.Wrap(err)
 }
 
-// UpsertRole creates or updates role
-func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
+// UpsertRole creates or updates a role.
+func (c *Client) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
 	r, ok := role.(*types.RoleV6)
 	if !ok {
-		return trace.BadParameter("invalid type %T", role)
+		return nil, trace.BadParameter("invalid type %T", role)
 	}
 
-	_, err := c.grpc.UpsertRoleV2(ctx, &proto.UpsertRoleRequest{Role: r})
+	upserted, err := c.grpc.UpsertRoleV2(ctx, &proto.UpsertRoleRequest{Role: r})
 	if err != nil && trace.IsNotImplemented(err) {
 		//nolint:staticcheck // SA1019. Kept for backward compatibility.
 		_, err := c.grpc.UpsertRole(ctx, r)
-		return trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		r, err := c.grpc.GetRole(ctx, &proto.GetRoleRequest{Name: role.GetName()})
+		return r, trace.Wrap(err)
 	}
 
-	return trace.Wrap(err)
+	return upserted, trace.Wrap(err)
 }
 
 // DeleteRole deletes role by name
