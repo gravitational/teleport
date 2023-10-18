@@ -692,7 +692,7 @@ func TestRelogin(t *testing.T) {
 }
 
 // Test when https:// is included in --proxy address
-func TestIgnoreHttpsprefix(t *testing.T) {
+func TestIgnoreHTTPSPrefix(t *testing.T) {
 	t.Parallel()
 
 	tmpHomePath := t.TempDir()
@@ -713,7 +713,7 @@ func TestIgnoreHttpsprefix(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
-	buf := bytes.NewBuffer([]byte{})
+	var buf bytes.Buffer
 
 	proxyAddress := "https://" + proxyAddr.String()
 	err = Run(context.Background(), []string{
@@ -724,7 +724,7 @@ func TestIgnoreHttpsprefix(t *testing.T) {
 		"--proxy", proxyAddress,
 	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 		cf.MockSSOLogin = mockSSOLogin(t, authServer, alice)
-		cf.overrideStderr = buf
+		cf.overrideStderr = &buf
 		return nil
 	})
 	require.NoError(t, err)
