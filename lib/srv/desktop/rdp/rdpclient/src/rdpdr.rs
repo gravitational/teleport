@@ -42,6 +42,7 @@ use ironrdp_rdpdr::pdu::esc::{
     EstablishContextReturn, GetDeviceTypeIdCall, GetDeviceTypeIdReturn, GetStatusChangeCall,
     GetStatusChangeReturn, HCardAndDispositionCall, ListReadersReturn, ReadCacheCall,
     ReadCacheReturn, ReaderStateCommonCall, ScardCall, StatusReturn, TransmitCall, TransmitReturn,
+    WriteCacheCall,
 };
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::{
@@ -179,6 +180,10 @@ impl RdpdrBackend for TeleportRdpdrBackend {
             },
             ScardIoCtlCode::ReadCacheW => match call {
                 ScardCall::ReadCacheCall(call) => self.handle_read_cache(req, call),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::WriteCacheW => match call {
+                ScardCall::WriteCacheCall(call) => self.handle_write_cache(req, call),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
             _ => Err(custom_err!(
@@ -502,6 +507,15 @@ impl TeleportRdpdrBackend {
             None => (vec![], ReturnCode::CacheItemNotFound),
         };
         self.write_rdpdr_response(req, Box::new(ReadCacheReturn::new(return_code, data)))
+    }
+
+    fn handle_write_cache(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+        call: WriteCacheCall,
+    ) -> PduResult<()> {
+        self.contexts.write_cache(call)?;
+        self.write_rdpdr_response(req, Box::new(LongReturn::new(ReturnCode::Success)))
     }
 
     fn create_get_status_change_return(
