@@ -179,64 +179,6 @@ func shouldProcess(d resource.DeclarationInfo, types []TypeInfo) bool {
 	return m
 }
 
-func makeReferenceContent(typeDecls map[resource.PackageInfo]resource.DeclarationInfo, methods map[resource.PackageInfo][]resource.MethodInfo, requiredTypes []TypeInfo) (ReferenceContent, error) {
-	content := ReferenceContent{
-		Resources: make(map[resource.PackageInfo]ResourceSection),
-		Fields:    make(map[resource.PackageInfo]resource.ReferenceEntry),
-	}
-
-	// TODO: Consider testing some of the logic here in a unit test, rather
-	// than the golden file test.
-	for k, decl := range typeDecls {
-		if !shouldProcess(decl, requiredTypes) {
-			continue
-		}
-		entries, err := resource.NewFromDecl(decl, typeDecls)
-		// Skip to the next declaration
-		if errors.Is(err, resource.NotAGenDeclError{}) {
-			continue
-		}
-		if err != nil {
-			return ReferenceContent{}, fmt.Errorf("issue creating a reference entry for declaration %v.%v in file %v: %v", k.PackageName, k.TypeName, decl.FilePath, err)
-		}
-
-		// Add each reference entry to its appropriate place in the
-		// reference, either as a resource or as a field. Resources
-		// require a version number and `kind` value, so we search the
-		// methods of the resource type for the one that specifies these
-		// values.
-		for pi, e := range entries {
-			entryMethods, ok := methods[pi]
-			// Can't be a resource since it does not have methods.
-			if !ok {
-				content.Fields[pi] = e
-				continue
-			}
-			var foundMethods bool
-			for _, method := range entryMethods {
-				// TODO: make this a constant or configurable value
-				if method.Name != "setStaticFields" {
-					continue
-				}
-
-				ref := ResourceSection{
-					ReferenceEntry: e,
-					Version:        method.FieldAssignments["Version"],
-					Kind:           method.FieldAssignments["Kind"],
-				}
-
-				content.Resources[pi] = ref
-				foundMethods = true
-				break
-			}
-			if !foundMethods {
-				content.Fields[pi] = e
-			}
-		}
-	}
-	return content, nil
-}
-
 func Generate(out io.Writer, conf GeneratorConfig) error {
 	typeDecls := make(map[resource.PackageInfo]resource.DeclarationInfo)
 	possibleFuncDecls := []resource.DeclarationInfo{}
@@ -300,9 +242,59 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		return err
 	}
 
-	content, err := makeReferenceContent(typeDecls, methods, conf.RequiredTypes)
-	if err != nil {
-		return err
+	content := ReferenceContent{
+		Resources: make(map[resource.PackageInfo]ResourceSection),
+		Fields:    make(map[resource.PackageInfo]resource.ReferenceEntry),
+	}
+
+	// TODO: Consider testing some of the logic here in a unit test, rather
+	// than the golden file test.
+	for k, decl := range typeDecls {
+		if !shouldProcess(decl, conf.RequiredTypes) {
+			continue
+		}
+		entries, err := resource.NewFromDecl(decl, typeDecls)
+		// Skip to the next declaration
+		if errors.Is(err, resource.NotAGenDeclError{}) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("issue creating a reference entry for declaration %v.%v in file %v: %v", k.PackageName, k.TypeName, decl.FilePath, err)
+		}
+
+		// Add each reference entry to its appropriate place in the
+		// reference, either as a resource or as a field. Resources
+		// require a version number and `kind` value, so we search the
+		// methods of the resource type for the one that specifies these
+		// values.
+		for pi, e := range entries {
+			entryMethods, ok := methods[pi]
+			// Can't be a resource since it does not have methods.
+			if !ok {
+				content.Fields[pi] = e
+				continue
+			}
+			var foundMethods bool
+			for _, method := range entryMethods {
+				// TODO: make this a constant or configurable value
+				if method.Name != "setStaticFields" {
+					continue
+				}
+
+				ref := ResourceSection{
+					ReferenceEntry: e,
+					Version:        method.FieldAssignments["Version"],
+					Kind:           method.FieldAssignments["Kind"],
+				}
+
+				content.Resources[pi] = ref
+				foundMethods = true
+				break
+			}
+			if !foundMethods {
+				content.Fields[pi] = e
+			}
+		}
 	}
 
 	err = template.Must(template.New("Main reference").Parse(referenceTemplate)).Execute(out, content)
