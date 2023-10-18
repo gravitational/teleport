@@ -15,6 +15,7 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -313,7 +314,47 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		return nil, trace.Wrap(err)
 	}
 
+	// SSH connection MUST start with "SSH-2.0" bytes according to https://datatracker.ietf.org/doc/html/rfc4253#section-4.2
+	conn = newCheckedPrefixWriter(conn, []byte("SSH-2.0"))
 	return NewProxiedMetricConn(conn), trace.Wrap(err)
+}
+
+// checkedPrefixWriter checks that first data written into it has the specified prefix.
+type checkedPrefixWriter struct {
+	net.Conn
+
+	requiredPrefix  []byte
+	requiredPointer int
+}
+
+func newCheckedPrefixWriter(conn net.Conn, requiredPrefix []byte) *checkedPrefixWriter {
+	return &checkedPrefixWriter{
+		Conn:           conn,
+		requiredPrefix: requiredPrefix,
+	}
+}
+
+// Write writes data into connection, checking if it has required prefix. Not safe for concurrent calls.
+func (c *checkedPrefixWriter) Write(p []byte) (int, error) {
+	// If pointer reached end of required prefix the check is done
+	if len(c.requiredPrefix) == c.requiredPointer {
+		n, err := c.Conn.Write(p)
+		return n, trace.Wrap(err)
+	}
+
+	// Decide which is smaller, provided data or remaining portion of the required prefix
+	small, big := c.requiredPrefix[c.requiredPointer:], p
+	if len(small) > len(big) {
+		big, small = small, big
+	}
+
+	if !bytes.HasPrefix(big, small) {
+		return 0, trace.AccessDenied("required prefix %q was not found", c.requiredPrefix)
+	}
+	n, err := c.Conn.Write(p)
+	// Advance pointer by confirmed portion of the prefix.
+	c.requiredPointer += min(n, len(small))
+	return n, trace.Wrap(err)
 }
 
 // getRemoteCluster looks up the provided clusterName to determine if a remote site exists with
