@@ -28,8 +28,8 @@ the elevated access that a user can request, you can define a Teleport role
 that:
 
 - Names other Teleport roles the user can request.
-- Names other Teleport roles that the user can assume in order to request access
-  to a specific Teleport resource, such as a database or Kubernetes cluster.
+- Names other Teleport roles that the user can use to search for resources to
+  request, such as databases or Kubernetes clusters.
 
 You can also configure a Teleport role to prevent the user from requesting
 access to these roles.
@@ -79,8 +79,8 @@ user's roles into two lists of role matchers:
 
 - **Deny:** If the requested role matches any of these, Teleport denies the
   request. 
-- **Allow:** If the requested role matches any of these, Teleport allows the
-  request.
+- **Allow:** If the requested role matches any of these, and no deny matcher
+  also matches the role, Teleport allows the request.
 
 A role matcher can include the following values:
 
@@ -163,41 +163,18 @@ following:
 You can configure the length of time that Teleport will grant a user elevated
 privileges for an approved Access Request.
 
-### The `request.max_duration` field
-
-The `max_duration` option indicates the maximum length of time that a user is
-allowed to have elevated privileges for particular roles. You can specify it
-with a role like the following:
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: temp-dba
-spec:
-  allow:
-    request:
-      # Allow access to role `dba` for up to 4 days.
-      roles: ['dba']
-      max_duration: 4d
-```
-
-The value of `max_duration` can never exceed seven days.
-
 ### Calculating the duration of elevated privileges
 
-When Teleport grants a user's Access Request, the `max_duration` field is only
-one factor in determining how long the user's access will last. Teleport uses
-the following logic to make this calculation, which never exceeds
-`max_duration`: 
+Teleport uses the following logic to calculate how long a user has elevated
+privileges: 
 
 1. Calculate the maximum duration of elevated privileges if the Access Request
    were granted. This is the lowest value of:
     - The `--max-duration` flag of the [`tsh request
       create`](../../reference/cli/tsh.mdx#tsh-request-create) command (if the
       user creating the request provides this flag).
-    - The lowest value of a `request.max_duration` field that corresponds to one
-      of the user's requested roles. 
+    - The lowest value of the `request.max_duration` field included in one of
+      the user's requested roles. 
 
 1. Calculate the session TTL of the certificate the user would receive if
    Teleport were to grant the Access Request. This calculation chooses the
@@ -213,6 +190,35 @@ the following logic to make this calculation, which never exceeds
    privileges to either the maximum duration or the session TTL calculated
    earlier, whichever is shorter. Otherwise, set the duration of elevated
    privileges to the session TTL.
+
+### The `request.max_duration` field
+
+The `max_duration` option indicates the maximum length of time that a user is
+allowed to have elevated privileges for particular roles. After a user makes a
+successful Access Request, the user can authenticate to Teleport with the
+elevated access until the maximum duration has elapsed. 
+
+Each time the user authenticates to Teleport, Teleport calculates the TTL of the
+user's Teleport session using a formula that we describe in the [previous
+section](#calculating-the-duration-of-elevated-privileges). The user can have
+multiple sessions with elevated privileges before the maximum duration elapses.
+
+You can specify the `max_duration` option with a role like the following:
+
+```yaml
+kind: role
+version: v6
+metadata:
+  name: temp-dba
+spec:
+  allow:
+    request:
+      # Allow access to role `dba` for up to 4 days.
+      roles: ['dba']
+      max_duration: 4d
+```
+
+The value of `max_duration` can never exceed seven days.
 
 ### How long Access Requests are valid
 
@@ -387,7 +393,7 @@ functions:
 |`contains([]string, val)`|Returns `true` if the list of strings in the first argument contains the element in the second argument and `false` otherwise.|
 |`expr1 && expr2`|Evaluates to `true` if both `expr1` and `expr2` evaluate to `true`.|
 |`expr1 \|\| expr2`|Evaluates to `true` if `expr1`, `expr2`, or both evaluate to `true`.|
-|`!expr`|Evaluates to the opposite of `expr`.|
+|`!expr`|Negates `expr`.|
 
 ## Suggested reviewers
 
@@ -519,7 +525,7 @@ them, use the `allow.review_requests.preview_as_roles` and
 
 ```yaml
 kind: role
-version: v5
+version: v6
 metadata:
   name: reviewer
 spec:
