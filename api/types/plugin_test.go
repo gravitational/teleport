@@ -203,7 +203,7 @@ func TestPluginOpsgenieValidation(t *testing.T) {
 
 func requireBadParameterWith(msg string) require.ErrorAssertionFunc {
 	return func(t require.TestingT, err error, args ...interface{}) {
-		require.True(t, trace.IsBadParameter(err))
+		require.True(t, trace.IsBadParameter(err), "error: %v", err)
 		require.Contains(t, err.Error(), msg)
 	}
 }
