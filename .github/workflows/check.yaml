@@ -37,7 +37,7 @@ jobs:
     steps:
       - name: Generate GitHub Token
         id: generate_token
-        uses: tibdex/github-app-token@v1
+        uses: actions/create-github-app-token@v1
         with:
           app_id: ${{ secrets.REVIEWERS_APP_ID }}
           private_key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
