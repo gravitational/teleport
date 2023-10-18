@@ -77,9 +77,9 @@ auditor no-login-6566121f-b602-47f1-a118-c9c618ee5aec             session:list,r
 editor                                                            user:list,create,read,update,delete,...
 ```
 
-The `{{internal.logins}}` template variable is replaced with values from the
-Teleport local user database. For full details on how variable expansion works
-in Teleport roles, see the  [Teleport Access Controls
+The `internal.logins` trait is replaced with values from the Teleport local user
+database. For full details on how traits work in Teleport roles, see the
+[Teleport Access Controls
 Reference](docs/pages/access-controls/reference.mdx#roles).
 
 Machine ID can join with a token or the [IAM Method](../agents/join-services-to-your-cluster/aws-iam.mdx) on AWS.
