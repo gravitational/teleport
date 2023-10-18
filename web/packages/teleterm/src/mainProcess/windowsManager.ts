@@ -23,6 +23,7 @@ import {
   Rectangle,
   screen,
   nativeTheme,
+  ipcMain,
 } from 'electron';
 
 import { FileStorage } from 'teleterm/services/fileStorage';
@@ -36,12 +37,43 @@ export class WindowsManager {
   private selectionContextMenu: Menu;
   private inputContextMenu: Menu;
   private window?: BrowserWindow;
+  private frontendAppInit: {
+    /**
+     * The promise is resolved after the UI is fully initialized, that is the user has interacted
+     * with the relevant modals during startup and is free to use the app.
+     */
+    promise: Promise<void>;
+    resolve: () => void;
+    reject: (error: Error) => void;
+  };
 
   constructor(
     private fileStorage: FileStorage,
     private settings: RuntimeSettings
   ) {
     this.selectionContextMenu = Menu.buildFromTemplate([{ role: 'copy' }]);
+    this.frontendAppInit = {
+      promise: undefined,
+      resolve: undefined,
+      reject: undefined,
+    };
+    this.frontendAppInit.promise = new Promise((resolve, reject) => {
+      this.frontendAppInit.resolve = resolve;
+      this.frontendAppInit.reject = reject;
+    });
+
+    ipcMain.once(
+      'windows-manager-signal-frontend-app-readiness',
+      (event, args) => {
+        if (args.success) {
+          this.frontendAppInit.resolve();
+        } else {
+          this.frontendAppInit.reject(
+            new Error('Encountered an error while initializing frontend app')
+          );
+        }
+      }
+    );
 
     this.inputContextMenu = Menu.buildFromTemplate([
       { role: 'undo' },
@@ -83,6 +115,9 @@ export class WindowsManager {
 
     window.once('close', () => {
       this.saveWindowState(window);
+      this.frontendAppInit.reject(
+        new Error('Window was closed before frontend app got initialized')
+      );
     });
 
     // shows the window when the DOM is ready, so we don't have a brief flash of a blank screen
@@ -112,6 +147,19 @@ export class WindowsManager {
     );
 
     this.window = window;
+  }
+
+  /**
+   * dispose exists as a cleanup function MainProcess can call during 'will-quit' event of the
+   * Electron app.
+   *
+   * dispose doesn't have to close the window as that's typically done by Electron itself. It should
+   * however clean up any other remaining resources.
+   */
+  dispose() {
+    this.frontendAppInit.reject(
+      new Error('Main process was closed before frontend app got initialized')
+    );
   }
 
   /**
@@ -190,6 +238,18 @@ export class WindowsManager {
 
   getWindow() {
     return this.window;
+  }
+
+  /**
+   * whenFrontendAppIsReady is made to resemble app.whenReady from Electron.
+   * For now it is kept private just to signal that it's not used by any other class, but can be
+   * made public if needed.
+   *
+   * The promise is resolved after the UI is fully initialized, that is the user has interacted with
+   * the relevant modals during startup and is free to use the app.
+   */
+  private whenFrontendAppIsReady(): Promise<void> {
+    return this.frontendAppInit.promise;
   }
 
   private saveWindowState(window: BrowserWindow): void {

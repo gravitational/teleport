@@ -123,6 +123,8 @@ export class MockMainProcessClient implements MainProcessClient {
   removeAgentDirectory() {
     return Promise.resolve();
   }
+
+  signalFrontendAppReadiness() {}
 }
 
 export const makeRuntimeSettings = (
