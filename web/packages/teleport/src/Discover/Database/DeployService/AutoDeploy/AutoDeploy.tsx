@@ -55,6 +55,8 @@ import {
 import { DeployServiceProp } from '../DeployService';
 import { hasMatchingLabels, Labels } from '../../common';
 
+import { SelectSecurityGroups } from './SelectSecurityGroups';
+
 import type { Database } from 'teleport/services/databases';
 
 export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
@@ -67,6 +69,10 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
   const [deploySvcResp, setDeploySvcResp] =
     useState<AwsOidcDeployServiceResponse>();
   const [deployFinished, setDeployFinished] = useState(false);
+
+  const [selectedSecurityGroups, setSelectedSecurityGroups] = useState<
+    string[]
+  >([]);
 
   const hasDbLabels = agentMeta?.agentMatcherLabels?.length;
   const dbLabels = hasDbLabels ? agentMeta.agentMatcherLabels : [];
@@ -101,6 +107,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
         subnetIds: dbMeta.selectedAwsRdsDb?.subnets,
         taskRoleArn,
         databaseAgentMatcherLabels: labels,
+        securityGroups: selectedSecurityGroups,
       })
       // The user is still technically in the "processing"
       // state, because after this call succeeds, we will
@@ -170,8 +177,8 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
 
             {/* step two */}
             <StyledBox mb={5}>
-              <Text bold>Step 2</Text>
-              <Box mb={4}>
+              <Box>
+                <Text bold>Step 2 (Optional)</Text>
                 <Labels
                   labels={labels}
                   setLabels={setLabels}
@@ -182,11 +189,27 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
                   region={dbMeta.selectedAwsRdsDb?.region}
                 />
               </Box>
+            </StyledBox>
+
+            {/* step three */}
+            <StyledBox mb={5}>
+              <SelectSecurityGroups
+                selectedSecurityGroups={selectedSecurityGroups}
+                setSelectedSecurityGroups={setSelectedSecurityGroups}
+                dbMeta={dbMeta}
+                emitErrorEvent={emitErrorEvent}
+              />
+            </StyledBox>
+
+            <StyledBox mb={5}>
+              <Text bold>Step 4</Text>
+              <Text mb={2}>Deploy the Teleport Database Service.</Text>
               <ButtonSecondary
                 width="215px"
                 type="submit"
                 onClick={() => handleDeploy(validator)}
                 disabled={attempt.status === 'processing'}
+                mt={2}
                 mb={2}
               >
                 Deploy Teleport Service
@@ -212,7 +235,6 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
               )}
             </StyledBox>
 
-            {/* step three */}
             {isDeploying && (
               <DeployHints
                 deployFinished={handleDeployFinished}
