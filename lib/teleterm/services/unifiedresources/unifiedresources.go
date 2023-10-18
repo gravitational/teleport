@@ -69,11 +69,11 @@ func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *pr
 					Database: e.DatabaseServer.GetDatabase(),
 				},
 			})
-		case *proto.PaginatedResource_KubeCluster:
+		case *proto.PaginatedResource_KubernetesServer:
 			response.Resources = append(response.Resources, UnifiedResource{
 				Kube: &clusters.Kube{
-					URI:               cluster.URI.AppendKube(e.KubeCluster.GetName()),
-					KubernetesCluster: e.KubeCluster,
+					URI:               cluster.URI.AppendKube(e.KubernetesServer.GetCluster().GetName()),
+					KubernetesCluster: e.KubernetesServer.GetCluster(),
 				},
 			})
 		}

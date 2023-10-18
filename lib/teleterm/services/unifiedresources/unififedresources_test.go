@@ -48,15 +48,23 @@ func TestUnifiedResourcesList(t *testing.T) {
 			Metadata: types.Metadata{Name: "testDb"}}})
 	require.NoError(t, err)
 
-	kube, err := types.NewKubernetesClusterV3(types.Metadata{
+	kube, err := types.NewKubernetesServerV3(types.Metadata{
 		Name: "testKube",
-	}, types.KubernetesClusterSpecV3{})
+	}, types.KubernetesServerSpecV3{
+		HostID: uuid.New().String(),
+		Cluster: &types.KubernetesClusterV3{
+			Metadata: types.Metadata{
+				Name: "testKube",
+			},
+			Spec: types.KubernetesClusterSpecV3{},
+		},
+	})
 	require.NoError(t, err)
 
 	mockedResources := []*proto.PaginatedResource{
 		{Resource: &proto.PaginatedResource_Node{Node: node.(*types.ServerV2)}},
 		{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}},
-		{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: kube}},
+		{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: kube}},
 	}
 	mockedNextKey := "nextKey"
 
@@ -76,8 +84,8 @@ func TestUnifiedResourcesList(t *testing.T) {
 		Database: database.GetDatabase(),
 	}}, response.Resources[1])
 	require.Equal(t, UnifiedResource{Kube: &clusters.Kube{
-		URI:               uri.NewClusterURI(cluster.ProfileName).AppendKube(kube.GetName()),
-		KubernetesCluster: kube,
+		URI:               uri.NewClusterURI(cluster.ProfileName).AppendKube(kube.GetCluster().GetName()),
+		KubernetesCluster: kube.GetCluster(),
 	}}, response.Resources[2])
 	require.Equal(t, mockedNextKey, response.NextKey)
 }
