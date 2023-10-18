@@ -112,6 +112,8 @@ The connection limit for a given source address should be reduced upon receiving
 
 The same resumption mechanism could be employed for other protocols, since losing a long-lived database connection or a desktop session due to a Teleport proxy restart can be annoying. This can only be done whenever a client in our total control is at play, however, and not when the proxy is terminating connections (that would be pointless); that means using `tsh proxy db`, `tsh proxy kube` or some yet-to-exist desktop client for our Desktop Access sessions.
 
+This specific bespoke wire protocol, however, might not be suited to wrap completely arbitrary bytestreams: the SSH protocol works particularly well with it, since its internal multiplexing makes it so that one side of the connection can generally make the assumption that the other side is capable of reading all the data that is about to be written - anything based on HTTP/2 will probably work just as well, since the internal multiplexing is similar.
+
 ### Persisting SSH connections across Teleport node restarts
 
 We currently re-execute Teleport to handle various user bookkeeping tasks, but the SSH connection itself is handled by the single monolithic `teleport` process; in direct dial mode it would be possible for a child process to handle the incoming connection on its own (similarly to how OpenSSH does it), but since the connection could not outlive the main process handling the reverse tunnel connection in tunnel mode, this was never explored.
