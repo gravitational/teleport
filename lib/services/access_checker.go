@@ -304,8 +304,8 @@ func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter, 
 		localCluster: localCluster,
 		RoleSet:      roleSet,
 	}
-
-	if !o.isTAGEnabled {
+	// TODO(jakule): access checking in TAG is not implemented yet, always use RBAC.
+	if !o.isTAGEnabled || true {
 		return rbacChecker, nil
 	}
 
