@@ -318,7 +318,6 @@ const colors: ThemeColors = {
           background: indigo[200],
           color: indigo[700],
         },
-
       },
       disallowedRequest: {
         background: lighten(purple[300], 0.9),
