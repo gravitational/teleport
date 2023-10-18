@@ -16,7 +16,7 @@ limitations under the License.
 
 import cfg from 'teleport/config';
 
-import { StoreNav, StoreUserContext } from './stores';
+import { StoreNav, StoreUserContext, StoreNotifications } from './stores';
 import * as types from './types';
 import AuditService from './services/audit';
 import RecordingsService from './services/recordings';
@@ -39,6 +39,7 @@ class TeleportContext implements types.Context {
   // stores
   storeNav = new StoreNav();
   storeUser = new StoreUserContext();
+  storeNotifications = new StoreNotifications();
 
   // services
   auditService = new AuditService();
@@ -96,34 +97,7 @@ class TeleportContext implements types.Context {
     const userContext = this.storeUser;
 
     if (!this.storeUser.state) {
-      return {
-        activeSessions: false,
-        applications: false,
-        audit: false,
-        authConnector: false,
-        billing: false,
-        databases: false,
-        desktops: false,
-        kubernetes: false,
-        nodes: false,
-        recordings: false,
-        roles: false,
-        trustedClusters: false,
-        users: false,
-        newAccessRequest: false,
-        accessRequests: false,
-        downloadCenter: false,
-        discover: false,
-        plugins: false,
-        integrations: false,
-        deviceTrust: false,
-        enrollIntegrationsOrPlugins: false,
-        enrollIntegrations: false,
-        locks: false,
-        newLocks: false,
-        assist: false,
-        managementSection: false,
-      };
+      return disabledFeatureFlags;
     }
 
     // If feature hiding is enabled in the license, this returns true if the user has no list access to any feature within the management section.
@@ -161,6 +135,13 @@ class TeleportContext implements types.Context {
       return !cfg.isDashboard;
     }
 
+    function hasAccessMonitoringAccess() {
+      return (
+        userContext.getAuditQueryAccess().list ||
+        userContext.getSecurityReportAccess().list
+      );
+    }
+
     return {
       audit: userContext.getEventAccess().list,
       recordings: userContext.getSessionsAccess().list,
@@ -190,9 +171,40 @@ class TeleportContext implements types.Context {
       newLocks:
         userContext.getLockAccess().create && userContext.getLockAccess().edit,
       assist: userContext.getAssistantAccess().list && this.assistEnabled,
+      accessMonitoring: hasAccessMonitoringAccess(),
       managementSection: hasManagementSectionAccess(),
     };
   }
 }
+
+export const disabledFeatureFlags: types.FeatureFlags = {
+  activeSessions: false,
+  applications: false,
+  audit: false,
+  authConnector: false,
+  billing: false,
+  databases: false,
+  desktops: false,
+  kubernetes: false,
+  nodes: false,
+  recordings: false,
+  roles: false,
+  trustedClusters: false,
+  users: false,
+  newAccessRequest: false,
+  accessRequests: false,
+  downloadCenter: false,
+  discover: false,
+  plugins: false,
+  integrations: false,
+  deviceTrust: false,
+  enrollIntegrationsOrPlugins: false,
+  enrollIntegrations: false,
+  locks: false,
+  newLocks: false,
+  assist: false,
+  managementSection: false,
+  accessMonitoring: false,
+};
 
 export default TeleportContext;

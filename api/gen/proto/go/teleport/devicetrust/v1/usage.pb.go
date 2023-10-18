@@ -34,8 +34,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// AccountUsageType is the type of the underlying account, either limitless or
-// limit-based.
+// Superseded by ResourceUsageService.GetUsage.
 type AccountUsageType int32
 
 const (
@@ -85,23 +84,15 @@ func (AccountUsageType) EnumDescriptor() ([]byte, []int) {
 	return file_teleport_devicetrust_v1_usage_proto_rawDescGZIP(), []int{0}
 }
 
-// DevicesUsage holds aggregated information about trusted device usage.
+// Superseded by ResourceUsageService.GetUsage.
 type DevicesUsage struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Usage type of the underlying account.
-	// UNLIMITED accounts have no limits on the number of trusted devices,
-	// therefore all usage-based limits are data are zeroed when read.
-	AccountUsageType AccountUsageType `protobuf:"varint,1,opt,name=account_usage_type,json=accountUsageType,proto3,enum=teleport.devicetrust.v1.AccountUsageType" json:"account_usage_type,omitempty"`
-	// Devices usage limit.
-	// Always zero if the usage type is UNLIMITED.
-	DevicesUsageLimit int32 `protobuf:"varint,2,opt,name=devices_usage_limit,json=devicesUsageLimit,proto3" json:"devices_usage_limit,omitempty"`
-	// Devices in use.
-	// May be greater than [devices_usage_limit] in some cases.
-	// Always zero if the usage type is UNLIMITED.
-	DevicesInUse int32 `protobuf:"varint,3,opt,name=devices_in_use,json=devicesInUse,proto3" json:"devices_in_use,omitempty"`
+	AccountUsageType  AccountUsageType `protobuf:"varint,1,opt,name=account_usage_type,json=accountUsageType,proto3,enum=teleport.devicetrust.v1.AccountUsageType" json:"account_usage_type,omitempty"`
+	DevicesUsageLimit int32            `protobuf:"varint,2,opt,name=devices_usage_limit,json=devicesUsageLimit,proto3" json:"devices_usage_limit,omitempty"`
+	DevicesInUse      int32            `protobuf:"varint,3,opt,name=devices_in_use,json=devicesInUse,proto3" json:"devices_in_use,omitempty"`
 }
 
 func (x *DevicesUsage) Reset() {

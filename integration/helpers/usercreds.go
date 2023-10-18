@@ -82,7 +82,7 @@ func SetupUser(process *service.TeleportProcess, username string, roles []types.
 			teleUser.AddRole(role.GetName())
 		}
 	}
-	err = auth.UpsertUser(teleUser)
+	_, err = auth.UpsertUser(ctx, teleUser)
 	if err != nil {
 		return trace.Wrap(err)
 	}

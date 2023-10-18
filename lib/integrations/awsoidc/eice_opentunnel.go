@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -70,6 +71,9 @@ type OpenTunnelEC2Request struct {
 	// Eg, ip-172-31-32-234.eu-west-2.compute.internal:22
 	EC2Address string
 
+	// EC2InstanceID is the EC2 Instance ID.
+	EC2InstanceID string
+
 	// ec2OpenSSHPort is the port to connect to in the EC2 Instance.
 	// This value is parsed from EC2Address.
 	// Possible values: 22, 3389.
@@ -94,6 +98,10 @@ func (r *OpenTunnelEC2Request) CheckAndSetDefaults() error {
 
 	if r.VPCID == "" {
 		return trace.BadParameter("vpcid is required")
+	}
+
+	if r.EC2InstanceID == "" {
+		return trace.BadParameter("ec2 instance id is required")
 	}
 
 	if r.EC2Address == "" {
@@ -190,11 +198,13 @@ func OpenTunnelEC2(ctx context.Context, clt OpenTunnelEC2Client, req OpenTunnelE
 	ec2Conn, err := dialEC2InstanceUsingEICE(ctx, dialEC2InstanceUsingEICERequest{
 		credsProvider:    clt,
 		awsRegion:        req.Region,
-		endpointId:       *eice.InstanceConnectEndpointId,
-		endpointHost:     *eice.DnsName,
+		endpointId:       aws.ToString(eice.InstanceConnectEndpointId),
+		endpointHost:     aws.ToString(eice.DnsName),
 		privateIPAddress: req.ec2PrivateHostname,
 		remotePort:       req.ec2OpenSSHPort,
 		customCA:         req.websocketCustomCA,
+		subnetID:         aws.ToString(eice.SubnetId),
+		ec2InstanceID:    req.EC2InstanceID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -239,6 +249,8 @@ type dialEC2InstanceUsingEICERequest struct {
 	endpointHost     string
 	privateIPAddress string
 	remotePort       string
+	subnetID         string
+	ec2InstanceID    string
 }
 
 // dialEC2InstanceUsingEICE dials into an EC2 instance port using an EC2 Instance Connect Endpoint.
@@ -310,8 +322,11 @@ func dialEC2InstanceUsingEICE(ctx context.Context, req dialEC2InstanceUsingEICER
 	defer resp.Body.Close()
 
 	return &eicedConn{
-		Conn: conn,
-		r:    websocket.JoinMessages(conn, ""),
+		Conn:          conn,
+		r:             websocket.JoinMessages(conn, ""),
+		eiceID:        req.endpointId,
+		ec2InstanceID: req.ec2InstanceID,
+		subnetID:      req.subnetID,
 	}, nil
 }
 
@@ -319,17 +334,45 @@ func dialEC2InstanceUsingEICE(ctx context.Context, req dialEC2InstanceUsingEICER
 type eicedConn struct {
 	*websocket.Conn
 	r io.Reader
+
+	ec2InstanceID string
+	eiceID        string
+	subnetID      string
 }
 
 // Reads from the reader into b and returns the number of read bytes.
 func (i *eicedConn) Read(b []byte) (n int, err error) {
-	return i.r.Read(b)
+	n, err = i.r.Read(b)
+	if err != nil {
+		return 0, i.handleIOError(err)
+	}
+
+	return n, nil
 }
 
 // Write writes into the websocket connection the contents of b.
 // Returns how many bytes were written.
 func (i *eicedConn) Write(b []byte) (int, error) {
-	return len(b), i.Conn.WriteMessage(websocket.BinaryMessage, b)
+	err := i.Conn.WriteMessage(websocket.BinaryMessage, b)
+	if err != nil {
+		return 0, i.handleIOError(err)
+	}
+	return len(b), trace.Wrap(err)
+}
+
+func (i *eicedConn) handleIOError(err error) error {
+	var closeErr *websocket.CloseError
+	if errors.As(err, &closeErr) {
+		return trace.ConnectionProblem(err,
+			fmt.Sprintf("Could not connect to %s via EC2 Instance Connect Endpoint %s. "+
+				"Please ensure the instance's SecurityGroups allow inbound TCP traffic on port 22 from %s",
+				i.ec2InstanceID,
+				i.eiceID,
+				i.subnetID,
+			),
+		)
+	}
+	return trace.Wrap(err)
 }
 
 // SetDeadline sets the websocket read and write deadline.

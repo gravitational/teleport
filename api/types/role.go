@@ -59,8 +59,8 @@ type Role interface {
 	// SetOptions sets role options
 	SetOptions(opt RoleOptions)
 
-	// GetCreateDatabaseUserOption returns value of "create_db_user" option.
-	GetCreateDatabaseUserOption() bool
+	// GetCreateDatabaseUserMode gets the create database user mode option.
+	GetCreateDatabaseUserMode() CreateDatabaseUserMode
 
 	// GetLogins gets *nix system logins for allow or deny condition.
 	GetLogins(RoleConditionType) []string
@@ -248,6 +248,9 @@ type Role interface {
 // NewRole constructs new standard V7 role.
 // This creates a V7 role with V4+ RBAC semantics.
 func NewRole(name string, spec RoleSpecV6) (Role, error) {
+	// When incrementing the role version, make sure to update the
+	// role version in the asset file used by the UI.
+	// See: web/packages/teleport/src/Roles/templates/role.yaml
 	role, err := NewRoleWithVersion(name, V7, spec)
 	return role, trace.Wrap(err)
 }
@@ -357,12 +360,16 @@ func (r *RoleV6) SetOptions(options RoleOptions) {
 	r.Spec.Options = options
 }
 
-// GetCreateDatabaseUserOption returns value of "create_db_user" option.
-func (r *RoleV6) GetCreateDatabaseUserOption() bool {
-	if r.Spec.Options.CreateDatabaseUser == nil {
-		return false
+// GetCreateDatabaseUserMode gets the create database user mode option.
+func (r *RoleV6) GetCreateDatabaseUserMode() CreateDatabaseUserMode {
+	if r.Spec.Options.CreateDatabaseUserMode != CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED {
+		return r.Spec.Options.CreateDatabaseUserMode
 	}
-	return r.Spec.Options.CreateDatabaseUser.Value
+	// To keep backwards compatibility, look at the create database user option.
+	if r.Spec.Options.CreateDatabaseUser != nil && r.Spec.Options.CreateDatabaseUser.Value {
+		return CreateDatabaseUserMode_DB_USER_MODE_KEEP
+	}
+	return CreateDatabaseUserMode_DB_USER_MODE_OFF
 }
 
 // GetLogins gets system logins for allow or deny condition.
@@ -886,6 +893,10 @@ func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 		return keys.PrivateKeyPolicyHardwareKey
 	case RequireMFAType_HARDWARE_KEY_TOUCH:
 		return keys.PrivateKeyPolicyHardwareKeyTouch
+	case RequireMFAType_HARDWARE_KEY_PIN:
+		return keys.PrivateKeyPolicyHardwareKeyPIN
+	case RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
+		return keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
 	default:
 		return keys.PrivateKeyPolicyNone
 	}
@@ -895,6 +906,9 @@ func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 func (r *RoleV6) setStaticFields() {
 	r.Kind = KindRole
 	if r.Version != V3 && r.Version != V4 && r.Version != V5 && r.Version != V6 {
+		// When incrementing the role version, make sure to update the
+		// role version in the asset file used by the UI.
+		// See: web/packages/teleport/src/Roles/templates/role.yaml
 		r.Version = V7
 	}
 }
@@ -1822,6 +1836,16 @@ func (h CreateHostUserMode) encode() (string, error) {
 func (h *CreateHostUserMode) decode(val any) error {
 	var valS string
 	switch val := val.(type) {
+	case int32:
+		return trace.Wrap(h.setFromEnum(val))
+	case int64:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case int:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case float64:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case float32:
+		return trace.Wrap(h.setFromEnum(int32(val)))
 	case string:
 		valS = val
 	case bool:
@@ -1830,7 +1854,7 @@ func (h *CreateHostUserMode) decode(val any) error {
 		}
 		valS = createHostUserModeOffString
 	default:
-		return trace.BadParameter("bad value type %T, expected string", val)
+		return trace.BadParameter("bad value type %T, expected string or int", val)
 	}
 
 	switch valS {
@@ -1845,6 +1869,15 @@ func (h *CreateHostUserMode) decode(val any) error {
 	default:
 		return trace.BadParameter("invalid host user mode %v", val)
 	}
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (h *CreateHostUserMode) setFromEnum(val int32) error {
+	if _, ok := CreateHostUserMode_name[val]; !ok {
+		return trace.BadParameter("invalid host user mode %v", val)
+	}
+	*h = CreateHostUserMode(val)
 	return nil
 }
 
@@ -1889,4 +1922,98 @@ func (h *CreateHostUserMode) UnmarshalJSON(data []byte) error {
 
 	err = h.decode(val)
 	return trace.Wrap(err)
+}
+
+const (
+	createDatabaseUserModeOffString            = "off"
+	createDatabaseUserModeKeepString           = "keep"
+	createDatabaseUserModeBestEffortDropString = "best_effort_drop"
+)
+
+func (h CreateDatabaseUserMode) encode() (string, error) {
+	switch h {
+	case CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED:
+		return "", nil
+	case CreateDatabaseUserMode_DB_USER_MODE_OFF:
+		return createDatabaseUserModeOffString, nil
+	case CreateDatabaseUserMode_DB_USER_MODE_KEEP:
+		return createDatabaseUserModeKeepString, nil
+	case CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP:
+		return createDatabaseUserModeBestEffortDropString, nil
+	}
+
+	return "", trace.BadParameter("invalid database user mode %v", h)
+}
+
+func (h *CreateDatabaseUserMode) decode(val any) error {
+	var str string
+	switch val := val.(type) {
+	case string:
+		str = val
+	default:
+		return trace.BadParameter("bad value type %T, expected string", val)
+	}
+
+	switch str {
+	case "":
+		*h = CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED
+	case createDatabaseUserModeOffString:
+		*h = CreateDatabaseUserMode_DB_USER_MODE_OFF
+	case createDatabaseUserModeKeepString:
+		*h = CreateDatabaseUserMode_DB_USER_MODE_KEEP
+	case createDatabaseUserModeBestEffortDropString:
+		*h = CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP
+	default:
+		return trace.BadParameter("invalid database user mode %v", val)
+	}
+
+	return nil
+}
+
+// UnmarshalYAML supports parsing CreateDatabaseUserMode from string.
+func (h *CreateDatabaseUserMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val interface{}
+	err := unmarshal(&val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+// MarshalYAML marshals CreateDatabaseUserMode to yaml.
+func (h *CreateDatabaseUserMode) MarshalYAML() (interface{}, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// MarshalJSON marshals CreateDatabaseUserMode to json bytes.
+func (h *CreateDatabaseUserMode) MarshalJSON() ([]byte, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing CreateDatabaseUserMode from string.
+func (h *CreateDatabaseUserMode) UnmarshalJSON(data []byte) error {
+	var val interface{}
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+// IsEnabled returns true if database automatic user provisioning is enabled.
+func (m CreateDatabaseUserMode) IsEnabled() bool {
+	return m != CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED && m != CreateDatabaseUserMode_DB_USER_MODE_OFF
 }

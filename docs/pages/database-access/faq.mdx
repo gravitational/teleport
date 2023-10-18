@@ -7,10 +7,15 @@ description: Frequently asked questions about Teleport database access.
 
 The Teleport Database Service currently supports the following protocols:
 
+- Cassandra
+- ClickHouse
+- CockroachDB
+- DynamoDB
 - MariaDB
 - Microsoft SQL Server
 - MongoDB
 - MySQL
+- Oracle
 - PostgreSQL
 - Redis
 - Snowflake
@@ -32,6 +37,11 @@ The following PostgreSQL protocol features aren't currently supported:
 - Any [authentication methods](https://www.postgresql.org/docs/current/auth-methods.html)
   except for client certificate authentication and IAM authentication for cloud
   databases.
+
+
+## Are database sessions listed under recorded sessions?
+
+(!docs/pages/includes/database-access/db-audit-events.mdx!)
 
 ## Can database clients use a public address different from the web public address?
 

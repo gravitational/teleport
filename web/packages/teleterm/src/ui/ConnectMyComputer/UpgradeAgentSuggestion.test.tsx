@@ -51,6 +51,13 @@ describe('shouldShowAgentUpgradeSuggestion returns', () => {
       expected: false,
     },
     {
+      name: 'the agent is on the same version',
+      isLocalBuild: false,
+      appVersion: '14.1.0',
+      proxyVersion: '14.1.0',
+      expected: false,
+    },
+    {
       name: 'is a dev build',
       isLocalBuild: true,
       appVersion: '1.0.0-dev',

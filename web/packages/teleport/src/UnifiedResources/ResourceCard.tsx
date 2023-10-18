@@ -23,16 +23,9 @@ import React, {
 } from 'react';
 import styled, { css } from 'styled-components';
 
-import {
-  Box,
-  ButtonIcon,
-  ButtonLink,
-  Flex,
-  Label,
-  Popover,
-  Text,
-} from 'design';
+import { Box, ButtonIcon, ButtonLink, Flex, Label, Text } from 'design';
 import copyToClipboard from 'design/utils/copyToClipboard';
+import { StyledCheckbox } from 'design/Checkbox';
 
 import { ShimmerBox } from 'design/ShimmerBox';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
@@ -44,6 +37,8 @@ import {
   Kubernetes as KubernetesIcon,
   Server as ServersIcon,
   Desktop as DesktopsIcon,
+  PushPinFilled,
+  PushPin,
 } from 'design/Icon';
 
 import {
@@ -54,7 +49,12 @@ import {
 import { Database } from 'teleport/services/databases';
 
 import { ResourceActionButton } from './ResourceActionButton';
-import { resourceName } from './Resources';
+import {
+  resourceKey,
+  resourceName,
+  HoverTooltip,
+  PINNING_NOT_SUPPORTED_MESSAGE,
+} from './Resources';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -75,10 +75,30 @@ const ResTypeIconBox = styled(Box)`
 type Props = {
   resource: UnifiedResource;
   onLabelClick?: (label: ResourceLabel) => void;
+  pinResource: (id: string) => void;
+  selectResource: (id: string) => void;
+  pinned: boolean;
+  selected: boolean;
+  // this is used to disable pinning functionality if
+  // a leaf cluster hasn't been upgraded yet
+  pinningNotSupported: boolean;
+  // pinningDisabled is used to disable the button during
+  // a pinning network request
+  pinningDisabled: boolean;
 };
 
-export function ResourceCard({ resource, onLabelClick }: Props) {
+export function ResourceCard({
+  resource,
+  onLabelClick,
+  pinned = false,
+  selected = false,
+  pinResource,
+  selectResource,
+  pinningNotSupported = false,
+  pinningDisabled,
+}: Props) {
   const name = resourceName(resource);
+  const id = resourceKey(resource);
   const resIcon = resourceIconName(resource);
   const ResTypeIcon = resourceTypeIcon(resource.kind);
   const description = resourceDescription(resource);
@@ -174,96 +194,150 @@ export function ResourceCard({ resource, onLabelClick }: Props) {
     }
   };
 
+  const setPinned = () => {
+    pinResource(id);
+  };
+
   return (
     <CardContainer
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <CardInnerContainer
-        ref={innerContainer}
-        p={3}
-        alignItems="start"
-        showAllLabels={showAllLabels}
-        onMouseLeave={onMouseLeave}
-      >
-        <ResourceIcon name={resIcon} width="45px" height="45px" ml={2} />
-        {/* MinWidth is important to prevent descriptions from overflowing. */}
-        <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
-          <Flex flexDirection="row" alignItems="center">
-            <SingleLineBox flex="1">
-              {isNameOverflowed ? (
-                <HoverTooltip tipContent={<>{name}</>}>
+      <CardOuterContainer showAllLabels={showAllLabels}>
+        <CardInnerContainer
+          ref={innerContainer}
+          p={3}
+          // we set padding left a bit larger so we can have space to absolutely
+          // position the pin/checkbox buttons
+          pl={6}
+          alignItems="start"
+          onMouseLeave={onMouseLeave}
+          pinned={pinned}
+          selected={selected}
+        >
+          <HoverTooltip tipContent={<>{selected ? 'Deselect' : 'Select'}</>}>
+            <StyledCheckbox
+              id={`select-${id}`}
+              css={`
+                position: absolute;
+                top: 16px;
+                left: 16px;
+              `}
+              checked={selected}
+              onChange={() => selectResource(id)}
+            />
+          </HoverTooltip>
+          <PinButton
+            pinningDisabled={pinningDisabled}
+            pinningNotSupported={pinningNotSupported}
+            setPinned={setPinned}
+            hovered={hovered}
+            pinned={pinned}
+          />
+          <ResourceIcon name={resIcon} width="45px" height="45px" ml={2} />
+          {/* MinWidth is important to prevent descriptions from overflowing. */}
+          <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
+            <Flex flexDirection="row" alignItems="center">
+              <SingleLineBox flex="1">
+                {isNameOverflowed ? (
+                  <HoverTooltip tipContent={<>{name}</>}>
+                    <Text ref={nameText} typography="h5" fontWeight={300}>
+                      {name}
+                    </Text>
+                  </HoverTooltip>
+                ) : (
                   <Text ref={nameText} typography="h5" fontWeight={300}>
                     {name}
                   </Text>
-                </HoverTooltip>
-              ) : (
-                <Text ref={nameText} typography="h5" fontWeight={300}>
-                  {name}
-                </Text>
+                )}
+              </SingleLineBox>
+              {hovered && <CopyButton name={name} />}
+              <ResourceActionButton resource={resource} />
+            </Flex>
+            <Flex flexDirection="row" alignItems="center">
+              <ResTypeIconBox>
+                <ResTypeIcon size={18} />
+              </ResTypeIconBox>
+              {description.primary && (
+                <SingleLineBox ml={1} title={description.primary}>
+                  <Text typography="body2" color="text.slightlyMuted">
+                    {description.primary}
+                  </Text>
+                </SingleLineBox>
               )}
-            </SingleLineBox>
-            {hovered && <CopyButton name={name} />}
-            <ResourceActionButton resource={resource} />
+              {description.secondary && (
+                <SingleLineBox ml={2} title={description.secondary}>
+                  <Text typography="body2" color="text.muted">
+                    {description.secondary}
+                  </Text>
+                </SingleLineBox>
+              )}
+            </Flex>
+            <LabelsContainer showAll={showAllLabels}>
+              <LabelsInnerContainer ref={labelsInnerContainer}>
+                <MoreLabelsButton
+                  style={{
+                    visibility:
+                      showMoreLabelsButton && !showAllLabels
+                        ? 'visible'
+                        : 'hidden',
+                  }}
+                  onClick={onMoreLabelsClick}
+                >
+                  + {numMoreLabels} more
+                </MoreLabelsButton>
+                {resource.labels.map((label, i) => {
+                  const { name, value } = label;
+                  const labelText = `${name}: ${value}`;
+                  return (
+                    <ResourceLabel
+                      key={JSON.stringify([name, value, i])}
+                      title={labelText}
+                      onClick={() => onLabelClick?.(label)}
+                      kind="secondary"
+                      data-is-label=""
+                    >
+                      {labelText}
+                    </ResourceLabel>
+                  );
+                })}
+              </LabelsInnerContainer>
+            </LabelsContainer>
           </Flex>
-          <Flex flexDirection="row" alignItems="center">
-            <ResTypeIconBox>
-              <ResTypeIcon size={18} />
-            </ResTypeIconBox>
-            {description.primary && (
-              <SingleLineBox ml={1} title={description.primary}>
-                <Text typography="body2" color="text.slightlyMuted">
-                  {description.primary}
-                </Text>
-              </SingleLineBox>
-            )}
-            {description.secondary && (
-              <SingleLineBox ml={2} title={description.secondary}>
-                <Text typography="body2" color="text.muted">
-                  {description.secondary}
-                </Text>
-              </SingleLineBox>
-            )}
-          </Flex>
-          <LabelsContainer showAll={showAllLabels}>
-            <LabelsInnerContainer ref={labelsInnerContainer}>
-              <MoreLabelsButton
-                style={{
-                  visibility:
-                    showMoreLabelsButton && !showAllLabels
-                      ? 'visible'
-                      : 'hidden',
-                }}
-                onClick={onMoreLabelsClick}
-              >
-                + {numMoreLabels} more
-              </MoreLabelsButton>
-              {resource.labels.map((label, i) => {
-                const { name, value } = label;
-                const labelText = `${name}: ${value}`;
-                return (
-                  <ResourceLabel
-                    key={JSON.stringify([name, value, i])}
-                    title={labelText}
-                    onClick={() => onLabelClick?.(label)}
-                    kind="secondary"
-                    data-is-label=""
-                  >
-                    {labelText}
-                  </ResourceLabel>
-                );
-              })}
-            </LabelsInnerContainer>
-          </LabelsContainer>
-        </Flex>
-      </CardInnerContainer>
+        </CardInnerContainer>
+      </CardOuterContainer>
     </CardContainer>
   );
 }
 
-export function LoadingCard() {
-  function randomNum(min: number, max: number) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+type LoadingCardProps = {
+  delay?: 'none' | 'short' | 'long';
+};
+
+const DelayValueMap = {
+  none: 0,
+  short: 400, // 0.4s;
+  long: 600, // 0.6s;
+};
+
+function randomNum(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+export function LoadingCard({ delay = 'none' }: LoadingCardProps) {
+  const [canDisplay, setCanDisplay] = useState(false);
+
+  useEffect(() => {
+    const displayTimeout = setTimeout(() => {
+      setCanDisplay(true);
+    }, DelayValueMap[delay]);
+    return () => {
+      clearTimeout(displayTimeout);
+    };
+  }, []);
+
+  if (!canDisplay) {
+    return null;
   }
 
   return (
@@ -418,10 +492,22 @@ const CardContainer = styled(Box)`
   position: relative;
 `;
 
-const elevatedCardMixin = css`
-  background-color: ${props => props.theme.colors.levels.elevated};
-  border-color: ${props => props.theme.colors.levels.elevated};
-  box-shadow: ${props => props.theme.boxShadow[1]};
+const CardOuterContainer = styled(Box)`
+  border-radius: ${props => props.theme.radii[3]}px;
+
+  ${props =>
+    props.showAllLabels &&
+    css`
+      position: absolute;
+      left: 0;
+      right: 0;
+      z-index: 1;
+    `}
+  transition: all 150ms;
+
+  ${CardContainer}:hover & {
+    background-color: ${props => props.theme.colors.levels.surface};
+  }
 `;
 
 /**
@@ -434,88 +520,26 @@ const elevatedCardMixin = css`
  * outer container.
  */
 const CardInnerContainer = styled(Flex)`
-  background-color: transparent;
   border: ${props => props.theme.borders[2]}
     ${props => props.theme.colors.spotBackground[0]};
   border-radius: ${props => props.theme.radii[3]}px;
-
-  ${props =>
-    props.showAllLabels &&
-    css`
-      position: absolute;
-      left: 0;
-      right: 0;
-      z-index: 1;
-      ${elevatedCardMixin}
-    `}
-
-  transition: all 150ms;
-
-  ${CardContainer}:hover & {
-    ${elevatedCardMixin}
-  }
+  background-color: ${props => getBackgroundColor(props)};
 `;
+
+const getBackgroundColor = props => {
+  if (props.selected) {
+    return props.theme.colors.interactive.tonal.primary[2];
+  }
+  if (props.pinned) {
+    return props.theme.colors.interactive.tonal.primary[0];
+  }
+  return 'transparent';
+};
 
 const SingleLineBox = styled(Box)`
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-`;
-
-export const HoverTooltip: React.FC<{
-  tipContent: React.ReactElement;
-  fontSize?: number;
-}> = ({ tipContent, fontSize = 10, children }) => {
-  const [anchorEl, setAnchorEl] = useState();
-  const open = Boolean(anchorEl);
-
-  function handlePopoverOpen(event) {
-    setAnchorEl(event.currentTarget);
-  }
-
-  function handlePopoverClose() {
-    setAnchorEl(null);
-  }
-
-  return (
-    <>
-      <span
-        aria-owns={open ? 'mouse-over-popover' : undefined}
-        onMouseEnter={handlePopoverOpen}
-        onMouseLeave={handlePopoverClose}
-      >
-        {children}
-      </span>
-      <Popover
-        modalCss={modalCss}
-        onClose={handlePopoverClose}
-        open={open}
-        anchorEl={anchorEl}
-        anchorOrigin={{
-          vertical: 'top',
-          horizontal: 'center',
-        }}
-        transformOrigin={{
-          vertical: 'bottom',
-          horizontal: 'center',
-        }}
-      >
-        <StyledOnHover px={2} py={1} fontSize={`${fontSize}px`}>
-          {tipContent}
-        </StyledOnHover>
-      </Popover>
-    </>
-  );
-};
-
-const modalCss = () => `
-  pointer-events: none;
-`;
-
-const StyledOnHover = styled(Text)`
-  color: ${props => props.theme.colors.text.main};
-  background-color: ${props => props.theme.colors.tooltip.background};
-  max-width: 350px;
 `;
 
 /**
@@ -546,6 +570,7 @@ const LabelsInnerContainer = styled(Flex)`
   flex-wrap: wrap;
   align-items: start;
   gap: ${props => props.theme.space[1]}px;
+  padding-right: 60px;
 `;
 
 /**
@@ -561,17 +586,12 @@ const MoreLabelsButton = styled(ButtonLink)`
   margin: ${labelVerticalMargin}px 0;
   min-height: 0;
 
-  background-color: ${props => props.theme.colors.levels.sunken};
+  background-color: ${props => getBackgroundColor(props)};
   color: ${props => props.theme.colors.text.slightlyMuted};
   font-style: italic;
-  border-radius: 0;
 
   transition: visibility 0s;
   transition: background 150ms;
-
-  ${CardContainer}:hover & {
-    background-color: ${props => props.theme.colors.levels.elevated};
-  }
 `;
 
 const LoadingCardWrapper = styled(Box)`
@@ -580,3 +600,49 @@ const LoadingCardWrapper = styled(Box)`
     ${props => props.theme.colors.spotBackground[0]};
   border-radius: ${props => props.theme.radii[3]}px;
 `;
+
+function PinButton({
+  pinned,
+  hovered,
+  setPinned,
+  pinningDisabled,
+  pinningNotSupported,
+}: {
+  pinned: boolean;
+  hovered: boolean;
+  setPinned: (id: string) => void;
+  pinningDisabled: boolean;
+  pinningNotSupported: boolean;
+}) {
+  const copyAnchorEl = useRef(null);
+  const tipContent = pinningNotSupported
+    ? PINNING_NOT_SUPPORTED_MESSAGE
+    : pinned
+    ? 'Unpin'
+    : 'Pin';
+
+  return (
+    <ButtonIcon
+      css={`
+        // dont display but keep the layout
+        visibility: ${pinned || hovered ? 'visible' : 'hidden'};
+        position: absolute;
+        // we position far from the top so the layout of the pin doesn't change if we expand the card
+        top: ${props => props.theme.space[9]}px;
+        left: 16px;
+      `}
+      disabled={pinningDisabled || pinningNotSupported}
+      setRef={copyAnchorEl}
+      size={0}
+      onClick={setPinned}
+    >
+      <HoverTooltip tipContent={<>{tipContent}</>}>
+        {pinned ? (
+          <PushPinFilled color="brand" size="small" />
+        ) : (
+          <PushPin size="small" />
+        )}
+      </HoverTooltip>
+    </ButtonIcon>
+  );
+}

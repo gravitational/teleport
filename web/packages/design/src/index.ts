@@ -46,8 +46,6 @@ import Popover from './Popover';
 import { TextArea } from './TextArea';
 import { ResourceIcon } from './ResourceIcon';
 
-import type { TextAreaProps } from './TextArea';
-
 export { AnimatedProgressBar } from './AnimatedProgressBar';
 export {
   Alert,
@@ -84,5 +82,5 @@ export {
   MenuItem,
   MenuItemIcon,
   TextArea,
-  TextAreaProps,
 };
+export type { TextAreaProps } from './TextArea';

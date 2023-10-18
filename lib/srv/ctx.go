@@ -180,6 +180,10 @@ type Server interface {
 	// host user provisioning
 	GetHostUsers() HostUsers
 
+	// GetHostSudoers returns the HostSudoers instance being used to manage
+	// sudoer file provisioning
+	GetHostSudoers() HostSudoers
+
 	// TargetMetadata returns metadata about the session target node.
 	TargetMetadata() apievents.ServerMetadata
 }
@@ -973,15 +977,9 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 			Type:  events.SessionDataEvent,
 			Code:  events.SessionDataCode,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        c.GetServer().HostUUID(),
-			ServerNamespace: c.GetServer().GetNamespace(),
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(c.SessionID()),
-			WithMFA:   c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
-		},
-		UserMetadata: c.Identity.GetUserMetadata(),
+		ServerMetadata:  c.GetServerMetadata(),
+		SessionMetadata: c.GetSessionMetadata(),
+		UserMetadata:    c.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: c.ServerConn.RemoteAddr().String(),
 		},
@@ -1358,4 +1356,20 @@ func (c *ServerContext) GetExecRequest() (Exec, error) {
 		return nil, trace.NotFound("execRequest has not been set")
 	}
 	return c.execRequest, nil
+}
+
+func (c *ServerContext) GetServerMetadata() apievents.ServerMetadata {
+	return apievents.ServerMetadata{
+		ServerID:        c.srv.HostUUID(),
+		ServerHostname:  c.srv.GetInfo().GetHostname(),
+		ServerNamespace: c.srv.GetNamespace(),
+	}
+}
+
+func (c *ServerContext) GetSessionMetadata() apievents.SessionMetadata {
+	return apievents.SessionMetadata{
+		SessionID:        string(c.SessionID()),
+		WithMFA:          c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
+		PrivateKeyPolicy: c.Identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy],
+	}
 }

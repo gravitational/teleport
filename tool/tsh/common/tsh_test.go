@@ -21,6 +21,9 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -44,6 +47,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	yamlv2 "gopkg.in/yaml.v2"
 
@@ -59,6 +63,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -80,7 +85,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -182,6 +186,10 @@ func handleReexec() {
 }
 
 type cliModules struct{}
+
+func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+	return &types.AccessRequestAllowedPromotions{}, nil
+}
 
 // BuildType returns build type (OSS or Enterprise)
 func (p *cliModules) BuildType() string {
@@ -418,39 +426,40 @@ func TestOIDCLogin(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
+	// set up watcher to approve the automatic request in background
 	var didAutoRequest atomic.Bool
+	watcher, err := authServer.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{
+			{Kind: types.KindAccessRequest},
+		},
+	})
+	require.NoError(t, err)
 
-	errCh := make(chan error)
+	// ensure that we observe init event prior to moving watcher to background
+	// goroutine (ensures watcher init does not race with request creation).
+	select {
+	case event := <-watcher.Events():
+		require.Equal(t, event.Type, types.OpInit)
+	case <-watcher.Done():
+		require.FailNow(t, "watcher closed unexpected", "err: %v", watcher.Error())
+	}
+
 	go func() {
-		watcher, err := authServer.NewWatcher(ctx, types.Watch{
-			Kinds: []types.WatchKind{
-				{Kind: types.KindAccessRequest},
-			},
-		})
-		if err != nil {
-			errCh <- err
-			return
-		}
-		for {
-			select {
-			case event := <-watcher.Events():
-				if event.Type != types.OpPut {
-					continue
-				}
-				err = authServer.SetAccessRequestState(ctx, types.AccessRequestUpdate{
-					RequestID: event.Resource.(types.AccessRequest).GetName(),
-					State:     types.RequestState_APPROVED,
-				})
-				didAutoRequest.Store(true)
-				errCh <- err
-				return
-			case <-watcher.Done():
-				errCh <- nil
-				return
-			case <-ctx.Done():
-				errCh <- nil
-				return
+		select {
+		case event := <-watcher.Events():
+			if event.Type != types.OpPut {
+				panic(fmt.Sprintf("unexpected event type: %v\n", event))
 			}
+			err := authServer.SetAccessRequestState(ctx, types.AccessRequestUpdate{
+				RequestID: event.Resource.(types.AccessRequest).GetName(),
+				State:     types.RequestState_APPROVED,
+			})
+			if err != nil {
+				panic(fmt.Sprintf("failed to approve request: %v", err))
+			}
+			didAutoRequest.Store(true)
+		case <-watcher.Done():
+			panic(fmt.Sprintf("watcher exited unexpectedly: %v", watcher.Error()))
 		}
 	}()
 
@@ -471,7 +480,6 @@ func TestOIDCLogin(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NoError(t, <-errCh)
 
 	// verify that auto-request happened
 	require.True(t, didAutoRequest.Load())
@@ -680,6 +688,45 @@ func TestRelogin(t *testing.T) {
 		return nil
 	})
 	findMOTD(t, sc, motd)
+	require.NoError(t, err)
+}
+
+// Test when https:// is included in --proxy address
+func TestIgnoreHTTPSPrefix(t *testing.T) {
+	t.Parallel()
+
+	tmpHomePath := t.TempDir()
+
+	connector := mockConnector(t)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	authProcess, proxyProcess := makeTestServers(t,
+		withBootstrap(connector, alice),
+	)
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+
+	proxyAddress := "https://" + proxyAddr.String()
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddress,
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		cf.MockSSOLogin = mockSSOLogin(t, authServer, alice)
+		cf.overrideStderr = &buf
+		return nil
+	})
 	require.NoError(t, err)
 }
 
@@ -1583,10 +1630,12 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 				roles := user.GetRoles()
 				t.Cleanup(func() {
 					user.SetRoles(roles)
-					require.NoError(t, tt.auth.UpsertUser(user))
+					_, err = tt.auth.UpsertUser(ctx, user)
+					require.NoError(t, err)
 				})
 				user.SetRoles(tt.roles)
-				require.NoError(t, tt.auth.UpsertUser(user))
+				user, err = tt.auth.UpsertUser(ctx, user)
+				require.NoError(t, err)
 			}
 
 			err = Run(ctx, []string{
@@ -5055,6 +5104,85 @@ func TestBenchmarkMySQL(t *testing.T) {
 			}
 			require.NotEmpty(t, errorLine, "expected benchmark to fail")
 			require.Contains(t, errorLine, tc.expectedErrContains)
+		})
+	}
+}
+
+func TestLogout(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	privPEM, err := keys.MarshalPrivateKey(key)
+	require.NoError(t, err)
+	privateKey, err := keys.NewPrivateKey(key, privPEM)
+	require.NoError(t, err)
+	clientKey := &client.Key{
+		KeyIndex: client.KeyIndex{
+			ProxyHost:   "proxy",
+			Username:    "user",
+			ClusterName: "cluster",
+		},
+		PrivateKey: privateKey,
+	}
+	profile := &profile.Profile{
+		WebProxyAddr: clientKey.ProxyHost,
+		Username:     clientKey.Username,
+		SiteName:     clientKey.ClusterName,
+	}
+
+	for _, tt := range []struct {
+		name         string
+		modifyKeyDir func(t *testing.T, homePath string)
+	}{
+		{
+			name:         "normal home dir",
+			modifyKeyDir: func(t *testing.T, homePath string) {},
+		}, {
+			name: "public key missing",
+			modifyKeyDir: func(t *testing.T, homePath string) {
+				pubKeyPath := keypaths.PublicKeyPath(homePath, clientKey.ProxyHost, clientKey.Username)
+				require.NoError(t, os.Remove(pubKeyPath))
+			},
+		}, {
+			name: "private key missing",
+			modifyKeyDir: func(t *testing.T, homePath string) {
+				privKeyPath := keypaths.UserKeyPath(homePath, clientKey.ProxyHost, clientKey.Username)
+				require.NoError(t, os.Remove(privKeyPath))
+			},
+		}, {
+			name: "public key mismatch",
+			modifyKeyDir: func(t *testing.T, homePath string) {
+				newKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+				require.NoError(t, err)
+				sshPub, err := ssh.NewPublicKey(newKey.Public())
+				require.NoError(t, err)
+
+				pubKeyPath := keypaths.PublicKeyPath(homePath, clientKey.ProxyHost, clientKey.Username)
+				err = os.WriteFile(pubKeyPath, ssh.MarshalAuthorizedKey(sshPub), 0600)
+				require.NoError(t, err)
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpHomePath := t.TempDir()
+
+			store := client.NewFSClientStore(tmpHomePath)
+			err = store.AddKey(clientKey)
+			require.NoError(t, err)
+			store.SaveProfile(profile, true)
+
+			tt.modifyKeyDir(t, tmpHomePath)
+
+			_, err := os.Lstat(tmpHomePath)
+			require.NoError(t, err)
+
+			err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
+
+			// direcory should be empty.
+			f, err := os.Open(tmpHomePath)
+			require.NoError(t, err)
+			_, err = f.Readdir(1)
+			require.ErrorIs(t, err, io.EOF)
 		})
 	}
 }

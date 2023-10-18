@@ -24,7 +24,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport14
+      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport15
       env:
         GOCACHE: /tmp/gocache
         WEBASSETS_SKIP_BUILD: 1
@@ -38,7 +38,7 @@ jobs:
 
       - name: Run make
         run: |
-          make binaries
+          make -j"$(nproc)" binaries
 
       - name: Upload binaries
         uses: actions/upload-artifact@v3

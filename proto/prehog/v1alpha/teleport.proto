@@ -41,6 +41,9 @@ message UserLoginEvent {
   //
   // PostHog property: tp.device_id
   string device_id = 3;
+
+  // the required private key policy for this login.
+  string required_private_key_policy = 4;
 }
 
 message SSOCreateEvent {
@@ -50,11 +53,12 @@ message SSOCreateEvent {
 
 // ResourceCreateEvent is emitted when a resource is created.
 message ResourceCreateEvent {
-  // resource_type is the type of resource ("node", "node.openssh", "db", "k8s").
+  // resource_type is the type of resource ("node", "node.openssh", "db", "k8s", "app").
   string resource_type = 1;
-  // resource_origin is the origin of the resource ("cloud").
+  // resource_origin is the origin of the resource ("cloud", "kubernetes").
   string resource_origin = 2;
-  // cloud_provider is the cloud provider the resource came from ("AWS", "Azure", "GCP").
+  // cloud_provider is the cloud provider the resource came from ("AWS", "Azure", "GCP")
+  // if resource_origin == "cloud".
   string cloud_provider = 3;
   // database contains additional database information if resource_type == "db".
   DiscoveredDatabaseMetadata database = 4;
@@ -151,11 +155,15 @@ message SessionStartEvent {
   // PostHog property: tp.session_type
   string session_type = 2;
 
-  // if session_type == "db" the database struct contains  additional information
+  // if session_type == "db" the database struct contains additional information
   // about database session.
   //
   // PostHog property: tp.database
   SessionStartDatabaseMetadata database = 3;
+
+  // if session_type == "desktop" the desktop struct contains additional
+  // information about the desktop session
+  SessionStartDesktopMetadata desktop = 4;
 }
 
 // SessionStartDatabaseMetadata contains additional information about database session.
@@ -166,6 +174,27 @@ message SessionStartDatabaseMetadata {
   string db_protocol = 2;
   // database origin source.
   string db_origin = 3;
+}
+
+// SessionStartDesktop Metadata contains additional information about
+// a desktop session.
+message SessionStartDesktopMetadata {
+  // desktop type ("ad" or "non-ad")
+  string desktop_type = 1;
+
+  // Indicates how the desktop was enrolled in Teleport
+  // ("config-file" for statically defined hosts, or "dynamic" for
+  // hosts discovered via LDAP).
+  string origin = 2;
+
+  // If desktop type is "ad" this field contains the anonymized Active
+  // Directory domain that the desktop belongs to.
+  string windows_domain = 3;
+
+  // If true, and desktop type is "non-ad" automatic user creation is
+  // enabled for the session. (This does not mean that the user will
+  // be created, as Teleport does not know whether the user already exists.)
+  bool allow_user_creation = 4;
 }
 
 // the issuance of a user certificate from the user CA
@@ -198,6 +227,9 @@ message UserCertificateIssuedEvent {
   // If true, the certificate usage is restricted to desktop access.
   // PostHog property: tp.usage_desktop
   bool usage_desktop = 7;
+
+  // the private key policy associated with these user certificates.
+  string private_key_policy = 8;
 }
 
 // UIBannerClickEvent is a usage event sent by the UI when the upgrade
@@ -331,6 +363,8 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36;
 
   DISCOVER_RESOURCE_SAML_APPLICATION = 37;
+
+  DISCOVER_RESOURCE_EC2_INSTANCE = 38;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -473,6 +507,27 @@ message UIDiscoverAutoDiscoveredResourcesEvent {
   DiscoverResourceMetadata resource = 2;
   DiscoverStepStatus status = 3;
   int64 resources_count = 4;
+}
+
+// UIDiscoverEC2InstanceSelectionEvent is emitted when the user is finished with the step that asks the user to select an EC2 Instance to enroll.
+message UIDiscoverEC2InstanceSelectionEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverDeployEICEEvent is emitted when the user deploys an EC2 Instance Connect Endpoint.
+message UIDiscoverDeployEICEEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverCreateNodeEvent is emitted when the node is created in Teleport.
+message UIDiscoverCreateNodeEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
 }
 
 // UIDiscoverDatabaseConfigureIAMPolicyEvent is emitted when a user is finished with the step that configures IAM policy for an RDS database.
@@ -880,7 +935,7 @@ message FeatureRecommendationEvent {
   string user_name = 1;
   // feature is name of the Teleport feature.
   //
-  // PostHost property: tp.feature
+  // PostHog property: tp.feature
   Feature feature = 2;
   // feature_recommendation_status records recommendation state, which can be 'NOTIFIED' (feature is recommended)
   // OR 'DONE' (user completes desired CTA)
@@ -922,6 +977,39 @@ enum LicenseLimit {
   // LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE is emitted when allowed enrolled device
   // limit is reached
   LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE = 2;
+}
+
+// DesktopDirectoryShareEvent is emitted when directory sharing is used
+// in a Teleport desktop session.
+message DesktopDirectoryShareEvent {
+  // anonymized desktop addr, used to uniquely idenfity the desktop
+  //
+  // PostHog property: tp.desktop
+  string desktop = 1;
+
+  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64;
+  //
+  // PostHog property: tp.user_name
+  string user_name = 2;
+
+  // anonymized directory name
+  //
+  // PostHog property: tp.directory_name
+  string directory_name = 3;
+}
+
+// DesktopClipboardEvent is emitted when data is transferred between a user's
+// local clipboard and a remote Windows clipboard.
+message DesktopClipboardEvent {
+  // anonymized desktop addr, used to uniquely idenfity the desktop
+  //
+  // PostHog property: tp.desktop
+  string desktop = 1;
+
+  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64;
+  //
+  // PostHog property: tp.user_name
+  string user_name = 2;
 }
 
 message SubmitEventRequest {
@@ -1027,6 +1115,12 @@ message SubmitEventRequest {
     AccessListMemberUpdateEvent access_list_member_update = 62;
     AccessListMemberDeleteEvent access_list_member_delete = 63;
     AccessListGrantsToUserEvent access_list_grants_to_user = 64;
+    UIDiscoverEC2InstanceSelectionEvent ui_discover_ec2_instance_selection = 65;
+    UIDiscoverDeployEICEEvent ui_discover_deploy_eice = 66;
+    UIDiscoverCreateNodeEvent ui_discover_create_node = 67;
+
+    DesktopDirectoryShareEvent desktop_directory_share = 68;
+    DesktopClipboardEvent desktop_clipboard_transfer = 69;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

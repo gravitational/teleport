@@ -54,7 +54,8 @@ func requireRoot(t *testing.T) {
 func TestRootHostUsersBackend(t *testing.T) {
 	requireRoot(t)
 	sudoersTestDir := t.TempDir()
-	backend := srv.HostUsersProvisioningBackend{
+	usersbk := srv.HostUsersProvisioningBackend{}
+	sudoersbk := srv.HostSudoersProvisioningBackend{
 		SudoersPath: sudoersTestDir,
 		HostUUID:    "hostuuid",
 	}
@@ -66,37 +67,37 @@ func TestRootHostUsersBackend(t *testing.T) {
 	})
 
 	t.Run("Test CreateGroup", func(t *testing.T) {
-		err := backend.CreateGroup(testgroup, "")
+		err := usersbk.CreateGroup(testgroup, "")
 		require.NoError(t, err)
-		err = backend.CreateGroup(testgroup, "")
+		err = usersbk.CreateGroup(testgroup, "")
 		require.True(t, trace.IsAlreadyExists(err))
 	})
 
 	t.Run("Test CreateUser and group", func(t *testing.T) {
-		err := backend.CreateUser(testuser, []string{testgroup}, "", "")
+		err := usersbk.CreateUser(testuser, []string{testgroup}, "", "")
 		require.NoError(t, err)
 
-		tuser, err := backend.Lookup(testuser)
+		tuser, err := usersbk.Lookup(testuser)
 		require.NoError(t, err)
 
-		group, err := backend.LookupGroup(testgroup)
+		group, err := usersbk.LookupGroup(testgroup)
 		require.NoError(t, err)
 
 		tuserGids, err := tuser.GroupIds()
 		require.NoError(t, err)
 		require.Contains(t, tuserGids, group.Gid)
 
-		err = backend.CreateUser(testuser, []string{}, "", "")
+		err = usersbk.CreateUser(testuser, []string{}, "", "")
 		require.True(t, trace.IsAlreadyExists(err))
 
 		require.NoFileExists(t, filepath.Join("/home", testuser))
-		err = backend.CreateHomeDirectory(testuser, tuser.Uid, tuser.Gid)
+		err = usersbk.CreateHomeDirectory(testuser, tuser.Uid, tuser.Gid)
 		require.NoError(t, err)
 		require.FileExists(t, filepath.Join("/home", testuser, ".bashrc"))
 	})
 
 	t.Run("Test DeleteUser", func(t *testing.T) {
-		err := backend.DeleteUser(testuser)
+		err := usersbk.DeleteUser(testuser)
 		require.NoError(t, err)
 
 		_, err = user.Lookup(testuser)
@@ -107,15 +108,15 @@ func TestRootHostUsersBackend(t *testing.T) {
 		checkUsers := []string{"teleport-usera", "teleport-userb", "teleport-userc"}
 		t.Cleanup(func() {
 			for _, u := range checkUsers {
-				backend.DeleteUser(u)
+				usersbk.DeleteUser(u)
 			}
 		})
 		for _, u := range checkUsers {
-			err := backend.CreateUser(u, []string{}, "", "")
+			err := usersbk.CreateUser(u, []string{}, "", "")
 			require.NoError(t, err)
 		}
 
-		users, err := backend.GetAllUsers()
+		users, err := usersbk.GetAllUsers()
 		require.NoError(t, err)
 		require.Subset(t, users, append(checkUsers, "root"))
 	})
@@ -125,25 +126,25 @@ func TestRootHostUsersBackend(t *testing.T) {
 			t.Skip("visudo not found on path")
 		}
 		validSudoersEntry := []byte("root ALL=(ALL) ALL")
-		err := backend.CheckSudoers(validSudoersEntry)
+		err := sudoersbk.CheckSudoers(validSudoersEntry)
 		require.NoError(t, err)
 		invalidSudoersEntry := []byte("yipee i broke sudo!!!!")
-		err = backend.CheckSudoers(invalidSudoersEntry)
+		err = sudoersbk.CheckSudoers(invalidSudoersEntry)
 		require.Contains(t, err.Error(), "visudo: invalid sudoers file")
 		// test sudoers entry containing . or ~
-		require.NoError(t, backend.WriteSudoersFile("user.name", validSudoersEntry))
+		require.NoError(t, sudoersbk.WriteSudoersFile("user.name", validSudoersEntry))
 		_, err = os.Stat(filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))
 		require.NoError(t, err)
-		require.NoError(t, backend.RemoveSudoersFile("user.name"))
+		require.NoError(t, sudoersbk.RemoveSudoersFile("user.name"))
 		_, err = os.Stat(filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))
 		require.True(t, os.IsNotExist(err))
 	})
 
 	t.Run("Test CreateHomeDirectory does not follow symlinks", func(t *testing.T) {
-		err := backend.CreateUser(testuser, []string{testgroup}, "", "")
+		err := usersbk.CreateUser(testuser, []string{testgroup}, "", "")
 		require.NoError(t, err)
 
-		tuser, err := backend.Lookup(testuser)
+		tuser, err := usersbk.Lookup(testuser)
 		require.NoError(t, err)
 
 		require.NoError(t, os.WriteFile("/etc/skel/testfile", []byte("test\n"), 0o700))
@@ -156,7 +157,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.NoError(t, os.Symlink("/tmp/ignoreme", bashrcPath))
 		require.NoFileExists(t, "/tmp/ignoreme")
 
-		err = backend.CreateHomeDirectory(testuser, tuser.Uid, tuser.Gid)
+		err = usersbk.CreateHomeDirectory(testuser, tuser.Uid, tuser.Gid)
 		t.Cleanup(func() {
 			os.RemoveAll(filepath.Join("/home", testuser))
 		})
@@ -260,6 +261,7 @@ func TestRootHostUsers(t *testing.T) {
 		}
 		uuid := "host_uuid"
 		users := srv.NewHostUsers(context.Background(), presence, uuid)
+		sudoers := srv.NewHostSudoers(uuid)
 
 		sudoersPath := func(username, uuid string) string {
 			return fmt.Sprintf("/etc/sudoers.d/teleport-%s-%s", uuid, username)
@@ -271,26 +273,25 @@ func TestRootHostUsers(t *testing.T) {
 		})
 		closer, err := users.CreateUser(testuser,
 			&services.HostUsersInfo{
-				Sudoers: []string{"ALL=(ALL) ALL"},
-				Mode:    types.CreateHostUserMode_HOST_USER_MODE_DROP,
+				Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
 			})
+		require.NoError(t, err)
+		err = sudoers.WriteSudoers(testuser, []string{"ALL=(ALL) ALL"})
 		require.NoError(t, err)
 		_, err = os.Stat(sudoersPath(testuser, uuid))
 		require.NoError(t, err)
 
 		// delete the user and ensure the sudoers file got deleted
 		require.NoError(t, closer.Close())
+		require.NoError(t, sudoers.RemoveSudoers(testuser))
 		_, err = os.Stat(sudoersPath(testuser, uuid))
 		require.True(t, os.IsNotExist(err))
 
 		// ensure invalid sudoers entries dont get written
-		closer, err = users.CreateUser(testuser,
-			&services.HostUsersInfo{
-				Sudoers: []string{"badsudoers entry!!!"},
-				Mode:    types.CreateHostUserMode_HOST_USER_MODE_DROP,
-			})
+		err = sudoers.WriteSudoers(testuser,
+			[]string{"badsudoers entry!!!"},
+		)
 		require.Error(t, err)
-		defer closer.Close()
 		_, err = os.Stat(sudoersPath(testuser, uuid))
 		require.True(t, os.IsNotExist(err))
 	})

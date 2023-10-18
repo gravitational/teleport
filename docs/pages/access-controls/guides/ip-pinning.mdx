@@ -31,7 +31,7 @@ access will be denied. This means that if you enable IP pinning for some role, a
 order to regenerate their certificates. A client's observed IP will be propagated internally between Teleport services
  if needed, so Teleport performs the IP pinning check against the correct IP.
 
-IP pinning can work across Trusted Clusters, but be aware that if a user tries to access a leaf cluster's resources through the root cluster, and their
+IP pinning can work across trusted clusters, but be aware that if a user tries to access a leaf cluster's resources through the root cluster, and their
 mapped role on the leaf cluster has IP pinning enabled, they should also have IP pinning enabled on their root cluster roles. Otherwise, their
 certificates will not contain pinned IP information.
 

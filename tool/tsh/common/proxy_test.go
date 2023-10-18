@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -264,6 +265,8 @@ func TestSSHLoadAllCAs(t *testing.T) {
 
 // TestWithRsync tests that Teleport works with rsync.
 func TestWithRsync(t *testing.T) {
+	disableAgent(t)
+
 	_, err := exec.LookPath("rsync")
 	require.NoError(t, err)
 
@@ -329,11 +332,14 @@ func TestWithRsync(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				require.Eventually(t, func() bool {
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					pref, err := asrv.GetAuthPreference(ctx)
-					require.NoError(t, err)
+					if !assert.NoError(t, err) {
+						return
+					}
 					w, err := pref.GetWebauthn()
-					return err == nil && w != nil
+					assert.NoError(t, err)
+					assert.NotNil(t, w)
 				}, 5*time.Second, 100*time.Millisecond)
 
 				token, err := asrv.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
@@ -474,10 +480,13 @@ func TestWithRsync(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			t.Cleanup(cancel)
 			cmd := tt.createCmd(ctx, testDir, srcPath, dstPath)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			err = cmd.Run()
-			require.NoError(t, err)
+			out, err := cmd.CombinedOutput()
+			var msg string
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				msg = fmt.Sprintf("exit code: %d\nout: %s", exitErr.ExitCode(), out)
+			}
+			require.NoError(t, err, msg)
 
 			// verify that dst exists and that its contents match src
 			dstContents, err := os.ReadFile(dstPath)

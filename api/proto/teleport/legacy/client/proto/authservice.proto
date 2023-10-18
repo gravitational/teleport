@@ -243,6 +243,23 @@ message UserCertsRequest {
 
   // AttestationStatement is an attestation statement for the given public key.
   teleport.attestation.v1.AttestationStatement attestation_statement = 20;
+
+  // CertPurpose complements CertUsage by informing Teleport of the intended use
+  // for the certificates.
+  enum CertPurpose {
+    // Purpose not specified.
+    // Interpreted as CERT_PURPOSE_LOGIN_CERTS.
+    CERT_PURPOSE_UNSPECIFIED = 0;
+
+    // Generate login certificates, both SSH and TLS, as well as CA certs.
+    CERT_PURPOSE_LOGIN_CERTS = 1;
+
+    // Generate single-user certificates, either SSH or TLS, depending on the
+    // specified Usage.
+    CERT_PURPOSE_SINGLE_USE_CERTS = 2;
+  }
+  // Purpose is the intended purpose of the certificates.
+  CertPurpose Purpose = 21 [(gogoproto.jsontag) = "purpose,omitempty"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -503,6 +520,8 @@ message Features {
   AccessRequestsFeature AccessRequests = 21 [(gogoproto.jsontag) = "access_requests,omitempty"];
   // CustomTheme holds the name of WebUI custom theme.
   string CustomTheme = 22 [(gogoproto.jsontag) = "custom_theme,omitempty"];
+  // IdentityGovernance holds the Identity Governance feature settings (Access Monitoring)
+  bool IdentityGovernance = 23 [(gogoproto.jsontag) = "identity_governance,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -984,6 +1003,24 @@ message GetRolesResponse {
   repeated types.RoleV6 Roles = 1;
 }
 
+// Request for CreateRole.
+message CreateRoleRequest {
+  // Role to be created.
+  types.RoleV6 Role = 1;
+}
+
+// Request for UpdateRole.
+message UpdateRoleRequest {
+  // Role to be updated.
+  types.RoleV6 Role = 1;
+}
+
+// Request for UpsertRole.
+message UpsertRoleRequest {
+  // Role to be upserted.
+  types.RoleV6 Role = 1;
+}
+
 // DeleteRoleRequest is a request to delete a role.
 message DeleteRoleRequest {
   // Name is the role name to delete.
@@ -1045,9 +1082,11 @@ message MFAAuthenticateChallenge {
   // registered by the user).
   webauthn.CredentialAssertion WebauthnChallenge = 3;
   // MFRequired indicates whether proceeding with the MFA ceremony will
-  // grant access to the resource. If `MFA_REQUIRED_NO` is returned by the
-  // server then the stream will be terminated to prevent a fruitless MFA ceremony from
-  // proceeding.
+  // grant access to the resource.
+  //
+  // If `MFA_REQUIRED_NO` is returned then the server may opt to end ongoing
+  // communications, in case of streaming RPCs. It may also return empty
+  // challenges for all other fields.
   MFARequired MFARequired = 4;
 }
 
@@ -1110,14 +1149,21 @@ message TOTPRegisterChallenge {
   // QRCode is an optional field for the QR code in PNG format. Used to display a QR code
   // image in the UI.
   bytes QRCode = 7;
+  // ID of the TOTP challenge.
+  // Send this back in the TOTPRegisterResponse.
+  string ID = 8;
 }
 
 // TOTPRegisterResponse is a response to TOTPRegisterChallenge.
 message TOTPRegisterResponse {
   string Code = 1;
+  // ID of the TOTP challenge, as informed by the TOTPRegisterChallenge.
+  string ID = 2;
 }
 
 // AddMFADeviceRequest is a message sent by the client during AddMFADevice RPC.
+//
+// Deprecated: Use [AuthService.AddMFADeviceSync] instead.
 message AddMFADeviceRequest {
   oneof Request {
     // Init describes the new device.
@@ -1133,6 +1179,8 @@ message AddMFADeviceRequest {
 
 // AddMFADeviceResponse is a message sent by the server during AddMFADevice
 // RPC.
+//
+// Deprecated: Use [AuthService.AddMFADeviceSync] instead.
 message AddMFADeviceResponse {
   oneof Response {
     // ExistingMFAChallenge is an auth challenge using an existing MFA
@@ -1147,6 +1195,8 @@ message AddMFADeviceResponse {
 }
 
 // AddMFADeviceRequestInit describes the new MFA device.
+//
+// Deprecated: Use [AuthService.AddMFADeviceSync] instead.
 message AddMFADeviceRequestInit {
   string DeviceName = 1;
   reserved 2; // LegacyDeviceType LegacyType
@@ -1163,6 +1213,8 @@ message AddMFADeviceResponseAck {
 
 // DeleteMFADeviceRequest is a message sent by the client during
 // DeleteMFADevice RPC.
+//
+// Deprecated: Use [AuthService.DeleteMFADeviceSync] instead.
 message DeleteMFADeviceRequest {
   oneof Request {
     // Init describes the device to be deleted.
@@ -1172,6 +1224,7 @@ message DeleteMFADeviceRequest {
   }
 }
 
+// Deprecated: Use [AuthService.DeleteMFADeviceSync] instead.
 message DeleteMFADeviceResponse {
   oneof Response {
     // MFAChallenge is an auth challenge using any existing MFA device.
@@ -1182,6 +1235,8 @@ message DeleteMFADeviceResponse {
 }
 
 // DeleteMFADeviceRequestInit describes the device to be deleted.
+//
+// Deprecated: Use [AuthService.DeleteMFADeviceSync] instead.
 message DeleteMFADeviceRequestInit {
   // DeviceName is an MFA device name or ID to be deleted.
   string DeviceName = 1;
@@ -1195,20 +1250,37 @@ message DeleteMFADeviceResponseAck {
 // DeleteMFADeviceSyncRequest is a request to delete a MFA device (nonstream).
 message DeleteMFADeviceSyncRequest {
   // TokenID is the ID of a user token that will be used to verify this request.
+  //
   // Token types accepted are:
   //   - Recovery approved token that is obtained with RPC VerifyAccountRecovery
   //   - Privilege token that is obtained with RPC CreatePrivilegeToken
+  //
+  // Authenticated users can delete a device by providing an ExistingMFAResponse
+  // instead.
   string TokenID = 1 [(gogoproto.jsontag) = "token_id"];
   // DeviceName is the name of the device to delete.
   string DeviceName = 2 [(gogoproto.jsontag) = "device_name"];
+  // ExistingMFAResponse is an MFA response from an existing device.
+  //
+  // May be provided as an alternative to TokenID.
+  MFAAuthenticateResponse ExistingMFAResponse = 3 [(gogoproto.jsontag) = "existing_mfa_response,omitempty"];
 }
 
 // AddMFADeviceSyncRequest is a request to add a MFA device (nonstream).
 message AddMFADeviceSyncRequest {
   // TokenID is the ID of a user token that will be used to verify this request.
+  //
   // Token types accepted are:
   //  - Privilege token that is obtained with RPC CreatePrivilegeToken
+  //
+  // An authenticated user can register a new device using only a
+  // NewMFAResponse. See [ContextUser].
   string TokenID = 1 [(gogoproto.jsontag) = "token_id"];
+  // ContextUser allows registering a device for the authenticated user.
+  //
+  // Default option if no other is provided.
+  ContextUser ContextUser = 5 [(gogoproto.jsontag) = "context_user,omitempty"];
+
   // NewDeviceName is the name of a new mfa device.
   string NewDeviceName = 2 [(gogoproto.jsontag) = "new_device_name,omitempty"];
   // NewMFAResponse is a user's new mfa response to a mfa register challenge.
@@ -1241,6 +1313,8 @@ message GetMFADevicesResponse {
 }
 
 // UserSingleUseCertsRequest is a request for a single-use user certificate.
+//
+// Deprecated: Use [AuthService.GenerateUserCerts] instead.
 message UserSingleUseCertsRequest {
   oneof Request {
     UserCertsRequest Init = 1;
@@ -1249,6 +1323,8 @@ message UserSingleUseCertsRequest {
 }
 
 // UserSingleUseCertsResponse is a response with a single-use user certificate.
+//
+// Deprecated: Use [AuthService.GenerateUserCerts] instead.
 message UserSingleUseCertsResponse {
   oneof Response {
     MFAAuthenticateChallenge MFAChallenge = 1;
@@ -1290,7 +1366,11 @@ message NodeLogin {
 
 // IsMFARequiredResponse is a response for MFA requirement check.
 message IsMFARequiredResponse {
+  // Required is a simplified view over [MFARequired].
   bool Required = 1;
+  // MFARequired informs whether MFA is required to access the corresponding
+  // resource.
+  MFARequired MFARequired = 2;
 }
 
 // SingleUseUserCert is a single-use user certificate, either SSH or TLS.
@@ -1692,6 +1772,16 @@ message CreateAuthenticateChallengeRequest {
     // required).
     Passwordless Passwordless = 4 [(gogoproto.jsontag) = "passwordless,omitempty"];
   }
+  // MFARequiredCheck, if set, is used to verify if MFA is necessary for the
+  // request. It's akin to a call to [AuthService.IsMFARequired].
+  //
+  // If MFA is not required, then no challenges are issued in the
+  // [MFAAuthenticateResponse].
+  //
+  // MFA verification should run in the cluster that holds the target resource.
+  // If you are issuing challenges from the root cluster, but accessing a leaf,
+  // call [AuthService.IsMFARequired] in the leaf instead of setting this field.
+  IsMFARequiredRequest MFARequiredCheck = 5 [(gogoproto.jsontag) = "mfa_required_check,omitempty"];
 }
 
 // CreatePrivilegeTokenRequest defines a request to obtain a privilege token.
@@ -1709,8 +1799,22 @@ message CreatePrivilegeTokenRequest {
 // new MFA device.
 message CreateRegisterChallengeRequest {
   // TokenID is the ID of a user token that will be used to verify this request.
+  // Either TokenID or ExistingMFAResponse are required.
+  //
   // All user token types are accepted except UserTokenTypeRecoveryStart.
+  //
+  // An authenticated user can create challenges without a token by supplying an
+  // ExistingMFAResponse.
   string TokenID = 1 [(gogoproto.jsontag) = "token_id"];
+  // ExistingMFAResponse is a response to ExistingMFAChallenge auth challenge.
+  // Either ExistingMFAResponse or TokenID are required.
+  //
+  // Note that a user with no devices can create the initial register challenge,
+  // in the same manner that they could create a privilege token.
+  //
+  // See the [AuthService.CreateAuthenticateChallenge] RPC.
+  MFAAuthenticateResponse ExistingMFAResponse = 4;
+
   // DeviceType is the type of MFA device to make a register challenge for.
   DeviceType DeviceType = 2 [(gogoproto.jsontag) = "device_type"];
   // DeviceUsage is the requested usage for the device.
@@ -1781,6 +1885,9 @@ message ListUnifiedResourcesRequest {
   // UsePreviewAsRoles indicates that the response should include all resources
   // the caller would be able to access with their preview_as_roles
   bool UsePreviewAsRoles = 10 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
+  // PinnedOnly indicates that the request will pull only the pinned resources
+  // of the requesting user
+  bool PinnedOnly = 11 [(gogoproto.jsontag) = "pinned_only,omitempty"];
 }
 
 // ListUnifiedResourceResponse response of ListUnifiedResources.
@@ -1980,6 +2087,60 @@ message GetSAMLAuthRequestRequest {
 message GetGithubAuthRequestRequest {
   // StateToken is a github auth request state token.
   string StateToken = 1 [(gogoproto.jsontag) = "state_token"];
+}
+
+// CreateOIDCConnectorRequest is a request for CreateOIDCConnector.
+message CreateOIDCConnectorRequest {
+  // Connector to be created.
+  types.OIDCConnectorV3 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+// UpdateOIDCConnectorRequest is a request for UpdateOIDCConnector.
+message UpdateOIDCConnectorRequest {
+  // Connector to be updated.
+  types.OIDCConnectorV3 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+// UpsertOIDCConnectorRequest is a request for UpsertOIDCConnector.
+message UpsertOIDCConnectorRequest {
+  // Connector to be created or updated.
+  types.OIDCConnectorV3 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+// CreateSAMLConnectorRequest is a request for CreateSAMLConnector.
+message CreateSAMLConnectorRequest {
+  // Connector to be created.
+  types.SAMLConnectorV2 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+// UpdateSAMLConnectorRequest is a request for UpdateSAMLConnector.
+message UpdateSAMLConnectorRequest {
+  // Connector to be updated.
+  types.SAMLConnectorV2 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+// UpsertSAMLConnectorRequest is a request for UpsertSAMLConnector.
+message UpsertSAMLConnectorRequest {
+  // Connector to be created or updated.
+  types.SAMLConnectorV2 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+// CreateGithubConnectorRequest is a request for CreateGithubConnector.
+message CreateGithubConnectorRequest {
+  // Connector to be created.
+  types.GithubConnectorV3 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+// UpdateGithubConnectorRequest is a request for UpdateGithubConnector.
+message UpdateGithubConnectorRequest {
+  // Connector to be updated.
+  types.GithubConnectorV3 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+// UpsertGithubConnectorRequest is a request for UpsertGithubConnector.
+message UpsertGithubConnectorRequest {
+  // Connector to be created or updated.
+  types.GithubConnectorV3 Connector = 1 [(gogoproto.jsontag) = "connector"];
 }
 
 // GetSSODiagnosticInfoRequest is a request for GetSSODiagnosticInfo.
@@ -2297,6 +2458,18 @@ message ExportUpgradeWindowsResponse {
   string SystemdUnitSchedule = 3;
 }
 
+// AccessRequestAllowedPromotionRequest is the request to AccessRequestAllowedPromotion RPC call.
+message AccessRequestAllowedPromotionRequest {
+  // AccessRequest is the access request to get promotions for.
+  string accessRequestID = 1;
+}
+
+// AccessRequestAllowedPromotionResponse is the response to AccessRequestAllowedPromotion RPC call.
+message AccessRequestAllowedPromotionResponse {
+  // allowedPromotions is the list of allowed promotions for the access request.
+  types.AccessRequestAllowedPromotions allowedPromotions = 1;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2372,6 +2545,8 @@ service AuthService {
   rpc GenerateHostCerts(HostCertsRequest) returns (Certs);
   // GenerateUserSingleUseCerts generates a set of single-use user
   // certificates.
+  //
+  // Deprecated: Superseded by GenerateUserCerts.
   rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest) returns (stream UserSingleUseCertsResponse);
   // GenerateOpenSSHCert signs a SSH certificate that can be used
   // to connect to Agentless nodes.
@@ -2394,8 +2569,11 @@ service AuthService {
   rpc SetAccessRequestState(RequestStateSetter) returns (google.protobuf.Empty);
   // SubmitAccessReview applies a review to a request and returns the post-application state.
   rpc SubmitAccessReview(types.AccessReviewSubmission) returns (types.AccessRequestV3);
-  // GetAccessCapabilities requests the access capabilites of a user.
+  // GetAccessCapabilities requests the access capabilities of a user.
   rpc GetAccessCapabilities(types.AccessCapabilitiesRequest) returns (types.AccessCapabilities);
+
+  // GetAccessRequestAllowedPromotions returns a list of allowed promotions from an access request to an access list.
+  rpc GetAccessRequestAllowedPromotions(AccessRequestAllowedPromotionRequest) returns (AccessRequestAllowedPromotionResponse);
 
   // GetPluginData gets all plugin data matching the supplied filter.
   rpc GetPluginData(types.PluginDataFilter) returns (PluginDataSeq);
@@ -2559,8 +2737,18 @@ service AuthService {
   rpc GetRole(GetRoleRequest) returns (types.RoleV6);
   // GetRole retrieves all roles.
   rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
+  // CreateRole creates a new role.
+  rpc CreateRole(CreateRoleRequest) returns (types.RoleV6);
+  // UpdateRole updates an existing role.
+  rpc UpdateRole(UpdateRoleRequest) returns (types.RoleV6);
+  // UpsertRoleV2 creates or overwrites an existing role.
+  rpc UpsertRoleV2(UpsertRoleRequest) returns (types.RoleV6);
   // UpsertRole upserts a role in a backend.
-  rpc UpsertRole(types.RoleV6) returns (google.protobuf.Empty);
+  //
+  // Deprecated: use UpsertRoleV2 instead.
+  rpc UpsertRole(types.RoleV6) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // DeleteRole deletes an existing role in a backend described by the given request.
   rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty);
 
@@ -2574,7 +2762,11 @@ service AuthService {
   // <- NewMFARegisterChallenge
   // -> NewMFARegisterResponse
   // <- Ack
-  rpc AddMFADevice(stream AddMFADeviceRequest) returns (stream AddMFADeviceResponse);
+  //
+  // Deprecated: Use [AddMFADeviceSync] instead.
+  rpc AddMFADevice(stream AddMFADeviceRequest) returns (stream AddMFADeviceResponse) {
+    option deprecated = true;
+  }
   // DeleteMFADevice deletes an MFA device for the user calling this RPC.
   //
   // The RPC is streaming both ways and the message sequence is:
@@ -2583,10 +2775,29 @@ service AuthService {
   // <- MFAChallenge
   // -> MFAResponse
   // <- Ack
-  rpc DeleteMFADevice(stream DeleteMFADeviceRequest) returns (stream DeleteMFADeviceResponse);
-  // AddMFADeviceSync adds a new MFA device (nonstream).
+  //
+  // Deprecated: Use [DeleteMFADeviceSync] instead.
+  rpc DeleteMFADevice(stream DeleteMFADeviceRequest) returns (stream DeleteMFADeviceResponse) {
+    option deprecated = true;
+  }
+  // AddMFADeviceSync adds a new MFA device.
+  //
+  // A typical MFA registration sequence calls the following RPCs:
+  //
+  // 1. CreateAuthenticateChallenge (necessary for registration challenge)
+  // 2. (optional) CreatePrivilegeToken
+  // 3. CreateRegisterChallenge (uses authn challenge and optionally a token)
+  // 4. AddMFADeviceSync
   rpc AddMFADeviceSync(AddMFADeviceSyncRequest) returns (AddMFADeviceSyncResponse);
   // DeleteMFADeviceSync deletes a users MFA device (nonstream).
+  //
+  // A typical MFA deletion sequence calls the following RPCs:
+  //
+  // 1. (optional) CreateAuthenticateChallenge
+  //    (may be skipped depending on the token used, but is usually called
+  //    regardless)
+  // 2. (optional) CreatePrivilegeToken
+  // 3. DeleteMFADeviceSync (using either authn challenge or token)
   rpc DeleteMFADeviceSync(DeleteMFADeviceSyncRequest) returns (google.protobuf.Empty);
   // GetMFADevices returns all MFA devices registered for the user calling
   // this RPC.
@@ -2601,8 +2812,18 @@ service AuthService {
   rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV3);
   // GetOIDCConnectors gets all current OIDC connector resources.
   rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV3List);
+  // UpsertOIDCConnector creates a new OIDC connector in the backend.
+  rpc CreateOIDCConnector(CreateOIDCConnectorRequest) returns (types.OIDCConnectorV3);
+  // UpsertOIDCConnector updates an existing OIDC connector in the backend.
+  rpc UpdateOIDCConnector(UpdateOIDCConnectorRequest) returns (types.OIDCConnectorV3);
   // UpsertOIDCConnector upserts an OIDC connector in a backend.
-  rpc UpsertOIDCConnector(types.OIDCConnectorV3) returns (google.protobuf.Empty);
+  //
+  // Deprecated: Use UpsertOIDCConnectorV2 instead.
+  rpc UpsertOIDCConnector(types.OIDCConnectorV3) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
+  // UpsertOIDCConnectorV2 upserts an OIDC connector in the backend.
+  rpc UpsertOIDCConnectorV2(UpsertOIDCConnectorRequest) returns (types.OIDCConnectorV3);
   // DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
   rpc DeleteOIDCConnector(types.ResourceRequest) returns (google.protobuf.Empty);
   // CreateOIDCAuthRequest creates OIDCAuthRequest.
@@ -2614,8 +2835,18 @@ service AuthService {
   rpc GetSAMLConnector(types.ResourceWithSecretsRequest) returns (types.SAMLConnectorV2);
   // GetSAMLConnectors gets all current SAML connector resources.
   rpc GetSAMLConnectors(types.ResourcesWithSecretsRequest) returns (types.SAMLConnectorV2List);
+  // CreateSAMLConnector creates a new SAML connector in the backend.
+  rpc CreateSAMLConnector(CreateSAMLConnectorRequest) returns (types.SAMLConnectorV2);
+  // UpdateSAMLConnector updates an existing SAML connector in the backend.
+  rpc UpdateSAMLConnector(UpdateSAMLConnectorRequest) returns (types.SAMLConnectorV2);
   // UpsertSAMLConnector upserts a SAML connector in a backend.
-  rpc UpsertSAMLConnector(types.SAMLConnectorV2) returns (google.protobuf.Empty);
+  //
+  // Deprecated: Use UpsertSAMLConnectorV2 instead.
+  rpc UpsertSAMLConnector(types.SAMLConnectorV2) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
+  // UpsertSAMLConnectorV2 upserts a SAML connector in a backend.
+  rpc UpsertSAMLConnectorV2(UpsertSAMLConnectorRequest) returns (types.SAMLConnectorV2);
   // DeleteSAMLConnector deletes an existing SAML connector in a backend by name.
   rpc DeleteSAMLConnector(types.ResourceRequest) returns (google.protobuf.Empty);
   // CreateSAMLAuthRequest creates SAMLAuthRequest.
@@ -2627,8 +2858,18 @@ service AuthService {
   rpc GetGithubConnector(types.ResourceWithSecretsRequest) returns (types.GithubConnectorV3);
   // GetGithubConnectors gets all current Github connector resources.
   rpc GetGithubConnectors(types.ResourcesWithSecretsRequest) returns (types.GithubConnectorV3List);
+  // CreateGithubConnector creates a new Github connector in the backend.
+  rpc CreateGithubConnector(CreateGithubConnectorRequest) returns (types.GithubConnectorV3);
+  // UpdateGithubConnector updates an existing Github connector in the backend.
+  rpc UpdateGithubConnector(UpdateGithubConnectorRequest) returns (types.GithubConnectorV3);
   // UpsertGithubConnector upserts a Github connector in a backend.
-  rpc UpsertGithubConnector(types.GithubConnectorV3) returns (google.protobuf.Empty);
+  //
+  // Deprecated: Use UpsertGithubConnectorV2 instead.
+  rpc UpsertGithubConnector(types.GithubConnectorV3) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
+  // UpsertGithubConnectorV2 upserts a Github connector in a backend.
+  rpc UpsertGithubConnectorV2(UpsertGithubConnectorRequest) returns (types.GithubConnectorV3);
   // DeleteGithubConnector deletes an existing Github connector in a backend by name.
   rpc DeleteGithubConnector(types.ResourceRequest) returns (google.protobuf.Empty);
   // CreateGithubAuthRequest creates GithubAuthRequest.

@@ -77,6 +77,7 @@ func MarshalKubeServer(kubeServer types.KubeServer, opts ...MarshalOption) ([]by
 		if !cfg.PreserveResourceID {
 			copy := *server
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			server = &copy
 		}
 		return utils.FastMarshal(server)
@@ -110,6 +111,9 @@ func UnmarshalKubeServer(data []byte, opts ...MarshalOption) (types.KubeServer, 
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)
 		}
@@ -134,6 +138,7 @@ func MarshalKubeCluster(kubeCluster types.KubeCluster, opts ...MarshalOption) ([
 		if !cfg.PreserveResourceID {
 			copy := *cluster
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			cluster = &copy
 		}
 		return utils.FastMarshal(cluster)
@@ -166,6 +171,9 @@ func UnmarshalKubeCluster(data []byte, opts ...MarshalOption) (types.KubeCluster
 		}
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
+		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
 		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)

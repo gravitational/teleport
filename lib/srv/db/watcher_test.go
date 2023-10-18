@@ -292,7 +292,7 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	redshiftServerlessDatabase.SetStatusAWS(redshiftServerlessDatabase.GetAWS())
 	setDiscoveryGroupLabel(redshiftServerlessDatabase, "")
 	redshiftServerlessDatabase.SetOrigin(types.OriginCloud)
-	discovery.ApplyAWSDatabaseNameSuffix(redshiftServerlessDatabase, services.AWSMatcherRedshiftServerless)
+	discovery.ApplyAWSDatabaseNameSuffix(redshiftServerlessDatabase, types.AWSMatcherRedshiftServerless)
 	// Test an Azure fetcher.
 	azSQLServer, azSQLServerDatabase := makeAzureSQLServer(t, "discovery-azure", "group")
 	setDiscoveryGroupLabel(azSQLServerDatabase, "")
@@ -318,11 +318,11 @@ func TestWatcherCloudFetchers(t *testing.T) {
 		},
 		AzureMatchers: []types.AzureMatcher{{
 			Subscriptions: []string{"sub"},
-			Types:         []string{services.AzureMatcherSQLServer},
+			Types:         []string{types.AzureMatcherSQLServer},
 			ResourceTags:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 		}},
 		AWSMatchers: []types.AWSMatcher{{
-			Types:   []string{services.AWSMatcherRDS, services.AWSMatcherRedshiftServerless},
+			Types:   []string{types.AWSMatcherRDS, types.AWSMatcherRedshiftServerless},
 			Regions: []string{"us-east-1"},
 			Tags:    types.Labels{types.Wildcard: []string{types.Wildcard}},
 		}},
@@ -341,7 +341,7 @@ func assertReconciledResource(t *testing.T, ch chan types.Databases, databases t
 		sort.Sort(d)
 		require.Equal(t, len(d), len(databases))
 		require.Empty(t, cmp.Diff(databases, d,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 			cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 		))
 	case <-time.After(time.Second):
@@ -405,6 +405,6 @@ func makeAzureSQLServer(t *testing.T, name, group string) (*armsql.Server, types
 	}
 	database, err := services.NewDatabaseFromAzureSQLServer(server)
 	require.NoError(t, err)
-	discovery.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherSQLServer)
+	discovery.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherSQLServer)
 	return server, database
 }

@@ -34,20 +34,20 @@ type makeAzureFetcherFunc func(azureFetcherConfig) (common.Fetcher, error)
 
 var (
 	makeAWSFetcherFuncs = map[string][]makeAWSFetcherFunc{
-		services.AWSMatcherRDS:                {newRDSDBInstancesFetcher, newRDSAuroraClustersFetcher},
-		services.AWSMatcherRDSProxy:           {newRDSDBProxyFetcher},
-		services.AWSMatcherRedshift:           {newRedshiftFetcher},
-		services.AWSMatcherRedshiftServerless: {newRedshiftServerlessFetcher},
-		services.AWSMatcherElastiCache:        {newElastiCacheFetcher},
-		services.AWSMatcherMemoryDB:           {newMemoryDBFetcher},
-		services.AWSMatcherOpenSearch:         {newOpenSearchFetcher},
+		types.AWSMatcherRDS:                {newRDSDBInstancesFetcher, newRDSAuroraClustersFetcher},
+		types.AWSMatcherRDSProxy:           {newRDSDBProxyFetcher},
+		types.AWSMatcherRedshift:           {newRedshiftFetcher},
+		types.AWSMatcherRedshiftServerless: {newRedshiftServerlessFetcher},
+		types.AWSMatcherElastiCache:        {newElastiCacheFetcher},
+		types.AWSMatcherMemoryDB:           {newMemoryDBFetcher},
+		types.AWSMatcherOpenSearch:         {newOpenSearchFetcher},
 	}
 
 	makeAzureFetcherFuncs = map[string][]makeAzureFetcherFunc{
-		services.AzureMatcherMySQL:     {newAzureMySQLFetcher, newAzureMySQLFlexServerFetcher},
-		services.AzureMatcherPostgres:  {newAzurePostgresFetcher, newAzurePostgresFlexServerFetcher},
-		services.AzureMatcherRedis:     {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
-		services.AzureMatcherSQLServer: {newAzureSQLServerFetcher, newAzureManagedSQLServerFetcher},
+		types.AzureMatcherMySQL:     {newAzureMySQLFetcher, newAzureMySQLFlexServerFetcher},
+		types.AzureMatcherPostgres:  {newAzurePostgresFetcher, newAzurePostgresFlexServerFetcher},
+		types.AzureMatcherRedis:     {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
+		types.AzureMatcherSQLServer: {newAzureSQLServerFetcher, newAzureManagedSQLServerFetcher},
 	}
 )
 

@@ -30,11 +30,14 @@ import (
 
 // MarshalConfig specifies marshaling options
 type MarshalConfig struct {
-	// Version specifies particular version we should marshal resources with
+	// Version specifies a particular version we should marshal resources with
 	Version string
 
 	// ID is a record ID to assign
 	ID int64
+
+	// Revision of the resource to assign.
+	Revision string
 
 	// PreserveResourceID preserves resource IDs in resource
 	// specs when marshaling
@@ -77,6 +80,14 @@ func AddOptions(opts []MarshalOption, add ...MarshalOption) []MarshalOption {
 func WithResourceID(id int64) MarshalOption {
 	return func(c *MarshalConfig) error {
 		c.ID = id
+		return nil
+	}
+}
+
+// WithRevision assigns Revision to the resource
+func WithRevision(rev string) MarshalOption {
+	return func(c *MarshalConfig) error {
+		c.Revision = rev
 		return nil
 	}
 }
@@ -151,6 +162,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindClusterNetworkingConfig, nil
 	case types.KindSessionRecordingConfig, "recording_config", "session_recording", "rec_config", "recconfig":
 		return types.KindSessionRecordingConfig, nil
+	case types.KindExternalCloudAudit:
+		return types.KindExternalCloudAudit, nil
 	case types.KindRemoteCluster, "remote_clusters", "rc", "rcs":
 		return types.KindRemoteCluster, nil
 	case types.KindSemaphore, "semaphores", "sem", "sems":
@@ -199,6 +212,12 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindIntegration, nil
 	case types.KindAccessList, types.KindAccessList + "s", "accesslist", "accesslists":
 		return types.KindAccessList, nil
+	case types.KindDiscoveryConfig, types.KindDiscoveryConfig + "s", "discoveryconfig", "discoveryconfigs":
+		return types.KindDiscoveryConfig, nil
+	case types.KindAuditQuery:
+		return types.KindAuditQuery, nil
+	case types.KindSecurityReport:
+		return types.KindSecurityReport, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -506,14 +525,14 @@ func init() {
 		if !ok {
 			return nil, trace.BadParameter("expected GithubConnector, got %T", resource)
 		}
-		bytes, err := marshalGithubConnector(githubConnector, opts...)
+		bytes, err := MarshalOSSGithubConnector(githubConnector, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return bytes, nil
 	})
 	RegisterResourceUnmarshaler(types.KindGithubConnector, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
-		githubConnector, err := unmarshalGithubConnector(bytes) // XXX: Does not support marshal options.
+		githubConnector, err := UnmarshalOSSGithubConnector(bytes, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

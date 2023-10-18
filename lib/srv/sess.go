@@ -99,6 +99,31 @@ type SessionRegistry struct {
 	// users is used for automatic user creation when new sessions are
 	// started
 	users HostUsers
+
+	// sudoers is used to create sudoers files at session start
+	sudoers        HostSudoers
+	sessionsByUser *userSessions
+}
+
+type userSessions struct {
+	sessionsByUser map[string]int
+	m              sync.Mutex
+}
+
+func (us *userSessions) add(user string) {
+	us.m.Lock()
+	defer us.m.Unlock()
+	count := us.sessionsByUser[user]
+	us.sessionsByUser[user] = count + 1
+}
+
+func (us *userSessions) del(user string) int {
+	us.m.Lock()
+	defer us.m.Unlock()
+	count := us.sessionsByUser[user]
+	count -= 1
+	us.sessionsByUser[user] = count
+	return count
 }
 
 type SessionRegistryConfig struct {
@@ -139,6 +164,7 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	sudoers := cfg.Srv.GetHostSudoers()
 	return &SessionRegistry{
 		SessionRegistryConfig: cfg,
 		log: log.WithFields(log.Fields{
@@ -146,6 +172,10 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 		}),
 		sessions: make(map[rsession.ID]*session),
 		users:    cfg.Srv.GetHostUsers(),
+		sudoers:  sudoers,
+		sessionsByUser: &userSessions{
+			sessionsByUser: make(map[string]int),
+		},
 	}, nil
 }
 
@@ -185,9 +215,54 @@ func (s *SessionRegistry) Close() {
 	s.log.Debug("Closing Session Registry.")
 }
 
+type sudoersCloser struct {
+	username     string
+	userSessions *userSessions
+	cleanup      func(name string) error
+}
+
+func (sc *sudoersCloser) Close() error {
+	count := sc.userSessions.del(sc.username)
+	if count != 0 {
+		return nil
+	}
+	if err := sc.cleanup(sc.username); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *SessionRegistry) TryWriteSudoersFile(ctx *ServerContext) error {
+	if s.sudoers == nil {
+		return nil
+	}
+
+	sudoers, err := ctx.Identity.AccessChecker.HostSudoers(ctx.srv.GetInfo())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(sudoers) == 0 {
+		// not an error, sudoers may not be configured.
+		return nil
+	}
+	if err := s.sudoers.WriteSudoers(ctx.Identity.Login, sudoers); err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.sessionsByUser.add(ctx.Identity.Login)
+	ctx.AddCloser(&sudoersCloser{
+		username:     ctx.Identity.Login,
+		userSessions: s.sessionsByUser,
+		cleanup:      s.sudoers.RemoveSudoers,
+	})
+
+	return nil
+}
+
 func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) error {
-	if !ctx.srv.GetCreateHostUser() || s.users == nil {
-		return nil // not an error to not be able to create a host user
+	if !ctx.srv.GetCreateHostUser() {
+		s.log.Debug("Not creating host user: node has disabled host user creation.")
+		return nil // not an error to not be able to create host users
 	}
 
 	ui, err := ctx.Identity.AccessChecker.HostUsers(ctx.srv.GetInfo())
@@ -428,22 +503,19 @@ func (s *SessionRegistry) NotifyFileTransferRequest(req *fileTransferRequest, re
 		s.log.Debugf("Unable to notify %s, no session found in context.", res)
 		return trace.NotFound("no session found in context")
 	}
-	sid := session.id
 
 	fileTransferEvent := &apievents.FileTransferRequestEvent{
 		Metadata: apievents.Metadata{
 			Type:        string(res),
 			ClusterName: scx.ClusterName,
 		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(sid),
-		},
-		RequestID: req.id,
-		Requester: req.requester,
-		Location:  req.location,
-		Filename:  req.filename,
-		Download:  req.download,
-		Approvers: make([]string, 0),
+		SessionMetadata: session.scx.GetSessionMetadata(),
+		RequestID:       req.id,
+		Requester:       req.requester,
+		Location:        req.location,
+		Filename:        req.filename,
+		Download:        req.download,
+		Approvers:       make([]string, 0),
 	}
 
 	for _, approver := range req.approvers {
@@ -478,7 +550,6 @@ func (s *SessionRegistry) NotifyWinChange(ctx context.Context, params rsession.T
 		s.log.Debug("Unable to update window size, no session found in context.")
 		return nil
 	}
-	sid := session.id
 
 	// Build the resize event.
 	resizeEvent, err := session.Recorder().PrepareSessionEvent(&apievents.Resize{
@@ -487,12 +558,10 @@ func (s *SessionRegistry) NotifyWinChange(ctx context.Context, params rsession.T
 			Code:        events.TerminalResizeCode,
 			ClusterName: scx.ClusterName,
 		},
-		ServerMetadata: session.serverMeta,
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(sid),
-		},
-		UserMetadata: scx.Identity.GetUserMetadata(),
-		TerminalSize: params.Serialize(),
+		ServerMetadata:  session.serverMeta,
+		SessionMetadata: session.scx.GetSessionMetadata(),
+		UserMetadata:    scx.Identity.GetUserMetadata(),
+		TerminalSize:    params.Serialize(),
 	})
 	if err == nil {
 		// Report the updated window size to the session stream (this is so the sessions
@@ -875,11 +944,9 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 			ClusterName: ctx.ClusterName,
 			ID:          uuid.New().String(),
 		},
-		ServerMetadata: s.serverMeta,
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(s.id),
-		},
-		UserMetadata: ctx.Identity.GetUserMetadata(),
+		ServerMetadata:  s.serverMeta,
+		SessionMetadata: s.scx.GetSessionMetadata(),
+		UserMetadata:    ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 			Protocol:   events.EventProtocolSSH,
@@ -921,11 +988,9 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 			Code:        events.SessionJoinCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: s.serverMeta,
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(ctx.SessionID()),
-		},
-		UserMetadata: ctx.Identity.GetUserMetadata(),
+		ServerMetadata:  s.serverMeta,
+		SessionMetadata: ctx.GetSessionMetadata(),
+		UserMetadata:    ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
@@ -974,11 +1039,9 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 			Code:        events.SessionLeaveCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: s.serverMeta,
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(s.id),
-		},
-		UserMetadata: ctx.Identity.GetUserMetadata(),
+		ServerMetadata:  s.serverMeta,
+		SessionMetadata: s.scx.GetSessionMetadata(),
+		UserMetadata:    ctx.Identity.GetUserMetadata(),
 	}
 	preparedEvent, err := s.Recorder().PrepareSessionEvent(sessionLeaveEvent)
 	if err == nil {
@@ -1029,11 +1092,9 @@ func (s *session) emitSessionEndEvent() {
 			Code:        events.SessionEndCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: s.serverMeta,
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(s.id),
-		},
-		UserMetadata: ctx.Identity.GetUserMetadata(),
+		ServerMetadata:  s.serverMeta,
+		SessionMetadata: s.scx.GetSessionMetadata(),
+		UserMetadata:    ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 			Protocol:   events.EventProtocolSSH,
@@ -1302,6 +1363,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder
 	// Nodes discard events in cases when proxies are already recording them.
 	if s.registry.Srv.Component() == teleport.ComponentNode &&
 		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+		s.log.WithField("session_id", s.ID()).Trace("session will be recorded at proxy")
 		return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
 	}
 
@@ -1961,6 +2023,10 @@ func (p *party) closeUnderSessionLock() error {
 // on an interval until the session tracker is closed.
 func (s *session) trackSession(ctx context.Context, teleportUser string, policySet []*types.SessionTrackerPolicySet, p *party) error {
 	s.log.Debugf("Tracking participant: %s", p.id)
+	var initialCommand []string
+	if execRequest, err := s.scx.GetExecRequest(); err == nil {
+		initialCommand = []string{execRequest.GetCommand()}
+	}
 	trackerSpec := types.SessionTrackerSpecV1{
 		SessionID:    s.id.String(),
 		Kind:         string(types.SSHSessionKind),
@@ -1981,8 +2047,9 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 				LastActive: s.registry.clock.Now().UTC(),
 			},
 		},
-		HostID:        s.registry.Srv.ID(),
-		TargetSubKind: s.serverMeta.ServerSubKind,
+		HostID:         s.registry.Srv.ID(),
+		TargetSubKind:  s.serverMeta.ServerSubKind,
+		InitialCommand: initialCommand,
 	}
 
 	if s.scx.env[teleport.EnvSSHSessionInvited] != "" {

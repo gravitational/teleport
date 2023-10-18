@@ -59,6 +59,9 @@ func UnmarshalClusterAuditConfig(bytes []byte, opts ...MarshalOption) (types.Clu
 	if cfg.ID != 0 {
 		auditConfig.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		auditConfig.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		auditConfig.SetExpiry(cfg.Expires)
 	}
@@ -83,6 +86,7 @@ func MarshalClusterAuditConfig(auditConfig types.ClusterAuditConfig, opts ...Mar
 			// to prevent unexpected data races
 			copy := *auditConfig
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			auditConfig = &copy
 		}
 		return utils.FastMarshal(auditConfig)

@@ -218,7 +218,7 @@ spec:
     db_names: ['{{external.db_names}}']
     db_roles: ['{{external.db_roles}}']
     db_labels:
-      'env': '{{regexp.replace(external.access["env"], "^(staging)$", "$1")}}'
+      'env': '{{regexp.replace(external.env, "^(staging)$", "$1")}}'
 
     # app_labels: a user with this role will be allowed to connect to
     # applications with labels matching below.
@@ -385,14 +385,16 @@ spec:
     # saml               - connector resource
     # github             - GitHub connector resource
     #
-    # trusted_cluster    - Trusted Cluster resource
+    # trusted_cluster    - Trusted cluster resource
     # remote_cluster     - remote cluster resource
     #
     # access_request     - Access Request resource
     # access_plugin_data - allows modifying Access Request plugin data
     #
     # session            - session playback records
-    # ssh_session        - an active SSH session
+    # session_tracker    - an active session
+    # ssh_session        - allows seeing active sessions page
+    # instance           - a Teleport instance
     # event              - structured audit logging event
     #
     #

@@ -20,6 +20,16 @@ export type TableProps<T> = {
   data: T[];
   columns: TableColumn<T>[];
   emptyText: string;
+  /**
+   * Optional button that is rendered below emptyText if there's no data, during processing or on
+   * error.
+   */
+  emptyButton?: JSX.Element;
+  /**
+   * Optional hint that is rendered below emptyText if there's no data, during processing or on
+   * error.
+   */
+  emptyHint?: string;
   pagination?: PaginationConfig;
   isSearchable?: boolean;
   searchableProps?: Extract<keyof T, string>[];

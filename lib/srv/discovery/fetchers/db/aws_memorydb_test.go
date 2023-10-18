@@ -56,7 +56,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 					TagsByARN: memorydbTagsByARN,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherMemoryDB, "us-east-1", wildcardLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherMemoryDB, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{memorydbDatabaseProd, memorydbDatabaseTest},
 		},
 		{
@@ -67,7 +67,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 					TagsByARN: memorydbTagsByARN,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherMemoryDB, "us-east-1", envProdLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherMemoryDB, "us-east-1", envProdLabels),
 			wantDatabases: types.Databases{memorydbDatabaseProd},
 		},
 		{
@@ -78,7 +78,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 					TagsByARN: memorydbTagsByARN,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherMemoryDB, "us-east-1", wildcardLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherMemoryDB, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{memorydbDatabaseProd},
 		},
 		{
@@ -89,7 +89,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 					TagsByARN: memorydbTagsByARN,
 				},
 			},
-			inputMatchers: makeAWSMatchersForType(services.AWSMatcherMemoryDB, "us-east-1", wildcardLabels),
+			inputMatchers: makeAWSMatchersForType(types.AWSMatcherMemoryDB, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{memorydbDatabaseProd},
 		},
 	}
@@ -107,6 +107,6 @@ func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*m
 
 	database, err := services.NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
 	require.NoError(t, err)
-	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherMemoryDB)
+	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherMemoryDB)
 	return cluster, database, tags
 }

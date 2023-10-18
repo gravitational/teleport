@@ -322,7 +322,7 @@ export class FeatureRoles implements TeleportFeature {
   section = ManagementSection.Access;
 
   route = {
-    title: 'Manage Roles',
+    title: 'Manage User Roles',
     path: cfg.routes.roles,
     exact: true,
     component: Roles,
@@ -369,7 +369,7 @@ export class FeatureAuthConnectors implements TeleportFeature {
 
 export class FeatureLocks implements TeleportFeature {
   category = NavigationCategory.Management;
-  section = ManagementSection.Access;
+  section = ManagementSection.Identity;
 
   route = {
     title: 'Manage Session & Identity Locks',
@@ -601,7 +601,7 @@ export class FeatureTrust implements TeleportFeature {
 
 class FeatureDeviceTrust implements TeleportFeature {
   category = NavigationCategory.Management;
-  section = ManagementSection.Access;
+  section = ManagementSection.Identity;
   route = {
     title: 'Manage Trusted Devices',
     path: cfg.routes.deviceTrust,
@@ -686,13 +686,15 @@ export function getOSSFeatures(): TeleportFeature[] {
     // - Access
     new FeatureUsers(),
     new FeatureRoles(),
-    new FeatureDeviceTrust(),
     new FeatureAuthConnectors(),
-    new FeatureLocks(),
-    new FeatureNewLock(),
     new FeatureIntegrations(),
     new FeatureDiscover(),
     new FeatureIntegrationEnroll(),
+
+    // - Identity
+    new FeatureLocks(),
+    new FeatureNewLock(),
+    new FeatureDeviceTrust(),
 
     // - Activity
     new FeatureRecordings(),

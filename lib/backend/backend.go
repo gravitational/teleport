@@ -83,6 +83,13 @@ type Backend interface {
 	// in case if the lease managed server side
 	KeepAlive(ctx context.Context, lease Lease, expires time.Time) error
 
+	// ConditionalUpdate updates the value in the backend if the revision of the [Item] matches
+	// the stored revision.
+	ConditionalUpdate(ctx context.Context, i Item) (*Lease, error)
+
+	// ConditionalDelete deletes the item by key if the revision matches the stored revision.
+	ConditionalDelete(ctx context.Context, key []byte, revision string) error
+
 	// NewWatcher returns a new event watcher
 	NewWatcher(ctx context.Context, watch Watch) (Watcher, error)
 
@@ -222,9 +229,6 @@ type Item struct {
 	// ID is a record ID, newer records have newer ids
 	// Deprecated: use Revision instead
 	ID int64
-	// LeaseID is a lease ID, could be set on objects
-	// with TTL
-	LeaseID int64
 	// Revision is the last known version of the object.
 	Revision string
 }
@@ -428,6 +432,12 @@ func internalKey(internalPrefix string, parts ...string) []byte {
 func CreateRevision() string {
 	return uuid.NewString()
 }
+
+// BlankRevision is a placeholder revision to be used by backends when
+// the revision of the item in the backend is empty. This can happen
+// to any existing resources that were last written before support for
+// revisions was added.
+var BlankRevision = uuid.Nil.String()
 
 // NewLease creates a lease for the provided [Item].
 func NewLease(item Item) *Lease {
