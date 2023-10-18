@@ -281,11 +281,6 @@ func (c *Client) SearchSessionEvents(ctx context.Context, req events.SearchSessi
 	return events, lastKey, nil
 }
 
-// CreateRole not implemented: can only be called locally.
-func (c *Client) CreateRole(ctx context.Context, role types.Role) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // UpsertClusterName not implemented: can only be called locally.
 func (c *Client) UpsertClusterName(cn types.ClusterName) error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -306,13 +301,13 @@ func (c *Client) DeleteAllReverseTunnels() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllCertNamespaces not implemented: can only be called locally.
+// DeleteAllNamespaces not implemented: can only be called locally.
 func (c *Client) DeleteAllNamespaces() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteAllRoles not implemented: can only be called locally.
-func (c *Client) DeleteAllRoles() error {
+func (c *Client) DeleteAllRoles(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -611,6 +606,8 @@ type IdentityService interface {
 	// GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
 	// certificate for a single session
 	// (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
+	//
+	// Deprecated: Use GenerateUserCerts instead.
 	GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
 
 	// IsMFARequired is a request to check whether MFA is required to

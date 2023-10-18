@@ -31,6 +31,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -473,6 +474,18 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfListDatabasesCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Region)
 	integrationConfListDatabasesCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Role)
 
+	integrationConfExternalAuditCmd := integrationConfigureCmd.Command("externalcloudaudit-iam", "Adds required IAM permissions for external cloud audit logs")
+	integrationConfExternalAuditCmd.Flag("aws-region", "AWS region.").Required().StringVar(&ccf.IntegrationConfExternalCloudAuditIAMArguments.Region)
+	integrationConfExternalAuditCmd.Flag("role", "The IAM Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfExternalCloudAuditIAMArguments.Role)
+	integrationConfExternalAuditCmd.Flag("policy", "The name for the Policy to attach to the IAM role.").Required().StringVar(&ccf.IntegrationConfExternalCloudAuditIAMArguments.Policy)
+	integrationConfExternalAuditCmd.Flag("session-recordings", "The S3 URI where session recordings are stored.").Required().StringVar(&ccf.IntegrationConfExternalCloudAuditIAMArguments.SessionRecordingsURI)
+	integrationConfExternalAuditCmd.Flag("audit-events", "The S3 URI where audit events are stored.").Required().StringVar(&ccf.IntegrationConfExternalCloudAuditIAMArguments.AuditEventsURI)
+	integrationConfExternalAuditCmd.Flag("athena-results", "The S3 URI where athena results are stored.").Required().StringVar(&ccf.IntegrationConfExternalCloudAuditIAMArguments.AthenaResultsURI)
+	integrationConfExternalAuditCmd.Flag("athena-workgroup", "The name of the Athena workgroup used.").Required().StringVar(&ccf.IntegrationConfExternalCloudAuditIAMArguments.AthenaWorkgroup)
+	integrationConfExternalAuditCmd.Flag("glue-database", "The name of the Glue database used.").Required().StringVar(&ccf.IntegrationConfExternalCloudAuditIAMArguments.GlueDatabase)
+	integrationConfExternalAuditCmd.Flag("glue-table", "The name of the Glue table used.").Required().StringVar(&ccf.IntegrationConfExternalCloudAuditIAMArguments.GlueTable)
+	integrationConfExternalAuditCmd.Flag("aws-partition", "AWS partition (default: aws).").Default("aws").StringVar(&ccf.IntegrationConfExternalCloudAuditIAMArguments.Partition)
+
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
@@ -566,6 +579,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onIntegrationConfAWSOIDCIdP(ccf.IntegrationConfAWSOIDCIdPArguments)
 	case integrationConfListDatabasesCmd.FullCommand():
 		err = onIntegrationConfListDatabasesIAM(ccf.IntegrationConfListDatabasesIAMArguments)
+	case integrationConfExternalAuditCmd.FullCommand():
+		err = onIntegrationConfExternalAuditCmd(ccf.IntegrationConfExternalCloudAuditIAMArguments)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -990,4 +1005,17 @@ func onIntegrationConfListDatabasesIAM(params config.IntegrationConfListDatabase
 	}
 
 	return nil
+}
+
+func onIntegrationConfExternalAuditCmd(params config.IntegrationConfExternalCloudAuditIAM) error {
+	ctx := context.Background()
+	cfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(params.Region))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clt := &awsoidc.DefaultConfigureExternalCloudAuditClient{
+		Iam: iam.NewFromConfig(cfg),
+		Sts: sts.NewFromConfig(cfg),
+	}
+	return trace.Wrap(awsoidc.ConfigureExternalCloudAudit(ctx, clt, &params))
 }

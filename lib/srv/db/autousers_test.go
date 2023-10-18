@@ -31,159 +31,217 @@ import (
 // TestAutoUsersPostgres verifies automatic database user creation for Postgres.
 func TestAutoUsersPostgres(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres", func(db *types.DatabaseV3) {
-		db.Spec.AdminUser = &types.DatabaseAdminUser{
-			Name: "postgres",
-		}
-	}))
-	go testCtx.startHandlingConnections()
+	for name, tc := range map[string]struct {
+		mode                types.CreateDatabaseUserMode
+		databaseRoles       []string
+		expectConnectionErr bool
+	}{
+		"activate/deactivate users": {
+			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			databaseRoles:       []string{"reader", "writer"},
+			expectConnectionErr: false,
+		},
+		"activate/delete users": {
+			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
+			databaseRoles:       []string{"reader", "writer"},
+			expectConnectionErr: false,
+		},
+		"disabled": {
+			mode:          types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
+			databaseRoles: []string{"reader", "writer"},
+			// Given the "alice" user is not present on the database and
+			// Teleport won't create it, this should fail with an access denied
+			// error.
+			expectConnectionErr: true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tc := tc
+			t.Parallel()
 
-	// Create user with role that allows user provisioning.
-	_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), "alice", []string{"auto"}, nil)
-	require.NoError(t, err)
-	options := role.GetOptions()
-	options.CreateDatabaseUser = types.NewBoolOption(true)
-	role.SetOptions(options)
-	role.SetDatabaseRoles(types.Allow, []string{"reader", "writer"})
-	role.SetDatabaseNames(types.Allow, []string{"*"})
-	err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
+			// At initial setup, only allows postgres (used to create execute the procedures).
+			testCtx := setupTestContext(ctx, t, withSelfHostedPostgresUsers("postgres", []string{"postgres"}, func(db *types.DatabaseV3) {
+				db.Spec.AdminUser = &types.DatabaseAdminUser{
+					Name: "postgres",
+				}
+			}))
+			go testCtx.startHandlingConnections()
 
-	// Try to connect to the database as this user.
-	pgConn, err := testCtx.postgresClient(ctx, "alice", "postgres", "alice", "postgres")
-	require.NoError(t, err)
+			// Create user with role that allows user provisioning.
+			_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), "alice", []string{"auto"}, nil)
+			require.NoError(t, err)
+			options := role.GetOptions()
+			options.CreateDatabaseUserMode = tc.mode
+			role.SetOptions(options)
+			role.SetDatabaseRoles(types.Allow, tc.databaseRoles)
+			role.SetDatabaseNames(types.Allow, []string{"*"})
+			_, err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
+			require.NoError(t, err)
 
-	// Verify user was activated.
-	select {
-	case e := <-testCtx.postgres["postgres"].db.UserEventsCh():
-		require.Equal(t, "alice", e.Name)
-		require.Equal(t, []string{"reader", "writer"}, e.Roles)
-		require.True(t, e.Active)
-	case <-time.After(5 * time.Second):
-		t.Fatal("user not activated after 5s")
-	}
+			// Try to connect to the database as this user.
+			pgConn, err := testCtx.postgresClient(ctx, "alice", "postgres", "alice", "postgres")
+			if tc.expectConnectionErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
 
-	// Disconnect.
-	err = pgConn.Close(ctx)
-	require.NoError(t, err)
+			// Verify user was activated.
+			select {
+			case e := <-testCtx.postgres["postgres"].db.UserEventsCh():
+				require.Equal(t, "alice", e.Name)
+				require.Equal(t, []string{"reader", "writer"}, e.Roles)
+				require.True(t, e.Active)
+			case <-time.After(5 * time.Second):
+				t.Fatal("user not activated after 5s")
+			}
 
-	// Verify user was deactivated.
-	select {
-	case e := <-testCtx.postgres["postgres"].db.UserEventsCh():
-		require.Equal(t, "alice", e.Name)
-		require.False(t, e.Active)
-	case <-time.After(5 * time.Second):
-		t.Fatal("user not deactivated after 5s")
+			// Disconnect.
+			err = pgConn.Close(ctx)
+			require.NoError(t, err)
+
+			// Verify user was deactivated.
+			select {
+			case e := <-testCtx.postgres["postgres"].db.UserEventsCh():
+				require.Equal(t, "alice", e.Name)
+				require.False(t, e.Active)
+			case <-time.After(5 * time.Second):
+				t.Fatal("user not deactivated after 5s")
+			}
+		})
 	}
 }
 
 func TestAutoUsersMySQL(t *testing.T) {
-	tests := []mysqlAutoUserTest{
-		{
-			name:             "MySQL with long name",
-			serverVersion:    "8.0.28",
-			teleportUser:     "a.very.long.name@teleport.example.com",
-			wantDatabaseUser: "tp-ZLhdP1FgxXsUvcVpG8ucVm/PCHg",
-		},
-		{
-			name:            "MySQL not supported",
-			serverVersion:   "5.7.42",
-			teleportUser:    "a.very.long.name@teleport.example.com",
-			wantClientError: true,
-		},
-		{
-			name:          "MariaDB",
-			serverVersion: "5.5.5-10.11.0-MariaDB",
-			teleportUser:  "a.very.long.name@teleport.example.com",
-			// MariaDB max username length is 80 (MySQL is 32).
-			wantDatabaseUser: "a.very.long.name@teleport.example.com",
-		},
-		{
-			name:             "MariaDB with long name",
-			serverVersion:    "5.5.5-10.11.0-MariaDB",
-			teleportUser:     strings.Repeat("even-longer-name", 5) + "@teleport.example.com",
-			wantDatabaseUser: "tp-W+34lSjdNvyLfzOejQLRcbe0Rrs",
-		},
-		{
-			name:            "MariaDB not supported",
-			serverVersion:   "5.5.5-10.0.0-MariaDB",
-			teleportUser:    "a.very.long.name@teleport.example.com",
-			wantClientError: true,
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, test.Run)
-	}
-}
-
-type mysqlAutoUserTest struct {
-	name             string
-	serverVersion    string
-	teleportUser     string
-	wantDatabaseUser string
-	wantClientError  bool
-}
-
-func (m *mysqlAutoUserTest) Run(t *testing.T) {
-	t.Parallel()
-
 	ctx := context.Background()
-	testCtx := setupTestContext(
-		ctx,
-		t,
-		withSelfHostedMySQL("mysql",
-			withMySQLAdminUser("admin"),
-			withMySQLServerVersion(m.serverVersion),
-		),
-	)
-	go testCtx.startHandlingConnections()
+	for name, tc := range map[string]struct {
+		mode                types.CreateDatabaseUserMode
+		databaseRoles       []string
+		teleportUser        string
+		serverVersion       string
+		expectConnectionErr bool
+		expectDatabaseUser  string
+	}{
+		"MySQL activate/deactivate users": {
+			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			databaseRoles:       []string{"reader", "writer"},
+			serverVersion:       "8.0.28",
+			teleportUser:        "a.very.long.name@teleport.example.com",
+			expectConnectionErr: false,
+			expectDatabaseUser:  "tp-ZLhdP1FgxXsUvcVpG8ucVm/PCHg",
+		},
+		"MySQL activate/delete users": {
+			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
+			databaseRoles:       []string{"reader", "writer"},
+			serverVersion:       "8.0.28",
+			teleportUser:        "user1",
+			expectConnectionErr: false,
+			expectDatabaseUser:  "user1",
+		},
+		"MySQL auto-user off": {
+			mode:          types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
+			databaseRoles: []string{"reader", "writer"},
+			serverVersion: "8.0.28",
+			teleportUser:  "a.very.long.name@teleport.example.com",
+			// Given the "alice" user is not present on the database and
+			// Teleport won't create it, this should fail with an access denied
+			// error.
+			expectConnectionErr: true,
+			expectDatabaseUser:  "user1",
+		},
+		"MySQL version not supported": {
+			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			databaseRoles:       []string{"reader", "writer"},
+			serverVersion:       "5.7.42",
+			teleportUser:        "user1",
+			expectConnectionErr: true,
+			expectDatabaseUser:  "user1",
+		},
+		"MariaDB activate/deactivate users": {
+			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			databaseRoles:       []string{"reader", "writer"},
+			serverVersion:       "5.5.5-10.11.0-MariaDB",
+			teleportUser:        "user1",
+			expectConnectionErr: false,
+			expectDatabaseUser:  "user1",
+		},
+		"MariaDB long name": {
+			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			databaseRoles:       []string{"reader", "writer"},
+			serverVersion:       "5.5.5-10.11.0-MariaDB",
+			teleportUser:        strings.Repeat("even-longer-name", 5) + "@teleport.example.com",
+			expectConnectionErr: false,
+			expectDatabaseUser:  "tp-W+34lSjdNvyLfzOejQLRcbe0Rrs",
+		},
+		"MariaDB version not supported ": {
+			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			databaseRoles:       []string{"reader", "writer"},
+			serverVersion:       "5.5.5-10.0.0-MariaDB",
+			teleportUser:        "user1",
+			expectConnectionErr: true,
+			expectDatabaseUser:  "user1",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tc := tc
+			t.Parallel()
 
-	// Create user with role that allows user provisioning.
-	_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), m.teleportUser, []string{"auto"}, nil)
-	require.NoError(t, err)
-	options := role.GetOptions()
-	options.CreateDatabaseUser = types.NewBoolOption(true)
-	role.SetOptions(options)
-	role.SetDatabaseRoles(types.Allow, []string{"reader", "writer"})
-	role.SetDatabaseNames(types.Allow, []string{"*"})
-	err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
+			testCtx := setupTestContext(
+				ctx,
+				t,
+				withSelfHostedMySQL("mysql",
+					withMySQLAdminUser("admin"),
+					withMySQLServerVersion(tc.serverVersion),
+				),
+			)
+			go testCtx.startHandlingConnections()
 
-	// DatabaseUser must match identity.
-	_, err = testCtx.mysqlClient(m.teleportUser, "mysql", "user1")
-	require.Error(t, err)
+			// Create user with role that allows user provisioning.
+			_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), tc.teleportUser, []string{"auto"}, nil)
+			require.NoError(t, err)
+			options := role.GetOptions()
+			options.CreateDatabaseUserMode = tc.mode
+			role.SetOptions(options)
+			role.SetDatabaseRoles(types.Allow, []string{"reader", "writer"})
+			role.SetDatabaseNames(types.Allow, []string{"*"})
+			_, err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
+			require.NoError(t, err)
 
-	// Try to connect to the database as this user.
-	mysqlConn, err := testCtx.mysqlClient(m.teleportUser, "mysql", m.teleportUser)
-	if m.wantClientError {
-		require.Error(t, err)
-		return
-	}
-	require.NoError(t, err)
+			// DatabaseUser must match identity.
+			_, err = testCtx.mysqlClient(tc.teleportUser, "mysql", "some-other-username")
+			require.Error(t, err)
 
-	select {
-	case e := <-testCtx.mysql["mysql"].db.UserEventsCh():
-		require.Equal(t, m.teleportUser, e.TeleportUser)
-		require.Equal(t, m.wantDatabaseUser, e.DatabaseUser)
-		require.Equal(t, []string{"reader", "writer"}, e.Roles)
-		require.True(t, e.Active)
-	case <-time.After(5 * time.Second):
-		t.Fatal("user not activated after 5s")
-	}
+			// Try to connect to the database as this user.
+			mysqlConn, err := testCtx.mysqlClient(tc.teleportUser, "mysql", tc.teleportUser)
+			if tc.expectConnectionErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
 
-	// Disconnect.
-	err = mysqlConn.Close()
-	require.NoError(t, err)
+			select {
+			case e := <-testCtx.mysql["mysql"].db.UserEventsCh():
+				require.Equal(t, tc.teleportUser, e.TeleportUser)
+				require.Equal(t, tc.expectDatabaseUser, e.DatabaseUser)
+				require.Equal(t, []string{"reader", "writer"}, e.Roles)
+				require.True(t, e.Active)
+			case <-time.After(5 * time.Second):
+				t.Fatal("user not activated after 5s")
+			}
 
-	// Verify user was deactivated.
-	select {
-	case e := <-testCtx.mysql["mysql"].db.UserEventsCh():
-		require.Equal(t, m.teleportUser, e.TeleportUser)
-		require.Equal(t, m.wantDatabaseUser, e.DatabaseUser)
-		require.False(t, e.Active)
-	case <-time.After(5 * time.Second):
-		t.Fatal("user not deactivated after 5s")
+			// Disconnect.
+			err = mysqlConn.Close()
+			require.NoError(t, err)
+
+			// Verify user was deactivated.
+			select {
+			case e := <-testCtx.mysql["mysql"].db.UserEventsCh():
+				require.Equal(t, tc.teleportUser, e.TeleportUser)
+				require.Equal(t, tc.expectDatabaseUser, e.DatabaseUser)
+				require.False(t, e.Active)
+			case <-time.After(5 * time.Second):
+				t.Fatal("user not deactivated after 5s")
+			}
+		})
 	}
 }

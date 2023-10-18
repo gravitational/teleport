@@ -82,6 +82,8 @@ type Statement struct {
 	//    StringEquals:
 	//        "proxy.example.com:aud": "discover.teleport"
 	Conditions map[string]map[string]SliceOrString `json:"Condition,omitempty"`
+	// StatementID is an optional identifier for the statement.
+	StatementID string `json:"Sid,omitempty"`
 }
 
 // ensureResource ensures that the statement contains the specified resource.

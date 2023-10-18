@@ -1463,13 +1463,19 @@ func TestRoles(t *testing.T) {
 				Deny: types.RoleConditions{},
 			})
 		},
-		create:    p.accessS.UpsertRole,
+		create: func(ctx context.Context, role types.Role) error {
+			_, err := p.accessS.UpsertRole(ctx, role)
+			return err
+		},
 		list:      p.accessS.GetRoles,
 		cacheGet:  p.cache.GetRole,
 		cacheList: p.cache.GetRoles,
-		update:    p.accessS.UpsertRole,
-		deleteAll: func(_ context.Context) error {
-			return p.accessS.DeleteAllRoles()
+		update: func(ctx context.Context, role types.Role) error {
+			_, err := p.accessS.UpsertRole(ctx, role)
+			return err
+		},
+		deleteAll: func(ctx context.Context) error {
+			return p.accessS.DeleteAllRoles(ctx)
 		},
 	})
 }
@@ -2740,7 +2746,8 @@ func TestPartialHealth(t *testing.T) {
 
 	role, err := types.NewRole("editor", types.RoleSpecV6{})
 	require.NoError(t, err)
-	require.NoError(t, p.accessS.UpsertRole(ctx, role))
+	_, err = p.accessS.UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	user, err := types.NewUser("bob")
 	require.NoError(t, err)

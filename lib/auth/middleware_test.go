@@ -361,6 +361,15 @@ func TestMiddleware_ServeHTTP(t *testing.T) {
 		Principals:      []string{},
 	}
 
+	remoteProxyIdentity := tlsca.Identity{
+		Username:        "proxy...",
+		Groups:          []string{string(types.RoleProxy)},
+		TeleportCluster: remoteClusterName,
+		Expires:         now,
+		Usage:           []string{},
+		Principals:      []string{},
+	}
+
 	dbIdentity := tlsca.Identity{
 		Username:        "db...",
 		Groups:          []string{string(types.RoleDatabase)},
@@ -381,11 +390,12 @@ func TestMiddleware_ServeHTTP(t *testing.T) {
 		userIPAddr string
 	}
 	tests := []struct {
-		name                         string
-		args                         args
-		want                         want
-		credentialsForwardingDennied bool
-		enableCredentialsForwarding  bool
+		name                                  string
+		args                                  args
+		want                                  want
+		credentialsForwardingDennied          bool
+		enableCredentialsForwarding           bool
+		impersonateLocalUserViaRemoteProxyErr bool
 	}{
 		{
 			name: "local user without impersonation",
@@ -549,6 +559,21 @@ func TestMiddleware_ServeHTTP(t *testing.T) {
 			credentialsForwardingDennied: false,
 			enableCredentialsForwarding:  false,
 		},
+		{
+			name: "remote proxy with local user impersonation",
+			args: args{
+				peers: []*x509.Certificate{{
+					Subject:  subject(t, remoteProxyIdentity),
+					NotAfter: now,
+					Issuer:   pkix.Name{Organization: []string{remoteClusterName}},
+				}},
+				impersonateIdentity: &localUserIdentity,
+				sourceIPAddr:        "127.0.0.1:6514",
+				impersonatedIPAddr:  "127.0.0.2:6514",
+			},
+			enableCredentialsForwarding:           true,
+			impersonateLocalUserViaRemoteProxyErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -590,6 +615,14 @@ func TestMiddleware_ServeHTTP(t *testing.T) {
 					bytes.Contains(
 						rsp.Body.Bytes(),
 						[]byte("Credentials forwarding is not permitted by this service"),
+					),
+				)
+			}
+			if tt.impersonateLocalUserViaRemoteProxyErr {
+				require.True(t,
+					bytes.Contains(
+						rsp.Body.Bytes(),
+						[]byte("can not impersonate users via a different cluster proxy"),
 					),
 				)
 			}

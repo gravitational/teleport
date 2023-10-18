@@ -2253,23 +2253,91 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *emptypb.Empty) (*authpb.Ge
 	}, nil
 }
 
-// UpsertRole upserts a role.
-func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV6) (*emptypb.Empty, error) {
+// CreateRole creates a new role.
+func (g *GRPCServer) CreateRole(ctx context.Context, req *authpb.CreateRoleRequest) (*types.RoleV6, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = services.ValidateRole(role); err != nil {
+
+	if err = services.ValidateRole(req.Role); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.ServerWithRoles.UpsertRole(ctx, role)
+
+	created, err := auth.ServerWithRoles.CreateRole(ctx, req.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	g.Debugf("%q role upserted", role.GetName())
+	g.Debugf("%q role upserted", req.Role.GetName())
 
-	return &emptypb.Empty{}, nil
+	v6, ok := created.(*types.RoleV6)
+	if !ok {
+		log.Warnf("expected type RoleV6, got %T for role %q", created, created.GetName())
+		return nil, trace.BadParameter("encountered unexpected role type")
+	}
+
+	return v6, nil
+}
+
+// UpdateRole updates an existing  role.
+func (g *GRPCServer) UpdateRole(ctx context.Context, req *authpb.UpdateRoleRequest) (*types.RoleV6, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = services.ValidateRole(req.Role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := auth.ServerWithRoles.UpdateRole(ctx, req.Role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	g.Debugf("%q role upserted", req.Role.GetName())
+
+	v6, ok := updated.(*types.RoleV6)
+	if !ok {
+		log.Warnf("expected type RoleV6, got %T for role %q", updated, updated.GetName())
+		return nil, trace.BadParameter("encountered unexpected role type")
+	}
+
+	return v6, nil
+}
+
+// UpsertRoleV2 upserts a role.
+func (g *GRPCServer) UpsertRoleV2(ctx context.Context, req *authpb.UpsertRoleRequest) (*types.RoleV6, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = services.ValidateRole(req.Role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	upserted, err := auth.ServerWithRoles.UpsertRole(ctx, req.Role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	g.Debugf("%q role upserted", req.Role.GetName())
+
+	v6, ok := upserted.(*types.RoleV6)
+	if !ok {
+		log.Warnf("expected type RoleV6, got %T for role %q", upserted, upserted.GetName())
+		return nil, trace.BadParameter("encountered unexpected role type")
+	}
+
+	return v6, nil
+}
+
+// UpsertRole upserts a role.
+func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV6) (*emptypb.Empty, error) {
+	_, err := g.UpsertRoleV2(ctx, &authpb.UpsertRoleRequest{Role: role})
+	return &emptypb.Empty{}, trace.Wrap(err)
 }
 
 // DeleteRole deletes a role by name.
@@ -2669,6 +2737,8 @@ func (g *GRPCServer) GetMFADevices(ctx context.Context, req *authpb.GetMFADevice
 	return devs, trace.Wrap(err)
 }
 
+// DELETE IN v16, kept for compatibility with older tsh versions (codingllama).
+// (Don't actually delete it, but instead make it always error.)
 func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_GenerateUserSingleUseCertsServer) error {
 	ctx := stream.Context()
 	actx, err := g.authenticate(ctx)
@@ -2726,6 +2796,7 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_Genera
 			// If MFA is not required to gain access to the resource then let the client
 			// know and abort the ceremony.
 			if !required {
+				//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 				return trace.Wrap(stream.Send(&authpb.UserSingleUseCertsResponse{
 					Response: &authpb.UserSingleUseCertsResponse_MFAChallenge{
 						MFAChallenge: &authpb.MFAAuthenticateChallenge{
@@ -2755,6 +2826,7 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_Genera
 	}
 
 	// 4. send Certs
+	//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 	if err := stream.Send(&authpb.UserSingleUseCertsResponse{
 		Response: &authpb.UserSingleUseCertsResponse_Cert{Cert: respCert},
 	}); err != nil {
@@ -2837,6 +2909,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream authpb.AuthServic
 
 	challenge.MFARequired = mfaRequired
 
+	//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 	if err := stream.Send(&authpb.UserSingleUseCertsResponse{
 		Response: &authpb.UserSingleUseCertsResponse_MFAChallenge{MFAChallenge: challenge},
 	}); err != nil {

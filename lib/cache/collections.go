@@ -1175,11 +1175,12 @@ func (roleExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) 
 }
 
 func (roleExecutor) upsert(ctx context.Context, cache *Cache, resource types.Role) error {
-	return cache.accessCache.UpsertRole(ctx, resource)
+	_, err := cache.accessCache.UpsertRole(ctx, resource)
+	return err
 }
 
 func (roleExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.accessCache.DeleteAllRoles()
+	return cache.accessCache.DeleteAllRoles(ctx)
 }
 
 func (roleExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {

@@ -347,8 +347,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	// create the default role
-	err = srv.AuthServer.UpsertRole(ctx, services.NewImplicitRole())
-	if err != nil {
+	if _, err := srv.AuthServer.UpsertRole(ctx, services.NewImplicitRole()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1078,7 +1077,7 @@ func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Iden
 // clt limits required interface to the necessary methods
 // used to pass different clients in tests
 type clt interface {
-	UpsertRole(context.Context, types.Role) error
+	UpsertRole(context.Context, types.Role) (types.Role, error)
 	UpsertUser(context.Context, types.User) (types.User, error)
 }
 
@@ -1089,12 +1088,12 @@ func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV6
 		return nil, trace.Wrap(err)
 	}
 
-	err = clt.UpsertRole(ctx, role)
+	upserted, err := clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return role, nil
+	return upserted, nil
 }
 
 // CreateUserRoleAndRequestable creates two roles for a user, one base role with allowed login
@@ -1110,7 +1109,7 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (ty
 		Roles: []string{rolename},
 	})
 	baseRole.SetLogins(types.Allow, nil)
-	err = clt.UpsertRole(ctx, baseRole)
+	baseRole, err = clt.UpsertRole(ctx, baseRole)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1122,7 +1121,7 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (ty
 	requestableRole := services.RoleForUser(user)
 	requestableRole.SetName(rolename)
 	requestableRole.SetLogins(types.Allow, []string{rolename})
-	err = clt.UpsertRole(ctx, requestableRole)
+	_, err = clt.UpsertRole(ctx, requestableRole)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1150,10 +1149,11 @@ func CreateAccessPluginUser(ctx context.Context, clt clt, username string) (type
 	)
 	role.SetRules(types.Allow, rules)
 	role.SetLogins(types.Allow, nil)
-	if err := clt.UpsertRole(ctx, role); err != nil {
+	upsertedRole, err := clt.UpsertRole(ctx, role)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user.AddRole(role.GetName())
+	user.AddRole(upsertedRole.GetName())
 	if _, err := clt.UpsertUser(ctx, user); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1168,11 +1168,11 @@ func CreateUser(ctx context.Context, clt clt, username string, roles ...types.Ro
 	}
 
 	for _, role := range roles {
-		err = clt.UpsertRole(ctx, role)
+		upsertedRole, err := clt.UpsertRole(ctx, role)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		user.AddRole(role.GetName())
+		user.AddRole(upsertedRole.GetName())
 	}
 
 	created, err := clt.UpsertUser(ctx, user)
@@ -1196,12 +1196,12 @@ func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRu
 		role.SetRules(types.Allow, allowRules)
 	}
 
-	err = clt.UpsertRole(ctx, role)
+	upsertedRole, err := clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	user.AddRole(role.GetName())
+	user.AddRole(upsertedRole.GetName())
 	created, err := clt.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1222,18 +1222,18 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	delete(set, types.KindRole)
 	role.SetRules(types.Allow, set.Slice())
 	role.SetLogins(types.Allow, []string{user.GetName()})
-	err = clt.UpsertRole(ctx, role)
+	upsertedRole, err := clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	user.AddRole(role.GetName())
+	user.AddRole(upsertedRole.GetName())
 	created, err := clt.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return created, role, nil
+	return created, upsertedRole, nil
 }
 
 // noopEmbedder is a no op implementation of the Embedder interface.

@@ -46,6 +46,10 @@ type EditCommand struct {
 	cmd    *kingpin.CmdClause
 	config *servicecfg.Config
 	ref    services.Ref
+
+	// editor is used by tests to inject the editing mechanism
+	// so that different scenarios can be asserted.
+	editor func(filename string) error
 }
 
 func (e *EditCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
@@ -67,6 +71,27 @@ func (e *EditCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 
 	err := e.editResource(ctx, client)
 	return true, trace.Wrap(err)
+}
+
+func (e *EditCommand) runEditor(ctx context.Context, name string) error {
+	if e.editor != nil {
+		return trace.Wrap(e.editor(name))
+	}
+
+	textEditor := getTextEditor()
+	args := strings.Fields(textEditor)
+	editorCmd := exec.CommandContext(ctx, args[0], append(args[1:], name)...)
+	editorCmd.Stdin = os.Stdin
+	editorCmd.Stdout = os.Stdout
+	editorCmd.Stderr = os.Stderr
+	if err := editorCmd.Start(); err != nil {
+		return trace.BadParameter("could not start editor %v: %v", textEditor, err)
+	}
+	if err := editorCmd.Wait(); err != nil {
+		return trace.BadParameter("skipping resource update, editor did not complete successfully: %v", err)
+	}
+
+	return nil
 }
 
 func (e *EditCommand) editResource(ctx context.Context, client auth.ClientI) error {
@@ -109,16 +134,8 @@ func (e *EditCommand) editResource(ctx context.Context, client auth.ClientI) err
 		return trace.Wrap(err)
 	}
 
-	args := strings.Fields(editor())
-	editorCmd := exec.CommandContext(ctx, args[0], append(args[1:], f.Name())...)
-	editorCmd.Stdin = os.Stdin
-	editorCmd.Stdout = os.Stdout
-	editorCmd.Stderr = os.Stderr
-	if err := editorCmd.Start(); err != nil {
-		return trace.BadParameter("could not start editor %v: %v", editor(), err)
-	}
-	if err := editorCmd.Wait(); err != nil {
-		return trace.BadParameter("skipping resource update, editor did not complete successfully: %v", err)
+	if err := e.runEditor(ctx, f.Name()); err != nil {
+		return trace.Wrap(err)
 	}
 
 	newSum, err := checksum(f.Name())
@@ -175,8 +192,8 @@ func (e *EditCommand) editResource(ctx context.Context, client auth.ClientI) err
 
 }
 
-// editor gets the text editor to be used for editing the resource
-func editor() string {
+// getTextEditor returns the text editor to be used for editing the resource.
+func getTextEditor() string {
 	for _, v := range []string{"TELEPORT_EDITOR", "VISUAL", "EDITOR"} {
 		if value := os.Getenv(v); value != "" {
 			return value

@@ -993,6 +993,10 @@ spec:
                     description: CreateDatabaseUser enabled automatic database user
                       creation.
                     type: boolean
+                  create_db_user_mode:
+                    description: CreateDatabaseUserMode allows users to be automatically
+                      created on a database when not set to off.
+                    x-kubernetes-int-or-string: true
                   create_desktop_user:
                     description: CreateDesktopUser allows users to be automatically
                       created on a Windows desktop
@@ -2186,6 +2190,10 @@ spec:
                     description: CreateDatabaseUser enabled automatic database user
                       creation.
                     type: boolean
+                  create_db_user_mode:
+                    description: CreateDatabaseUserMode allows users to be automatically
+                      created on a database when not set to off.
+                    x-kubernetes-int-or-string: true
                   create_desktop_user:
                     description: CreateDesktopUser allows users to be automatically
                       created on a Windows desktop

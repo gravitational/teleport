@@ -175,10 +175,47 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 		sessionCtx.DatabaseUser,
 	)
 
-	if getSQLState(err) == sqlStateActiveUser {
+	if getSQLState(err) == common.SQLStateActiveUser {
 		e.Log.Debugf("Failed to deactivate user %q: %v.", sessionCtx.DatabaseUser, err)
 		return nil
 	}
+	return trace.Wrap(err)
+}
+
+// DeleteUser deletes the database user.
+func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) error {
+	if sessionCtx.Database.GetAdminUser().Name == "" {
+		return trace.BadParameter("Teleport does not have admin user configured for this database")
+	}
+
+	conn, err := e.connectAsAdminUser(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer conn.Close()
+
+	e.Log.Infof("Deleting MySQL user %q for %v.", sessionCtx.DatabaseUser, sessionCtx.Identity.Username)
+
+	result, err := conn.Execute(fmt.Sprintf("CALL %s(?)", deleteUserProcedureName), sessionCtx.DatabaseUser)
+	if err != nil {
+		if getSQLState(err) == common.SQLStateActiveUser {
+			e.Log.Debugf("Failed to delete user %q: %v.", sessionCtx.DatabaseUser, err)
+			return nil
+		}
+
+		return trace.Wrap(err)
+	}
+	defer result.Close()
+
+	switch readDeleteUserResult(result) {
+	case common.SQLStateUserDropped:
+		e.Log.Debugf("User %q deleted successfully.", sessionCtx.DatabaseUser)
+	case common.SQLStateUserDeactivated:
+		e.Log.Infof("Unable to delete user %q, it was disabled instead.", sessionCtx.DatabaseUser)
+	default:
+		e.Log.Warnf("Unable to determine user %q deletion state.", sessionCtx.DatabaseUser)
+	}
+
 	return trace.Wrap(err)
 }
 
@@ -223,8 +260,12 @@ func (e *Engine) setupDatabaseForAutoUsers(conn *clientConn, sessionCtx *common.
 	return trace.Wrap(doTransaction(conn, func() error {
 		for _, procedureName := range allProcedureNames {
 			dropCommand := fmt.Sprintf("DROP PROCEDURE IF EXISTS %s", procedureName)
-			createCommand := getCreateProcedureCommand(conn, procedureName)
+			createCommand, found := getCreateProcedureCommand(conn, procedureName)
 			updateCommand := fmt.Sprintf("ALTER PROCEDURE %s COMMENT %q", procedureName, procedureVersion)
+
+			if !found {
+				continue
+			}
 
 			if err := conn.executeAndCloseResult(dropCommand); err != nil {
 				return trace.Wrap(err)
@@ -257,10 +298,10 @@ func convertActivateError(sessionCtx *common.Session, err error) error {
 	}
 
 	switch getSQLState(err) {
-	case sqlStateUsernameDoesNotMatch:
+	case common.SQLStateUsernameDoesNotMatch:
 		return trace.AlreadyExists("username %q (Teleport user %q) already exists in this MySQL database and is used for another Teleport user.", sessionCtx.Identity.Username, sessionCtx.DatabaseUser)
 
-	case sqlStateRolesChanged:
+	case common.SQLStateRolesChanged:
 		return trace.CompareFailed("roles for user %q has changed. Please quit all active connections and try again.", sessionCtx.Identity.Username)
 
 	default:
@@ -461,11 +502,21 @@ func doTransaction(conn *clientConn, do func() error) error {
 	return trace.Wrap(conn.Commit())
 }
 
-func getCreateProcedureCommand(conn *clientConn, procedureName string) string {
-	if conn.isMariaDB() {
-		return mariadbProcedures[procedureName]
+func readDeleteUserResult(res *mysql.Result) string {
+	if len(res.Values) != 1 && len(res.Values[0]) != 1 {
+		return ""
 	}
-	return mysqlProcedures[procedureName]
+
+	return string(res.Values[0][0].AsString())
+}
+
+func getCreateProcedureCommand(conn *clientConn, procedureName string) (string, bool) {
+	if conn.isMariaDB() {
+		command, found := mariadbProcedures[procedureName]
+		return command, found
+	}
+	command, found := mysqlProcedures[procedureName]
+	return command, found
 }
 
 const (
@@ -494,25 +545,10 @@ const (
 	// SELECT USER AS 'Teleport Managed Users' FROM mysql.roles_mapping WHERE ROLE = 'teleport-auto-user' AND Admin_option = 'N'
 	teleportAutoUserRole = "teleport-auto-user"
 
-	// sqlStateActiveUser is the SQLSTATE raised by deactivation procedure when
-	// user has active connections.
-	//
-	// SQLSTATE reference:
-	// https://en.wikipedia.org/wiki/SQLSTATE
-	sqlStateActiveUser = "TP000"
-	// sqlStateUsernameDoesNotMatch is the SQLSTATE raised by activation
-	// procedure when the Teleport username does not match user's attributes.
-	//
-	// Possibly there is a hash collision, or someone manually updated the user
-	// attributes.
-	sqlStateUsernameDoesNotMatch = "TP001"
-	// sqlStateRolesChanged is the SQLSTATE raised by activation procedure when
-	// the user has active connections but roles has changed.
-	sqlStateRolesChanged = "TP002"
-
 	revokeRolesProcedureName    = "teleport_revoke_roles"
 	activateUserProcedureName   = "teleport_activate_user"
 	deactivateUserProcedureName = "teleport_deactivate_user"
+	deleteUserProcedureName     = "teleport_delete_user"
 )
 
 var (
@@ -522,6 +558,8 @@ var (
 	deactivateUserProcedure string
 	//go:embed mysql_revoke_roles.sql
 	revokeRolesProcedure string
+	//go:embed mysql_delete_user.sql
+	deleteProcedure string
 
 	//go:embed mariadb_activate_user.sql
 	mariadbActivateUserProcedure string
@@ -544,6 +582,7 @@ var (
 		activateUserProcedureName:   activateUserProcedure,
 		deactivateUserProcedureName: deactivateUserProcedure,
 		revokeRolesProcedureName:    revokeRolesProcedure,
+		deleteUserProcedureName:     deleteProcedure,
 	}
 
 	// mariadbProcedures maps procedure names to the procedures used for MariaDB.
