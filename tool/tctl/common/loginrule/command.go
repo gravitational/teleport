@@ -155,7 +155,7 @@ func (t *testCommand) run(ctx context.Context, c auth.ClientI) error {
 	case teleport.YAML:
 		utils.WriteYAML(os.Stdout, traitsMapProtoToResource(result.Traits))
 	case teleport.JSON:
-		utils.WriteJSON(os.Stdout, traitsMapProtoToResource(result.Traits))
+		utils.WriteJSONObject(os.Stdout, traitsMapProtoToResource(result.Traits))
 	default:
 		return trace.BadParameter("unsupported output format %q, supported values are %s and %s", t.outputFormat, teleport.YAML, teleport.JSON)
 	}
