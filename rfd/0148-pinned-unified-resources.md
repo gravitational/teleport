@@ -124,9 +124,7 @@ As of now, there would be no way to manually clean up a pinned resource that isn
 
 ![Untitled-2022-09-11-1530](https://github.com/gravitational/teleport/assets/5201977/e52c4286-bf57-49cc-bfb5-d541146f6896)
 
-
-After discussing with the UX team, having the resource not show is the preferred option. Maybe a user preferences page in the future
-could list the IDs you currently have stored and allow you to remove them that way. This would not be in the first iteration.
+If a resource isn't found for whatever reason when fetching, we can display it's name (name/type or hostname/type) in a "disconnected" state. This will allow the user to make the decision themselves to unpin something. Without the resource information the displayable card would only have it's name/type but that should be sufficient enough to know "what" is disconnected. 
 
 ### Automatic Cleanup
 The case in which this cap _could_ be reached is when we allow unavailable/unauthorized/unreachable resources to exist and fester in a user's preferences. (lets discuss)
