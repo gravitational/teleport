@@ -21,7 +21,7 @@ description: Configure automatic user provisioning for MySQL.
 - Ability to connect to and create user accounts in the target database.
 
 <Admonition type="note" title="Supported versions">
-Automatic user provisioning are not compatible with MySQL versions lower than
+Automatic user provisioning is not compatible with MySQL versions lower than
 8.0.
 </Admonition>
 
@@ -29,7 +29,7 @@ Automatic user provisioning are not compatible with MySQL versions lower than
 
 (!docs/pages/includes/database-access/auto-user-provisioning-configure-admin.mdx!)
 
-Teleport use the same authentication mechanism when connecting as an admin user
+Teleport uses the same authentication mechanism when connecting as an admin user
 as for regular user connections: X.509 for self-hosted databases and AWS IAM
 for RDS.
 
@@ -37,8 +37,8 @@ The admin user must have privileges within the database to create users and
 grant them privileges. The admin user must also have privileges to monitor user
 processes and role assignments.
 
-In addition, a database/schema is required for the admin user to logs into by
-default. Stored procedures are also created and executed from this database.
+In addition, a schema is required for the admin user to log into by default.
+Stored procedures are also created and executed from this schema.
 
 <Tabs>
 <TabItem label="RDS MySQL">
@@ -74,7 +74,7 @@ Teleport will not delete the automatically created user at the end of the
 session. Instead, the user will be stripped of all roles and the user account
 will be locked.
 
-Next, enable the database admin on the Teleport database configuration:
+Next, enable the database admin on the Teleport Database Service configuration:
 
 <Tabs>
 <TabItem label="Static config">
@@ -113,18 +113,16 @@ the `teleport.dev/db-admin` label.
 
 (!docs/pages/includes/database-access/auto-user-provisioning-common-teleport-role.mdx!)
 
-User created within the database will:
+Users created within the database will:
 
 - Be assigned the `teleport-auto-user` role.
 - Be assigned all roles from the Teleport user's role set that match the database.
   The role names must be valid and exist in the database.
 
-MySQL limits username up to 32 characters long. When the Teleport username is
-within this limit, the user created within the database will have the same name
-as the Teleport username.
-
-When the Teleport username is over the 32 characters limit, the user created
-within the database will have the name in the format of
+MySQL limits usernames to 32 characters. When the Teleport username is within
+this limit, the user created within the database will have the same name as the
+Teleport username. When the Teleport username is over the 32 character limit,
+the user created within the database will have the name in the format of
 `tp-<base64-sha1-teleport-username>`.
 
 <Details title="Tracking the name mapping">
