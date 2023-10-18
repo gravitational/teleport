@@ -52,7 +52,7 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 			return trace.WrapWithMessage(err, "unable to fetch entity descriptor from %v for SAML connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
 		}
 		if resp.StatusCode != http.StatusOK {
-			return trace.BadParameter("status code %v when fetching from %q for SAML connector %v", resp.StatusCode, sc.GetEntityDescriptorURL(), sc.GetName())
+			return trace.BadParameter("status code %v when fetching from %v for SAML connector %v", resp.StatusCode, sc.GetEntityDescriptorURL(), sc.GetName())
 		}
 		defer resp.Body.Close()
 		body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
@@ -60,7 +60,7 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 			return trace.Wrap(err)
 		}
 		sc.SetEntityDescriptor(string(body))
-		log.Debugf("[SAML] Successfully fetched entity descriptor from %q for connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
+		log.Debugf("[SAML] Successfully fetched entity descriptor from %v for connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
 	}
 
 	if sc.GetEntityDescriptor() != "" {
