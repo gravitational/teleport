@@ -69,12 +69,12 @@ runs:
     - id: fetch-token
       if: inputs.repo-access-app-id && inputs.repo-access-app-key && inputs.oss-teleport-repo != 'gravitational/teleport'
       name: Fetch installation token
-      uses: tibdex/github-app-token@b62528385c34dbc9f38e5f4225ac829252d1ea92 # v1.8.0
+      uses: actions/create-github-app-token@v1
       continue-on-error: true
       with:
         app_id: ${{ inputs.repo-access-app-id }}
         private_key: ${{ inputs.repo-access-app-key }}
-        repository: ${{ inputs.oss-teleport-repo }}
+        repositories: ${{ inputs.oss-teleport-repo }}
 
     - id: select-access-token
       name: Select access token

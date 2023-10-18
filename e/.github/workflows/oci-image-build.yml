@@ -214,12 +214,12 @@ jobs:
       # fine if that repo is public.
       #
       - name: Fetch GitHub deploy token
-        uses: tibdex/github-app-token@b62528385c34dbc9f38e5f4225ac829252d1ea92 # v1.8.0
+        uses: actions/create-github-app-token@v1
         id: fetch-token
         continue-on-error: true
         with:
           app_id: ${{ secrets.deploy-access-app-id }}
-          repository: ${{ inputs.oss-teleport-repo }}
+          repositories: ${{ inputs.oss-teleport-repo }}
           private_key: ${{ secrets.deploy-access-app-key }}
 
       - name: Select GitHub deploy token
