@@ -1,8 +1,8 @@
 import React from 'react';
 
-import { DbProtocol } from 'shared/services/databases';
-
 import { ResourceLabel } from 'teleport/services/agents';
+
+import { DbProtocol } from 'shared/services/databases';
 
 export type UnifiedResourceApp = {
   kind: 'app';

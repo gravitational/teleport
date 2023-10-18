@@ -15,10 +15,11 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
-import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { ResourcesResponse, ResourceFilter } from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
+
+import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 /**
  * Supports fetching more data from the server when more data is available. Pass

@@ -25,7 +25,7 @@ import { ArrowUp, ArrowDown, ChevronDown } from 'design/Icon';
 
 import { ResourceFilter, SortType } from 'teleport/services/agents';
 
-import { HoverTooltip } from './Resources';
+import { HoverTooltip } from './UnifiedResources';
 import { SharedUnifiedResource } from './types';
 
 const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {

@@ -80,7 +80,7 @@ const additionalResources = [
 
 const meta: Meta<typeof ResourceCard> = {
   component: ResourceCard,
-  title: 'Teleport/UnifiedResources/ResourceCard',
+  title: 'Shared/UnifiedResources/ResourceCard',
 };
 
 const Grid = styled.div`

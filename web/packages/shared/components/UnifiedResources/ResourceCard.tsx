@@ -31,7 +31,10 @@ import { ShimmerBox } from 'design/ShimmerBox';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import { Icon, Copy, Check, PushPinFilled, PushPin } from 'design/Icon';
 
-import { HoverTooltip, PINNING_NOT_SUPPORTED_MESSAGE } from './Resources';
+import {
+  HoverTooltip,
+  PINNING_NOT_SUPPORTED_MESSAGE,
+} from './UnifiedResources';
 
 import type { ResourceLabel } from 'teleport/services/agents';
 
