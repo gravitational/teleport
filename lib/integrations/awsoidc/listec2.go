@@ -35,6 +35,10 @@ const (
 	// https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-instances.html
 	// Used for filtering instances.
 	awsInstanceStateName = "instance-state-name"
+
+	// describeEC2PlatformDetailsFilter is a filter for EC2 DescribeInstances operation that filters per Platform Details.
+	describeEC2PlatformDetailsFilter          = "platform-details"
+	describeEC2PlatformDetailsFilterLinuxUNIX = "Linux/UNIX"
 )
 
 var (
@@ -42,6 +46,15 @@ var (
 	filterRunningEC2Instance = ec2Types.Filter{
 		Name:   aws.String(awsInstanceStateName),
 		Values: []string{string(ec2Types.InstanceStateNameRunning)},
+	}
+
+	// filterEC2PlatformLinuxUNIX is an EC2 DescribeInstances Filter to filter for Linux/UNIX instances.
+	// AWS Docs have multiple values for identifying Linux hosts.
+	// However, from our tests only the values Linux/UNIX and Windows are returned.
+	// ListEC2 is only meant for accessing EC2 instances using SSH, so our only supported platform is Linux.
+	filterEC2PlatformLinuxUNIX = ec2Types.Filter{
+		Name:   aws.String(describeEC2PlatformDetailsFilter),
+		Values: []string{describeEC2PlatformDetailsFilterLinuxUNIX},
 	}
 )
 
@@ -122,6 +135,7 @@ func NewListEC2Client(ctx context.Context, req *AWSClientRequest) (ListEC2Client
 // ListEC2 calls the following AWS API:
 // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
 // It returns a list of EC2 Instances and an optional NextToken that can be used to fetch the next page
+// Only PlatformDetails=Linux/UNIX and State=Running instances are returned.
 func ListEC2(ctx context.Context, clt ListEC2Client, req ListEC2Request) (*ListEC2Response, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -139,6 +153,7 @@ func ListEC2(ctx context.Context, clt ListEC2Client, req ListEC2Request) (*ListE
 	describeEC2Instances := &ec2.DescribeInstancesInput{
 		Filters: []ec2Types.Filter{
 			filterRunningEC2Instance,
+			filterEC2PlatformLinuxUNIX,
 		},
 	}
 	if req.NextToken != "" {
@@ -150,10 +165,8 @@ func ListEC2(ctx context.Context, clt ListEC2Client, req ListEC2Request) (*ListE
 		return nil, trace.Wrap(err)
 	}
 
-	ret := &ListEC2Response{}
-
-	if aws.ToString(ec2Instances.NextToken) != "" {
-		ret.NextToken = *ec2Instances.NextToken
+	ret := &ListEC2Response{
+		NextToken: aws.ToString(ec2Instances.NextToken),
 	}
 
 	ret.Servers = make([]types.Server, 0, len(ec2Instances.Reservations))

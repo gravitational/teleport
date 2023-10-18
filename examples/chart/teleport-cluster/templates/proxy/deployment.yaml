@@ -255,6 +255,9 @@ spec:
 {{- if $proxy.extraVolumeMounts }}
   {{- toYaml $proxy.extraVolumeMounts | nindent 8 }}
 {{- end }}
+{{- if $proxy.extraContainers }}
+  {{- toYaml $proxy.extraContainers | nindent 6 }}
+{{- end }}
 {{- if $projectedServiceAccountToken }}
       automountServiceAccountToken: false
 {{- end }}

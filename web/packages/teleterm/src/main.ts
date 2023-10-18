@@ -42,7 +42,7 @@ if (app.requestSingleInstanceLock()) {
   app.exit(1);
 }
 
-async function initializeApp(): Promise<void> {
+function initializeApp(): void {
   updateSessionDataPath();
   let devRelaunchScheduled = false;
   const settings = getRuntimeSettings();
@@ -52,7 +52,7 @@ async function initializeApp(): Promise<void> {
     appStateFileStorage,
     configFileStorage,
     configJsonSchemaFileStorage,
-  } = await createFileStorages(settings.userDataDir);
+  } = createFileStorages(settings.userDataDir);
 
   runConfigFileMigration(configFileStorage);
   const configService = createConfigService({
@@ -238,23 +238,19 @@ function initMainLogger(settings: types.RuntimeSettings) {
 }
 
 function createFileStorages(userDataDir: string) {
-  return Promise.all([
-    createFileStorage({
+  return {
+    appStateFileStorage: createFileStorage({
       filePath: path.join(userDataDir, 'app_state.json'),
       debounceWrites: true,
     }),
-    createFileStorage({
+    configFileStorage: createFileStorage({
       filePath: path.join(userDataDir, 'app_config.json'),
       debounceWrites: false,
       discardUpdatesOnLoadError: true,
     }),
-    createFileStorage({
+    configJsonSchemaFileStorage: createFileStorage({
       filePath: path.join(userDataDir, 'schema_app_config.json'),
       debounceWrites: false,
     }),
-  ]).then(storages => ({
-    appStateFileStorage: storages[0],
-    configFileStorage: storages[1],
-    configJsonSchemaFileStorage: storages[2],
-  }));
+  };
 }

@@ -433,7 +433,7 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 			}
 
 			// Test user is locked.
-			user, err := srv.Auth().GetUser(username, false)
+			user, err := srv.Auth().GetUser(ctx, username, false)
 			require.NoError(t, err)
 			require.True(t, user.GetStatus().IsLocked)
 			require.False(t, user.GetStatus().LockExpires.IsZero())

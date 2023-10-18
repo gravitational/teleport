@@ -1,6 +1,23 @@
+Teleport provides connectivity, authentication, access controls and audit for infrastructure.
+
+Here is why you might use Teleport:
+
+* Set up SSO for all of your cloud infrastructure [1].
+* Protect access to cloud and on-prem services using mTLS endpoints and short-lived certificates.
+* Establish tunnels to access services behind NATs and firewalls.
+* Provide an audit log with session recording and replay for various protocols.
+* Unify Role-Based Access Control (RBAC) and enforce the principle of least privilege with  [access requests](https://goteleport.com/features/access-requests/).
+
+[1] The open source version supports only GitHub SSO.
+
+Teleport works with SSH, Kubernetes, databases, RDP, and web services.
+
+* Architecture: https://goteleport.com/docs/architecture/
+* Getting Started: https://goteleport.com/docs/getting-started/
+
 <div align="center">
    <a href="https://goteleport.com/download">
-   <img src="./assets/img/hero-teleport-platform.png" width=750/>
+   <img src="./assets/img/hero-teleport-platform.svg" width=750/>
    </a>
    <div align="center" style="padding: 25px">
       <a href="https://goteleport.com/download">
@@ -19,10 +36,6 @@
 </div>
 </br>
 
-> Read our Blog: https://goteleport.com/blog/
-
-> Read our Documentation: https://goteleport.com/docs/getting-started/
-
 ## Table of Contents
 
 1. [Introduction](#introduction)
@@ -37,42 +50,28 @@
 
 ## Introduction
 
-Teleport is the easiest, most secure way to access all your infrastructure.
-Teleport is an identity-aware, multi-protocol access proxy which understands
-SSH, HTTPS, RDP, Kubernetes API, MySQL, MongoDB and PostgreSQL wire protocols.
+Teleport includes an identity-aware access proxy, a CA that issues short-lived certificates, a unified access control system and a tunneling system to access resources behind the firewall.
 
-On the server-side, Teleport is a single binary which enables convenient secure
-access to behind-NAT resources such as:
+We have implemented Teleport as a single Go binary that integrates with multiple protocols and cloud services:
 
-* [SSH nodes](https://goteleport.com/docs/getting-started/) - SSH works in browsers too!
+* [SSH nodes](https://goteleport.com/docs/server-access/introduction/).
 * [Kubernetes clusters](https://goteleport.com/docs/kubernetes-access/introduction/)
-* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/database-access/introduction/)
-* [Internal Web apps](https://goteleport.com/docs/application-access/introduction/)
-* [Windows Hosts](https://goteleport.com/docs/desktop-access/introduction/)
-* [Networked servers](https://goteleport.com/docs/server-access/introduction/)
+* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/database-access/introduction/).
+* [Internal Web apps](https://goteleport.com/docs/application-access/introduction/).
+* [Windows Hosts](https://goteleport.com/docs/desktop-access/introduction/).
+* [Networked servers](https://goteleport.com/docs/server-access/introduction/).
 
-Teleport is trivial to set up as a Linux daemon or in a Kubernetes pod. It's rapidly
-replacing legacy `sshd`-based setups at organizations who need:
+You can set up Teleport as a [Linux daemon](https://goteleport.com/docs/#set-up-a-demo-cluster) or a [Kubernetes deployment](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/).
 
-* Developer convenience of having instant secure access to everything they need
-  across many environments and cloud providers.
-* Audit log with session recording/replay for multiple protocols
-* Easily manage trust between teams, organizations and data centers.
-* Role-based access control (RBAC) and flexible access workflows (one-time [access requests](https://goteleport.com/features/access-requests/))
+Teleport focuses on best practices for infrastructure security:
 
-In addition to its hallmark features, Teleport is interesting for smaller teams
-because it facilitates easy adoption of the best infrastructure security
-practices like:
-
-- No need to manage shared secrets such as SSH keys: Teleport uses certificate-based access with automatic certificate expiration time for all protocols.
+- No need to manage shared secrets such as SSH keys or Kubernetes tokens: it uses certificate-based auth with certificate expiration for all protocols.
 - Two-factor authentication (2FA) for everything.
 - Collaboratively troubleshoot issues through session sharing.
 - Single sign-on (SSO) for everything via GitHub Auth, OpenID Connect, or SAML with endpoints like Okta or Active Directory.
 - Infrastructure introspection: Use Teleport via the CLI or Web UI to view the status of every SSH node, database instance, Kubernetes cluster, or internal web app.
 
-Teleport is built upon the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh)
-implementation. It is _fully compatible with OpenSSH_,
-`sshd` servers, and `ssh` clients.
+Teleport uses [Go crypto](https://godoc.org/golang.org/x/crypto). It is _fully compatible with OpenSSH_, `sshd` servers, and `ssh` clients, Kubernetes clusters and more.
 
 |Project Links| Description
 |---|----

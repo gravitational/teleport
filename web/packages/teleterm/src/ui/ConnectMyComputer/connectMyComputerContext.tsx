@@ -43,7 +43,10 @@ import { assertUnreachable, retryWithRelogin } from '../utils';
 
 import { hasConnectMyComputerPermissions } from './permissions';
 
-import { isAgentCompatible as checkIfAgentIsComptabile } from './CompatibilityPromise';
+import {
+  checkAgentCompatibility,
+  AgentCompatibility,
+} from './CompatibilityPromise';
 
 import type {
   AgentProcessState,
@@ -88,7 +91,7 @@ export interface ConnectMyComputerContext {
   isAgentConfiguredAttempt: Attempt<boolean>;
   markAgentAsConfigured(): void;
   markAgentAsNotConfigured(): void;
-  isAgentCompatible: boolean;
+  agentCompatibility: AgentCompatibility;
 }
 
 const ConnectMyComputerContext = createContext<ConnectMyComputerContext>(null);
@@ -101,7 +104,6 @@ export const ConnectMyComputerContextProvider: FC<{
     mainProcessClient,
     connectMyComputerService,
     clustersService,
-    configService,
     workspacesService,
     usageService,
   } = ctx;
@@ -122,22 +124,22 @@ export const ConnectMyComputerContextProvider: FC<{
     isAgentConfiguredAttempt.data;
 
   const rootCluster = clustersService.findCluster(rootClusterUri);
+  const { loggedInUser } = rootCluster;
+
   const canUse = useMemo(() => {
-    const isFeatureFlagEnabled = configService.get(
-      'feature.connectMyComputer'
-    ).value;
     const hasPermissions = hasConnectMyComputerPermissions(
-      rootCluster,
+      loggedInUser,
       mainProcessClient.getRuntimeSettings()
     );
 
     // We check `isAgentConfigured`, because the user should always have access to the agent after configuring it.
     // https://github.com/gravitational/teleport/blob/master/rfd/0133-connect-my-computer.md#access-to-ui-and-autostart
-    return isFeatureFlagEnabled && (hasPermissions || isAgentConfigured);
-  }, [configService, isAgentConfigured, mainProcessClient, rootCluster]);
-  const isAgentCompatible = useMemo(
+    return hasPermissions || isAgentConfigured;
+  }, [isAgentConfigured, mainProcessClient, loggedInUser]);
+
+  const agentCompatibility = useMemo(
     () =>
-      checkIfAgentIsComptabile(
+      checkAgentCompatibility(
         rootCluster.proxyVersion,
         mainProcessClient.getRuntimeSettings()
       ),
@@ -156,17 +158,26 @@ export const ConnectMyComputerContextProvider: FC<{
       }
   );
 
+  const checkCompatibility = useCallback(() => {
+    if (agentCompatibility !== 'compatible') {
+      throw new AgentCompatibilityError(agentCompatibility);
+    }
+  }, [agentCompatibility]);
+
   const [downloadAgentAttempt, downloadAgent, setDownloadAgentAttempt] =
     useAsync(
       useCallback(async () => {
         setCurrentActionKind('download');
+        checkCompatibility();
         await connectMyComputerService.downloadAgent();
-      }, [connectMyComputerService])
+      }, [connectMyComputerService, checkCompatibility])
     );
 
   const [startAgentAttempt, startAgent] = useAsync(
     useCallback(async () => {
       setCurrentActionKind('start');
+
+      checkCompatibility();
 
       await connectMyComputerService.runAgent(rootClusterUri);
 
@@ -204,21 +215,27 @@ export const ConnectMyComputerContextProvider: FC<{
       rootClusterUri,
       usageService,
       workspacesService,
+      checkCompatibility,
     ])
   );
 
   const downloadAndStartAgent = useCallback(async () => {
-    const [, error] = await downloadAgent();
+    let [, error] = await downloadAgent();
     if (error) {
-      return;
+      throw error;
     }
-    await startAgent();
+    [, error] = await startAgent();
+    if (error) {
+      throw error;
+    }
   }, [downloadAgent, startAgent]);
 
   const [killAgentAttempt, killAgent] = useAsync(
     useCallback(async () => {
       setCurrentActionKind('kill');
+
       await connectMyComputerService.killAgent(rootClusterUri);
+
       setCurrentActionKind('observe-process');
       workspacesService.setConnectMyComputerAutoStart(rootClusterUri, false);
     }, [connectMyComputerService, rootClusterUri, workspacesService])
@@ -227,6 +244,7 @@ export const ConnectMyComputerContextProvider: FC<{
   const markAgentAsConfigured = useCallback(() => {
     setAgentConfiguredAttempt(makeSuccessAttempt(true));
   }, [setAgentConfiguredAttempt]);
+
   const markAgentAsNotConfigured = useCallback(() => {
     setDownloadAgentAttempt(makeEmptyAttempt());
     setAgentConfiguredAttempt(makeSuccessAttempt(false));
@@ -253,10 +271,12 @@ export const ConnectMyComputerContextProvider: FC<{
 
   const [removeAgentAttempt, removeAgent] = useAsync(
     useCallback(async () => {
+      // killAgent sets the current action to 'kill'.
       const [, error] = await killAgent();
       if (error) {
         throw error;
       }
+
       setCurrentActionKind('remove');
 
       let hasAccessDeniedError = false;
@@ -285,6 +305,18 @@ export const ConnectMyComputerContextProvider: FC<{
 
       // We have to remove connections before removing the agent directory, because
       // we get the node UUID from the that directory.
+      //
+      // Theoretically, removing connections only at this stage means that if there are active
+      // connections from the app at the time of killing the agent above, the shutdown of the agent
+      // will take a couple of extra seconds while the agent waits for the connections to close.
+      // However, we'd have to remove the connections before calling `killAgent` above and this
+      // messes up error handling somewhat. `removeConnections` would have to be executed after the
+      // current action is set to 'kill' so that any errors thrown by `removeConnections` are
+      // correctly reported in the UI.
+      //
+      // Otherwise, if `removeConnections` was called before `killAgent` and the function threw an
+      // error, it'd simply be swallowed. It'd be shown once the current action is set to 'remove',
+      // but this would never happen because of the error.
       await removeConnections();
       ctx.workspacesService.removeConnectMyComputerState(rootClusterUri);
       await ctx.connectMyComputerService.removeAgentDirectory(rootClusterUri);
@@ -352,16 +384,32 @@ export const ConnectMyComputerContextProvider: FC<{
   const agentIsNotStarted =
     currentAction.kind === 'observe-process' &&
     currentAction.agentProcessState.status === 'not-started';
+  const isAgentCompatibilityKnown = agentCompatibility !== 'unknown';
 
   useEffect(() => {
     const shouldAutoStartAgent =
       isAgentConfigured &&
       canUse &&
-      isAgentCompatible &&
+      // Agent compatibility is known only after we fetch full cluster details, so we have to wait
+      // for that until we attempt to autostart the agent. Otherwise startAgent would return an
+      // error.
+      isAgentCompatibilityKnown &&
       workspacesService.getConnectMyComputerAutoStart(rootClusterUri) &&
       agentIsNotStarted;
+
     if (shouldAutoStartAgent) {
-      downloadAndStartAgent();
+      (async () => {
+        try {
+          await downloadAndStartAgent();
+        } catch (error) {
+          // Turn off autostart if it fails, otherwise the user wouldn't be able to turn it off by
+          // themselves.
+          workspacesService.setConnectMyComputerAutoStart(
+            rootClusterUri,
+            false
+          );
+        }
+      })();
     }
   }, [
     canUse,
@@ -370,7 +418,7 @@ export const ConnectMyComputerContextProvider: FC<{
     isAgentConfigured,
     rootClusterUri,
     workspacesService,
-    isAgentCompatible,
+    isAgentCompatibilityKnown,
   ]);
 
   return (
@@ -390,7 +438,7 @@ export const ConnectMyComputerContextProvider: FC<{
         markAgentAsNotConfigured,
         isAgentConfiguredAttempt,
         removeAgent,
-        isAgentCompatible,
+        agentCompatibility,
       }}
       children={children}
     />
@@ -402,7 +450,7 @@ export const useConnectMyComputerContext = () => {
 
   if (!context) {
     throw new Error(
-      'ConnectMyComputerContext requires ConnectMyComputerContextProvider context.'
+      'useConnectMyComputerContext must be used within a ConnectMyComputerContextProvider'
     );
   }
 
@@ -461,6 +509,33 @@ export class NodeWaitJoinTimeout extends Error {
   constructor(public readonly logs: string) {
     super('NodeWaitJoinTimeout');
     this.name = 'NodeWaitJoinTimeout';
+  }
+}
+
+export class AgentCompatibilityError extends Error {
+  constructor(
+    public readonly agentCompatibility: Exclude<
+      AgentCompatibility,
+      'compatible'
+    >
+  ) {
+    let message: string;
+    switch (agentCompatibility) {
+      case 'incompatible': {
+        message =
+          'The agent version is not compatible with the cluster version';
+        break;
+      }
+      case 'unknown': {
+        message = 'The compatibility of the agent could not be established';
+        break;
+      }
+      default: {
+        throw assertUnreachable(agentCompatibility);
+      }
+    }
+    super(message);
+    this.name = 'AgentCompatibilityError';
   }
 }
 

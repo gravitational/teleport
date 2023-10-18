@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/google/uuid"
@@ -110,9 +111,11 @@ func Test_session_trackSession(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sess := &session{
-				log:             logrus.New().WithField(trace.Component, "test"),
-				id:              uuid.New(),
-				req:             &http.Request{},
+				log: logrus.New().WithField(trace.Component, "test"),
+				id:  uuid.New(),
+				req: &http.Request{
+					URL: &url.URL{},
+				},
 				podName:         "podName",
 				accessEvaluator: auth.NewSessionAccessEvaluator(tt.args.policies, types.KubernetesSessionKind, "username"),
 				ctx: authContext{

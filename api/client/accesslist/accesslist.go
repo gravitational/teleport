@@ -16,6 +16,7 @@ package accesslist
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -89,6 +90,25 @@ func (c *Client) GetAccessList(ctx context.Context, name string) (*accesslist.Ac
 
 	accessList, err := conv.FromProto(resp, conv.WithOwnersIneligibleStatusField(resp.GetSpec().GetOwners()))
 	return accessList, trace.Wrap(err)
+}
+
+// GetAccessListsToReview returns access lists that the user needs to review.
+func (c *Client) GetAccessListsToReview(ctx context.Context) ([]*accesslist.AccessList, error) {
+	resp, err := c.grpcClient.GetAccessListsToReview(ctx, &accesslistv1.GetAccessListsToReviewRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
+	for i, accessList := range resp.AccessLists {
+		var err error
+		accessLists[i], err = conv.FromProto(accessList)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return accessLists, nil
 }
 
 // UpsertAccessList creates or updates an access list resource.
@@ -208,4 +228,61 @@ func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accessli
 	}
 
 	return accessList, updatedMembers, nil
+}
+
+// AccessRequestPromote promotes an access request to an access list.
+func (c *Client) AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
+	resp, err := c.grpcClient.AccessRequestPromote(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// ListAccessListReviews will list access list reviews for a particular access list.
+func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
+	resp, err := c.grpcClient.ListAccessListReviews(ctx, &accesslistv1.ListAccessListReviewsRequest{
+		PageSize:  int32(pageSize),
+		NextToken: nextToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	reviews = make([]*accesslist.Review, len(resp.Reviews))
+	for i, review := range resp.Reviews {
+		var err error
+		reviews[i], err = conv.FromReviewProto(review)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return reviews, resp.GetNextToken(), nil
+}
+
+// CreateAccessListReview will create a new review for an access list.
+func (c *Client) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (*accesslist.Review, time.Time, error) {
+	resp, err := c.grpcClient.CreateAccessListReview(ctx, &accesslistv1.CreateAccessListReviewRequest{
+		Review: conv.ToReviewProto(review),
+	})
+	if err != nil {
+		return nil, time.Time{}, trace.Wrap(err)
+	}
+	review.SetName(resp.ReviewName)
+	return review, resp.NextAuditDate.AsTime(), nil
+}
+
+// DeleteAccessListReview will delete an access list review from the backend.
+func (c *Client) DeleteAccessListReview(ctx context.Context, accessListName, reviewName string) error {
+	_, err := c.grpcClient.DeleteAccessListReview(ctx, &accesslistv1.DeleteAccessListReviewRequest{
+		AccessListName: accessListName,
+		ReviewName:     reviewName,
+	})
+	return trace.Wrap(err)
+}
+
+// DeleteAllAccessListReviews will delete all access list reviews from an access list.
+func (c *Client) DeleteAllAccessListReviews(ctx context.Context, accessListName string) error {
+	return trace.NotImplemented("DeleteAllAccessListReviews is not supported in the gRPC client")
 }

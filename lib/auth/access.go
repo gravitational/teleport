@@ -51,7 +51,7 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) error {
 // DeleteRole deletes a role and emits a related audit event.
 func (a *Server) DeleteRole(ctx context.Context, name string) error {
 	// check if this role is used by CA or Users
-	users, err := a.Services.GetUsers(false)
+	users, err := a.Services.GetUsers(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

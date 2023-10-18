@@ -250,8 +250,9 @@ func (p *AgentPool) Start() error {
 
 	p.wg.Add(1)
 	go func() {
-		err := p.run()
-		p.log.WithError(err).Warn("Agent pool exited.")
+		if err := p.run(); err != nil {
+			p.log.WithError(err).Warn("Agent pool exited.")
+		}
 
 		p.cancel()
 		p.wg.Done()
@@ -262,15 +263,13 @@ func (p *AgentPool) Start() error {
 // run connects agents until the agent pool context is done.
 func (p *AgentPool) run() error {
 	for {
-		if p.ctx.Err() != nil {
-			return trace.Wrap(p.ctx.Err())
-		}
-
 		agent, err := p.connectAgent(p.ctx, p.events)
 		if err != nil {
-			// "proxy already claimed" is a fairly benign error, we should not
-			// spam the log with stack traces for it
-			if isProxyAlreadyClaimed(err) {
+			if p.ctx.Err() != nil {
+				return nil
+			} else if isProxyAlreadyClaimed(err) {
+				// "proxy already claimed" is a fairly benign error, we should not
+				// spam the log with stack traces for it
 				p.log.Debugf("Failed to connect agent: %v.", err)
 			} else {
 				p.log.WithError(err).Debugf("Failed to connect agent.")
@@ -282,7 +281,9 @@ func (p *AgentPool) run() error {
 		}
 
 		err = p.waitForBackoff(p.ctx, p.events)
-		if err != nil {
+		if p.ctx.Err() != nil {
+			return nil
+		} else if err != nil {
 			p.log.WithError(err).Debugf("Failed to wait for backoff.")
 		}
 	}
@@ -392,7 +393,7 @@ func (p *AgentPool) waitForBackoff(ctx context.Context, events <-chan Agent) err
 	for {
 		select {
 		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
+			return nil
 		case <-p.backoff.After():
 			p.backoff.Inc()
 			return nil
@@ -514,7 +515,7 @@ func (p *AgentPool) getVersion(ctx context.Context) (string, error) {
 
 // transport creates a new transport instance.
 func (p *AgentPool) transport(ctx context.Context, channel ssh.Channel, requests <-chan *ssh.Request, conn sshutils.Conn) *transport {
-	return &transport{
+	t := &transport{
 		closeContext:         ctx,
 		component:            p.Component,
 		localClusterName:     p.LocalCluster,
@@ -531,6 +532,17 @@ func (p *AgentPool) transport(ctx context.Context, channel ssh.Channel, requests
 		proxySigner:          p.PROXYSigner,
 		forwardClientAddress: true,
 	}
+
+	// If the AgentPool is being used for Proxy to Proxy communication between two clusters, then
+	// we check if the reverse tunnel server is capable of tracking user connections. This allows
+	// the leaf proxy to track sessions that are initiated via the root cluster. Without providing
+	// the user tracker the leaf cluster metrics will be incorrect and graceful shutdown will not
+	// wait for user sessions to be terminated prior to proceeding with the shutdown operation.
+	if p.IsRemoteCluster && p.ReverseTunnelServer != nil {
+		t.trackUserConnection = p.ReverseTunnelServer.TrackUserConnection
+	}
+
+	return t
 }
 
 // agentPoolRuntimeConfig contains configurations dynamically set and updated

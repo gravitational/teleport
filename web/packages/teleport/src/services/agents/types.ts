@@ -47,13 +47,14 @@ export type ResourceLabel = {
 };
 
 export type ResourceFilter = {
-  // query is query expression using the predicate language.
+  /** query is query expression using the predicate language. */
   query?: string;
-  // search contains search words/phrases separated by space.
+  /** search contains search words/phrases separated by space. */
   search?: string;
   sort?: SortType;
   limit?: number;
   startKey?: string;
+  pinnedOnly?: boolean;
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 };

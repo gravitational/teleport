@@ -18,6 +18,9 @@ export class UserLoginEvent extends jspb.Message {
     getDeviceId(): string;
     setDeviceId(value: string): UserLoginEvent;
 
+    getRequiredPrivateKeyPolicy(): string;
+    setRequiredPrivateKeyPolicy(value: string): UserLoginEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UserLoginEvent.AsObject;
@@ -34,6 +37,7 @@ export namespace UserLoginEvent {
         userName: string,
         connectorType: string,
         deviceId: string,
+        requiredPrivateKeyPolicy: string,
     }
 }
 
@@ -164,6 +168,12 @@ export class SessionStartEvent extends jspb.Message {
     setDatabase(value?: SessionStartDatabaseMetadata): SessionStartEvent;
 
 
+    hasDesktop(): boolean;
+    clearDesktop(): void;
+    getDesktop(): SessionStartDesktopMetadata | undefined;
+    setDesktop(value?: SessionStartDesktopMetadata): SessionStartEvent;
+
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SessionStartEvent.AsObject;
     static toObject(includeInstance: boolean, msg: SessionStartEvent): SessionStartEvent.AsObject;
@@ -179,6 +189,7 @@ export namespace SessionStartEvent {
         userName: string,
         sessionType: string,
         database?: SessionStartDatabaseMetadata.AsObject,
+        desktop?: SessionStartDesktopMetadata.AsObject,
     }
 }
 
@@ -211,6 +222,39 @@ export namespace SessionStartDatabaseMetadata {
     }
 }
 
+export class SessionStartDesktopMetadata extends jspb.Message { 
+    getDesktopType(): string;
+    setDesktopType(value: string): SessionStartDesktopMetadata;
+
+    getOrigin(): string;
+    setOrigin(value: string): SessionStartDesktopMetadata;
+
+    getWindowsDomain(): string;
+    setWindowsDomain(value: string): SessionStartDesktopMetadata;
+
+    getAllowUserCreation(): boolean;
+    setAllowUserCreation(value: boolean): SessionStartDesktopMetadata;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SessionStartDesktopMetadata.AsObject;
+    static toObject(includeInstance: boolean, msg: SessionStartDesktopMetadata): SessionStartDesktopMetadata.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SessionStartDesktopMetadata, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SessionStartDesktopMetadata;
+    static deserializeBinaryFromReader(message: SessionStartDesktopMetadata, reader: jspb.BinaryReader): SessionStartDesktopMetadata;
+}
+
+export namespace SessionStartDesktopMetadata {
+    export type AsObject = {
+        desktopType: string,
+        origin: string,
+        windowsDomain: string,
+        allowUserCreation: boolean,
+    }
+}
+
 export class UserCertificateIssuedEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): UserCertificateIssuedEvent;
@@ -236,6 +280,9 @@ export class UserCertificateIssuedEvent extends jspb.Message {
     getUsageDesktop(): boolean;
     setUsageDesktop(value: boolean): UserCertificateIssuedEvent;
 
+    getPrivateKeyPolicy(): string;
+    setPrivateKeyPolicy(value: string): UserCertificateIssuedEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UserCertificateIssuedEvent.AsObject;
@@ -256,6 +303,7 @@ export namespace UserCertificateIssuedEvent {
         usageApp: boolean,
         usageKubernetes: boolean,
         usageDesktop: boolean,
+        privateKeyPolicy: string,
     }
 }
 
@@ -955,6 +1003,120 @@ export namespace UIDiscoverAutoDiscoveredResourcesEvent {
         resource?: DiscoverResourceMetadata.AsObject,
         status?: DiscoverStepStatus.AsObject,
         resourcesCount: number,
+    }
+}
+
+export class UIDiscoverEC2InstanceSelectionEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverEC2InstanceSelectionEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverEC2InstanceSelectionEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverEC2InstanceSelectionEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverEC2InstanceSelectionEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverEC2InstanceSelectionEvent): UIDiscoverEC2InstanceSelectionEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverEC2InstanceSelectionEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverEC2InstanceSelectionEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverEC2InstanceSelectionEvent, reader: jspb.BinaryReader): UIDiscoverEC2InstanceSelectionEvent;
+}
+
+export namespace UIDiscoverEC2InstanceSelectionEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+    }
+}
+
+export class UIDiscoverDeployEICEEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverDeployEICEEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverDeployEICEEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverDeployEICEEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverDeployEICEEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverDeployEICEEvent): UIDiscoverDeployEICEEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverDeployEICEEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverDeployEICEEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverDeployEICEEvent, reader: jspb.BinaryReader): UIDiscoverDeployEICEEvent;
+}
+
+export namespace UIDiscoverDeployEICEEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+    }
+}
+
+export class UIDiscoverCreateNodeEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverCreateNodeEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverCreateNodeEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverCreateNodeEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverCreateNodeEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverCreateNodeEvent): UIDiscoverCreateNodeEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverCreateNodeEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverCreateNodeEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverCreateNodeEvent, reader: jspb.BinaryReader): UIDiscoverCreateNodeEvent;
+}
+
+export namespace UIDiscoverCreateNodeEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
     }
 }
 
@@ -2038,6 +2200,60 @@ export namespace LicenseLimitEvent {
     }
 }
 
+export class DesktopDirectoryShareEvent extends jspb.Message { 
+    getDesktop(): string;
+    setDesktop(value: string): DesktopDirectoryShareEvent;
+
+    getUserName(): string;
+    setUserName(value: string): DesktopDirectoryShareEvent;
+
+    getDirectoryName(): string;
+    setDirectoryName(value: string): DesktopDirectoryShareEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DesktopDirectoryShareEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: DesktopDirectoryShareEvent): DesktopDirectoryShareEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DesktopDirectoryShareEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DesktopDirectoryShareEvent;
+    static deserializeBinaryFromReader(message: DesktopDirectoryShareEvent, reader: jspb.BinaryReader): DesktopDirectoryShareEvent;
+}
+
+export namespace DesktopDirectoryShareEvent {
+    export type AsObject = {
+        desktop: string,
+        userName: string,
+        directoryName: string,
+    }
+}
+
+export class DesktopClipboardEvent extends jspb.Message { 
+    getDesktop(): string;
+    setDesktop(value: string): DesktopClipboardEvent;
+
+    getUserName(): string;
+    setUserName(value: string): DesktopClipboardEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DesktopClipboardEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: DesktopClipboardEvent): DesktopClipboardEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DesktopClipboardEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DesktopClipboardEvent;
+    static deserializeBinaryFromReader(message: DesktopClipboardEvent, reader: jspb.BinaryReader): DesktopClipboardEvent;
+}
+
+export namespace DesktopClipboardEvent {
+    export type AsObject = {
+        desktop: string,
+        userName: string,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -2415,6 +2631,36 @@ export class SubmitEventRequest extends jspb.Message {
     setAccessListGrantsToUser(value?: AccessListGrantsToUserEvent): SubmitEventRequest;
 
 
+    hasUiDiscoverEc2InstanceSelection(): boolean;
+    clearUiDiscoverEc2InstanceSelection(): void;
+    getUiDiscoverEc2InstanceSelection(): UIDiscoverEC2InstanceSelectionEvent | undefined;
+    setUiDiscoverEc2InstanceSelection(value?: UIDiscoverEC2InstanceSelectionEvent): SubmitEventRequest;
+
+
+    hasUiDiscoverDeployEice(): boolean;
+    clearUiDiscoverDeployEice(): void;
+    getUiDiscoverDeployEice(): UIDiscoverDeployEICEEvent | undefined;
+    setUiDiscoverDeployEice(value?: UIDiscoverDeployEICEEvent): SubmitEventRequest;
+
+
+    hasUiDiscoverCreateNode(): boolean;
+    clearUiDiscoverCreateNode(): void;
+    getUiDiscoverCreateNode(): UIDiscoverCreateNodeEvent | undefined;
+    setUiDiscoverCreateNode(value?: UIDiscoverCreateNodeEvent): SubmitEventRequest;
+
+
+    hasDesktopDirectoryShare(): boolean;
+    clearDesktopDirectoryShare(): void;
+    getDesktopDirectoryShare(): DesktopDirectoryShareEvent | undefined;
+    setDesktopDirectoryShare(value?: DesktopDirectoryShareEvent): SubmitEventRequest;
+
+
+    hasDesktopClipboardTransfer(): boolean;
+    clearDesktopClipboardTransfer(): void;
+    getDesktopClipboardTransfer(): DesktopClipboardEvent | undefined;
+    setDesktopClipboardTransfer(value?: DesktopClipboardEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -2492,6 +2738,11 @@ export namespace SubmitEventRequest {
         accessListMemberUpdate?: AccessListMemberUpdateEvent.AsObject,
         accessListMemberDelete?: AccessListMemberDeleteEvent.AsObject,
         accessListGrantsToUser?: AccessListGrantsToUserEvent.AsObject,
+        uiDiscoverEc2InstanceSelection?: UIDiscoverEC2InstanceSelectionEvent.AsObject,
+        uiDiscoverDeployEice?: UIDiscoverDeployEICEEvent.AsObject,
+        uiDiscoverCreateNode?: UIDiscoverCreateNodeEvent.AsObject,
+        desktopDirectoryShare?: DesktopDirectoryShareEvent.AsObject,
+        desktopClipboardTransfer?: DesktopClipboardEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2618,6 +2869,16 @@ export namespace SubmitEventRequest {
     ACCESS_LIST_MEMBER_DELETE = 63,
 
     ACCESS_LIST_GRANTS_TO_USER = 64,
+
+    UI_DISCOVER_EC2_INSTANCE_SELECTION = 65,
+
+    UI_DISCOVER_DEPLOY_EICE = 66,
+
+    UI_DISCOVER_CREATE_NODE = 67,
+
+    DESKTOP_DIRECTORY_SHARE = 68,
+
+    DESKTOP_CLIPBOARD_TRANSFER = 69,
 
     }
 
@@ -2764,6 +3025,7 @@ export enum DiscoverResource {
     DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35,
     DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36,
     DISCOVER_RESOURCE_SAML_APPLICATION = 37,
+    DISCOVER_RESOURCE_EC2_INSTANCE = 38,
 }
 
 export enum DiscoverStatus {

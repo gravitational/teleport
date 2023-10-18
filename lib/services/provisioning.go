@@ -86,6 +86,9 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (types.Provisio
 		if cfg.ID != 0 {
 			v2.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			v2.SetRevision(cfg.Revision)
+		}
 		return v2, nil
 	case types.V2:
 		var p types.ProvisionTokenV2
@@ -97,6 +100,9 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (types.Provisio
 		}
 		if cfg.ID != 0 {
 			p.SetResourceID(cfg.ID)
+		}
+		if cfg.Revision != "" {
+			p.SetRevision(cfg.Revision)
 		}
 		return &p, nil
 	}
@@ -121,6 +127,7 @@ func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalO
 			// to prevent unexpected data races
 			copy := *provisionToken
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			provisionToken = &copy
 		}
 		if cfg.GetVersion() == types.V1 {

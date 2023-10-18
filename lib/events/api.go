@@ -78,7 +78,7 @@ const (
 	// session when the terminal IO event happened
 	SessionEventTimestamp = "ms"
 
-	// SessionEvent indicates that session has been initiated
+	// SessionStartEvent indicates that session has been initiated
 	// or updated by a joining party on the server
 	SessionStartEvent = "session.start"
 
@@ -684,6 +684,12 @@ const (
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
+
+	// SecReportsAuditQueryRunEvent is emitted when a security report query is run.
+	SecReportsAuditQueryRunEvent = "secreports.audit.query.run"
+
+	// SecReportsReportRunEvent is emitted when a security report is run.
+	SecReportsReportRunEvent = "secreports.report.run"
 )
 
 const (

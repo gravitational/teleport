@@ -491,7 +491,20 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, proxy *client
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	if err := checkIfCertsAreAllowedToAccessCluster(key, kubeCluster); err != nil {
+	// Make sure the cert is allowed to access the cluster.
+	// At this point we already know that the user has access to the cluster
+	// via the RBAC rules, but we also need to make sure that the user has
+	// access to the cluster with at least one kubernetes_user or kubernetes_group
+	// defined.
+	rootClusterName, err := tc.RootClusterName(ctx)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	if err := checkIfCertsAreAllowedToAccessCluster(
+		key,
+		rootClusterName,
+		teleportCluster,
+		kubeCluster); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 

@@ -58,7 +58,7 @@ func TestUserCreation(t *testing.T) {
 	k8sCreateDummyUser(ctx, t, setup.K8sClient, setup.Namespace.Name, userName)
 
 	fastEventually(t, func() bool {
-		tUser, err := setup.TeleportClient.GetUser(userName, false)
+		tUser, err := setup.TeleportClient.GetUser(ctx, userName, false)
 		if trace.IsNotFound(err) {
 			return false
 		}
@@ -76,7 +76,7 @@ func TestUserCreation(t *testing.T) {
 	k8sDeleteUser(ctx, t, setup.K8sClient, userName, setup.Namespace.Name)
 
 	fastEventually(t, func() bool {
-		_, err := setup.TeleportClient.GetUser(userName, false)
+		_, err := setup.TeleportClient.GetUser(ctx, userName, false)
 		return trace.IsNotFound(err)
 	})
 }
@@ -179,14 +179,14 @@ traits:
 						return false
 					}
 
-					_, err := setup.TeleportClient.GetUser(userName, false /* withSecrets */)
+					_, err := setup.TeleportClient.GetUser(ctx, userName, false /* withSecrets */)
 					require.True(t, trace.IsNotFound(err), "The user should not be created in Teleport")
 					return true
 				})
 			} else {
 				// We wait for Teleport resource creation
 				fastEventually(t, func() bool {
-					tUser, err := setup.TeleportClient.GetUser(userName, false /* withSecrets */)
+					tUser, err := setup.TeleportClient.GetUser(ctx, userName, false /* withSecrets */)
 					// If the resource creation should succeed we check the resource was found and validate ownership labels
 					if trace.IsNotFound(err) {
 						return false
@@ -214,7 +214,7 @@ traits:
 
 			// We wait for the role deletion in Teleport
 			fastEventually(t, func() bool {
-				_, err := setup.TeleportClient.GetUser(userName, false /* withSecrets */)
+				_, err := setup.TeleportClient.GetUser(ctx, userName, false /* withSecrets */)
 				return trace.IsNotFound(err)
 			})
 		})
@@ -250,7 +250,7 @@ func TestUserDeletionDrift(t *testing.T) {
 	k8sCreateDummyUser(ctx, t, setup.K8sClient, setup.Namespace.Name, userName)
 
 	fastEventually(t, func() bool {
-		tUser, err := setup.TeleportClient.GetUser(userName, false)
+		tUser, err := setup.TeleportClient.GetUser(ctx, userName, false)
 		if trace.IsNotFound(err) {
 			return false
 		}
@@ -270,7 +270,7 @@ func TestUserDeletionDrift(t *testing.T) {
 	err := setup.TeleportClient.DeleteUser(ctx, userName)
 	require.NoError(t, err)
 	fastEventually(t, func() bool {
-		_, err := setup.TeleportClient.GetUser(userName, false)
+		_, err := setup.TeleportClient.GetUser(ctx, userName, false)
 		return trace.IsNotFound(err)
 	})
 
@@ -326,7 +326,7 @@ func TestUserUpdate(t *testing.T) {
 	}
 	tUser.SetCreatedBy(createdBy)
 
-	err = setup.TeleportClient.CreateUser(ctx, tUser)
+	tUser, err = setup.TeleportClient.CreateUser(ctx, tUser)
 	require.NoError(t, err)
 
 	// The user is created in K8S
@@ -343,7 +343,7 @@ func TestUserUpdate(t *testing.T) {
 
 	// The user is updated in Teleport
 	fastEventually(t, func() bool {
-		tUser, err := setup.TeleportClient.GetUser(userName, false)
+		tUser, err := setup.TeleportClient.GetUser(ctx, userName, false)
 		require.NoError(t, err)
 
 		// TeleportUser was updated with new roles
@@ -369,7 +369,7 @@ func TestUserUpdate(t *testing.T) {
 
 	// Updates the user in Teleport
 	fastEventually(t, func() bool {
-		tUser, err := setup.TeleportClient.GetUser(userName, false)
+		tUser, err := setup.TeleportClient.GetUser(ctx, userName, false)
 		require.NoError(t, err)
 
 		// TeleportUser updated with new roles
