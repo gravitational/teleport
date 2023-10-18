@@ -78,6 +78,11 @@ type Features struct {
 	AccessRequests AccessRequestsFeature
 	// CustomTheme holds the name of WebUI custom theme.
 	CustomTheme string
+
+	// IsTrialProduct is true if the cluster is in trial mode.
+	IsTrialProduct bool
+	// IsTeam is true if the cluster is a Teleport Team cluster.
+	IsTeamProduct bool
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -142,8 +147,6 @@ type AccessResourcesGetter interface {
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 
 	GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error)
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	GetUserWithContext(ctx context.Context, userName string, withSecrets bool) (types.User, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
 

@@ -40,7 +40,9 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
@@ -559,7 +561,7 @@ func (s *ServicesTestSuite) WebSessionCRUD(t *testing.T) {
 
 	out, err := s.WebS.WebSessions().Get(ctx, req)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, ws))
+	require.Empty(t, cmp.Diff(out, ws, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	ws1, err := types.NewWebSession("sid1", types.KindWebSession,
 		types.WebSessionSpecV2{
@@ -575,7 +577,7 @@ func (s *ServicesTestSuite) WebSessionCRUD(t *testing.T) {
 
 	out2, err := s.WebS.WebSessions().Get(ctx, req)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out2, ws1))
+	require.Empty(t, cmp.Diff(out2, ws1, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	require.NoError(t, s.WebS.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
 		User:      req.User,
@@ -746,6 +748,7 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.SAMLConnectorSpecV2{
+			Display:                  "SAML",
 			Issuer:                   "http://example.com",
 			SSO:                      "https://example.com/saml/sso",
 			AssertionConsumerService: "https://localhost/acs",
@@ -767,21 +770,21 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), true)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, connector))
+	require.Empty(t, cmp.Diff(out, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	connectors, err := s.WebS.GetSAMLConnectors(ctx, true)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.SAMLConnector{connector}, connectors))
+	require.Empty(t, cmp.Diff([]types.SAMLConnector{connector}, connectors, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	out2, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), false)
 	require.NoError(t, err)
 	connectorNoSecrets := *connector
 	connectorNoSecrets.Spec.SigningKeyPair.PrivateKey = ""
-	require.Empty(t, cmp.Diff(out2, &connectorNoSecrets))
+	require.Empty(t, cmp.Diff(out2, &connectorNoSecrets, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	connectorsNoSecrets, err := s.WebS.GetSAMLConnectors(ctx, false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.SAMLConnector{&connectorNoSecrets}, connectorsNoSecrets))
+	require.Empty(t, cmp.Diff([]types.SAMLConnector{&connectorNoSecrets}, connectorsNoSecrets, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.WebS.DeleteSAMLConnector(ctx, connector.GetName())
 	require.NoError(t, err)
@@ -791,6 +794,127 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 
 	_, err = s.WebS.GetSAMLConnector(ctx, connector.GetName(), true)
 	require.Equal(t, trace.IsNotFound(err), true, fmt.Sprintf("expected not found, got %T", err))
+
+	created, err := s.WebS.CreateSAMLConnector(ctx, connector)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(connector, created, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.NotEmpty(t, created.GetRevision())
+
+	connector = utils.CloneProtoMsg(connector)
+	connector.SetRevision(uuid.NewString())
+	connector.SetDisplay("not-saml")
+
+	updated, err := s.WebS.UpdateSAMLConnector(ctx, connector)
+	require.ErrorIs(t, err, backend.ErrIncorrectRevision)
+	require.Nil(t, updated)
+
+	connector.SetRevision(created.GetRevision())
+	updated, err = s.WebS.UpdateSAMLConnector(ctx, connector)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(connector, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.NotEmpty(t, updated.GetRevision())
+	require.NotEqual(t, created.GetRevision(), updated.GetRevision())
+	require.NotEqual(t, created.GetDisplay(), updated.GetDisplay())
+
+	connector = utils.CloneProtoMsg(connector)
+	connector.SetRevision(uuid.NewString())
+	connector.SetDisplay("llama")
+
+	require.NoError(t, s.WebS.UpsertSAMLConnector(ctx, connector))
+	upserted, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), true)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(connector, upserted, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.NotEmpty(t, upserted.GetRevision())
+	require.NotEqual(t, updated.GetRevision(), upserted.GetRevision())
+	require.NotEqual(t, updated.GetDisplay(), upserted.GetDisplay())
+}
+
+func (s *ServicesTestSuite) OIDCCRUD(t *testing.T) {
+	ctx := context.Background()
+	connector := &types.OIDCConnectorV3{
+		Kind:    types.KindOIDC,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      "oidc1",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.OIDCConnectorSpecV3{
+			Display:      "SAML",
+			IssuerURL:    "http://example.com",
+			ClientID:     "aaa",
+			ClientSecret: "bbb",
+			RedirectURLs: []string{"https://localhost:3080/v1/webapi/github/callback"},
+			ClaimsToRoles: []types.ClaimMapping{
+				{
+					Claim: "abc",
+					Value: "xyz",
+					Roles: []string{"admin"},
+				},
+			},
+		},
+	}
+
+	err := s.WebS.UpsertOIDCConnector(ctx, connector)
+	require.NoError(t, err)
+	out, err := s.WebS.GetOIDCConnector(ctx, connector.GetName(), true)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(out, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	connectors, err := s.WebS.GetOIDCConnectors(ctx, true)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.OIDCConnector{connector}, connectors, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	out2, err := s.WebS.GetOIDCConnector(ctx, connector.GetName(), false)
+	require.NoError(t, err)
+	connectorNoSecrets := *connector
+	connectorNoSecrets.Spec.ClientSecret = ""
+	require.Empty(t, cmp.Diff(out2, &connectorNoSecrets, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	connectorsNoSecrets, err := s.WebS.GetOIDCConnectors(ctx, false)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.OIDCConnector{&connectorNoSecrets}, connectorsNoSecrets, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	err = s.WebS.DeleteOIDCConnector(ctx, connector.GetName())
+	require.NoError(t, err)
+
+	err = s.WebS.DeleteOIDCConnector(ctx, connector.GetName())
+	require.Equal(t, trace.IsNotFound(err), true, fmt.Sprintf("expected not found, got %T", err))
+
+	_, err = s.WebS.GetOIDCConnector(ctx, connector.GetName(), true)
+	require.Equal(t, trace.IsNotFound(err), true, fmt.Sprintf("expected not found, got %T", err))
+
+	created, err := s.WebS.CreateOIDCConnector(ctx, connector)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(connector, created, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.NotEmpty(t, created.GetRevision())
+
+	connector = utils.CloneProtoMsg(connector)
+	connector.SetRevision(uuid.NewString())
+	connector.SetDisplay("not-saml")
+
+	updated, err := s.WebS.UpdateOIDCConnector(ctx, connector)
+	require.ErrorIs(t, err, backend.ErrIncorrectRevision)
+	require.Nil(t, updated)
+
+	connector.SetRevision(created.GetRevision())
+	updated, err = s.WebS.UpdateOIDCConnector(ctx, connector)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(connector, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.NotEmpty(t, updated.GetRevision())
+	require.NotEqual(t, created.GetRevision(), updated.GetRevision())
+	require.NotEqual(t, created.GetDisplay(), updated.GetDisplay())
+
+	connector = utils.CloneProtoMsg(connector)
+	connector.SetRevision(uuid.NewString())
+	connector.SetDisplay("llama")
+
+	require.NoError(t, s.WebS.UpsertOIDCConnector(ctx, connector))
+	upserted, err := s.WebS.GetOIDCConnector(ctx, connector.GetName(), true)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(connector, upserted, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.NotEmpty(t, upserted.GetRevision())
+	require.NotEqual(t, updated.GetRevision(), upserted.GetRevision())
+	require.NotEqual(t, updated.GetDisplay(), upserted.GetDisplay())
 }
 
 func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
@@ -872,12 +996,11 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 			ClientSecret: "bbb",
 			RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
 			Display:      "GitHub",
-			TeamsToLogins: []types.TeamMapping{
+			TeamsToRoles: []types.TeamRolesMapping{
 				{
 					Organization: "gravitational",
 					Team:         "admins",
-					Logins:       []string{"admin"},
-					KubeGroups:   []string{"system:masters"},
+					Roles:        []string{"admin"},
 				},
 			},
 		},
@@ -888,21 +1011,21 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err := s.WebS.GetGithubConnector(ctx, connector.GetName(), true)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, connector))
+	require.Empty(t, cmp.Diff(out, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	connectors, err := s.WebS.GetGithubConnectors(ctx, true)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.GithubConnector{connector}, connectors))
+	require.Empty(t, cmp.Diff([]types.GithubConnector{connector}, connectors, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	out2, err := s.WebS.GetGithubConnector(ctx, connector.GetName(), false)
 	require.NoError(t, err)
 	connectorNoSecrets := *connector
 	connectorNoSecrets.Spec.ClientSecret = ""
-	require.Empty(t, cmp.Diff(out2, &connectorNoSecrets))
+	require.Empty(t, cmp.Diff(out2, &connectorNoSecrets, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	connectorsNoSecrets, err := s.WebS.GetGithubConnectors(ctx, false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.GithubConnector{&connectorNoSecrets}, connectorsNoSecrets))
+	require.Empty(t, cmp.Diff([]types.GithubConnector{&connectorNoSecrets}, connectorsNoSecrets, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.WebS.DeleteGithubConnector(ctx, connector.GetName())
 	require.NoError(t, err)
@@ -912,6 +1035,40 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 
 	_, err = s.WebS.GetGithubConnector(ctx, connector.GetName(), true)
 	require.Equal(t, trace.IsNotFound(err), true, fmt.Sprintf("expected not found, got %T", err))
+
+	created, err := s.WebS.CreateGithubConnector(ctx, connector)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(connector, created, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.NotEmpty(t, created.GetRevision())
+
+	connector = utils.CloneProtoMsg(connector)
+	connector.SetRevision(uuid.NewString())
+	connector.SetDisplay("not-github")
+
+	updated, err := s.WebS.UpdateGithubConnector(ctx, connector)
+	require.ErrorIs(t, err, backend.ErrIncorrectRevision)
+	require.Nil(t, updated)
+
+	connector.SetRevision(created.GetRevision())
+	updated, err = s.WebS.UpdateGithubConnector(ctx, connector)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(connector, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.NotEmpty(t, updated.GetRevision())
+	require.NotEqual(t, created.GetRevision(), updated.GetRevision())
+	require.NotEqual(t, created.GetDisplay(), updated.GetDisplay())
+
+	connector = utils.CloneProtoMsg(connector)
+	connector.SetRevision(uuid.NewString())
+	connector.SetDisplay("llama")
+
+	require.NoError(t, s.WebS.UpsertGithubConnector(ctx, connector))
+	upserted, err := s.WebS.GetGithubConnector(ctx, connector.GetName(), true)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(connector, upserted, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.NotEmpty(t, upserted.GetRevision())
+	require.NotEqual(t, updated.GetRevision(), upserted.GetRevision())
+	require.NotEqual(t, updated.GetDisplay(), upserted.GetDisplay())
+
 }
 
 func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {

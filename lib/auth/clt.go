@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -330,12 +331,6 @@ func (c *Client) DeleteAllUsers(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllUsersWithContext not implemented: can only be called locally.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) DeleteAllUsersWithContext(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // CreateResetPasswordToken creates reset password token
 func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
 	return c.APIClient.CreateResetPasswordToken(ctx, &proto.CreateResetPasswordTokenRequest{
@@ -445,19 +440,21 @@ func (c *Client) OktaClient() services.Okta {
 	return c.APIClient.OktaClient()
 }
 
+// SecReportsClient returns a client for security reports.
+func (c *Client) SecReportsClient() *secreport.Client {
+	return c.APIClient.SecReportsClient()
+}
+
 func (c *Client) AccessListClient() services.AccessLists {
 	return c.APIClient.AccessListClient()
 }
 
-func (c *Client) UserLoginStateClient() services.UserLoginStates {
-	return c.APIClient.UserLoginStateClient()
+func (c *Client) ExternalCloudAuditClient() services.ExternalCloudAudits {
+	return c.APIClient.ExternalCloudAuditClient()
 }
 
-// UpsertUserWithContext UpsertUser user updates or inserts user entry.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) UpsertUserWithContext(ctx context.Context, user types.User) (types.User, error) {
-	upserted, err := c.UpsertUser(ctx, user)
-	return upserted, trace.Wrap(err)
+func (c *Client) UserLoginStateClient() services.UserLoginStates {
+	return c.APIClient.UserLoginStateClient()
 }
 
 // UpsertUser user updates user entry.
@@ -479,12 +476,9 @@ func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, e
 	return upserted, trace.Wrap(err)
 }
 
-// GetUserWithContext returns the user matching the name as seen by the server.
-// withSecrets controls whether authentication details are returned.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	user, err := c.GetUser(ctx, name, withSecrets)
-	return user, trace.Wrap(err)
+// DiscoveryConfigClient returns a client for managing the DiscoveryConfig resource.
+func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigs {
+	return c.APIClient.DiscoveryConfigClient()
 }
 
 // WebService implements features used by Web UI clients
@@ -506,7 +500,11 @@ type WebService interface {
 
 // IdentityService manages identities and users
 type IdentityService interface {
-	// UpsertOIDCConnector updates or creates OIDC connector
+	// CreateOIDCConnector creates a new OIDC connector.
+	CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
+	// UpdateOIDCConnector updates an existing OIDC connector.
+	UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
+	// UpsertOIDCConnector updates or creates an OIDC connector.
 	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error
 	// GetOIDCConnector returns OIDC connector information by id
 	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
@@ -521,7 +519,11 @@ type IdentityService interface {
 	// ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error)
 
-	// UpsertSAMLConnector updates or creates SAML connector
+	// CreateSAMLConnector creates a new SAML connector.
+	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+	// UpdateSAMLConnector updates an existing SAML connector
+	UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+	// UpsertSAMLConnector updates or creates a SAML connector
 	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
 	// GetSAMLConnector returns SAML connector information by id
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
@@ -536,7 +538,11 @@ type IdentityService interface {
 	// GetSAMLAuthRequest returns SAML auth request if found
 	GetSAMLAuthRequest(ctx context.Context, authRequestID string) (*types.SAMLAuthRequest, error)
 
-	// UpsertGithubConnector creates or updates a Github connector
+	// CreateGithubConnector creates a new Github connector.
+	CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
+	// UpdateGithubConnector updates an existing Github connector.
+	UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
+	// UpsertGithubConnector creates or updates a Github connector.
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
 	// GetGithubConnectors returns all configured Github connectors
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
@@ -556,9 +562,6 @@ type IdentityService interface {
 
 	// GetUser returns user by name
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
-	// GetUserWithContext returns user by name.
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// GetCurrentUser returns current user as seen by the server.
 	// Useful especially in the context of remote clusters which perform role and trait mapping.
@@ -570,16 +573,8 @@ type IdentityService interface {
 	// CreateUser inserts a new entry in a backend.
 	CreateUser(ctx context.Context, user types.User) (types.User, error)
 
-	// CreateUser inserts a new entry in a backend.
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	CreateUserWithContext(ctx context.Context, user types.User) (types.User, error)
-
 	// UpdateUser updates an existing user in a backend.
 	UpdateUser(ctx context.Context, user types.User) (types.User, error)
-
-	// UpdateUser updates an existing user in a backend.
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	UpdateUserWithContext(ctx context.Context, user types.User) (types.User, error)
 
 	// UpdateAndSwapUser reads an existing user, runs `fn` against it and writes
 	// the result to storage. Return `false` from `fn` to avoid storage changes.
@@ -590,10 +585,6 @@ type IdentityService interface {
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(ctx context.Context, user types.User) (types.User, error)
 
-	// UpsertUserWithContext user updates or inserts user entry.
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	UpsertUserWithContext(ctx context.Context, user types.User) (types.User, error)
-
 	// CompareAndSwapUser updates an existing user in a backend, but fails if
 	// the user in the backend does not match the expected value.
 	CompareAndSwapUser(ctx context.Context, new, expected types.User) error
@@ -603,10 +594,6 @@ type IdentityService interface {
 
 	// GetUsers returns a list of usernames registered in the system
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
-
-	// GetUsersWithContext returns a list of usernames registered in the system
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error)
 
 	// ChangePassword changes user password
 	ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error
@@ -624,6 +611,8 @@ type IdentityService interface {
 	// GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
 	// certificate for a single session
 	// (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
+	//
+	// Deprecated: Use GenerateUserCerts instead.
 	GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
 
 	// IsMFARequired is a request to check whether MFA is required to
@@ -632,10 +621,6 @@ type IdentityService interface {
 
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers(ctx context.Context) error
-
-	// DeleteAllUsers deletes all users
-	// TODO(tross) remove this once oss and e are converted to using the new signature.
-	DeleteAllUsersWithContext(ctx context.Context) error
 
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
@@ -904,17 +889,35 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	AccessListClient() services.AccessLists
 
+	// SecReportsClient returns a client for security reports.
+	// Clients connecting to  older Teleport versions, still get an access list client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	SecReportsClient() *secreport.Client
+
 	// UserLoginStateClient returns a user login state client.
 	// Clients connecting to older Teleport versions still get a user login state client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	UserLoginStateClient() services.UserLoginStates
 
+	// DiscoveryConfigClient returns a DiscoveryConfig client.
+	// Clients connecting to older Teleport versions, still get an DiscoveryConfig client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	DiscoveryConfigClient() services.DiscoveryConfigs
+
 	// ResourceUsageClient returns a resource usage service client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient
+
+	// ExternalCloudAuditClient returns an external cloud audit client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	ExternalCloudAuditClient() services.ExternalCloudAudits
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)

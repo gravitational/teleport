@@ -180,6 +180,7 @@ func TestAccessRequest(t *testing.T) {
 	t.Run("single", func(t *testing.T) { testSingleAccessRequests(t, testPack) })
 	t.Run("multi", func(t *testing.T) { testMultiAccessRequests(t, testPack) })
 	t.Run("role refresh with bogus request ID", func(t *testing.T) { testRoleRefreshWithBogusRequestID(t, testPack) })
+	t.Run("bot user approver", func(t *testing.T) { testBotAccessRequestReview(t, testPack) })
 }
 
 func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
@@ -419,6 +420,70 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			require.ErrorIs(t, err, trace.AccessDenied("access request %q has been denied", req.GetName()))
 		})
 	}
+}
+
+// testBotAccessRequestReview specifically ensures that a bots output cert
+// can be used to review a access request. This is because there's a special
+// case to handle their role impersonated certs correctly.
+func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	// Create the bot
+	adminClient, err := testPack.tlsServer.NewClient(TestAdmin())
+	require.NoError(t, err)
+	defer adminClient.Close()
+	bot, err := adminClient.CreateBot(ctx, &proto.CreateBotRequest{
+		Name: "request-approver",
+		Roles: []string{
+			// Grants the ability to approve requests
+			"admins",
+		},
+	})
+	require.NoError(t, err)
+
+	// Use the bot user to generate some certs using role impersonation.
+	// This mimics what the bot actually does.
+	botClient, err := testPack.tlsServer.NewClient(TestUser(bot.UserName))
+	require.NoError(t, err)
+	defer botClient.Close()
+	certRes, err := botClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		Username:  bot.UserName,
+		PublicKey: testPack.pubKey,
+		Expires:   time.Now().Add(time.Hour),
+
+		RoleRequests:    []string{"admins"},
+		UseRoleRequests: true,
+	})
+	require.NoError(t, err)
+	tlsCert, err := tls.X509KeyPair(certRes.TLS, testPack.privKey)
+	require.NoError(t, err)
+	impersonatedBotClient := testPack.tlsServer.NewClientWithCert(tlsCert)
+	defer impersonatedBotClient.Close()
+
+	// Create an access request for the bot to approve
+	requesterClient, err := testPack.tlsServer.NewClient(TestUser("requester"))
+	require.NoError(t, err)
+	defer requesterClient.Close()
+	accessRequest, err := services.NewAccessRequest("requester", "admins")
+	require.NoError(t, err)
+	accessRequest, err = requesterClient.CreateAccessRequestV2(ctx, accessRequest)
+	require.NoError(t, err)
+
+	// Approve the access request with the bot
+	accessRequest, err = impersonatedBotClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+		RequestID: accessRequest.GetName(),
+		Review: types.AccessReview{
+			ProposedState: types.RequestState_APPROVED,
+		},
+	})
+	require.NoError(t, err)
+
+	// Check the final state of the request
+	require.Equal(t, bot.UserName, accessRequest.GetReviews()[0].Author)
+	require.Equal(t, types.RequestState_APPROVED, accessRequest.GetState())
 }
 
 func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {

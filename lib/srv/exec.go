@@ -423,17 +423,8 @@ func (e *remoteExec) PID() int {
 // instead of ctx.srv.
 func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	// Create common fields for event.
-	serverMeta := apievents.ServerMetadata{
-		ServerID:        ctx.srv.HostUUID(),
-		ServerHostname:  ctx.srv.GetInfo().GetHostname(),
-		ServerNamespace: ctx.srv.GetNamespace(),
-	}
-
-	sessionMeta := apievents.SessionMetadata{
-		SessionID: string(ctx.SessionID()),
-		WithMFA:   ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
-	}
-
+	serverMeta := ctx.GetServerMetadata()
+	sessionMeta := ctx.GetSessionMetadata()
 	userMeta := ctx.Identity.GetUserMetadata()
 
 	connectionMeta := apievents.ConnectionMetadata{

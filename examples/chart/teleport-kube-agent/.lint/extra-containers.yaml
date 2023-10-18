@@ -1,0 +1,15 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: kube
+kubeClusterName: test-kube-cluster
+extraContainers:
+  - name: nscenter
+    command:
+      - /bin/bash
+      - -c
+      - sleep infinity & wait
+    image: praqma/network-multitool
+    imagePullPolicy: IfNotPresent
+    securityContext:
+      privileged: true
+      runAsNonRoot: false

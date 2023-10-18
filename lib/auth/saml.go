@@ -75,6 +75,62 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 	return nil
 }
 
+// UpdateSAMLConnector updates an existing SAML connector.
+func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector
+	// also validates, it does not have a RoleGetter to use to validate the roles, so
+	// has to pass `nil` for the second argument.
+	if err := services.ValidateSAMLConnector(connector, a); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	updated, err := a.Services.UpdateSAMLConnector(ctx, connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorCreate{
+		Metadata: apievents.Metadata{
+			Type: events.SAMLConnectorCreatedEvent,
+			Code: events.SAMLConnectorCreatedCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: connector.GetName(),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit SAML connector create event.")
+	}
+
+	return updated, nil
+}
+
+// CreateSAMLConnector creates a new SAML connector.
+func (a *Server) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector
+	// also validates, it does not have a RoleGetter to use to validate the roles, so
+	// has to pass `nil` for the second argument.
+	if err := services.ValidateSAMLConnector(connector, a); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	created, err := a.Services.CreateSAMLConnector(ctx, connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorCreate{
+		Metadata: apievents.Metadata{
+			Type: events.SAMLConnectorCreatedEvent,
+			Code: events.SAMLConnectorCreatedCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: connector.GetName(),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit SAML connector create event.")
+	}
+
+	return created, nil
+}
+
 // DeleteSAMLConnector deletes a SAML connector.
 func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorID string) error {
 	if err := a.Services.DeleteSAMLConnector(ctx, connectorID); err != nil {

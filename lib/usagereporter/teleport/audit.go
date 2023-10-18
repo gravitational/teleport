@@ -58,9 +58,10 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		// SSO) if desired, but we currently only care about connector type /
 		// method
 		return &UserLoginEvent{
-			UserName:      e.User,
-			ConnectorType: e.Method,
-			DeviceId:      deviceID,
+			UserName:                 e.User,
+			ConnectorType:            e.Method,
+			DeviceId:                 deviceID,
+			RequiredPrivateKeyPolicy: e.RequiredPrivateKeyPolicy,
 		}
 
 	case *apievents.SessionStart:
@@ -103,9 +104,19 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			SessionType: sessionType,
 		}
 	case *apievents.WindowsDesktopSessionStart:
+		desktopType := "ad"
+		if e.DesktopLabels[types.ADLabel] == "false" {
+			desktopType = "non-ad"
+		}
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(types.WindowsDesktopSessionKind),
+			Desktop: &prehogv1a.SessionStartDesktopMetadata{
+				DesktopType:       desktopType,
+				Origin:            e.DesktopLabels[types.OriginLabel],
+				WindowsDomain:     e.Domain,
+				AllowUserCreation: e.AllowUserCreation,
+			},
 		}
 
 	case *apievents.GithubConnectorCreate:
@@ -169,6 +180,28 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				DeviceOsType: e.Device.OsType.String(),
 				DeviceOrigin: e.Device.DeviceOrigin.String(),
 			}
+		}
+
+	case *apievents.DesktopClipboardReceive:
+		return &DesktopClipboardEvent{
+			Desktop:  e.DesktopAddr,
+			UserName: e.User,
+		}
+	case *apievents.DesktopClipboardSend:
+		return &DesktopClipboardEvent{
+			Desktop:  e.DesktopAddr,
+			UserName: e.User,
+		}
+	case *apievents.DesktopSharedDirectoryStart:
+		// only count successful share attempts
+		if e.Code != events.DesktopSharedDirectoryStartCode {
+			return nil
+		}
+
+		return &DesktopDirectoryShareEvent{
+			Desktop:       e.DesktopAddr,
+			UserName:      e.User,
+			DirectoryName: e.DirectoryName,
 		}
 	}
 

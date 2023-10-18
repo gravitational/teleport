@@ -726,12 +726,17 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 }
 
 func TestIsUserFunctions(t *testing.T) {
-	localIdentity := Context{Identity: LocalUser{}}
-	remoteIdentity := Context{Identity: RemoteUser{}}
+	localIdentity := Context{
+		Identity:         LocalUser{},
+		UnmappedIdentity: LocalUser{},
+	}
+	remoteIdentity := Context{
+		Identity:         RemoteUser{},
+		UnmappedIdentity: RemoteUser{},
+	}
 	systemIdentity := Context{
-		Identity: BuiltinRole{
-			Role: types.RoleProxy,
-		},
+		Identity:         BuiltinRole{Role: types.RoleProxy},
+		UnmappedIdentity: BuiltinRole{Role: types.RoleProxy},
 	}
 
 	tests := []struct {

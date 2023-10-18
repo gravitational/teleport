@@ -770,7 +770,7 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.TLSServer, err = NewTLSServer(TLSServerConfig{
+	srv.TLSServer, err = NewTLSServer(context.Background(), TLSServerConfig{
 		Listener:      srv.Listener,
 		AccessPoint:   accessPoint,
 		TLS:           tlsConfig,
@@ -821,7 +821,7 @@ func TestUserWithDeviceExtensions(username string, exts tlsca.DeviceExtensions) 
 	}
 }
 
-// TestUser returns a TestIdentity for a local user
+// TestRenewableUser returns a TestIdentity for a local user
 // with renewable credentials.
 func TestRenewableUser(username string, generation uint64) TestIdentity {
 	return TestIdentity{
@@ -1158,12 +1158,6 @@ func CreateAccessPluginUser(ctx context.Context, clt clt, username string) (type
 		return nil, trace.Wrap(err)
 	}
 	return user, nil
-}
-
-// CreateUserWithContext creates user and role and assigns role to a user, used in tests
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func CreateUserWithContext(ctx context.Context, clt clt, username string, roles ...types.Role) (types.User, error) {
-	return CreateUser(ctx, clt, username, roles...)
 }
 
 // CreateUser creates user and role and assigns role to a user, used in tests

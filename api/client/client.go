@@ -44,8 +44,10 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
+	"github.com/gravitational/teleport/api/client/externalcloudaudit"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/client/userloginstate"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -54,6 +56,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	externalcloudauditv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -61,6 +64,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
@@ -785,6 +789,11 @@ func (c *Client) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 	return loginrulepb.NewLoginRuleServiceClient(c.conn)
 }
 
+// SecReportsClient returns Security client that can be used to fetch security reports.
+func (c *Client) SecReportsClient() *secreport.Client {
+	return secreport.NewClient(secreportsv1.NewSecReportsServiceClient(c.conn))
+}
+
 // SAMLIdPClient returns an unadorned SAML IdP client, using the underlying
 // Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,
@@ -792,6 +801,15 @@ func (c *Client) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 // return "not implemented" errors (as per the default gRPC behavior).
 func (c *Client) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	return samlidppb.NewSAMLIdPServiceClient(c.conn)
+}
+
+// ExternalCloudAuditClient returns an unadorned External Cloud Audit client,
+// using the underlying Auth gRPC connection.
+// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+// still get a external audit client when calling this method, but all RPCs will
+// return "not implemented" errors (as per the default gRPC behavior).
+func (c *Client) ExternalCloudAuditClient() *externalcloudaudit.Client {
+	return externalcloudaudit.NewClient(externalcloudauditv1.NewExternalCloudAuditServiceClient(c.conn))
 }
 
 // TrustClient returns an unadorned Trust client, using the underlying
@@ -842,12 +860,6 @@ func (c *Client) CreateUser(ctx context.Context, user types.User) (types.User, e
 	return created, trace.Wrap(err)
 }
 
-// CreateUserWithContext creates a new user from the specified descriptor.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) CreateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
-	return c.CreateUser(ctx, user)
-}
-
 // UpdateUser updates an existing user in a backend.
 func (c *Client) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	userV2, ok := user.(*types.UserV2)
@@ -864,12 +876,6 @@ func (c *Client) UpdateUser(ctx context.Context, user types.User) (types.User, e
 	return updated, trace.Wrap(err)
 }
 
-// UpdateUserWithContext updates an existing user in a backend.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) UpdateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
-	return c.UpdateUser(ctx, user)
-}
-
 // GetUser returns a list of usernames registered in the system.
 // withSecrets controls whether authentication details are returned.
 func (c *Client) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
@@ -884,13 +890,6 @@ func (c *Client) GetUser(ctx context.Context, name string, withSecrets bool) (ty
 		return nil, trace.Wrap(err)
 	}
 	return user, nil
-}
-
-// GetUserWithContext returns a list of usernames registered in the system.
-// withSecrets controls whether authentication details are returned.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) GetUserWithContext(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	return c.GetUser(ctx, name, withSecrets)
 }
 
 // GetCurrentUser returns current user as seen by the server.
@@ -936,13 +935,6 @@ func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, 
 		users = append(users, user)
 	}
 	return users, nil
-}
-
-// GetUsersWithContext returns a list of users.
-// withSecrets controls whether authentication details are returned.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (c *Client) GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	return c.GetUsers(ctx, withSecrets)
 }
 
 // DeleteUser deletes a user by name.
@@ -1603,6 +1595,28 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return roles, nil
 }
 
+// CreateRole creates a new role.
+func (c *Client) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
+	r, ok := role.(*types.RoleV6)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", role)
+	}
+
+	created, err := c.grpc.CreateRole(ctx, &proto.CreateRoleRequest{Role: r})
+	return created, trace.Wrap(err)
+}
+
+// UpdateRole updates an already existing role.
+func (c *Client) UpdateRole(ctx context.Context, role types.Role) (types.Role, error) {
+	r, ok := role.(*types.RoleV6)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", role)
+	}
+
+	updated, err := c.grpc.UpdateRole(ctx, &proto.UpdateRoleRequest{Role: r})
+	return updated, trace.Wrap(err)
+}
+
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
 	r, ok := role.(*types.RoleV6)
@@ -1610,7 +1624,13 @@ func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
 		return trace.BadParameter("invalid type %T", role)
 	}
 
-	_, err := c.grpc.UpsertRole(ctx, r)
+	_, err := c.grpc.UpsertRoleV2(ctx, &proto.UpsertRoleRequest{Role: r})
+	if err != nil && trace.IsNotImplemented(err) {
+		//nolint:staticcheck // SA1019. Kept for backward compatibility.
+		_, err := c.grpc.UpsertRole(ctx, r)
+		return trace.Wrap(err)
+	}
+
 	return trace.Wrap(err)
 }
 
@@ -1662,7 +1682,9 @@ func (c *Client) GetMFADevices(ctx context.Context, in *proto.GetMFADevicesReque
 	return resp, nil
 }
 
+// Deprecated: Use GenerateUserCerts instead.
 func (c *Client) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {
+	//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 	stream, err := c.grpc.GenerateUserSingleUseCerts(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4020,6 +4042,22 @@ func (c *Client) ListIntegrations(ctx context.Context, pageSize int, nextKey str
 	}
 
 	return integrations, resp.GetNextKey(), nil
+}
+
+// ListAllIntegrations returns the list of all Integrations.
+func (c *Client) ListAllIntegrations(ctx context.Context) ([]types.Integration, error) {
+	var result []types.Integration
+	var nextKey string
+	for {
+		integrations, nextKey, err := c.ListIntegrations(ctx, 0, nextKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result = append(result, integrations...)
+		if nextKey == "" {
+			return result, nil
+		}
+	}
 }
 
 // GetIntegration returns an Integration by its name.

@@ -163,10 +163,47 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 		sessionCtx.DatabaseUser,
 	)
 
-	if getSQLState(err) == sqlStateActiveUser {
+	if getSQLState(err) == common.SQLStateActiveUser {
 		e.Log.Debugf("Failed to deactivate user %q: %v.", sessionCtx.DatabaseUser, err)
 		return nil
 	}
+	return trace.Wrap(err)
+}
+
+// DeleteUser deletes the database user.
+func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) error {
+	if sessionCtx.Database.GetAdminUser() == "" {
+		return trace.BadParameter("Teleport does not have admin user configured for this database")
+	}
+
+	conn, err := e.connectAsAdminUser(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer conn.Close()
+
+	e.Log.Infof("Deleting MySQL user %q for %v.", sessionCtx.DatabaseUser, sessionCtx.Identity.Username)
+
+	result, err := conn.Execute(fmt.Sprintf("CALL %s(?)", deleteUserProcedureName), sessionCtx.DatabaseUser)
+	if err != nil {
+		if getSQLState(err) == common.SQLStateActiveUser {
+			e.Log.Debugf("Failed to delete user %q: %v.", sessionCtx.DatabaseUser, err)
+			return nil
+		}
+
+		return trace.Wrap(err)
+	}
+	defer result.Close()
+
+	switch readDeleteUserResult(result) {
+	case common.SQLStateUserDropped:
+		e.Log.Debugf("User %q deleted successfully.", sessionCtx.DatabaseUser)
+	case common.SQLStateUserDeactivated:
+		e.Log.Infof("Unable to delete user %q, it was disabled instead.", sessionCtx.DatabaseUser)
+	default:
+		e.Log.Warnf("Unable to determine user %q deletion state.", sessionCtx.DatabaseUser)
+	}
+
 	return trace.Wrap(err)
 }
 
@@ -257,10 +294,10 @@ func convertActivateError(sessionCtx *common.Session, err error) error {
 	}
 
 	switch getSQLState(err) {
-	case sqlStateUsernameDoesNotMatch:
+	case common.SQLStateUsernameDoesNotMatch:
 		return trace.AlreadyExists("username %q (Teleport user %q) already exists in this MySQL database and is used for another Teleport user.", sessionCtx.Identity.Username, sessionCtx.DatabaseUser)
 
-	case sqlStateRolesChanged:
+	case common.SQLStateRolesChanged:
 		return trace.CompareFailed("roles for user %q has changed. Please quit all active connections and try again.", sessionCtx.Identity.Username)
 
 	default:
@@ -419,6 +456,14 @@ func doTransaction(conn *clientConn, do func() error) error {
 	return trace.Wrap(conn.Commit())
 }
 
+func readDeleteUserResult(res *mysql.Result) string {
+	if len(res.Values) != 1 && len(res.Values[0]) != 1 {
+		return ""
+	}
+
+	return string(res.Values[0][0].AsString())
+}
+
 const (
 	// procedureVersion is a hard-coded string that is set as procedure
 	// comments to indicate the procedure version.
@@ -440,25 +485,10 @@ const (
 	// SELECT TO_USER AS 'Teleport Managed Users' FROM mysql.role_edges WHERE FROM_USER = 'teleport-auto-user'
 	teleportAutoUserRole = "teleport-auto-user"
 
-	// sqlStateActiveUser is the SQLSTATE raised by deactivation procedure when
-	// user has active connections.
-	//
-	// SQLSTATE reference:
-	// https://en.wikipedia.org/wiki/SQLSTATE
-	sqlStateActiveUser = "TP000"
-	// sqlStateUsernameDoesNotMatch is the SQLSTATE raised by activation
-	// procedure when the Teleport username does not match user's attributes.
-	//
-	// Possibly there is a hash collision, or someone manually updated the user
-	// attributes.
-	sqlStateUsernameDoesNotMatch = "TP001"
-	// sqlStateRolesChanged is the SQLSTATE raised by activation procedure when
-	// the user has active connections but roles has changed.
-	sqlStateRolesChanged = "TP002"
-
 	revokeRolesProcedureName    = "teleport_revoke_roles"
 	activateUserProcedureName   = "teleport_activate_user"
 	deactivateUserProcedureName = "teleport_deactivate_user"
+	deleteUserProcedureName     = "teleport_delete_user"
 )
 
 var (
@@ -468,6 +498,8 @@ var (
 	deactivateUserProcedure string
 	//go:embed mysql_revoke_roles.sql
 	revokeRolesProcedure string
+	//go:embed mysql_delete_user.sql
+	deleteProcedure string
 
 	allProcedures = []struct {
 		name          string
@@ -484,6 +516,10 @@ var (
 		{
 			name:          deactivateUserProcedureName,
 			createCommand: deactivateUserProcedure,
+		},
+		{
+			name:          deleteUserProcedureName,
+			createCommand: deleteProcedure,
 		},
 	}
 )

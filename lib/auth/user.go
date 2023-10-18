@@ -38,13 +38,6 @@ import (
 
 // CreateUser inserts a new user entry in a backend.
 func (s *Server) CreateUser(ctx context.Context, user types.User) (types.User, error) {
-	created, err := s.CreateUserWithContext(ctx, user)
-	return created, trace.Wrap(err)
-}
-
-// CreateUserWithContext inserts a new user entry in a backend.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (s *Server) CreateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
 	if user.GetCreatedBy().IsEmpty() {
 		user.SetCreatedBy(types.CreatedBy{
 			User: types.UserRef{Name: authz.ClientUsername(ctx)},
@@ -138,13 +131,6 @@ func (s *Server) UpdateUserWithContext(ctx context.Context, user types.User) (ty
 
 // UpsertUser updates a user.
 func (s *Server) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
-	upserted, err := s.UpsertUserWithContext(ctx, user)
-	return upserted, trace.Wrap(err)
-}
-
-// UpsertUserWithContext updates a user.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (s *Server) UpsertUserWithContext(ctx context.Context, user types.User) (types.User, error) {
 	prevUser, err := s.GetUser(ctx, user.GetName(), false)
 	var omitEditorEvent bool
 	if err != nil {

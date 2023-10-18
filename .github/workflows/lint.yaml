@@ -21,7 +21,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport14
+      image: ghcr.io/gravitational/teleport-buildbox:teleport15
 
     env:
       GOLANGCI_LINT_VERSION: v1.54.2

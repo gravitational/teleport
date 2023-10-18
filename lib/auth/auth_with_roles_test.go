@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -4210,13 +4211,69 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 	}
 }
 
+func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
+	for _, name := range names {
+
+		// add nodes
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{
+				Hostname: name,
+			},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	// create user, role, and client
+	username := "theuser"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+
+	// pin a resource
+	pinned := &userpreferencesv1.PinnedResourcesUserPreferences{
+		ResourceIds: []string{"tifa/tifa/node"},
+	}
+	clusterPrefs := &userpreferencesv1.ClusterUserPreferences{
+		PinnedResources: pinned,
+	}
+
+	req := &userpreferencesv1.UpsertUserPreferencesRequest{
+		Preferences: &userpreferencesv1.UserPreferences{
+			ClusterPreferences: clusterPrefs,
+		},
+	}
+	err = srv.Auth().UpsertUserPreferences(ctx, username, req.Preferences)
+	require.NoError(t, err)
+
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		PinnedOnly: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, resp.NextKey)
+	// Check that our returned resource is the pinned resource
+	require.Equal(t, "tifa", resp.Resources[0].GetNode().GetHostname())
+}
+
 // TestListUnifiedResources_WithSearch will generate multiple resources
 // and filter by a search query
 func TestListUnifiedResources_WithSearch(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
-	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
+	names := []string{"vivi", "cloud", "aerith", "barret", "cid", "vivi2"}
 	for i := 0; i < 6; i++ {
 		name := names[i]
 		node, err := types.NewServerWithLabels(
@@ -4236,6 +4293,19 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, testNodes, 6)
 
+	sp := &types.SAMLIdPServiceProviderV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "tifaSAML",
+			},
+		},
+		Spec: types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newEntityDescriptor("tifaSAML"),
+			EntityID:         "tifaSAML",
+		},
+	}
+	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp))
+
 	// create user and client
 	user, _, err := CreateUserAndRole(srv.Auth(), "user", nil, nil)
 	require.NoError(t, err)
@@ -4247,13 +4317,13 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 		SortBy:         types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 	})
 	require.NoError(t, err)
-	require.Len(t, resp.Resources, 2)
+	require.Len(t, resp.Resources, 1)
 	require.Empty(t, resp.NextKey)
 
 	// Check that our returned resource has the correct name
 	for _, resource := range resp.Resources {
-		r := resource.GetNode()
-		require.True(t, strings.Contains(r.GetHostname(), "tifa"))
+		r := resource.GetAppServerOrSAMLIdPServiceProvider()
+		require.True(t, strings.Contains(r.GetName(), "tifa"))
 	}
 }
 

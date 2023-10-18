@@ -69,25 +69,12 @@ func NewIdentityService(backend backend.Backend) *IdentityService {
 
 // DeleteAllUsers deletes all users
 func (s *IdentityService) DeleteAllUsers(ctx context.Context) error {
-	return trace.Wrap(s.DeleteAllUsersWithContext(ctx))
-}
-
-// DeleteAllUsersWithContext deletes all users.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (s *IdentityService) DeleteAllUsersWithContext(ctx context.Context) error {
 	startKey := backend.ExactKey(webPrefix, usersPrefix)
 	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
 // GetUsers returns a list of users registered with the local auth server
 func (s *IdentityService) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	users, err := s.GetUsersWithContext(ctx, withSecrets)
-	return users, trace.Wrap(err)
-}
-
-// GetUsersWithContext returns a list of users registered with the local auth server
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (s *IdentityService) GetUsersWithContext(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	if withSecrets {
 		return s.getUsersWithSecrets(ctx)
 	}
@@ -137,13 +124,6 @@ func (s *IdentityService) getUsersWithSecrets(ctx context.Context) ([]types.User
 
 // CreateUser creates user if it does not exist.
 func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (types.User, error) {
-	created, err := s.CreateUserWithContext(ctx, user)
-	return created, trace.Wrap(err)
-}
-
-// CreateUserWithContext creates user if it does not exist.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (s *IdentityService) CreateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -184,13 +164,6 @@ func (s *IdentityService) CreateUserWithContext(ctx context.Context, user types.
 
 // UpdateUser updates an existing user.
 func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
-	updated, err := s.UpdateUserWithContext(ctx, user)
-	return updated, trace.Wrap(err)
-}
-
-// UpdateUserWithContext updates an existing user.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (s *IdentityService) UpdateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -200,6 +173,7 @@ func (s *IdentityService) UpdateUserWithContext(ctx context.Context, user types.
 		return nil, trace.Wrap(err)
 	}
 
+	rev := user.GetRevision()
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -209,7 +183,7 @@ func (s *IdentityService) UpdateUserWithContext(ctx context.Context, user types.
 		Value:    value,
 		Expires:  user.Expiry(),
 		ID:       user.GetResourceID(),
-		Revision: user.GetRevision(),
+		Revision: rev,
 	}
 	lease, err := s.Update(ctx, item)
 	if err != nil {
@@ -262,16 +236,10 @@ func (s *IdentityService) UpdateAndSwapUser(ctx context.Context, user string, wi
 
 // UpsertUser updates parameters about user, or creates an entry if not exist.
 func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
-	upserted, err := s.UpsertUserWithContext(ctx, user)
-	return upserted, trace.Wrap(err)
-}
-
-// UpsertUserWithContext updates parameters about user, or creates an entry if not exist.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (s *IdentityService) UpsertUserWithContext(ctx context.Context, user types.User) (types.User, error) {
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := user.GetRevision()
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -281,7 +249,7 @@ func (s *IdentityService) UpsertUserWithContext(ctx context.Context, user types.
 		Value:    value,
 		Expires:  user.Expiry(),
 		ID:       user.GetResourceID(),
-		Revision: user.GetRevision(),
+		Revision: rev,
 	}
 	lease, err := s.Put(ctx, item)
 	if err != nil {
@@ -308,6 +276,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 	if !ok {
 		return trace.BadParameter("Invalid user type %T", new)
 	}
+	rev := new.GetRevision()
 	newValue, err := services.MarshalUser(newRaw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -317,7 +286,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 		Value:    newValue,
 		Expires:  new.Expiry(),
 		ID:       new.GetResourceID(),
-		Revision: new.GetRevision(),
+		Revision: rev,
 	}
 
 	existingRaw, ok := existing.WithoutSecrets().(types.User)
@@ -351,13 +320,6 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 
 // GetUser returns a user by name
 func (s *IdentityService) GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error) {
-	u, err := s.GetUserWithContext(ctx, user, withSecrets)
-	return u, trace.Wrap(err)
-}
-
-// GetUserWithContext returns a user by name.
-// TODO(tross) remove this once oss and e are converted to using the new signature.
-func (s *IdentityService) GetUserWithContext(ctx context.Context, user string, withSecrets bool) (types.User, error) {
 	u, _, err := s.getUser(ctx, user, withSecrets)
 	return u, trace.Wrap(err)
 }
@@ -937,13 +899,15 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 		}
 	}
 
+	rev := d.GetRevision()
 	value, err := json.Marshal(d)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:   backend.Key(webPrefix, usersPrefix, user, mfaDevicePrefix, d.Id),
-		Value: value,
+		Key:      backend.Key(webPrefix, usersPrefix, user, mfaDevicePrefix, d.Id),
+		Value:    value,
+		Revision: rev,
 	}
 
 	if _, err := s.Put(ctx, item); err != nil {
@@ -1004,9 +968,31 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 
 // UpsertOIDCConnector upserts OIDC Connector
 func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error {
+	rev := connector.GetRevision()
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
+		Revision: rev,
+	}
+	lease, err := s.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	connector.SetRevision(lease.Revision)
+	return nil
+}
+
+// CreateOIDCConnector creates a new OIDC connector.
+func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	value, err := services.MarshalOIDCConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
@@ -1014,11 +1000,33 @@ func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector typ
 		Expires: connector.Expiry(),
 		ID:      connector.GetResourceID(),
 	}
-	_, err = s.Put(ctx, item)
+	lease, err := s.Create(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+	connector.SetRevision(lease.Revision)
+	return connector, nil
+}
+
+// UpdateOIDCConnector updates an existing OIDC connector.
+func (s *IdentityService) UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	value, err := services.MarshalOIDCConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
+		Revision: connector.GetRevision(),
+	}
+	lease, err := s.ConditionalUpdate(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector.SetRevision(lease.Revision)
+	return connector, nil
 }
 
 // DeleteOIDCConnector deletes OIDC Connector by name
@@ -1043,8 +1051,7 @@ func (s *IdentityService) GetOIDCConnector(ctx context.Context, name string, wit
 		}
 		return nil, trace.Wrap(err)
 	}
-	conn, err := services.UnmarshalOIDCConnector(item.Value,
-		services.WithExpires(item.Expires))
+	conn, err := services.UnmarshalOIDCConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1064,8 +1071,7 @@ func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets boo
 	}
 	connectors := make([]types.OIDCConnector, len(result.Items))
 	for i, item := range result.Items {
-		conn, err := services.UnmarshalOIDCConnector(
-			item.Value, services.WithExpires(item.Expires))
+		conn, err := services.UnmarshalOIDCConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1119,20 +1125,69 @@ func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector typ
 	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := connector.GetRevision()
 	value, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		Revision: rev,
+	}
+	lease, err := s.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	connector.SetRevision(lease.Revision)
+	return nil
+}
+
+// UpdateSAMLConnector updates an existing SAML connector
+func (s *IdentityService) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalSAMLConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
+		Revision: connector.GetRevision(),
+	}
+	lease, err := s.ConditionalUpdate(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector.SetRevision(lease.Revision)
+	return connector, nil
+}
+
+// CreateSAMLConnector creates a new SAML connector.
+func (s *IdentityService) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalSAMLConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
 		Value:   value,
 		Expires: connector.Expiry(),
 	}
-	_, err = s.Put(ctx, item)
+	lease, err := s.Create(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+	connector.SetRevision(lease.Revision)
+	return connector, nil
 }
 
 // DeleteSAMLConnector deletes SAML Connector by name
@@ -1157,8 +1212,7 @@ func (s *IdentityService) GetSAMLConnector(ctx context.Context, name string, wit
 		}
 		return nil, trace.Wrap(err)
 	}
-	conn, err := services.UnmarshalSAMLConnector(
-		item.Value, services.WithExpires(item.Expires))
+	conn, err := services.UnmarshalSAMLConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1182,8 +1236,7 @@ func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets boo
 	}
 	connectors := make([]types.SAMLConnector, len(result.Items))
 	for i, item := range result.Items {
-		conn, err := services.UnmarshalSAMLConnector(
-			item.Value, services.WithExpires(item.Expires))
+		conn, err := services.UnmarshalSAMLConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1296,9 +1349,58 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 	if err := connector.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := connector.GetRevision()
 	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
+		Revision: rev,
+	}
+	lease, err := s.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	connector.SetRevision(lease.Revision)
+	return nil
+}
+
+// UpdateGithubConnector updates an existing Github connector.
+func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	if err := connector.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalGithubConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
+		Revision: connector.GetRevision(),
+	}
+	lease, err := s.ConditionalUpdate(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector.SetRevision(lease.Revision)
+	return connector, nil
+}
+
+// CreateGithubConnector creates a new Github connector.
+func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	if err := connector.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalGithubConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
@@ -1306,11 +1408,12 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 		Expires: connector.Expiry(),
 		ID:      connector.GetResourceID(),
 	}
-	_, err = s.Put(ctx, item)
+	lease, err := s.Create(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+	connector.SetRevision(lease.Revision)
+	return connector, nil
 }
 
 // GetGithubConnectors returns all configured Github connectors
@@ -1322,7 +1425,7 @@ func (s *IdentityService) GetGithubConnectors(ctx context.Context, withSecrets b
 	}
 	connectors := make([]types.GithubConnector, len(result.Items))
 	for i, item := range result.Items {
-		connector, err := services.UnmarshalGithubConnector(item.Value)
+		connector, err := services.UnmarshalGithubConnector(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1346,7 +1449,7 @@ func (s *IdentityService) GetGithubConnector(ctx context.Context, name string, w
 		}
 		return nil, trace.Wrap(err)
 	}
-	connector, err := services.UnmarshalGithubConnector(item.Value)
+	connector, err := services.UnmarshalGithubConnector(item.Value, services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

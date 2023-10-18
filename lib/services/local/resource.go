@@ -121,15 +121,17 @@ func itemFromUser(user types.User) (*backend.Item, error) {
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := user.GetRevision()
 	value, err := services.MarshalUser(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
-		Value:   value,
-		Expires: user.Expiry(),
-		ID:      user.GetResourceID(),
+		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  user.Expiry(),
+		ID:       user.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -158,15 +160,17 @@ func itemFromCertAuthority(ca types.CertAuthority) (*backend.Item, error) {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := ca.GetRevision()
 	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
-		Value:   value,
-		Expires: ca.Expiry(),
-		ID:      ca.GetResourceID(),
+		Key:      backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
+		Value:    value,
+		Expires:  ca.Expiry(),
+		ID:       ca.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -177,15 +181,17 @@ func itemFromProvisionToken(p types.ProvisionToken) (*backend.Item, error) {
 	if err := p.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := p.GetRevision()
 	value, err := services.MarshalProvisionToken(p)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(tokensPrefix, p.GetName()),
-		Value:   value,
-		Expires: p.Expiry(),
-		ID:      p.GetResourceID(),
+		Key:      backend.Key(tokensPrefix, p.GetName()),
+		Value:    value,
+		Expires:  p.Expiry(),
+		ID:       p.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -196,15 +202,17 @@ func itemFromTrustedCluster(tc types.TrustedCluster) (*backend.Item, error) {
 	if err := tc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := tc.GetRevision()
 	value, err := services.MarshalTrustedCluster(tc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(trustedClustersPrefix, tc.GetName()),
-		Value:   value,
-		Expires: tc.Expiry(),
-		ID:      tc.GetResourceID(),
+		Key:      backend.Key(trustedClustersPrefix, tc.GetName()),
+		Value:    value,
+		Expires:  tc.Expiry(),
+		ID:       tc.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -215,15 +223,17 @@ func itemFromGithubConnector(gc types.GithubConnector) (*backend.Item, error) {
 	if err := gc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := gc.GetRevision()
 	value, err := services.MarshalGithubConnector(gc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, gc.GetName()),
-		Value:   value,
-		Expires: gc.Expiry(),
-		ID:      gc.GetResourceID(),
+		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, gc.GetName()),
+		Value:    value,
+		Expires:  gc.Expiry(),
+		ID:       gc.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -231,16 +241,18 @@ func itemFromGithubConnector(gc types.GithubConnector) (*backend.Item, error) {
 // itemFromRole attempts to encode the supplied role as an
 // instance of `backend.Item` suitable for storage.
 func itemFromRole(role types.Role) (*backend.Item, error) {
+	rev := role.GetRevision()
 	value, err := services.MarshalRole(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	item := &backend.Item{
-		Key:     backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
-		Value:   value,
-		Expires: role.Expiry(),
-		ID:      role.GetResourceID(),
+		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  role.Expiry(),
+		ID:       role.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -248,15 +260,17 @@ func itemFromRole(role types.Role) (*backend.Item, error) {
 // itemFromOIDCConnector attempts to encode the supplied connector as an
 // instance of `backend.Item` suitable for storage.
 func itemFromOIDCConnector(connector types.OIDCConnector) (*backend.Item, error) {
+	rev := connector.GetRevision()
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
-		ID:      connector.GetResourceID(),
+		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -264,6 +278,7 @@ func itemFromOIDCConnector(connector types.OIDCConnector) (*backend.Item, error)
 // itemFromSAMLConnector attempts to encode the supplied connector as an
 // instance of `backend.Item` suitable for storage.
 func itemFromSAMLConnector(connector types.SAMLConnector) (*backend.Item, error) {
+	rev := connector.GetRevision()
 	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -272,10 +287,11 @@ func itemFromSAMLConnector(connector types.SAMLConnector) (*backend.Item, error)
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
-		ID:      connector.GetResourceID(),
+		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -359,15 +375,17 @@ func itemFromLock(l types.Lock) (*backend.Item, error) {
 	if err := l.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := l.GetRevision()
 	value, err := services.MarshalLock(l)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &backend.Item{
-		Key:     backend.Key(locksPrefix, l.GetName()),
-		Value:   value,
-		Expires: l.Expiry(),
-		ID:      l.GetResourceID(),
+		Key:      backend.Key(locksPrefix, l.GetName()),
+		Value:    value,
+		Expires:  l.Expiry(),
+		ID:       l.GetResourceID(),
+		Revision: rev,
 	}, nil
 }
 

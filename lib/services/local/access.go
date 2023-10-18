@@ -104,16 +104,18 @@ func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) error {
 		return trace.Wrap(err)
 	}
 
+	rev := role.GetRevision()
 	value, err := services.MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
-		Value:   value,
-		Expires: role.Expiry(),
-		ID:      role.GetResourceID(),
+		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  role.Expiry(),
+		ID:       role.GetResourceID(),
+		Revision: rev,
 	}
 
 	_, err = s.Put(ctx, item)
@@ -203,15 +205,17 @@ func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets 
 
 // UpsertLock upserts a lock.
 func (s *AccessService) UpsertLock(ctx context.Context, lock types.Lock) error {
+	rev := lock.GetRevision()
 	value, err := services.MarshalLock(lock)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(locksPrefix, lock.GetName()),
-		Value:   value,
-		Expires: lock.Expiry(),
-		ID:      lock.GetResourceID(),
+		Key:      backend.Key(locksPrefix, lock.GetName()),
+		Value:    value,
+		Expires:  lock.Expiry(),
+		ID:       lock.GetResourceID(),
+		Revision: rev,
 	}
 
 	if _, err = s.Put(ctx, item); err != nil {
@@ -260,15 +264,17 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 			if !strings.HasPrefix(lock.GetName(), clusterName) {
 				lock.SetName(clusterName + "/" + lock.GetName())
 			}
+			rev := lock.GetRevision()
 			value, err := services.MarshalLock(lock)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			item := backend.Item{
-				Key:     backend.Key(locksPrefix, lock.GetName()),
-				Value:   value,
-				Expires: lock.Expiry(),
-				ID:      lock.GetResourceID(),
+				Key:      backend.Key(locksPrefix, lock.GetName()),
+				Value:    value,
+				Expires:  lock.Expiry(),
+				ID:       lock.GetResourceID(),
+				Revision: rev,
 			}
 			newRemoteLocksToStore[string(item.Key)] = item
 		}
