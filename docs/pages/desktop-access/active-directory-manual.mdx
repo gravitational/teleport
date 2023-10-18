@@ -1,260 +1,276 @@
 ---
-title: Desktop Access with Active Directory (Manual)
-description: Manually connect Teleport to an Active Directory domain.
+title: Configure access for Active Directory manually
+description: Explains how to manually connect Teleport to an Active Directory domain.
 videoBanner: YvMqgcq0MTQ
 ---
 
-This guide demonstrates how to connect an Active Directory domain to Teleport using the
-Desktop Service and log into a Windows desktop from that domain.
+In most cases, you can configure access for Active Directory users through the 
+Teleport Web UI and the scripts described in [Configure access for 
+Active Directory with scripts](./active-directory.mdx). However, if automation
+won't work for your environment—for example, because you use an older version of
+Teleport or have custom configuration or network requirements—you can manually 
+configure access for Active Directory domain users using the instructions in 
+this guide.
 
-<Admonition type="tip" title="Use The Wizard">
+This guide demonstrates how to connect an Active Directory domain and how to log 
+into a Windows desktop from the connected domain.
 
-Starting with Teleport 10.2.6, you can install Active Directory and configure
-the Teleport Desktop Service through the Teleport Web UI. See [Desktop Access with Active
-Directory](active-directory.mdx) for more information.
-
-Teleport Enterprise users can configure Windows Access for local users by
-following [Getting Started with Windows Access](getting-started.mdx).
-
-Continue with this guide if:
-
-- You're running an older version of Teleport and can't upgrade.
-- You want to install the Desktop Service using the same instance of `teleport`
-  running the Proxy/Auth Services.
-
-</Admonition>
+You should note that Teleport requires the Kerberos authentication protocol to support 
+certificate-based authentication for Active Directory. Because Azure Active Directory
+doesn't use Kerberos, you can't use the Teleport Windows Desktop Service for 
+Azure Active Directory.
 
 ## Prerequisites
 
-This guide requires you to have:
+To complete the steps in this guide, verify your environment meets the following requirements:
 
-- An Active Directory domain, configured for LDAPS (Teleport requires an
-  encrypted LDAP connection). Typically this means installing
-  [AD CS](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/)
+- Access to a running Teleport cluster, `tctl` admin tool, and `tsh` client tool 
+  version >= (=teleport.version=). 
+  
+  You can verify the tools you have installed by running the following commands:
 
-<Admonition title="Azure AD" type="warning">
+  ```code
+  $ tctl version
+  # Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
+  
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
 
-Microsoft's Azure Active Directory (Azure AD) offering does not support the
-Kerberos authentication protocol, which is required for the certificate-based
-authentication described in this section.
+  You can download these tools by following the appropriate [Installation 
+  instructions](../installation.mdx#installation-instructions) for the Teleport 
+  edition you use.
 
-At this time, Teleport does not support integration with Azure AD, however
-Teleport Enterprise customers can access Windows desktops (including those
-joined to Azure AD) using local accounts via the process described in [Getting
-Started with Desktop Access](./getting-started.mdx).
-</Admonition>
+- A Linux server to run the Teleport Windows Desktop Service.
+  You can use an existing server that runs the Teleport agent for other resources. 
+  
+- An Active Directory domain that is configured for LDAPS. Because Teleport requires an
+  encrypted LDAP connection, you should verify that your domain uses Active Directory 
+  Certificate Services or a non-Microsoft certification authority (CA) to issue LDAPS 
+  certificates.
 
-- Access to a Domain Controller
+  If you don't have Active Directory or Active Directory Certificate Services installed, 
+  you can add roles and services using Server Manager or refer to [Configure access for 
+  Active Directory with scripts](./active-directory.mdx) for how to
+  use the Teleport-provided scripts to install these services.
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
-
-- A Linux server to run the Teleport Desktop Service on.
-
-  You can reuse an existing server running any other Teleport instance.
+- Administrative access to a domain controller.
 
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/7. Create a restrictive service account
 
 Teleport requires a service account to connect to your Active Directory domain.
-We recommend creating a dedicated service account with restrictive permissions
+You should create a dedicated service account with restrictive permissions
 for maximum security.
 
-To create the service account, open a PowerShell prompt and copy-paste in the
-commands below. A password for this service account will be randomly generated,
-but immediately discarded. Teleport does not need this password, as it uses x509
-certificates for LDAP authentication. You can reset the password for this
-account should you need to perform password authentication.
+To create the service account:
 
-```powershell
-$Name="Teleport Service Account"
-$SamAccountName="svc-teleport"
+1. Open PowerShell on a Windows domain computer.
 
-# Generate a random password that meets the "Password must meet complexity
-# requirements" security policy setting.
-# Note: if the minimum complexity requirements have been changed from the
-# Windows default, this part of the script may need to be modified.
-Add-Type -AssemblyName 'System.Web'
-do {
-   $Password=[System.Web.Security.Membership]::GeneratePassword(15,1)
-} until ($Password -match '\d')
-$SecureStringPassword=ConvertTo-SecureString $Password -AsPlainText -Force
+1. Create a service account with a randomly-generated password by copying and pasting 
+   the following script into the PowerShell console: 
+   
+   ```powershell
+   $Name="Teleport Service Account"
+   $SamAccountName="svc-teleport"
+   
+   # Generate a random password that meets the "Password must meet complexity
+   # requirements" security policy setting.
+   # Note: if the minimum complexity requirements have been changed from the
+   # Windows default, this part of the script may need to be modified.
+   Add-Type -AssemblyName 'System.Web'
+   do {
+      $Password=[System.Web.Security.Membership]::GeneratePassword(15,1)
+   } until ($Password -match '\d')
+   $SecureStringPassword=ConvertTo-SecureString $Password -AsPlainText -Force
+   
+   New-ADUser `
+     -Name $Name `
+     -SamAccountName $SamAccountName `
+     -AccountPassword $SecureStringPassword `
+     -Enabled $true
+   ```
+   
+   The password generated for the service account is discarded immediately. 
+   Teleport doesn't need the password because it uses x509 certificates for LDAP 
+   authentication. You can reset the password for the service account if you need 
+   to perform password authentication.
 
-New-ADUser `
-  -Name $Name `
-  -SamAccountName $SamAccountName `
-  -AccountPassword $SecureStringPassword `
-  -Enabled $true
-```
+1. Set the minimum permissions that must granted to the service account by running the 
+   following script in the PowerShell console:
 
-Next, in the same PowerShell prompt, enter the following commands to limit your
-service account's permissions.
+   ```powershell
+   # Save your domain's distinguished name to a variable.
+   $DomainDN=$((Get-ADDomain).DistinguishedName)
+   
+   # Create the CDP/Teleport container.
+   # If the command fails with "New-ADObject : An attempt was made to add an object
+   # to the directory with a name that is already in use", it means the object
+   # already exists and you can move on to the next step.
+   New-ADObject -Name "Teleport" -Type "container" -Path "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN"
+   
+   # Allow Teleport to create LDAP containers in the CDP container.
+   dsacls "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CC;container;"
+   
+   # Allow Teleport to create and delete cRLDistributionPoint objects in the CDP/Teleport container.
+   dsacls "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CCDC;cRLDistributionPoint;"
+   
+   # Allow Teleport to write the certificateRevocationList property in the CDP/Teleport container.
+   dsacls "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN " /I:T /G "$($SamAccountName):WP;certificateRevocationList;"
+   
+   # Allow Teleport to create and delete certificationAuthority objects in the NTAuthCertificates container.
+   dsacls "CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CCDC;certificationAuthority;"
+   
+   # Allow Teleport to write the cACertificate property in the NTAuthCertificates container.
+   dsacls "CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):WP;cACertificate;"   
+   ```
 
-```powershell
-# Save your domain's distinguished name to a variable.
-$DomainDN=$((Get-ADDomain).DistinguishedName)
+1. Get the security identifier for the new service account.
+   For example, if you used the default service account name, run the following command:
+   
+   ```powershell
+   Get-AdUser -Identity "svc-teleport" | Select SID
+   ```
+   
+   The command returns the security identifier for the specified account:
 
-# Create the CDP/Teleport container.
-# If the command fails with "New-ADObject : An attempt was made to add an object
-# to the directory with a name that is already in use", it means the object
-# already exists and you can move on to the next step.
-New-ADObject -Name "Teleport" -Type "container" -Path "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN"
+   ```powershell
+   SID
+   ---
+   S-1-5-21-209875886-835680547-4265310078-1113
+   ```
 
-# Gives Teleport the ability to create LDAP containers in the CDP container.
-dsacls "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CC;container;"
-# Gives Teleport the ability to create and delete cRLDistributionPoint objects in the CDP/Teleport container.
-dsacls "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CCDC;cRLDistributionPoint;"
-# Gives Teleport the ability to write the certificateRevocationList property in the CDP/Teleport container.
-dsacls "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN " /I:T /G "$($SamAccountName):WP;certificateRevocationList;"
-# Gives Teleport the ability to create and delete certificationAuthority objects in the NTAuthCertificates container.
-dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CCDC;certificationAuthority;"
-# Gives Teleport the ability to write the cACertificate property in the NTAuthCertificates container.
-dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):WP;cACertificate;"
-
-```
-
-To save yourself time later, you can use the same prompt to get the security
-identifier of your new service account by running this command:
-
-```powershell
-Get-AdUser -Identity $SamAccountName | Select SID
-```
-
-Note this value (beginning with "S-") down, as it will be used as the `sid` field
-in the `ldap` section of your configuration file in a later step.
+1. Copy the full security identifier—beginning with `S-`—returned. 
+   
+   You'll use this value for the `sid` field when you configure the `ldap` settings 
+   in a later step.
 
 ## Step 2/7. Prevent the service account from performing interactive logins
 
-<Admonition type="note" title="gpupdate.exe">
-  Throughout this step and the next one, you will be modifying GPOs, and
-  sometimes GPO modifications can take some time to propagate to all hosts. You
-  can force your changes to take effect immediately on your current host at any
-  time by opening a PowerShell prompt and running `gpupdate.exe /force` (though
-  their effects may still take time to propagate to other machines on the
-  domain).
-</Admonition>
+The next steps modify group policy objects (GPOs). Changes to group policies
+can take time to propagate to all hosts. You can force changes to take effect 
+immediately on your current host by opening PowerShell and running 
+`gpupdate.exe /force`. However, the change might still take time to propagate to other 
+hosts in the domain.
 
-The Teleport service account is only needed to authenticate over LDAP, meaning
-that it needn't be able to log in to Windows machines like an ordinary user.
-Restrict it from doing so by creating a new Group Policy Object (GPO) linked to
-your entire domain, and then deny it interactive login.
+The Teleport service account is only needed to authenticate over LDAP. The account
+doesn't need to log on to Windows computers like an ordinary user.
+You can prevent the service account from being used to log on by creating a new 
+Group Policy Object (GPO) linked to your entire domain, and then denying interactive 
+logins.
 
 ### Create a GPO
 
-1. Open a PowerShell prompt and change the `$GPOName` variable below to your
-   desired GPO name, or leave the recommended name:
+1. Open PowerShell and specify a name for the new group policy object with the `$GPOName` variable:
 
-```powershell
-$GPOName="Block teleport-svc Interactive Login"
-```
+   ```powershell
+   $GPOName="Block teleport-svc Interactive Login"
+   ```
 
-1. Create the new GPO by running (from the same prompt):
+1. Create the new GPO by running the following command in the PowerShell console:
 
-```powershell
-New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
-```
+   ```powershell
+   New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
+   ```
 
 ### Deny interactive login
 
-1. Open the program named `Group Policy Management` and find the GPO you just
-   created
-   (`$FOREST > Domains > $DOMAIN > Group Policy Objects > Block teleport-svc Interactive Login`),
-   right-click on it and select `Edit...` from the context menu.
+1. Open **Group Policy Management** and expand Forest, Domains, your domain, and Group Policy Objects
+   to locate the group policy object you just created.
+   
+1. Select the group policy object, click **Action**, then select **Edit**.
 
-1. Select:
+1. Expand Computer Configuration, Policies, Windows Settings, Security Settings, Local Policies,
+   then select **User Rights Assignment**.
 
-   ```text
-   Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > User Rights Assignment
-   ```
+1. Double-click **Deny log on locally**, then select **Define these policy settings**.
 
-1. Double click `Deny log on locally` and in the popup, check `Define these policy settings`.
+1. Click **Add User or Group**, then click **Browse**. 
 
-1. Then click `Add User or Group...`, `Browse ...`, enter the SAM account name
-   of the user you created above (`svc-teleport`) and hit `Check Names` select
-   your Group, and then hit `OK` on all the windows.
+1. Type all or part of the service account name—for example, `svc-teleport`—then click **Check Names**. 
 
-1. Repeat steps 3 and 4 for `Deny log on through Remote Desktop Services` (in
-   lieu of `Deny log on locally`).
+1. Verify the **Teleport Service Account** is selected, then click **OK** in all the dialogs.
+   
+   <Figure align="left" bordered caption="Deny Interactive Login">
+   ![Deny interactive login](../../img/desktop-access/deny-interactive-login.png)
+   </Figure>
 
-<Figure align="left" bordered caption="Deny Interactive Login">
-  ![Deny Interactive Login](../../img/desktop-access/deny-interactive-login.png)
-</Figure>
+1. Repeat these steps for **Deny log on through Remote Desktop Services**.
 
-<Admonition type="tip" title="Disabling Password Authentication">
-  For added security, consider disabling username/password authentication completely via the GPO,
-  requiring access via Teleport's virtual smart card.
-</Admonition>
+  For added security, you can disable username and password authentication completely.
+  If you disable username and password authentication, only the Teleport virtual smart 
+  card can be used to access Windows computers in the domain.
 
 ## Step 3/7. Configure a GPO to allow Teleport connections
 
-Next, we need to configure a GPO to allow Teleport desktop sessions. This
-includes telling your computers to trust Teleport's CA, allowing the
-certificate-based smart card authentication, and ensuring RDP is enabled.
+To enable access to Windows desktop sessions through Teleport, you must configure a 
+group policy object that allows Windows computers to trust the Teleport certificate 
+authority and accept certificate-based smart card authentication.
 
-### Export the Teleport CA
+You need to do the following to configure the group policy object: 
 
-The following step requires an existing cluster. If you don't already have a
-Teleport cluster up and running, see our general [Getting
-Started](../index.mdx) guide to set up a demo cluster.
+- Export a certificate signed by the Teleport certificate authority for an existing 
+  Teleport cluster.
+- Create a new group policy object and import the signed Teleport certificate.
+- Publish the signed Teleport certificate to the Active Directory domain.
+- Publish the signed Teleport certificate to the NTAuth Store.
+- Enable smart card authentication.
+- Allow remote desktop connections.
 
-<Admonition type="note" title="User CA Rotation">
-These steps will need to be repeated if Teleport's user certificate authority is rotated.
-</Admonition>
+You must repeat these steps if you rotate the Teleport user certificate authority.
 
-Get the Teleport user CA certificate by running the following in the Windows
-machine where you can manage your group policy, assigning <Var name="proxy" />
-to the address of your Teleport Proxy Service:
+### Export the Teleport certificate
 
-```code
-$ curl -o user-ca.cer https://<Var name="proxy"/>/webapi/auth/export?type=windows
-```
+To export the Teleport user CA certificate:
 
-<Admonition type="note" title="Take note of the location">
-Take note of the path to the `user-ca.cer` file, as you will need this in the next step.
-</Admonition>
+1. Log on to a Windows domain controller where you can access **Group Policy Management**.
 
-### Create another GPO and import the Teleport CA
+1. Open PowerShell and download the Teleport user certificate authority by running the following 
+   command and replacing `teleport.example.com` with the address of your Teleport cluster:
+   
+   ```code
+   $ curl -o user-ca.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
+   ```
+   
+1. Take note of the path to the `user-ca.cer` file for use in a later step.
 
-<Admonition type="note" title="Domain Wide Policy">
-For the purposes of this guide, we apply the GPO we are about to create to our
-entire AD domain. In the case where you wish for only a subset of computers
-within your AD domain to be accessible via Teleport, you should apply the GPO
-to an OU that includes only such computers.
-</Admonition>
+### Create the GPO for the Teleport certificate
 
-<Admonition type="warning" title="Differences when using AWS Managed Active Directory">
-When using AWS Managed Active Directory, AWS Delegated Domain Administrator accounts are not granted permissions
-to apply GPOs at the domain level.
+To configure the group policy object:
 
-Instead, you should apply this GPO to the automatically-created OU with the NetBIOS domain name containing `Computers`
-and `Users` which is nested one level beneath the domain root.
-
-<Figure align="left" bordered caption="AWS Managed AD OU Location">
-![AWS Managed AD OU Location](../../img/desktop-access/aws-managed-ad.png)
-</Figure>
-</Admonition>
-
-1. Create another new GPO, this time giving it a name like `Teleport Access Policy`:
+1. Create a new group policy object with the name `Teleport Access Policy` by running the following 
+   command:
 
    ```powershell
    $GPOName="Teleport Access Policy"
    New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
    ```
+   
+   This command applies the GPO to the entire Active Director domain. 
+   If you only want to protect a subset of computers in the domain, you can apply the GPO to
+   a specific organizational unit (OU) that only includes those computers.
+   
+   If you use AWS Managed Microsoft Active Directory, AWS Delegated Domain Administrator 
+   accounts are not granted permissions to apply GPOs at the domain level. Instead, you 
+   should apply this GPO to the automatically-created OU with the NetBIOS domain name 
+   containing `Computers` and `Users` nested one level inside the domain root.
+   
+   <Figure align="left" bordered caption="AWS Managed AD OU Location">
+   ![AWS Managed AD OU Location](../../img/desktop-access/aws-managed-ad.png)
+   </Figure> 
 
-1. Open the `Group Policy Management` program, and on the left pane,
-   navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects`.
+1. Open **Group Policy Management** and expand Forest, Domains, your domain, and 
+   Group Policy Objects to locate the GPO you just created.
 
-1. Right click on the GPO you just made (`Teleport Access Policy`), and select `Edit...`.
+1. Select the new GPO—for example, `Teleport Access Policy`, right-click, then select **Edit**.
 
-1. In the group policy editor, select:
+1. In the group policy editor, expand Computer Configuration, Policies, Windows Settings, and
+   Security Settings to select **Public Key Policies**.
 
-   ```text
-   Computer Configuration > Policies > Windows Settings > Security Settings > Public Key Policies
-   ```
+1. Right-click **Trusted Root Certification Authorities**, then click **Import**.
 
-1. Right click on `Trusted Root Certification Authorities` and select `Import`.
-
-1. Click through the wizard, selecting your CA file.
+1. Use the wizard to select and import the Teleport certificate.
 
    <Figure align="left" bordered caption="Import Teleport CA">
    ![Import Teleport CA](../../img/desktop-access/ca.png)
@@ -262,225 +278,211 @@ and `Users` which is nested one level beneath the domain root.
 
 ### Publish the Teleport CA to the Active Directory domain
 
-<Admonition type="note" title="Differences when using AWS Managed Active Directory">
-When using AWS Managed Active Directory, you should run this command using an
-account which is part of the `AWS Delegated Domain Administrators` group, such
-as the AWS-provided `admin` account.
-</Admonition>
+To publish the Teleport certificate in the Active Directory domain:
 
-On a machine which is joined to your domain and logged in as an account in the
-`Domain Administrators` group, run the two commands below at a PowerShell prompt
-to publish the Teleport CA to your Active Directory domain (using the path to
-the exported Teleport `user-ca.cer` file that you copied above):
+1. Log on to a Windows computer that is joined to the Active Directory domain with 
+   an account that's a member of the **Domain Administrators** or **AWS Delegated 
+   Domain Administrators** group.
 
-```powershell
-certutil –dspublish –f <PathToCertFile.cer> RootCA
-```
-
-This step enables the domain controllers to trust the Teleport CA, which will
-allow smart card logons via Teleport to succeed.
+1. Open PowerShell and run the following command using the path to the `user-ca.cer`
+   file you exported from Teleport:
+   
+   ```powershell
+   certutil -dspublish -f <Var name="user-ca.cer"/> RootCA
+   ```
+   
+   This command enables the domain controllers to trust the Teleport CA so that 
+   certificate-based smart card authentication through Teleport can succeed.
 
 ### Publish the Teleport CA to the NTAuth Store
 
-In order for authentication with Teleport-issued certificates to succeed, the
-Teleport CA needs to be published to the enterprise NTAuth store. Teleport will
-periodically publish its CA after it is able to authenticate, but this step
-needs to be performed manually the first time in order for Teleport to have LDAP
+For authentication with Teleport-issued certificates to succeed, the
+Teleport CA also must be published to the enterprise NTAuth store. 
+Teleport periodically publishes its CA after it is able to authenticate, but 
+this step must be performed manually the first time for Teleport to have LDAP
 access.
 
-1. Publish the CA to LDAP:
+To publish the Teleport CA to LDAP:
+
+1. Open PowerShell and run the following command using the path to the `user-ca.cer`
+   file:
 
    ```powershell
-   certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
+   certutil -dspublish -f <Var name="user-ca.cer"/> NTAuthCA
    ```
 
-1. Force the retrieval of the CA from LDAP. While this step is not required, it
-   speeds up the process and allows you to proceed to the next steps without
-   waiting for the certificate to propagate.
+1. Force the retrieval of the CA from LDAP by running the following command:
 
    ```powershell
    certutil -pulse
    ```
 
-### Enable the Smart Card service
+   This step isn't strictly required. However, it allows you to proceed to the 
+   next steps without waiting for the certificate to propagate.
 
-Teleport performs certificate based authentication by emulating a smart card.
+### Enable smart card authentication
 
-1. Still editing your `Teleport Access Policy`, select:
+Teleport performs certificate-based authentication by emulating a smart card.
 
-   ```text
-   Computer Configuration > Policies > Windows Settings > Security Settings > System Services
-   ```
+To add smart card authentication to your group policy object:
 
-1. Double click on `Smart Card`, select `Define this policy setting` and switch
-   to `Automatic` then click `OK`.
+1. Verify that you have the `Teleport Access Policy` group policy object open in the 
+   group policy editor.
+
+1. Expand Computer Configuration, Policies, Windows Settings, and
+   Security Settings to select **System Services**.
+
+1. Double-click **Smart Card** and select **Define this policy setting**. 
+
+1. Select **Automatic**, then click **OK**.
 
    <Figure align="left" bordered caption="Enable the Smart Card Service">
    ![Enable Smartcard](../../img/desktop-access/smartcard.png)
    </Figure>
 
-### Allow remote RDP connections
+### Allow remote desktop connections
 
-1. Next, select:
+To finish configuring the `Teleport Access Policy` group policy object, you need to configure
+policies that allow remote connections to domain computers.
 
-   ```text
-   Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Connections
-   ```
+1. Verify that you have the `Teleport Access Policy` group policy object open in the 
+   group policy editor.
 
-1. Right click on `Allow users to connect remotely by using Remote Desktop Services` and select `Edit`. Select `Enabled` and `OK`.
+1. Expand Computer Configuration, Policies, Administrative Templates, Windows Components,
+   Remote Desktop Services, and Remote Desktop Session Host to select **Connections**.
 
-1. Select:
+1. Right-click **Allow users to connect remotely by using Remote Desktop Services**, 
+   select **Edit**, select **Enabled**, then click **OK**.
 
-   ```text
-   Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
-   ```
+1. Under Remote Desktop Session Host, select **Security**.
 
-1. Right click `Require user authentication for remote connections by using Network Level Authentication`, edit, select `Disable` and `OK`.
+1. Right-click **Require user authentication for remote connections by using 
+   Network Level Authentication**, select **Edit**, select **Disabled**, then click **OK**.
 
    <Figure align="left" bordered caption="Disable Require user authentication...">
    ![Disable Require](../../img/desktop-access/disable.png)
    </Figure>
 
-1. Right click `Always prompt for password upon connection`, edit, select **`Disabled`** and .
-   Teleport's smart card based authentication generates a random smart card PIN for each
-   desktop session and provides the PIN to the desktop during the RDP connection establishment.
-   Since the PIN is never provided to the Teleport user, this setting must be disabled in
-   order for authentication to complete.
+1. Right-click **Always prompt for password upon connection**, select **Edit**, 
+   select **Disabled**, then click **OK**.
+   
+   The Teleport certificate-based smart card authentication generates a random smart card 
+   PIN for each desktop session and provides the PIN to the desktop when establishing the RDP 
+   connection.
+   Because the PIN is never provided to the Teleport user, the **Always prompt for password 
+   upon connection** policy must be **disabled** for authentication to succeed.
 
-### Allow credentials to be provided over RDP
+1. Expand Computer Configuration, Policies, Windows Settings, Security Settings to select 
+   **Windows Firewall with Advanced Security**.
 
-Select:
+1. Right-click **Inbound Rules**, select **New Rule**.
 
-```text
-Computer Configuration > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security > "Always prompt for password upon connection"
-```
-
-Set to `Disabled` and click `OK`.
-
-### Open firewall to inbound RDP connections
-
-1. Select:
-
-   ```text
-   Computer Configuration > Policies > Windows Settings > Security Settings > Windows Firewall with Advanced Security (x2)
-   ```
-
-1. Right click on `Inbound Rules` and select `New Rule...`.
-
-1. Under `Predefined` select `Remote Desktop`.
-
-1. Only select the rule for `User Mode (TCP-in)`.
-
-1. On the next screen, select `Allow the connection` and finish.
+   - Under Predefined, select **Remote Desktop**, then click **Next**.
+   - Select **User Mode (TCP-in)**, then click **Next**.
+   - Select **Allow the connection**, then click **Finish**.
 
    <Figure align="left" bordered caption="Open the Firewall">
    ![Open the Firewall](../../img/desktop-access/firewall.png)
    </Figure>
 
-### Ensure your GPO is updated
-
-If you have not done so already, ensure your GPO is updated by opening a
-PowerShell prompt and running:
-
-```powershell
-gpupdate.exe /force
-```
+1. Open PowerShell and run the following command to update your Teleport
+   group policy object:
+   
+   ```powershell
+   gpupdate.exe /force
+   ```
 
 ## Step 4/7. Configure a certificate for RDP connections
 
-<Admonition type="note" title="Secure Cipher Suites">
-Teleport's RDP client supports only secure algorithms for making TLS connections,
-so we have to configure our Domain Controller to support those cipher suites as well.
-This step is only *necessary* for Windows Server 2012 R2 as it does not support
-secure algorithms by default. If it does not apply to you, you can skip this step
-and go to the [next step](#step-57-export-your-ldap-ca-certificate).
-</Admonition>
+The Teleport RDP client requires secure cryptographic algorithms to make 
+TLS connections. However, Windows Server 2012 R2 doesn't support these algorithms 
+by default.
+You can configure Windows Server 2012 R2 domain controllers to support the
+required algorithms by doing the following:
 
-In this step we'll create a new certificate template that uses elliptic curve
-cryptography, and then configure our GPO to use the newly created template to
-issue certificates used for Remote Desktop connections.
+- Create a new certificate template that uses elliptic curve cryptography.
+- Update the Teleport group policy object to use the new certificate template 
+  when issuing certificates for remote desktop connections.
+
+If your domain controllers support the required algorithms, you can skip this step
+and go to [Export your LDAP CA certificate](#step-57-export-your-ldap-ca-certificate).
 
 ### Create a certificate template
 
-In this section, we will create a certificate template that uses elliptic curve
-P-384 and uses SHA384 as the signature algorithm.
+To create a certificate template that uses elliptic curve P-384 and SHA384 as the 
+signature algorithm:
 
-1. Open the Microsoft Management Console (MMC)
+1. Click Start, Control Panel, and Administrative Tools to select **Certificate Authority**.
 
-   ```text
-   Start > Control Panel > Administrative Tools > Certificate Authority
-   ```
+1. Open your CA computer, right-click **Certificate Templates**, then select **Manage**.
 
-1. Open your CA computer and right-click on `Certificate Templates`, then select `Manage`.
+1. Select the *Computer* template, right-click, then select **Duplicate Template**.
 
-1. Find the `Computer` template on the list, right-click on it, then select `Duplicate Template`.
+1. Select the **Compatibility** tab:
+   
+   - Change **Certification Authority** to **Windows Server 2012 R2**, then click **OK**.
+   - Change **Certificate recipient** to **Windows Server 2012 R2**, then click **OK**.
 
-1. In the `Compatibility` tab change `Certification Authority` to `Windows Server 2012 R2` and click `OK`.
+1. Select the **General** tab:
+   
+   - Change **Template display name** to **RemoteDesktopAccess**.
+   - Verify that **Template name** is also **RemoteDesktopAccess**.
 
-1. In the same tab change `Certificate recipient` to `Windows Server 2012 R2` and click `OK`.
+1. Select the **Cryptography** tab:
+   
+   - Change **Provider Category** to **Key Storage Provider**.
+   - Change **Algorithm name** to **ECDH_P384**.
+   - Change **Request hash** to **SHA384**.
 
-1. Go to the `General` tab and change `Template display name` to `RemoteDesktopAccess`.
-   Make sure `Template name` is also `RemoteDesktopAccess`.
+1. Select the **Extensions** tab:
+   
+   - Select **Application Polices**, then click **Edit**.
+   - Remove all entries from the list.
 
-1. In the `Cryptography` tab change `Provider Category` to `Key Storage Provider`,
-   then `Algorithm name` to `ECDH_P384`. Also, change `Request hash` to `SHA384`.
+1. Select the **Security** tab:
+   
+   - Select **Domain Computers** and give the group **Read** and **Enroll** permissions.
 
-1. In the `Extensions` tab select `Application Polices` and click the `Edit` button.
+1. Click **OK** to create the Template.
 
-1. Remove all entries from the list.
+1. Go back to the Certificate Authority console, right-click **Certificate Templates**.
 
-1. Go to the `Security` tab, select `Domain Computers` and give the group `Read` and `Enroll` permissions.
+1. Click **New**, select **Certificate Template to Issue**, then select **RemoteDesktopAccess**.
 
-1. Finally, create a template by clicking `OK`.
-
-1. Go back to the Certificate Authority window and right-click on `Certificate Templates`. Then:
-
-   ```text
-   New > Certificate Template to Issue
-   ```
-
-1. Select `RemoteDesktopAccess` and click `OK`.
+1. Click **OK**.
 
 ### Update GPO to use a new certificate template
 
-In the group policy editor for `Teleport Access Policy`, select:
+To update the Teleport group policy object to use the new certificate template:
 
-```text
-Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
-```
+1. Open the `Teleport Access Policy` group policy object in the group policy editor.
+1. Expand Computer Configuration, Policies, Administrative Templates, Windows Components,
+   Remote Desktop Services, and Remote Desktop Session Host to select **Security**.
+1. Right-click **Server authentication certificate template**, select **Edit**, select
+   **Enabled**, then set the Certificate Template Name to **RemoteDesktopAccess**.
+   
+   <Figure align="left" bordered caption="RDP Certificate Template">
+   ![RDP Certificate Template](../../img/desktop-access/rdp-certificate-template.png)
+   </Figure>
 
-Right-click on `Server authentication certificate template`, `Edit`, then select
-`Enabled` and fill `Certificate Template Name` with `RemoteDesktopAccess`.
+1. Expand Computer Configuration, Policies, and Windows Settings to select 
+   **Public Key Policies**.
 
-<Figure align="left" bordered caption="RDP Certificate Template">
-![RDP Certificate Template](../../img/desktop-access/rdp-certificate-template.png)
-</Figure>
+1. Double-click **Certificate Services Client - Auto-Enrollment**, then select
+   **Enabled** in the Configuration Model.
 
-### Configure server certificate auto-enrollment
-
-In the group policy editor for `Teleport Access Policy`, select:
-
-```text
-Computer Configuration > Policies > Windows Settings > Public Key Policies
-```
-
-Double-click on `Certificate Services Client - Auto-Enrollment`, then select
-`Enabled` in the `Configuration Model`.
-
-### Ensure your GPO is updated
-
-If you have not done so already, ensure your GPO is updated by opening a
-PowerShell prompt and running:
-
-```powershell
-gpupdate.exe /force
-```
+1. Open PowerShell and run the following command to update your Teleport
+   group policy object:
+   
+   ```powershell
+   gpupdate.exe /force
+   ```
 
 ## Step 5/7. Export your LDAP CA certificate
 
-Teleport connects to your Domain Controller via LDAPS. This means that you must
-let Teleport know that the certificate sent by your Domain Controller during the
-initial SSL connection is trusted. If your Domain Controller's certificate is
+Teleport connects to your domain controller using LDAPS. This means that you must
+let Teleport know that the certificate sent by your domain controller during the
+initial SSL connection is trusted. If your domain controller's certificate is
 trusted by the system repository on the system running Teleport, you can skip
 this step.
 
@@ -490,245 +492,155 @@ TLS verification by setting `insecure_skip_verify: true`. We do not recommend
 skipping TLS verification in production environments.
 </Details>
 
-### To export a CA certificate
+To export a CA certificate:
 
 {/* Adapted from https://www.ibm.com/docs/it/rds/5.2.1?topic=security-exporting-certificate-from-active-directory-server */}
 
-1. Begin by navigating to `Start > Control Panel > Administrative Tools > CertificateAuthority`
-   to open the CA Microsoft Management Console (MMC) GUI.
-1. Right click on your CA computer and select `Properties`.
-1. From `General` tab, click `View Certificate`.
-1. Select the `Details` view and click `Copy to File`.
-1. Click `Next` in the Certificate Export Wizard, and ensure that `DER encoded binary X.509 (.CER)`
-   is selected
-1. Select a name and location for you certificate and click through the wizard.
-
-Now transfer the exported file to the system where you're running Teleport. You
+1. Click Start, Control Panel, and Administrative Tools to select **Certificate Authority**.
+1. Select your CA computer, right-click, then select **Properties**.
+1. One the General tab, click **View Certificate**.
+1. Select **Details**, then click **Copy to File**.
+1. Click *Next* in the Certificate Export Wizard, and ensure that **DER encoded binary X.509 (.CER)**
+   is selected.
+1. Select a name and location for the certificate and click through the wizard.
+1. Transfer the exported file to the system where you're running Teleport. You
 can either add this certificate to your system's trusted repository or provide
-the filepath to the `der_ca_file` configuration variable.
+the file path to the `der_ca_file` configuration variable.
 
 ## Step 6/7. Configure Teleport
 
-Install Teleport on the host where you will run the Teleport Desktop Service:
+To configure Teleport to protect access to Windows desktops:
 
-(!docs/pages/includes/install-linux.mdx!)
+1. Install Teleport on the Linus host that will run the Teleport Windows Desktop Service:
 
-In order to enable desktop access in Teleport, add the following section in
-`/etc/teleport.yaml` on your Linux server. For a detailed description of these
-configuration fields, see the
-[configuration reference](./reference/configuration.mdx) page.
+   (!docs/pages/includes/install-linux.mdx!)
 
-<Tabs>
-<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
-The Teleport Windows Desktop Service will establish a reverse tunnel to
-the Proxy Service. This requires setting `proxy_server` to your Proxy Service
-address and providing a join token.
+1. Sign in to your Teleport cluster from your administrative workstation.
 
-First, generate a join token with the following command:
+1. Generate an invitation token for the cluster with the following command:
 
-```code
-$ tctl tokens add --type=windowsdesktop
-```
+   ```code
+   $ tctl tokens add --type=windowsdesktop
+   ```
 
-Copy the join token to a file on the instance where you will run the Windows Desktop
-Service, and then use the following configuration:
+1. Copy the invitation token to a file on the Linux host that will run the Windows Desktop
+   Service.  
 
-```yaml
-version: v3
-teleport:
-  auth_token: /path/to/token
-  proxy_server: teleport.example.com # replace with your proxy address
-windows_desktop_service:
-  enabled: yes
-  ldap:
-    # Port must be included for the addr.
-    # LDAPS port is 636 by default,
-    # e.g. example.com:636
-    addr: "$LDAP_SERVER_ADDRESS"
-    domain: "$LDAP_DOMAIN_NAME"
-    username: "$LDAP_USERNAME"
-    sid: "$LDAP_USER_SID"
-    # This should be the path to the certificate exported in Step 4.
-    der_ca_file: /path/to/cert
-  discovery:
-    base_dn: "*"
-auth_service:
-  enabled: no
-proxy_service:
-  enabled: no
-ssh_service:
-  enabled: no
-```
+1. Add the configuration for the Windows Desktop Service to the `/etc/teleport.yaml` 
+   on the Linux host. 
 
-</TabItem>
-<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
+   The `/etc/teleport.yaml` should include configuration settings similar to the following:
+   
+   ```yaml
+   version: v3
+   teleport:
+     auth_token: <Var name="path-to-token"/>
+     proxy_server: <Var name="teleport.example.com"/> # replace with your proxy address
+   windows_desktop_service:
+     enabled: yes
+     ldap:
+       # Port must be included for the addr.
+       # LDAPS port is 636 by default (example.com:636)
+       addr: "$LDAP_SERVER_ADDRESS"
+       domain: "$LDAP_DOMAIN_NAME"
+       username: "$LDAP_USERNAME"
+       sid: "$LDAP_USER_SID"
+       # Path to the certificate you exported.
+       der_ca_file: <Var name="path-to-exported-cert"/>
+     discovery:
+       base_dn: "*"
+   auth_service:
+     enabled: no
+   proxy_service:
+     enabled: no
+   ssh_service:
+     enabled: no
+   ```
 
-For Teleport Team and Teleport Enterprise Cloud, the Windows Desktop Service
-should establish a reverse tunnel to the hosted Teleport Proxy Service. This
-requires setting `proxy_server` to your cloud tenant and providing a join token.
+   For a detailed description of the configuration fields, see 
+   [Desktop Configuration Reference](./reference/configuration.mdx).
 
-First, generate a join token with the following command:
-
-```code
-$ tctl tokens add --type=windowsdesktop
-```
-
-Copy the join token to a file on the instance where you will run Windows Desktop
-Service, and then use the following configuration:
-
-```yaml
-version: v3
-teleport:
-  auth_token: /path/to/token
-  proxy_server: mytenant.teleport.sh # replace with your cloud tenant
-windows_desktop_service:
-  enabled: yes
-  ldap:
-    # Port must be included for the addr.
-    # LDAPS port is 636 by default,
-    # e.g. example.com:636
-    addr: "$LDAP_SERVER_ADDRESS"
-    domain: "$LDAP_DOMAIN_NAME"
-    username: "$LDAP_USERNAME"
-    sid: "$LDAP_USER_SID"
-    # This should be the path to the certificate exported in Step 5.
-    der_ca_file: /path/to/cert
-  discovery:
-    base_dn: "*"
-auth_service:
-  enabled: no
-proxy_service:
-  enabled: no
-ssh_service:
-  enabled: no
-```
-
-</TabItem>
-</Tabs>
-
-(!docs/pages/includes/start-teleport.mdx service="the Teleport Desktop Service"!)
+1. (!docs/pages/includes/start-teleport.mdx service="the Teleport Desktop Service"!)
 
 ## Step 7/7. Log in using Teleport
 
-### Create a Teleport user/role for Windows Desktop Access
-
-In order to gain access to a remote desktop, a Teleport user needs to have the
-appropriate permissions for that desktop.
-
+Teleport users must have appropriate permissions to access remote Windows desktops.
 For example, you can create a role that gives its users access to all Windows
-desktop labels and the `"Administrator"` user. To do so, create a file called
-`windows-desktop-admins.yaml` with the following content:
+desktop labels and the local "Administrator" user. 
 
-```yaml
-kind: role
-version: v5
-metadata:
-  name: windows-desktop-admins
-spec:
-  allow:
-    windows_desktop_labels:
-      "*": "*"
-    windows_desktop_logins: ["jsmith"]
-```
+To create a role for accessing Windows desktops:
 
-<Admonition type="warning" title="RBAC Configuration">
-Ensure that each Teleport user is only assigned Windows logins that they should
-be allowed to access.
+1. Create a file called `windows-desktop-admins.yaml` with the following content:
+   
+   ```yaml
+   kind: role
+   version: v5
+   metadata:
+     name: windows-desktop-admins
+   spec:
+     allow:
+       windows_desktop_labels:
+         "*": "*"
+       windows_desktop_logins: ["jsmith"]
+   ```
+   
+   Note that user names shared between domain and local users create login conflicts.
 
-Usernames shared between domain and local users will create login conflicts.
-</Admonition>
+1. Create the role:
 
-Create the role:
+   ```code
+   $ tctl create -f windows-desktop-admins.yaml
+   ```
 
-```code
-$ tctl create -f windows-desktop-admins.yaml
-```
+1. (!docs/pages/includes/add-role-to-user.mdx role="windows-desktop-admins"!)
+   
+   Now that you have a Linux host running the Windows Desktop Service and 
+   a role that allows Teleport users to connect to Windows computers, you can 
+   use the Teleport user assigned the `windows-desktop-admins` role 
+   to connect to Windows desktops from the Teleport Web UI.
 
-(!docs/pages/includes/add-role-to-user.mdx role="windows-desktop-admins"!)
+To connect to a Windows desktop:
 
-### Connect to your Windows desktop
+1. Sign in to the Teleport cluster using an account that's assigned the 
+   `windows-desktop-admins` role.
 
-At this point everything is ready for Desktop Service connections. Open
-the Teleport web UI and log in with a user with the role created above.
+1. Select **Resources**.
 
-On the left pane, select `Desktops`. You should see the list of all
-computers and Domain Controllers connected to your domain. Select one and click
-`CONNECT` on the right, selecting one of the available logins:
+1. Click **Type**, then select **Desktops**.
 
-<Figure align="left" bordered caption="Select Desktop">
-![Select Desktop](../../img/desktop-access/select-desktop.png)
-</Figure>
+1. Click **Connect** for the Windows computer you want to access, then select the 
+   login to use for the connection.
 
-A new tab will open and, after a few seconds, you should be logged in to your
-target Windows host.
+   ![Connect to a Windows desktop from the Teleport Web UI](../../img/desktop-access/passwordless-desktop.png)
+
+   Teleport opens a remote desktop connection and starts recording the desktop session. When you're
+   finished working with the Windows desktop, click the **More items** menu, then click **Disconnect**.
+
+   ![Disconnect from a Windows desktop ](../../img/desktop-access/desktop-disconnect.png)
+
+   To view the recording, select **Management** in the Teleport Web UI, then click **Session Recordings** 
+   in the Activity section.
 
 ## Security hardening
 
-By default, the Default Domain Policy grants the "Add workstations to domain
-user" right to all authenticated users. As a security best practice, Teleport
-recommends that this level of access is only granted to administrators or other
-privileged groups.
+By default, the Default Domain Policy grants the **Add workstations to domain
+user** right to all authenticated users. As a security best practice, Teleport
+recommends that you only grant this right to administrators or other privileged groups.
 
-To make this change, open the Group Policy Management Console, navigate to
-`$FOREST > Domains > $DOMAIN > Group Policy Objects`, right-click on Default
-Domain Controller Policy and select Edit.
+To change the default domain policy:
 
-In the Group Policy Editor, navigate to
+1. Open **Group Policy Management** and expand Forest, Domains, your domain, and 
+   Group Policy Objects.
+1. Right-click **Default Domain Controller Policy**, then select **Edit**.
+1. In the group policy editor, expand Computer Configuration, Policies, Windows 
+   Settings, Security Settings, Local Policies, and User Rights Assignment to select 
+   **Add workstations to domain**.   
+1. Double-click the  **Add workstations to domain** policy and ensure that the 
+   **Authenticated Users** group is not present.
 
-```text
-Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > User Rights Assignment
-```
+## Next steps
 
-Double click the "Add workstations to domain" policy and ensure that the
-"Authenticated Users" group is not present.
-
-## Multiple domains
-
-Each `windows_desktop_service` is designed to support connecting to hosts in a
-single Active Directory domain. If you have multiple independent domains, you
-can deploy multiple Teleport agents to service them.
-
-If you have multiple domains with a trust relationship between them, you can
-configure Teleport to perform PKI operations against one domain, while generating
-certificates for users in another domain.
-
-In order for this to work, the hosts that you want to connect to and the AD
-users that you want to connect as must reside in the same domain.
-
-For example, suppose you have a root domain at `example.com` and a child domain
-for developers at `dev.example.com`. If your PKI is configured at the root, but
-you want to allow users in the child domain to connect to hosts in the child
-domain, you would do the following:
-
-1. Import Teleport's CA certificate as a trusted root certificate in the root
-   domain's group policy and add the certificate to the NTAuth store as
-   described in the
-   [section above](#publish-the-teleport-ca-to-the-ntauth-store).
-1. Configure Teleport to perform PKI against the root domain, while
-   issuing certificates for users and hosts in the child domain:
-
-  ```yaml
-  windows_desktop_service:
-    enabled: yes
-
-    # configure LDAP settings to point at the child domain
-    ldap:
-      addr: dev.example.com:636
-      username: 'DEV\svc-teleport'
-
-    # optional: configure discovery for the child domain
-    discovery:
-      base_dn: CN=Computers,DC=dev,DC=example,DC=com
-
-    # perform PKI against the root domain
-    pki_domain: root.example.com
-  ```
-
-With this configuration, Teleport will generate certificates for users in
-`dev.example.com`, but it will publish its CA and CRLs to `example.com`.
-
-## Troubleshooting
-
-If you hit any issues, check out the
-[Troubleshooting documentation](./troubleshooting.mdx) for common problems and
+If you encounter any issues, see [Troubleshooting](./troubleshooting.mdx) for common problems and
 solutions.
+For information about configuring Windows-specific role permissions, see 
+[Role-Based Access Control for Desktops](./rbac.mdx).
