@@ -1803,7 +1803,8 @@ proto.prehog.v1alpha.UserLoginEvent.toObject = function(includeInstance, msg) {
   var f, obj = {
     userName: jspb.Message.getFieldWithDefault(msg, 1, ""),
     connectorType: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    deviceId: jspb.Message.getFieldWithDefault(msg, 3, "")
+    deviceId: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    requiredPrivateKeyPolicy: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -1852,6 +1853,10 @@ proto.prehog.v1alpha.UserLoginEvent.deserializeBinaryFromReader = function(msg, 
       var value = /** @type {string} */ (reader.readString());
       msg.setDeviceId(value);
       break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRequiredPrivateKeyPolicy(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -1899,6 +1904,13 @@ proto.prehog.v1alpha.UserLoginEvent.serializeBinaryToWriter = function(message, 
   if (f.length > 0) {
     writer.writeString(
       3,
+      f
+    );
+  }
+  f = message.getRequiredPrivateKeyPolicy();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
       f
     );
   }
@@ -1956,6 +1968,24 @@ proto.prehog.v1alpha.UserLoginEvent.prototype.getDeviceId = function() {
  */
 proto.prehog.v1alpha.UserLoginEvent.prototype.setDeviceId = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string required_private_key_policy = 4;
+ * @return {string}
+ */
+proto.prehog.v1alpha.UserLoginEvent.prototype.getRequiredPrivateKeyPolicy = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.UserLoginEvent} returns this
+ */
+proto.prehog.v1alpha.UserLoginEvent.prototype.setRequiredPrivateKeyPolicy = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
 };
 
 
@@ -3414,7 +3444,8 @@ proto.prehog.v1alpha.UserCertificateIssuedEvent.toObject = function(includeInsta
     usageDatabase: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
     usageApp: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
     usageKubernetes: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
-    usageDesktop: jspb.Message.getBooleanFieldWithDefault(msg, 7, false)
+    usageDesktop: jspb.Message.getBooleanFieldWithDefault(msg, 7, false),
+    privateKeyPolicy: jspb.Message.getFieldWithDefault(msg, 8, "")
   };
 
   if (includeInstance) {
@@ -3479,6 +3510,10 @@ proto.prehog.v1alpha.UserCertificateIssuedEvent.deserializeBinaryFromReader = fu
     case 7:
       var value = /** @type {boolean} */ (reader.readBool());
       msg.setUsageDesktop(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPrivateKeyPolicy(value);
       break;
     default:
       reader.skipField();
@@ -3556,6 +3591,13 @@ proto.prehog.v1alpha.UserCertificateIssuedEvent.serializeBinaryToWriter = functi
   if (f) {
     writer.writeBool(
       7,
+      f
+    );
+  }
+  f = message.getPrivateKeyPolicy();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
       f
     );
   }
@@ -3704,6 +3746,24 @@ proto.prehog.v1alpha.UserCertificateIssuedEvent.prototype.getUsageDesktop = func
  */
 proto.prehog.v1alpha.UserCertificateIssuedEvent.prototype.setUsageDesktop = function(value) {
   return jspb.Message.setProto3BooleanField(this, 7, value);
+};
+
+
+/**
+ * optional string private_key_policy = 8;
+ * @return {string}
+ */
+proto.prehog.v1alpha.UserCertificateIssuedEvent.prototype.getPrivateKeyPolicy = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.UserCertificateIssuedEvent} returns this
+ */
+proto.prehog.v1alpha.UserCertificateIssuedEvent.prototype.setPrivateKeyPolicy = function(value) {
+  return jspb.Message.setProto3StringField(this, 8, value);
 };
 
 

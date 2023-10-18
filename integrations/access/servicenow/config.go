@@ -65,9 +65,13 @@ func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, 
 		err         error
 	)
 	if webProxyAddr != "" {
-		if webProxyURL, err = lib.AddrToURL(webProxyAddr); err != nil {
+		if c.WebProxyURL, err = lib.AddrToURL(webProxyAddr); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	if clusterName != "" {
+		c.ClusterName = clusterName
 	}
 
 	client, err := NewClient(c.ClientConfig)

@@ -237,6 +237,6 @@ message ReviewChanges {
   // review_frequency_changed is populated if the review frequency has changed.
   ReviewFrequency review_frequency_changed = 4;
 
-  // review_day_of_month changed is populated if the review day of month has changed.
+  // review_day_of_month_changed is populated if the review day of month has changed.
   ReviewDayOfMonth review_day_of_month_changed = 5;
 }

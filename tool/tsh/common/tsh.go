@@ -1708,7 +1708,7 @@ func exportSession(cf *CLIConf) error {
 
 	switch format {
 	case teleport.JSON:
-		if err := utils.WriteJSON(os.Stdout, events); err != nil {
+		if err := utils.WriteJSONArray(os.Stdout, events); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.YAML:
