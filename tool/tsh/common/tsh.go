@@ -1120,6 +1120,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		}
 	}
 
+	// Remove HTTPS:// in proxy parameter as https is automatically added
+	cf.Proxy = strings.TrimPrefix(cf.Proxy, "https://")
+	cf.Proxy = strings.TrimPrefix(cf.Proxy, "HTTPS://")
+
 	// Identity files do not currently contain a proxy address. When loading an
 	// Identity file, a proxy must be passed on the command line as well.
 	if cf.IdentityFileIn != "" && cf.Proxy == "" {
@@ -1708,7 +1712,7 @@ func exportSession(cf *CLIConf) error {
 
 	switch format {
 	case teleport.JSON:
-		if err := utils.WriteJSON(os.Stdout, events); err != nil {
+		if err := utils.WriteJSONArray(os.Stdout, events); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.YAML:
