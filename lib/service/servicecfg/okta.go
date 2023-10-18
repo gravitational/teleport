@@ -29,4 +29,6 @@ type OktaConfig struct {
 
 	// SyncPeriod is the duration between synchronization calls.
 	SyncPeriod time.Duration
+
+	UserSyncEnabled bool
 }
