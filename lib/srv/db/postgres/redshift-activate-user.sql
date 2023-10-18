@@ -15,11 +15,11 @@ BEGIN
         IF EXISTS (SELECT user_name FROM stv_sessions WHERE user_name = CONCAT('IAM:', username)) THEN
           SELECT INTO cur_roles_length COUNT(role_name) FROM svv_user_grants WHERE user_name = username AND admin_option=false AND role_name != 'teleport-auto-user';
           IF roles_length != cur_roles_length THEN
-            RAISE EXCEPTION 'User has active connections and roles have changed';
+            RAISE EXCEPTION 'TP002: User has active connections and roles have changed';
           END IF;
           FOR i IN 0..roles_length-1 LOOP
             IF NOT EXISTS (SELECT role_name FROM svv_user_grants WHERE user_name = username AND admin_option=false AND role_name = JSON_EXTRACT_ARRAY_ELEMENT_TEXT(roles,i)) THEN
-                RAISE EXCEPTION 'User has active connections and roles have changed';
+                RAISE EXCEPTION 'TP002: User has active connections and roles have changed';
             END IF;
           END LOOP;
           RETURN;

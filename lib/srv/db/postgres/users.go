@@ -189,7 +189,7 @@ func convertActivateError(sessionCtx *common.Session, err error) error {
 	case strings.Contains(err.Error(), "already exists"):
 		return trace.AlreadyExists("user %q already exists in this PostgreSQL database and is not managed by Teleport", sessionCtx.DatabaseUser)
 
-	case strings.Contains(err.Error(), "User has active connections and roles have changed"):
+	case strings.Contains(err.Error(), "TP002: User has active connections and roles have changed"):
 		return trace.CompareFailed("roles for user %q has changed. Please quit all active connections and try again.", sessionCtx.DatabaseUser)
 
 	default:
