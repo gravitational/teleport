@@ -41,6 +41,10 @@ export class MockMainProcessClient implements MainProcessClient {
     return { cleanup: () => undefined };
   }
 
+  subscribeToDeepLinkLaunch() {
+    return { cleanup: () => undefined };
+  }
+
   getRuntimeSettings(): RuntimeSettings {
     return makeRuntimeSettings(this.runtimeSettings);
   }
