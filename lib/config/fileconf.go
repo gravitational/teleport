@@ -803,6 +803,9 @@ type Auth struct {
 
 	// Assist is a set of options related to the Teleport Assist feature.
 	Assist *AuthAssistOptions `yaml:"assist,omitempty"`
+
+	// AccessMonitoring is a set of options related to the Access Monitoring feature.
+	AccessMonitoring *servicecfg.AccessMonitoringOptions `yaml:"access_monitoring,omitempty"`
 }
 
 // PluginService represents the configuration for the plugin service.

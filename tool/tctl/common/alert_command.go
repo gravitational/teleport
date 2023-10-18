@@ -181,7 +181,7 @@ func (c *AlertCommand) List(ctx context.Context, client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	if len(alerts) == 0 {
+	if len(alerts) == 0 && c.format == teleport.Text {
 		fmt.Println("no alerts")
 		return nil
 	}

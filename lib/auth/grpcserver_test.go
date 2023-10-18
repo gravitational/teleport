@@ -1643,10 +1643,12 @@ type generateUserSingleUseCertsTestOpts struct {
 
 func testGenerateUserSingleUseCertsStream(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertsTestOpts) {
 	runStream := func() (*proto.SingleUseUserCert, error) {
+		//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 		stream, err := cl.GenerateUserSingleUseCerts(ctx)
 		require.NoError(t, err, "GenerateUserSingleUseCerts stream creation failed")
 
 		// Init.
+		//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 		if err := stream.Send(&proto.UserSingleUseCertsRequest{
 			Request: &proto.UserSingleUseCertsRequest_Init{
 				Init: opts.initReq,
@@ -1664,6 +1666,7 @@ func testGenerateUserSingleUseCertsStream(ctx context.Context, t *testing.T, cl 
 		opts.mfaRequiredHandler(t, authnChal.MFARequired)
 		authnSolved := opts.authnHandler(t, authnChal)
 
+		//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 		switch err := stream.Send(&proto.UserSingleUseCertsRequest{
 			Request: &proto.UserSingleUseCertsRequest_MFAResponse{
 				MFAResponse: authnSolved,

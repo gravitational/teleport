@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -439,6 +440,11 @@ func (c *Client) OktaClient() services.Okta {
 	return c.APIClient.OktaClient()
 }
 
+// SecReportsClient returns a client for security reports.
+func (c *Client) SecReportsClient() *secreport.Client {
+	return c.APIClient.SecReportsClient()
+}
+
 func (c *Client) AccessListClient() services.AccessLists {
 	return c.APIClient.AccessListClient()
 }
@@ -605,6 +611,8 @@ type IdentityService interface {
 	// GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
 	// certificate for a single session
 	// (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
+	//
+	// Deprecated: Use GenerateUserCerts instead.
 	GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
 
 	// IsMFARequired is a request to check whether MFA is required to
@@ -880,6 +888,12 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	AccessListClient() services.AccessLists
+
+	// SecReportsClient returns a client for security reports.
+	// Clients connecting to  older Teleport versions, still get an access list client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	SecReportsClient() *secreport.Client
 
 	// UserLoginStateClient returns a user login state client.
 	// Clients connecting to older Teleport versions still get a user login state client
