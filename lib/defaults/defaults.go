@@ -368,21 +368,21 @@ const (
 // Default rate limits for unauthenticated endpoints.
 const (
 	// LimiterPeriod is the default period for unauthenticated limiters.
-	LimiterPeriod = 1 * time.Minute
+	LimiterPeriod = 1 * time.Second
 	// LimiterAverage is the default average for unauthenticated limiters.
-	LimiterAverage = 20
+	LimiterAverage = 10_000
 	// LimiterBurst is the default burst for unauthenticated limiters.
-	LimiterBurst = 40
+	LimiterBurst = 10_000
 )
 
 // Default high rate limits for unauthenticated endpoints that are CPU constrained.
 const (
 	// LimiterHighPeriod is the default period for high rate unauthenticated limiters.
-	LimiterHighPeriod = 1 * time.Minute
+	LimiterHighPeriod = 1 * time.Second
 	// LimiterHighAverage is the default average for high rate unauthenticated limiters.
-	LimiterHighAverage = 120
+	LimiterHighAverage = 100_000
 	// LimiterHighBurst is the default burst for high rate unauthenticated limiters.
-	LimiterHighBurst = 480
+	LimiterHighBurst = 100_000
 )
 
 const (
