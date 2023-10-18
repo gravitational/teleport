@@ -61,6 +61,17 @@ export default function createMainProcessClient(): MainProcessClient {
         cleanup: () => ipcRenderer.removeListener(channel, onChange),
       };
     },
+    subscribeToDeepLinkLaunch: listener => {
+      const ipcListener = (event, args) => {
+        listener(args);
+      };
+      const channel = 'renderer-deep-link-launch';
+
+      ipcRenderer.addListener(channel, ipcListener);
+      return {
+        cleanup: () => ipcRenderer.removeListener(channel, ipcListener),
+      };
+    },
 
     /*
      * Messages sent from the renderer to the main process.

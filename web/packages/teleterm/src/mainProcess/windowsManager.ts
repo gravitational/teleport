@@ -26,14 +26,17 @@ import {
   ipcMain,
 } from 'electron';
 
+import Logger from 'teleterm/logger';
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { darkTheme, lightTheme } from 'teleterm/ui/ThemeProvider/theme';
+import { DeepLinkParseResult } from 'teleterm/deepLinks';
 
 type WindowState = Rectangle;
 
 export class WindowsManager {
   private storageKey = 'windowState';
+  private logger = new Logger('WindowsManager');
   private selectionContextMenu: Menu;
   private inputContextMenu: Menu;
   private window?: BrowserWindow;
@@ -159,6 +162,24 @@ export class WindowsManager {
   dispose() {
     this.frontendAppInit.reject(
       new Error('Main process was closed before frontend app got initialized')
+    );
+  }
+
+  async launchDeepLink(
+    deepLinkParseResult: DeepLinkParseResult
+  ): Promise<void> {
+    try {
+      await this.whenFrontendAppIsReady();
+    } catch (error) {
+      this.logger.error(
+        `Could not send the deep link to the frontend app: ${error.message}`
+      );
+      return;
+    }
+
+    this.window.webContents.send(
+      'renderer-deep-link-launch',
+      deepLinkParseResult
     );
   }
 

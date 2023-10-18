@@ -292,7 +292,7 @@ function setUpDeepLinks(
       windowsManager.focusWindow();
 
       logger.info(`Deep link launch from open-url, URL: ${url}`);
-      launchDeepLink(logger, url);
+      launchDeepLink(logger, windowsManager, url);
     });
     return;
   }
@@ -311,7 +311,7 @@ function setUpDeepLinks(
     const url = findCustomProtocolUrlInArgv(argv);
     if (url) {
       logger.info(`Deep link launch from second-instance, URI: ${url}`);
-      launchDeepLink(logger, url);
+      launchDeepLink(logger, windowsManager, url);
     }
   });
 
@@ -322,7 +322,7 @@ function setUpDeepLinks(
     return;
   }
   logger.info(`Deep link launch from process.argv, URL: ${url}`);
-  launchDeepLink(logger, url);
+  launchDeepLink(logger, windowsManager, url);
 }
 
 // We don't know the exact position of the URL is in argv. Chromium might inject its own arguments
@@ -331,7 +331,11 @@ function findCustomProtocolUrlInArgv(argv: string[]) {
   return argv.find(arg => arg.startsWith(`${TELEPORT_CUSTOM_PROTOCOL}://`));
 }
 
-function launchDeepLink(logger: Logger, rawUrl: string): void {
+function launchDeepLink(
+  logger: Logger,
+  windowsManager: WindowsManager,
+  rawUrl: string
+): void {
   const result = parseDeepLink(rawUrl);
 
   if (result.status === 'error') {
@@ -356,4 +360,8 @@ function launchDeepLink(logger: Logger, rawUrl: string): void {
 
     logger.error(`Skipping deep link launch, ${reason}`);
   }
+
+  // Always pass the result to the frontend app so that the error can be shown to the user.
+  // Otherwise the app would receive focus but nothing would be visible in the UI.
+  windowsManager.launchDeepLink(result);
 }

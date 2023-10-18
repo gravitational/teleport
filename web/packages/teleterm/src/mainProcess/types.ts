@@ -15,6 +15,7 @@
  */
 
 import { AgentConfigFileClusterProperties } from 'teleterm/mainProcess/createAgentConfigFile';
+import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { Kind } from 'teleterm/ui/services/workspacesService';
@@ -95,6 +96,11 @@ export type MainProcessClient = {
   subscribeToAgentUpdate: (
     rootClusterUri: RootClusterUri,
     listener: (state: AgentProcessState) => void
+  ) => {
+    cleanup: () => void;
+  };
+  subscribeToDeepLinkLaunch: (
+    listener: (args: DeepLinkParseResult) => void
   ) => {
     cleanup: () => void;
   };
