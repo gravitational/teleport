@@ -120,7 +120,7 @@ func WriteJSONArray[T any](w io.Writer, values []T) error {
 		_, err := w.Write([]byte("[]"))
 		return err
 	}
-	return writeJSON(w, values)
+	return WriteJSON(w, values)
 }
 
 // WriteJSONObject marshals m as a JSON object.
@@ -129,11 +129,11 @@ func WriteJSONObject[M ~map[K]V, K comparable, V any](w io.Writer, m M) error {
 		_, err := w.Write([]byte("{}"))
 		return err
 	}
-	return writeJSON(w, m)
+	return WriteJSON(w, m)
 }
 
-// writeJSON marshals multiple documents as a JSON list with indentation.
-func writeJSON(w io.Writer, values interface{}) error {
+// WriteJSON marshals multiple documents as a JSON list with indentation.
+func WriteJSON(w io.Writer, values interface{}) error {
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "    ")
 	err := encoder.Encode(values)
