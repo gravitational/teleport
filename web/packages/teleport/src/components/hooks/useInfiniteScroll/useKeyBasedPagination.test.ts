@@ -31,7 +31,7 @@ import {
 
 function hookProps(overrides: Partial<Props<Node>> = {}) {
   return {
-    fetchFunc: newFetchFunc(7),
+    fetchFunc: newFetchFunc('test-cluster', 7),
     clusterId: 'test-cluster',
     filter: {},
     initialFetchSize: 2,
@@ -48,7 +48,7 @@ test.each`
 `('fetches one data batch, n=$n', async ({ n, names }) => {
   const { result } = renderHook(useKeyBasedPagination, {
     initialProps: hookProps({
-      fetchFunc: newFetchFunc(4),
+      fetchFunc: newFetchFunc('test-cluster', 4),
       initialFetchSize: n,
     }),
   });
@@ -102,8 +102,7 @@ test('maintains attempt state', async () => {
 
 test('restarts after query params change', async () => {
   let props = hookProps({
-    fetchFunc: newFetchFunc(4),
-    clusterId: 'cluster1',
+    fetchFunc: newFetchFunc('cluster1', 4),
     filter: { search: 'foo' },
   });
   const { result, rerender } = renderHook(useKeyBasedPagination, {
@@ -114,11 +113,6 @@ test('restarts after query params change', async () => {
   expect(resourceClusterIds(result)).toEqual(['cluster1', 'cluster1']);
   expect(resourceNames(result)).toEqual(['foo0', 'foo1']);
 
-  props = { ...props, clusterId: 'cluster2' };
-  rerender(props);
-  await act(result.current.fetch);
-  expect(resourceClusterIds(result)).toEqual(['cluster2', 'cluster2']);
-
   props = { ...props, filter: { search: 'bar' } };
   rerender(props);
   await act(result.current.fetch);
@@ -127,12 +121,12 @@ test('restarts after query params change', async () => {
   // Make sure we reached the end of the data set.
   await act(result.current.fetch);
   expect(result.current.finished).toBe(true);
-  props = { ...props, clusterId: 'cluster3' };
+  props = { ...props, filter: { search: 'xyz' } };
   rerender(props);
   expect(result.current.finished).toBe(false);
 
   await act(result.current.fetch);
-  expect(resourceClusterIds(result)).toEqual(['cluster3', 'cluster3']);
+  expect(resourceNames(result)).toEqual(['xyz0', 'xyz1']);
 });
 
 test("doesn't restart if params didn't change on rerender", async () => {
@@ -194,8 +188,7 @@ test.each([
   ['ApiError', newApiAbortError],
 ])('aborts pending request if params change (%s)', async (_, newError) => {
   let props = hookProps({
-    clusterId: 'cluster1',
-    fetchFunc: newFetchFunc(7, newError),
+    fetchFunc: newFetchFunc('cluster1', 7, newError),
   });
   const { result, rerender } = renderHook(useKeyBasedPagination, {
     initialProps: props,
@@ -204,12 +197,12 @@ test.each([
   act(() => {
     fetchPromise = result.current.fetch();
   });
-  props = { ...props, clusterId: 'cluster2' };
+  props = { ...props, filter: { search: 'bar' } };
   rerender(props);
   await act(async () => fetchPromise);
-  expect(resourceClusterIds(result)).toEqual([]);
+  expect(resourceNames(result)).toEqual([]);
   await act(result.current.fetch);
-  expect(resourceClusterIds(result)).toEqual(['cluster2', 'cluster2']);
+  expect(resourceNames(result)).toEqual(['bar0', 'bar1']);
 });
 
 describe.each`
@@ -240,14 +233,14 @@ describe.each`
   });
 
   it('restarts fetching after error if params change', async () => {
-    let props = hookProps({ clusterId: 'cluster1' });
+    let props = hookProps({ filter: { search: 'foo' } });
     const fetchSpy = jest.spyOn(props, 'fetchFunc');
 
     const { result, rerender } = renderHook(useKeyBasedPagination, {
       initialProps: props,
     });
     await act(result.current.fetch);
-    expect(resourceClusterIds(result)).toEqual(['cluster1', 'cluster1']);
+    expect(resourceNames(result)).toEqual(['foo0', 'foo1']);
 
     fetchSpy.mockImplementationOnce(async () => {
       throw new ErrorType('OMGOMG');
@@ -256,13 +249,13 @@ describe.each`
     // Rerender with the same options: still no action expected.
     rerender(props);
     await act(result.current.fetch);
-    expect(resourceClusterIds(result)).toEqual(['cluster1', 'cluster1']);
+    expect(resourceNames(result)).toEqual(['foo0', 'foo1']);
 
     // Rerender with different props: expect new data to be fetched.
-    props = { ...props, clusterId: 'cluster2' };
+    props = { ...props, filter: { search: 'bar' } };
     rerender(props);
     await act(result.current.fetch);
-    expect(resourceClusterIds(result)).toEqual(['cluster2', 'cluster2']);
+    expect(resourceNames(result)).toEqual(['bar0', 'bar1']);
   });
 
   it('resumes fetching once forceFetch is called after an error', async () => {
@@ -325,7 +318,7 @@ test("doesn't get confused if aborting a request still results in a successful p
   // like this hook can't really trust the abort signal to be 100% effective.
   let props = hookProps({
     // Create a function that will never throw an abort error.
-    fetchFunc: newFetchFunc(1, () => null),
+    fetchFunc: newFetchFunc('test-cluster', 1, () => null),
     filter: { search: 'rabbit' },
   });
   const { result, rerender } = renderHook(useKeyBasedPagination, {

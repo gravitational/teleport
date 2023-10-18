@@ -18,14 +18,10 @@ import { useLayoutEffect, useRef } from 'react';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { UnifiedResource } from 'teleport/services/agents';
-
 import {
   useKeyBasedPagination,
   Props as PaginationProps,
 } from './useKeyBasedPagination';
-
-export type Props<T extends UnifiedResource> = PaginationProps<T>;
 
 /**
  * Fetches a part of resource list whenever the `trigger` element intersects the
@@ -36,9 +32,7 @@ export type Props<T extends UnifiedResource> = PaginationProps<T>;
  *
  * Use the [`State.forceFetch`] to continue after an error.
  */
-export function useInfiniteScroll<T extends UnifiedResource>(
-  props: Props<T>
-): State<T> {
+export function useInfiniteScroll<T>(props: PaginationProps<T>): State<T> {
   const observer = useRef<IntersectionObserver | null>(null);
   const trigger = useRef<Element | null>(null);
 
