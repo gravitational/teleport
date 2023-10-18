@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# Source variables about OS version
+source /etc/os-release
+# Add the Teleport YUM repository. You'll need to update this file for each
+# major release of Teleport. First, get the major version from $VERSION_ID so
+# this fetches the correct package version.
+VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
+
+# Install the config-manager dnf plugin
+dnf install -y 'dnf-command(config-manager)'
+# Use the dnf config manager plugin to add the Teleport RPM repo
+dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%_arch/stable/v${teleport_version}/teleport.repo")"
+
+# Install teleport
+dnf install -y teleport-ent
+
+echo ${token} > /var/lib/teleport/token
+cat<<EOF >/etc/teleport.yaml
+version: v3
+teleport:
+  auth_token: /var/lib/teleport/token
+  proxy_server: ${proxy_service_address}
+app_service:
+  enabled: true
+  resources:
+  - labels:
+      "*": "*"
+auth_service:
+  enabled: false
+db_service:
+  enabled: true
+  resources:
+  - labels:
+      "*": "*"
+discovery_service:
+  enabled: true
+kubernetes_service:
+  enabled: true
+  resources:
+  - labels:
+      "*": "*"
+proxy_service:
+  enabled: false
+ssh_service:
+  labels:
+    role: agent-pool
+EOF
+
+systemctl restart teleport;
