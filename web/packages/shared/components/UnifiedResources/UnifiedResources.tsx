@@ -48,6 +48,7 @@ import {
   makeEmptyAttempt,
   makeSuccessAttempt,
   useAsync,
+  Attempt,
 } from 'shared/hooks/useAsync';
 
 import { useInfiniteScroll } from '../../hooks';
@@ -64,7 +65,7 @@ import {
 } from './cards';
 
 import { ResourceTab } from './ResourceTab';
-import { ResourceCard, LoadingCard } from './ResourceCard';
+import { ResourceCard, LoadingCard, PinningSupport } from './ResourceCard';
 import { FilterPanel } from './FilterPanel';
 
 const RESOURCES_MAX_WIDTH = '1800px';
@@ -346,14 +347,10 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                 description={card.description}
                 labels={card.labels}
                 pinned={pinnedResources.includes(key)}
-                // pinningDisabled is used to disable the button during
-                // a pinning network request
-                pinningDisabled={
-                  updatePinnedResourcesAttempt.status === 'processing'
-                }
-                // pinningNotSupported is when the cluster does not have
-                // pinning enabled (old version)
-                pinningNotSupported={pinningNotSupported}
+                pinningSupport={getResourcePinningSupport(
+                  pinningNotSupported,
+                  updatePinnedResourcesAttempt
+                )}
                 selected={selectedResources.includes(key)}
                 selectResource={() => handleSelectResources(key)}
                 pinResource={() => handlePinResource(key)}
@@ -388,9 +385,21 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   );
 }
 
-export function generateResourceKey({
-  resource,
-}: SharedUnifiedResource): string {
+function getResourcePinningSupport(
+  pinningNotSupported: boolean,
+  updatePinnedResourcesAttempt: Attempt<void>
+): PinningSupport {
+  if (pinningNotSupported) {
+    return PinningSupport.NotSupported;
+  }
+  if (updatePinnedResourcesAttempt.status === 'processing') {
+    return PinningSupport.Disabled;
+  }
+
+  return PinningSupport.Supported;
+}
+
+function generateResourceKey({ resource }: SharedUnifiedResource): string {
   if (resource.kind === 'node') {
     return `${resource.hostname}/${resource.id}/node`;
   }

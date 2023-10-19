@@ -31,7 +31,7 @@ import { nodes } from 'teleport/Nodes/fixtures';
 
 import makeApp from 'teleport/services/apps/makeApps';
 
-import { ResourceCard } from './ResourceCard';
+import { ResourceCard, PinningSupport } from './ResourceCard';
 
 import {
   makeUnifiedResourceCardApp,
@@ -124,10 +124,9 @@ export const Cards: Story = {
             key={i}
             pinned={false}
             pinResource={() => {}}
-            pinningDisabled={false}
             selectResource={() => {}}
             selected={false}
-            pinningNotSupported={false}
+            pinningSupport={PinningSupport.Supported}
             name={res.name}
             primaryIconName={res.primaryIconName}
             SecondaryIcon={res.SecondaryIcon}
