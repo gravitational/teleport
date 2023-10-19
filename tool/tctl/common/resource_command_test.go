@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1394,6 +1395,70 @@ version: v3`
 	// the force flag.
 	expected.SetRevision(uuid.NewString())
 	connectorBytes, err := services.MarshalGithubConnector(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(connectorYAMLPath, connectorBytes, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", connectorYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", connectorYAMLPath})
+	require.NoError(t, err)
+}
+
+func TestCreateOIDCConnector(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures:  modules.Features{OIDC: true},
+	})
+
+	fc, fds := testhelpers.DefaultConfig(t)
+	makeAndRunTestAuthServer(t, withFileConfig(fc), withFileDescriptors(fds), withFakeClock(clockwork.NewFakeClock()))
+
+	// Ensure there are no connectors to start
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindOIDCConnector, "--format=json"})
+	require.NoError(t, err)
+	connectors := mustDecodeJSON[[]*types.OIDCConnectorV3](t, buf)
+	require.Empty(t, connectors)
+
+	const connectorYAML = `kind: oidc
+version: v3
+metadata:
+  name: oidc
+spec:
+  redirect_url: "https://proxy.example.com/v1/webapi/oidc/callback"
+  client_id: "12345"
+  client_secret: "678910"
+  display: OIDC
+  scope: [roles]
+  claims_to_roles:
+    - {claim: "test", value: "test", roles: ["access", "editor", "auditor"]}`
+
+	// Create the connector
+	connectorYAMLPath := filepath.Join(t.TempDir(), "connector.yaml")
+	require.NoError(t, os.WriteFile(connectorYAMLPath, []byte(connectorYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", connectorYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the connector
+	buf, err = runResourceCommand(t, fc, []string{"get", types.KindOIDCConnector, "--format=json"})
+	require.NoError(t, err)
+	connectors = mustDecodeJSON[[]*types.OIDCConnectorV3](t, buf)
+	require.Len(t, connectors, 1)
+
+	var expected types.OIDCConnectorV3
+	require.NoError(t, yaml.Unmarshal([]byte(connectorYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*types.OIDCConnectorV3{&expected},
+		connectors,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+		cmpopts.IgnoreFields(types.OIDCConnectorSpecV3{}, "ClientSecret"), // get retrieves the connector without secrets
+	))
+
+	// Explicitly change the revision and try creating the user with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	connectorBytes, err := services.MarshalOIDCConnector(&expected, services.PreserveResourceID())
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(connectorYAMLPath, connectorBytes, 0644))
 

@@ -142,6 +142,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:            rc.updateUser,
 		types.KindGithubConnector: rc.updateGithubConnector,
+		types.KindOIDCConnector:   rc.updateOIDCConnector,
 	}
 	rc.config = config
 
@@ -820,6 +821,20 @@ func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client auth.
 		return trace.Wrap(err)
 	}
 	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))
+	return nil
+}
+
+// updateGithubConnector updates an existing OIDC connector.
+func (rc *ResourceCommand) updateOIDCConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	connector, err := services.UnmarshalOIDCConnector(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := client.UpdateOIDCConnector(ctx, connector); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("authentication connector %q has been updated\n", connector.GetName())
 	return nil
 }
 

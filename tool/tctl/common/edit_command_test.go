@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -85,5 +86,65 @@ func TestEditGithubConnector(t *testing.T) {
 	// since the created revision is stale.
 	_, err = runEditCommand(t, fc, []string{"edit", "connector/github"}, withEditor(editor))
 	assert.Error(t, err, "stale connector was allowed to be updated")
-	require.Error(t, backend.ErrIncorrectRevision, err, "expected an incorrect revision error got %T", err)
+	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error got %T", err)
+}
+
+func TestEditOIDConnector(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures:  modules.Features{OIDC: true},
+	})
+	ctx := context.Background()
+	log := utils.NewLoggerForTests()
+	fc, fds := testhelpers.DefaultConfig(t)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+	expected, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
+		ClientID:     "12345",
+		ClientSecret: "678910",
+		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/github/callback"},
+		Display:      "OIDC",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "test",
+				Value: "test",
+				Roles: []string{"access", "editor", "auditor"},
+			},
+		},
+	})
+	require.NoError(t, err, "creating initial connector resource")
+	created, err := rootClient.CreateOIDCConnector(ctx, expected.(*types.OIDCConnectorV3))
+	require.NoError(t, err, "persisting initial connector resource")
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+
+		expected.SetRevision(created.GetRevision())
+		expected.SetClientID("abcdef")
+
+		collection := &connectorsCollection{oidc: []types.OIDCConnector{expected}}
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+
+	}
+
+	// Edit the connector and validate that the expected field is updated.
+	_, err = runEditCommand(t, fc, []string{"edit", "connector/oidc"}, withEditor(editor))
+	require.NoError(t, err, "expected editing oidc connector to succeed")
+
+	actual, err := rootClient.GetOIDCConnector(ctx, expected.GetName(), false)
+	require.NoError(t, err, "retrieving oidc connector after edit")
+	require.Empty(t, cmp.Diff(created, actual, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+		cmpopts.IgnoreFields(types.OIDCConnectorSpecV3{}, "ClientID", "ClientSecret"),
+	))
+	require.NotEqual(t, created.GetClientID(), actual.GetClientID(), "client id should have been modified by edit")
+	require.Equal(t, expected.GetClientID(), actual.GetClientID(), "client id should match the retrieved connector")
+
+	// Try editing the connector a second time. This time the revisions will not match
+	// since the created revision is stale.
+	_, err = runEditCommand(t, fc, []string{"edit", "connector/oidc"}, withEditor(editor))
+	assert.Error(t, err, "stale connector was allowed to be updated")
+	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error got %T", err)
 }
