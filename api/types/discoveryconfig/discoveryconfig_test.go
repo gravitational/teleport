@@ -69,6 +69,166 @@ func TestNewDiscoveryConfig(t *testing.T) {
 			errCheck: require.NoError,
 		},
 		{
+			name: "fills in aws matcher default values",
+			inMetadata: header.Metadata{
+				Name: "my-first-dc",
+			},
+			inSpec: Spec{
+				DiscoveryGroup: "dg1",
+				AWS: []types.AWSMatcher{{
+					Types:   []string{"ec2"},
+					Regions: []string{"eu-west-2"},
+					Tags:    types.Labels{"*": []string{"*"}},
+				}},
+			},
+			expected: &DiscoveryConfig{
+				ResourceHeader: header.ResourceHeader{
+					Kind:    types.KindDiscoveryConfig,
+					Version: types.V1,
+					Metadata: header.Metadata{
+						Name: "my-first-dc",
+					},
+				},
+				Spec: Spec{
+					DiscoveryGroup: "dg1",
+					AWS: []types.AWSMatcher{{
+						Types:   []string{"ec2"},
+						Regions: []string{"eu-west-2"},
+						Tags:    types.Labels{"*": []string{"*"}},
+						SSM: &types.AWSSSM{
+							DocumentName: "TeleportDiscoveryInstaller",
+						},
+						Params: &types.InstallerParams{
+							JoinMethod:      "iam",
+							JoinToken:       "aws-discovery-iam-token",
+							ScriptName:      "default-installer",
+							InstallTeleport: true,
+							SSHDConfig:      "/etc/ssh/sshd_config",
+						},
+					}},
+					Azure: make([]types.AzureMatcher, 0),
+					GCP:   make([]types.GCPMatcher, 0),
+					Kube:  make([]types.KubernetesMatcher, 0),
+				},
+			},
+
+			errCheck: require.NoError,
+		},
+		{
+			name: "fills in azure matcher default values",
+			inMetadata: header.Metadata{
+				Name: "my-first-dc",
+			},
+			inSpec: Spec{
+				DiscoveryGroup: "dg1",
+				Azure: []types.AzureMatcher{{
+					Types:   []string{"vm"},
+					Regions: []string{"europe-west-2"},
+				}},
+			},
+			expected: &DiscoveryConfig{
+				ResourceHeader: header.ResourceHeader{
+					Kind:    types.KindDiscoveryConfig,
+					Version: types.V1,
+					Metadata: header.Metadata{
+						Name: "my-first-dc",
+					},
+				},
+				Spec: Spec{
+					DiscoveryGroup: "dg1",
+					AWS:            make([]types.AWSMatcher, 0),
+					Azure: []types.AzureMatcher{{
+						Types:          []string{"vm"},
+						Regions:        []string{"europe-west-2"},
+						Subscriptions:  []string{"*"},
+						ResourceGroups: []string{"*"},
+						ResourceTags:   types.Labels{"*": []string{"*"}},
+						Params: &types.InstallerParams{
+							JoinMethod: "azure",
+							JoinToken:  "azure-discovery-token",
+							ScriptName: "default-installer",
+						},
+					}},
+					GCP:  make([]types.GCPMatcher, 0),
+					Kube: make([]types.KubernetesMatcher, 0),
+				},
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "fills in azure matcher default values",
+			inMetadata: header.Metadata{
+				Name: "my-first-dc",
+			},
+			inSpec: Spec{
+				DiscoveryGroup: "dg1",
+				GCP: []types.GCPMatcher{{
+					Types:      []string{"gce"},
+					ProjectIDs: []string{"p1"},
+				}},
+			},
+			expected: &DiscoveryConfig{
+				ResourceHeader: header.ResourceHeader{
+					Kind:    types.KindDiscoveryConfig,
+					Version: types.V1,
+					Metadata: header.Metadata{
+						Name: "my-first-dc",
+					},
+				},
+				Spec: Spec{
+					DiscoveryGroup: "dg1",
+					AWS:            make([]types.AWSMatcher, 0),
+					Azure:          make([]types.AzureMatcher, 0),
+					GCP: []types.GCPMatcher{{
+						Types:      []string{"gce"},
+						Locations:  []string{"*"},
+						ProjectIDs: []string{"p1"},
+						Labels:     types.Labels{"*": []string{"*"}},
+						Params: &types.InstallerParams{
+							JoinMethod: "gcp",
+							JoinToken:  "gcp-discovery-token",
+							ScriptName: "default-installer",
+						},
+					}},
+					Kube: make([]types.KubernetesMatcher, 0),
+				},
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "fills in kube matcher default values",
+			inMetadata: header.Metadata{
+				Name: "my-first-dc",
+			},
+			inSpec: Spec{
+				DiscoveryGroup: "dg1",
+				Kube: []types.KubernetesMatcher{{
+					Types: []string{"app"},
+				}},
+			},
+			expected: &DiscoveryConfig{
+				ResourceHeader: header.ResourceHeader{
+					Kind:    types.KindDiscoveryConfig,
+					Version: types.V1,
+					Metadata: header.Metadata{
+						Name: "my-first-dc",
+					},
+				},
+				Spec: Spec{
+					DiscoveryGroup: "dg1",
+					AWS:            make([]types.AWSMatcher, 0),
+					Azure:          make([]types.AzureMatcher, 0),
+					GCP:            make([]types.GCPMatcher, 0),
+					Kube: []types.KubernetesMatcher{{
+						Types:      []string{"app"},
+						Namespaces: []string{"*"},
+						Labels:     types.Labels{"*": []string{"*"}},
+					}},
+				},
+			},
+			errCheck: require.NoError,
+		},
+		{
 			name: "error when name is not present",
 			inMetadata: header.Metadata{
 				Name: "",
@@ -94,7 +254,6 @@ func TestNewDiscoveryConfig(t *testing.T) {
 			if tt.errCheck != nil {
 				tt.errCheck(t, err)
 			}
-
 			if tt.expected != nil {
 				require.Equal(t, tt.expected, got)
 			}
