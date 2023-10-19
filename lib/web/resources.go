@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -148,6 +149,15 @@ func upsertRole(ctx context.Context, clt resourcesAPIGetter, content, httpMethod
 	}
 
 	return ui.NewResourceItem(role)
+}
+
+// getPresetRoles returns a list of preset roles expected to be available on
+// this server. These are hard-coded for a given Teleport version, so this
+// should have the same security implications as the Teleport version exposed
+// via the public ping endpoint.
+func (h *Handler) getPresetRoles(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	presets := auth.GetPresetRoles()
+	return ui.NewRoles(presets)
 }
 
 func (h *Handler) getGithubConnectorsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {

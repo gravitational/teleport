@@ -25,6 +25,7 @@ export const KeysEnum = {
   USER_PREFERENCES: 'grv_teleport_user_preferences',
   ONBOARD_SURVEY: 'grv_teleport_onboard_survey',
   RECOMMEND_FEATURE: 'grv_recommend_feature',
+  CLOUD_USER_INVITES: 'grv_teleport_cloud_user_invites',
 };
 
 // SurveyRequest is the request for sending data to the back end
@@ -48,4 +49,11 @@ export type LocalStorageMarketingParams = {
   source: string;
   medium: string;
   intent: string;
+};
+
+// CloudUserInvites is a set of users and roles which should be submitted after
+// initial login.
+export type CloudUserInvites = {
+  recipients: Array<string>;
+  roles: Array<string>;
 };

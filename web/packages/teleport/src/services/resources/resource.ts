@@ -38,6 +38,12 @@ class ResourceService {
       .then(res => makeResourceList<'role'>(res));
   }
 
+  fetchPresetRoles() {
+    return api
+      .get(cfg.getPresetRolesUrl())
+      .then(res => makeResourceList<'role'>(res));
+  }
+
   createTrustedCluster(content: string) {
     return api
       .post(cfg.getTrustedClustersUrl(), { content })
