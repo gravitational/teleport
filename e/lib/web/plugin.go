@@ -139,8 +139,8 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET("/enterprise/devices", h.WithAuth(p.listDevicesHandle))
 
 	h.GET("/enterprise/authconnectors", h.WithAuth(p.getAuthConnectorsHandle))
-	h.POST("/enterprise/saml", h.WithAuth(p.upsertSAMLConnectorHandle))
-	h.PUT("/enterprise/saml/:name", h.WithAuth(p.upsertSAMLConnectorHandle))
+	h.POST("/enterprise/saml", h.WithAuth(p.createSAMLConnectorHandle))
+	h.PUT("/enterprise/saml/:name", h.WithAuth(p.updateSAMLConnectorHandle))
 	h.DELETE("/enterprise/saml/:name", h.WithAuth(p.deleteSAMLConnectorHandle))
 
 	h.POST("/enterprise/oidc", h.WithAuth(p.createOIDCConnectorHandle))

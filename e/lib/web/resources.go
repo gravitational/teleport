@@ -76,48 +76,24 @@ func (p *Plugin) deleteSAMLConnectorHandle(w http.ResponseWriter, r *http.Reques
 	return web.OK(), nil
 }
 
-func (p *Plugin) upsertSAMLConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) createSAMLConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var req ui.ResourceItem
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return upsertSAMLConnector(r.Context(), clt, req.Content, r.Method, params)
+	item, err := web.CreateResource(r, types.KindSAMLConnector, services.UnmarshalSAMLConnector, clt.CreateSAMLConnector)
+	return item, trace.Wrap(err)
 }
 
-func upsertSAMLConnector(ctx context.Context, clt resourcesAPIGetter, content, httpMethod string, params httprouter.Params) (*ui.ResourceItem, error) {
-	get := func(ctx context.Context, name string) (types.Resource, error) {
-		return clt.GetSAMLConnector(ctx, name, false)
-	}
-
-	extractedRes, err := web.ExtractResourceAndValidate(content)
+func (p *Plugin) updateSAMLConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if extractedRes.Kind != types.KindSAMLConnector {
-		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
-	}
-
-	if err := web.CheckResourceUpsert(ctx, httpMethod, params, extractedRes.Metadata.Name, get); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	conn, err := services.UnmarshalSAMLConnector(extractedRes.Raw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := clt.UpsertSAMLConnector(ctx, conn); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ui.NewResourceItem(conn)
+	item, err := web.UpdateResource(r, params, types.KindSAMLConnector, services.UnmarshalSAMLConnector, clt.UpdateSAMLConnector)
+	return item, trace.Wrap(err)
 }
 
 func (p *Plugin) deleteOIDCConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
@@ -140,7 +116,7 @@ func (p *Plugin) createOIDCConnectorHandle(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := web.CreateResource[types.OIDCConnector](r, types.KindOIDC, services.UnmarshalOIDCConnector, clt.CreateOIDCConnector)
+	item, err := web.CreateResource(r, types.KindOIDC, services.UnmarshalOIDCConnector, clt.CreateOIDCConnector)
 	return item, trace.Wrap(err)
 }
 
@@ -150,7 +126,7 @@ func (p *Plugin) updateOIDCConnectorHandle(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := web.UpdateResource[types.OIDCConnector](r, params, types.KindOIDC, services.UnmarshalOIDCConnector, clt.UpdateOIDCConnector)
+	item, err := web.UpdateResource(r, params, types.KindOIDC, services.UnmarshalOIDCConnector, clt.UpdateOIDCConnector)
 	return item, trace.Wrap(err)
 }
 

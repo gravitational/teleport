@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -143,45 +142,20 @@ func TestGetAuthConnectors(t *testing.T) {
 	require.Equal(t, conns[2].Kind, types.KindOIDC)
 }
 
-func TestUpsertSAMLConnector(t *testing.T) {
-	m := &mockedResourceAPIGetter{}
+func TestSAMLConnector(t *testing.T) {
+	ctx := context.Background()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			SAML: true,
+		},
+	})
 
-	existingConnectors := make(map[string]types.SAMLConnector)
-	m.mockUpsertSAMLConnector = func(ctx context.Context, connector types.SAMLConnector) error {
-		existingConnectors[connector.GetName()] = connector
-		return nil
-	}
-	m.mockGetSAMLConnector = func(ctx context.Context, name string, withSecrets bool) (types.SAMLConnector, error) {
-		connector, ok := existingConnectors[name]
-		if ok {
-			return connector, nil
-		}
-		return nil, trace.NotFound("")
-	}
+	s := newWebSuite(t)
+	pack := s.newAuthWebPack(t, "foo")
 
-	// Test bad request kind.
-	invalidKind := `kind: invalid-kind
-metadata:
-  name: test`
-	connector, err := upsertSAMLConnector(context.Background(), m, invalidKind, "", httprouter.Params{})
-	require.Nil(t, connector)
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err))
-	require.Contains(t, err.Error(), "kind")
-
-	goodContent := `kind: saml
-version: v2
-metadata:
-  name: test-goodcontent
-spec:
-  acs: test
-  attributes_to_roles:
-  - name: foo
-    roles:
-    - access
-    value: bar
-  entity_descriptor: |
-    <?xml version="1.0" encoding="UTF-8"?>
+	expected, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "test",
+		EntityDescriptor: `<?xml version="1.0" encoding="UTF-8"?>
     <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="test">
       <md:IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
         <md:KeyDescriptor use="signing">
@@ -196,36 +170,97 @@ spec:
         <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="test" />
         <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="test" />
       </md:IDPSSODescriptor>
-    </md:EntityDescriptor>`
+    </md:EntityDescriptor>`,
+		Display: "SAML",
+		AttributesToRoles: []types.AttributeMapping{
+			{
+				Name:  "test",
+				Value: "test",
+				Roles: []string{"default-implicit-role"},
+			},
+		},
+	})
+	require.NoError(t, err, "creating initial connector resource")
 
-	// Updating non-existing connector fails.
-	connector, err = upsertSAMLConnector(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
-	require.Nil(t, connector)
-	require.Error(t, err)
-	require.True(t, trace.IsNotFound(err))
+	createPayload := func(connector types.SAMLConnector) ui.ResourceItem {
+		raw, err := services.MarshalSAMLConnector(connector, services.PreserveResourceID())
+		require.NoError(t, err, "marshaling connector")
 
-	// Creating non-existing connector succeeds.
-	connector, err = upsertSAMLConnector(context.Background(), m, goodContent, "POST", httprouter.Params{})
-	require.NoError(t, err)
-	require.Contains(t, connector.Content, "name: test-goodcontent")
+		return ui.ResourceItem{
+			Kind:    types.KindSAMLConnector,
+			Name:    connector.GetName(),
+			Content: string(raw),
+		}
+	}
 
-	// Creating existing connector fails.
-	connector, err = upsertSAMLConnector(context.Background(), m, goodContent, "POST", httprouter.Params{})
-	require.Nil(t, connector)
-	require.Error(t, err)
-	require.True(t, trace.IsAlreadyExists(err))
+	unmarshalResponse := func(resp []byte) types.SAMLConnector {
+		var item ui.ResourceItem
+		require.NoError(t, json.Unmarshal(resp, &item), "response from server contained an invalid resource item")
 
-	// Updating existing connector succeeds.
-	connector, err = upsertSAMLConnector(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
-	require.NoError(t, err)
-	require.Contains(t, connector.Content, "name: test-goodcontent")
+		var conn types.SAMLConnectorV2
+		require.NoError(t, yaml.Unmarshal([]byte(item.Content), &conn), "resource item content was not an oidc connector")
+		return &conn
+	}
 
-	// Renaming existing connector fails.
-	goodContentRenamed := strings.ReplaceAll(goodContent, "test-goodcontent", "test-goodcontent-new-name")
-	connector, err = upsertSAMLConnector(context.Background(), m, goodContentRenamed, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
-	require.Nil(t, connector)
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err))
+	// Create the initial connector.
+	resp, err := pack.clt.PostJSON(ctx, pack.clt.Endpoint("enterprise", "saml"), createPayload(expected))
+	require.NoError(t, err, "expected creating the initial connector to succeed")
+	require.Equal(t, http.StatusOK, resp.Code(), "unexpected status code creating connector")
+
+	created := unmarshalResponse(resp.Bytes())
+
+	// Validate that creating the connector again fails.
+	resp, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("enterprise", "saml"), createPayload(expected))
+	assert.Error(t, err, "expected an error creating a duplicate connector")
+	assert.True(t, trace.IsAlreadyExists(err), "expected an already exists error got %T", err)
+	assert.Equal(t, http.StatusConflict, resp.Code(), "unexpected status code creating duplicate connector")
+
+	// Update the connector.
+	created.SetDisplay("test")
+	resp, err = pack.clt.PutJSON(ctx, pack.clt.Endpoint("enterprise", "saml", expected.GetName()), createPayload(created))
+	require.NoError(t, err, "unexpected error updating the connector")
+	require.Equal(t, http.StatusOK, resp.Code(), "unexpected status code updating the connector")
+
+	updated := unmarshalResponse(resp.Bytes())
+
+	require.Empty(t, cmp.Diff(created, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+		cmpopts.IgnoreFields(types.SAMLConnectorSpecV2{}, "Display"),
+	))
+	require.NotEqual(t, expected.GetDisplay(), updated.GetDisplay(), "expected update to modify the display name")
+	require.Equal(t, "test", updated.GetDisplay(), "display name should have been updated to test. got %s", updated.GetDisplay())
+
+	// Validate that a stale revision prevents updates.
+	resp, err = pack.clt.PutJSON(ctx, pack.clt.Endpoint("enterprise", "saml", expected.GetName()), createPayload(expected))
+	assert.Error(t, err, "expected an error updating a connector with a stale revision")
+	assert.True(t, trace.IsCompareFailed(err), "expected a compare failed error got %T", err)
+	assert.Equal(t, http.StatusPreconditionFailed, resp.Code(), "unexpected status code updating the connector")
+
+	// Validate that renaming the connector prevents updates.
+	updated.SetName(uuid.NewString())
+	resp, err = pack.clt.PutJSON(ctx, pack.clt.Endpoint("enterprise", "saml", expected.GetName()), createPayload(updated))
+	assert.Error(t, err, "expected and error when renaming a connector")
+	assert.True(t, trace.IsBadParameter(err), "expected a bad parameter error got %T", err)
+	assert.Equal(t, http.StatusBadRequest, resp.Code(), "unexpected status code updating the connector")
+
+	// Validate that updating a nonexistent connector fails.
+	updated.SetName(uuid.NewString())
+	resp, err = pack.clt.PutJSON(ctx, pack.clt.Endpoint("enterprise", "saml", updated.GetName()), createPayload(updated))
+	assert.Error(t, err, "expected updating a nonexistent connector to fail")
+	assert.True(t, trace.IsCompareFailed(err), "expected a compare failed error got %T", err)
+	assert.Equal(t, http.StatusPreconditionFailed, resp.Code(), "unexpected status code updating the connector")
+
+	// Validate that the connector can be deleted
+	_, err = pack.clt.Delete(ctx, pack.clt.Endpoint("enterprise", "saml", expected.GetName()))
+	require.NoError(t, err, "unexpected error deleting connector")
+
+	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("enterprise", "authconnectors"), nil)
+	assert.NoError(t, err, "unexpected error listing oidc connectors")
+
+	var item []ui.ResourceItem
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &item), "invalid resource item received")
+
+	assert.Empty(t, item)
+	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting connectors")
 }
 
 func TestUpsertSAMLIdpServiceProvider(t *testing.T) {
