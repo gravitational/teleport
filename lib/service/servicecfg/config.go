@@ -323,6 +323,9 @@ type AccessGraphConfig struct {
 
 	// CA is the path to the CA certificate file
 	CA string
+
+	// Insecure is true if the connection to the Access Graph service should be insecure
+	Insecure bool
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.
