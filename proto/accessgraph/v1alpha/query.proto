@@ -44,6 +44,7 @@ message Node {
   string name = 4;
   map<string, string> labels = 5;
   string hostname = 6;
+  map<string, string> properties = 7;
 }
 
 // Edge is an edge in the access graph.
