@@ -18,10 +18,8 @@ package local
 
 import (
 	"context"
-	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/externalcloudaudit"
@@ -31,14 +29,11 @@ import (
 )
 
 const (
-	externalCloudAuditPrefix                = "external_cloud_audit"
-	externalCloudAuditDraftName             = "draft"
-	externalCloudAuditClusterName           = "cluster"
-	externalCloudAuditLockName              = "external_cloud_audit_lock"
-	externalCloudAuditLockTTL               = 10 * time.Second
-	externalCloudAuditPolicyNamePrefix      = "ExternalCloudAuditPolicy-"
-	externalCloudAuditLongtermBucketPrefix  = "s3://teleport-longterm-"
-	externalCloudAuditTransientBucketPrefix = "s3://teleport-transient-"
+	externalCloudAuditPrefix      = "external_cloud_audit"
+	externalCloudAuditDraftName   = "draft"
+	externalCloudAuditClusterName = "cluster"
+	externalCloudAuditLockName    = "external_cloud_audit_lock"
+	externalCloudAuditLockTTL     = 10 * time.Second
 )
 
 var (
@@ -99,7 +94,7 @@ func (s *ExternalCloudAuditService) upsertDraftExternalCloudAuditLocked(ctx cont
 	return trace.Wrap(err)
 }
 
-// GenerateDraftExternalCloudAudit create a new draft ExternalCloudAudit with
+// GenerateDraftExternalCloudAudit creates a new draft ExternalCloudAudit with
 // randomized resource names and stores it as the current draft, returning the
 // generated resource.
 // To make this idempotent, if a draft ExternalCloudAudit is already present, it
@@ -133,25 +128,7 @@ func (s *ExternalCloudAuditService) GenerateDraftExternalCloudAudit(ctx context.
 			return nil
 		}
 
-		// S3 bucket names can't use underscores, Glue tables can't use hyphens,
-		// Athena workgroups can use either.
-		// https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
-		// https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html
-		// https://docs.aws.amazon.com/athena/latest/ug/workgroups-settings.html
-		nonce := uuid.NewString()
-		underscoreNonce := strings.ReplaceAll(nonce, "-", "_")
-		draft, err = externalcloudaudit.NewDraftExternalCloudAudit(header.Metadata{},
-			externalcloudaudit.ExternalCloudAuditSpec{
-				IntegrationName:        integrationName,
-				PolicyName:             externalCloudAuditPolicyNamePrefix + nonce,
-				Region:                 region,
-				SessionsRecordingsURI:  externalCloudAuditLongtermBucketPrefix + nonce + "/sessions",
-				AuditEventsLongTermURI: externalCloudAuditLongtermBucketPrefix + nonce + "/events",
-				AthenaResultsURI:       externalCloudAuditTransientBucketPrefix + nonce + "/results",
-				AthenaWorkgroup:        "teleport_events_" + underscoreNonce,
-				GlueDatabase:           "teleport_events_" + underscoreNonce,
-				GlueTable:              "teleport_events",
-			})
+		draft, err = externalcloudaudit.GenerateDraftExternalCloudAudit(integrationName, region)
 		if err != nil {
 			return trace.Wrap(err)
 		}

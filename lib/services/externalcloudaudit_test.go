@@ -98,7 +98,7 @@ var draftExternalAuditYAML = `---
 kind: external_cloud_audit
 version: v1
 metadata:
-  name: external-cloud-audit-draft
+  name: draft
 spec:
   integration_name: "aws-integration-1"
   policy_name: "test-policy-1"
@@ -115,7 +115,7 @@ var clusterExternalAuditYAML = `---
 kind: external_cloud_audit
 version: v1
 metadata:
-  name: external-cloud-audit-cluster
+  name: cluster
 spec:
   integration_name: "aws-integration-1"
   policy_name: "test-policy-1"

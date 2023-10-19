@@ -167,10 +167,9 @@ func TestExternalCloudAuditService(t *testing.T) {
 
 		// Then draft is returned with generated values
 		spec := generateResp.Spec
-		nonce := strings.TrimPrefix(spec.PolicyName, externalCloudAuditPolicyNamePrefix)
+		nonce := strings.TrimPrefix(spec.PolicyName, "ExternalCloudAuditPolicy-")
 		underscoreNonce := strings.ReplaceAll(nonce, "-", "_")
 		require.Equal(t, "test-integration", spec.IntegrationName)
-		require.Equal(t, externalCloudAuditPolicyNamePrefix+nonce, spec.PolicyName)
 		require.Equal(t, "us-west-2", spec.Region)
 		require.Equal(t, "s3://teleport-longterm-"+nonce+"/sessions", spec.SessionsRecordingsURI)
 		require.Equal(t, "s3://teleport-longterm-"+nonce+"/events", spec.AuditEventsLongTermURI)
