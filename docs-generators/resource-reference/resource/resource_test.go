@@ -1361,10 +1361,70 @@ var otherString string ="This is another string"
 				"otherString": "This is another string",
 			},
 		},
-		// TODO: single const
-		// TODO: multiple const
-		// TODO  multiple var
-		// TODO: mix of everything
+		{
+
+			description: "single-const assignments",
+			source: `package mypkg
+const myString string = "This is a string"
+const otherString string ="This is another string"
+`,
+			expected: map[string]string{
+				"myString":    "This is a string",
+				"otherString": "This is another string",
+			},
+		},
+		{
+
+			description: "multiple-var assignments",
+			source: `package mypkg
+
+var (
+  myString string = "This is a string"
+  otherString string ="This is another string"
+)
+`,
+			expected: map[string]string{
+				"myString":    "This is a string",
+				"otherString": "This is another string",
+			},
+		},
+		{
+
+			description: "multiple-const assignments",
+			source: `package mypkg
+
+const (
+  myString string = "This is a string"
+  otherString string ="This is another string"
+)
+`,
+			expected: map[string]string{
+				"myString":    "This is a string",
+				"otherString": "This is another string",
+			},
+		},
+		{
+
+			description: "mix of string and non-string vars and consts",
+			source: `package mypkg
+
+import "strings"
+
+const (
+  stringConst string = "This is a string"
+  boolConst  bool = false
+)
+
+var (
+    stringVar string = "This is a string"
+    funcConst string = strings.ToLower("HELLO") 
+)
+`,
+			expected: map[string]string{
+				"stringConst": "This is a string",
+				"stringVar":   "This is a string",
+			},
+		},
 	}
 
 	for _, c := range cases {
