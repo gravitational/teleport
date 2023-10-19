@@ -1,5 +1,46 @@
 # Changelog
 
+## 12.4.23 (10/18/23)
+
+### Security fixes
+* Updated golang.org/x/net dependency. [#33448](https://github.com/gravitational/teleport/pull/33448)
+  * swift-nio-http2 vulnerable to HTTP/2 Stream Cancellation Attack: [CVE-2023-44487](https://github.com/advisories/GHSA-qppj-fm5r-hxr3)
+* Updated `google.golang.org/grpc` to v1.57.1. [#33487](https://github.com/gravitational/teleport/pull/33487)
+  * swift-nio-http2 vulnerable to HTTP/2 Stream Cancellation Attack: [CVE-2023-44487](https://github.com/advisories/GHSA-qppj-fm5r-hxr3)
+* Updated Go library dependencies. [#33544](https://github.com/gravitational/teleport/pull/33544)
+  * crewjam/saml vulnerable to Denial Of Service Via Deflate Decompression Bomb: [CVE-2023-28119](https://github.com/advisories/GHSA-5mqj-xc49-246p)
+  * Snowflake Golang Driver vulnerable to Command Injection: [CVE-2023-34231](https://github.com/advisories/GHSA-fwv2-65wh-2w8c)
+  * Docker Swarm encrypted overlay network may be unauthenticated: [CVE-2023-28840](https://github.com/advisories/GHSA-232p-vwff-86mp)
+  * Docker Swarm encrypted overlay network traffic may be unencrypted: [CVE-2023-28841](https://github.com/advisories/GHSA-33pg-m6jh-5237)
+  * Docker Swarm encrypted overlay network with a single endpoint is unauthenticated: [CVE-2023-28842](https://github.com/advisories/GHSA-6wrf-mxfj-pf5p)
+* Updated OpenTelemetry dependency. [#33552](https://github.com/gravitational/teleport/pull/33552)
+ * OpenTelemetry-Go Contrib vulnerable to denial of service in otelhttp due to unbound cardinality metrics: [CVE-2023-45142](https://github.com/advisories/GHSA-rcjv-mgp8-qvmr)
+* Updated JS dependencies. [#33426](https://github.com/gravitational/teleport/pull/33426) [#33467](https://github.com/gravitational/teleport/pull/33467)
+  * Regular Expression Denial of Service in trim: [CVE-2020-7753](https://github.com/advisories/GHSA-w5p7-h5w8-2hfq)
+  * semver vulnerable to Regular Expression Denial of Service: [CVE-2022-25883](https://github.com/advisories/GHSA-c2qf-rxjj-qqgw)
+  * word-wrap vulnerable to Regular Expression Denial of Service: [CVE-2023-26115](https://github.com/advisories/GHSA-j8xg-fqg3-53r7)
+  * xmldom allows multiple root nodes in a DOM: [CVE-2022-39353](https://github.com/advisories/GHSA-crh6-fp67-6883)
+  * loader-utils is vulnerable to Regular Expression Denial of Service (ReDoS): [CVE-2022-37599](https://github.com/advisories/GHSA-hhq3-ff78-jv3g)
+  * Prototype pollution in webpack loader-utils: [CVE-2022-37601](https://github.com/advisories/GHSA-76p3-8jx3-jpfq)
+  * loader-utils is vulnerable to Regular Expression Denial of Service (ReDoS) via url variable: [CVE-2022-37603](https://github.com/advisories/GHSA-3rfm-jhwj-7488)
+  * Prototype pollution in Plist before 3.0.5 can cause denial of service: [CVE-2022-22912](https://github.com/advisories/GHSA-4cpg-3vgw-4877)
+  * decode-uri-component vulnerable to Denial of Service (DoS): [CVE-2022-38900](https://github.com/advisories/GHSA-w573-4hg7-7wgq)
+  * Cross-realm object access in Webpack 5: [CVE-2023-28154](https://github.com/advisories/GHSA-hc6q-2mpp-qw7j)
+  * Prototype Pollution in JSON5 via Parse Method: [CVE-2022-46175](https://github.com/advisories/GHSA-9c47-m6qq-7p4h)
+  * http-cache-semantics vulnerable to Regular Expression Denial of Service: [CVE-2022-25881](https://github.com/advisories/GHSA-rc47-6667-2j5j)
+  * Exposure of sensitive information in follow-redirects: [CVE-2022-0155](https://github.com/advisories/GHSA-74fj-2j2h-c42q)
+  * node-fetch forwards secure headers to untrusted sites: [CVE-2022-0235](https://github.com/advisories/GHSA-r683-j2x4-v87g)
+  * Exposure of Sensitive Information to an Unauthorized Actor in nanoid: [CVE-2021-23566](https://github.com/advisories/GHSA-qrpm-p2h7-hrv2)
+  * Terser insecure use of regular expressions leads to ReDoS: [CVE-2022-25858](https://github.com/advisories/GHSA-4wf5-vphf-c2xc)
+* Updated babel/core to 7.3.2. [#33445](https://github.com/gravitational/teleport/pull/33445)
+  * Arbitrary code execution when compiling specifically crafted malicious code: [CVE-2023-45133](https://github.com/babel/babel/security/advisories/GHSA-67hx-6x53-jw92)
+
+### Other fixes and improvements
+
+* Fixed failure to connect to OpenSSH nodes when tracing is enabled. [#33594](https://github.com/gravitational/teleport/pull/33594)
+* Web SSH sessions are terminated right away when a user closes the tab. [#33535](https://github.com/gravitational/teleport/pull/33535)
+* Added support for Windows AD root domain for PKI operations. [#33395](https://github.com/gravitational/teleport/pull/33395)
+
 ## 12.4.22 (10/11/23)
 
 ### Security Fixes
