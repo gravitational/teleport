@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,9 +14,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import Select, { SelectAsync, SelectCreatable, StyledSelect } from './Select';
-import DarkStyledSelect from './DarkStyledSelect';
-
-export * from './types';
-export default Select;
-export { SelectAsync, SelectCreatable, DarkStyledSelect, StyledSelect };
+export const CLOUD_INVITE_URL_PARAM = 'invite';
