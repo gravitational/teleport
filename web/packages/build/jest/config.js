@@ -30,4 +30,10 @@ module.exports = {
     '^e-teleterm/(.*)$': '<rootDir>/e/web/teleterm/src/$1',
     '^gen-proto-js/(.*)$': '<rootDir>/gen/proto/js/$1',
   },
+  // Keep pre-v29 snapshot format to avoid existing snapshots breaking.
+  // https://jestjs.io/docs/upgrading-to-jest29#snapshot-format
+  snapshotFormat: {
+    escapeString: true,
+    printBasicPrototype: true,
+  },
 };
