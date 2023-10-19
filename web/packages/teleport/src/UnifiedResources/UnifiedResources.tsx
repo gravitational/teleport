@@ -148,17 +148,18 @@ export function UnifiedResources() {
 
           return {
             startKey: resp.startKey,
-            agents: resp.agents.map(resource => ({
-              resource,
-              ui: {
-                ActionButton: <ResourceActionButton resource={resource} />,
-              },
-            })),
+            agents: resp.agents,
             totalCount: resp.agents.length,
           };
         },
         [clusterId, teleCtx.resourceService]
       )}
+      mapToResource={resource => ({
+        resource,
+        ui: {
+          ActionButton: <ResourceActionButton resource={resource} />,
+        },
+      })}
     />
   );
 }
