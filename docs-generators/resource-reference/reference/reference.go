@@ -88,11 +88,16 @@ type TypeInfo struct {
 }
 
 type GeneratorConfig struct {
-	RequiredTypes []TypeInfo `yaml:"required_types"`
+	// Field types that a type must have to be included in the reference.  A
+	// type must have one of these field types to be included in the
+	// reference. The fields named here can be embedded fields.
+	RequiredFieldTypes []TypeInfo `yaml:"required_field_types"`
 	// Path to the root of the Go project directory
 	SourcePath string `yaml:"source"`
 	// Path of the resource reference
 	DestinationPath string `yaml:"destination"`
+	// Struct types to exclude from the reference
+	ExcludedResourceTypes []TypeInfo `yaml:"excluded_resource_types"`
 }
 
 // shouldProcess indicates whether we should generate reference entries from d,
@@ -258,10 +263,8 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		Fields:    make(map[resource.PackageInfo]resource.ReferenceEntry),
 	}
 
-	// TODO: Consider testing some of the logic here in a unit test, rather
-	// than the golden file test.
 	for k, decl := range typeDecls {
-		if !shouldProcess(decl, conf.RequiredTypes) {
+		if !shouldProcess(decl, conf.RequiredFieldTypes) {
 			continue
 		}
 		entries, err := resource.NewFromDecl(decl, typeDecls)
@@ -279,6 +282,15 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		// methods of the resource type for the one that specifies these
 		// values.
 		for pi, e := range entries {
+			// If we have excluded this resource via the
+			// config, don't create a separate section for
+			// it.
+			for _, ex := range conf.ExcludedResourceTypes {
+				if ex.Name == pi.DeclName && ex.Package == pi.PackageName {
+					continue
+				}
+			}
+
 			entryMethods, ok := methods[pi]
 			// Can't be a resource since it does not have methods.
 			if !ok {
