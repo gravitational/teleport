@@ -14,6 +14,7 @@ use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
+use ironrdp_pdu::rdp::client_info::ClientInfoFlags;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::PduParsing;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
@@ -83,20 +84,23 @@ impl Client {
         // Create a framed stream for use by connect_begin
         let mut framed = ironrdp_tokio::TokioFramed::new(stream);
 
-        let connector_config =
-            create_config(params.screen_width, params.screen_height, params.username);
-
-        // Create a channel for sending/receiving function calls to/from the Client.
-        let (client_handle, function_receiver) = channel(100);
-
         // Generate a random 8-digit PIN for our smartcard.
         let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
         let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
 
+        let connector_config = create_config(
+            params.screen_width,
+            params.screen_height,
+            params.username,
+            pin.clone(),
+        );
+
+        // Create a channel for sending/receiving function calls to/from the Client.
+        let (client_handle, function_receiver) = channel(100);
+
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
             .with_server_addr(server_socket_addr)
             .with_server_name(server_addr)
-            .with_credssp_network_client(RequestClientFactory)
             .with_static_channel(Rdpsnd::new())
             .with_static_channel(
                 Rdpdr::new(
@@ -476,12 +480,12 @@ pub type FunctionReceiver = Receiver<ClientFunction>;
 type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
 type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
-fn create_config(width: u16, height: u16, username: String) -> Config {
+fn create_config(width: u16, height: u16, username: String, password: String) -> Config {
     Config {
         desktop_size: ironrdp_connector::DesktopSize { width, height },
-        security_protocol: SecurityProtocol::HYBRID_EX,
+        security_protocol: SecurityProtocol::SSL,
         username,
-        password: std::env::var("RDP_PASSWORD").unwrap(), //todo(isaiah)
+        password,
         domain: None,
         client_build: 0,
         client_name: "Teleport".to_string(),
@@ -498,6 +502,7 @@ fn create_config(width: u16, height: u16, username: String) -> Config {
         client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
         platform: MajorPlatformType::UNSPECIFIED,
         no_server_pointer: false,
+        client_info_flags: Some(ClientInfoFlags::PASSWORD_IS_SC_PIN | ClientInfoFlags::AUTOLOGON),
     }
 }
 
