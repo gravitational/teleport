@@ -1096,6 +1096,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		}
 	}
 
+	// Remove HTTPS:// in proxy parameter as https is automatically added
+	cf.Proxy = strings.TrimPrefix(cf.Proxy, "https://")
+	cf.Proxy = strings.TrimPrefix(cf.Proxy, "HTTPS://")
+
 	// Identity files do not currently contain a proxy address. When loading an
 	// Identity file, a proxy must be passed on the command line as well.
 	if cf.IdentityFileIn != "" && cf.Proxy == "" {

@@ -1,5 +1,19 @@
 # Changelog
 
+## 13.4.4 (10/18/23)
+
+* Prevented remote proxies from impersonating users from different clusters. [#33540](https://github.com/gravitational/teleport/pull/33540)
+* Web SSH sessions are terminated right away when a user closes the tab. [#33532](https://github.com/gravitational/teleport/pull/33532)
+* Added the ability for bots to submit access request reviews. [#33510](https://github.com/gravitational/teleport/pull/33510)
+* Added access review notifications when logging in via `tsh` or running `tsh status`. [#33469](https://github.com/gravitational/teleport/pull/33469)
+* Added optional security group selection in AWS RDS Discovery flow. [#33454](https://github.com/gravitational/teleport/pull/33454)
+* Added new "Identity Governance & Security" navigation section in web UI. [#33425](https://github.com/gravitational/teleport/pull/33425)
+* Fixed access list audit log messages to properly include user names. [#33384](https://github.com/gravitational/teleport/pull/33384)
+* Added notification icon to Web UI to show Access List review notifications. [#33382](https://github.com/gravitational/teleport/pull/33382)
+* Fixed access lists to allow them to affect access request permissions. [#33351](https://github.com/gravitational/teleport/pull/33351)
+* Added job to update the Teleport version for deployments in Amazon ECS used during RDS Enrollment. [#33311](https://github.com/gravitational/teleport/pull/33311)
+* Added support for Windows AD root domain for PKI operations. [#33276](https://github.com/gravitational/teleport/pull/33276)
+
 ## 13.4.3 (10/11/23)
 
 ### Security Fixes
