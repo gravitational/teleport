@@ -98,7 +98,8 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, authServer.UpsertRole(ctx, roleWithFullAccess))
+	roleWithFullAccess, err = authServer.UpsertRole(ctx, roleWithFullAccess)
+	require.NoError(t, err)
 
 	for _, tt := range []struct {
 		name         string

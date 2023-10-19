@@ -245,6 +245,9 @@ type InitConfig struct {
 	// UserLoginStates is a service that manages user login states.
 	UserLoginState services.UserLoginStates
 
+	// SecReports is a service that manages security reports.
+	SecReports services.SecReports
+
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
@@ -261,6 +264,9 @@ type InitConfig struct {
 
 	// Tracer used to create spans.
 	Tracer oteltrace.Tracer
+
+	// AccessMonitoringEnabled is true if access monitoring is enabled.
+	AccessMonitoringEnabled bool
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -341,7 +347,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	// same pattern as the rest of the configuration (they are not configuration
 	// singletons). However, we need to keep them around while Telekube uses them.
 	for _, role := range cfg.Roles {
-		if err := asrv.UpsertRole(ctx, role); err != nil {
+		if _, err := asrv.UpsertRole(ctx, role); err != nil {
 			return trace.Wrap(err)
 		}
 		log.Infof("Created role: %v.", role)
@@ -736,9 +742,9 @@ type PresetRoleManager interface {
 	// GetRole returns role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// CreateRole creates a role.
-	CreateRole(ctx context.Context, role types.Role) error
+	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
 	// UpsertRole creates or updates a role and emits a related audit event.
-	UpsertRole(ctx context.Context, role types.Role) error
+	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
 }
 
 // createPresetRoles creates preset role resources
@@ -767,14 +773,14 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 		g.Go(func() error {
 			if types.IsSystemResource(role) {
 				// System resources *always* get reset on every auth startup
-				if err := rm.UpsertRole(gctx, role); err != nil {
+				if _, err := rm.UpsertRole(gctx, role); err != nil {
 					return trace.Wrap(err, "failed upserting system role %s", role.GetName())
 				}
 
 				return nil
 			}
 
-			if err := rm.CreateRole(gctx, role); err != nil {
+			if _, err := rm.CreateRole(gctx, role); err != nil {
 				if !trace.IsAlreadyExists(err) {
 					return trace.WrapWithMessage(err, "failed to create preset role %v", role.GetName())
 				}
@@ -792,7 +798,7 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 					return trace.Wrap(err)
 				}
 
-				if err := rm.UpsertRole(gctx, role); err != nil {
+				if _, err := rm.UpsertRole(gctx, role); err != nil {
 					return trace.WrapWithMessage(err, "failed to update preset role %v", role.GetName())
 				}
 			}

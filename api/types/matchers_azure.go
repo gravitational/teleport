@@ -44,6 +44,8 @@ const (
 
 // SupportedAzureMatchers is list of Azure services currently supported by the
 // Teleport discovery service.
+// IMPORTANT: when adding new Database matchers, make sure reference configs
+// for both Discovery and Database Service are updated in docs.
 var SupportedAzureMatchers = []string{
 	AzureMatcherVM,
 	AzureMatcherKubernetes,

@@ -82,6 +82,8 @@ export interface Acl {
   assist: Access;
   samlIdpServiceProvider: Access;
   accessList: Access;
+  auditQuery: Access;
+  securityReport: Access;
 }
 
 // AllTraits represent all the traits defined for a user.

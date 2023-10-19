@@ -112,6 +112,11 @@ const (
 	TagRoles = "roles"
 	// TagResources is a number of resources requested as a part of access request.
 	TagResources = "resources"
+
+	// UserCertificatesCreated provides total number of user certificates generated.
+	MetricUserCertificatesGenerated = "user_certificates_generated"
+	// TagPrivateKeyPolicy is a private key policy associated with a user's certificates.
+	TagPrivateKeyPolicy = "private_key_policy"
 )
 
 const (

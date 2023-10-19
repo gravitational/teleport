@@ -24,6 +24,8 @@ import (
 // If the slot is empty, a new private key matching the given policy will be generated in the slot.
 //   - hardware_key: 9a
 //   - hardware_key_touch: 9c
+//   - hardware_key_pin: 9d
+//   - hardware_key_touch_pin: 9e
 func GetYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot PIVSlot) (*PrivateKey, error) {
 	priv, err := getOrGenerateYubiKeyPrivateKey(ctx, policy, slot)
 	if err != nil {

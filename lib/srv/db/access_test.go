@@ -2034,7 +2034,7 @@ func (c *testContext) createUserAndRole(ctx context.Context, t testing.TB, userN
 	for _, roleOpt := range roleOpts {
 		roleOpt(role)
 	}
-	err = c.tlsServer.Auth().UpsertRole(ctx, role)
+	role, err = c.tlsServer.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	return user, role
 }
@@ -2490,6 +2490,37 @@ func withSelfHostedPostgres(name string, dbOpts ...databaseOption) withDatabaseO
 			Name:       name,
 			AuthClient: testCtx.authClient,
 			ClientAuth: tls.RequireAndVerifyClientCert,
+		})
+		require.NoError(t, err)
+		go postgresServer.Serve()
+		t.Cleanup(func() { postgresServer.Close() })
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolPostgres,
+			URI:           net.JoinHostPort("localhost", postgresServer.Port()),
+			DynamicLabels: dynamicLabels,
+		})
+		require.NoError(t, err)
+		for _, dbOpt := range dbOpts {
+			dbOpt(database)
+		}
+		testCtx.postgres[name] = testPostgres{
+			db:       postgresServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withSelfHostedPostgresUsers(name string, users []string, dbOpts ...databaseOption) withDatabaseOption {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
+		postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
+			Name:         name,
+			AuthClient:   testCtx.authClient,
+			ClientAuth:   tls.RequireAndVerifyClientCert,
+			AllowAnyUser: false,
+			Users:        users,
 		})
 		require.NoError(t, err)
 		go postgresServer.Serve()

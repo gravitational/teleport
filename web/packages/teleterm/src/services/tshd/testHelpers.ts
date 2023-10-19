@@ -63,7 +63,7 @@ export const makeRootCluster = (
   proxyHost: 'teleport-local:3080',
   authClusterId: 'fefe3434-fefe-3434-fefe-3434fefe3434',
   loggedInUser: makeLoggedInUser(),
-  proxyVersion: '1.0.0',
+  proxyVersion: '11.1.0',
   ...props,
 });
 

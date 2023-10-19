@@ -32,6 +32,12 @@ import {
 } from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
+import { TELEPORT_CUSTOM_PROTOCOL } from 'teleterm/ui/uri';
+
+// Set the app as a default protocol client only if it wasn't started through `electron .`.
+if (!process.defaultApp) {
+  app.setAsDefaultProtocolClient(TELEPORT_CUSTOM_PROTOCOL);
+}
 
 if (app.requestSingleInstanceLock()) {
   initializeApp();
@@ -42,7 +48,7 @@ if (app.requestSingleInstanceLock()) {
   app.exit(1);
 }
 
-async function initializeApp(): Promise<void> {
+function initializeApp(): void {
   updateSessionDataPath();
   let devRelaunchScheduled = false;
   const settings = getRuntimeSettings();
@@ -52,7 +58,7 @@ async function initializeApp(): Promise<void> {
     appStateFileStorage,
     configFileStorage,
     configJsonSchemaFileStorage,
-  } = await createFileStorages(settings.userDataDir);
+  } = createFileStorages(settings.userDataDir);
 
   runConfigFileMigration(configFileStorage);
   const configService = createConfigService({
@@ -127,6 +133,14 @@ async function initializeApp(): Promise<void> {
   app.on('second-instance', () => {
     windowsManager.focusWindow();
   });
+
+  // Since setUpDeepLinks adds another listener for second-instance, it's important to call it after
+  // the listener which calls windowsManager.focusWindow. This way the focus will be brought to the
+  // window before processing the listener for deep links.
+  //
+  // The setup must be done synchronously when starting the app, otherwise the listeners won't get
+  // triggered on macOS if the app is not already running when the user opens a deep link.
+  setUpDeepLinks(logger, windowsManager, settings);
 
   app.whenReady().then(() => {
     if (mainProcess.settings.dev) {
@@ -238,23 +252,76 @@ function initMainLogger(settings: types.RuntimeSettings) {
 }
 
 function createFileStorages(userDataDir: string) {
-  return Promise.all([
-    createFileStorage({
+  return {
+    appStateFileStorage: createFileStorage({
       filePath: path.join(userDataDir, 'app_state.json'),
       debounceWrites: true,
     }),
-    createFileStorage({
+    configFileStorage: createFileStorage({
       filePath: path.join(userDataDir, 'app_config.json'),
       debounceWrites: false,
       discardUpdatesOnLoadError: true,
     }),
-    createFileStorage({
+    configJsonSchemaFileStorage: createFileStorage({
       filePath: path.join(userDataDir, 'schema_app_config.json'),
       debounceWrites: false,
     }),
-  ]).then(storages => ({
-    appStateFileStorage: storages[0],
-    configFileStorage: storages[1],
-    configJsonSchemaFileStorage: storages[2],
-  }));
+  };
+}
+
+// Important: Deep links work only with a packaged version of the app.
+//
+// Technically, Windows could support deep links with a non-packaged version of the app, but for
+// simplicity's sake we don't support this.
+function setUpDeepLinks(
+  logger: Logger,
+  windowsManager: WindowsManager,
+  settings: types.RuntimeSettings
+) {
+  // The setup is done according to the docs:
+  // https://www.electronjs.org/docs/latest/tutorial/launch-app-from-url-in-another-app
+
+  if (settings.platform === 'darwin') {
+    // Deep link click on macOS.
+    app.on('open-url', (event, url) => {
+      // When macOS launches an app as a result of a deep link click, macOS does bring focus to the
+      // _application_ itself if the app is already running. However, if the app has one window and
+      // the window is minimized, it'll remain so. So we have to focus the window ourselves.
+      windowsManager.focusWindow();
+
+      logger.info(`Deep link launch from open-url, URL: ${url}`);
+    });
+    return;
+  }
+
+  // Do not handle deep links if the app was started from `electron .`, as custom protocol URLs
+  // won't be forwarded to the app on Linux in this case.
+  if (process.defaultApp) {
+    return;
+  }
+
+  // Deep link click if the app is already opened (Windows or Linux).
+  app.on('second-instance', (event, argv) => {
+    // There's already a second-instance listener that gives focus to the main window, so we don't
+    // do this in this listener.
+
+    const url = findCustomProtocolUrlInArgv(argv);
+    if (url) {
+      logger.info(`Deep link launch from second-instance, URI: ${url}`);
+    }
+  });
+
+  // Deep link click if the app is not running (Windows or Linux).
+  const url = findCustomProtocolUrlInArgv(process.argv);
+
+  if (!url) {
+    return;
+  }
+  logger.info(`Deep link launch from process.argv, URL: ${url}`);
+}
+
+// We don't know the exact position of the URL is in argv. Chromium might inject its own arguments
+// into argv. See https://www.electronjs.org/docs/latest/api/app#event-second-instance.
+function findCustomProtocolUrlInArgv(argv: string[]) {
+  return argv.find(arg => arg.startsWith(`${TELEPORT_CUSTOM_PROTOCOL}://`));
 }
