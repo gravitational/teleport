@@ -1349,12 +1349,80 @@
           "slug": "/machine-id/getting-started/"
         },
         {
-          "title": "Platform Guides",
-          "slug": "/machine-id/platform-guides/"
+          "title": "Deploying Machine ID",
+          "slug": "/machine-id/deployment/",
+          "entries": [
+            {
+              "title": "AWS",
+              "slug": "/machine-id/deployment/aws/"
+            },
+            {
+              "title": "Google Cloud",
+              "slug": "/machine-id/deployment/gcp/"
+            },
+            {
+              "title": "Azure",
+              "slug": "/machine-id/deployment/azure/"
+            },
+            {
+              "title": "CircleCI",
+              "slug": "/machine-id/deployment/circleci/"
+            },
+            {
+              "title": "GitHub Actions",
+              "slug": "/machine-id/deployment/github-actions/"
+            },
+            {
+              "title": "GitLab",
+              "slug": "/machine-id/deployment/gitlab/"
+            },
+            {
+              "title": "Jenkins",
+              "slug": "/machine-id/deployment/jenkins/"
+            },
+	    {
+              "title": "Linux Server",
+              "slug": "/machine-id/deployment/linux/"
+            },
+            {
+              "title": "Kubernetes",
+              "slug": "/machine-id/deployment/kubernetes/"
+            }
+          ]
         },
         {
-          "title": "Access Guides",
-          "slug": "/machine-id/access-guides/"
+          "title": "Accessing Infrastructure with Machine ID",
+          "slug": "/machine-id/access-guides/",
+          "entries": [
+            {
+              "title": "tctl",
+              "slug": "/machine-id/access-guides/tctl/"
+            },
+            {
+              "title": "Kubernetes",
+              "slug": "/machine-id/access-guides/kubernetes/"
+            },
+            {
+              "title": "Terraform",
+              "slug": "/machine-id/access-guides/terraform/"
+            },
+            {
+              "title": "Applications",
+              "slug": "/machine-id/access-guides/applications/"
+            },
+            {
+              "title": "Databases",
+              "slug": "/machine-id/access-guides/databases/"
+            },
+            {
+              "title": "SSH",
+              "slug": "/machine-id/access-guides/ssh/"
+            },
+            {
+              "title": "Ansible",
+              "slug": "/machine-id/access-guides/ansible/"
+            }
+          ]
         },
         {
           "title": "Architecture",
@@ -2828,22 +2896,22 @@
     },
     {
       "source": "/machine-id/guides/circleci/",
-      "destination": "/machine-id/platform-guides/circleci/",
+      "destination": "/machine-id/deployment/circleci/",
       "permanent": true
     },
     {
       "source": "/machine-id/guides/jenkins/",
-      "destination": "/machine-id/platform-guides/jenkins/",
+      "destination": "/machine-id/deployment/jenkins/",
       "permanent": true
     },
     {
       "source": "/machine-id/guides/gitlab/",
-      "destination": "/machine-id/platform-guides/gitlab/",
+      "destination": "/machine-id/deployment/gitlab/",
       "permanent": true
     },
     {
       "source": "/machine-id/guides/gitlab/",
-      "destination": "/machine-id/platform-guides/github-actions/",
+      "destination": "/machine-id/deployment/github-actions/",
       "permanent": true
     },
     {

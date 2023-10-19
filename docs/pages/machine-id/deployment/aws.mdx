@@ -3,49 +3,25 @@ title: Deploying Machine ID on AWS
 description: How to install and configure Machine ID on an AWS EC2 instance
 ---
 
-This page contains relevant background information and specific steps for
-deploying Machine ID on Amazon Web Services.
+This guide explains how to deploy Machine ID on Amazon Web Services by running
+the `tbot` binary and joining it to your Teleport cluster.
 
-## Background
+On AWS, virtual machines can be assigned an IAM role, which they can assume in
+order to request a signed document that includes information about the machine.
+The Teleport `iam` join method instructs the Machine ID bot to request this
+signed document from AWS using the assigned identity and send it to the Teleport
+Auth Service for verification. This allows the bot to join the cluster without
+the exchange of a long-lived secret.
 
-### The `iam` join method
+While this guide focuses on deploying Machine ID on an EC2 instance, it is also
+possible to use the `iam` join method with workloads running on an EKS
+Kubernetes cluster. To do so, you must configure [IAM Roles for Service Accounts
+(IRSA)](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html)
+for the cluster and the Kubernetes service account that will be used by the
+`tbot` pod. See the [Kubernetes platform guide](kubernetes.mdx) for further
+guidance on deploying Machine ID as a workload on Kubernetes.
 
-The process of `tbot` initially authenticating with the Teleport cluster is
-known as joining. A join method is a specific technique for the bot to prove
-its identity.
-
-On the AWS platform, virtual machines can be assigned an IAM role. The AWS
-platform will then make this role available to the machine as an assumed
-identity. This allows the machine to act as the assigned role. Using this
-identity, the machine is able to request a signed document that includes
-information about the machine.
-
-The `iam` join method instructs the bot to request this signed document from
-AWS using the assigned identity. This signed document is then sent to the
-Auth Server as proof of the machine's identity. This allows the bot to join
-the cluster without the exchange of a long lived secret.
-
-### Elastic Kubernetes Service
-
-Whilst the guide on this page focuses explicitly on deploying Machine ID on an
-EC2 instance, it is also possible to use the `iam` join method with
-workloads (e.g Pods) running on an EKS Kubernetes cluster.
-
-It is a requirement that
-[IAM Roles for Service Accounts (IRSA)](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html)
-has been configured for the cluster and the Kubernetes service account that will
-be used by the `tbot` pod.
-
-See the [Kubernetes platform guide](kubernetes.mdx) for further guidance
-on deploying Machine ID as a workload on Kubernetes.
-
-## Guide
-
-In this guide, you will install Machine ID's agent, `tbot`, on an AWS EC2
-instance. The bot will be configured to use the `iam` delegated joining method
-to eliminate the need for long-lived secrets.
-
-### Prerequisites
+## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
@@ -56,7 +32,7 @@ to eliminate the need for long-lived secrets.
 - An AWS EC2 virtual machine that you wish to install Machine ID onto configured
   with the IAM role attached.
 
-### Step 1/4. Install `tbot`
+## Step 1/4. Install `tbot`
 
 **This step is completed on the AWS EC2 instance.**
 
@@ -67,7 +43,7 @@ Download and install the appropriate Teleport package for your platform:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-### Step 2/4. Create a role and bot user
+## Step 2/4. Create a role and bot user
 
 **This step is completed on your local machine.**
 
@@ -115,7 +91,7 @@ Create the bot, specifying the token and role that you have created:
 $ tctl bots add example --token example-bot --roles example-bot
 ```
 
-### Step 3/4. Configure `tbot`
+## Step 3/4. Configure `tbot`
 
 **This step is completed on the AWS EC2 instance.**
 
@@ -141,7 +117,7 @@ Replace:
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
 
-### Step 4/4. Configure Outputs
+## Step 4/4. Configure outputs
 
 (!docs/pages/includes/machine-id/configure-outputs.mdx!)
 

@@ -3,41 +3,24 @@ title: Deploying Machine ID on Kubernetes
 description: How to install and configure Machine ID on Kubernetes
 ---
 
-This page contains relevant background information and specific steps for
-deploying Machine ID on Kubernetes.
+This guide shows you how to deploy the Machine ID daemon `tbot`, on a Kubernetes
+cluster.
 
-## Background
+In the setup we demonstrate in this guide, `tbot` runs as a Kubernetes
+deployment. It writes output credentials to a Kubernetes secret, which can then
+be mounted in the pods that need to use the credentials. While `tbot` can also
+run as a sidecar within the same pod as the service that needs to use the
+credentials it generates, we recommend running `tbot` as a standalone deployment
+due the limited support Kubernetes has for sidecars.
 
-### Deployment vs Sidecar
+In this guide, we demonstrate the `kubernetes` join method, in which `tbot`
+proves its identity to the Teleport Auth Service by presenting a JSON web token
+(JWT) signed by the Kubernetes API server. This JWT contains identifies the
+service account, the pod and the namespace in which `tbot` is running. The
+Teleport Auth Service checks the signature of the JWT against the Kubernetes
+cluster's public signing key.
 
-When deploying `tbot` into your Kubernetes cluster, there are two main options:
-
-**Deployment**: `tbot` runs as a Kubernetes deployment, writing the
-output credentials to a Kubernetes secret, which can then be mounted in the pods
-that need to use the credentials.
-
-**Sidecar**: `tbot` runs as a second container within the same pod as the
-service that needs to use the credentials. The credentials are written to a
-directory which is mounted within both the containers.
-
-Due to the current limited support in Kubernetes for sidecars, we recommend that
-the Standalone Deployment style is used. The guide will demonstrate this
-recommendation.
-
-### The `kubernetes` join method
-
-The `kubernetes` join method, used by `tbot` to prove its identity to the
-Teleport Auth Server, identifies the bot using the Kubernetes Service Account
-that is associated with the Pod that `tbot` is running within.
-
-The Pod receives a JWT signed by the Kubernetes API server. This JWT contains
-claims that identify the service account, the pod and the namespace.
-
-In order to validate a presented JWT is legitimate, the Teleport Auth Server
-checks the signature of the JWT against the Kubernetes cluster's public signing
-key.
-
-### Using a non-`kubernetes` join method
+<Details title="Using another join method">
 
 When deploying `tbot` to a Teleport cluster, it is generally recommended to use
 the `kubernetes` join method. This will work with most Kubernetes clusters.
@@ -58,19 +41,9 @@ a single join token. These services are:
   is configured for the cluster, it is possible to use the `iam` join method.
   See the [AWS Platform Guide](./aws.mdx) for further information.
 
-## Guide
+</Details>
 
-This guide will demonstrate installing `tbot` into a Kubernetes cluster as a
-Deployment. The `kubernetes` join method will be used to authenticate the bot
-to the Teleport cluster.
-
-<Admonition type="tip" title="Namespace">
-The examples in this guide will install a `tbot` deployment in the `default`
-Namespace of the Kubernetes cluster. Adjust references to `default` to the
-Namespace you wish to use.
-</Admonition>
-
-### Prerequisites
+## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
@@ -80,7 +53,11 @@ Namespace you wish to use.
 - `kubectl` authenticated with the ability to create resources in the cluster
   you wish to deploy `tbot` into.
 
-### Step 1/4. Prepare Kubernetes RBAC
+The examples in this guide will install a `tbot` deployment in the `default`
+Namespace of the Kubernetes cluster. Adjust references to `default` to the
+Namespace you wish to use.
+
+## Step 1/4. Prepare Kubernetes RBAC
 
 In order to prepare the Kubernetes cluster for Machine ID, several Kubernetes
 RBAC resources must be created.
@@ -141,7 +118,7 @@ Apply this file to your Kubernetes cluster:
 $ kubectl apply -f ./k8s-rbac.yaml
 ```
 
-### Step 2/4. Create a join token, role and bot user
+## Step 2/4. Create a join token, role and bot user
 
 (!docs/pages/includes/machine-id/blank-role.mdx!)
 
@@ -200,7 +177,7 @@ Create the bot, specifying the token and role that you have created:
 $ tctl bots add example --token example-bot --roles example-bot
 ```
 
-### Step 3/4. Create a `tbot` deployment
+## Step 3/4. Create a `tbot` deployment
 
 First, a ConfigMap will be created to contain the configuration file for `tbot`.
 This will then be mounted into the Pod.
@@ -333,7 +310,7 @@ $ kubectl logs deployment/tbot
 With this complete, `tbot` is now successfully deployed to your cluster.
 However, it is not yet producing any useful output.
 
-### Step 4/4. Configure outputs
+## Step 4/4. Configure outputs
 
 Follow one of the [access guides](../access-guides.mdx) to configure an output
 that meets your access needs.
