@@ -123,7 +123,7 @@ func newAccess(roleSet RoleSet, ctx *Context, kind string) ResourceAccess {
 }
 
 // NewUserACL builds an ACL for a user based on their roles.
-func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, desktopRecordingEnabled bool) UserACL {
+func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, desktopRecordingEnabled, accessMonitoringEnabled bool) UserACL {
 	ctx := &Context{User: user}
 	recordedSessionAccess := newAccess(userRoles, ctx, types.KindSession)
 	activeSessionAccess := newAccess(userRoles, ctx, types.KindSSHSession)
@@ -168,8 +168,13 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	discoveryConfigsAccess := newAccess(userRoles, ctx, types.KindDiscoveryConfig)
 	lockAccess := newAccess(userRoles, ctx, types.KindLock)
 	accessListAccess := newAccess(userRoles, ctx, types.KindAccessList)
-	auditQuery := newAccess(userRoles, ctx, types.KindAuditQuery)
-	securityReports := newAccess(userRoles, ctx, types.KindSecurityReport)
+
+	var auditQuery ResourceAccess
+	var securityReports ResourceAccess
+	if accessMonitoringEnabled {
+		auditQuery = newAccess(userRoles, ctx, types.KindAuditQuery)
+		securityReports = newAccess(userRoles, ctx, types.KindSecurityReport)
+	}
 
 	return UserACL{
 		AccessRequests:          requestAccess,

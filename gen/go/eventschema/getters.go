@@ -101,7 +101,10 @@ func (d *TableSchemaDetails) CreateView() string {
 	return sb.String()
 }
 
-func sqlViewNameForEvent(eventName string) string {
+// SQLViewNameForEvent returns a SQL compatible view name for a given event.
+// [event code]  -> [athena view name]
+// session.start -> session_start
+func SQLViewNameForEvent(eventName string) string {
 	viewName := strings.ReplaceAll(eventName, ".", "_")
 	return strings.ReplaceAll(viewName, "-", "_")
 }
@@ -152,7 +155,7 @@ func GetViewsDetails() ([]*TableSchemaDetails, error) {
 			return nil, trace.Wrap(err)
 		}
 		tb.Name = eventName
-		tb.SQLViewName = sqlViewNameForEvent(eventName)
+		tb.SQLViewName = SQLViewNameForEvent(eventName)
 		out = append(out, tb)
 	}
 	return out, nil

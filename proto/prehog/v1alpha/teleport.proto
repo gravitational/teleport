@@ -41,6 +41,9 @@ message UserLoginEvent {
   //
   // PostHog property: tp.device_id
   string device_id = 3;
+
+  // the required private key policy for this login.
+  string required_private_key_policy = 4;
 }
 
 message SSOCreateEvent {
@@ -224,6 +227,9 @@ message UserCertificateIssuedEvent {
   // If true, the certificate usage is restricted to desktop access.
   // PostHog property: tp.usage_desktop
   bool usage_desktop = 7;
+
+  // the private key policy associated with these user certificates.
+  string private_key_policy = 8;
 }
 
 // UIBannerClickEvent is a usage event sent by the UI when the upgrade

@@ -443,7 +443,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 
 	role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
 	role.SetDatabaseNames(types.Allow, []string{types.Wildcard})
-	err = p.auth.Process.GetAuthServer().UpsertRole(context.Background(), role)
+	_, err = p.auth.Process.GetAuthServer().UpsertRole(context.Background(), role)
 	require.NoError(t, err)
 
 	// start the process and block until specified events are received.

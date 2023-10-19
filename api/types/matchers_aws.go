@@ -70,6 +70,8 @@ var SupportedAWSMatchers = append([]string{
 
 // SupportedAWSDatabaseMatchers is a list of the AWS databases currently
 // supported by the Teleport discovery service.
+// IMPORTANT: when adding new Database matchers, make sure reference configs
+// for both Discovery and Database Service are updated in docs.
 var SupportedAWSDatabaseMatchers = []string{
 	AWSMatcherRDS,
 	AWSMatcherRDSProxy,
