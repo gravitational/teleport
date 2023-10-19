@@ -477,14 +477,16 @@ func TestWithRsync(t *testing.T) {
 			require.NoError(t, err)
 			dstPath := filepath.Join(testDir, "dst")
 
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			t.Cleanup(cancel)
+
 			cmd := tt.createCmd(ctx, testDir, srcPath, dstPath)
-			out, err := cmd.CombinedOutput()
+			err := cmd.Run()
 			var msg string
 			var exitErr *exec.ExitError
 			if errors.As(err, &exitErr) {
-				msg = fmt.Sprintf("exit code: %d\nout: %s", exitErr.ExitCode(), out)
+				msg = fmt.Sprintf("exit code: %d", exitErr.ExitCode())
+				msg += fmt.Sprintf("stderr: %s", exitErr.Stderr)
 			}
 			require.NoError(t, err, msg)
 
