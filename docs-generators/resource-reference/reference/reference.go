@@ -25,15 +25,16 @@ type ResourceSection struct {
 	resource.ReferenceEntry
 }
 
-// Intended to be executed with a ReferenceContent
+// Intended to be executed with a ReferenceContent.
+// Ampersands are replaced with backticks.
 var referenceTemplate string = strings.ReplaceAll(`
 ## Resources
 
 {{ range .Resources }}
 ### {{ .SectionName }}
 
-**Kind**: {{ .Kind }}
-**Version**: {{ .Version}}
+**Kind**: &{{ .Kind }}&
+**Version**: &{{ .Version}}&
 
 {{ .Description }}
 
