@@ -284,7 +284,8 @@ function setUpDeepLinks(
   if (settings.platform === 'darwin') {
     // Deep link click on macOS.
     app.on('open-url', (event, url) => {
-      // macOS does bring focus to the _application_ itself. However, if the app has one window and
+      // When macOS launches an app as a result of a deep link click, macOS does bring focus to the
+      // _application_ itself if the app is already running. However, if the app has one window and
       // the window is minimized, it'll remain so. So we have to focus the window ourselves.
       windowsManager.focusWindow();
 
@@ -301,6 +302,9 @@ function setUpDeepLinks(
 
   // Deep link click if the app is already opened (Windows or Linux).
   app.on('second-instance', (event, argv) => {
+    // There's already a second-instance listener that gives focus to the main window, so we don't
+    // do this in this listener.
+
     const url = findCustomProtocolUrlInArgv(argv);
     if (url) {
       logger.info(`Deep link launch from second-instance, URI: ${url}`);
