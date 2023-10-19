@@ -90,7 +90,7 @@ const tabs: { label: string; value: UnifiedTabPreference }[] = [
   },
 ];
 
-interface UnifiedResourcesProps {
+interface UnifiedResourcesProps<T> {
   params: ResourceFilter;
   //TODO(gzdunek): the pin button should be moved to some other place
   //according to the new designs
@@ -98,10 +98,17 @@ interface UnifiedResourcesProps {
   EmptySearchResults: React.JSX.Element;
   pinningNotSupported: boolean;
   availableKinds: SharedUnifiedResource['resource']['kind'][];
+  /**
+   * Fetches the resources.
+   * The type of particular resource is not specified; the fetched resource
+   * should be mapped to `SharedUnifiedResource` via the `mapToResource` prop.
+   * */
   fetchFunc(
     params: UrlResourcesParams,
     signal: AbortSignal
-  ): Promise<ResourcesResponse<SharedUnifiedResource>>;
+  ): Promise<ResourcesResponse<T>>;
+  /** Maps fetched data to `SharedUnifiedResource`. */
+  mapToResource(response: T): SharedUnifiedResource;
   setParams(params: ResourceFilter): void;
   onLabelClick(label: ResourceLabel): void;
   getClusterPinnedResources(): Promise<string[]>;
@@ -111,7 +118,7 @@ interface UnifiedResourcesProps {
   ): void;
 }
 
-export function UnifiedResources(props: UnifiedResourcesProps) {
+export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
   const {
     params,
     setParams,
@@ -125,7 +132,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   const {
     setTrigger: setScrollDetector,
     forceFetch,
-    resources,
+    resources: rawResources,
     attempt,
   } = useInfiniteScroll({
     fetchFunc: props.fetchFunc,
@@ -133,6 +140,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     initialFetchSize: INITIAL_FETCH_SIZE,
     fetchMoreSize: FETCH_MORE_SIZE,
   });
+
+  const resources = rawResources.map(props.mapToResource);
 
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
 

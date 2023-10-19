@@ -54,17 +54,13 @@ const allResources = [
   ...kubes,
   ...desktops,
   ...nodes,
-].map(resource => ({
-  resource,
-  ui: {
-    ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
-  },
-}));
+];
+
 const story = (
   fetchFunc: (
     params: UrlResourcesParams,
     signal: AbortSignal
-  ) => Promise<ResourcesResponse<SharedUnifiedResource>>
+  ) => Promise<ResourcesResponse<SharedUnifiedResource['resource']>>
 ) => {
   return () => (
     <UnifiedResources
@@ -83,6 +79,12 @@ const story = (
       EmptySearchResults={undefined}
       updateClusterPinnedResources={() => undefined}
       fetchFunc={fetchFunc}
+      mapToResource={resource => ({
+        resource,
+        ui: {
+          ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
+        },
+      })}
     />
   );
 };
