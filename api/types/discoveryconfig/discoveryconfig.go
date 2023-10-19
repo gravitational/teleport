@@ -80,37 +80,41 @@ func (a *DiscoveryConfig) CheckAndSetDefaults() error {
 	if a.Spec.AWS == nil {
 		a.Spec.AWS = make([]types.AWSMatcher, 0)
 	}
-	for _, m := range a.Spec.AWS {
+	for i, m := range a.Spec.AWS {
 		if err := m.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+		a.Spec.AWS[i] = m
 	}
 
 	if a.Spec.Azure == nil {
 		a.Spec.Azure = make([]types.AzureMatcher, 0)
 	}
-	for _, m := range a.Spec.Azure {
+	for i, m := range a.Spec.Azure {
 		if err := m.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+		a.Spec.Azure[i] = m
 	}
 
 	if a.Spec.GCP == nil {
 		a.Spec.GCP = make([]types.GCPMatcher, 0)
 	}
-	for _, m := range a.Spec.GCP {
+	for i, m := range a.Spec.GCP {
 		if err := m.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+		a.Spec.GCP[i] = m
 	}
 
 	if a.Spec.Kube == nil {
 		a.Spec.Kube = make([]types.KubernetesMatcher, 0)
 	}
-	for _, m := range a.Spec.Kube {
+	for i, m := range a.Spec.Kube {
 		if err := m.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+		a.Spec.Kube[i] = m
 	}
 
 	return nil
