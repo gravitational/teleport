@@ -36,7 +36,7 @@ import {
   PINNING_NOT_SUPPORTED_MESSAGE,
 } from './UnifiedResources';
 
-import type { ResourceLabel } from 'teleport/services/agents';
+import type { ResourceLabel } from 'teleport/services/agents'; // Since we do a lot of manual resizing and some absolute positioning, we have
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -54,6 +54,19 @@ const ResTypeIconBox = styled(Box)`
   line-height: 0;
 `;
 
+export enum PinningSupport {
+  Supported = 'Supported',
+  /**
+   * Disables pinning functionality if a leaf cluster hasn't been upgraded yet.
+   * Shows an appropriate message on hover.
+   * */
+  NotSupported = 'NotSupported',
+  /** Disables the pinning button. */
+  Disabled = 'Disabled',
+  /** Hides the pinning button completely. */
+  Hidden = 'Hidden',
+}
+
 type Props = {
   name: string;
   primaryIconName: ResourceIconName;
@@ -64,14 +77,9 @@ type Props = {
   onLabelClick?: (label: ResourceLabel) => void;
   pinResource: () => void;
   selectResource: () => void;
-  pinned: boolean;
   selected: boolean;
-  // this is used to disable pinning functionality if
-  // a leaf cluster hasn't been upgraded yet
-  pinningNotSupported: boolean;
-  // pinningDisabled is used to disable the button during
-  // a pinning network request
-  pinningDisabled: boolean;
+  pinned: boolean;
+  pinningSupport: PinningSupport;
 };
 
 export function ResourceCard({
@@ -82,12 +90,11 @@ export function ResourceCard({
   description,
   ActionButton,
   labels,
-  pinningNotSupported,
+  pinningSupport,
   pinned,
   pinResource,
   selectResource,
   selected,
-  pinningDisabled,
 }: Props) {
   const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
   const [showAllLabels, setShowAllLabels] = useState(false);
@@ -209,11 +216,10 @@ export function ResourceCard({
             />
           </HoverTooltip>
           <PinButton
-            pinningDisabled={pinningDisabled}
-            pinningNotSupported={pinningNotSupported}
             setPinned={pinResource}
-            hovered={hovered}
             pinned={pinned}
+            pinningSupport={pinningSupport}
+            hovered={hovered}
           />
           <ResourceIcon
             name={primaryIconName}
@@ -510,35 +516,36 @@ const LoadingCardWrapper = styled(Box)`
 
 function PinButton({
   pinned,
+  pinningSupport,
   hovered,
   setPinned,
-  pinningDisabled,
-  pinningNotSupported,
 }: {
   pinned: boolean;
+  pinningSupport: PinningSupport;
   hovered: boolean;
   setPinned: (id: string) => void;
-  pinningDisabled: boolean;
-  pinningNotSupported: boolean;
 }) {
   const copyAnchorEl = useRef(null);
-  const tipContent = pinningNotSupported
-    ? PINNING_NOT_SUPPORTED_MESSAGE
-    : pinned
-    ? 'Unpin'
-    : 'Pin';
+  const tipContent = getTipContent(pinningSupport, pinned);
+
+  const shouldShowButton =
+    pinningSupport !== PinningSupport.Hidden && (pinned || hovered);
+  const shouldDisableButton =
+    pinningSupport === PinningSupport.Disabled ||
+    pinningSupport === PinningSupport.NotSupported;
 
   return (
     <ButtonIcon
       css={`
         // dont display but keep the layout
-        visibility: ${pinned || hovered ? 'visible' : 'hidden'};
+        visibility: ${shouldShowButton ? 'visible' : 'hidden'};
         position: absolute;
         // we position far from the top so the layout of the pin doesn't change if we expand the card
         top: ${props => props.theme.space[9]}px;
+        transition: none;
         left: 16px;
       `}
-      disabled={pinningDisabled || pinningNotSupported}
+      disabled={shouldDisableButton}
       setRef={copyAnchorEl}
       size={0}
       onClick={setPinned}
@@ -552,4 +559,18 @@ function PinButton({
       </HoverTooltip>
     </ButtonIcon>
   );
+}
+
+function getTipContent(
+  pinningSupport: PinningSupport,
+  pinned: boolean
+): string {
+  switch (pinningSupport) {
+    case PinningSupport.NotSupported:
+      return PINNING_NOT_SUPPORTED_MESSAGE;
+    case PinningSupport.Supported:
+      return pinned ? 'Unpin' : 'Pin';
+    default:
+      return '';
+  }
 }
