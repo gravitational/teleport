@@ -18,10 +18,26 @@ Opsgenie.
 
 ## Prerequisites
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+- A Teleport Enterprise Cloud account.
+
+- The Enterprise `tctl` admin tool and `tsh` client tool version >= (=teleport.version=). 
+  
+  You can verify the tools you have installed by running the following commands:
+
+  ```code
+  $ tctl version
+  # Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
+  
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+  You can download these tools by following the appropriate [Installation 
+  instructions](../../installation.mdx#installation-instructions) for your environment and Teleport edition.
 
 - An Opsgenie account with the ability to create API keys with the 'read' and
   'create and update' access rights.
+
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Create services

@@ -208,6 +208,11 @@ func (a *Server) updateGithubConnector(ctx context.Context, connector types.Gith
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// TODO(tross): add a GithubConnectorUpdate type, GithubConnectorUpdatedEvent/Code for metadata
+	// and convert this to use them instead of a create event. As is this matches
+	// existing behavior since all updates to a connector were done via upsert which
+	// only ever emits a create event.
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.GithubConnectorCreate{
 		Metadata: apievents.Metadata{
 			Type: events.GithubConnectorCreatedEvent,
@@ -719,12 +724,13 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
 		session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
-			User:       userState.GetName(),
-			Roles:      userState.GetRoles(),
-			Traits:     userState.GetTraits(),
-			SessionTTL: params.SessionTTL,
-			LoginTime:  a.clock.Now().UTC(),
-			LoginIP:    req.ClientLoginIP,
+			User:             userState.GetName(),
+			Roles:            userState.GetRoles(),
+			Traits:           userState.GetTraits(),
+			SessionTTL:       params.SessionTTL,
+			LoginTime:        a.clock.Now().UTC(),
+			LoginIP:          req.ClientLoginIP,
+			AttestWebSession: true,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")

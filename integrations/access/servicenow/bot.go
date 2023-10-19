@@ -50,6 +50,7 @@ func (b *Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqI
 		Created:       time.Now().UTC(),
 		RequestReason: reqData.RequestReason,
 		ReviewsCount:  reqData.ReviewsCount,
+		Resources:     reqData.Resources,
 	}
 	serviceNowData, err := b.client.CreateIncident(ctx, reqID, serviceNowReqData)
 	if err != nil {

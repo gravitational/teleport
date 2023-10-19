@@ -48,6 +48,7 @@ import (
 type options struct {
 	CertPool *x509.CertPool
 	Insecure bool
+	Editor   func(string) error
 }
 
 type optionsFunc func(o *options)
@@ -61,6 +62,12 @@ func withRootCertPool(pool *x509.CertPool) optionsFunc {
 func withInsecure(insecure bool) optionsFunc {
 	return func(o *options) {
 		o.Insecure = insecure
+	}
+}
+
+func withEditor(editor func(string) error) optionsFunc {
+	return func(o *options) {
+		o.Editor = editor
 	}
 }
 
@@ -123,6 +130,19 @@ func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts
 	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
 }
 
+func runEditCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	var stdoutBuff bytes.Buffer
+	command := &EditCommand{
+		editor: o.Editor,
+	}
+	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
+}
+
 func runLockCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
 	command := &LockCommand{}
 	args = append([]string{"lock"}, args...)
@@ -156,6 +176,22 @@ func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
 	err := json.NewDecoder(r).Decode(&out)
 	require.NoError(t, err)
 	return out
+}
+
+func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) error {
+	decoder := yaml.NewDecoder(r)
+	for {
+		var entry T
+		if err := decoder.Decode(&entry); err != nil {
+			// Break when there are no more documents to decode
+			if err != io.EOF {
+				return err
+			}
+			break
+		}
+		*out = append(*out, entry)
+	}
+	return nil
 }
 
 func mustDecodeYAML[T any](t *testing.T, r io.Reader) T {

@@ -92,12 +92,12 @@ func Test_convertActivateError(t *testing.T) {
 	}
 	usernameDoesNotMatchError := &mysql.MyError{
 		Code:    mysql.ER_SIGNAL_EXCEPTION,
-		State:   sqlStateUsernameDoesNotMatch,
+		State:   common.SQLStateUsernameDoesNotMatch,
 		Message: `Teleport username does not match user attributes`,
 	}
 	rolesChangedError := &mysql.MyError{
 		Code:    mysql.ER_SIGNAL_EXCEPTION,
-		State:   sqlStateRolesChanged,
+		State:   common.SQLStateRolesChanged,
 		Message: `user has active connections and roles have changed`,
 	}
 	// Currently not converted to trace.AccessDeined as it may conflict with

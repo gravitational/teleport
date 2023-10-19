@@ -140,7 +140,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindSecurityReport:           rc.createSecurityReport,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
-		types.KindUser: rc.updateUser,
+		types.KindUser:            rc.updateUser,
+		types.KindGithubConnector: rc.updateGithubConnector,
 	}
 	rc.config = config
 
@@ -395,6 +396,20 @@ func (rc *ResourceCommand) createGithubConnector(ctx context.Context, client aut
 	return nil
 }
 
+// updateGithubConnector updates an existing Github connector.
+func (rc *ResourceCommand) updateGithubConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	connector, err := services.UnmarshalGithubConnector(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := client.UpdateGithubConnector(ctx, connector); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("authentication connector %q has been updated\n", connector.GetName())
+	return nil
+}
+
 // createRole implements `tctl create role.yaml` command.
 func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	role, err := services.UnmarshalRole(raw.Raw)
@@ -421,7 +436,7 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, 
 	if roleExists && !rc.IsForced() {
 		return trace.AlreadyExists("role '%s' already exists", roleName)
 	}
-	if err := client.UpsertRole(ctx, role); err != nil {
+	if _, err := client.UpsertRole(ctx, role); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("role '%s' has been %s\n", roleName, UpsertVerb(roleExists, rc.IsForced()))

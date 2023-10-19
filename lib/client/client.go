@@ -546,14 +546,14 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		return nil, trace.Wrap(err)
 	}
 
-	key, err = performMFACeremony(ctx, performMFACeremonyParams{
-		currentAuthClient: proxy.currentCluster,
-		rootAuthClient:    clt,
-		promptMFA:         promptMFA,
-		mfaAgainstRoot:    params.RouteToCluster == rootClusterName,
-		mfaRequiredReq:    nil, // No need to check if we got this far.
-		certsReq:          certsReq,
-		key:               key,
+	key, _, err = PerformMFACeremony(ctx, PerformMFACeremonyParams{
+		CurrentAuthClient: proxy.currentCluster,
+		RootAuthClient:    clt,
+		PromptMFA:         promptMFA,
+		MFAAgainstRoot:    params.RouteToCluster == rootClusterName,
+		MFARequiredReq:    nil, // No need to check if we got this far.
+		CertsReq:          certsReq,
+		Key:               key,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
