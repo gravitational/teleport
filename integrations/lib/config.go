@@ -109,6 +109,11 @@ func (cfg *TeleportConfig) CheckTLSConfig() error {
 	return nil
 }
 
+// NewIdentityFileWatcher returns a credential compatible with the Teleport
+// client. This credential will reload from the identity file at the specified
+// path each time interval time passes. This function blocks until the initial
+// credential has been loaded and then returns, creating a goroutine in the
+// background to manage the reloading that will exit when ctx is cancelled.
 func NewIdentityFileWatcher(ctx context.Context, path string, interval time.Duration) (*client.DynamicIdentityFileCreds, error) {
 	dynamicCred, err := client.NewDynamicIdentityFileCreds(path)
 	if err != nil {
