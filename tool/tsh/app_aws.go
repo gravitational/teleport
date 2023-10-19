@@ -80,6 +80,8 @@ func onAWS(cf *CLIConf) error {
 }
 
 func shouldUseAWSEndpointURLMode(cf *CLIConf) bool {
+	inputAWSCommand := strings.Join(removeAWSCommandFlags(cf.AWSCommandArgs), " ")
+	switch inputAWSCommand {
 	// `aws ssm start-session` first calls ssm.<region>.amazonaws.com to get an
 	// stream URL and an token. Then it makes a wss connection with the
 	// provided token to the provided stream URL. The wss request currently
@@ -94,25 +96,36 @@ func shouldUseAWSEndpointURLMode(cf *CLIConf) bool {
 	//
 	// Reference:
 	// https://github.com/aws/session-manager-plugin/
-	return isAWSCommand(cf, "ssm start-session")
-}
-
-func isAWSCommand(cf *CLIConf, wantCommand string) bool {
-	return strings.Join(removeAWSCommandFlags(cf.AWSCommandArgs), " ") == wantCommand
+	//
+	// "aws ecs execute-command" also start SSM sessions.
+	case "ssm start-session", "ecs execute-command":
+		return true
+	default:
+		return false
+	}
 }
 
 func removeAWSCommandFlags(args []string) (ret []string) {
 	for i := 0; i < len(args); i++ {
-		arg := args[i]
 		switch {
-		case strings.HasPrefix(arg, "--"):
-			i++
+		case isAWSFlag(args, i):
+			// Skip next arg, if next arg is not a flag but a flag value.
+			if !isAWSFlag(args, i+1) {
+				i++
+			}
 			continue
 		default:
-			ret = append(ret, arg)
+			ret = append(ret, args[i])
 		}
 	}
 	return
+}
+
+func isAWSFlag(args []string, i int) bool {
+	if i >= len(args) {
+		return false
+	}
+	return strings.HasPrefix(args[i], "--")
 }
 
 // awsApp is an AWS app that can start local proxies to serve AWS APIs.
