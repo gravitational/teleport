@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 )
 
-const mfaResponseToken = "mfa_challenge_response"
+const MFAResponseToken = "mfa_challenge_response"
 
 // ErrAdminActionMFARequired is an error indicating that an admin-level
 // API request failed due to missing MFA verification.
@@ -57,7 +57,7 @@ func CredentialsFromContext(ctx context.Context) (*proto.MFAAuthenticateResponse
 }
 
 func getMFACredentialsFromContext(ctx context.Context) (*proto.MFAAuthenticateResponse, error) {
-	values := metadata.ValueFromIncomingContext(ctx, mfaResponseToken)
+	values := metadata.ValueFromIncomingContext(ctx, MFAResponseToken)
 	if len(values) == 0 {
 		return nil, trace.NotFound("request metadata missing MFA credentials")
 	}
@@ -88,18 +88,27 @@ func (mc *perRPCCredentials) GetRequestMetadata(ctx context.Context, _ ...string
 		return nil, trace.BadParameter("unable to transfer MFA PerRPCCredentials: %v", err)
 	}
 
-	challengeJSON, err := (&jsonpb.Marshaler{}).MarshalToString(mc.MFAChallengeResponse)
+	enc, err := EncodeMFAChallengeResponseCredentials(mc.MFAChallengeResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	enc := base64.StdEncoding.EncodeToString([]byte(challengeJSON))
 	return map[string]string{
-		mfaResponseToken: enc,
+		MFAResponseToken: enc,
 	}, nil
 }
 
 // RequireTransportSecurity indicates whether the credentials requires transport security.
 func (mc *perRPCCredentials) RequireTransportSecurity() bool {
 	return true
+}
+
+// EncodeMFAChallengeResponseCredentials encodes the given MFA challenge response into a string.
+func EncodeMFAChallengeResponseCredentials(mfaResp *proto.MFAAuthenticateResponse) (string, error) {
+	challengeJSON, err := (&jsonpb.Marshaler{}).MarshalToString(mfaResp)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return base64.StdEncoding.EncodeToString([]byte(challengeJSON)), nil
 }
