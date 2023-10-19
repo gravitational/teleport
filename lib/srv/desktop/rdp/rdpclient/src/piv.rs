@@ -136,7 +136,12 @@ impl<const S: usize> Card<S> {
             None => cmd,
             Some(pending) => {
                 pending.extend_from_command(&cmd).map_err(|e| {
-                    other_err!("piv::Card::handle", "could not build chained command")
+                    custom_err!(
+                        "piv::Card::handle",
+                        TeleportRdpdrBackendError(format!(
+                            "could not build chained command: {e:?}"
+                        ))
+                    )
                 })?;
 
                 pending.clone()
@@ -312,7 +317,7 @@ impl<const S: usize> Card<S> {
     }
 
     fn handle_get_response_deprecated(&mut self, _cmd: Command<S>) -> RdpResult<Response> {
-        // CHINK_SIZE is the max response data size in bytes, without resorting to "extended"
+        // CHUNK_SIZE is the max response data size in bytes, without resorting to "extended"
         // messages.
         const CHUNK_SIZE: usize = 256;
         match &mut self.pending_response {
@@ -336,7 +341,7 @@ impl<const S: usize> Card<S> {
     }
 
     fn handle_get_response(&mut self, _cmd: Command<S>) -> PduResult<Response> {
-        // CHINK_SIZE is the max response data size in bytes, without resorting to "extended"
+        // CHUNK_SIZE is the max response data size in bytes, without resorting to "extended"
         // messages.
         const CHUNK_SIZE: usize = 256;
         match &mut self.pending_response {
