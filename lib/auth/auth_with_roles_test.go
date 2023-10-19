@@ -5447,7 +5447,7 @@ func TestUnimplementedClients(t *testing.T) {
 	})
 }
 
-// getTestHeadlessAuthenticationID returns the headless authentication resource
+// newTestHeadlessAuthn returns the headless authentication resource
 // used across headless authentication tests.
 func newTestHeadlessAuthn(t *testing.T, user string, clock clockwork.Clock) *types.HeadlessAuthentication {
 	_, sshPubKey, err := native.GenerateKeyPair()
@@ -5548,10 +5548,14 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 }
 
 func TestUpdateHeadlessAuthenticationState(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	otherUsername := "other-user"
 
 	srv := newTestTLSServer(t)
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	srv.Auth().emitter = mockEmitter
 	mfa := configureForMFA(t, srv)
 
 	_, _, err := CreateUserAndRole(srv.Auth(), otherUsername, nil, nil)
@@ -5572,25 +5576,38 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 		// defaults to the mfa identity tied to the headless authentication created
 		identity TestIdentity
 		// defaults to id of the headless authentication created
-		headlessID  string
-		state       types.HeadlessAuthenticationState
-		withMFA     bool
-		assertError require.ErrorAssertionFunc
+		headlessID   string
+		state        types.HeadlessAuthenticationState
+		withMFA      bool
+		assertError  require.ErrorAssertionFunc
+		assertEvents func(*testing.T, *eventstest.MockRecorderEmitter)
 	}{
 		{
 			name:        "OK same user denied",
 			state:       types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED,
 			assertError: require.NoError,
+			assertEvents: func(t *testing.T, emitter *eventstest.MockRecorderEmitter) {
+				require.Equal(t, 1, len(emitter.Events()))
+				require.Equal(t, events.UserHeadlessLoginRejectedCode, emitter.LastEvent().GetCode())
+			},
 		}, {
 			name:        "OK same user approved with mfa",
 			state:       types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED,
 			withMFA:     true,
 			assertError: require.NoError,
+			assertEvents: func(t *testing.T, emitter *eventstest.MockRecorderEmitter) {
+				require.Equal(t, 1, len(emitter.Events()))
+				require.Equal(t, events.UserHeadlessLoginApprovedCode, emitter.LastEvent().GetCode())
+			},
 		}, {
 			name:        "NOK same user approved without mfa",
 			state:       types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED,
 			withMFA:     false,
 			assertError: assertAccessDenied,
+			assertEvents: func(t *testing.T, emitter *eventstest.MockRecorderEmitter) {
+				require.Equal(t, 1, len(emitter.Events()))
+				require.Equal(t, events.UserHeadlessLoginApprovedFailureCode, emitter.LastEvent().GetCode())
+			},
 		}, {
 			name:        "NOK not found",
 			headlessID:  uuid.NewString(),
@@ -5620,8 +5637,6 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			// create headless authn
 			headlessAuthn := newTestHeadlessAuthn(t, mfa.User, srv.Auth().clock)
 			headlessAuthn.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
@@ -5666,8 +5681,15 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			ctx, cancel := context.WithTimeout(ctx, time.Second)
 			defer cancel()
 
+			mockEmitter.Reset()
 			err = client.UpdateHeadlessAuthenticationState(ctx, tc.headlessID, tc.state, resp)
 			tc.assertError(t, err)
+
+			if tc.assertEvents != nil {
+				tc.assertEvents(t, mockEmitter)
+			} else {
+				require.Empty(t, mockEmitter.Events())
+			}
 		})
 	}
 }

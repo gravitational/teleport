@@ -699,6 +699,28 @@ export const formatters: Formatters = {
     desc: 'SSO Test Flow Login Failed',
     format: ({ error }) => `SSO Test flow: user login failed [${error}]`,
   },
+  [eventCodes.USER_HEADLESS_LOGIN_REQUESTED]: {
+    type: 'user.login',
+    desc: 'Headless Login Requested',
+    format: ({ user }) => `Headless login was requested for user [${user}]`,
+  },
+  [eventCodes.USER_HEADLESS_LOGIN_APPROVED]: {
+    type: 'user.login',
+    desc: 'Headless Login Approved',
+    format: ({ user }) =>
+      `User [${user}] successfully approved headless login request`,
+  },
+  [eventCodes.USER_HEADLESS_LOGIN_APPROVEDFAILURE]: {
+    type: 'user.login',
+    desc: 'Headless Login Failed',
+    format: ({ user }) =>
+      `User [${user}] tried approve headless login request, but got an error`,
+  },
+  [eventCodes.USER_HEADLESS_LOGIN_REJECTED]: {
+    type: 'user.login',
+    desc: 'Headless Login Rejected',
+    format: ({ user }) => `User [${user}] rejected headless login request`,
+  },
   [eventCodes.ROLE_CREATED]: {
     type: 'role.created',
     desc: 'User Role Created',
