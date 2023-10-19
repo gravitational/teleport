@@ -19,12 +19,15 @@ package auth
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/events"
 )
 
@@ -66,6 +69,98 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	err = p.a.DeleteRole(ctx, role.GetName())
 	require.True(t, trace.IsNotFound(err))
 	require.Nil(t, p.mockEmitter.LastEvent())
+}
+
+func TestUpsertDeleteDependentRoles(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	// test create new role
+	role, err := types.NewRole("test-role", types.RoleSpecV6{
+		Options: types.RoleOptions{},
+		Allow:   types.RoleConditions{},
+	})
+	require.NoError(t, err)
+
+	// Create a role and assign it to a user.
+	role, err = p.a.UpsertRole(ctx, role)
+	require.NoError(t, err)
+	user, err := types.NewUser("test-user")
+	require.NoError(t, err)
+	user.AddRole(role.GetName())
+	_, err = p.a.CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	// Deletion should fail.
+	require.ErrorContains(t, p.a.DeleteRole(ctx, role.GetName()), "failed to delete a role that is still in use by a user")
+	require.NoError(t, p.a.DeleteUser(ctx, user.GetName()))
+
+	clusterName, err := p.a.GetClusterName()
+	require.NoError(t, err)
+
+	// Update the user CA with the role.
+	ca, err := p.a.GetCertAuthority(ctx, types.CertAuthID{Type: types.UserCA, DomainName: clusterName.GetClusterName()}, true)
+	require.NoError(t, err)
+	ca.AddRole(role.GetName())
+	require.NoError(t, p.a.UpsertCertAuthority(ctx, ca))
+
+	// Deletion should fail.
+	require.ErrorContains(t, p.a.DeleteRole(ctx, role.GetName()), "failed to delete a role that is still in use by a certificate authority")
+
+	// Clear out the roles for the CA.
+	ca.SetRoles([]string{})
+	require.NoError(t, p.a.UpsertCertAuthority(ctx, ca))
+
+	// Create an access list that references the role.
+	accessList, err := accesslist.NewAccessList(header.Metadata{
+		Name: "test-access-list",
+	}, accesslist.Spec{
+		Title: "simple",
+		Owners: []accesslist.Owner{
+			{Name: "some-user"},
+		},
+		Grants: accesslist.Grants{
+			Roles: []string{role.GetName()},
+		},
+		Audit: accesslist.Audit{
+			NextAuditDate: time.Now(),
+		},
+		MembershipRequires: accesslist.Requires{
+			Roles: []string{role.GetName()},
+		},
+		OwnershipRequires: accesslist.Requires{
+			Roles: []string{role.GetName()},
+		},
+	})
+	require.NoError(t, err)
+	_, err = p.a.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+
+	// Deletion should fail due to the grant.
+	require.ErrorContains(t, p.a.DeleteRole(ctx, role.GetName()), "failed to delete a role that is still in use by an access list")
+
+	accessList.Spec.Grants.Roles = []string{"non-existent-role"}
+	_, err = p.a.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+
+	// Deletion should fail due to membership requires.
+	require.ErrorContains(t, p.a.DeleteRole(ctx, role.GetName()), "failed to delete a role that is still in use by an access list")
+
+	accessList.Spec.MembershipRequires.Roles = []string{"non-existent-role"}
+	_, err = p.a.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+
+	// Deletion should fail due to ownership requires.
+	require.ErrorContains(t, p.a.DeleteRole(ctx, role.GetName()), "failed to delete a role that is still in use by an access list")
+
+	accessList.Spec.OwnershipRequires.Roles = []string{"non-existent-role"}
+	_, err = p.a.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+
+	// Deletion should succeed
+	require.NoError(t, p.a.DeleteRole(ctx, role.GetName()))
 }
 
 func TestUpsertDeleteLockEventsEmitted(t *testing.T) {

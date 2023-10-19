@@ -431,7 +431,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	// Add in a login hook for generating state during user login.
-	ulsGenerator, err := userloginstate.NewGenerator(userloginstate.GeneratorConfig{
+	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         log,
 		AccessLists: services,
 		Access:      services,
@@ -442,7 +442,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	as.RegisterLoginHook(ulsGenerator.LoginHook(services.UserLoginStates))
+	as.RegisterLoginHook(as.ulsGenerator.LoginHook(services.UserLoginStates))
 
 	return &as, nil
 }
@@ -791,6 +791,9 @@ type Server struct {
 
 	// accessMonitoringEnabled is a flag that indicates whether access monitoring is enabled.
 	accessMonitoringEnabled bool
+
+	// ulsGenerator is the user login state generator.
+	ulsGenerator *userloginstate.Generator
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -3453,10 +3456,17 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// Make sure to refresh the user login state.
+		userState, err := a.ulsGenerator.Refresh(ctx, user, a.UserLoginStates)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		// Updating traits is needed for guided SSH flow in Discover.
-		traits = user.GetTraits()
+		traits = userState.GetTraits()
 		// Updating roles is needed for guided Connect My Computer flow in Discover.
-		roles = user.GetRoles()
+		roles = userState.GetRoles()
 
 	} else if req.AccessRequestID != "" {
 		accessRequest, err := a.getValidatedAccessRequest(ctx, identity, req.User, req.AccessRequestID)
@@ -3490,7 +3500,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		}
 
 		// Get default/static roles.
-		user, err := a.GetUser(ctx, req.User, false)
+		userState, err := a.GetUserOrLoginState(ctx, req.User)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to switchback")
 		}
@@ -3499,7 +3509,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		allowedResourceIDs = nil
 
 		// Calculate expiry time.
-		roleSet, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
+		roleSet, err := services.FetchRoles(userState.GetRoles(), a, userState.GetTraits())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3508,7 +3518,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 
 		// Set default roles and expiration.
 		expiresAt = prevSession.GetLoginTime().UTC().Add(sessionTTL)
-		roles = user.GetRoles()
+		roles = userState.GetRoles()
 		accessRequests = nil
 	}
 

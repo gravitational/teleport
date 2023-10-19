@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -126,8 +127,45 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 				// Mask the actual error here as it could be used to enumerate users
 				// within the system.
 				log.Warnf("Failed to delete role: role %v is used by user cert authority %v", name, a.GetClusterName())
-				return trace.BadParameter("failed to delete a role that is still in use by a user, check the system server logs for more details")
+				return trace.BadParameter("failed to delete a role that is still in use by a certificate authority, check the system server logs for more details")
 			}
+		}
+	}
+
+	var nextToken string
+	for {
+		var accessLists []*accesslist.AccessList
+		var err error
+		accessLists, nextToken, err = a.Services.AccessListClient().ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, accessList := range accessLists {
+			for _, r := range accessList.Spec.Grants.Roles {
+				if r == name {
+					log.Warnf("Failed to delete role: role %v is granted by access list %s", name, accessList.GetName())
+					return trace.BadParameter("failed to delete a role that is still in use by an access list, check the system server logs for more details")
+				}
+			}
+
+			for _, r := range accessList.Spec.MembershipRequires.Roles {
+				if r == name {
+					log.Warnf("Failed to delete role: role %v is required by members of access list %s", name, accessList.GetName())
+					return trace.BadParameter("failed to delete a role that is still in use by an access list, check the system server logs for more details")
+				}
+			}
+
+			for _, r := range accessList.Spec.OwnershipRequires.Roles {
+				if r == name {
+					log.Warnf("Failed to delete role: role %v is required by owners of access list %s", name, accessList.GetName())
+					return trace.BadParameter("failed to delete a role that is still in use by an access list, check the system server logs for more details")
+				}
+			}
+		}
+
+		if nextToken == "" {
+			break
 		}
 	}
 
