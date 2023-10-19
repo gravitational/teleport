@@ -435,9 +435,9 @@ func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, usern
 	} else {
 		roleSpec.SetupRoleFunc(role)
 	}
-	err = c.TLSServer.Auth().UpsertRole(ctx, role)
+	upsertedRole, err := c.TLSServer.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
-	return user, role
+	return user, upsertedRole
 }
 
 func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...KubeClusterConfig) string {

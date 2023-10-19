@@ -240,14 +240,14 @@ func (m *mockAccessAndIdentity) GetRole(ctx context.Context, name string) (types
 	return nil, trace.NotFound("role not found")
 }
 
-func (m *mockAccessAndIdentity) UpsertRole(ctx context.Context, role types.Role) error {
+func (m *mockAccessAndIdentity) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
 	m.callCounts["UpsertRole"]++
 	m.role = role
 	m.events.Fire(types.Event{
 		Type:     types.OpPut,
 		Resource: role,
 	})
-	return nil
+	return role, nil
 }
 
 func (m *mockAccessAndIdentity) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {

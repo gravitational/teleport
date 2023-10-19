@@ -714,11 +714,11 @@ func (s *WebSuite) authPackWithMFA(t *testing.T, name string, roles ...types.Rol
 
 	userRole := services.RoleForUser(user)
 	userRole.SetLogins(types.Allow, []string{s.user})
-	err = s.server.Auth().UpsertRole(s.ctx, userRole)
+	userRole, err = s.server.Auth().UpsertRole(s.ctx, userRole)
 	require.NoError(t, err)
 
 	for _, role := range roles {
-		err = s.server.Auth().UpsertRole(s.ctx, role)
+		role, err = s.server.Auth().UpsertRole(s.ctx, role)
 		require.NoError(t, err)
 		user.AddRole(role.GetName())
 	}
@@ -801,7 +801,7 @@ func (s *WebSuite) createUser(t *testing.T, user string, login string, pass stri
 	options := role.GetOptions()
 	options.ForwardAgent = types.NewBool(true)
 	role.SetOptions(options)
-	err = s.server.Auth().UpsertRole(s.ctx, role)
+	role, err = s.server.Auth().UpsertRole(s.ctx, role)
 	require.NoError(t, err)
 	teleUser.AddRole(role.GetName())
 
@@ -3596,7 +3596,8 @@ func TestCheckAccessToRegisteredResource_AccessDenied(t *testing.T) {
 	fooRole, err := env.server.Auth().GetRole(ctx, "user:foo")
 	require.NoError(t, err)
 	fooRole.SetRules(types.Deny, []types.Rule{types.NewRule(types.KindNode, services.RW())})
-	require.NoError(t, env.server.Auth().UpsertRole(ctx, fooRole))
+	_, err = env.server.Auth().UpsertRole(ctx, fooRole)
+	require.NoError(t, err)
 
 	// Direct querying should return a access denied error.
 	endpoint = pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "nodes")
@@ -5577,7 +5578,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 
 			role := services.RoleForUser(user)
 
-			err = s.server.Auth().UpsertRole(s.ctx, role)
+			role, err = s.server.Auth().UpsertRole(s.ctx, role)
 			require.NoError(t, err)
 
 			user.AddRole(role.GetName())
@@ -5842,7 +5843,8 @@ func TestGetUserOrResetToken(t *testing.T) {
 	fooAllowRules := fooRole.GetRules(types.Allow)
 	fooAllowRules = append(fooAllowRules, types.NewRule(types.KindUser, services.RO()))
 	fooRole.SetRules(types.Allow, fooAllowRules)
-	require.NoError(t, env.server.Auth().UpsertRole(ctx, fooRole))
+	_, err = env.server.Auth().UpsertRole(ctx, fooRole)
+	require.NoError(t, err)
 
 	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", username), url.Values{})
 	require.NoError(t, err)
@@ -8072,7 +8074,7 @@ func (r *testProxy) createUser(ctx context.Context, t *testing.T, user, login, p
 	}
 
 	for _, role := range roles {
-		err = r.auth.Auth().UpsertRole(ctx, role)
+		role, err = r.auth.Auth().UpsertRole(ctx, role)
 		require.NoError(t, err)
 
 		teleUser.AddRole(role.GetName())
@@ -8269,7 +8271,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	// Create the requestable role.
 	requestableRole, err := types.NewRole(requestableRolename, types.RoleSpecV6{})
 	require.NoError(t, err)
-	err = env.server.Auth().UpsertRole(ctx, requestableRole)
+	_, err = env.server.Auth().UpsertRole(ctx, requestableRole)
 	require.NoError(t, err)
 
 	identity := tlsca.Identity{
@@ -9269,7 +9271,8 @@ func TestModeratedSession(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, peerRole))
+	peerRole, err = s.server.Auth().UpsertRole(s.ctx, peerRole)
+	require.NoError(t, err)
 
 	moderatorRole, err := types.NewRole("moderator", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -9284,7 +9287,8 @@ func TestModeratedSession(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, moderatorRole))
+	moderatorRole, err = s.server.Auth().UpsertRole(s.ctx, moderatorRole)
+	require.NoError(t, err)
 
 	peer := s.authPack(t, "foo", peerRole.GetName())
 
