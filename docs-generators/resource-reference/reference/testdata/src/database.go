@@ -8,6 +8,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var KindDatabase string = "database"
+var V3 string = "v3"
+
 // setStaticFields sets static resource header and metadata fields.
 func (d *DatabaseV3) setStaticFields() {
 	d.Kind = KindDatabase
