@@ -72,7 +72,8 @@ This rule will allow the bot to do two things:
 The `'*': '*'` label selector grants access to any database server configured in Teleport.
 In production, consider restricting the bot's access using a more specific
 label selector; see the
-[Database Access RBAC guide](../../database-access/rbac/configuring-access) for a full reference of database-related role options.
+[Database Access RBAC guide](../../database-access/rbac/configuring-access.mdx)
+for a full reference of database-related role options.
 
 ## Step 2/4. Configure a database `tbot` output
 
@@ -83,13 +84,13 @@ type is used.
 The database you wish to generate credentials for is configured as part of the
 `database` output. This is controlled using three fields:
 
-- `service` specifies the database service as named in the Teleport
+- `service` specifies the Database Service as named in the Teleport
   configuration that the credentials will grant access to.
-- `database` specifies the database on the database service that the credentials
+- `database` specifies the database on the Database Service that the credentials
   will grant access to.
 - `username` specifies the user on the database that the credentials will grant
   access to. This field does not need to be specified for all types of
-  database
+  database.
 
 In addition, the `format` field in the database output controls the format of
 the generated credentials. This allows for compatibility with clients that
@@ -176,7 +177,7 @@ User=teleport
 Group=teleport
 Restart=on-failure
 # Adjust `12345` to any port of your choosing that is free on the local loopback
-# interface. Adjust `example-server` to the name of the database service in
+# interface. Adjust `example-server` to the name of the Database Service in
 # teleport.
 ExecStart=/usr/local/bin/tbot -c /etc/tbot.yaml proxy --proxy=proxy.example.com:3080 --destination-dir=/opt/machine-id db --port=12345 example-server
 ExecReload=/bin/kill -HUP $MAINPID

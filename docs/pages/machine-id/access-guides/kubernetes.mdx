@@ -93,10 +93,8 @@ Adjust the `allow` field for your environment:
 - `kubernetes_labels` should be adjusted to grant access to only the clusters
   that the bot will need to access. The value shown, `'*': '*'` will grant
   access to all Kubernetes clusters.
-
 - `editor` must match the name of the group you specified in the
   RoleBinding or ClusterRoleBinding.
-
 - `kubernetes_resources` can be used to apply additional restrictions to what
   the bot can access within the Kubernetes cluster. These restrictions are
   layered upon the RBAC configured within the Kubernetes role itself.

@@ -22,10 +22,10 @@ they comprise three linked resources. These are:
   various permissions that the bot will need to function. For example, the
   ability to watch the certificate authorities and the ability to 
   [impersonate roles](#role-impersonation).
-- Token: for [onboarding](#onboarding), a token must exist that allows the
-  Machine ID agent to initially authenticate as the bot user. If an existing
-  token is not specified, then a single-use token will be created by the Auth 
-  Server.
+- Token: for [onboarding](#joining-and-authentication), a token must exist that
+  allows the Machine ID agent to initially authenticate as the bot user. If an
+  existing token is not specified, then a single-use token will be created by
+  the Auth Server.
 
 The creation of these resources is managed by `tctl bots add`.
 
@@ -64,8 +64,8 @@ Before `tbot` can be started, at least two parts of configuration will need to
 be provided via the configuration file or as arguments provided to `tbot` when
 it is executed. This consists of:
 
-- [A join method](#onboarding) that the bot can use to prove that it should be
-  allowed to join the Teleport cluster.
+- [A join method](#joining-and-authentication) that the bot can use to prove
+  that it should be allowed to join the Teleport cluster.
 - A series of **outputs**. An output consists of the configuration settings that
   specify where a set of credentials should be output, and any options that
   should be applied to those credentials (for example, what roles should be
