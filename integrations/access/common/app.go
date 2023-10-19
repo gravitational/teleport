@@ -190,6 +190,15 @@ func (a *BaseApp) onWatcherEvent(ctx context.Context, event types.Event) error {
 
 // accessListMonitorRun will monitor access lists and post review reminders.
 func (a *BaseApp) accessListMonitorRun(ctx context.Context) error {
+	process := lib.MustGetProcess(ctx)
+	ctx, cancel := context.WithCancel(ctx)
+
+	// On process termination, explicitly cancel the context
+	process.OnTerminate(func(ctx context.Context) error {
+		cancel()
+		return nil
+	})
+
 	s := gocron.NewScheduler(time.UTC).Cron(accessListReviewCron)
 	log := logger.Get(ctx)
 
