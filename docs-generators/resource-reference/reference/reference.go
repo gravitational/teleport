@@ -182,6 +182,7 @@ func shouldProcess(d resource.DeclarationInfo, types []TypeInfo) bool {
 func Generate(out io.Writer, conf GeneratorConfig) error {
 	typeDecls := make(map[resource.PackageInfo]resource.DeclarationInfo)
 	possibleFuncDecls := []resource.DeclarationInfo{}
+	stringAssignments := make(map[resource.PackageInfo]string)
 
 	// Load each file in the source directory individually. Not using
 	// packages.Load here since the resulting []*Package does not expose
@@ -200,6 +201,15 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 		if err != nil {
 			return err
+		}
+
+		str, err := resource.GetTopLevelStringAssignments(file.Decls, file.Name.Name)
+		if err != nil {
+			return err
+		}
+
+		for k, v := range str {
+			stringAssignments[k] = v
 		}
 
 		for _, decl := range file.Decls {
@@ -281,10 +291,35 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 					continue
 				}
 
+				ver, ok1 := method.FieldAssignments["Version"]
+				kind, ok2 := method.FieldAssignments["Kind"]
+
+				// The version and kind weren't assigned
+				if !ok1 || !ok2 {
+					continue
+				}
+
+				// So far, all values of "Kind" and "Version"
+				// are declared in the same package as the types
+				// that include these fields.
+				verName, ok1 := stringAssignments[resource.PackageInfo{
+					DeclName:    ver,
+					PackageName: pi.PackageName,
+				}]
+
+				kindName, ok2 := stringAssignments[resource.PackageInfo{
+					DeclName:    kind,
+					PackageName: pi.PackageName,
+				}]
+
+				if !ok1 || !ok2 {
+					continue
+				}
+
 				ref := ResourceSection{
 					ReferenceEntry: e,
-					Version:        method.FieldAssignments["Version"],
-					Kind:           method.FieldAssignments["Kind"],
+					Version:        verName,
+					Kind:           kindName,
 				}
 
 				content.Resources[pi] = ref
