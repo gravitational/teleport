@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/token"
 	"regexp"
 	"strings"
 )
@@ -675,6 +676,39 @@ type MethodInfo struct {
 	// represent fields of the receiver. Values are the values the
 	// assignments assign.
 	FieldAssignments map[string]string
+}
+
+func GetTopLevelStringAssignments(decls []ast.Decl) (map[string]string, error) {
+	result := make(map[string]string)
+
+	// var and const assignments are GenDecls, so ignore any input Decls that
+	// don't meet this criterion by making a slice of GenDecls.
+	gd := make([]*ast.GenDecl, 0, len(decls))
+	for _, d := range decls {
+		g, ok := d.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+		gd[len(gd)] = g
+	}
+
+	// Whether in the "var =" format or "var (" format, each assignment is
+	// an *ast.ValueSpec. Round up all ValueSpecs within a GenDecl that
+	// declares a var or a const.
+	vs := []*ast.ValueSpec{}
+	for _, g := range gd {
+		if g.Tok != token.VAR && g.Tok != token.CONST {
+			continue
+		}
+		for _, s := range g.Specs {
+			s, ok := s.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			vs = append(vs, s)
+		}
+	}
+	return nil, nil
 }
 
 func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error) {
