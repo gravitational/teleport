@@ -194,6 +194,11 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	}
 	defer conn.Close()
 
+	// TODO support DeleteUser for MariaDB.
+	if conn.isMariaDB() {
+		return trace.Wrap(e.DeactivateUser(ctx, sessionCtx))
+	}
+
 	e.Log.Infof("Deleting MySQL user %q for %v.", sessionCtx.DatabaseUser, sessionCtx.Identity.Username)
 
 	result, err := conn.Execute(fmt.Sprintf("CALL %s(?)", deleteUserProcedureName), sessionCtx.DatabaseUser)
