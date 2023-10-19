@@ -49,7 +49,7 @@ type Metadata struct {
 `,
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
-					TypeName:    "Metadata",
+					DeclName:    "Metadata",
 					PackageName: "mypkg",
 				}: {
 					SectionName: "Metadata",
@@ -103,7 +103,7 @@ type Metadata struct {
 `,
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
-					TypeName:    "Metadata",
+					DeclName:    "Metadata",
 					PackageName: "mypkg",
 				}: {
 					SectionName: "Metadata",
@@ -155,7 +155,7 @@ type Metadata struct {
 `,
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
-					TypeName:    "Metadata",
+					DeclName:    "Metadata",
 					PackageName: "mypkg",
 				}: {
 					SectionName: "Metadata",
@@ -199,7 +199,7 @@ type Server struct {
 `,
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
-					TypeName:    "Server",
+					DeclName:    "Server",
 					PackageName: "mypkg",
 				}: {
 					SectionName: "Server",
@@ -243,7 +243,7 @@ type Server struct {
 
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
-					TypeName:    "Server",
+					DeclName:    "Server",
 					PackageName: "mypkg",
 				}: {
 					SectionName: "Server",
@@ -291,7 +291,7 @@ type ServerSpecV1 struct {
 			},
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
-					TypeName:    "Server",
+					DeclName:    "Server",
 					PackageName: "mypkg",
 				}: {
 					SectionName: "Server",
@@ -314,7 +314,7 @@ spec:
 					},
 				},
 				PackageInfo{
-					TypeName:    "ServerSpecV1",
+					DeclName:    "ServerSpecV1",
 					PackageName: "types",
 				}: {
 					SectionName: "Server Spec v1",
@@ -374,7 +374,7 @@ type Label string
 			},
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
-					TypeName:    "Server",
+					DeclName:    "Server",
 					PackageName: "mypkg",
 				}: {
 					SectionName: "Server",
@@ -418,7 +418,7 @@ label_maps:
 					},
 				},
 				PackageInfo{
-					TypeName:    "ServerSpecV1",
+					DeclName:    "ServerSpecV1",
 					PackageName: "types",
 				}: {
 					SectionName: "Server Spec v1",
@@ -435,7 +435,7 @@ label_maps:
 					},
 				},
 				PackageInfo{
-					TypeName:    "Label",
+					DeclName:    "Label",
 					PackageName: "types",
 				}: {
 					SectionName: "Label",
@@ -470,7 +470,7 @@ type Metadata struct {
 			},
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
-					TypeName:    "MyResource",
+					DeclName:    "MyResource",
 					PackageName: "mypkg",
 				}: {
 					SectionName: "My Resource",
@@ -524,7 +524,7 @@ type Metadata struct {
 			},
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
-					TypeName:    "MyResource",
+					DeclName:    "MyResource",
 					PackageName: "mypkg",
 				}: {
 					SectionName: "My Resource",
@@ -584,7 +584,7 @@ type ActivityStatus struct{
 			},
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
-					TypeName:    "MyResource",
+					DeclName:    "MyResource",
 					PackageName: "mypkg",
 				}: {
 					SectionName: "My Resource",
@@ -644,7 +644,7 @@ type ActivityStatus struct{
 			},
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
-					TypeName:    "MyResource",
+					DeclName:    "MyResource",
 					PackageName: "mypkg",
 				}: {
 					SectionName: "My Resource",
@@ -691,7 +691,7 @@ type Metadata struct {
 `,
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
-					TypeName:    "Metadata",
+					DeclName:    "Metadata",
 					PackageName: "mypkg",
 				}: {
 					SectionName: "Metadata",
@@ -734,7 +734,7 @@ type Metadata struct {
 			},
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
-					TypeName:    "DatabaseServerV3",
+					DeclName:    "DatabaseServerV3",
 					PackageName: "typestest",
 				}: ReferenceEntry{
 					SectionName: "Database Server v3",
@@ -758,7 +758,7 @@ metadata:
 `,
 				},
 				PackageInfo{
-					TypeName:    "Metadata",
+					DeclName:    "Metadata",
 					PackageName: "typestest",
 				}: ReferenceEntry{
 					SectionName: "Metadata",
@@ -803,7 +803,7 @@ type Metadata struct {
 			},
 			expected: map[PackageInfo]ReferenceEntry{
 				PackageInfo{
-					TypeName:    "DatabaseServerV3",
+					DeclName:    "DatabaseServerV3",
 					PackageName: "typestest",
 				}: ReferenceEntry{
 					SectionName: "Database Server v3",
@@ -821,7 +821,7 @@ type Metadata struct {
 `,
 				},
 				PackageInfo{
-					TypeName:    "Metadata",
+					DeclName:    "Metadata",
 					PackageName: "typestest",
 				}: ReferenceEntry{
 					SectionName: "Metadata",
@@ -877,7 +877,7 @@ type Metadata struct {
 					}
 
 					allDecls[PackageInfo{
-						TypeName:    spec.Name.Name,
+						DeclName:    spec.Name.Name,
 						PackageName: d.Name.Name,
 					}] = DeclarationInfo{
 						Decl:        l,
@@ -1209,7 +1209,7 @@ func (o otherStruct) lowercaseName() string{
 `,
 			expected: map[PackageInfo][]MethodInfo{
 				PackageInfo{
-					TypeName:    "myStruct",
+					DeclName:    "myStruct",
 					PackageName: "testpkg",
 				}: []MethodInfo{
 					{
@@ -1218,7 +1218,7 @@ func (o otherStruct) lowercaseName() string{
 					},
 				},
 				PackageInfo{
-					TypeName:    "otherStruct",
+					DeclName:    "otherStruct",
 					PackageName: "testpkg",
 				}: []MethodInfo{
 					{
@@ -1250,7 +1250,7 @@ func (o *myStruct) assignAgeAndName(a int) {
 `,
 			expected: map[PackageInfo][]MethodInfo{
 				PackageInfo{
-					TypeName:    "myStruct",
+					DeclName:    "myStruct",
 					PackageName: "testpkg",
 				}: []MethodInfo{
 					{
@@ -1281,7 +1281,7 @@ func (o *otherStruct) copyNameFrom(m *myStruct){
 
 			expected: map[PackageInfo][]MethodInfo{
 				PackageInfo{
-					TypeName:    "otherStruct",
+					DeclName:    "otherStruct",
 					PackageName: "testpkg",
 				}: []MethodInfo{
 					{
@@ -1304,7 +1304,7 @@ func (mystruct) getMessage() string {
 `,
 			expected: map[PackageInfo][]MethodInfo{
 				PackageInfo{
-					TypeName:    "mystruct",
+					DeclName:    "mystruct",
 					PackageName: "testpkg",
 				}: []MethodInfo{
 					{
@@ -1347,7 +1347,7 @@ func TestGetTopLevelStringAssignments(t *testing.T) {
 	cases := []struct {
 		description string
 		source      string
-		expected    map[string]string
+		expected    map[PackageInfo]string
 	}{
 		{
 
@@ -1356,9 +1356,15 @@ func TestGetTopLevelStringAssignments(t *testing.T) {
 var myString string = "This is a string"
 var otherString string ="This is another string"
 `,
-			expected: map[string]string{
-				"myString":    "This is a string",
-				"otherString": "This is another string",
+			expected: map[PackageInfo]string{
+				PackageInfo{
+					DeclName:    "myString",
+					PackageName: "mypkg",
+				}: "This is a string",
+				PackageInfo{
+					DeclName:    "otherString",
+					PackageName: "mypkg",
+				}: "This is another string",
 			},
 		},
 		{
@@ -1368,9 +1374,15 @@ var otherString string ="This is another string"
 const myString string = "This is a string"
 const otherString string ="This is another string"
 `,
-			expected: map[string]string{
-				"myString":    "This is a string",
-				"otherString": "This is another string",
+			expected: map[PackageInfo]string{
+				PackageInfo{
+					DeclName:    "myString",
+					PackageName: "mypkg",
+				}: "This is a string",
+				PackageInfo{
+					DeclName:    "otherString",
+					PackageName: "mypkg",
+				}: "This is another string",
 			},
 		},
 		{
@@ -1383,9 +1395,15 @@ var (
   otherString string ="This is another string"
 )
 `,
-			expected: map[string]string{
-				"myString":    "This is a string",
-				"otherString": "This is another string",
+			expected: map[PackageInfo]string{
+				PackageInfo{
+					DeclName:    "myString",
+					PackageName: "mypkg",
+				}: "This is a string",
+				PackageInfo{
+					DeclName:    "otherString",
+					PackageName: "mypkg",
+				}: "This is another string",
 			},
 		},
 		{
@@ -1398,9 +1416,15 @@ const (
   otherString string ="This is another string"
 )
 `,
-			expected: map[string]string{
-				"myString":    "This is a string",
-				"otherString": "This is another string",
+			expected: map[PackageInfo]string{
+				PackageInfo{
+					DeclName:    "myString",
+					PackageName: "mypkg",
+				}: "This is a string",
+				PackageInfo{
+					DeclName:    "otherString",
+					PackageName: "mypkg",
+				}: "This is another string",
 			},
 		},
 		{
@@ -1420,9 +1444,16 @@ var (
     funcConst string = strings.ToLower("HELLO") 
 )
 `,
-			expected: map[string]string{
-				"stringConst": "This is a string",
-				"stringVar":   "This is a string",
+
+			expected: map[PackageInfo]string{
+				PackageInfo{
+					DeclName:    "stringVar",
+					PackageName: "mypkg",
+				}: "This is a string",
+				PackageInfo{
+					DeclName:    "stringConst",
+					PackageName: "mypkg",
+				}: "This is a string",
 			},
 		},
 	}
@@ -1439,7 +1470,7 @@ var (
 				t.Fatalf("test fixture contains invalid Go source: %v\n", err)
 			}
 
-			actual, err := GetTopLevelStringAssignments(d.Decls)
+			actual, err := GetTopLevelStringAssignments(d.Decls, d.Name.Name)
 			assert.NoError(t, err)
 			assert.Equal(t, c.expected, actual)
 		})
