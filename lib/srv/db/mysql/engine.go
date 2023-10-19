@@ -96,9 +96,9 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 	defer func() {
-		err := e.GetUserProvisioner(e).Deactivate(ctx, sessionCtx)
+		err := e.GetUserProvisioner(e).Teardown(ctx, sessionCtx)
 		if err != nil {
-			e.Log.WithError(err).Error("Failed to deactivate the user.")
+			e.Log.WithError(err).Error("Failed to teardown the user.")
 		}
 	}()
 
@@ -175,7 +175,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	// When using auto-provisioning, force the database username to be same
 	// as Teleport username. If it's not provided explicitly, some database
 	// clients get confused and display incorrect username.
-	if sessionCtx.AutoCreateUser {
+	if sessionCtx.AutoCreateUserMode.IsEnabled() {
 		if sessionCtx.DatabaseUser != sessionCtx.Identity.Username {
 			return trace.AccessDenied("please use your Teleport username (%q) to connect instead of %q",
 				sessionCtx.Identity.Username, sessionCtx.DatabaseUser)
@@ -192,7 +192,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		Database:       sessionCtx.Database,
 		DatabaseUser:   sessionCtx.DatabaseUser,
 		DatabaseName:   sessionCtx.DatabaseName,
-		AutoCreateUser: sessionCtx.AutoCreateUser,
+		AutoCreateUser: sessionCtx.AutoCreateUserMode.IsEnabled(),
 	})
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
