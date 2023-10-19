@@ -4,10 +4,13 @@
 #     "docs-generators/resource-reference/reference" directory and running the
 #     following command:
 # go run gen-resource-ref -config=testdata/config.yaml
-required_types:
+required_field_types:
   - package: "typestest"
     name: "ResourceHeader"
   - package: "typestest"
     name: "Metadata"
 source: "testdata/src/"
 destination: "testdata/golden.mdx"
+excluded_resource_types:
+  - package: "typestest"
+    name: "ResourceHeader"
