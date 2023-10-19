@@ -8,8 +8,15 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Node(_message.Message):
-    __slots__ = ["id", "kind", "sub_kind", "name", "labels", "hostname"]
+    __slots__ = ["id", "kind", "sub_kind", "name", "labels", "hostname", "properties"]
     class LabelsEntry(_message.Message):
+        __slots__ = ["key", "value"]
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: str
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+    class PropertiesEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
@@ -22,13 +29,15 @@ class Node(_message.Message):
     NAME_FIELD_NUMBER: _ClassVar[int]
     LABELS_FIELD_NUMBER: _ClassVar[int]
     HOSTNAME_FIELD_NUMBER: _ClassVar[int]
+    PROPERTIES_FIELD_NUMBER: _ClassVar[int]
     id: str
     kind: str
     sub_kind: str
     name: str
     labels: _containers.ScalarMap[str, str]
     hostname: str
-    def __init__(self, id: _Optional[str] = ..., kind: _Optional[str] = ..., sub_kind: _Optional[str] = ..., name: _Optional[str] = ..., labels: _Optional[_Mapping[str, str]] = ..., hostname: _Optional[str] = ...) -> None: ...
+    properties: _containers.ScalarMap[str, str]
+    def __init__(self, id: _Optional[str] = ..., kind: _Optional[str] = ..., sub_kind: _Optional[str] = ..., name: _Optional[str] = ..., labels: _Optional[_Mapping[str, str]] = ..., hostname: _Optional[str] = ..., properties: _Optional[_Mapping[str, str]] = ...) -> None: ...
 
 class Edge(_message.Message):
     __slots__ = ["to", "type"]
