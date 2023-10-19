@@ -5,6 +5,12 @@ $ tsh login --proxy=teleport.example.com
 $ tsh db connect --db-name <database> example
 ```
 
+<Admonition type="note" title="Database Username">
+When connecting to a database with user provisioning enabled, the Database
+Service expects your Teleport username will be used as the database username .
+
 If using a GUI database client like {{gui}}, make sure to use your Teleport
-username as a database username. `tsh db connect` will default to it
-automatically when connecting to a database with user provisioning enabled.
+username as the database username. `tsh db connect` will default to your
+Teleport username automatically when connecting to a database with user
+provisioning enabled.
+</Admonition>
