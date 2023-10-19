@@ -1,5 +1,49 @@
 # Changelog
 
+## 14.1.0 (10/18/23)
+
+### New features
+
+* Teleport Connect 14.1 introduces Connect My Computer which makes it possible to add your personal machine to a Teleport cluster in just a couple of clicks. Whether you're exploring capabilities of Teleport or want to make your computer available in your private cluster, Connect My Computer lets you do that without having to use the terminal to get the job done.
+* Resource pinning allows you to pin your most frequently accessed resources to a separate page for easy access.
+* Access Monitoring provides a view of risky accounts access and access anti-patterns in clusters using Athena as the audit log backend.
+* Users can connect to EC2 instances via AWS EC2 Instance Connect endpoints without needing to install Teleport agents.
+* Access list owners will be able to perform regular periodic reviews of the access list members.
+
+### Security fixes
+* Updated golang.org/x/net dependency. [#33420](https://github.com/gravitational/teleport/pull/33420)
+  * swift-nio-http2 vulnerable to HTTP/2 Stream Cancellation Attack: [CVE-2023-44487](https://github.com/advisories/GHSA-qppj-fm5r-hxr3)
+* Updated `google.golang.org/grpc` to v1.57.1. [#33487](https://github.com/gravitational/teleport/pull/33487)
+  * swift-nio-http2 vulnerable to HTTP/2 Stream Cancellation Attack: [CVE-2023-44487](https://github.com/advisories/GHSA-qppj-fm5r-hxr3)
+* Updated OpenTelemetry dependency. [#33523](https://github.com/gravitational/teleport/pull/33523) [#33550](https://github.com/gravitational/teleport/pull/33550)
+  * OpenTelemetry-Go Contrib vulnerable to denial of service in otelhttp due to unbound cardinality metrics: [CVE-2023-45142](https://github.com/advisories/GHSA-rcjv-mgp8-qvmr)
+* Updated babel/core to 7.3.2. [#33441](https://github.com/gravitational/teleport/pull/33441)
+  * Arbitrary code execution when compiling specifically crafted malicious code: [CVE-2023-45133](https://github.com/babel/babel/security/advisories/GHSA-67hx-6x53-jw92)
+
+### Other fixes and improvements
+
+* Web SSH sessions are terminated right away when a user closes the tab. [#33529](https://github.com/gravitational/teleport/pull/33529)
+* Added the ability for bots to submit access request reviews. [#33509](https://github.com/gravitational/teleport/pull/33509)
+* Added access review notifications when logging in via `tsh` or running `tsh status`. [#33468](https://github.com/gravitational/teleport/pull/33468)
+* Added database automatic user provisioning support for MySQL. [#33379](https://github.com/gravitational/teleport/pull/33379)
+* Added job to update the Teleport version for deployments in Amazon ECS used during RDS Enrollment. [#33313](https://github.com/gravitational/teleport/pull/33313)
+* Fixed Teleport Assist SQL view names. [#33581](https://github.com/gravitational/teleport/pull/33581)
+* Fixed hardware key support for sso web login. [#33548](https://github.com/gravitational/teleport/pull/33548)
+* Fixed access lists to allow them to affect access request permissions. [#33350](https://github.com/gravitational/teleport/pull/33350)
+* Prevented remote proxies from impersonating users from different clusters. [#33539](https://github.com/gravitational/teleport/pull/33539)
+* Added link to access request in ServiceNow incidents. [#33593](https://github.com/gravitational/teleport/pull/33593)
+* Added new "Identity Governance & Security" navigation section in web UI. [#33423](https://github.com/gravitational/teleport/pull/33423)
+* Fixed `tsh` connection issue when Proxy is in separate mode and Web port is TLS-terminated by a load balancer. [#32531](https://github.com/gravitational/teleport/issues/32531) [#33406](https://github.com/gravitational/teleport/pull/33406)
+* Fixed panic when trying to register resources from older Kubernetes clusters with `extensions/v1beta1` group/version. [#33402](https://github.com/gravitational/teleport/pull/33402)
+* Fixed access list audit log messages to properly include user names. [#33383](https://github.com/gravitational/teleport/pull/33383)
+* Added notification icon to Web UI to show Access List review notifications. [#33381](https://github.com/gravitational/teleport/pull/33381)
+* Fixed creation of `@teleport-access-approver` role to `v6` to support downgrades to Teleport 13. [#33354](https://github.com/gravitational/teleport/pull/33354)
+* Added ability to specify PIV slot for hardware key support. [#33352](https://github.com/gravitational/teleport/pull/33352) [#33353](https://github.com/gravitational/teleport/pull/33353)
+* Extended timeout when waiting for hardware key touch/PIN. [#33348](https://github.com/gravitational/teleport/pull/33348)
+* Added support for Windows AD root domain for PKI operations. [#33275](https://github.com/gravitational/teleport/pull/33275)
+* Added resources to Slack notification of Access Requests. [#33264](https://github.com/gravitational/teleport/pull/33264)
+* Fixed provision tokens to make system roles case-insensitive. [#33260](https://github.com/gravitational/teleport/pull/33260)
+
 ## 14.0.3 (10/11/23)
 
 ### Security Fixes
