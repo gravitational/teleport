@@ -1391,36 +1391,36 @@
           ]
         },
         {
-          "title": "Connecting a Bot",
-          "slug": "/machine-id/connect-a-bot/",
+          "title": "Accessing Infrastructure with Machine ID",
+          "slug": "/machine-id/access-guides/",
           "entries": [
             {
               "title": "tctl",
-              "slug": "/machine-id/connect-a-bot/tctl/"
+              "slug": "/machine-id/access-guides/tctl/"
             },
             {
               "title": "Kubernetes",
-              "slug": "/machine-id/connect-a-bot/kubernetes/"
+              "slug": "/machine-id/access-guides/kubernetes/"
             },
             {
               "title": "Terraform",
-              "slug": "/machine-id/connect-a-bot/terraform/"
+              "slug": "/machine-id/access-guides/terraform/"
             },
             {
               "title": "Applications",
-              "slug": "/machine-id/connect-a-bot/applications/"
+              "slug": "/machine-id/access-guides/applications/"
             },
             {
               "title": "Databases",
-              "slug": "/machine-id/connect-a-bot/databases/"
+              "slug": "/machine-id/access-guides/databases/"
             },
             {
               "title": "SSH",
-              "slug": "/machine-id/connect-a-bot/ssh/"
+              "slug": "/machine-id/access-guides/ssh/"
             },
             {
               "title": "Ansible",
-              "slug": "/machine-id/connect-a-bot/ansible/"
+              "slug": "/machine-id/access-guides/ansible/"
             }
           ]
         },
@@ -2531,7 +2531,7 @@
     },
     {
       "source": "/kubernetes-access/guides/cicd/",
-      "destination": "/machine-id/connect-a-bot/kubernetes/",
+      "destination": "/machine-id/access-guides/kubernetes/",
       "permanent": true
     },
     {
@@ -2876,22 +2876,22 @@
     },
     {
       "source": "/machine-id/guides/applications/",
-      "destination": "/machine-id/connect-a-bot/applications/",
+      "destination": "/machine-id/access-guides/applications/",
       "permanent": true
     },
     {
       "source": "/machine-id/guides/ansible/",
-      "destination": "/machine-id/connect-a-bot/ansible/",
+      "destination": "/machine-id/access-guides/ansible/",
       "permanent": true
     },
     {
       "source": "/machine-id/guides/databases/",
-      "destination": "/machine-id/connect-a-bot/databases/",
+      "destination": "/machine-id/access-guides/databases/",
       "permanent": true
     },
     {
       "source": "/machine-id/guides/kubernetes/",
-      "destination": "/machine-id/connect-a-bot/kubernetes/",
+      "destination": "/machine-id/access-guides/kubernetes/",
       "permanent": true
     },
     {

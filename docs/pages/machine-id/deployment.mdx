@@ -18,21 +18,23 @@ your infrastructure.
 ### Your infrastructure
 
 The `tbot` binary runs as a container or on a Linux virtual machine. If you run
-`tbot` on GitHub Actions, you can use a ready-made [GitHub Actions
-workflow](https://github.com/marketplace/actions/teleport-auth).
+`tbot` on GitHub Actions, you can use one of the ready-made [Teleport GitHub
+Actions workflows](https://github.com/teleport-actions).
 
-### Initial authentication method
+### Join method
 
-Machine ID authenticates itself with your Teleport cluster using one of the
-following methods:
+Machine ID joins your Teleport cluster by using one of the following
+authentication methods:
 
 - **Platform-signed document:** The platform that hosts `tbot`, such as a
   Kubernetes cluster or Amazon EC2 instance, provides a signed identity document
   that Teleport can verify using the platform's certificate authority. This is
   the recommended approach because it avoids the use of shared secrets.
 - **Static join token:** Your Teleport client tool generates a string and stores
-  it on the Teleport Auth Service. Machine ID provides this string,
-  demonstrating to the Auth Service that it belongs in your Teleport cluster.
+  it on the Teleport Auth Service. Machine ID provides this string when it first
+  connects to your Teleport cluster, demonstrating to the Auth Service that it
+  belongs in the cluster. From then on, Machine ID authenticates to your
+  Teleport cluster with a renewable certificate.
 
 ## Deployment guides
 
