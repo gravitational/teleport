@@ -487,7 +487,10 @@ fn create_config(width: u16, height: u16, username: String, password: String) ->
         username,
         password,
         domain: None,
-        client_build: 0,
+        // Windows 10, Version 1909, same as FreeRDP as of October 5th, 2021.
+        // This determines which Smart Card Redirection dialect we use per
+        // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpesc/568e22ee-c9ee-4e87-80c5-54795f667062.
+        client_build: 18363,
         client_name: "Teleport".to_string(),
         keyboard_type: ironrdp_pdu::gcc::KeyboardType::IbmEnhanced,
         keyboard_subtype: 0,
