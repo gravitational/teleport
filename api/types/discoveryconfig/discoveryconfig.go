@@ -80,41 +80,37 @@ func (a *DiscoveryConfig) CheckAndSetDefaults() error {
 	if a.Spec.AWS == nil {
 		a.Spec.AWS = make([]types.AWSMatcher, 0)
 	}
-	for i, m := range a.Spec.AWS {
-		if err := m.CheckAndSetDefaults(); err != nil {
+	for i := range a.Spec.AWS {
+		if err := a.Spec.AWS[i].CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-		a.Spec.AWS[i] = m
 	}
 
 	if a.Spec.Azure == nil {
 		a.Spec.Azure = make([]types.AzureMatcher, 0)
 	}
-	for i, m := range a.Spec.Azure {
-		if err := m.CheckAndSetDefaults(); err != nil {
+	for i := range a.Spec.Azure {
+		if err := a.Spec.Azure[i].CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-		a.Spec.Azure[i] = m
 	}
 
 	if a.Spec.GCP == nil {
 		a.Spec.GCP = make([]types.GCPMatcher, 0)
 	}
-	for i, m := range a.Spec.GCP {
-		if err := m.CheckAndSetDefaults(); err != nil {
+	for i := range a.Spec.GCP {
+		if err := a.Spec.GCP[i].CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-		a.Spec.GCP[i] = m
 	}
 
 	if a.Spec.Kube == nil {
 		a.Spec.Kube = make([]types.KubernetesMatcher, 0)
 	}
-	for i, m := range a.Spec.Kube {
-		if err := m.CheckAndSetDefaults(); err != nil {
+	for i := range a.Spec.Kube {
+		if err := a.Spec.Kube[i].CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-		a.Spec.Kube[i] = m
 	}
 
 	return nil
