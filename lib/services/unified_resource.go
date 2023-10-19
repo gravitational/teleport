@@ -645,7 +645,6 @@ func (c *UnifiedResourceCache) resourceKinds() []types.WatchKind {
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindKubeServer},
-		{Kind: types.KindAccessList},
 	}
 }
 
