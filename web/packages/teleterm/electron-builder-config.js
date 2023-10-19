@@ -87,7 +87,7 @@ module.exports = {
       // [1] https://developer.apple.com/documentation/bundleresources/information_property_list/cfbundleurltypes/cfbundleurlname
       // [2] https://developer.apple.com/documentation/xcode/defining-a-custom-url-scheme-for-your-app#Register-your-URL-scheme
       name: appId,
-      schemes: ['teleport-connect'],
+      schemes: ['teleport'],
       // Not much documentation is available on the role attribute. It ultimately gets mapped to
       // CFBundleTypeRole in Info.plist.
       //

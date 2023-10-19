@@ -32,11 +32,11 @@ import {
 } from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
-import { CONNECT_CUSTOM_PROTOCOL } from 'teleterm/ui/uri';
+import { TELEPORT_CUSTOM_PROTOCOL } from 'teleterm/ui/uri';
 
 // Set the app as a default protocol client only if it wasn't started through `electron .`.
 if (!process.defaultApp) {
-  app.setAsDefaultProtocolClient(CONNECT_CUSTOM_PROTOCOL);
+  app.setAsDefaultProtocolClient(TELEPORT_CUSTOM_PROTOCOL);
 }
 
 if (app.requestSingleInstanceLock()) {
@@ -319,5 +319,5 @@ function setUpDeepLinks(
 // We don't know the exact position of the URL is in argv. Chromium might inject its own arguments
 // into argv. See https://www.electronjs.org/docs/latest/api/app#event-second-instance.
 function findCustomProtocolUrlInArgv(argv: string[]) {
-  return argv.find(arg => arg.startsWith(`${CONNECT_CUSTOM_PROTOCOL}://`));
+  return argv.find(arg => arg.startsWith(`${TELEPORT_CUSTOM_PROTOCOL}://`));
 }
