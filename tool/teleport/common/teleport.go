@@ -30,6 +30,8 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/athena"
+	"github.com/aws/aws-sdk-go-v2/service/glue"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -38,6 +40,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	ecatypes "github.com/gravitational/teleport/api/types/externalcloudaudit"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
@@ -448,22 +451,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	joinOpenSSH.Flag("debug", "Enable verbose logging to stderr.").Short('d').BoolVar(&ccf.Debug)
 
 	integrationCmd := app.Command("integration", "Integration commands")
-	integrationBootstrapCmd := integrationCmd.Command("bootstrap", "Bootstrap an integration")
-	integrationBootstrapCreateExternalCloudAuditCmd := integrationBootstrapCmd.Command("externalcloudaudit", "Bootstraps external cloud audit infrastructure.")
-	integrationBootstrapCreateExternalCloudAuditCmd.Flag("aws-region", "The region to use. Overrides config/env settings").StringVar(&ccf.
-		IntegrationBootstrapCreateExternalCloudAuditArguments.Region)
-	integrationBootstrapCreateExternalCloudAuditCmd.Flag("long-term-storage-bucket", "S3 Bucket for long term storage of audit events and session recordings.").
-		Required().StringVar(&ccf.IntegrationBootstrapCreateExternalCloudAuditArguments.LongTermStorageBucket)
-	integrationBootstrapCreateExternalCloudAuditCmd.Flag("transient-bucket", "S3 bucket for transient storage of athena query results and large payloads.").
-		Required().StringVar(&ccf.IntegrationBootstrapCreateExternalCloudAuditArguments.TransientBucket)
-
-	integrationBootstrapCreateExternalCloudAuditCmd.Flag("athena-workgroup", "Name of athena workgroup").Default("teleport").StringVar(&ccf.
-		IntegrationBootstrapCreateExternalCloudAuditArguments.AthenaWorkgroup)
-	integrationBootstrapCreateExternalCloudAuditCmd.Flag("glue-database-name", "Name of the glue database to create").Default("teleport").StringVar(&ccf.
-		IntegrationBootstrapCreateExternalCloudAuditArguments.DatabaseName)
-	integrationBootstrapCreateExternalCloudAuditCmd.Flag("glue-table-name", "Name of the glue table to create").Default("auditevents").StringVar(&ccf.
-		IntegrationBootstrapCreateExternalCloudAuditArguments.TableName)
-
 	integrationConfigureCmd := integrationCmd.Command("configure", "Configure an integration")
 	integrationConfDeployServiceCmd := integrationConfigureCmd.Command("deployservice-iam", "Create the required IAM Roles for the AWS OIDC Deploy Service.")
 	integrationConfDeployServiceCmd.Flag("cluster", "Teleport Cluster's name.").Required().StringVar(&ccf.IntegrationConfDeployServiceIAMArguments.Cluster)
@@ -1032,49 +1019,31 @@ func onIntegrationConfExternalAuditCmd(params config.IntegrationConfExternalClou
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if params.Bootstrap {
+		bootstrapClt := &externalcloudaudit.DefaultBootstrapInfraClient{
+			Glue:   glue.NewFromConfig(cfg),
+			S3:     s3.NewFromConfig(cfg),
+			Athena: athena.NewFromConfig(cfg),
+		}
+
+		err = externalcloudaudit.BootstrapInfra(ctx, bootstrapClt, ecatypes.ExternalCloudAuditSpec{
+			SessionsRecordingsURI:  params.SessionRecordingsURI,
+			AuditEventsLongTermURI: params.AuditEventsURI,
+			AthenaResultsURI:       params.AthenaResultsURI,
+			GlueDatabase:           params.GlueDatabase,
+			GlueTable:              params.GlueTable,
+			AthenaWorkgroup:        params.AthenaWorkgroup,
+		}, params.Region)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil // Remove this (FOR TESTING ONLY)
+	}
+
 	clt := &awsoidc.DefaultConfigureExternalCloudAuditClient{
 		Iam: iam.NewFromConfig(cfg),
 		Sts: sts.NewFromConfig(cfg),
 	}
 	return trace.Wrap(awsoidc.ConfigureExternalCloudAudit(ctx, clt, &params))
-}
-
-func onIntegrationBootstrapCreateExternalCloudAuditCmd(params config.IntegrationBootstrapCreateExternalCloudAudit) error {
-	ctx := context.Background()
-
-	cfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(params.Region), awsConfig.WithSharedConfigProfile("cloudteam-dev-role"))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	s3Client := s3.NewFromConfig(cfg)
-
-	// Create Long Term Storage Bucket
-	err = externalcloudaudit.EnsureLTSBucket(ctx, s3Client, externalcloudaudit.EnsureLTSBucketRequest{
-		BucketName: params.LongTermStorageBucket,
-		Region:     cfg.Region,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Create Transient Bucket
-
-	// athenaClient := athena.NewFromConfig(cfg)
-
-	// err = externalcloudaudit.EnsureAthenaWorkgroup(ctx, athenaClient, externalcloudaudit.EnsureAthenaWorkgroupRequest{
-	// 	Name: params.AthenaWorkgroup,
-	// })
-	// if err != nil {
-	// 	return trace.Wrap(err)
-	// }
-
-	// glueClient := glue.NewFromConfig(cfg)
-	// externalcloudaudit.EnsureGlueInfra(ctx, glueClient, externalcloudaudit.EnsureGlueInfraRequest{
-	// 	EventBucket:  params.EventBucket,
-	// 	DatabaseName: params.DatabaseName,
-	// 	TableName:    params.TableName,
-	// })
-
-	return nil
 }

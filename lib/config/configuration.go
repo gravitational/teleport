@@ -292,23 +292,8 @@ type IntegrationConfExternalCloudAudit struct {
 	GlueTable string
 	// Partition is the AWS partition to use (default: aws).
 	Partition string
-}
-
-// IntegrationBootstrapCreateExternalCloudAuditArguments contains the arguments of
-// `teleport integration bootstrap externalcloudaudit` command
-type IntegrationBootstrapCreateExternalCloudAudit struct {
-	// Region is the AWS Region used to set up the client
-	Region string
-	// LongTermStorageBucket is the name of the bucket created for sessions and audit event data
-	LongTermStorageBucket string
-	// TransientBucket is the name of the bucket created for short term query results and large payload data
-	TransientBucket string
-	// AthenaWorkgroup is the name of the athena workgroup to create
-	AthenaWorkgroup string
-	// DatabaseName is the name of the glue database
-	DatabaseName string
-	// TableName is the name of the glue table
-	TableName string
+	// Bootstrap controls whether required infrastructure is created or not
+	Bootstrap bool
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
