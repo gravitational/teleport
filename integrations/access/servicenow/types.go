@@ -52,6 +52,8 @@ type Incident struct {
 	WorkNotes string `json:"work_notes,omitempty"`
 	// Caller is the user on whose behalf the incident is being created. (Must be an existing servicenow user)
 	Caller string `json:"caller_id,omitempty"`
+	// AssignedTo is the person who the incident is assigned.
+	AssignedTo string `json:"assigned_to,omitempty"`
 }
 
 const (
@@ -90,6 +92,8 @@ type RequestData struct {
 	SystemAnnotations types.Labels
 	// Resources are the resources being requested.
 	Resources []string
+	// SuggestedReviewers are the suggested reviewers for this access request.
+	SuggestedReviewers []string
 }
 
 type onCallResult struct {
