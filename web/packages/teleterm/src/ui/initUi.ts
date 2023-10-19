@@ -42,7 +42,12 @@ export async function initUi(ctx: IAppContext): Promise<void> {
   // Instead, on the first launch only "usage reporting" dialog shows up.
   // "User job role" dialog is shown on the second launch (only if user agreed to reporting earlier).
   await setUpUsageReporting(configService, ctx.modalsService);
-  ctx.workspacesService.restorePersistedState();
+
+  // If there's a workspace that was active before the user closed the app, restorePersistedState
+  // will block until the user interacts with the login modal (if the cert is not valid anymore) and
+  // the modal for restoring documents. No other UI will be shown until this completes.
+  await ctx.workspacesService.restorePersistedState();
+
   notifyAboutConfigErrors(configService, ctx.notificationsService);
   notifyAboutDuplicatedShortcutsCombinations(
     ctx.keyboardShortcutsService,
