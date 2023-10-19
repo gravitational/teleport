@@ -683,13 +683,13 @@ func GetTopLevelStringAssignments(decls []ast.Decl) (map[string]string, error) {
 
 	// var and const assignments are GenDecls, so ignore any input Decls that
 	// don't meet this criterion by making a slice of GenDecls.
-	gd := make([]*ast.GenDecl, 0, len(decls))
+	gd := []*ast.GenDecl{}
 	for _, d := range decls {
 		g, ok := d.(*ast.GenDecl)
 		if !ok {
 			continue
 		}
-		gd[len(gd)] = g
+		gd = append(gd, g)
 	}
 
 	// Whether in the "var =" format or "var (" format, each assignment is
@@ -708,7 +708,30 @@ func GetTopLevelStringAssignments(decls []ast.Decl) (map[string]string, error) {
 			vs = append(vs, s)
 		}
 	}
-	return nil, nil
+
+	// Add the name and value of each var/const to the return as long as
+	// there is one name and the value is a string literal.
+	for _, v := range vs {
+		if len(v.Names) != 1 {
+			continue
+		}
+		if len(v.Values) != 1 {
+			continue
+		}
+
+		l, ok := v.Values[0].(*ast.BasicLit)
+		if !ok {
+			continue
+		}
+		if l.Kind != token.STRING {
+			continue
+		}
+		// String literal values are quoted. Remove the quotes so we can
+		// compare values downstream.
+		result[v.Names[0].Name] = strings.Trim(l.Value, "\"")
+
+	}
+	return result, nil
 }
 
 func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error) {
