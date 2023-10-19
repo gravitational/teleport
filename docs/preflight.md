@@ -16,5 +16,3 @@ This checklist is to be run prior to cutting the release branch.
     `public.ecr.aws`
 - [ ] Update the list of OCI images to rebuild nightly in
   [`rebuild-teleport-oci-distroless-cron.yml` on `master`](https://github.com/gravitational/teleport.e/blob/master/.github/workflows/rebuild-teleport-oci-distroless-cron.yml)
-- [ ] Update `.github/workflow/codeql.yml` configuration to list the new release
-  branch. The oldest release branch listed can simultaneously be removed.
