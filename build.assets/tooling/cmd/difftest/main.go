@@ -68,6 +68,9 @@ var (
 		// TestServer_Authenticate_headless takes about 4-5 seconds to run, so if other tests are changed
 		// in the same PR that take >1 second total, it may cause the flaky test detector to time out.
 		"TestServer_Authenticate_headless",
+
+		// TestWithRsync takes ~10 seconds to run
+		"TestWithRsync",
 	}
 )
 
@@ -158,7 +161,7 @@ func diff(repoPath string, ref string, changedFiles []string, elapsed time.Durat
 
 // test builds and prints go test flags
 func test(repoPath string, ref string, changedFiles []string) {
-	var dirs = make(StringSet)
+	dirs := make(StringSet)
 	methods := make([]string, 0)
 
 	dollarSign := "$"

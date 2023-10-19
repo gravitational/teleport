@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -44,6 +45,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/testhelpers"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
@@ -1334,4 +1337,69 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 	require.Empty(t, cmp.Diff(types.Databases(want).ToMap(), databases.ToMap(),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace", "Expires"),
 	))
+}
+
+func TestCreateGithubConnector(t *testing.T) {
+	t.Parallel()
+
+	fc, fds := testhelpers.DefaultConfig(t)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, utils.NewLoggerForTests(), fc, fds)
+
+	// Ensure there are no connectors to start
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindGithubConnector, "--format=json"})
+	require.NoError(t, err)
+	connectors := mustDecodeJSON[[]*types.GithubConnectorV3](t, buf)
+	require.Empty(t, connectors)
+
+	const connectorYAML = `kind: github
+metadata:
+  name: github
+spec:
+  client_id: "12345"
+  client_secret: "678910"
+  display: Github
+  redirect_url: https://proxy.example.com/v1/webapi/github/callback
+  teams_to_roles:
+  - organization: acme
+    roles:
+    - access
+    - editor
+    - auditor
+    team: users
+version: v3`
+
+	// Create the connector
+	connectorYAMLPath := filepath.Join(t.TempDir(), "connector.yaml")
+	require.NoError(t, os.WriteFile(connectorYAMLPath, []byte(connectorYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", connectorYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the connector
+	buf, err = runResourceCommand(t, fc, []string{"get", types.KindGithubConnector, "--format=json"})
+	require.NoError(t, err)
+	connectors = mustDecodeJSON[[]*types.GithubConnectorV3](t, buf)
+	require.Len(t, connectors, 1)
+
+	var expected types.GithubConnectorV3
+	require.NoError(t, yaml.Unmarshal([]byte(connectorYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*types.GithubConnectorV3{&expected},
+		connectors,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+		cmpopts.IgnoreFields(types.GithubConnectorSpecV3{}, "ClientSecret"), // get retrieves the connector without secrets
+	))
+
+	// Explicitly change the revision and try creating the user with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	connectorBytes, err := services.MarshalGithubConnector(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(connectorYAMLPath, connectorBytes, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", connectorYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", connectorYAMLPath})
+	require.NoError(t, err)
 }

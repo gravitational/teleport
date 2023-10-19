@@ -34,10 +34,12 @@ export interface UrlFilteringState {
   search: string;
 }
 
-export function useUrlFiltering(initialSort: SortType): UrlFilteringState {
+export function useUrlFiltering(
+  initialParams: Partial<ResourceFilter>
+): UrlFilteringState {
   const { search, pathname } = useLocation();
   const [params, setParams] = useState<ResourceFilter>({
-    sort: initialSort,
+    ...initialParams,
     ...getResourceUrlQueryParams(search),
   });
 
@@ -59,7 +61,8 @@ export function useUrlFiltering(initialSort: SortType): UrlFilteringState {
         queryAfterLabelClick,
         params.sort,
         params.kinds,
-        true /*isAdvancedSearch*/
+        true /*isAdvancedSearch*/,
+        params.pinnedOnly
       )
     );
   };
@@ -84,6 +87,7 @@ export default function getResourceUrlQueryParams(
   const searchParams = new URLSearchParams(searchPath);
   const query = searchParams.get('query');
   const search = searchParams.get('search');
+  const pinnedOnly = searchParams.get('pinnedOnly');
   const sort = searchParams.get('sort');
   const kinds = searchParams.has('kinds') ? searchParams.getAll('kinds') : null;
 
@@ -103,6 +107,8 @@ export default function getResourceUrlQueryParams(
     kinds,
     // Conditionally adds the sort field based on whether it exists or not
     ...(!!processedSortParam && { sort: processedSortParam }),
+    // Conditionally adds the pinnedResources field based on whether its true or not
+    ...(pinnedOnly === 'true' && { pinnedOnly: true }),
   };
 }
 

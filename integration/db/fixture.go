@@ -358,7 +358,7 @@ func (p *DatabasePack) setupUsersAndRoles(t *testing.T) {
 
 	p.Root.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
 	p.Root.role.SetDatabaseNames(types.Allow, []string{types.Wildcard})
-	err = p.Root.Cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.Root.role)
+	p.Root.role, err = p.Root.Cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.Root.role)
 	require.NoError(t, err)
 
 	p.Leaf.User, p.Leaf.role, err = auth.CreateUserAndRole(p.Root.Cluster.Process.GetAuthServer(), "leaf-user", nil, nil)
@@ -366,7 +366,7 @@ func (p *DatabasePack) setupUsersAndRoles(t *testing.T) {
 
 	p.Leaf.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
 	p.Leaf.role.SetDatabaseNames(types.Allow, []string{types.Wildcard})
-	err = p.Leaf.Cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.Leaf.role)
+	p.Leaf.role, err = p.Leaf.Cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.Leaf.role)
 	require.NoError(t, err)
 }
 

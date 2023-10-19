@@ -313,9 +313,9 @@ func TestUpsertRole(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	existingRoles := make(map[string]types.Role)
-	m.mockUpsertRole = func(ctx context.Context, role types.Role) error {
+	m.mockUpsertRole = func(ctx context.Context, role types.Role) (types.Role, error) {
 		existingRoles[role.GetName()] = role
-		return nil
+		return role, nil
 	}
 	m.mockGetRole = func(ctx context.Context, name string) (types.Role, error) {
 		role, ok := existingRoles[name]
@@ -398,77 +398,6 @@ func TestGetGithubConnectors(t *testing.T) {
 	require.Nil(t, err)
 	require.Len(t, connectors, 1)
 	require.Contains(t, connectors[0].Content, "name: test")
-}
-
-func TestUpsertGithubConnector(t *testing.T) {
-	m := &mockedResourceAPIGetter{}
-
-	existingConnectors := make(map[string]types.GithubConnector)
-	m.mockUpsertGithubConnector = func(ctx context.Context, connector types.GithubConnector) error {
-		existingConnectors[connector.GetName()] = connector
-		return nil
-	}
-	m.mockGetGithubConnector = func(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error) {
-		connector, ok := existingConnectors[name]
-		if ok {
-			return connector, nil
-		}
-		return nil, trace.NotFound("")
-	}
-
-	// Test bad request kind.
-	invalidKind := `kind: invalid-kind
-metadata:
-  name: test`
-	connector, err := upsertGithubConnector(context.Background(), m, invalidKind, "", httprouter.Params{})
-	require.Nil(t, connector)
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err))
-	require.Contains(t, err.Error(), "kind")
-
-	goodContent := `kind: github
-metadata:
-  name: test-goodcontent
-spec:
-  client_id: <client-id>
-  client_secret: <client-secret>
-  display: Github
-  redirect_url: https://<cluster-url>/v1/webapi/github/callback
-  teams_to_logins:
-  - logins:
-    - admins
-    organization: <github-org>
-    team: admins
-version: v3`
-
-	// Updating non-existing connector fails.
-	connector, err = upsertGithubConnector(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
-	require.Nil(t, connector)
-	require.Error(t, err)
-	require.True(t, trace.IsNotFound(err))
-
-	// Creating non-existing connector succeeds.
-	connector, err = upsertGithubConnector(context.Background(), m, goodContent, "POST", httprouter.Params{})
-	require.NoError(t, err)
-	require.Contains(t, connector.Content, "name: test-goodcontent")
-
-	// Creating existing connector fails.
-	connector, err = upsertGithubConnector(context.Background(), m, goodContent, "POST", httprouter.Params{})
-	require.Nil(t, connector)
-	require.Error(t, err)
-	require.True(t, trace.IsAlreadyExists(err))
-
-	// Updating existing connector succeeds.
-	connector, err = upsertGithubConnector(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
-	require.NoError(t, err)
-	require.Contains(t, connector.Content, "name: test-goodcontent")
-
-	// Renaming existing connector fails.
-	goodContentRenamed := strings.ReplaceAll(goodContent, "test-goodcontent", "test-goodcontent-new-name")
-	connector, err = upsertGithubConnector(context.Background(), m, goodContentRenamed, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
-	require.Nil(t, connector)
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err))
 }
 
 func TestGetTrustedClusters(t *testing.T) {
@@ -640,7 +569,7 @@ func TestListResources(t *testing.T) {
 type mockedResourceAPIGetter struct {
 	mockGetRole               func(ctx context.Context, name string) (types.Role, error)
 	mockGetRoles              func(ctx context.Context) ([]types.Role, error)
-	mockUpsertRole            func(ctx context.Context, role types.Role) error
+	mockUpsertRole            func(ctx context.Context, role types.Role) (types.Role, error)
 	mockUpsertGithubConnector func(ctx context.Context, connector types.GithubConnector) error
 	mockGetGithubConnectors   func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 	mockGetGithubConnector    func(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
@@ -666,12 +595,12 @@ func (m *mockedResourceAPIGetter) GetRoles(ctx context.Context) ([]types.Role, e
 	return nil, trace.NotImplemented("mockGetRoles not implemented")
 }
 
-func (m *mockedResourceAPIGetter) UpsertRole(ctx context.Context, role types.Role) error {
+func (m *mockedResourceAPIGetter) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
 	if m.mockUpsertRole != nil {
 		return m.mockUpsertRole(ctx, role)
 	}
 
-	return trace.NotImplemented("mockUpsertRole not implemented")
+	return nil, trace.NotImplemented("mockUpsertRole not implemented")
 }
 
 func (m *mockedResourceAPIGetter) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {

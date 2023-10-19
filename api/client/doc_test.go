@@ -76,7 +76,7 @@ func ExampleClient_roleCRUD() {
 
 	// Upsert overwrites the resource if it exists. Use this to create/update resources.
 	// Equivalent to `tctl create -f role1.yaml`.
-	err = clt.UpsertRole(ctx, role)
+	role, err = clt.UpsertRole(ctx, role)
 	if err != nil {
 		log.Fatalf("failed to create role: %v", err)
 	}

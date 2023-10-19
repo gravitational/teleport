@@ -74,6 +74,8 @@ export type DocumentUri = `/docs/${DocumentId}`;
 type GatewayId = string;
 export type GatewayUri = `/gateways/${GatewayId}`;
 
+export const TELEPORT_CUSTOM_PROTOCOL = 'teleport' as const;
+
 export const routing = {
   parseClusterUri(uri: string) {
     const leafMatch = routing.parseUri(uri, paths.leafCluster);
@@ -179,6 +181,10 @@ export const routing = {
   isLeafCluster(clusterUri: ClusterUri) {
     const match = routing.parseClusterUri(clusterUri);
     return match && Boolean(match.params.leafClusterId);
+  },
+
+  isRootCluster(clusterUri: ClusterUri) {
+    return !this.isLeafCluster(clusterUri);
   },
 
   belongsToProfile(

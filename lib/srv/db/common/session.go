@@ -43,8 +43,8 @@ type Session struct {
 	Identity tlsca.Identity
 	// Checker is the access checker for the identity.
 	Checker services.AccessChecker
-	// AutoCreateUser indicates whether the database user should be auto-created.
-	AutoCreateUser bool
+	// AutoCreateUserMode indicates whether the database user should be auto-created.
+	AutoCreateUserMode types.CreateDatabaseUserMode
 	// DatabaseUser is the requested database user.
 	DatabaseUser string
 	// DatabaseName is the requested database name.
@@ -65,7 +65,7 @@ type Session struct {
 func (c *Session) String() string {
 	return fmt.Sprintf("db[%v] identity[%v] dbUser[%v] dbName[%v] autoCreate[%v] dbRoles[%v]",
 		c.Database.GetName(), c.Identity.Username, c.DatabaseUser, c.DatabaseName,
-		c.AutoCreateUser, strings.Join(c.DatabaseRoles, ","))
+		c.AutoCreateUserMode, strings.Join(c.DatabaseRoles, ","))
 }
 
 // GetAccessState returns the AccessState based on the underlying

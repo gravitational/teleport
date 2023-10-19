@@ -217,7 +217,7 @@ func initSvc(t *testing.T, kind string) (context.Context, *Service) {
 		},
 	})
 	require.NoError(t, err)
-	err = roleSvc.CreateRole(ctx, role)
+	role, err = roleSvc.CreateRole(ctx, role)
 	require.NoError(t, err)
 
 	user, err := types.NewUser("test-user")

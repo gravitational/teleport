@@ -450,7 +450,7 @@ func TestOIDCLogin(t *testing.T) {
 			if event.Type != types.OpPut {
 				panic(fmt.Sprintf("unexpected event type: %v\n", event))
 			}
-			err = authServer.SetAccessRequestState(ctx, types.AccessRequestUpdate{
+			err := authServer.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 				RequestID: event.Resource.(types.AccessRequest).GetName(),
 				State:     types.RequestState_APPROVED,
 			})
@@ -688,6 +688,45 @@ func TestRelogin(t *testing.T) {
 		return nil
 	})
 	findMOTD(t, sc, motd)
+	require.NoError(t, err)
+}
+
+// Test when https:// is included in --proxy address
+func TestIgnoreHTTPSPrefix(t *testing.T) {
+	t.Parallel()
+
+	tmpHomePath := t.TempDir()
+
+	connector := mockConnector(t)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	authProcess, proxyProcess := makeTestServers(t,
+		withBootstrap(connector, alice),
+	)
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+
+	proxyAddress := "https://" + proxyAddr.String()
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddress,
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		cf.MockSSOLogin = mockSSOLogin(t, authServer, alice)
+		cf.overrideStderr = &buf
+		return nil
+	})
 	require.NoError(t, err)
 }
 
