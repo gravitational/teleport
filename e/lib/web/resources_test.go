@@ -2,16 +2,24 @@ package web
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
 	enterpriseui "github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -220,77 +228,6 @@ spec:
 	require.True(t, trace.IsBadParameter(err))
 }
 
-func TestUpsertOIDCConnector(t *testing.T) {
-	m := &mockedResourceAPIGetter{}
-
-	existingConnectors := make(map[string]types.OIDCConnector)
-	m.mockUpsertOIDCConnector = func(ctx context.Context, connector types.OIDCConnector) error {
-		existingConnectors[connector.GetName()] = connector
-		return nil
-	}
-	m.mockGetOIDCConnector = func(ctx context.Context, name string, withSecrets bool) (types.OIDCConnector, error) {
-		connector, ok := existingConnectors[name]
-		if ok {
-			return connector, nil
-		}
-		return nil, trace.NotFound("")
-	}
-
-	// Test bad request kind.
-	invalidKind := `kind: invalid-kind
-metadata:
-  name: test`
-	connector, err := upsertOIDCConnector(context.Background(), m, invalidKind, "", httprouter.Params{})
-	require.Nil(t, connector)
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err))
-	require.Contains(t, err.Error(), "kind")
-
-	goodContent := `kind: oidc
-version: v2
-metadata:
-  name: test-goodcontent
-spec:
-  redirect_url: "https://<cluster-url>/v1/webapi/oidc/callback"
-  client_id: <client id>
-  display: Google
-  client_secret: <client secret>
-  issuer_url: https://<issuer-url>
-  scope: [<scope value>]
-  claims_to_roles:
-    - {claim: "hd", value: "example.com", roles: ["admin"]}`
-
-	// Updating non-existing connector fails.
-	connector, err = upsertOIDCConnector(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
-	require.Nil(t, connector)
-	require.Error(t, err)
-	fmt.Printf("ERROR %v\n", err)
-	require.True(t, trace.IsNotFound(err))
-
-	// Creating non-existing connector succeeds.
-	connector, err = upsertOIDCConnector(context.Background(), m, goodContent, "POST", httprouter.Params{})
-	require.NoError(t, err)
-	require.Contains(t, connector.Content, "name: test-goodcontent")
-
-	// Creating existing connector fails.
-	connector, err = upsertOIDCConnector(context.Background(), m, goodContent, "POST", httprouter.Params{})
-	require.Nil(t, connector)
-	require.Error(t, err)
-	require.True(t, trace.IsAlreadyExists(err))
-
-	// Updating existing connector succeeds.
-	connector, err = upsertOIDCConnector(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
-	require.NoError(t, err)
-	require.Contains(t, connector.Content, "name: test-goodcontent")
-
-	// Renaming existing connector fails.
-	goodContentRenamed := strings.ReplaceAll(goodContent, "test-goodcontent", "test-goodcontent-new-name")
-	connector, err = upsertOIDCConnector(context.Background(), m, goodContentRenamed, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
-	require.Nil(t, connector)
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err))
-}
-
 func TestUpsertSAMLIdpServiceProvider(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
@@ -427,4 +364,111 @@ func (m *mockedResourceAPIGetter) GetSAMLIdPServiceProvider(ctx context.Context,
 	}
 
 	return nil, trace.NotImplemented("mockGetSAMlIdPServiceProvider not implemented")
+}
+
+func TestOIDCConnector(t *testing.T) {
+	ctx := context.Background()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			OIDC: true,
+		},
+	})
+
+	s := newWebSuite(t)
+	pack := s.newAuthWebPack(t, "foo")
+
+	expected, err := types.NewOIDCConnector("github", types.OIDCConnectorSpecV3{
+		ClientID:     "12345",
+		ClientSecret: "678910",
+		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+		Display:      "Github",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "test",
+				Value: "test",
+				Roles: []string{"access", "editor", "auditor"},
+			},
+		},
+	})
+	require.NoError(t, err, "creating initial connector resource")
+
+	createPayload := func(connector types.OIDCConnector) ui.ResourceItem {
+		raw, err := services.MarshalOIDCConnector(connector, services.PreserveResourceID())
+		require.NoError(t, err, "marshaling connector")
+
+		return ui.ResourceItem{
+			Kind:    types.KindOIDCConnector,
+			Name:    connector.GetName(),
+			Content: string(raw),
+		}
+	}
+
+	unmarshalResponse := func(resp []byte) types.OIDCConnector {
+		var item ui.ResourceItem
+		require.NoError(t, json.Unmarshal(resp, &item), "response from server contained an invalid resource item")
+
+		var conn types.OIDCConnectorV3
+		require.NoError(t, yaml.Unmarshal([]byte(item.Content), &conn), "resource item content was not an oidc connector")
+		return &conn
+	}
+
+	// Create the initial connector.
+	resp, err := pack.clt.PostJSON(ctx, pack.clt.Endpoint("enterprise", "oidc"), createPayload(expected))
+	require.NoError(t, err, "expected creating the initial connector to succeed")
+	require.Equal(t, http.StatusOK, resp.Code(), "unexpected status code creating connector")
+
+	created := unmarshalResponse(resp.Bytes())
+
+	// Validate that creating the connector again fails.
+	resp, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("enterprise", "oidc"), createPayload(expected))
+	assert.Error(t, err, "expected an error creating a duplicate connector")
+	assert.True(t, trace.IsAlreadyExists(err), "expected an already exists error got %T", err)
+	assert.Equal(t, http.StatusConflict, resp.Code(), "unexpected status code creating duplicate connector")
+
+	// Update the connector.
+	created.SetDisplay("test")
+	resp, err = pack.clt.PutJSON(ctx, pack.clt.Endpoint("enterprise", "oidc", expected.GetName()), createPayload(created))
+	require.NoError(t, err, "unexpected error updating the connector")
+	require.Equal(t, http.StatusOK, resp.Code(), "unexpected status code updating the connector")
+
+	updated := unmarshalResponse(resp.Bytes())
+
+	require.Empty(t, cmp.Diff(created, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+		cmpopts.IgnoreFields(types.GithubConnectorSpecV3{}, "Display", "ClientSecret"),
+	))
+	require.NotEqual(t, expected.GetDisplay(), updated.GetDisplay(), "expected update to modify the display name")
+	require.Equal(t, "test", updated.GetDisplay(), "display name should have been updated to test. got %s", updated.GetDisplay())
+
+	// Validate that a stale revision prevents updates.
+	resp, err = pack.clt.PutJSON(ctx, pack.clt.Endpoint("enterprise", "oidc", expected.GetName()), createPayload(expected))
+	assert.Error(t, err, "expected an error updating a connector with a stale revision")
+	assert.True(t, trace.IsCompareFailed(err), "expected a compare failed error got %T", err)
+	assert.Equal(t, http.StatusPreconditionFailed, resp.Code(), "unexpected status code updating the connector")
+
+	// Validate that renaming the connector prevents updates.
+	updated.SetName(uuid.NewString())
+	resp, err = pack.clt.PutJSON(ctx, pack.clt.Endpoint("enterprise", "oidc", expected.GetName()), createPayload(updated))
+	assert.Error(t, err, "expected and error when renaming a connector")
+	assert.True(t, trace.IsBadParameter(err), "expected a bad parameter error got %T", err)
+	assert.Equal(t, http.StatusBadRequest, resp.Code(), "unexpected status code updating the connector")
+
+	// Validate that updating a nonexistent connector fails.
+	updated.SetName(uuid.NewString())
+	resp, err = pack.clt.PutJSON(ctx, pack.clt.Endpoint("enterprise", "oidc", updated.GetName()), createPayload(updated))
+	assert.Error(t, err, "expected updating a nonexistent connector to fail")
+	assert.True(t, trace.IsCompareFailed(err), "expected a compare failed error got %T", err)
+	assert.Equal(t, http.StatusPreconditionFailed, resp.Code(), "unexpected status code updating the connector")
+
+	// Validate that the connector can be deleted
+	_, err = pack.clt.Delete(ctx, pack.clt.Endpoint("enterprise", "oidc", expected.GetName()))
+	require.NoError(t, err, "unexpected error deleting connector")
+
+	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("enterprise", "authconnectors"), nil)
+	assert.NoError(t, err, "unexpected error listing oidc connectors")
+
+	var item []ui.ResourceItem
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &item), "invalid resource item received")
+
+	assert.Empty(t, item)
+	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting connectors")
 }
