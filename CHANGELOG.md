@@ -1031,7 +1031,7 @@ Visit the individual repositories to find out more and see usage examples:
 - https://github.com/teleport-actions/auth-k8s
 
 For a more in-depth guide, see our
-[documentation](./docs/pages/machine-id/guides/github-actions.mdx) for using
+[documentation](./docs/pages/machine-id/deployment/github-actions.mdx) for using
 Teleport with GitHub Actions.
 
 ### Secure certificate mapping for Desktop Access
@@ -1569,7 +1569,7 @@ In Teleport 10 we’ve added database access support to Machine ID. Applications
 can use Machine ID to access databases protected by Teleport.
 
 You can find Machine ID guide for database access in the
-[documentation](docs/pages/machine-id/guides/databases.mdx).
+[documentation](docs/pages/machine-id/access-guides/databases.mdx).
 
 ### Breaking changes
 
