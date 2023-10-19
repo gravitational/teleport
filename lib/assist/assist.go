@@ -176,6 +176,45 @@ func (a *Assist) GenerateSummary(ctx context.Context, message string) (string, e
 	return a.client.Summary(ctx, message)
 }
 
+// RunTool runs a model tool without an ai.Chat.
+func (a *Assist) RunTool(ctx context.Context, onMessage onMessageFunc, toolName, userInput string, toolContext *tools.ToolContext,
+) (*tokens.TokenCount, error) {
+	message, tc, err := a.client.RunTool(ctx, toolContext, toolName, userInput)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch message := message.(type) {
+	case *output.Message:
+		if err := onMessage(MessageKindAssistantMessage, []byte(message.Content), a.clock.Now().UTC()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case *output.GeneratedCommand:
+		if err := onMessage(MessageKindCommand, []byte(message.Command), a.clock.Now().UTC()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case *output.StreamingMessage:
+		if err := func() error {
+			var text strings.Builder
+			defer onMessage(MessageKindAssistantPartialFinalize, nil, a.clock.Now().UTC())
+			for part := range message.Parts {
+				text.WriteString(part)
+
+				if err := onMessage(MessageKindAssistantPartialMessage, []byte(part), a.clock.Now().UTC()); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+			return nil
+		}(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		return nil, trace.Errorf("Unexpected message type: %T", message)
+	}
+
+	return tc, nil
+}
+
 // GenerateCommandSummary summarizes the output of a command executed on one or
 // many nodes. The conversation history is also sent into the prompt in order
 // to gather context and know what information is relevant in the command output.

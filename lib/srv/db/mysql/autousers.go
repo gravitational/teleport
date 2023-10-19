@@ -163,11 +163,18 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 		sessionCtx.DatabaseUser,
 	)
 
-	if getSQLState(err) == sqlStateActiveUser {
+	if getSQLState(err) == common.SQLStateActiveUser {
 		e.Log.Debugf("Failed to deactivate user %q: %v.", sessionCtx.DatabaseUser, err)
 		return nil
 	}
 	return trace.Wrap(err)
+}
+
+// DeleteUser deletes the database user.
+func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) error {
+	// TODO(gabrielcorado): implement delete database user. for now, just
+	// fallback to deactivate user.
+	return e.DeactivateUser(ctx, sessionCtx)
 }
 
 func (e *Engine) connectAsAdminUser(ctx context.Context, sessionCtx *common.Session) (*clientConn, error) {
@@ -257,10 +264,10 @@ func convertActivateError(sessionCtx *common.Session, err error) error {
 	}
 
 	switch getSQLState(err) {
-	case sqlStateUsernameDoesNotMatch:
+	case common.SQLStateUsernameDoesNotMatch:
 		return trace.AlreadyExists("username %q (Teleport user %q) already exists in this MySQL database and is used for another Teleport user.", sessionCtx.Identity.Username, sessionCtx.DatabaseUser)
 
-	case sqlStateRolesChanged:
+	case common.SQLStateRolesChanged:
 		return trace.CompareFailed("roles for user %q has changed. Please quit all active connections and try again.", sessionCtx.Identity.Username)
 
 	default:
@@ -439,22 +446,6 @@ const (
 	// To find all users that assigned this role:
 	// SELECT TO_USER AS 'Teleport Managed Users' FROM mysql.role_edges WHERE FROM_USER = 'teleport-auto-user'
 	teleportAutoUserRole = "teleport-auto-user"
-
-	// sqlStateActiveUser is the SQLSTATE raised by deactivation procedure when
-	// user has active connections.
-	//
-	// SQLSTATE reference:
-	// https://en.wikipedia.org/wiki/SQLSTATE
-	sqlStateActiveUser = "TP000"
-	// sqlStateUsernameDoesNotMatch is the SQLSTATE raised by activation
-	// procedure when the Teleport username does not match user's attributes.
-	//
-	// Possibly there is a hash collision, or someone manually updated the user
-	// attributes.
-	sqlStateUsernameDoesNotMatch = "TP001"
-	// sqlStateRolesChanged is the SQLSTATE raised by activation procedure when
-	// the user has active connections but roles has changed.
-	sqlStateRolesChanged = "TP002"
 
 	revokeRolesProcedureName    = "teleport_revoke_roles"
 	activateUserProcedureName   = "teleport_activate_user"
