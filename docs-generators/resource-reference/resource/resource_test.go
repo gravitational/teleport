@@ -1342,3 +1342,46 @@ func (mystruct) getMessage() string {
 		})
 	}
 }
+
+func TestGetTopLevelStringAssignments(t *testing.T) {
+	cases := []struct {
+		description string
+		source      string
+		expected    map[string]string
+	}{
+		{
+
+			description: "single-var assignments",
+			source: `package mypkg
+var myString string = "This is a string"
+var otherString string ="This is another string"
+`,
+			expected: map[string]string{
+				"myString":    "This is a string",
+				"otherString": "This is another string",
+			},
+		},
+		// TODO: single const
+		// TODO: multiple const
+		// TODO  multiple var
+		// TODO: mix of everything
+	}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			fset := token.NewFileSet()
+			d, err := parser.ParseFile(fset,
+				"myfile.go",
+				replaceBackticks(c.source),
+				parser.ParseComments,
+			)
+			if err != nil {
+				t.Fatalf("test fixture contains invalid Go source: %v\n", err)
+			}
+
+			actual, err := GetTopLevelStringAssignments(d.Decls)
+			assert.NoError(t, err)
+			assert.Equal(t, c.expected, actual)
+		})
+	}
+}
