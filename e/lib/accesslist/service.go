@@ -17,6 +17,7 @@ package accesslist
 import (
 	"context"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -1323,37 +1324,53 @@ func (s *Service) CreateAccessListReview(ctx context.Context, req *accesslistv1.
 	}
 	username := user.GetIdentity().Username
 
-	resp, createErr := s.createAccessListReview(ctx, review, username)
+	resp, updatedReview, createErr := s.createAccessListReview(ctx, review, username)
 
-	s.emitCreateAccessListReview(ctx, username, review.Spec.AccessList, review.Spec.Notes, createErr)
+	s.emitCreateAccessListReview(ctx, username, updatedReview, createErr)
 
 	return resp, trace.Wrap(createErr)
 }
 
 // createAccessListReview is a helper for creating the access list review that returns the response and an error.
-func (s *Service) createAccessListReview(ctx context.Context, review *accesslist.Review, username string) (*accesslistv1.CreateAccessListReviewResponse, error) {
+func (s *Service) createAccessListReview(ctx context.Context, review *accesslist.Review, username string) (*accesslistv1.CreateAccessListReviewResponse, *accesslist.Review, error) {
 	// Make sure the reviewers reflect the current user and the review date is recorded as now.
 	review.Spec.Reviewers = []string{username}
 	review.Spec.ReviewDate = s.clock.Now()
 
 	updatedReview, nextAuditDate, err := s.accessListReviews.CreateAccessListReview(ctx, review)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	return &accesslistv1.CreateAccessListReviewResponse{
 		ReviewName:    updatedReview.GetName(),
 		NextAuditDate: timestamppb.New(nextAuditDate),
-	}, nil
+	}, updatedReview, nil
 }
 
 // emitCreateAccessListReview will emit the create event for an access list review.
-func (s *Service) emitCreateAccessListReview(ctx context.Context, username, accessListName, reviewMessage string, createErr error) {
+func (s *Service) emitCreateAccessListReview(ctx context.Context, username string, review *accesslist.Review, createErr error) {
 	code := events.AccessListReviewSuccessCode
 	var errorMsg string
 	if createErr != nil {
 		errorMsg = createErr.Error()
 		code = events.AccessListReviewFailureCode
+	}
+
+	var membershipRequirementsChanged *apievents.AccessListReviewMembershipRequirementsChanged
+	if review.Spec.Changes.MembershipRequirementsChanged != nil {
+		membershipRequirementsChanged = &apievents.AccessListReviewMembershipRequirementsChanged{
+			Roles: review.Spec.Changes.MembershipRequirementsChanged.Roles,
+		}
+		if len(review.Spec.Changes.MembershipRequirementsChanged.Traits) > 0 {
+			membershipRequirementsChanged.Traits = map[string]string{}
+
+			// It was not intentional to have the event use a map[string]string for traits, but given that this is
+			// purely for display I think this is okay.
+			for trait, values := range review.Spec.Changes.MembershipRequirementsChanged.Traits {
+				membershipRequirementsChanged.Traits[trait] = strings.Join(values, ",")
+			}
+		}
 	}
 
 	event := &apievents.AccessListReview{
@@ -1362,12 +1379,16 @@ func (s *Service) emitCreateAccessListReview(ctx context.Context, username, acce
 			Code: code,
 		},
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name:      accessListName,
+			Name:      review.Spec.AccessList,
 			UpdatedBy: username,
 		},
-		// TODO(mdwn): Expand the access list review metadata, this isn't quite enough.
 		AccessListReviewMetadata: apievents.AccessListReviewMetadata{
-			Message: reviewMessage,
+			Message:                       review.Spec.Notes,
+			ReviewID:                      review.GetName(),
+			MembershipRequirementsChanged: membershipRequirementsChanged,
+			ReviewFrequencyChanged:        review.Spec.Changes.ReviewFrequencyChanged.String(),
+			ReviewDayOfMonthChanged:       review.Spec.Changes.ReviewDayOfMonthChanged.String(),
+			RemovedMembers:                review.Spec.Changes.RemovedMembers,
 		},
 		Status: apievents.Status{
 			Success: createErr == nil,

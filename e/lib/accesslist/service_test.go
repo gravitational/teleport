@@ -17,6 +17,8 @@ package accesslist
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -1229,6 +1231,14 @@ func TestService_ListAccessListReviews(t *testing.T) {
 	review1ForA2 := newAccessListReview(t, a2.GetName())
 	review2ForA2 := newAccessListReview(t, a2.GetName())
 
+	review3ForA1.Spec.Changes.MembershipRequirementsChanged = &accesslist.Requires{
+		Roles: []string{"new-role1", "new-role2"},
+		Traits: map[string][]string{
+			"new-trait1": {"value1", "value2"},
+			"new-trait2": {"value1", "value2"},
+		},
+	}
+
 	createReviews(ctx, t, svc, emitter, review1ForA1, review2ForA1, review3ForA1)
 	createReviews(ownerCtx, t, svc, emitter, review1ForA2, review2ForA2)
 
@@ -1317,6 +1327,33 @@ func createReviews(ctx context.Context, t *testing.T, svc *Service, emitter *eve
 
 		expectEvent(t, events.AccessListReviewSuccessCode, emitter, func(event *apievents.AccessListReview) {
 			require.True(t, event.Success)
+			require.Equal(t, username, event.UpdatedBy)
+
+			if review.Spec.Changes.MembershipRequirementsChanged != nil {
+				require.NotNil(t, event.AccessListReviewMetadata.MembershipRequirementsChanged)
+				require.Equal(t, review.Spec.Changes.MembershipRequirementsChanged.Roles, event.AccessListReviewMetadata.MembershipRequirementsChanged.Roles)
+
+				var expected map[string][]string
+				var traits map[string][]string
+				if len(review.Spec.Changes.MembershipRequirementsChanged.Traits) > 0 {
+					expected = map[string][]string{}
+					for trait, values := range review.Spec.Changes.MembershipRequirementsChanged.Traits {
+						expected[trait] = sortedStrings(values)
+					}
+
+					traits = map[string][]string{}
+					for trait, values := range event.MembershipRequirementsChanged.Traits {
+						traits[trait] = sortedStrings(strings.Split(values, ","))
+					}
+				}
+				require.Equal(t, expected, traits)
+			} else {
+				require.Nil(t, event.AccessListReviewMetadata.MembershipRequirementsChanged)
+			}
+
+			require.Equal(t, review.Spec.Changes.ReviewFrequencyChanged.String(), event.ReviewFrequencyChanged)
+			require.Equal(t, review.Spec.Changes.ReviewDayOfMonthChanged.String(), event.ReviewDayOfMonthChanged)
+			require.Equal(t, review.Spec.Changes.RemovedMembers, event.RemovedMembers)
 		})
 
 		// Update info for the review.
@@ -1324,6 +1361,13 @@ func createReviews(ctx context.Context, t *testing.T, svc *Service, emitter *eve
 		review.Spec.ReviewDate = svc.clock.Now()
 		review.SetName(resp.ReviewName)
 	}
+}
+
+func sortedStrings(src []string) []string {
+	duplicate := make([]string, len(src))
+	copy(duplicate, src)
+	sort.Strings(duplicate)
+	return duplicate
 }
 
 func listAllAccessListReviews(ctx context.Context, t *testing.T, service *Service, accessListName string, pageSize int) []*accesslist.Review {
