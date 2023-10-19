@@ -74,7 +74,7 @@ export type DocumentUri = `/docs/${DocumentId}`;
 type GatewayId = string;
 export type GatewayUri = `/gateways/${GatewayId}`;
 
-export const CONNECT_CUSTOM_PROTOCOL = 'teleport-connect' as const;
+export const TELEPORT_CUSTOM_PROTOCOL = 'teleport' as const;
 
 export const routing = {
   parseClusterUri(uri: string) {
