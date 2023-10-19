@@ -13,7 +13,7 @@ import (
 // Package is used to look up a Go declaration in a map of declaration names to
 // resource data.
 type PackageInfo struct {
-	TypeName    string
+	DeclName    string
 	PackageName string
 }
 
@@ -382,7 +382,7 @@ func getYAMLTypeForExpr(exp ast.Expr, pkg string) (yamlKindNode, error) {
 			return yamlCustomType{
 				name: makeSectionName(t.Name),
 				declarationInfo: PackageInfo{
-					TypeName:    t.Name,
+					DeclName:    t.Name,
 					PackageName: pkg,
 				},
 			}, nil
@@ -418,7 +418,7 @@ func getYAMLTypeForExpr(exp ast.Expr, pkg string) (yamlKindNode, error) {
 		return yamlCustomType{
 			name: makeSectionName(t.Sel.Name),
 			declarationInfo: PackageInfo{
-				TypeName:    t.Sel.Name,
+				DeclName:    t.Sel.Name,
 				PackageName: pkg,
 			},
 		}, nil
@@ -556,7 +556,7 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 			pkg = decl.PackageName
 		}
 		p := PackageInfo{
-			TypeName:    c.declarationInfo.TypeName,
+			DeclName:    c.declarationInfo.DeclName,
 			PackageName: pkg,
 		}
 		d, ok := allDecls[p]
@@ -627,7 +627,7 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 	}
 	description = strings.Trim(strings.ReplaceAll(description, "\n", " "), " ")
 	refs[PackageInfo{
-		TypeName:    rs.name,
+		DeclName:    rs.name,
 		PackageName: decl.PackageName,
 	}] = ReferenceEntry{
 		SectionName: makeSectionName(rs.name),
@@ -678,8 +678,8 @@ type MethodInfo struct {
 	FieldAssignments map[string]string
 }
 
-func GetTopLevelStringAssignments(decls []ast.Decl) (map[string]string, error) {
-	result := make(map[string]string)
+func GetTopLevelStringAssignments(decls []ast.Decl, pkg string) (map[PackageInfo]string, error) {
+	result := make(map[PackageInfo]string)
 
 	// var and const assignments are GenDecls, so ignore any input Decls that
 	// don't meet this criterion by making a slice of GenDecls.
@@ -728,7 +728,10 @@ func GetTopLevelStringAssignments(decls []ast.Decl) (map[string]string, error) {
 		}
 		// String literal values are quoted. Remove the quotes so we can
 		// compare values downstream.
-		result[v.Names[0].Name] = strings.Trim(l.Value, "\"")
+		result[PackageInfo{
+			DeclName:    v.Names[0].Name,
+			PackageName: pkg,
+		}] = strings.Trim(l.Value, "\"")
 
 	}
 	return result, nil
@@ -776,7 +779,7 @@ func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error
 		}
 		pi := PackageInfo{
 			PackageName: decl.PackageName,
-			TypeName:    i.Name,
+			DeclName:    i.Name,
 		}
 
 		mi := MethodInfo{

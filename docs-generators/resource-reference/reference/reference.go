@@ -222,7 +222,7 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 			}
 
 			typeDecls[resource.PackageInfo{
-				TypeName:    spec.Name.Name,
+				DeclName:    spec.Name.Name,
 				PackageName: file.Name.Name,
 			}] = resource.DeclarationInfo{
 				Decl:        l,
@@ -259,7 +259,7 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 			continue
 		}
 		if err != nil {
-			return fmt.Errorf("issue creating a reference entry for declaration %v.%v in file %v: %v", k.PackageName, k.TypeName, decl.FilePath, err)
+			return fmt.Errorf("issue creating a reference entry for declaration %v.%v in file %v: %v", k.PackageName, k.DeclName, decl.FilePath, err)
 		}
 
 		// Add each reference entry to its appropriate place in the
