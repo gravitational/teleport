@@ -18,7 +18,10 @@ import React, { useCallback } from 'react';
 
 import { Flex } from 'design';
 
-import { UnifiedResources as SharedUnifiedResources } from 'shared/components/UnifiedResources';
+import {
+  UnifiedResources as SharedUnifiedResources,
+  UnifiedResourcesPinning,
+} from 'shared/components/UnifiedResources';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import localStorage from 'teleport/services/localStorage';
@@ -69,11 +72,16 @@ export function UnifiedResources() {
     () => getClusterPinnedResources(clusterId),
     [clusterId, getClusterPinnedResources]
   );
-  const updateCurrentClusterPinnedResources = useCallback(
-    (pinnedResources: string[]) =>
-      updateClusterPinnedResources(clusterId, pinnedResources),
-    [clusterId, updateClusterPinnedResources]
-  );
+  const updateCurrentClusterPinnedResources = (pinnedResources: string[]) =>
+    updateClusterPinnedResources(clusterId, pinnedResources);
+
+  const pinning: UnifiedResourcesPinning = pinningNotSupported
+    ? { kind: 'not-supported' }
+    : {
+        kind: 'supported',
+        updateClusterPinnedResources: updateCurrentClusterPinnedResources,
+        getClusterPinnedResources: getCurrentClusterPinnedResources,
+      };
 
   return (
     <SharedUnifiedResources
@@ -127,9 +135,7 @@ export function UnifiedResources() {
         );
       }}
       key={clusterId} // when the current cluster changes, remount the component
-      getClusterPinnedResources={getCurrentClusterPinnedResources}
-      updateClusterPinnedResources={updateCurrentClusterPinnedResources}
-      pinningNotSupported={pinningNotSupported}
+      pinning={pinning}
       onLabelClick={onLabelClick}
       EmptySearchResults={
         <Empty

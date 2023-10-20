@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 
 import styled from 'styled-components';
 import {
@@ -89,13 +89,31 @@ const tabs: { label: string; value: UnifiedTabPreference }[] = [
   },
 ];
 
+export type UnifiedResourcesPinning =
+  | {
+      kind: 'supported';
+      /** `getClusterPinnedResources` has to be stable, it is used in `useEffect`. */
+      getClusterPinnedResources(): Promise<string[]>;
+      updateClusterPinnedResources(pinned: string[]): Promise<void>;
+    }
+  | {
+      kind: 'not-supported';
+    }
+  | {
+      kind: 'hidden';
+    };
+
 interface UnifiedResourcesProps<T> {
   params: ResourceFilter;
   //TODO(gzdunek): the pin button should be moved to some other place
   //according to the new designs
   Header(pinAllButton: React.ReactElement): React.ReactElement;
   EmptySearchResults: React.ReactElement;
-  pinningNotSupported: boolean;
+  /**
+   * If pinning is supported, the functions to get and update pinned resources
+   * can be passed here.
+   */
+  pinning: UnifiedResourcesPinning;
   availableKinds: SharedUnifiedResource['resource']['kind'][];
   /**
    * Fetches the resources.
@@ -110,8 +128,6 @@ interface UnifiedResourcesProps<T> {
   mapToResource(response: T): SharedUnifiedResource;
   setParams(params: ResourceFilter): void;
   onLabelClick(label: ResourceLabel): void;
-  getClusterPinnedResources(): Promise<string[]>;
-  updateClusterPinnedResources(pinned: string[]): Promise<void>;
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
   ): void;
@@ -123,9 +139,7 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
     setParams,
     onLabelClick,
     availableKinds,
-    pinningNotSupported,
-    getClusterPinnedResources,
-    updateClusterPinnedResources,
+    pinning,
     updateUnifiedResourcesPreferences,
   } = props;
   const {
@@ -144,8 +158,19 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
 
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
 
+  const pinnedResourcesGetter =
+    pinning.kind === 'supported'
+      ? pinning.getClusterPinnedResources
+      : undefined;
   const [getPinnedResourcesAttempt, getPinnedResources, setPinnedResources] =
-    useAsync(getClusterPinnedResources);
+    useAsync(
+      useCallback(async () => {
+        if (pinnedResourcesGetter) {
+          return await pinnedResourcesGetter();
+        }
+        return [];
+      }, [pinnedResourcesGetter])
+    );
 
   useEffect(() => {
     getPinnedResources();
@@ -158,8 +183,10 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
     updatePinnedResources,
     setUpdatePinnedResources,
   ] = useAsync(async (newPinnedResources: string[]) => {
-    await updateClusterPinnedResources(newPinnedResources);
-    setPinnedResources(makeSuccessAttempt(newPinnedResources));
+    if (pinning.kind === 'supported') {
+      await pinning.updateClusterPinnedResources(newPinnedResources);
+      setPinnedResources(makeSuccessAttempt(newPinnedResources));
+    }
   });
 
   useEffect(() => {
@@ -255,7 +282,7 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
     <ButtonBorder
       onClick={() => handlePinSelected(shouldUnpin)}
       textTransform="none"
-      disabled={pinningNotSupported}
+      disabled={pinning.kind === 'not-supported'}
       css={`
         border: none;
         color: ${props => props.theme.colors.brand};
@@ -301,7 +328,8 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
       {props.Header(
         <>
           {selectedResources.length > 0 &&
-            (props.pinningNotSupported ? (
+            pinning.kind !== 'hidden' &&
+            (pinning.kind === 'not-supported' ? (
               <HoverTooltip tipContent={<>{PINNING_NOT_SUPPORTED_MESSAGE}</>}>
                 {$pinAllButton}
               </HoverTooltip>
@@ -324,7 +352,8 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
             key={tab.value}
             onClick={() => selectTab(tab.value)}
             disabled={
-              tab.value === UnifiedTabPreference.Pinned && pinningNotSupported
+              tab.value === UnifiedTabPreference.Pinned &&
+              pinning.kind === 'not-supported'
             }
             title={tab.label}
             isSelected={
@@ -335,7 +364,7 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
           />
         ))}
       </Flex>
-      {pinningNotSupported && params.pinnedOnly ? (
+      {pinning.kind === 'not-supported' && params.pinnedOnly ? (
         <PinningNotSupported />
       ) : (
         <ResourcesContainer className="ResourcesContainer" gap={2}>
@@ -356,7 +385,7 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
                 labels={card.labels}
                 pinned={pinnedResources.includes(key)}
                 pinningSupport={getResourcePinningSupport(
-                  pinningNotSupported,
+                  pinning.kind,
                   updatePinnedResourcesAttempt
                 )}
                 selected={selectedResources.includes(key)}
@@ -394,12 +423,17 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
 }
 
 function getResourcePinningSupport(
-  pinningNotSupported: boolean,
+  pinning: UnifiedResourcesPinning['kind'],
   updatePinnedResourcesAttempt: Attempt<void>
 ): PinningSupport {
-  if (pinningNotSupported) {
+  if (pinning === 'not-supported') {
     return PinningSupport.NotSupported;
   }
+
+  if (pinning === 'hidden') {
+    return PinningSupport.Hidden;
+  }
+
   if (updatePinnedResourcesAttempt.status === 'processing') {
     return PinningSupport.Disabled;
   }
