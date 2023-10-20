@@ -268,10 +268,17 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     })
       .then(() => {
         return new Promise<void>(resolve => {
-          if (!this.getWorkspace(clusterUri)?.previous) {
+          const previousWorkspaceState =
+            this.getWorkspace(clusterUri)?.previous;
+          if (!previousWorkspaceState) {
             return resolve();
           }
-          this.modalsService.openDocumentsReopenDialog({
+          const numberOfDocuments = previousWorkspaceState.documents.length;
+
+          this.modalsService.openRegularDialog({
+            kind: 'documents-reopen',
+            rootClusterUri: clusterUri,
+            numberOfDocuments,
             onConfirm: () => {
               this.reopenPreviousDocuments(clusterUri);
               resolve();
