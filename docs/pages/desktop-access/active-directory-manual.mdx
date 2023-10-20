@@ -71,7 +71,7 @@ To create the service account:
 1. Create a service account with a randomly-generated password by copying and pasting 
    the following script into the PowerShell console: 
    
-   ```ps
+   ```powershell
    $Name="Teleport Service Account"
    $SamAccountName="svc-teleport"
    
@@ -100,7 +100,7 @@ To create the service account:
 1. Set the minimum permissions that must granted to the service account by running the 
    following script in the PowerShell console:
 
-   ```ps
+   ```powershell
    # Save your domain's distinguished name to a variable.
    $DomainDN=$((Get-ADDomain).DistinguishedName)
    
@@ -129,13 +129,13 @@ To create the service account:
 1. Get the security identifier for the new service account.
    For example, run the following command:
    
-   ```ps
+   ```powershell
    Get-AdUser -Identity $SamAccountName | Select SID
    ```
    
    The command returns the security identifier for the specified account:
 
-   ```ps
+   ```powershell
    SID
    ---
    S-1-5-21-209875886-835680547-4265310078-1113
@@ -164,13 +164,13 @@ logins.
 
 1. Open PowerShell and specify a name for the new group policy object with the `$GPOName` variable:
 
-   ```ps
+   ```powershell
    $GPOName="Block teleport-svc Interactive Login"
    ```
 
 1. Create the new GPO by running the following command in the PowerShell console:
 
-   ```ps
+   ```powershell
    New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
    ```
 
@@ -242,7 +242,7 @@ To configure the group policy object:
 1. Create a new group policy object with the name `Teleport Access Policy` by running the following 
    command:
 
-   ```ps
+   ```powershell
    $GPOName="Teleport Access Policy"
    New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
    ```
@@ -287,7 +287,7 @@ To publish the Teleport certificate in the Active Directory domain:
 1. Open PowerShell and run the following command using the path to the `user-ca.cer`
    file you exported from Teleport:
    
-   ```ps
+   ```powershell
    certutil -dspublish -f <Var name="user-ca.cer"/> RootCA
    ```
    
@@ -307,13 +307,13 @@ To publish the Teleport CA to LDAP:
 1. Open PowerShell and run the following command using the path to the `user-ca.cer`
    file:
 
-   ```ps
+   ```powershell
    certutil -dspublish -f <Var name="user-ca.cer"/> NTAuthCA
    ```
 
 1. Force the retrieval of the CA from LDAP by running the following command:
 
-   ```ps
+   ```powershell
    certutil -pulse
    ```
 
@@ -388,7 +388,7 @@ policies that allow remote connections to domain computers.
 1. Open PowerShell and run the following command to update your Teleport
    group policy object:
    
-   ```ps
+   ```powershell
    gpupdate.exe /force
    ```
 
@@ -476,7 +476,7 @@ To update the Teleport group policy object to use the new certificate template:
 1. Open PowerShell and run the following command to update your Teleport
    group policy object:
    
-   ```ps
+   ```powershell
    gpupdate.exe /force
    ```
 
