@@ -35,16 +35,15 @@ x509-parser = "0.14"
 sspi = { version = "0.10.1", features = ["network_client", "dns_resolver"] }
 static_init = "1.0.3"
 
-# TODO: change when https://github.com/Devolutions/IronRDP/pull/230 lands
-ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "dfca83db55140e839a9b41049b4a2170f93af287" }
-ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "dfca83db55140e839a9b41049b4a2170f93af287" }
-ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "dfca83db55140e839a9b41049b4a2170f93af287" }
-ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "dfca83db55140e839a9b41049b4a2170f93af287" }
-ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "dfca83db55140e839a9b41049b4a2170f93af287" }
-ironrdp-rdpsnd = { git = "https://github.com/Devolutions/IronRDP", rev = "dfca83db55140e839a9b41049b4a2170f93af287" }
-ironrdp-rdpdr = { git = "https://github.com/Devolutions/IronRDP", rev = "dfca83db55140e839a9b41049b4a2170f93af287" }
-ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "dfca83db55140e839a9b41049b4a2170f93af287" }
-ironrdp-cliprdr = { git = "https://github.com/Devolutions/IronRDP", rev = "dfca83db55140e839a9b41049b4a2170f93af287" }
+ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
+ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
+ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
+ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
+ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
+ironrdp-rdpsnd = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
+ironrdp-rdpdr = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
+ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
+ironrdp-cliprdr = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
 
 # Uncomment the following lines to use local crates instead of the ones from github
 # ironrdp-connector = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-connector" }
