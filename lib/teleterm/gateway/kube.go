@@ -205,7 +205,10 @@ func (k *kube) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certific
 		},
 	}
 
-	config := kubeconfig.CreateLocalProxyConfig(clientcmdapi.NewConfig(), values)
+	config, err := kubeconfig.CreateLocalProxyConfig(clientcmdapi.NewConfig(), values)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if err := kubeconfig.Save(k.KubeconfigPath(), *config); err != nil {
 		return trace.Wrap(err)
 	}
