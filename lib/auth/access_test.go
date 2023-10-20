@@ -94,7 +94,7 @@ func TestUpsertDeleteDependentRoles(t *testing.T) {
 	require.NoError(t, err)
 
 	// Deletion should fail.
-	require.ErrorContains(t, p.a.DeleteRole(ctx, role.GetName()), "failed to delete a role that is still in use by a user")
+	require.ErrorIs(t, errDeleteRoleUser, p.a.DeleteRole(ctx, role.GetName()))
 	require.NoError(t, p.a.DeleteUser(ctx, user.GetName()))
 
 	clusterName, err := p.a.GetClusterName()
@@ -107,7 +107,7 @@ func TestUpsertDeleteDependentRoles(t *testing.T) {
 	require.NoError(t, p.a.UpsertCertAuthority(ctx, ca))
 
 	// Deletion should fail.
-	require.ErrorContains(t, p.a.DeleteRole(ctx, role.GetName()), "failed to delete a role that is still in use by a certificate authority")
+	require.ErrorIs(t, errDeleteRoleCA, p.a.DeleteRole(ctx, role.GetName()))
 
 	// Clear out the roles for the CA.
 	ca.SetRoles([]string{})
@@ -139,21 +139,21 @@ func TestUpsertDeleteDependentRoles(t *testing.T) {
 	require.NoError(t, err)
 
 	// Deletion should fail due to the grant.
-	require.ErrorContains(t, p.a.DeleteRole(ctx, role.GetName()), "failed to delete a role that is still in use by an access list")
+	require.ErrorIs(t, errDeleteRoleAccessList, p.a.DeleteRole(ctx, role.GetName()))
 
 	accessList.Spec.Grants.Roles = []string{"non-existent-role"}
 	_, err = p.a.UpsertAccessList(ctx, accessList)
 	require.NoError(t, err)
 
 	// Deletion should fail due to membership requires.
-	require.ErrorContains(t, p.a.DeleteRole(ctx, role.GetName()), "failed to delete a role that is still in use by an access list")
+	require.ErrorIs(t, errDeleteRoleAccessList, p.a.DeleteRole(ctx, role.GetName()))
 
 	accessList.Spec.MembershipRequires.Roles = []string{"non-existent-role"}
 	_, err = p.a.UpsertAccessList(ctx, accessList)
 	require.NoError(t, err)
 
 	// Deletion should fail due to ownership requires.
-	require.ErrorContains(t, p.a.DeleteRole(ctx, role.GetName()), "failed to delete a role that is still in use by an access list")
+	require.ErrorIs(t, errDeleteRoleAccessList, p.a.DeleteRole(ctx, role.GetName()))
 
 	accessList.Spec.OwnershipRequires.Roles = []string{"non-existent-role"}
 	_, err = p.a.UpsertAccessList(ctx, accessList)

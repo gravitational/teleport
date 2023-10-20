@@ -98,6 +98,12 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) (types.Role, e
 	return upserted, nil
 }
 
+var (
+	errDeleteRoleUser       = trace.BadParameter("failed to delete a role that is still in use by a user, check the system server logs for more details")
+	errDeleteRoleCA         = trace.BadParameter("failed to delete a role that is still in use by a certificate authority, check the system server logs for more details")
+	errDeleteRoleAccessList = trace.BadParameter("failed to delete a role that is still in use by an access list, check the system server logs for more details")
+)
+
 // DeleteRole deletes a role and emits a related audit event.
 func (a *Server) DeleteRole(ctx context.Context, name string) error {
 	// check if this role is used by CA or Users
@@ -111,7 +117,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 				// Mask the actual error here as it could be used to enumerate users
 				// within the system.
 				log.Warnf("Failed to delete role: role %v is used by user %v.", name, u.GetName())
-				return trace.BadParameter("failed to delete a role that is still in use by a user, check the system server logs for more details")
+				return errDeleteRoleUser
 			}
 		}
 	}
@@ -127,7 +133,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 				// Mask the actual error here as it could be used to enumerate users
 				// within the system.
 				log.Warnf("Failed to delete role: role %v is used by user cert authority %v", name, a.GetClusterName())
-				return trace.BadParameter("failed to delete a role that is still in use by a certificate authority, check the system server logs for more details")
+				return errDeleteRoleCA
 			}
 		}
 	}
@@ -145,21 +151,21 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 			for _, r := range accessList.Spec.Grants.Roles {
 				if r == name {
 					log.Warnf("Failed to delete role: role %v is granted by access list %s", name, accessList.GetName())
-					return trace.BadParameter("failed to delete a role that is still in use by an access list, check the system server logs for more details")
+					return errDeleteRoleAccessList
 				}
 			}
 
 			for _, r := range accessList.Spec.MembershipRequires.Roles {
 				if r == name {
 					log.Warnf("Failed to delete role: role %v is required by members of access list %s", name, accessList.GetName())
-					return trace.BadParameter("failed to delete a role that is still in use by an access list, check the system server logs for more details")
+					return errDeleteRoleAccessList
 				}
 			}
 
 			for _, r := range accessList.Spec.OwnershipRequires.Roles {
 				if r == name {
 					log.Warnf("Failed to delete role: role %v is required by owners of access list %s", name, accessList.GetName())
-					return trace.BadParameter("failed to delete a role that is still in use by an access list, check the system server logs for more details")
+					return errDeleteRoleAccessList
 				}
 			}
 		}
