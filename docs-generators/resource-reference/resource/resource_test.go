@@ -897,7 +897,18 @@ type Metadata struct {
 				t.Fatalf("test fixture contains invalid Go source: %v\n", err)
 			}
 
-			allDecls := make(map[PackageInfo]DeclarationInfo)
+			if len(f.Decls) != 1 {
+				t.Fatalf("test fixture contains an unexpected number of declarations. want 1. got: %v", len(f.Decls))
+			}
+
+			gd, ok := f.Decls[0].(*ast.GenDecl)
+			if !ok {
+				t.Fatalf("test fixture declaration is not a GenDecl")
+			}
+
+			// For generating method information
+			allDecls := []DeclarationInfo{}
+			pkgToDecl := make(map[PackageInfo]DeclarationInfo)
 			// Assemble map of PackageInfo to *ast.GenDecl for
 			// source fixtures the test case depends on.
 			for n, dep := range tc.declSources {
@@ -912,6 +923,12 @@ type Metadata struct {
 
 				// Store type declarations in the map.
 				for _, def := range d.Decls {
+					allDecls = append(allDecls, DeclarationInfo{
+						Decl:        def,
+						FilePath:    fmt.Sprintf("myfile%v.go", n),
+						PackageName: d.Name.Name,
+					})
+
 					l, ok := def.(*ast.GenDecl)
 					if !ok {
 						continue
@@ -923,8 +940,7 @@ type Metadata struct {
 					if !ok {
 						continue
 					}
-
-					allDecls[PackageInfo{
+					pkgToDecl[PackageInfo{
 						DeclName:    spec.Name.Name,
 						PackageName: d.Name.Name,
 					}] = DeclarationInfo{
@@ -932,25 +948,18 @@ type Metadata struct {
 						FilePath:    fmt.Sprintf("myfile%v.go", n),
 						PackageName: d.Name.Name,
 					}
-
 				}
 
 			}
 
-			if len(f.Decls) != 1 {
-				t.Fatalf("test fixture contains an unexpected number of declarations. want 1. got: %v", len(f.Decls))
-			}
-
-			gd, ok := f.Decls[0].(*ast.GenDecl)
-			if !ok {
-				t.Fatalf("test fixture declaration is not a GenDecl")
-			}
+			allMethods, err := GetMethodInfo(allDecls)
+			assert.NoError(t, err)
 
 			r, err := NewFromDecl(DeclarationInfo{
 				FilePath:    "myfile.go",
 				Decl:        gd,
 				PackageName: f.Name.Name,
-			}, allDecls)
+			}, pkgToDecl, allMethods)
 			if tc.errorSubstring == "" {
 				assert.NoError(t, err)
 			} else {

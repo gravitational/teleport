@@ -586,7 +586,7 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 // NewFromDecl creates a Resource object from the provided *GenDecl. filepath is
 // the Go source file where the declaration was made, and is used only for
 // printing. NewFromDecl uses allResources to look up custom fields.
-func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) (map[PackageInfo]ReferenceEntry, error) {
+func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo, allMethods map[PackageInfo][]MethodInfo) (map[PackageInfo]ReferenceEntry, error) {
 	rs, err := getRawTypes(decl)
 	if err != nil {
 		return nil, err
@@ -608,6 +608,16 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 		example = sides[1]
 		description = sides[0]
 	} else {
+
+		m := allMethods[PackageInfo{
+			DeclName:    rs.name,
+			PackageName: decl.PackageName,
+		}]
+		for _, e := range m {
+			if e.Name == "UnmarshalYAML" || e.Name == "UnmarshalJSON" {
+				return nil, fmt.Errorf("type %v.%v has a custom unmarshaler, so it needs a custom YAML example (a comment beginning \"Example YAML:\n---\"", rs.name, decl.PackageName)
+			}
+		}
 
 		if len(rs.fields) == 0 {
 			return nil, fmt.Errorf("declaration %v has no fields and no example YAML in the GoDoc", rs.name)
@@ -653,7 +663,7 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo)
 		if !ok {
 			continue
 		}
-		r, err := NewFromDecl(gd, allDecls)
+		r, err := NewFromDecl(gd, allDecls, allMethods)
 		if errors.Is(err, NotAGenDeclError{}) {
 			continue
 		}

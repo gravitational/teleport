@@ -267,7 +267,7 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		if !shouldProcess(decl, conf.RequiredFieldTypes) {
 			continue
 		}
-		entries, err := resource.NewFromDecl(decl, typeDecls)
+		entries, err := resource.NewFromDecl(decl, typeDecls, methods)
 		// Skip to the next declaration
 		if errors.Is(err, resource.NotAGenDeclError{}) {
 			continue
