@@ -88,13 +88,6 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	if cf.Headless {
-		if len(c.kubeClusters) == 0 && cf.Labels != "" && cf.PredicateExpression != "" {
-			return trace.BadParameter(`No Kubernetes clusters found to proxy.
-
-Please provide Kubernetes cluster names or labels or predicate expression to this command:
-    tsh proxy kube <kube-cluster-1> <kube-cluster-2>`)
-		}
-
 		tc.AllowHeadless = true
 	}
 
