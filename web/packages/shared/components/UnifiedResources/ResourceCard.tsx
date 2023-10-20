@@ -73,7 +73,7 @@ type Props = {
   SecondaryIcon: typeof Icon;
   description: { primary?: string; secondary?: string };
   labels: ResourceLabel[];
-  ActionButton: React.JSX.Element;
+  ActionButton: React.ReactElement;
   onLabelClick?: (label: ResourceLabel) => void;
   pinResource: () => void;
   selectResource: () => void;

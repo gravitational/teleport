@@ -72,7 +72,7 @@ export type UnifiedResourceUserGroup = {
 };
 
 export type UnifiedResourceUi = {
-  ActionButton: React.JSX.Element;
+  ActionButton: React.ReactElement;
 };
 
 export type SharedUnifiedResource = {
