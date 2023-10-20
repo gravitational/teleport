@@ -32,6 +32,8 @@ func TestDraftExternalCloudAudit(t *testing.T) {
 		header.Metadata{},
 		externalcloudaudit.ExternalCloudAuditSpec{
 			IntegrationName:        "aws-integration-1",
+			PolicyName:             "test-policy-1",
+			Region:                 "us-west-2",
 			SessionsRecordingsURI:  "s3://bucket/sess_rec",
 			AthenaWorkgroup:        "primary",
 			GlueDatabase:           "teleport_db",
@@ -64,6 +66,8 @@ func TestClusterExternalCloudAudit(t *testing.T) {
 		header.Metadata{},
 		externalcloudaudit.ExternalCloudAuditSpec{
 			IntegrationName:        "aws-integration-1",
+			PolicyName:             "test-policy-1",
+			Region:                 "us-west-2",
 			SessionsRecordingsURI:  "s3://bucket/sess_rec",
 			AthenaWorkgroup:        "primary",
 			GlueDatabase:           "teleport_db",
@@ -94,9 +98,11 @@ var draftExternalAuditYAML = `---
 kind: external_cloud_audit
 version: v1
 metadata:
-  name: external-cloud-audit-draft
+  name: draft
 spec:
   integration_name: "aws-integration-1"
+  policy_name: "test-policy-1"
+  region: "us-west-2"
   sessions_recordings_uri: "s3://bucket/sess_rec"
   athena_workgroup: "primary"
   glue_database: "teleport_db"
@@ -109,9 +115,11 @@ var clusterExternalAuditYAML = `---
 kind: external_cloud_audit
 version: v1
 metadata:
-  name: external-cloud-audit-cluster
+  name: cluster
 spec:
   integration_name: "aws-integration-1"
+  policy_name: "test-policy-1"
+  region: "us-west-2"
   sessions_recordings_uri: "s3://bucket/sess_rec"
   athena_workgroup: "primary"
   glue_database: "teleport_db"
