@@ -50,6 +50,10 @@ import (
 // bring user's attention to the local proxy sooner. It doesn't abort cert reissuing itself.
 const certReissueClientWait = time.Second * 3
 
+// certReissueClientWaitHeadless is used when proxy works in headless mode - since user works in reexeced shell,
+// we give them longer time to perform the headless login flow.
+const certReissueClientWaitHeadless = defaults.CallbackTimeout
+
 // KubeClientCerts is a map of Kubernetes client certs.
 type KubeClientCerts map[string]tls.Certificate
 
@@ -69,9 +73,10 @@ type KubeMiddleware struct {
 	// certReissuer is used to reissue a client certificate for a Kubernetes cluster if existing cert expired.
 	certReissuer KubeCertReissuer
 	// Clock specifies the time provider. Will be used to override the time anchor
-	// for TLS certificate verification.
-	// Defaults to real clock if unspecified
+	// for TLS certificate verification. Defaults to real clock if unspecified.
 	clock clockwork.Clock
+	// headless controls whether proxy is working in headless login mode.
+	headless bool
 
 	logger logrus.FieldLogger
 
@@ -83,13 +88,22 @@ type KubeMiddleware struct {
 	certs KubeClientCerts
 }
 
+type KubeMiddlewareConfig struct {
+	Certs        KubeClientCerts
+	CertReissuer KubeCertReissuer
+	Headless     bool
+	Clock        clockwork.Clock
+	Logger       logrus.FieldLogger
+}
+
 // NewKubeMiddleware creates a new KubeMiddleware.
-func NewKubeMiddleware(certs KubeClientCerts, certReissuer KubeCertReissuer, clock clockwork.Clock, logger logrus.FieldLogger) LocalProxyHTTPMiddleware {
+func NewKubeMiddleware(cfg KubeMiddlewareConfig) LocalProxyHTTPMiddleware {
 	return &KubeMiddleware{
-		certs:        certs,
-		certReissuer: certReissuer,
-		clock:        clock,
-		logger:       logger,
+		certs:        cfg.Certs,
+		certReissuer: cfg.CertReissuer,
+		headless:     cfg.Headless,
+		clock:        cfg.Clock,
+		logger:       cfg.Logger,
 	}
 }
 
@@ -206,6 +220,10 @@ func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Cert
 		return nil
 	}
 
+	if m.certReissuer == nil {
+		return trace.BadParameter("can't reissue expired proxy certificate - reissuer is not available")
+	}
+
 	// If certificate has expired we try to reissue it.
 	identity, err := tlsca.FromSubject(x509Cert.Subject, x509Cert.NotAfter)
 	if err != nil {
@@ -231,8 +249,13 @@ func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Cert
 		return trace.Wrap(ErrUserInputRequired)
 	}
 
+	reissueClientWait := certReissueClientWait
+	if m.headless {
+		reissueClientWait = certReissueClientWaitHeadless
+	}
+
 	select {
-	case <-time.After(certReissueClientWait):
+	case <-time.After(reissueClientWait):
 		return trace.Wrap(ErrUserInputRequired)
 	case err := <-errCh:
 		return trace.Wrap(err)

@@ -30,7 +30,6 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -314,9 +313,16 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		localCAs:  cas,
 	}
 
+	kubeMiddleware := alpnproxy.NewKubeMiddleware(alpnproxy.KubeMiddlewareConfig{
+		Certs:        certs,
+		CertReissuer: kubeProxy.getCertReissuer(tc),
+		Headless:     cf.Headless,
+		Logger:       log,
+	})
+
 	localProxy, err := alpnproxy.NewLocalProxy(
 		makeBasicLocalProxyConfig(cf, tc, lpListener),
-		alpnproxy.WithHTTPMiddleware(alpnproxy.NewKubeMiddleware(certs, kubeProxy.getCertReissuer(tc), clockwork.NewRealClock(), log)),
+		alpnproxy.WithHTTPMiddleware(kubeMiddleware),
 		alpnproxy.WithSNI(client.GetKubeTLSServerName(tc.WebProxyHost())),
 		alpnproxy.WithClusterCAs(cf.Context, tc.RootClusterCACertPool),
 	)
