@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 )
 
 // IsValidAccountID checks whether the accountID is a valid AWS Account ID
@@ -52,6 +53,20 @@ func IsValidIAMRoleName(roleName string) error {
 	return nil
 }
 
+// IsValidIAMPolicyName checks whether the policy name is a valid AWS IAM Policy
+// identifier.
+//
+// > Length Constraints: Minimum length of 1. Maximum length of 128.
+// > Pattern: [\w+=,.@-]+
+// https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreatePolicy.html
+func IsValidIAMPolicyName(policyName string) error {
+	// The same regex is used for role and policy names.
+	if len(policyName) == 0 || len(policyName) > 128 || !matchRoleName(policyName) {
+		return trace.BadParameter("policy name is invalid")
+	}
+	return nil
+}
+
 // IsValidRegion ensures the region looks to be valid.
 // It does not do a full validation, because AWS doesn't provide documentation for that.
 // However, they usually only have the following chars: [a-z0-9\-]
@@ -60,6 +75,32 @@ func IsValidRegion(region string) error {
 		return nil
 	}
 	return trace.BadParameter("region %q is invalid", region)
+}
+
+// IsValidPartition checks if partition is a valid AWS partition
+func IsValidPartition(partition string) error {
+	if slices.Contains(validPartitions, partition) {
+		return nil
+	}
+	return trace.BadParameter("partition %q is invalid", partition)
+}
+
+// IsValidAthenaWorkgroupName checks whether the name is a valid AWS Athena
+// workgroup name.
+func IsValidAthenaWorkgroupName(workgroup string) error {
+	if matchAthenaWorkgroupName(workgroup) {
+		return nil
+	}
+	return trace.BadParameter("athena workgroup name %q is invalid", workgroup)
+}
+
+// IsValidGlueResourceName check whether the name is valid for an AWS Glue
+// database or table used with AWS Athena
+func IsValidGlueResourceName(name string) error {
+	if matchGlueName(name) {
+		return nil
+	}
+	return trace.BadParameter("glue resource name %q is invalid", name)
 }
 
 const (
@@ -117,4 +158,18 @@ var (
 	// Reference:
 	// https://github.com/aws/aws-sdk-go-v2/blob/main/codegen/smithy-aws-go-codegen/src/main/resources/software/amazon/smithy/aws/go/codegen/endpoints.json
 	matchRegion = regexp.MustCompile(`^[a-z]{2}(-gov|-iso|-isob)?-\w+-\d+$`)
+
+	// https://docs.aws.amazon.com/athena/latest/APIReference/API_CreateWorkGroup.html
+	matchAthenaWorkgroupName = regexp.MustCompile(`^[a-zA-Z0-9._-]{1,128}$`).MatchString
+
+	// https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html
+	// More strict than strictly necessary, but a good baseline
+	// > database, table, and column names must be 255 characters or fewer
+	// > Athena accepts mixed case in DDL and DML queries, but lower cases the names when it executes the query
+	// > avoid using mixed case for table or column names
+	// > special characters other than underscore (_) are not supported
+	matchGlueName = regexp.MustCompile(`^[a-z0-9_]{1,255}$`).MatchString
+
+	// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html
+	validPartitions = []string{"aws", "aws-cn", "aws-us-gov"}
 )
