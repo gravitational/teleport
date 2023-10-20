@@ -18,6 +18,7 @@ import { darken, lighten } from '../utils/colorManipulator';
 import {
   blue,
   green,
+  grey,
   indigo,
   orange,
   pink,
@@ -209,8 +210,8 @@ const colors: ThemeColors = {
         stroke: '#c6c7c9',
       },
       reverse: {
-        color: blue[700],
-        stroke: blue[300],
+        color: 'rgba(0, 0, 0, 0.7)',
+        stroke: '#c6c7c9',
       },
       allowed: {
         color: green[700],
@@ -225,6 +226,18 @@ const colors: ThemeColors = {
         stroke: yellow[900],
       },
       default: {
+        color: 'rgba(0, 0, 0, 0.7)',
+        stroke: '#c6c7c9',
+      },
+      requestedBy: {
+        color: 'rgba(0, 0, 0, 0.7)',
+        stroke: '#c6c7c9',
+      },
+      requestedAction: {
+        color: 'rgba(0, 0, 0, 0.7)',
+        stroke: '#c6c7c9',
+      },
+      requestedResource: {
         color: 'rgba(0, 0, 0, 0.7)',
         stroke: '#c6c7c9',
       },
@@ -254,6 +267,18 @@ const colors: ThemeColors = {
           color: orange[700],
         },
       },
+      temporaryUserGroup: {
+        background: lighten(orange[200], 0.9),
+        borderColor: orange[200],
+        typeColor: orange[200],
+        iconBackground: orange[200],
+        handleColor: orange[300],
+        highlightColor: orange[200],
+        label: {
+          background: orange[200],
+          color: orange[300],
+        },
+      },
       resource: {
         background: lighten(blue[300], 0.9),
         borderColor: blue[300],
@@ -278,6 +303,18 @@ const colors: ThemeColors = {
           color: pink[700],
         },
       },
+      temporaryResourceGroup: {
+        background: lighten(pink[200], 0.9),
+        borderColor: pink[200],
+        typeColor: pink[200],
+        iconBackground: pink[200],
+        handleColor: pink[300],
+        highlightColor: pink[200],
+        label: {
+          background: pink[200],
+          color: pink[300],
+        },
+      },
       allowedAction: {
         background: lighten(green[300], 0.9),
         borderColor: green[300],
@@ -288,6 +325,18 @@ const colors: ThemeColors = {
         label: {
           background: green[200],
           color: green[700],
+        },
+      },
+      temporaryAllowedAction: {
+        background: lighten(green[200], 0.9),
+        borderColor: green[200],
+        typeColor: green[200],
+        iconBackground: green[200],
+        handleColor: green[300],
+        highlightColor: green[200],
+        label: {
+          background: green[200],
+          color: green[300],
         },
       },
       disallowedAction: {
@@ -348,6 +397,18 @@ const colors: ThemeColors = {
         label: {
           background: purple[200],
           color: purple[700],
+        },
+      },
+      accessRequest: {
+        background: lighten(grey[300], 0.9),
+        borderColor: grey[300],
+        typeColor: grey[700],
+        iconBackground: grey[700],
+        handleColor: grey[400],
+        highlightColor: grey[300],
+        label: {
+          background: grey[200],
+          color: grey[700],
         },
       },
     },
