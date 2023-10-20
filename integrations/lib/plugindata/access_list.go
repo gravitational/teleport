@@ -15,32 +15,38 @@
 package plugindata
 
 import (
+	"strings"
 	"time"
 )
 
 // AccessListNotificationData represents generic plugin data required for access list notifications
 type AccessListNotificationData struct {
-	User             string
-	LastNotification time.Time
+	UserNotifications map[string]time.Time
 }
 
 // DecodeAccessListNotificationData deserializes a string map to PluginData struct.
 func DecodeAccessListNotificationData(dataMap map[string]string) (data AccessListNotificationData, err error) {
-	data.User = dataMap["user"]
-	if dataMap["last_notification"] != "" {
-		data.LastNotification, err = time.Parse(time.RFC3339Nano, dataMap["last_notification"])
+	for user, notification := range dataMap {
+		if strings.HasPrefix(user, "un_") {
+			if data.UserNotifications == nil {
+				data.UserNotifications = map[string]time.Time{}
+			}
+			notificationTime, err := time.Parse(time.RFC3339Nano, notification)
+			if err != nil {
+				return data, err
+			}
+			data.UserNotifications[strings.TrimPrefix(user, "un_")] = notificationTime
+		}
 	}
+
 	return
 }
 
 // EncodeAccessListNotificationData deserializes a string map to PluginData struct.
 func EncodeAccessListNotificationData(data AccessListNotificationData) (map[string]string, error) {
 	result := make(map[string]string)
-	result["user"] = data.User
-	if !data.LastNotification.IsZero() {
-		result["last_notification"] = data.LastNotification.Format(time.RFC3339Nano)
-	} else {
-		result["last_notification"] = ""
+	for user, notificationTime := range data.UserNotifications {
+		result["un_"+user] = notificationTime.Format(time.RFC3339Nano)
 	}
 	return result, nil
 }

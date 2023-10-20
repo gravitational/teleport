@@ -30,6 +30,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+const (
+	twoWeeks = 24 * 14 * time.Hour
+)
+
 // PluginDataService is the backend service for plugin data.
 type PluginDataService struct {
 	backend.Backend
@@ -162,6 +166,14 @@ func (p *PluginDataService) updatePluginData(ctx context.Context, params types.P
 				data.SetExpiry(req.GetAccessExpiry().Add(time.Hour))
 			}
 		}
+
+		if params.Kind == types.KindAccessList {
+			// Expire access list data two weeks from now for every update, which will
+			// make sure that at some point it will get cleaned up if an access list no
+			// longer needs notifications.
+			data.SetExpiry(p.Clock().Now().Add(twoWeeks))
+		}
+
 		if err := data.Update(params); err != nil {
 			return trace.Wrap(err)
 		}

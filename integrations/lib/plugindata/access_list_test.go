@@ -22,22 +22,26 @@ import (
 )
 
 var sampleAccessListNotificationData = AccessListNotificationData{
-	User:             "user-foo",
-	LastNotification: time.Now().UTC(),
+	UserNotifications: map[string]time.Time{
+		"user-foo":   time.Now().UTC(),
+		"user-foo-2": time.Now().UTC(),
+	},
 }
 
 func TestEncodeAccessListNotificationData(t *testing.T) {
 	dataMap, err := EncodeAccessListNotificationData(sampleAccessListNotificationData)
 	assert.Nil(t, err)
 	assert.Len(t, dataMap, 2)
-	assert.Equal(t, "user-foo", dataMap["user"])
-	assert.Equal(t, sampleAccessListNotificationData.LastNotification.Format(time.RFC3339Nano), dataMap["last_notification"])
+	assert.Equal(t, map[string]string{
+		"un_user-foo":   sampleAccessListNotificationData.UserNotifications["user-foo"].Format(time.RFC3339Nano),
+		"un_user-foo-2": sampleAccessListNotificationData.UserNotifications["user-foo-2"].Format(time.RFC3339Nano),
+	}, dataMap)
 }
 
 func TestDecodeAccessListNotificationData(t *testing.T) {
 	pluginData, err := DecodeAccessListNotificationData(map[string]string{
-		"user":              "user-foo",
-		"last_notification": sampleAccessListNotificationData.LastNotification.Format(time.RFC3339Nano),
+		"un_user-foo":   sampleAccessListNotificationData.UserNotifications["user-foo"].Format(time.RFC3339Nano),
+		"un_user-foo-2": sampleAccessListNotificationData.UserNotifications["user-foo-2"].Format(time.RFC3339Nano),
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, sampleAccessListNotificationData, pluginData)
@@ -46,10 +50,7 @@ func TestDecodeAccessListNotificationData(t *testing.T) {
 func TestEncodeEmptyAccessListNotificationtData(t *testing.T) {
 	dataMap, err := EncodeAccessListNotificationData(AccessListNotificationData{})
 	assert.Nil(t, err)
-	assert.Len(t, dataMap, 2)
-	for key, value := range dataMap {
-		assert.Emptyf(t, value, "value at key %q must be empty", key)
-	}
+	assert.Len(t, dataMap, 0)
 }
 
 func TestDecodeEmptyAccessListNotificationtData(t *testing.T) {

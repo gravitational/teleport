@@ -280,17 +280,17 @@ func (a *BaseApp) notifyForAccessListReviews(ctx context.Context, accessList *ac
 
 	// Try to create base notification data with a zero notification date. If these objects already
 	// exist, that's okay.
+	userNotifications := map[string]time.Time{}
 	for _, recipient := range allRecipients {
-		owner := recipient.Name
-		_, err := a.accessListPluginData.Create(ctx, accessListOwnerKey(accessList.GetName(), owner), pd.AccessListNotificationData{
-			User:             owner,
-			LastNotification: time.Time{},
-		})
+		userNotifications[recipient.Name] = time.Time{}
+	}
+	_, err := a.accessListPluginData.Create(ctx, accessList.GetName(), pd.AccessListNotificationData{
+		UserNotifications: userNotifications,
+	})
 
-		// Error is okay so long as it's already exists.
-		if err != nil && !trace.IsAlreadyExists(err) {
-			return trace.Wrap(err, "error during create")
-		}
+	// Error is okay so long as it's already exists.
+	if err != nil && !trace.IsAlreadyExists(err) {
+		return trace.Wrap(err, "error during create")
 	}
 
 	// Calculate weeks from start.
@@ -298,26 +298,25 @@ func (a *BaseApp) notifyForAccessListReviews(ctx context.Context, accessList *ac
 	windowStart := notificationStart.Add(weeksFromStart * oneWeek)
 
 	recipients := []Recipient{}
-	for _, recipient := range allRecipients {
-		_, err := a.accessListPluginData.Update(ctx, accessListOwnerKey(accessList.GetName(), recipient.Name), func(data pd.AccessListNotificationData) (pd.AccessListNotificationData, error) {
-			// If the notification window is before the last notification date, then this user doesn't need a notification.
-			if !windowStart.After(data.LastNotification) {
-				return pd.AccessListNotificationData{}, trace.AlreadyExists("user %s has already been notified", recipient.Name)
-			}
-			return pd.AccessListNotificationData{
-				User:             recipient.Name,
-				LastNotification: now,
-			}, nil
-		})
-		if trace.IsAlreadyExists(err) {
-			log.Infof("User %s does not need to be notified for access list review.", recipient.Name)
-			continue
-		}
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	_, err = a.accessListPluginData.Update(ctx, accessList.GetName(), func(data pd.AccessListNotificationData) (pd.AccessListNotificationData, error) {
+		userNotifications := map[string]time.Time{}
+		for _, recipient := range allRecipients {
+			lastNotification := data.UserNotifications[recipient.Name]
 
-		recipients = append(recipients, recipient)
+			// If the notification window is before the last notification date, then this user doesn't need a notification.
+			if !windowStart.After(lastNotification) {
+				log.Infof("User %s has already been notified", recipient.Name)
+				userNotifications[recipient.Name] = lastNotification
+				continue
+			}
+
+			recipients = append(recipients, recipient)
+			userNotifications[recipient.Name] = now
+		}
+		return pd.AccessListNotificationData{UserNotifications: userNotifications}, nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	if len(recipients) == 0 {
@@ -326,10 +325,6 @@ func (a *BaseApp) notifyForAccessListReviews(ctx context.Context, accessList *ac
 	}
 
 	return trace.Wrap(a.bot.AccessListReviewReminder(ctx, recipients, accessList))
-}
-
-func accessListOwnerKey(accessListName, owner string) string {
-	return fmt.Sprintf("%s/%s", accessListName, owner)
 }
 
 // run starts the event watcher job and blocks utils it stops
