@@ -122,26 +122,7 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	if cf.Headless {
 		// If headless, run proxy in the background and reexec into a new shell with $KUBECONFIG already pointed to
 		// our config file
-		ctx, cancel := context.WithCancel(cf.Context)
-
-		configBytes, err := clientcmd.Write(*localProxy.kubeconfig)
-		if err != nil {
-			cancel()
-			return trace.Wrap(err)
-		}
-
-		lpErrChan := make(chan error)
-		go func() {
-			defer cancel()
-
-			lpErrChan <- localProxy.Start(ctx)
-		}()
-
-		err = reexecToShell(ctx, string(configBytes))
-		err = trace.NewAggregate(err, localProxy.Close())
-		_, _ = fmt.Fprint(cf.Stdout(), "Local proxy for Kubernetes is closed.\n")
-		err = trace.NewAggregate(err, <-lpErrChan)
-		return err
+		return trace.Wrap(runHeadlessKubeProxy(cf, localProxy))
 	} else {
 		// Write kubeconfig to a file and start local proxy in regular mode
 		if err := localProxy.WriteKubeConfig(); err != nil {
@@ -149,6 +130,31 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 		}
 		return trace.Wrap(localProxy.Start(cf.Context))
 	}
+}
+
+func runHeadlessKubeProxy(cf *CLIConf, localProxy *kubeLocalProxy) error {
+	// If headless, run proxy in the background and reexec into a new shell with $KUBECONFIG already pointed to
+	// our config file
+	ctx, cancel := context.WithCancel(cf.Context)
+
+	configBytes, err := clientcmd.Write(*localProxy.kubeconfig)
+	if err != nil {
+		cancel()
+		return trace.Wrap(err)
+	}
+
+	lpErrChan := make(chan error)
+	go func() {
+		defer cancel()
+
+		lpErrChan <- localProxy.Start(ctx)
+	}()
+
+	err = reexecToShell(ctx, string(configBytes))
+	err = trace.NewAggregate(err, localProxy.Close())
+	_, _ = fmt.Fprint(cf.Stdout(), "Local proxy for Kubernetes is closed.\n")
+	err = trace.NewAggregate(err, <-lpErrChan)
+	return err
 }
 
 func getPrepareErrorMessage(headless bool) string {
