@@ -647,6 +647,12 @@ kubectl version
 
 // proxyKubeHeadlessTemplate is the message that gets printed to a user when a kube proxy is started with --headless.
 var proxyKubeHeadlessTemplate = template.Must(template.New("").
-	Parse(`Started local proxy for Kubernetes on {{.addr}} in the background
-and kubectl is set up to work with it. Try issuing a command, for example "kubectl version"
-`))
+	Parse(fmt.Sprintf(`Started local proxy for Kubernetes on {{.addr}} in the background.
+
+%v New shell will now be started with kubectl automatically set up to work with the local proxy.
+When you are done, you will need to close this internal shell by issuing "exit" command - that
+will return you to your original shell and all certificates will be automatically cleaned up.
+
+To use different contexts use "kubectl --context='example' ...".
+Try issuing a command, for example "kubectl version".
+`, utils.Color(utils.Yellow, "Attention!"))))
