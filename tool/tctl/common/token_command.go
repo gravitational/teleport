@@ -366,7 +366,7 @@ func (c *TokensCommand) List(ctx context.Context, client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(tokens) == 0 {
+	if len(tokens) == 0 && c.format == teleport.Text {
 		fmt.Fprintln(c.stdout, "No active tokens found.")
 		return nil
 	}
@@ -376,17 +376,15 @@ func (c *TokensCommand) List(ctx context.Context, client auth.ClientI) error {
 
 	switch c.format {
 	case teleport.JSON:
-		data, err := json.MarshalIndent(tokens, "", "  ")
+		err := utils.WriteJSONArray(c.stdout, tokens)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal tokens")
 		}
-		fmt.Fprint(c.stdout, string(data))
 	case teleport.YAML:
-		data, err := yaml.Marshal(tokens)
+		err := utils.WriteYAML(c.stdout, tokens)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal tokens")
 		}
-		fmt.Fprint(c.stdout, string(data))
 	case teleport.Text:
 		for _, token := range tokens {
 			fmt.Fprintln(c.stdout, token.GetName())
