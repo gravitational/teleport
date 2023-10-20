@@ -203,6 +203,10 @@ var defaultRBACResources = rbacSupportedResources{
 	{apiGroup: "batch", resourceKind: "jobs"}:                                     types.KindKubeJob,
 	{apiGroup: "certificates.k8s.io", resourceKind: "certificatesigningrequests"}: types.KindKubeCertificateSigningRequest,
 	{apiGroup: "networking.k8s.io", resourceKind: "ingresses"}:                    types.KindKubeIngress,
+	{apiGroup: "extensions", resourceKind: "deployments"}:                         types.KindKubeDeployment,
+	{apiGroup: "extensions", resourceKind: "replicasets"}:                         types.KindKubeReplicaSet,
+	{apiGroup: "extensions", resourceKind: "daemonsets"}:                          types.KindKubeDaemonSet,
+	{apiGroup: "extensions", resourceKind: "ingresses"}:                           types.KindKubeIngress,
 }
 
 // getResourceFromRequest returns a KubernetesResource if the user tried to access
@@ -213,7 +217,11 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (*types
 	if kubeDetails == nil {
 		return nil, apiResource, nil
 	}
-	codecFactory, rbacSupportedTypes := kubeDetails.getClusterSupportedResources()
+
+	codecFactory, rbacSupportedTypes, err := kubeDetails.getClusterSupportedResources()
+	if err != nil {
+		return nil, apiResource, trace.Wrap(err)
+	}
 
 	resourceType, ok := rbacSupportedTypes.getTeleportResourceKindFromAPIResource(apiResource)
 	switch {
@@ -305,31 +313,38 @@ func isKubeWatchRequest(req *http.Request, r apiResource) bool {
 func (r apiResource) getVerb(req *http.Request) string {
 	verb := ""
 	isWatch := isKubeWatchRequest(req, r)
-	switch req.Method {
-	case http.MethodPost:
-		verb = types.KubeVerbCreate
-	case http.MethodGet, http.MethodHead, http.MethodOptions:
-		switch {
-		case isWatch:
-			return types.KubeVerbWatch
-		case r.resourceName == "":
-			return types.KubeVerbList
-		default:
-			return types.KubeVerbGet
-		}
-	case http.MethodPut:
-		verb = types.KubeVerbUpdate
-	case http.MethodPatch:
-		verb = types.KubeVerbPatch
-	case http.MethodDelete:
-		switch {
-		case r.resourceName != "":
-			verb = types.KubeVerbDelete
-		default:
-			verb = types.KubeVerbDeleteCollection
-		}
+	switch r.resourceKind {
+	case "pods/exec", "pods/attach":
+		verb = types.KubeVerbExec
+	case "pods/portforward":
+		verb = types.KubeVerbPortForward
 	default:
-		verb = ""
+		switch req.Method {
+		case http.MethodPost:
+			verb = types.KubeVerbCreate
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			switch {
+			case isWatch:
+				return types.KubeVerbWatch
+			case r.resourceName == "":
+				return types.KubeVerbList
+			default:
+				return types.KubeVerbGet
+			}
+		case http.MethodPut:
+			verb = types.KubeVerbUpdate
+		case http.MethodPatch:
+			verb = types.KubeVerbPatch
+		case http.MethodDelete:
+			switch {
+			case r.resourceName != "":
+				verb = types.KubeVerbDelete
+			default:
+				verb = types.KubeVerbDeleteCollection
+			}
+		default:
+			verb = ""
+		}
 	}
 
 	return verb

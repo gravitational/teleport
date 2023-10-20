@@ -32,6 +32,7 @@ import cfg from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
 import {
+  AccessRequestClientMessage,
   ExecutionEnvelopeType,
   ExecutionTeleportErrorType,
   RawPayload,
@@ -48,6 +49,7 @@ import {
 
 import * as service from '../service';
 import {
+  resolveAccessRequestMessage,
   resolveServerAssistThoughtMessage,
   resolveServerCommandMessage,
   resolveServerMessage,
@@ -65,6 +67,7 @@ interface AssistContextValue {
   createConversation: () => Promise<string>;
   deleteConversation: (conversationId: string) => void;
   executeCommand: (login: string, command: string, query: string) => void;
+  sendAccessRequestCreatedMessage: (accessRequestId: string) => void;
   sendMessage: (message: string) => void;
   sendMfaChallenge: (data: WebauthnAssertionResponse) => void;
   selectedConversationMessages: ConversationMessage[];
@@ -200,6 +203,23 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
           dispatch({
             type: AssistStateActionType.AddExecuteRemoteCommand,
+            message,
+            conversationId,
+          });
+
+          dispatch({
+            type: AssistStateActionType.SetStreaming,
+            streaming: false,
+          });
+
+          break;
+        }
+
+        case ServerMessageType.AccessRequest: {
+          const message = resolveAccessRequestMessage(data);
+
+          dispatch({
+            type: AssistStateActionType.AddAccessRequest,
             message,
             conversationId,
           });
@@ -551,6 +571,26 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     });
   }
 
+  function sendAccessRequestCreatedMessage(accessRequestId: string) {
+    if (!activeWebSocket.current) {
+      return;
+    }
+
+    const message: AccessRequestClientMessage = {
+      type: ServerMessageType.AccessRequestCreated,
+      payload: accessRequestId,
+    };
+
+    const data = JSON.stringify(message);
+    activeWebSocket.current.send(data);
+
+    dispatch({
+      type: AssistStateActionType.AddAccessRequestCreated,
+      conversationId: state.conversations.selectedId,
+      accessRequestId,
+    });
+  }
+
   useEffect(() => {
     loadConversations();
 
@@ -578,6 +618,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
         deleteConversation,
         executeCommand,
         selectedConversationMessages,
+        sendAccessRequestCreatedMessage,
         sendMessage,
         sendMfaChallenge,
         setSelectedConversationId,

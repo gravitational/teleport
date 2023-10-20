@@ -109,7 +109,7 @@ interface RunConfigureScriptAnimationProps {
 export function RunConfigureScriptAnimation(
   props: RunConfigureScriptAnimationProps
 ) {
-  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
+  const { joinToken } = useJoinTokenSuspender([ResourceKind.Desktop]);
 
   return (
     <AnimatedTerminal

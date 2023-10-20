@@ -17,8 +17,10 @@
 import React, { useRef, useEffect } from 'react';
 import Flex from 'design/Flex';
 
-import * as tshd from 'teleterm/services/tshd/types';
-import { makeLoggedInUser } from 'teleterm/services/tshd/testHelpers';
+import {
+  makeLoggedInUser,
+  makeRootCluster,
+} from 'teleterm/services/tshd/testHelpers';
 
 import { Identity, IdentityHandler, IdentityProps } from './Identity';
 import { IdentityRootCluster } from './useIdentity';
@@ -87,19 +89,16 @@ export function OneClusterWithActiveCluster() {
     connected: true,
   };
 
-  const cluster: tshd.Cluster = {
+  const cluster = makeRootCluster({
     uri: '/clusters/localhost',
     name: 'teleport-localhost',
     proxyHost: 'localhost:3080',
-    connected: true,
-    leaf: false,
-    authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
     loggedInUser: makeLoggedInUser({
       name: 'alice',
       rolesList: ['access', 'editor'],
       sshLoginsList: ['root'],
     }),
-  };
+  });
 
   return (
     <OpenedIdentity
@@ -176,19 +175,16 @@ export function ManyClustersWithActiveCluster() {
   };
 
   const activeIdentityRootCluster = identityRootCluster2;
-  const activeCluster: tshd.Cluster = {
+  const activeCluster = makeRootCluster({
     uri: activeIdentityRootCluster.uri,
     name: activeIdentityRootCluster.clusterName,
     proxyHost: 'localhost:3080',
-    connected: true,
-    leaf: false,
-    authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
     loggedInUser: makeLoggedInUser({
       name: activeIdentityRootCluster.userName,
       rolesList: ['access', 'editor'],
       sshLoginsList: ['root'],
     }),
-  };
+  });
 
   return (
     <OpenedIdentity
@@ -230,13 +226,10 @@ export function LongNamesWithManyRoles() {
   };
 
   const activeIdentityRootCluster = identityRootCluster2;
-  const activeCluster: tshd.Cluster = {
+  const activeCluster = makeRootCluster({
     uri: activeIdentityRootCluster.uri,
     name: activeIdentityRootCluster.clusterName,
     proxyHost: 'localhost:3080',
-    connected: true,
-    leaf: false,
-    authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
     loggedInUser: makeLoggedInUser({
       name: activeIdentityRootCluster.userName,
       rolesList: [
@@ -252,7 +245,7 @@ export function LongNamesWithManyRoles() {
       ],
       sshLoginsList: ['root'],
     }),
-  };
+  });
 
   return (
     <OpenedIdentity

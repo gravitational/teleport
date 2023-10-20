@@ -55,6 +55,9 @@ const (
 	uiDiscoverDesktopActiveDirectoryToolsInstallEvent = "tp.ui.discover.desktop.activeDirectory.tools.install"
 	uiDiscoverDesktopActiveDirectoryConfigureEvent    = "tp.ui.discover.desktop.activeDirectory.configure"
 	uiDiscoverAutoDiscoveredResourcesEvent            = "tp.ui.discover.autoDiscoveredResources"
+	uiDiscoverEC2InstanceSelectionEvent               = "tp.ui.discover.selectedEC2Instance"
+	uiDiscoverDeployEICEEvent                         = "tp.ui.discover.deployEICE"
+	uiDiscoverCreateNodeEvent                         = "tp.ui.discover.createNode"
 	uiDiscoverPrincipalsConfigureEvent                = "tp.ui.discover.principals.configure"
 	uiDiscoverTestConnectionEvent                     = "tp.ui.discover.testConnection"
 	uiDiscoverCompletedEvent                          = "tp.ui.discover.completed"
@@ -63,6 +66,8 @@ const (
 	uiIntegrationEnrollCompleteEvent = "tp.ui.integrationEnroll.complete"
 
 	uiCallToActionClickEvent = "tp.ui.callToAction.click"
+
+	featureRecommendationEvent = "tp.ui.feature.recommendation"
 )
 
 // Events that require extra metadata.
@@ -286,6 +291,9 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 		uiDiscoverAutoDiscoveredResourcesEvent,
 		uiDiscoverPrincipalsConfigureEvent,
 		uiDiscoverTestConnectionEvent,
+		uiDiscoverEC2InstanceSelectionEvent,
+		uiDiscoverDeployEICEEvent,
+		uiDiscoverCreateNodeEvent,
 		uiDiscoverCompletedEvent:
 
 		var discoverEvent DiscoverEventData
@@ -341,6 +349,23 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 			}},
 			nil
 
+	case featureRecommendationEvent:
+		event := struct {
+			Feature                     int32 `json:"feature"`
+			FeatureRecommendationStatus int32 `json:"featureRecommendationStatus"`
+		}{}
+
+		if err := json.Unmarshal([]byte(*req.EventData), &event); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_FeatureRecommendationEvent{
+				FeatureRecommendationEvent: &usageeventsv1.FeatureRecommendationEvent{
+					Feature:                     usageeventsv1.Feature(event.Feature),
+					FeatureRecommendationStatus: usageeventsv1.FeatureRecommendationStatus(event.FeatureRecommendationStatus),
+				},
+			}},
+			nil
 	}
 
 	return nil, trace.BadParameter("invalid event %s", req.Event)

@@ -218,7 +218,7 @@ should be granted access to.
 Altering the meaning of an existing field must not be accompanied by an automatic migration. These types of changes should 
 require explicit opt-in from a user. For example, when adding a new predicate function Teleport should not start using
 the function until the user explicitly updates their resource to use the new function. When documenting the new function
-the version compatability and consequences of using the new function in an incompatible configuration should be noted. 
+the version compatibility and consequences of using the new function in an incompatible configuration should be noted. 
 
 ### Backward Compatibility
 

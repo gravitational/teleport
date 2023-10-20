@@ -24,3 +24,7 @@ deploy-teleport:
 .PHONY: forward-monitor
 forward-monitor:
 	./monitoring/port-forward.sh
+
+.PHONY: enable-database-agents-monitoring
+enable-database-agents-monitoring:
+	./monitoring/create-database-agents.sh

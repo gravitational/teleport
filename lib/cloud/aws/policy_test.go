@@ -189,6 +189,45 @@ func TestMarshalPolicyDocument(t *testing.T) {
     ]
 }`, docString)
 	})
+
+	t.Run("marshal with condition", func(t *testing.T) {
+		doc := PolicyDocument{
+			Version: PolicyVersion,
+			Statements: []*Statement{{
+				Effect:  EffectAllow,
+				Actions: SliceOrString{"sts:AssumeRoleWithWebIdentity"},
+				Principals: map[string]SliceOrString{
+					"Federated": {"arn:aws:iam::123456789012:oidc-provider/proxy.example.com"},
+				},
+				Conditions: map[string]map[string]SliceOrString{
+					"StringEquals": {
+						"proxy.example.com:aud": SliceOrString{"discover.teleport"},
+					},
+				},
+			}},
+		}
+
+		docString, err := doc.Marshal()
+		require.NoError(t, err)
+
+		require.Equal(t, `{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Principal": {
+                "Federated": "arn:aws:iam::123456789012:oidc-provider/proxy.example.com"
+            },
+            "Condition": {
+                "StringEquals": {
+                    "proxy.example.com:aud": "discover.teleport"
+                }
+            }
+        }
+    ]
+}`, docString)
+	})
 }
 
 // TestIAMPolicy verifies AWS IAM policy manipulations.

@@ -117,7 +117,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 		role, err := types.NewRole(roleName, roleSpec)
 		require.NoError(t, err)
 
-		err = tlsServer.Auth().UpsertRole(ctx, role)
+		_, err = tlsServer.Auth().UpsertRole(ctx, role)
 		require.NoError(t, err)
 	}
 
@@ -132,7 +132,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 		user, err := types.NewUser(name)
 		require.NoError(t, err)
 		user.SetRoles(roles)
-		err = tlsServer.Auth().UpsertUser(user)
+		_, err = tlsServer.Auth().UpsertUser(ctx, user)
 		require.NoError(t, err)
 	}
 
@@ -180,6 +180,7 @@ func TestAccessRequest(t *testing.T) {
 	t.Run("single", func(t *testing.T) { testSingleAccessRequests(t, testPack) })
 	t.Run("multi", func(t *testing.T) { testMultiAccessRequests(t, testPack) })
 	t.Run("role refresh with bogus request ID", func(t *testing.T) { testRoleRefreshWithBogusRequestID(t, testPack) })
+	t.Run("bot user approver", func(t *testing.T) { testBotAccessRequestReview(t, testPack) })
 }
 
 func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
@@ -313,7 +314,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			require.NoError(t, err)
 
 			// send the request to the auth server
-			err = requesterClient.CreateAccessRequest(ctx, req)
+			req, err = requesterClient.CreateAccessRequestV2(ctx, req)
 			require.ErrorIs(t, err, tc.expectRequestError)
 			if tc.expectRequestError != nil {
 				return
@@ -419,6 +420,70 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			require.ErrorIs(t, err, trace.AccessDenied("access request %q has been denied", req.GetName()))
 		})
 	}
+}
+
+// testBotAccessRequestReview specifically ensures that a bots output cert
+// can be used to review a access request. This is because there's a special
+// case to handle their role impersonated certs correctly.
+func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	// Create the bot
+	adminClient, err := testPack.tlsServer.NewClient(TestAdmin())
+	require.NoError(t, err)
+	defer adminClient.Close()
+	bot, err := adminClient.CreateBot(ctx, &proto.CreateBotRequest{
+		Name: "request-approver",
+		Roles: []string{
+			// Grants the ability to approve requests
+			"admins",
+		},
+	})
+	require.NoError(t, err)
+
+	// Use the bot user to generate some certs using role impersonation.
+	// This mimics what the bot actually does.
+	botClient, err := testPack.tlsServer.NewClient(TestUser(bot.UserName))
+	require.NoError(t, err)
+	defer botClient.Close()
+	certRes, err := botClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		Username:  bot.UserName,
+		PublicKey: testPack.pubKey,
+		Expires:   time.Now().Add(time.Hour),
+
+		RoleRequests:    []string{"admins"},
+		UseRoleRequests: true,
+	})
+	require.NoError(t, err)
+	tlsCert, err := tls.X509KeyPair(certRes.TLS, testPack.privKey)
+	require.NoError(t, err)
+	impersonatedBotClient := testPack.tlsServer.NewClientWithCert(tlsCert)
+	defer impersonatedBotClient.Close()
+
+	// Create an access request for the bot to approve
+	requesterClient, err := testPack.tlsServer.NewClient(TestUser("requester"))
+	require.NoError(t, err)
+	defer requesterClient.Close()
+	accessRequest, err := services.NewAccessRequest("requester", "admins")
+	require.NoError(t, err)
+	accessRequest, err = requesterClient.CreateAccessRequestV2(ctx, accessRequest)
+	require.NoError(t, err)
+
+	// Approve the access request with the bot
+	accessRequest, err = impersonatedBotClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+		RequestID: accessRequest.GetName(),
+		Review: types.AccessReview{
+			ProposedState: types.RequestState_APPROVED,
+		},
+	})
+	require.NoError(t, err)
+
+	// Check the final state of the request
+	require.Equal(t, bot.UserName, accessRequest.GetReviews()[0].Author)
+	require.Equal(t, types.RequestState_APPROVED, accessRequest.GetState())
 }
 
 func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
@@ -648,7 +713,7 @@ func testRoleRefreshWithBogusRequestID(t *testing.T, testPack *accessRequestTest
 	user, err := types.NewUser(username)
 	require.NoError(t, err)
 	user.AddRole("requesters")
-	err = auth.UpsertUser(user)
+	user, err = auth.UpsertUser(ctx, user)
 	require.NoError(t, err)
 
 	// Create a client with the old set of roles.
@@ -657,7 +722,7 @@ func testRoleRefreshWithBogusRequestID(t *testing.T, testPack *accessRequestTest
 
 	// Add a new role to the user on the server.
 	user.AddRole("operators")
-	err = auth.UpdateUser(ctx, user)
+	_, err = auth.UpdateUser(ctx, user)
 	require.NoError(t, err)
 
 	certs, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -726,4 +791,144 @@ func checkCerts(t *testing.T,
 	require.NoError(t, err)
 	assert.ElementsMatch(t, resourceIDs, sshCertAllowedResources)
 	assert.ElementsMatch(t, resourceIDs, tlsIdentity.AllowedResourceIDs)
+}
+
+func TestCreateSuggestions(t *testing.T) {
+	t.Parallel()
+
+	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+	const username = "admin"
+
+	// Create the access request, so we can attach the promotions to it.
+	adminRequest, err := services.NewAccessRequest(username, "admins")
+	require.NoError(t, err)
+
+	authSrvClient := testAuthServer.AuthServer
+	err = authSrvClient.UpsertAccessRequest(context.Background(), adminRequest)
+	require.NoError(t, err)
+
+	// Create the promotions.
+	err = authSrvClient.CreateAccessRequestAllowedPromotions(context.Background(), adminRequest, &types.AccessRequestAllowedPromotions{
+		Promotions: []*types.AccessRequestAllowedPromotion{
+			{AccessListName: "a"},
+			{AccessListName: "b"},
+			{AccessListName: "c"}},
+	})
+	require.NoError(t, err)
+
+	// Get the promotions and verify them.
+	promotions, err := authSrvClient.GetAccessRequestAllowedPromotions(context.Background(), adminRequest)
+	require.NoError(t, err)
+	require.Len(t, promotions.Promotions, 3)
+	require.Equal(t, []string{"a", "b", "c"},
+		[]string{
+			promotions.Promotions[0].AccessListName,
+			promotions.Promotions[1].AccessListName,
+			promotions.Promotions[2].AccessListName,
+		})
+}
+
+func TestPromotedRequest(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	testPack := newAccessRequestTestPack(ctx, t)
+
+	const requesterUserName = "requester"
+	requester := TestUser(requesterUserName)
+	requesterClient, err := testPack.tlsServer.NewClient(requester)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { require.NoError(t, requesterClient.Close()) })
+
+	// create the access request object
+	req, err := services.NewAccessRequest(requesterUserName, "admins")
+	require.NoError(t, err)
+
+	// send the request to the auth server
+	createdReq, err := requesterClient.CreateAccessRequestV2(ctx, req)
+	require.NoError(t, err)
+
+	const adminUser = "admin"
+	approveAs := func(reviewerName string) (types.AccessRequest, error) {
+		reviewer := TestUser(reviewerName)
+		reviewerClient, err := testPack.tlsServer.NewClient(reviewer)
+		require.NoError(t, err)
+
+		t.Cleanup(func() { require.NoError(t, reviewerClient.Close()) })
+
+		// try to promote the request
+		return reviewerClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+			RequestID: req.GetName(),
+			Review: types.AccessReview{
+				ProposedState: types.RequestState_PROMOTED,
+				Author:        adminUser,
+				AccessList: &types.PromotedAccessList{
+					Title: "ACL title",
+					Name:  "0000-00-00-0000",
+				},
+			},
+		})
+	}
+
+	t.Run("try promoting using access request API", func(t *testing.T) {
+		// Access request promotion is prohibited for everyone, including admins.
+		// An access request can be only approved by using Ent AccessRequestPromote API
+		// operator can't promote the request
+		_, err = approveAs("operator")
+		require.Error(t, err)
+
+		// admin can't promote the request
+		_, err = approveAs(adminUser)
+		require.Error(t, err)
+
+		req2, err := requesterClient.GetAccessRequests(ctx, types.AccessRequestFilter{
+			ID: createdReq.GetMetadata().Name,
+		})
+		require.NoError(t, err)
+		require.Len(t, req2, 1)
+
+		// the state should be still pending
+		require.Equal(t, types.RequestState_PENDING, req2[0].GetState())
+	})
+
+	t.Run("promote without access list data fails", func(t *testing.T) {
+		// The only way to promote the request is to use Ent AccessRequestPromote API
+		// which is not available in OSS. As a workaround, we can use the access request
+		// server API.
+		_, err := testPack.tlsServer.AuthServer.AuthServer.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+			RequestID: createdReq.GetName(),
+			Review: types.AccessReview{
+				ProposedState: types.RequestState_PROMOTED,
+			},
+		})
+		// Promoting without access list information is prohibited.
+		require.Error(t, err)
+	})
+
+	t.Run("promote", func(t *testing.T) {
+		promotedRequest, err := testPack.tlsServer.AuthServer.AuthServer.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+			RequestID: createdReq.GetName(),
+			Review: types.AccessReview{
+				ProposedState: types.RequestState_PROMOTED,
+				Author:        adminUser,
+				AccessList: &types.PromotedAccessList{
+					Title: "ACL title",
+					Name:  "0000-00-00-0000",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// verify promotion related fields
+		require.Equal(t, types.RequestState_PROMOTED, promotedRequest.GetState())
+		require.Equal(t, "0000-00-00-0000", promotedRequest.GetPromotedAccessListName())
+		require.Equal(t, "ACL title", promotedRequest.GetPromotedAccessListTitle())
+	})
 }

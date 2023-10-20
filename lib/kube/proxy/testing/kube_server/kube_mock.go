@@ -40,7 +40,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
-	"k8s.io/apiserver/pkg/util/wsstream"
+	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/gravitational/teleport/lib/defaults"

@@ -40,6 +40,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -287,8 +288,8 @@ func (f *fakeGCPKMSServer) activateAllKeys() {
 func newTestGRPCServer() *grpc.Server {
 	// Set up some helpful interceptors so that we return compliant error types.
 	return grpc.NewServer(
-		grpc.UnaryInterceptor(utils.GRPCServerUnaryErrorInterceptor),
-		grpc.StreamInterceptor(utils.GRPCServerStreamErrorInterceptor),
+		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
 }
 

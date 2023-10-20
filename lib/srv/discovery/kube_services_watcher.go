@@ -23,10 +23,13 @@ import (
 
 	"github.com/gravitational/trace"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
+
+const appEventPrefix = "app/"
 
 func (s *Server) startKubeAppsWatchers() error {
 	if len(s.kubeAppsFetchers) == 0 {
@@ -66,7 +69,7 @@ func (s *Server) startKubeAppsWatchers() error {
 	}
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
-		Fetchers:       s.kubeAppsFetchers,
+		FetchersFn:     common.StaticFetchers(s.kubeAppsFetchers),
 		Interval:       5 * time.Minute,
 		Log:            s.Log.WithField("kind", types.KindApp),
 		DiscoveryGroup: s.DiscoveryGroup,
@@ -113,7 +116,20 @@ func (s *Server) onAppCreate(ctx context.Context, rwl types.ResourceWithLabels) 
 	if trace.IsAlreadyExists(err) {
 		return trace.Wrap(s.onAppUpdate(ctx, rwl))
 	}
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
+		appEventPrefix + app.GetName(): {
+			ResourceType:   types.DiscoveredResourceApp,
+			ResourceOrigin: types.OriginKubernetes,
+			// CloudProvider is not set for apps created from Kubernetes services
+		},
+	})
+	if err != nil {
+		s.Log.WithError(err).Debug("Error emitting usage event.")
+	}
+	return nil
 }
 
 func (s *Server) onAppUpdate(ctx context.Context, rwl types.ResourceWithLabels) error {

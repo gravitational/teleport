@@ -120,6 +120,16 @@ func (a *AppV3) SetResourceID(id int64) {
 	a.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (a *AppV3) GetRevision() string {
+	return a.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (a *AppV3) SetRevision(rev string) {
+	a.Metadata.SetRevision(rev)
+}
+
 // GetMetadata returns the app resource metadata.
 func (a *AppV3) GetMetadata() Metadata {
 	return a.Metadata
@@ -363,7 +373,7 @@ func (a *AppV3) CheckAndSetDefaults() error {
 
 	if a.Spec.Rewrite != nil {
 		switch a.Spec.Rewrite.JWTClaims {
-		case "", JWTClaimsRewriteRolesAndTraits, JWTClaimsRewriteRoles, JWTClaimsRewriteNone:
+		case "", JWTClaimsRewriteRolesAndTraits, JWTClaimsRewriteRoles, JWTClaimsRewriteNone, JWTClaimsRewriteTraits:
 		default:
 			return trace.BadParameter("app %q has unexpected JWT rewrite value %q", a.GetName(), a.Spec.Rewrite.JWTClaims)
 

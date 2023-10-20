@@ -28,6 +28,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -49,7 +50,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/httpstream"
-	"k8s.io/apiserver/pkg/util/wsstream"
+	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
 	kubeexec "k8s.io/client-go/util/exec"
@@ -366,12 +368,20 @@ type Forwarder struct {
 	// use the heartbeat clusters.
 	getKubernetesServersForKubeCluster getKubeServersByNameFunc
 
-	// cachedTransport is a cache of http.Transport objects used to
+	// cachedTransport is a cache of cachedTransportEntry objects used to
 	// connect to Teleport services.
 	// TODO(tigrato): Implement a cache eviction policy using watchers.
 	cachedTransport *ttlmap.TTLMap
 	// cachedTransportMu is a mutex used to protect the cachedTransport.
 	cachedTransportMu sync.Mutex
+}
+
+// cachedTransportEntry is a cached transport entry used to connect to
+// Teleport services. It contains a cached http.RoundTripper and a cached
+// tls.Config.
+type cachedTransportEntry struct {
+	transport http.RoundTripper
+	tlsConfig *tls.Config
 }
 
 // getKubeServersByNameFunc is a function that returns a list of
@@ -894,6 +904,9 @@ func (f *Forwarder) emitAuditEvent(req *http.Request, sess *clusterSession, stat
 		Verb:                      req.Method,
 		ResponseCode:              int32(status),
 		KubernetesClusterMetadata: sess.eventClusterMeta(req),
+		SessionMetadata: apievents.SessionMetadata{
+			WithMFA: sess.Identity.GetIdentity().MFAVerified,
+		},
 	}
 
 	r.populateEvent(event)
@@ -1452,10 +1465,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		ServerAddr:      sess.kubeAddress,
 	}
 
-	sessionMetadata := apievents.SessionMetadata{
-		SessionID: uuid.NewString(),
-		WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
-	}
+	sessionMetadata := ctx.Identity.GetIdentity().GetSessionMetadata(uuid.NewString())
 
 	connectionMetdata := apievents.ConnectionMetadata{
 		RemoteAddr: req.RemoteAddr,
@@ -1529,7 +1539,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		}
 	}()
 
-	executor, err := f.getExecutor(*ctx, sess, req)
+	executor, err := f.getExecutor(sess, req)
 	if err != nil {
 		execEvent.Code = events.ExecFailureCode
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
@@ -1702,7 +1712,7 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession, request remoteCommandRequest, proxy *remoteCommandProxy) (resp any, err error) {
 	defer proxy.Close()
 
-	executor, err := f.getExecutor(*ctx, sess, req)
+	executor, err := f.getExecutor(sess, req)
 	if err != nil {
 		f.log.WithError(err).Warning("Failed creating executor.")
 		return nil, trace.Wrap(err)
@@ -1767,7 +1777,7 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 		return nil, trace.Wrap(err)
 	}
 
-	dialer, err := f.getSPDYDialer(*authCtx, sess, req)
+	dialer, err := f.getSPDYDialer(sess, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1846,7 +1856,7 @@ const (
 
 func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Request, withImpersonationHeaders bool) error {
 	if withImpersonationHeaders {
-		if err := setupImpersonationHeaders(f.log, sess.authContext, req.Header); err != nil {
+		if err := setupImpersonationHeaders(f.log, sess, req.Header); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1872,12 +1882,14 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 }
 
 // setupImpersonationHeaders sets up Impersonate-User and Impersonate-Group headers
-func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers http.Header) error {
-	if ctx.teleportCluster.isRemote {
+func setupImpersonationHeaders(log logrus.FieldLogger, sess *clusterSession, headers http.Header) error {
+	// If the request is remote or this instance is a proxy,
+	// do not set up impersonation headers.
+	if sess.teleportCluster.isRemote || sess.kubeAPICreds == nil {
 		return nil
 	}
 
-	impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(ctx.kubeUsers, ctx.kubeGroups, headers)
+	impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(sess.kubeUsers, sess.kubeGroups, headers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2065,19 +2077,21 @@ func (f *Forwarder) catchAll(authCtx *authContext, w http.ResponseWriter, req *h
 	}
 }
 
-func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
+func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
 	tlsConfig, useImpersonation, err := f.getTLSConfig(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
-		authCtx:               ctx,
+		sess:                  sess,
 		dialWithContext:       sess.DialWithContext(),
 		tlsConfig:             tlsConfig,
 		pingPeriod:            f.cfg.ConnPingPeriod,
 		originalHeaders:       req.Header,
 		useIdentityForwarding: useImpersonation,
+		proxier:               sess.getProxier(),
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.kubeAPICreds != nil {
@@ -2096,19 +2110,21 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 // to SPDY protocol.
 // SPDY is a deprecated protocol, but it is still used by kubectl to manage data streams.
 // The dialer uses an HTTP1.1 connection to upgrade to SPDY.
-func (f *Forwarder) getSPDYDialer(ctx authContext, sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
+func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
 	tlsConfig, useImpersonation, err := f.getTLSConfig(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
-		authCtx:               ctx,
+		sess:                  sess,
 		dialWithContext:       sess.DialWithContext(),
 		tlsConfig:             tlsConfig,
 		pingPeriod:            f.cfg.ConnPingPeriod,
 		originalHeaders:       req.Header,
 		useIdentityForwarding: useImpersonation,
+		proxier:               sess.getProxier(),
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.kubeAPICreds != nil {
@@ -2156,13 +2172,13 @@ type clusterSession struct {
 	// connCtx is the context used to monitor the connection.
 	connCtx context.Context
 	// connMonitorCancel is the conn monitor connMonitorCancel function.
-	connMonitorCancel context.CancelFunc
+	connMonitorCancel context.CancelCauseFunc
 }
 
 // close cancels the connection monitor context if available.
 func (s *clusterSession) close() {
 	if s.connMonitorCancel != nil {
-		s.connMonitorCancel()
+		s.connMonitorCancel(io.EOF)
 	}
 }
 
@@ -2178,7 +2194,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		Cancel:  s.connMonitorCancel,
 	})
 	if err != nil {
-		s.connMonitorCancel()
+		s.connMonitorCancel(err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -2197,29 +2213,42 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		Emitter:               s.parent.cfg.AuthClient,
 	})
 	if err != nil {
-		tc.Close()
-		s.connMonitorCancel()
+		tc.CloseWithCause(err)
 		return nil, trace.Wrap(err)
 	}
 	return tc, nil
 }
 
 func (s *clusterSession) Dial(network, addr string) (net.Conn, error) {
-	return s.monitorConn(s.dial(s.requestContext, network))
+	return s.monitorConn(s.dial(s.requestContext, network, addr))
 }
 
 func (s *clusterSession) DialWithContext(opts ...contextDialerOption) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return s.monitorConn(s.dial(ctx, network, opts...))
+		return s.monitorConn(s.dial(ctx, network, addr, opts...))
 	}
 }
 
-func (s *clusterSession) dial(ctx context.Context, network string, opts ...contextDialerOption) (net.Conn, error) {
+func (s *clusterSession) dial(ctx context.Context, network, addr string, opts ...contextDialerOption) (net.Conn, error) {
 	dialer := s.parent.getContextDialerFunc(s, opts...)
 
-	conn, err := dialer(ctx, network, s.targetAddr)
+	conn, err := dialer(ctx, network, addr)
 
 	return conn, trace.Wrap(err)
+}
+
+// getProxier returns the proxier function to use for this session.
+// If the target cluster is not served by this teleport service, the proxier
+// must be nil to avoid using it through the reverse tunnel.
+// If the target cluster is served by this teleport service, the proxier
+// must be set to the default proxy function.
+func (s *clusterSession) getProxier() func(req *http.Request) (*url.URL, error) {
+	// When the target cluster is not served by this teleport service, the
+	// proxier must be nil to avoid using it through the reverse tunnel.
+	if s.kubeAPICreds == nil {
+		return nil
+	}
+	return utilnet.NewProxierWithNoProxyCIDR(http.ProxyFromEnvironment)
 }
 
 // TODO(awly): unit test this
@@ -2244,7 +2273,7 @@ func (f *Forwarder) newClusterSession(ctx context.Context, authCtx authContext) 
 
 func (f *Forwarder) newClusterSessionRemoteCluster(ctx context.Context, authCtx authContext) (*clusterSession, error) {
 	f.log.Debugf("Forwarding kubernetes session for %v to remote cluster.", authCtx)
-	connCtx, cancel := context.WithCancel(ctx)
+	connCtx, cancel := context.WithCancelCause(ctx)
 	return &clusterSession{
 		parent:      f,
 		authContext: authCtx,
@@ -2262,8 +2291,11 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx context.Context, authCtx 
 func (f *Forwarder) newClusterSessionSameCluster(ctx context.Context, authCtx authContext) (*clusterSession, error) {
 	// Try local creds first
 	sess, localErr := f.newClusterSessionLocal(ctx, authCtx)
-	if localErr == nil {
+	switch {
+	case localErr == nil:
 		return sess, nil
+	case trace.IsConnectionProblem(localErr):
+		return nil, trace.Wrap(localErr)
 	}
 
 	kubeServers := authCtx.kubeServers
@@ -2283,8 +2315,13 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 	if err != nil {
 		return nil, trace.NotFound("kubernetes cluster %q not found", authCtx.kubeClusterName)
 	}
-	connCtx, cancel := context.WithCancel(ctx)
-	codecFactory, rbacSupportedResources := details.getClusterSupportedResources()
+
+	codecFactory, rbacSupportedResources, err := details.getClusterSupportedResources()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connCtx, cancel := context.WithCancelCause(ctx)
 	f.log.Debugf("Handling kubernetes session for %v using local credentials.", authCtx)
 	return &clusterSession{
 		parent:                 f,
@@ -2300,7 +2337,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 }
 
 func (f *Forwarder) newClusterSessionDirect(ctx context.Context, authCtx authContext) (*clusterSession, error) {
-	connCtx, cancel := context.WithCancel(ctx)
+	connCtx, cancel := context.WithCancelCause(ctx)
 	return &clusterSession{
 		parent:      f,
 		authContext: authCtx,

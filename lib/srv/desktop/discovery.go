@@ -16,6 +16,7 @@ package desktop
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"net/netip"
@@ -182,6 +183,8 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 	}
 }
 
+const dnsQueryTimeout = 5 * time.Second
+
 // lookupDesktop does a DNS lookup for the provided hostname.
 // It checks using the default system resolver first, and falls
 // back to the configured LDAP server if the system resolver fails.
@@ -194,25 +197,29 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) ([]
 		return result
 	}
 
-	const queryTimeout = 5 * time.Second
-
 	queryResolver := func(resolver *net.Resolver, resolverName string) chan []netip.Addr {
 		ch := make(chan []netip.Addr, 1)
-		if resolver != nil {
-			go func() {
-				tctx, cancel := context.WithTimeout(ctx, queryTimeout)
-				defer cancel()
+		go func() {
+			tctx, cancel := context.WithTimeout(ctx, dnsQueryTimeout)
+			defer cancel()
 
-				addrs, err := resolver.LookupNetIP(tctx, "ip4", hostname)
-				if err != nil {
-					s.cfg.Log.Debugf("DNS lookup for %v failed with %s resolver: %v",
-						hostname, resolverName, err)
+			addrs, err := resolver.LookupNetIP(tctx, "ip4", hostname)
+			if err != nil {
+				s.cfg.Log.Debugf("DNS lookup for %v failed with %s resolver: %v",
+					hostname, resolverName, err)
+			}
+
+			// even though we requested "ip4" it's possible to get IPv4
+			// addresses mapped to IPv6 addresses, so we unmap them here
+			result := make([]netip.Addr, 0, len(addrs))
+			for _, addr := range addrs {
+				if addr.Is4() || addr.Is4In6() {
+					result = append(result, addr.Unmap())
 				}
-				if len(addrs) > 0 {
-					ch <- addrs
-				}
-			}()
-		}
+			}
+
+			ch <- result
+		}()
 		return ch
 	}
 
@@ -220,22 +227,22 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) ([]
 	defaultResult := queryResolver(net.DefaultResolver, "default")
 	ldapResult := queryResolver(s.dnsResolver, "LDAP")
 
-	// wait 5 seconds for the default resolver to return
-	select {
-	case addrs := <-defaultResult:
+	// wait for the default resolver to return (or time out)
+	addrs := <-defaultResult
+	if len(addrs) > 0 {
 		return stringAddrs(addrs), nil
-	case <-s.cfg.Clock.After(5 * time.Second):
 	}
 
 	// If we didn't get a result from the default resolver,
-	// the result from the LDAP resolver is either available
-	// now or we're done. There's no more waiting.
-	select {
-	case addrs := <-ldapResult:
+	// use the result from the LDAP resolver.
+	// This shouldn't block for very long, since both operations
+	// started at the same time with the same timeout.
+	addrs = <-ldapResult
+	if len(addrs) > 0 {
 		return stringAddrs(addrs), nil
-	default:
-		return nil, trace.Errorf("could not resolve %v in time", hostname)
 	}
+
+	return nil, trace.Errorf("could not resolve %v in time", hostname)
 }
 
 // ldapEntryToWindowsDesktop generates the Windows Desktop resource
@@ -243,7 +250,12 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) ([]
 func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.ResourceWithLabels, error) {
 	hostname := entry.GetAttributeValue(windows.AttrDNSHostName)
 	if hostname == "" {
-		return nil, trace.BadParameter("LDAP entry missing hostname, has attributes: %v", entry.Attributes)
+		attrs := make([]string, len(entry.Attributes))
+		for _, a := range entry.Attributes {
+			attrs = append(attrs, fmt.Sprintf("%v=%v", a.Name, a.Values))
+		}
+		s.cfg.Log.Debugf("LDAP entry %v is missing hostname, has attributes %v", entry.DN, strings.Join(attrs, ","))
+		return nil, trace.BadParameter("LDAP entry %v missing hostname", entry.DN)
 	}
 	labels := getHostLabels(hostname)
 	labels[types.DiscoveryLabelWindowsDomain] = s.cfg.Domain
@@ -260,10 +272,18 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 		return nil, trace.Wrap(err)
 	}
 
+	// ensure no '.' in name, because we use SNI to route to the right
+	// desktop, and our cert is valid for *.desktop.teleport.cluster.local
+	name := strings.ReplaceAll(hostname, ".", "-")
+
+	// append portion of the object GUID to ensure that desktops from
+	// different domains that happen to have the same hostname don't conflict
+	if guid := entry.GetRawAttributeValue(windows.AttrObjectGUID); len(guid) >= 4 {
+		name += "-" + hex.EncodeToString(guid[:4])
+	}
+
 	desktop, err := types.NewWindowsDesktopV3(
-		// ensure no '.' in name, because we use SNI to route to the right
-		// desktop, and our cert is valid for *.desktop.teleport.cluster.local
-		strings.ReplaceAll(hostname, ".", "-"),
+		name,
 		labels,
 		types.WindowsDesktopSpecV3{
 			Addr:   addr.String(),

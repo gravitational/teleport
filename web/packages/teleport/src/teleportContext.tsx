@@ -16,7 +16,7 @@ limitations under the License.
 
 import cfg from 'teleport/config';
 
-import { StoreNav, StoreUserContext } from './stores';
+import { StoreNav, StoreUserContext, StoreNotifications } from './stores';
 import * as types from './types';
 import AuditService from './services/audit';
 import RecordingsService from './services/recordings';
@@ -39,6 +39,7 @@ class TeleportContext implements types.Context {
   // stores
   storeNav = new StoreNav();
   storeUser = new StoreUserContext();
+  storeNotifications = new StoreNotifications();
 
   // services
   auditService = new AuditService();
@@ -96,33 +97,49 @@ class TeleportContext implements types.Context {
     const userContext = this.storeUser;
 
     if (!this.storeUser.state) {
-      return {
-        activeSessions: false,
-        applications: false,
-        audit: false,
-        authConnector: false,
-        billing: false,
-        databases: false,
-        desktops: false,
-        kubernetes: false,
-        nodes: false,
-        recordings: false,
-        roles: false,
-        trustedClusters: false,
-        users: false,
-        newAccessRequest: false,
-        accessRequests: false,
-        downloadCenter: false,
-        discover: false,
-        plugins: false,
-        integrations: false,
-        deviceTrust: false,
-        enrollIntegrationsOrPlugins: false,
-        enrollIntegrations: false,
-        locks: false,
-        newLocks: false,
-        assist: false,
-      };
+      return disabledFeatureFlags;
+    }
+
+    // If feature hiding is enabled in the license, this returns true if the user has no list access to any feature within the management section.
+    function hasManagementSectionAccess() {
+      if (!cfg.hideInaccessibleFeatures) {
+        return true;
+      }
+      return (
+        userContext.getUserAccess().list ||
+        userContext.getRoleAccess().list ||
+        userContext.getEventAccess().list ||
+        userContext.getSessionsAccess().list ||
+        userContext.getTrustedClusterAccess().list ||
+        userContext.getBillingAccess().list ||
+        userContext.getPluginsAccess().list ||
+        userContext.getIntegrationsAccess().list ||
+        userContext.hasDiscoverAccess() ||
+        userContext.getDeviceTrustAccess().list ||
+        userContext.getLockAccess().list
+      );
+    }
+
+    function hasAccessRequestsAccess() {
+      // If feature hiding is enabled in the license, only allow access to access requests if the user has permission to access them, either by
+      // having list access, requestable roles, or allowed search_as_roles.
+      if (cfg.hideInaccessibleFeatures) {
+        return !!(
+          userContext.getAccessRequestAccess().list ||
+          userContext.getRequestableRoles().length ||
+          userContext.getAllowedSearchAsRoles().length
+        );
+      }
+
+      // Return true if this isn't a Cloud dashboard cluster.
+      return !cfg.isDashboard;
+    }
+
+    function hasAccessMonitoringAccess() {
+      return (
+        userContext.getAuditQueryAccess().list ||
+        userContext.getSecurityReportAccess().list
+      );
     }
 
     return {
@@ -139,7 +156,7 @@ class TeleportContext implements types.Context {
       desktops: userContext.getDesktopAccess().list,
       nodes: userContext.getNodeAccess().list,
       activeSessions: userContext.getActiveSessionsAccess().list,
-      accessRequests: userContext.getAccessRequestAccess().list,
+      accessRequests: hasAccessRequestsAccess(),
       newAccessRequest: userContext.getAccessRequestAccess().create,
       downloadCenter: userContext.hasDownloadCenterListAccess(),
       discover: userContext.hasDiscoverAccess(),
@@ -154,8 +171,40 @@ class TeleportContext implements types.Context {
       newLocks:
         userContext.getLockAccess().create && userContext.getLockAccess().edit,
       assist: userContext.getAssistantAccess().list && this.assistEnabled,
+      accessMonitoring: hasAccessMonitoringAccess(),
+      managementSection: hasManagementSectionAccess(),
     };
   }
 }
+
+export const disabledFeatureFlags: types.FeatureFlags = {
+  activeSessions: false,
+  applications: false,
+  audit: false,
+  authConnector: false,
+  billing: false,
+  databases: false,
+  desktops: false,
+  kubernetes: false,
+  nodes: false,
+  recordings: false,
+  roles: false,
+  trustedClusters: false,
+  users: false,
+  newAccessRequest: false,
+  accessRequests: false,
+  downloadCenter: false,
+  discover: false,
+  plugins: false,
+  integrations: false,
+  deviceTrust: false,
+  enrollIntegrationsOrPlugins: false,
+  enrollIntegrations: false,
+  locks: false,
+  newLocks: false,
+  assist: false,
+  managementSection: false,
+  accessMonitoring: false,
+};
 
 export default TeleportContext;

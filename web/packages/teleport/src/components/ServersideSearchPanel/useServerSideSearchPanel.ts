@@ -16,15 +16,16 @@ limitations under the License.
 
 import { useEffect, useState } from 'react';
 
-import { AgentFilter } from 'teleport/services/agents';
+import { ResourceFilter } from 'teleport/services/agents';
 
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 
-import type { PageIndicators } from '../hooks/useServersidePagination';
-
-export default function useServersideSearchPanel(props: Props) {
-  const { pathname, params, setParams, replaceHistory } = props;
-
+export default function useServersideSearchPanel({
+  pathname,
+  params,
+  setParams,
+  replaceHistory,
+}: HookProps) {
   const [searchString, setSearchString] = useState('');
   const [isAdvancedSearch, setIsAdvancedSearch] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -53,7 +54,9 @@ export default function useServersideSearchPanel(props: Props) {
         pathname,
         searchString,
         params.sort,
-        isAdvancedSearch
+        params.kinds,
+        isAdvancedSearch,
+        params.pinnedOnly
       )
     );
   }
@@ -67,7 +70,7 @@ export default function useServersideSearchPanel(props: Props) {
       setIsAdvancedSearch(false);
       setSearchString(decodeUrlQueryParam(params.search));
     }
-  }, []);
+  }, [params.query, params.search]);
 
   useEffect(() => {
     if (!isInitialLoad) {
@@ -82,7 +85,6 @@ export default function useServersideSearchPanel(props: Props) {
     isAdvancedSearch,
     setIsAdvancedSearch,
     onSubmitSearch,
-    ...props,
   };
 }
 
@@ -95,13 +97,11 @@ function decodeUrlQueryParam(param: string) {
   return decodedQuery;
 }
 
-export type Props = {
+export type HookProps = {
   pathname: string;
   replaceHistory: (path: string) => void;
-  params: AgentFilter;
-  setParams: (params: AgentFilter) => void;
-  pageIndicators: PageIndicators;
-  disabled?: boolean;
+  params: ResourceFilter;
+  setParams: (params: ResourceFilter) => void;
 };
 
-export type State = ReturnType<typeof useServersideSearchPanel>;
+export type SearchPanelState = ReturnType<typeof useServersideSearchPanel>;

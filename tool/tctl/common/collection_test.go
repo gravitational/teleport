@@ -95,10 +95,10 @@ func testKubeClusterCollection_writeText(t *testing.T) {
 		types.DiscoveredNameLabel: "cluster3",
 	}
 	kubeClusters := []types.KubeCluster{
-		mustCreateNewKubeCluster(t, "cluster1", nil),
-		mustCreateNewKubeCluster(t, "cluster2", longLabelFixture),
-		mustCreateNewKubeCluster(t, "afirstCluster", longLabelFixture),
-		mustCreateNewKubeCluster(t, "cluster3-eks-us-west-1-123456789012", eksDiscoveredNameLabel),
+		mustCreateNewKubeCluster(t, "cluster1", "", nil),
+		mustCreateNewKubeCluster(t, "cluster2", "", longLabelFixture),
+		mustCreateNewKubeCluster(t, "afirstCluster", "", longLabelFixture),
+		mustCreateNewKubeCluster(t, "cluster3-eks-us-west-1-123456789012", "", eksDiscoveredNameLabel),
 	}
 	test := writeTextTest{
 		collection: &kubeClusterCollection{clusters: kubeClusters},
@@ -133,10 +133,10 @@ func testKubeServerCollection_writeText(t *testing.T) {
 		types.DiscoveredNameLabel: "cluster3",
 	}
 	kubeServers := []types.KubeServer{
-		mustCreateNewKubeServer(t, "cluster1", "_", nil),
-		mustCreateNewKubeServer(t, "cluster2", "_", longLabelFixture),
-		mustCreateNewKubeServer(t, "afirstCluster", "_", longLabelFixture),
-		mustCreateNewKubeServer(t, "cluster3-eks-us-west-1-123456789012", "_", eksDiscoveredNameLabel),
+		mustCreateNewKubeServer(t, "cluster1", "_", "", nil),
+		mustCreateNewKubeServer(t, "cluster2", "_", "", longLabelFixture),
+		mustCreateNewKubeServer(t, "afirstCluster", "_", "", longLabelFixture),
+		mustCreateNewKubeServer(t, "cluster3-eks-us-west-1-123456789012", "_", "cluster3", nil),
 	}
 	test := writeTextTest{
 		collection: &kubeServerCollection{servers: kubeServers},
@@ -287,8 +287,14 @@ func mustCreateNewDatabaseServer(t *testing.T, name, protocol, uri string, extra
 	return dbServer
 }
 
-func mustCreateNewKubeCluster(t *testing.T, name string, extraStaticLabels map[string]string) *types.KubernetesClusterV3 {
+func mustCreateNewKubeCluster(t *testing.T, name, discoveredName string, extraStaticLabels map[string]string) *types.KubernetesClusterV3 {
 	t.Helper()
+	if extraStaticLabels == nil {
+		extraStaticLabels = make(map[string]string)
+	}
+	if discoveredName != "" {
+		extraStaticLabels[types.DiscoveredNameLabel] = discoveredName
+	}
 	cluster, err := types.NewKubernetesClusterV3(
 		types.Metadata{
 			Name:   name,
@@ -308,9 +314,9 @@ func mustCreateNewKubeCluster(t *testing.T, name string, extraStaticLabels map[s
 	return cluster
 }
 
-func mustCreateNewKubeServer(t *testing.T, name, hostname string, extraStaticLabels map[string]string) *types.KubernetesServerV3 {
+func mustCreateNewKubeServer(t *testing.T, name, hostname, discoveredName string, extraStaticLabels map[string]string) *types.KubernetesServerV3 {
 	t.Helper()
-	cluster := mustCreateNewKubeCluster(t, name, extraStaticLabels)
+	cluster := mustCreateNewKubeCluster(t, name, discoveredName, extraStaticLabels)
 	kubeServer, err := types.NewKubernetesServerV3FromCluster(cluster, hostname, uuid.New().String())
 	require.NoError(t, err)
 	return kubeServer

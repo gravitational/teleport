@@ -283,7 +283,9 @@ func (s *LocalSupervisor) serve(srv Service) {
 			if err == ErrTeleportExited {
 				l.Info("Teleport process has shut down.")
 			} else {
-				l.WithError(err).Warning("Teleport process has exited with error.")
+				if s.ExitContext().Err() == nil {
+					l.WithError(err).Warning("Teleport process has exited with error.")
+				}
 				s.BroadcastEvent(Event{
 					Name:    ServiceExitedWithErrorEvent,
 					Payload: ExitEventPayload{Service: srv, Error: err},
@@ -454,7 +456,11 @@ func (s *LocalSupervisor) WaitForEvent(ctx context.Context, name string) (Event,
 func (s *LocalSupervisor) WaitForEventTimeout(timeout time.Duration, name string) (Event, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	return s.WaitForEvent(ctx, name)
+	event, err := s.WaitForEvent(ctx, name)
+	if err != nil && ctx.Err() != nil {
+		return event, trace.Errorf("timeout waiting for event %q (%s)", name, timeout)
+	}
+	return event, trace.Wrap(err)
 }
 
 func (s *LocalSupervisor) ListenForEvents(ctx context.Context, name string, eventC chan<- Event) {

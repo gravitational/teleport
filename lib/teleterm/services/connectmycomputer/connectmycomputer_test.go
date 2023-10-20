@@ -16,16 +16,21 @@ package connectmycomputer
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestRoleSetupRun_WithNonLocalUser(t *testing.T) {
@@ -82,14 +87,165 @@ func TestRoleSetupRun_Idempotency(t *testing.T) {
 	require.Equal(t, 1, accessAndIdentity.callCounts["UpdateUser"], "expected two runs to update the user only once")
 }
 
+const nodejoinWaitTestTimeout = 10 * time.Second
+
+func TestNodeJoinWaitRun_WaitsForHostUUIDFileToBeCreatedAndFetchesNodeFromCluster(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), nodejoinWaitTestTimeout)
+	t.Cleanup(cancel)
+
+	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo"}
+	events := &mockEvents{}
+	node, err := types.NewServer("1234", types.KindNode, types.ServerSpecV2{
+		CmdLabels: types.LabelsToV2(map[string]types.CommandLabel{
+			defaults.HostnameLabel: &types.CommandLabelV2{Result: ""},
+		}),
+	})
+	require.NoError(t, err)
+	accessAndIdentity := &mockAccessAndIdentity{
+		callCounts: make(map[string]int),
+		events:     events,
+		node:       node,
+	}
+
+	nodeJoinWait, err := NewNodeJoinWait(&NodeJoinWaitConfig{AgentsDir: t.TempDir()})
+	require.NoError(t, err)
+
+	runErr := make(chan error)
+	serverC := make(chan clusters.Server)
+
+	go func() {
+		server, err := nodeJoinWait.Run(ctx, accessAndIdentity, cluster)
+		runErr <- err
+		serverC <- server
+	}()
+
+	// Make sure NodeJoinWait.Run doesn't see the file on the first tick.
+	time.Sleep(10 * time.Millisecond)
+
+	// Create the UUID file while NodeJoinWait.Run is executed in a separate goroutine to verify that
+	// it continuously attempts to read the host UUID file, rather than reading it only once.
+	mustMakeHostUUIDFile(t, nodeJoinWait.cfg.AgentsDir, cluster.ProfileName)
+
+	// Verify that NodeJoinWait.Run used GetNode and not a watcher to fetch the node.
+	require.NoError(t, <-runErr)
+	server := <-serverC
+	require.Equal(t, node.GetName(), server.GetName())
+
+	// Verify that the empty hostname label gets filled out.
+	hostname, err := os.Hostname()
+	require.NoError(t, err)
+	require.Contains(t, server.GetCmdLabels(), defaults.HostnameLabel)
+	require.Equal(t, hostname, server.GetCmdLabels()[defaults.HostnameLabel].GetResult())
+}
+
+func TestNodeJoinWaitRun_WatchesForOpPutIfNodeWasNotFound(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), nodejoinWaitTestTimeout)
+	t.Cleanup(cancel)
+
+	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo"}
+	events := &mockEvents{}
+	accessAndIdentity := &mockAccessAndIdentity{
+		callCounts: make(map[string]int),
+		events:     events,
+		// Setting to true because we manually fire OpPut from test body.
+		requireManualOpInitFire: true,
+	}
+
+	nodeJoinWait, err := NewNodeJoinWait(&NodeJoinWaitConfig{AgentsDir: t.TempDir()})
+	require.NoError(t, err)
+
+	hostUUID := mustMakeHostUUIDFile(t, nodeJoinWait.cfg.AgentsDir, cluster.ProfileName)
+	eventServer, err := types.NewServer(hostUUID, types.KindNode, types.ServerSpecV2{
+		CmdLabels: types.LabelsToV2(map[string]types.CommandLabel{
+			defaults.HostnameLabel: &types.CommandLabelV2{Result: ""},
+		}),
+	})
+	require.NoError(t, err)
+	bogusEventServer, err := types.NewServer("1234", types.KindNode, types.ServerSpecV2{})
+	require.NoError(t, err)
+
+	runErr := make(chan error)
+	serverC := make(chan clusters.Server)
+
+	go func() {
+		server, err := nodeJoinWait.Run(ctx, accessAndIdentity, cluster)
+		runErr <- err
+		serverC <- server
+	}()
+
+	err = accessAndIdentity.events.WaitSomeWatchers(ctx)
+	require.NoError(t, err)
+	accessAndIdentity.events.Fire(types.Event{Type: types.OpInit})
+
+	// Fire an event with another node first to verify that NodeJoinWait does the comparison correctly.
+	accessAndIdentity.events.Fire(types.Event{
+		Type:     types.OpPut,
+		Resource: bogusEventServer,
+	})
+	accessAndIdentity.events.Fire(types.Event{
+		Type:     types.OpPut,
+		Resource: eventServer,
+	})
+
+	// Verify that NodeJoinWait.Run returns as soon as it receives an event with a matching server.
+	require.NoError(t, <-runErr)
+	server := <-serverC
+	require.Equal(t, eventServer.GetName(), server.GetName())
+
+	// Verify that the empty hostname label gets filled out.
+	hostname, err := os.Hostname()
+	require.NoError(t, err)
+	require.Contains(t, server.GetCmdLabels(), defaults.HostnameLabel)
+	require.Equal(t, hostname, server.GetCmdLabels()[defaults.HostnameLabel].GetResult())
+}
+
+func TestNodeJoinWaitRun_ReturnsEarlyIfGetNodeReturnsErrorOtherThanNotFound(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), nodejoinWaitTestTimeout)
+	t.Cleanup(cancel)
+
+	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo"}
+	events := &mockEvents{}
+	nodeErr := trace.Errorf("something went wrong")
+	accessAndIdentity := &mockAccessAndIdentity{
+		callCounts: make(map[string]int),
+		events:     events,
+		nodeErr:    nodeErr,
+	}
+
+	nodeJoinWait, err := NewNodeJoinWait(&NodeJoinWaitConfig{AgentsDir: t.TempDir()})
+	require.NoError(t, err)
+
+	mustMakeHostUUIDFile(t, nodeJoinWait.cfg.AgentsDir, cluster.ProfileName)
+
+	_, err = nodeJoinWait.Run(ctx, accessAndIdentity, cluster)
+	require.Equal(t, nodeErr, err)
+}
+
 type mockAccessAndIdentity struct {
 	user       types.User
 	role       types.Role
 	callCounts map[string]int
 	events     *mockEvents
+	// requireManualOpInitFire makes mockAccessAndIdentity.NewWatcher skip firing OpInit.
+	//
+	// In regular tests where this field is false, the code under tests calls
+	// mockAccessAndIdentity.NewWatcher (which fires OpInit), waits for OpInit, and then calls another
+	// method on mockAccessAndIdentity which fires an event.
+	//
+	// In tests where events such as OpPut are triggered directly from the test body and not as a
+	// result of the code under tests calling methods on mockAccessAndIdentity, setting it to true
+	// allows manually firing OpInit first before firing other events. This ensures that the first
+	// event that watchers observe is OpInit.
+	//
+	requireManualOpInitFire bool
+	node                    types.Server
+	nodeErr                 error
 }
 
-func (m *mockAccessAndIdentity) GetUser(name string, withSecrets bool) (types.User, error) {
+func (m *mockAccessAndIdentity) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	return m.user, nil
 }
 
@@ -100,14 +256,14 @@ func (m *mockAccessAndIdentity) GetRole(ctx context.Context, name string) (types
 	return nil, trace.NotFound("role not found")
 }
 
-func (m *mockAccessAndIdentity) UpsertRole(ctx context.Context, role types.Role) error {
+func (m *mockAccessAndIdentity) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
 	m.callCounts["UpsertRole"]++
 	m.role = role
 	m.events.Fire(types.Event{
 		Type:     types.OpPut,
 		Resource: role,
 	})
-	return nil
+	return role, nil
 }
 
 func (m *mockAccessAndIdentity) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
@@ -116,19 +272,32 @@ func (m *mockAccessAndIdentity) NewWatcher(ctx context.Context, watch types.Watc
 		return nil, trace.Wrap(err)
 	}
 
-	m.events.Fire(types.Event{Type: types.OpInit})
+	if !m.requireManualOpInitFire {
+		m.events.Fire(types.Event{Type: types.OpInit})
+	}
 
 	return watcher, nil
 }
 
-func (m *mockAccessAndIdentity) UpdateUser(ctx context.Context, user types.User) error {
+func (m *mockAccessAndIdentity) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	m.callCounts["UpdateUser"]++
 	m.user = user
 	m.events.Fire(types.Event{
 		Type:     types.OpPut,
 		Resource: user,
 	})
-	return nil
+	return user, nil
+}
+
+func (m *mockAccessAndIdentity) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+	if m.nodeErr != nil {
+		return nil, m.nodeErr
+	}
+
+	if m.node != nil {
+		return m.node, nil
+	}
+	return nil, trace.NotFound("node not found")
 }
 
 type mockCertManager struct{}
@@ -164,6 +333,25 @@ func (e *mockEvents) Fire(event types.Event) {
 	}
 }
 
+// WaitSomeWatchers blocks until either some watcher is subscribed or context is done.
+func (e *mockEvents) WaitSomeWatchers(ctx context.Context) error {
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			e.Lock()
+			n := len(e.channels)
+			e.Unlock()
+			if n > 0 {
+				return nil
+			}
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
+	}
+}
+
 // mockWatcher is copied from integrations/lib/watcherjob/helpers_test.go.
 type mockWatcher struct {
 	events <-chan types.Event
@@ -190,4 +378,33 @@ func (w mockWatcher) Close() error {
 // Error returns a watcher error.
 func (w mockWatcher) Error() error {
 	return trace.Wrap(w.ctx.Err())
+}
+
+func mustMakeHostUUIDFile(t *testing.T, agentsDir string, profileName string) string {
+	dataDir := filepath.Join(agentsDir, profileName, "data")
+
+	agentsDirStat, err := os.Stat(agentsDir)
+	require.NoError(t, err)
+
+	err = os.MkdirAll(dataDir, agentsDirStat.Mode())
+	require.NoError(t, err)
+
+	hostUUID, err := utils.ReadOrMakeHostUUID(dataDir)
+	require.NoError(t, err)
+
+	return hostUUID
+}
+
+func TestNodeNameGet(t *testing.T) {
+	t.Parallel()
+
+	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo"}
+	nodeName, err := NewNodeName(&NodeNameConfig{AgentsDir: t.TempDir()})
+	require.NoError(t, err)
+	hostUUID := mustMakeHostUUIDFile(t, nodeName.cfg.AgentsDir, cluster.ProfileName)
+
+	readUUID, err := nodeName.Get(cluster)
+
+	require.NoError(t, err)
+	require.Equal(t, readUUID, hostUUID)
 }

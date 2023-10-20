@@ -47,124 +47,124 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+var parseProxyHostTestCases = []struct {
+	name      string
+	input     string
+	expectErr bool
+	expect    ParsedProxyHost
+}{
+	{
+		name:      "Empty port string",
+		input:     "example.org",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: true,
+			WebProxyAddr:             "example.org:3080",
+			SSHProxyAddr:             "example.org:3023",
+		},
+	}, {
+		name:      "Web proxy port only",
+		input:     "example.org:1234",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: false,
+			WebProxyAddr:             "example.org:1234",
+			SSHProxyAddr:             "example.org:3023",
+		},
+	}, {
+		name:      "Web proxy port with whitespace",
+		input:     "example.org: 1234",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: false,
+			WebProxyAddr:             "example.org:1234",
+			SSHProxyAddr:             "example.org:3023",
+		},
+	}, {
+		name:      "Web proxy port empty with whitespace",
+		input:     "example.org:  ,200",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: true,
+			WebProxyAddr:             "example.org:3080",
+			SSHProxyAddr:             "example.org:200",
+		},
+	}, {
+		name:      "SSH port only",
+		input:     "example.org:,200",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: true,
+			WebProxyAddr:             "example.org:3080",
+			SSHProxyAddr:             "example.org:200",
+		},
+	}, {
+		name:      "SSH port empty",
+		input:     "example.org:100,",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: false,
+			WebProxyAddr:             "example.org:100",
+			SSHProxyAddr:             "example.org:3023",
+		},
+	}, {
+		name:      "SSH port with whitespace",
+		input:     "example.org:100, 200 ",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: false,
+			WebProxyAddr:             "example.org:100",
+			SSHProxyAddr:             "example.org:200",
+		},
+	}, {
+		name:      "SSH port empty with whitespace",
+		input:     "example.org:100,  ",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: false,
+			WebProxyAddr:             "example.org:100",
+			SSHProxyAddr:             "example.org:3023",
+		},
+	}, {
+		name:      "Both ports specified",
+		input:     "example.org:100,200",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: false,
+			WebProxyAddr:             "example.org:100",
+			SSHProxyAddr:             "example.org:200",
+		},
+	}, {
+		name:      "Both ports empty with whitespace",
+		input:     "example.org: , ",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: true,
+			WebProxyAddr:             "example.org:3080",
+			SSHProxyAddr:             "example.org:3023",
+		},
+	}, {
+		name:      "Too many parts",
+		input:     "example.org:100,200,300,400",
+		expectErr: true,
+		expect:    ParsedProxyHost{},
+	},
+}
+
 func TestParseProxyHostString(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		name      string
-		input     string
-		expectErr bool
-		expect    ParsedProxyHost
-	}{
-		{
-			name:      "Empty port string",
-			input:     "example.org",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: true,
-				WebProxyAddr:             "example.org:3080",
-				SSHProxyAddr:             "example.org:3023",
-			},
-		}, {
-			name:      "Web proxy port only",
-			input:     "example.org:1234",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: false,
-				WebProxyAddr:             "example.org:1234",
-				SSHProxyAddr:             "example.org:3023",
-			},
-		}, {
-			name:      "Web proxy port with whitespace",
-			input:     "example.org: 1234",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: false,
-				WebProxyAddr:             "example.org:1234",
-				SSHProxyAddr:             "example.org:3023",
-			},
-		}, {
-			name:      "Web proxy port empty with whitespace",
-			input:     "example.org:  ,200",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: true,
-				WebProxyAddr:             "example.org:3080",
-				SSHProxyAddr:             "example.org:200",
-			},
-		}, {
-			name:      "SSH port only",
-			input:     "example.org:,200",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: true,
-				WebProxyAddr:             "example.org:3080",
-				SSHProxyAddr:             "example.org:200",
-			},
-		}, {
-			name:      "SSH port empty",
-			input:     "example.org:100,",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: false,
-				WebProxyAddr:             "example.org:100",
-				SSHProxyAddr:             "example.org:3023",
-			},
-		}, {
-			name:      "SSH port with whitespace",
-			input:     "example.org:100, 200 ",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: false,
-				WebProxyAddr:             "example.org:100",
-				SSHProxyAddr:             "example.org:200",
-			},
-		}, {
-			name:      "SSH port empty with whitespace",
-			input:     "example.org:100,  ",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: false,
-				WebProxyAddr:             "example.org:100",
-				SSHProxyAddr:             "example.org:3023",
-			},
-		}, {
-			name:      "Both ports specified",
-			input:     "example.org:100,200",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: false,
-				WebProxyAddr:             "example.org:100",
-				SSHProxyAddr:             "example.org:200",
-			},
-		}, {
-			name:      "Both ports empty with whitespace",
-			input:     "example.org: , ",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: true,
-				WebProxyAddr:             "example.org:3080",
-				SSHProxyAddr:             "example.org:3023",
-			},
-		}, {
-			name:      "Too many parts",
-			input:     "example.org:100,200,300,400",
-			expectErr: true,
-			expect:    ParsedProxyHost{},
-		},
-	}
-
-	for _, testCase := range testCases {
+	for _, testCase := range parseProxyHostTestCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			expected := testCase.expect
 			actual, err := ParseProxyHost(testCase.input)
@@ -284,94 +284,94 @@ func TestPortsParsing(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 }
 
-func TestDynamicPortsParsing(t *testing.T) {
-	tests := []struct {
-		spec    []string
-		isError bool
-		output  DynamicForwardedPorts
-	}{
-		{
-			spec:    nil,
-			isError: false,
-			output:  DynamicForwardedPorts{},
-		},
-		{
-			spec:    []string{},
-			isError: false,
-			output:  DynamicForwardedPorts{},
-		},
-		{
-			spec:    []string{"localhost"},
-			isError: true,
-			output:  DynamicForwardedPorts{},
-		},
-		{
-			spec:    []string{"localhost:123:456"},
-			isError: true,
-			output:  DynamicForwardedPorts{},
-		},
-		{
-			spec:    []string{"8080"},
-			isError: false,
-			output: DynamicForwardedPorts{
-				DynamicForwardedPort{
-					SrcIP:   "127.0.0.1",
-					SrcPort: 8080,
-				},
+var dynamicPortForwardParsingTestCases = []struct {
+	spec    []string
+	isError bool
+	output  DynamicForwardedPorts
+}{
+	{
+		spec:    nil,
+		isError: false,
+		output:  DynamicForwardedPorts{},
+	},
+	{
+		spec:    []string{},
+		isError: false,
+		output:  DynamicForwardedPorts{},
+	},
+	{
+		spec:    []string{"localhost"},
+		isError: true,
+		output:  DynamicForwardedPorts{},
+	},
+	{
+		spec:    []string{"localhost:123:456"},
+		isError: true,
+		output:  DynamicForwardedPorts{},
+	},
+	{
+		spec:    []string{"8080"},
+		isError: false,
+		output: DynamicForwardedPorts{
+			DynamicForwardedPort{
+				SrcIP:   "127.0.0.1",
+				SrcPort: 8080,
 			},
 		},
-		{
-			spec:    []string{":8080"},
-			isError: false,
-			output: DynamicForwardedPorts{
-				DynamicForwardedPort{
-					SrcIP:   "127.0.0.1",
-					SrcPort: 8080,
-				},
+	},
+	{
+		spec:    []string{":8080"},
+		isError: false,
+		output: DynamicForwardedPorts{
+			DynamicForwardedPort{
+				SrcIP:   "127.0.0.1",
+				SrcPort: 8080,
 			},
 		},
-		{
-			spec:    []string{":8080:8081"},
-			isError: true,
-			output:  DynamicForwardedPorts{},
-		},
-		{
-			spec:    []string{"[::1]:8080"},
-			isError: false,
-			output: DynamicForwardedPorts{
-				DynamicForwardedPort{
-					SrcIP:   "::1",
-					SrcPort: 8080,
-				},
+	},
+	{
+		spec:    []string{":8080:8081"},
+		isError: true,
+		output:  DynamicForwardedPorts{},
+	},
+	{
+		spec:    []string{"[::1]:8080"},
+		isError: false,
+		output: DynamicForwardedPorts{
+			DynamicForwardedPort{
+				SrcIP:   "::1",
+				SrcPort: 8080,
 			},
 		},
-		{
-			spec:    []string{"10.0.0.1:8080"},
-			isError: false,
-			output: DynamicForwardedPorts{
-				DynamicForwardedPort{
-					SrcIP:   "10.0.0.1",
-					SrcPort: 8080,
-				},
+	},
+	{
+		spec:    []string{"10.0.0.1:8080"},
+		isError: false,
+		output: DynamicForwardedPorts{
+			DynamicForwardedPort{
+				SrcIP:   "10.0.0.1",
+				SrcPort: 8080,
 			},
 		},
-		{
-			spec:    []string{":8080", "10.0.0.1:8080"},
-			isError: false,
-			output: DynamicForwardedPorts{
-				DynamicForwardedPort{
-					SrcIP:   "127.0.0.1",
-					SrcPort: 8080,
-				},
-				DynamicForwardedPort{
-					SrcIP:   "10.0.0.1",
-					SrcPort: 8080,
-				},
+	},
+	{
+		spec:    []string{":8080", "10.0.0.1:8080"},
+		isError: false,
+		output: DynamicForwardedPorts{
+			DynamicForwardedPort{
+				SrcIP:   "127.0.0.1",
+				SrcPort: 8080,
+			},
+			DynamicForwardedPort{
+				SrcIP:   "10.0.0.1",
+				SrcPort: 8080,
 			},
 		},
-	}
+	},
+}
 
-	for _, tt := range tests {
+func TestDynamicPortsParsing(t *testing.T) {
+	for _, tt := range dynamicPortForwardParsingTestCases {
 		specs, err := ParseDynamicPortForwardSpec(tt.spec)
 		if tt.isError {
 			require.NotNil(t, err)
@@ -636,36 +636,36 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 	}
 }
 
+var parseSearchKeywordsTestCases = []struct {
+	name     string
+	spec     string
+	expected []string
+}{
+	{
+		name: "empty input",
+		spec: "",
+	},
+	{
+		name:     "simple input",
+		spec:     "foo",
+		expected: []string{"foo"},
+	},
+	{
+		name:     "complex input",
+		spec:     `"foo,bar","some phrase's",baz=qux's ,"some other  phrase"," another one  "`,
+		expected: []string{"foo,bar", "some phrase's", "baz=qux's", "some other  phrase", "another one"},
+	},
+	{
+		name:     "unicode input",
+		spec:     `"服务器环境=测试,操作系统类别", Linux , 机房=华北 `,
+		expected: []string{"服务器环境=测试,操作系统类别", "Linux", "机房=华北"},
+	},
+}
+
 func TestParseSearchKeywords(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		name     string
-		spec     string
-		expected []string
-	}{
-		{
-			name: "empty input",
-			spec: "",
-		},
-		{
-			name:     "simple input",
-			spec:     "foo",
-			expected: []string{"foo"},
-		},
-		{
-			name:     "complex input",
-			spec:     `"foo,bar","some phrase's",baz=qux's ,"some other  phrase"," another one  "`,
-			expected: []string{"foo,bar", "some phrase's", "baz=qux's", "some other  phrase", "another one"},
-		},
-		{
-			name:     "unicode input",
-			spec:     `"服务器环境=测试,操作系统类别", Linux , 机房=华北 `,
-			expected: []string{"服务器环境=测试,操作系统类别", "Linux", "机房=华北"},
-		},
-	}
-
-	for _, tc := range testCases {
+	for _, tc := range parseSearchKeywordsTestCases {
 		t.Run(tc.name, func(t *testing.T) {
 			m := ParseSearchKeywords(tc.spec, ',')
 			require.Equal(t, tc.expected, m)

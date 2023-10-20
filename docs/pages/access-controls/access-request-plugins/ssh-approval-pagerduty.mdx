@@ -272,8 +272,9 @@ As with all Teleport users, the Teleport Auth Service authenticates the
 will need to request the credentials manually by *impersonating* the
 `access-plugin` role and user.
 
-<ScopedBlock scope={["oss", "enterprise"]}>If you are using `tctl` from the Auth
-Service host, you will already have impersonation privileges.</ScopedBlock>
+If you are running a self-hosted Teleport Enterprise cluster and are using
+`tctl` from the Auth Service host, you will already have impersonation
+privileges.
 
 To grant your user impersonation privileges for `access-plugin`, define a role
 called `access-plugin-impersonator` by pasting the following YAML document into
@@ -409,7 +410,7 @@ PagerDuty plugin to use these credentials, plus adjust any settings required for
 your environment.
 
 <Tabs>
-  <TabItem label="Executable">
+  <TabItem label="Executable or Docker">
 Teleport's PagerDuty plugin has its own configuration file in TOML format. On
 the host where you will run the PagerDuty plugin, generate a boilerplate config
 by running the following commands:
@@ -477,7 +478,7 @@ fields.
 The final configuration should resemble the following:
 
 <Tabs>
-<TabItem label="Executable">
+<TabItem label="Executable or Docker">
 ```yaml
 (!examples/resources/plugins/teleport-pagerduty-cloud.toml!)
 ```
@@ -508,6 +509,13 @@ $ teleport-pagerduty start -d
 # DEBU   Watcher connected pagerduty/main.go:252
 # DEBU   PagerDuty API health check finished ok pagerduty/main.go:176
 # DEBU   Setting up the webhook extensions pagerduty/main.go:178
+```
+</TabItem>
+<TabItem label="Docker">
+Run the plugin:
+
+```code
+$ docker run -v <path-to-config>:/etc/teleport-pagerduty.toml public.ecr.aws/gravitational/teleport-plugin-pagerduty:(=teleport.version=) start
 ```
 </TabItem>
 <TabItem label="Helm Chart">
@@ -568,9 +576,7 @@ should still check the Teleport audit log to ensure that the right users are
 reviewing the right requests.
 
 When auditing Access Request reviews, check for events with the type `Access
-Request Reviewed` in the Teleport Web UI <ScopedBlock scope={[
-"enterprise"]}>and `access_request.review` if reviewing the audit log on the
-Auth Service host</ScopedBlock>.
+Request Reviewed` in the Teleport Web UI.
 
 </Admonition>
 
@@ -620,4 +626,3 @@ Enable and start the plugin:
 $ sudo systemctl enable teleport-pagerduty
 $ sudo systemctl start teleport-pagerduty
 ```
-

@@ -41,6 +41,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -102,7 +103,7 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 	// If this is a registered OpenSSH node or proxy recoding mode is
 	// enabled, execute the command on a remote host. This is used by
 	// in-memory forwarding nodes.
-	if ctx.ServerSubKind == types.SubKindOpenSSHNode || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if types.IsOpenSSHNodeSubKind(ctx.ServerSubKind) || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return &remoteExec{
 			ctx:     ctx,
 			command: command,
@@ -422,17 +423,8 @@ func (e *remoteExec) PID() int {
 // instead of ctx.srv.
 func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	// Create common fields for event.
-	serverMeta := apievents.ServerMetadata{
-		ServerID:        ctx.srv.HostUUID(),
-		ServerHostname:  ctx.srv.GetInfo().GetHostname(),
-		ServerNamespace: ctx.srv.GetNamespace(),
-	}
-
-	sessionMeta := apievents.SessionMetadata{
-		SessionID: string(ctx.SessionID()),
-		WithMFA:   ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
-	}
-
+	serverMeta := ctx.GetServerMetadata()
+	sessionMeta := ctx.GetSessionMetadata()
 	userMeta := ctx.Identity.GetUserMetadata()
 
 	connectionMeta := apievents.ConnectionMetadata{
@@ -526,7 +518,7 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 	envRootPath := defaultEnvRootPath
 
 	// open file, if it doesn't exist return a default path and move on
-	f, err := os.Open(loginDefsPath)
+	f, err := utils.OpenFileAllowingUnsafeLinks(loginDefsPath)
 	if err != nil {
 		if uid == "0" {
 			log.Infof("Unable to open %q: %v: returning default su path: %q", loginDefsPath, err, defaultEnvRootPath)

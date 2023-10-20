@@ -17,6 +17,7 @@ limitations under the License.
 package discord
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 
@@ -25,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 )
 
@@ -33,6 +35,15 @@ const discordAPIUrl = "https://discord.com/api/"
 type Config struct {
 	common.BaseConfig
 	Discord common.GenericAPIConfig
+
+	// Teleport is a handle to the client to use when communicating with
+	// the Teleport auth server. The PagerDuty app will create a GRPC-
+	// based client on startup if this is not set.
+	Client teleport.Client
+
+	// StatusSink receives any status updates from the plugin for
+	// further processing. Status updates will be ignored if not set.
+	StatusSink common.StatusSink
 }
 
 // CheckAndSetDefaults checks the config struct for any logical errors, and sets default values
@@ -44,6 +55,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.Discord.Token == "" {
 		return trace.BadParameter("missing required value discord.token")
+	}
+	if c.Discord.APIURL == "" {
+		c.Discord.APIURL = discordAPIUrl
 	}
 	if c.Log.Output == "" {
 		c.Log.Output = "stderr"
@@ -59,6 +73,16 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// GetTeleportClient implements PluginConfiguration. If a pre-created client
+// was supplied on construction, this method will return that. If not, an RPC
+// client will be created  using the values in the config.
+func (c *Config) GetTeleportClient(ctx context.Context) (teleport.Client, error) {
+	if c.Client != nil {
+		return c.Client, nil
+	}
+	return c.BaseConfig.GetTeleportClient(ctx)
 }
 
 // NewBot initializes the new Discord message generator (DiscordBot)
@@ -83,17 +107,11 @@ func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, 
 				MaxIdleConnsPerHost: discordMaxConns,
 			},
 		}).
+		SetBaseURL(c.Discord.APIURL).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Accept", "application/json").
-		SetHeader("Authorization", token)
-
-	// APIURL parameter is set only in tests
-	if endpoint := c.Discord.APIURL; endpoint != "" {
-		client.SetBaseURL(endpoint)
-	} else {
-		client.SetBaseURL(discordAPIUrl)
-		client.OnAfterResponse(onAfterResponseDiscord)
-	}
+		SetHeader("Authorization", token).
+		OnAfterResponse(onAfterResponseDiscord(c.StatusSink))
 
 	return DiscordBot{
 		client:      client,

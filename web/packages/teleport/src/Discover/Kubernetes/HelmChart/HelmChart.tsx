@@ -41,16 +41,16 @@ import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
 import {
   ActionButtons,
+  Header,
   HeaderSubtitle,
   Mark,
   ResourceKind,
   TextIcon,
   useShowHint,
-  Header,
 } from '../../Shared';
 
 import type { AgentStepProps } from '../../types';
-import type { JoinToken } from 'teleport/services/joinToken';
+import type { JoinRole, JoinToken } from 'teleport/services/joinToken';
 import type { AgentMeta, KubeMeta } from 'teleport/Discover/useDiscover';
 import type { Kube } from 'teleport/services/kube';
 
@@ -63,7 +63,13 @@ export default function Container(props: AgentStepProps) {
     // This outer CatchError and Suspense handles
     // join token api fetch error and loading states.
     <CatchError
-      onRetry={() => clearCachedJoinTokenResult(ResourceKind.Kubernetes)}
+      onRetry={() =>
+        clearCachedJoinTokenResult([
+          ResourceKind.Kubernetes,
+          ResourceKind.Application,
+          ResourceKind.Discovery,
+        ])
+      }
       fallbackFn={fallbackProps => (
         <Box>
           <Heading />
@@ -147,9 +153,11 @@ export function HelmChart(
     setClusterName(c: string): void;
   }
 ) {
-  const { joinToken, reloadJoinToken } = useJoinTokenSuspender(
-    ResourceKind.Kubernetes
-  );
+  const { joinToken, reloadJoinToken } = useJoinTokenSuspender([
+    ResourceKind.Kubernetes,
+    ResourceKind.Application,
+    ResourceKind.Discovery,
+  ]);
 
   return (
     <Box>
@@ -318,6 +326,7 @@ const generateCmd = (data: {
   isEnterprise: boolean;
   isCloud: boolean;
   automaticUpgradesEnabled: boolean;
+  roles: JoinRole[];
 }) => {
   let extraYAMLConfig = '';
 
@@ -336,8 +345,10 @@ const generateCmd = (data: {
     extraYAMLConfig += '        minAvailable: 1\n';
   }
 
+  const yamlRoles = data.roles.join(',').toLowerCase();
+
   return `cat << EOF > prod-cluster-values.yaml
-roles: kube
+roles: ${yamlRoles}
 authToken: ${data.tokenId}
 proxyAddr: ${data.proxyAddr}
 kubeClusterName: ${data.clusterName}
@@ -440,6 +451,7 @@ const InstallHelmChart = ({
     isEnterprise: ctx.isEnterprise,
     isCloud: ctx.isCloud,
     automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
+    roles: ['Kube', 'App', 'Discovery'],
   });
 
   return (

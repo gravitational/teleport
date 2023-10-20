@@ -19,7 +19,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // ErrAttemptFailed is returned by AttemptLogin and AttemptDeleteNonInteractive
@@ -54,7 +54,7 @@ func (e *ErrAttemptFailed) As(target interface{}) bool {
 // AttemptLogin attempts a touch ID login.
 // It returns ErrAttemptFailed if the attempt failed before user interaction.
 // See Login.
-func AttemptLogin(origin, user string, assertion *wanlib.CredentialAssertion, picker CredentialPicker) (*wanlib.CredentialAssertionResponse, string, error) {
+func AttemptLogin(origin, user string, assertion *wantypes.CredentialAssertion, picker CredentialPicker) (*wantypes.CredentialAssertionResponse, string, error) {
 	resp, actualUser, err := Login(origin, user, assertion, picker)
 	switch {
 	case errors.Is(err, ErrNotAvailable), errors.Is(err, ErrCredentialNotFound):

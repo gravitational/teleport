@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"regexp"
 
@@ -90,6 +91,24 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *ReleaseVersion) *Pro
 	}
 }
 
+func readToolsVersions() (map[string]string, error) {
+	versionsMk, err := os.ReadFile("./build.assets/versions.mk")
+	if err != nil {
+		return nil, err
+	}
+
+	versions := make(map[string]string)
+	versionsRe := regexp.MustCompile(`^(\w+)_VERSION\s*\??=\s*(\S+)$`)
+	for _, line := range regexp.MustCompile("\r?\n").Split(string(versionsMk), -1) {
+		matches := versionsRe.FindStringSubmatch(line)
+		if len(matches) == 3 {
+			versions[matches[1]] = matches[2]
+		}
+	}
+
+	return versions, nil
+}
+
 func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 	name := "teleport-operator"
 	return &Product{
@@ -123,10 +142,18 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 			}
 
 			buildboxName = fmt.Sprintf("%s:teleport%d", buildboxName, branchMajorVersion)
+			toolVersions, err := readToolsVersions()
+			if err != nil {
+				panic(err)
+			}
 
 			return []string{
 				fmt.Sprintf("BUILDBOX=%s", buildboxName),
 				fmt.Sprintf("COMPILER_NAME=%s", compilerName),
+				fmt.Sprintf("GOLANG_VERSION=%s", toolVersions["GOLANG"]),
+				fmt.Sprintf("PROTOC_VERSION=%s", toolVersions["PROTOC"]),
+				fmt.Sprintf("TARGETARCH=%s", arch),
+				"BUILD_ARCH=amd64", // all our runners are amd64
 			}
 		},
 		MinimumSupportedMajorVersion: "v10",

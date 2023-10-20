@@ -33,10 +33,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 func TestLogin(t *testing.T) {
@@ -155,7 +156,7 @@ func TestLogin(t *testing.T) {
 			require.NotNil(t, mfaResp.GetWebauthn())
 			require.Equal(t, test.wantRawID, mfaResp.GetWebauthn().RawId)
 
-			_, err = loginFlow.Finish(ctx, username, wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()))
+			_, err = loginFlow.Finish(ctx, username, wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()))
 			require.NoError(t, err)
 		})
 	}
@@ -184,33 +185,33 @@ func TestLogin_errors(t *testing.T) {
 	tests := []struct {
 		name         string
 		origin       string
-		getAssertion func() *wanlib.CredentialAssertion
+		getAssertion func() *wantypes.CredentialAssertion
 	}{
 		{
 			name:   "NOK origin empty",
 			origin: "",
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				return okAssertion
 			},
 		},
 		{
 			name:   "NOK assertion nil",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				return nil
 			},
 		},
 		{
 			name:   "NOK assertion empty",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
-				return &wanlib.CredentialAssertion{}
+			getAssertion: func() *wantypes.CredentialAssertion {
+				return &wantypes.CredentialAssertion{}
 			},
 		},
 		{
 			name:   "NOK assertion missing challenge",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				assertion, err := loginFlow.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.Challenge = nil
@@ -220,7 +221,7 @@ func TestLogin_errors(t *testing.T) {
 		{
 			name:   "NOK assertion missing RPID",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				assertion, err := loginFlow.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.RelyingPartyID = ""
@@ -230,7 +231,7 @@ func TestLogin_errors(t *testing.T) {
 		{
 			name:   "NOK assertion missing credentials",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				assertion, err := loginFlow.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.AllowedCredentials = nil
@@ -240,7 +241,7 @@ func TestLogin_errors(t *testing.T) {
 		{
 			name:   "NOK assertion invalid user verification requirement",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				assertion, err := loginFlow.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.UserVerification = protocol.VerificationRequired
@@ -421,7 +422,7 @@ type fakeIdentity struct {
 	User        string
 	Devices     []*types.MFADevice
 	LocalAuth   *types.WebauthnLocalAuth
-	SessionData *wantypes.SessionData
+	SessionData *wanpb.SessionData
 }
 
 func (f *fakeIdentity) UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error {
@@ -452,12 +453,12 @@ func (f *fakeIdentity) UpsertMFADevice(ctx context.Context, user string, d *type
 	return nil
 }
 
-func (f *fakeIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
+func (f *fakeIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error {
 	f.SessionData = sd
 	return nil
 }
 
-func (f *fakeIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
+func (f *fakeIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error) {
 	return f.SessionData, nil
 }
 

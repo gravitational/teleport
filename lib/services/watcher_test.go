@@ -523,7 +523,7 @@ func expectLockInForce(t *testing.T, expectedLock types.Lock, err error) {
 
 func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		cmpopts.EquateEmpty())
 }
 
@@ -958,7 +958,7 @@ func TestNodeWatcher(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
-
+	require.NoError(t, w.WaitInitialization())
 	// Add some node servers.
 	nodes := make([]types.Server, 0, 5)
 	for i := 0; i < 5; i++ {
@@ -1028,7 +1028,7 @@ func TestKubeServerWatcher(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
-
+	require.NoError(t, w.WaitInitialization())
 	newKubeServer := func(t *testing.T, name, addr, hostID string) types.KubeServer {
 		kube, err := types.NewKubernetesClusterV3(
 			types.Metadata{
@@ -1148,7 +1148,8 @@ func TestAccessRequestWatcher(t *testing.T) {
 
 	// Add an access request.
 	accessRequest1 := newAccessRequest(t, uuid.NewString())
-	require.NoError(t, dynamicAccessService.CreateAccessRequest(ctx, accessRequest1))
+	accessRequest1, err = dynamicAccessService.CreateAccessRequestV2(ctx, accessRequest1)
+	require.NoError(t, err)
 
 	// The first event is always the current list of access requests.
 	select {
@@ -1163,7 +1164,8 @@ func TestAccessRequestWatcher(t *testing.T) {
 
 	// Add a second access request.
 	accessRequest2 := newAccessRequest(t, uuid.NewString())
-	require.NoError(t, dynamicAccessService.CreateAccessRequest(ctx, accessRequest2))
+	accessRequest2, err = dynamicAccessService.CreateAccessRequestV2(ctx, accessRequest2)
+	require.NoError(t, err)
 
 	// Watcher should detect the access request list change.
 	select {
@@ -1274,7 +1276,7 @@ func TestOktaAssignmentWatcher(t *testing.T) {
 		require.Empty(t,
 			cmp.Diff(expected,
 				changeset,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
 			"should be no differences in the changeset after adding the first assignment")
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
@@ -1298,7 +1300,7 @@ func TestOktaAssignmentWatcher(t *testing.T) {
 			cmp.Diff(
 				expected,
 				changeset,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
 			"should be no difference in the changeset after adding the second assignment")
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
@@ -1322,7 +1324,7 @@ func TestOktaAssignmentWatcher(t *testing.T) {
 			cmp.Diff(
 				expected,
 				changeset,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
 			"should be no difference in the changeset after update")
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
@@ -1344,7 +1346,7 @@ func TestOktaAssignmentWatcher(t *testing.T) {
 			cmp.Diff(
 				expected,
 				changeset,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
 			"should be no difference in the changeset after deleting the first assignment")
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")

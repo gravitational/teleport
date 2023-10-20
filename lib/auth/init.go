@@ -32,6 +32,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
@@ -204,6 +206,9 @@ type InitConfig struct {
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
 
+	// DiscoveryConfigs is a service that manages DiscoveryConfigs.
+	DiscoveryConfigs services.DiscoveryConfigs
+
 	// Embeddings is a service that manages Embeddings
 	Embeddings services.Embeddings
 
@@ -237,6 +242,12 @@ type InitConfig struct {
 	// AccessLists is a service that manages access list resources.
 	AccessLists services.AccessLists
 
+	// UserLoginStates is a service that manages user login states.
+	UserLoginState services.UserLoginStates
+
+	// SecReports is a service that manages security reports.
+	SecReports services.SecReports
+
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
@@ -253,6 +264,9 @@ type InitConfig struct {
 
 	// Tracer used to create spans.
 	Tracer oteltrace.Tracer
+
+	// AccessMonitoringEnabled is true if access monitoring is enabled.
+	AccessMonitoringEnabled bool
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -333,7 +347,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	// same pattern as the rest of the configuration (they are not configuration
 	// singletons). However, we need to keep them around while Telekube uses them.
 	for _, role := range cfg.Roles {
-		if err := asrv.UpsertRole(ctx, role); err != nil {
+		if _, err := asrv.UpsertRole(ctx, role); err != nil {
 			return trace.Wrap(err)
 		}
 		log.Infof("Created role: %v.", role)
@@ -447,10 +461,9 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	// Override user passed in cluster name with what is in the backend.
 	cfg.ClusterName = cn
 
-	// Migrate Host CA as Database CA before certificates generation. Otherwise, the Database CA will be
-	// generated which we don't want for existing installations.
-	if err := migrateDBAuthority(ctx, asrv); err != nil {
-		return trace.Wrap(err, "failed to migrate database CA")
+	// Apply any outstanding migrations.
+	if err := migration.Apply(ctx, cfg.Backend); err != nil {
+		return trace.Wrap(err, "applying migrations")
 	}
 
 	// generate certificate authorities if they don't exist
@@ -729,14 +742,15 @@ type PresetRoleManager interface {
 	// GetRole returns role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// CreateRole creates a role.
-	CreateRole(ctx context.Context, role types.Role) error
+	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
 	// UpsertRole creates or updates a role and emits a related audit event.
-	UpsertRole(ctx context.Context, role types.Role) error
+	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
 }
 
-// createPresetRoles creates preset role resources
-func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
-	roles := []types.Role{
+// GetPresetRoles returns a list of all preset roles expected to be available on
+// this cluster.
+func GetPresetRoles() []types.Role {
+	return []types.Role{
 		services.NewPresetGroupAccessRole(),
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
@@ -744,7 +758,15 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 		services.NewPresetReviewerRole(),
 		services.NewPresetRequesterRole(),
 		services.NewSystemAutomaticAccessApproverRole(),
+		services.NewPresetDeviceAdminRole(),
+		services.NewPresetDeviceEnrollRole(),
+		services.NewPresetRequireTrustedDeviceRole(),
 	}
+}
+
+// createPresetRoles creates preset role resources
+func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
+	roles := GetPresetRoles()
 
 	g, gctx := errgroup.WithContext(ctx)
 	for _, role := range roles {
@@ -757,14 +779,14 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 		g.Go(func() error {
 			if types.IsSystemResource(role) {
 				// System resources *always* get reset on every auth startup
-				if err := rm.UpsertRole(gctx, role); err != nil {
+				if _, err := rm.UpsertRole(gctx, role); err != nil {
 					return trace.Wrap(err, "failed upserting system role %s", role.GetName())
 				}
 
 				return nil
 			}
 
-			if err := rm.CreateRole(gctx, role); err != nil {
+			if _, err := rm.CreateRole(gctx, role); err != nil {
 				if !trace.IsAlreadyExists(err) {
 					return trace.WrapWithMessage(err, "failed to create preset role %v", role.GetName())
 				}
@@ -782,7 +804,7 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 					return trace.Wrap(err)
 				}
 
-				if err := rm.UpsertRole(gctx, role); err != nil {
+				if _, err := rm.UpsertRole(gctx, role); err != nil {
 					return trace.WrapWithMessage(err, "failed to update preset role %v", role.GetName())
 				}
 			}
@@ -797,12 +819,12 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 // subset
 type PresetUsers interface {
 	// CreateUser creates a new user record based on the supplied `user` instance.
-	CreateUser(ctx context.Context, user types.User) error
+	CreateUser(ctx context.Context, user types.User) (types.User, error)
 	// GetUser fetches a user from the repository by name, optionally fetching
-	// any associated secrets
-	GetUser(username string, withSecrets bool) (types.User, error)
-	// Upsert user creates or updates a user record as needed
-	UpsertUser(user types.User) error
+	// any associated secrets.
+	GetUser(ctx context.Context, username string, withSecrets bool) (types.User, error)
+	// UpsertUser user creates or updates a user record as needed.
+	UpsertUser(ctx context.Context, user types.User) (types.User, error)
 }
 
 // createPresetUsers creates all of the required user presets. No attempt is
@@ -820,13 +842,13 @@ func createPresetUsers(ctx context.Context, um PresetUsers) error {
 
 		if types.IsSystemResource(user) {
 			// System resources *always* get reset on every auth startup
-			if err := um.UpsertUser(user); err != nil {
+			if user, err := um.UpsertUser(ctx, user); err != nil {
 				return trace.Wrap(err, "failed upserting system user %s", user.GetName())
 			}
 			continue
 		}
 
-		if err := um.CreateUser(ctx, user); err != nil && !trace.IsAlreadyExists(err) {
+		if user, err := um.CreateUser(ctx, user); err != nil && !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err, "failed creating preset user %s", user.GetName())
 		}
 	}
@@ -957,6 +979,18 @@ type Identity struct {
 	XCert *x509.Certificate
 	// ClusterName is a name of host's cluster
 	ClusterName string
+	// SystemRoles is a list of additional system roles.
+	SystemRoles []string
+}
+
+// HasSystemRole checks if this identity encompasses the supplied system role.
+func (i *Identity) HasSystemRole(role types.SystemRole) bool {
+	// check identity's primary system role
+	if i.ID.Role == role {
+		return true
+	}
+
+	return slices.Contains(i.SystemRoles, string(role))
 }
 
 // String returns user-friendly representation of the identity.
@@ -1131,6 +1165,7 @@ func ReadIdentityFromKeyPair(privateKey []byte, certs *proto.Certs) (*Identity, 
 		identity.XCert = i.XCert
 		identity.TLSCertBytes = certs.TLS
 		identity.TLSCACertsBytes = certs.TLSCACerts
+		identity.SystemRoles = i.SystemRoles
 	}
 
 	return identity, nil
@@ -1171,6 +1206,7 @@ func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byt
 		TLSCertBytes:    certBytes,
 		TLSCACertsBytes: caCertsBytes,
 		XCert:           cert,
+		SystemRoles:     id.SystemRoles,
 	}
 	// The passed in ciphersuites don't appear to matter here since the returned
 	// *tls.Config is never actually used?
@@ -1317,90 +1353,6 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 			}
 		}
 		log.Infof("Migrations: added remote cluster resource for cert authority %q.", certAuthority.GetName())
-	}
-
-	return nil
-}
-
-// migrateDBAuthority copies Host CA as Database CA. Before v9.0 database access was using host CA to sign all
-// DB certificates. In order to support existing installations Teleport copies Host CA as Database CA on
-// the first run after update to v9.0+.
-// Function does nothing for databases created with Teleport v9.0+.
-// https://github.com/gravitational/teleport/issues/5029
-//
-// DELETE IN 11.0
-func migrateDBAuthority(ctx context.Context, asrv *Server) error {
-	migrationStart(ctx, "db_authority")
-	defer migrationEnd(ctx, "db_authority")
-
-	localClusterName, err := asrv.Services.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	trustedClusters, err := asrv.Services.GetTrustedClusters(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	allClusters := []string{
-		localClusterName.GetClusterName(),
-	}
-
-	for _, tr := range trustedClusters {
-		allClusters = append(allClusters, tr.GetName())
-	}
-
-	for _, clusterName := range allClusters {
-		dbCaID := types.CertAuthID{Type: types.DatabaseCA, DomainName: clusterName}
-		_, err = asrv.Services.GetCertAuthority(ctx, dbCaID, false)
-		if err == nil {
-			continue // no migration needed. DB cert already exists.
-		}
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		// Database CA doesn't exist, check for Host.
-		hostCaID := types.CertAuthID{Type: types.HostCA, DomainName: clusterName}
-		hostCA, err := asrv.Services.GetCertAuthority(ctx, hostCaID, true)
-		if trace.IsNotFound(err) {
-			// DB CA and Host CA are missing. Looks like the first start. No migration needed.
-			continue
-		}
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Database CA is missing, but Host CA has been found. Database was created with pre v9.
-		// Copy the Host CA as Database CA.
-		log.Infof("Migrating Database CA cluster: %s", clusterName)
-
-		cav2, ok := hostCA.(*types.CertAuthorityV2)
-		if !ok {
-			return trace.BadParameter("expected host CA to be of *types.CertAuthorityV2 type, got: %T", hostCA)
-		}
-
-		dbCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-			Type:        types.DatabaseCA,
-			ClusterName: clusterName,
-			ActiveKeys: types.CAKeySet{
-				// Copy only TLS keys as SSH are not needed.
-				TLS: cav2.Spec.ActiveKeys.TLS,
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		err = asrv.CreateCertAuthority(ctx, dbCA)
-		switch {
-		case trace.IsAlreadyExists(err):
-			// Probably another auth server have created the DB CA since we last check.
-			// This shouldn't be a problem, but let's log it to know when it happens.
-			log.Warn("DB CA has already been created by a different Auth server instance")
-		case err != nil:
-			return trace.Wrap(err)
-		}
 	}
 
 	return nil

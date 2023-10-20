@@ -72,7 +72,7 @@ func buildPromoteOsPackagePipelines(packageDeployments []osPackageDeployment) pi
 			Commands: []string{
 				fmt.Sprintf("cd %q", path.Join(clonePath, "build.assets", "tooling")),
 				fmt.Sprintf("mkdir -pv %q", path.Dir(releaseEnvironmentFilePath)),
-				fmt.Sprintf(`(go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo "build") > %q`, releaseEnvironmentFilePath),
+				fmt.Sprintf(`(CGO_ENABLED=0 go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo "build") > %q`, releaseEnvironmentFilePath),
 			},
 		},
 	}

@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-import React from 'react';
+import React, { useRef } from 'react';
 import { Flex } from 'design';
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
 // @ts-ignore
@@ -25,9 +25,11 @@ import { StatusBar } from 'teleterm/ui/StatusBar';
 import { NotificationsHost } from 'teleterm/ui/components/Notifcations';
 
 export function LayoutManager() {
+  const topBarContainerRef = useRef<HTMLDivElement>();
+
   return (
     <Flex flex="1" flexDirection="column" minHeight={0}>
-      <TopBar />
+      <TopBar topBarContainerRef={topBarContainerRef} />
       <Flex
         flex="1"
         minHeight={0}
@@ -35,7 +37,7 @@ export function LayoutManager() {
           position: relative;
         `}
       >
-        <TabHostContainer />
+        <TabHostContainer topBarContainerRef={topBarContainerRef} />
         <NotificationsHost />
       </Flex>
       <AccessRequestCheckout />

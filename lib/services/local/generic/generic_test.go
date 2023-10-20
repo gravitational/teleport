@@ -87,6 +87,9 @@ func unmarshalResource(data []byte, opts ...services.MarshalOption) (*testResour
 	if cfg.ID != 0 {
 		r.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		r.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		r.SetExpiry(cfg.Expires)
 	}
@@ -134,7 +137,7 @@ func TestGenericCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource{r1, r2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a paginated list of resources.
@@ -153,21 +156,21 @@ func TestGenericCRUD(t *testing.T) {
 
 	require.Equal(t, 2, numPages)
 	require.Empty(t, cmp.Diff([]*testResource{r1, r2}, paginatedOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a list of all resources
 	allResources, err := service.GetResources(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(paginatedOut, allResources,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a specific service provider.
 	r, err := service.GetResource(ctx, r2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(r2, r,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to fetch a resource that doesn't exist.
@@ -185,7 +188,7 @@ func TestGenericCRUD(t *testing.T) {
 	r, err = service.GetResource(ctx, r1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(r1, r,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Update a resource that doesn't exist.
@@ -200,7 +203,7 @@ func TestGenericCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource{r2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Upsert a resource (create).
@@ -210,7 +213,7 @@ func TestGenericCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource{r1, r2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Upsert a resource (update).
@@ -221,7 +224,7 @@ func TestGenericCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource{r1, r2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Update and swap a value
@@ -234,7 +237,7 @@ func TestGenericCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource{r1, r2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete a resource that doesn't exist.
@@ -249,7 +252,7 @@ func TestGenericCRUD(t *testing.T) {
 		r, err = unmarshalResource(item.Value)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(r1, r,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 
 		return nil

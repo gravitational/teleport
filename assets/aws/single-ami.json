@@ -31,6 +31,12 @@
     "instance_type": "{{user `instance_type`}}",
     "ssh_username": "ec2-user",
     "ami_name": "{{user `ami_name` | clean_resource_name}}",
+    "imds_support": "v2.0",
+    "metadata_options": {
+      "http_endpoint": "enabled",
+      "http_tokens": "required",
+      "http_put_response_hop_limit": 2
+    },
     "ssh_pty" : true,
     "associate_public_ip_address": true,
     "vpc_id": "{{user `vpc`}}",
@@ -68,6 +74,12 @@
     "instance_type": "{{user `instance_type`}}",
     "ssh_username": "ec2-user",
     "ami_name": "{{user `fips_ami_name` | clean_resource_name}}",
+    "imds_support": "v2.0",
+    "metadata_options": {
+      "http_endpoint": "enabled",
+      "http_tokens": "required",
+      "http_put_response_hop_limit": 2
+    },
     "ssh_pty" : true,
     "associate_public_ip_address": true,
     "vpc_id": "{{user `vpc`}}",

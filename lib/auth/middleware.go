@@ -42,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -137,7 +138,7 @@ type TLSServer struct {
 }
 
 // NewTLSServer returns new unstarted TLS server
-func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
+func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,7 +149,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// sets up grpc metrics interceptor
+	// sets up gRPC metrics interceptor
 	grpcMetrics := metrics.CreateGRPCServerMetrics(cfg.Metrics.GRPCServerLatency, prometheus.Labels{teleport.TagServer: "teleport-auth"})
 	err = metrics.RegisterPrometheusCollectors(grpcMetrics)
 	if err != nil {
@@ -201,11 +202,11 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	server.cfg.TLS.GetConfigForClient = server.GetConfigForClient
 
 	server.grpcServer, err = NewGRPCServer(GRPCServerConfig{
-		TLS:               server.cfg.TLS,
-		Middleware:        authMiddleware,
-		APIConfig:         cfg.APIConfig,
-		UnaryInterceptor:  authMiddleware.UnaryInterceptor(),
-		StreamInterceptor: authMiddleware.StreamInterceptor(),
+		TLS:                server.cfg.TLS,
+		Middleware:         authMiddleware,
+		APIConfig:          cfg.APIConfig,
+		UnaryInterceptors:  authMiddleware.UnaryInterceptors(),
+		StreamInterceptors: authMiddleware.StreamInterceptors(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -220,7 +221,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	}
 
 	if cfg.PluginRegistry != nil {
-		if err := cfg.PluginRegistry.RegisterAuthServices(server.grpcServer); err != nil {
+		if err := cfg.PluginRegistry.RegisterAuthServices(ctx, server.grpcServer); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -263,7 +264,7 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 	return trace.NewAggregate(errors...)
 }
 
-// Serve starts GRPC and HTTP1.1 services on the mux listener
+// Serve starts gRPC and HTTP1.1 services on the mux listener
 func (t *TLSServer) Serve() error {
 	errC := make(chan error, 2)
 	go func() {
@@ -353,7 +354,7 @@ type Middleware struct {
 	AcceptedUsage []string
 	// Limiter is a rate and connection limiter
 	Limiter *limiter.Limiter
-	// GRPCMetrics is the configured grpc metrics for the interceptors
+	// GRPCMetrics is the configured gRPC metrics for the interceptors
 	GRPCMetrics *om.ServerMetrics
 	// EnableCredentialsForwarding allows the middleware to receive impersonation
 	// identity from the client if it presents a valid proxy certificate.
@@ -467,43 +468,35 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 	return handler(srv, &authenticatedStream{ctx: ctx, ServerStream: serverStream})
 }
 
-// UnaryInterceptor returns a gPRC unary interceptor which performs rate
-// limiting, authenticates requests, and passes the user information as context
-// metadata.
-func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
-	if a.GRPCMetrics != nil {
-		return utils.ChainUnaryServerInterceptors(
-			otelgrpc.UnaryServerInterceptor(),
-			om.UnaryServerInterceptor(a.GRPCMetrics),
-			utils.GRPCServerUnaryErrorInterceptor,
-			a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
-			a.withAuthenticatedUserUnaryInterceptor,
-		)
-	}
-	return utils.ChainUnaryServerInterceptors(
+// UnaryInterceptors returns the gRPC unary interceptor chain.
+func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
+	is := []grpc.UnaryServerInterceptor{
 		otelgrpc.UnaryServerInterceptor(),
-		utils.GRPCServerUnaryErrorInterceptor,
+	}
+
+	if a.GRPCMetrics != nil {
+		is = append(is, om.UnaryServerInterceptor(a.GRPCMetrics))
+	}
+
+	return append(is,
+		interceptors.GRPCServerUnaryErrorInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor,
 	)
 }
 
-// StreamInterceptor returns a gPRC stream interceptor which performs rate
-// limiting, authenticates requests, and passes the user information as context
-// metadata.
-func (a *Middleware) StreamInterceptor() grpc.StreamServerInterceptor {
-	if a.GRPCMetrics != nil {
-		return utils.ChainStreamServerInterceptors(
-			otelgrpc.StreamServerInterceptor(),
-			om.StreamServerInterceptor(a.GRPCMetrics),
-			utils.GRPCServerStreamErrorInterceptor,
-			a.Limiter.StreamServerInterceptor,
-			a.withAuthenticatedUserStreamInterceptor,
-		)
-	}
-	return utils.ChainStreamServerInterceptors(
+// StreamInterceptors returns the gRPC stream interceptor chain.
+func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
+	is := []grpc.StreamServerInterceptor{
 		otelgrpc.StreamServerInterceptor(),
-		utils.GRPCServerStreamErrorInterceptor,
+	}
+
+	if a.GRPCMetrics != nil {
+		is = append(is, om.StreamServerInterceptor(a.GRPCMetrics))
+	}
+
+	return append(is,
+		interceptors.GRPCServerStreamErrorInterceptor,
 		a.Limiter.StreamServerInterceptor,
 		a.withAuthenticatedUserStreamInterceptor,
 	)
@@ -672,7 +665,8 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if user, err = a.extractIdentityFromImpersonationHeader(impersonateUser); err != nil {
+		proxyClusterName := user.GetIdentity().TeleportCluster
+		if user, err = a.extractIdentityFromImpersonationHeader(proxyClusterName, impersonateUser); err != nil {
 			trace.WriteError(w, err)
 			return
 		}
@@ -767,7 +761,6 @@ func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.Cer
 			if err != nil {
 				return nil, 0, trace.Wrap(err)
 			}
-			log.Debugf("ClientCertPool -> %v", CertInfo(cert))
 			pool.AddCert(cert)
 
 			// Each subject in the list gets a separate 2-byte length prefix.
@@ -798,7 +791,7 @@ func isProxyRole(identity authz.IdentityGetter) bool {
 // extractIdentityFromImpersonationHeader extracts the identity from the impersonation
 // header and returns it. If the impersonation header holds an identity of a
 // system role, an error is returned.
-func (a *Middleware) extractIdentityFromImpersonationHeader(impersonate string) (authz.IdentityGetter, error) {
+func (a *Middleware) extractIdentityFromImpersonationHeader(proxyCluster string, impersonate string) (authz.IdentityGetter, error) {
 	// Unmarshal the impersonated user from the header.
 	var impersonatedIdentity tlsca.Identity
 	if err := json.Unmarshal([]byte(impersonate), &impersonatedIdentity); err != nil {
@@ -810,6 +803,11 @@ func (a *Middleware) extractIdentityFromImpersonationHeader(impersonate string) 
 		// make sure that this user does not have system role
 		// since system roles are not allowed to be impersonated.
 		return nil, trace.AccessDenied("can not impersonate a system role")
+	case proxyCluster != "" && proxyCluster != a.ClusterName && proxyCluster != impersonatedIdentity.TeleportCluster:
+		// If a remote proxy is impersonating a user from a different cluster, we
+		// must reject the request. This is because the proxy is not allowed to
+		// impersonate a user from a different cluster.
+		return nil, trace.AccessDenied("can not impersonate users via a different cluster proxy")
 	case impersonatedIdentity.TeleportCluster != a.ClusterName:
 		// if the impersonated user is from a different cluster, we need to
 		// use him as remote user.

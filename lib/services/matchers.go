@@ -196,7 +196,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 
 	var match bool
 
-	if len(filter.Labels) == 0 && len(filter.SearchKeywords) == 0 && filter.PredicateExpression == "" && len(filter.Kinds) == 0 {
+	if filter.IsSimple() {
 		match = true
 	}
 
@@ -256,7 +256,7 @@ func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 //     modified in place with only the matched clusters
 //  3. only returns true if the service contained any matched cluster
 func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
-	if len(filter.Labels) == 0 && len(filter.SearchKeywords) == 0 && filter.PredicateExpression == "" {
+	if filter.IsSimple() {
 		return true, nil
 	}
 
@@ -289,102 +289,11 @@ type MatchResourceFilter struct {
 	Kinds []string
 }
 
-const (
-	// AWSMatcherEC2 is the AWS matcher type for EC2 instances.
-	AWSMatcherEC2 = "ec2"
-	// AWSMatcherEKS is the AWS matcher type for AWS Kubernetes.
-	AWSMatcherEKS = "eks"
-	// AWSMatcherRDS is the AWS matcher type for RDS databases.
-	AWSMatcherRDS = "rds"
-	// AWSMatcherRDSProxy is the AWS matcher type for RDS Proxy databases.
-	AWSMatcherRDSProxy = "rdsproxy"
-	// AWSMatcherRedshift is the AWS matcher type for Redshift databases.
-	AWSMatcherRedshift = "redshift"
-	// AWSMatcherRedshiftServerless is the AWS matcher type for Redshift Serverless databases.
-	AWSMatcherRedshiftServerless = "redshift-serverless"
-	// AWSMatcherElastiCache is the AWS matcher type for ElastiCache databases.
-	AWSMatcherElastiCache = "elasticache"
-	// AWSMatcherMemoryDB is the AWS matcher type for MemoryDB databases.
-	AWSMatcherMemoryDB = "memorydb"
-	// AWSMatcherOpenSearch is the AWS matcher type for OpenSearch databases.
-	AWSMatcherOpenSearch = "opensearch"
-)
-
-// SupportedAWSMatchers is list of AWS services currently supported by the
-// Teleport discovery service.
-var SupportedAWSMatchers = append([]string{
-	AWSMatcherEC2,
-	AWSMatcherEKS,
-}, SupportedAWSDatabaseMatchers...)
-
-// SupportedAWSDatabaseMatchers is a list of the AWS databases currently
-// supported by the Teleport discovery service.
-var SupportedAWSDatabaseMatchers = []string{
-	AWSMatcherRDS,
-	AWSMatcherRDSProxy,
-	AWSMatcherRedshift,
-	AWSMatcherRedshiftServerless,
-	AWSMatcherElastiCache,
-	AWSMatcherMemoryDB,
-	AWSMatcherOpenSearch,
-}
-
-// RequireAWSIAMRolesAsUsersMatchers is a list of the AWS databases that
-// require AWS IAM roles as database users.
-// IMPORTANT: if you add database matchers for AWS keyspaces, OpenSearch, or
-// DynamoDB discovery, add them here and in RequireAWSIAMRolesAsUsers in
-// api/types.
-var RequireAWSIAMRolesAsUsersMatchers = []string{
-	AWSMatcherRedshiftServerless,
-}
-
-const (
-	// AzureMatcherVM is the Azure matcher type for Azure VMs.
-	AzureMatcherVM = "vm"
-	// AzureMatcherKubernetes is the Azure matcher type for Azure Kubernetes.
-	AzureMatcherKubernetes = "aks"
-	// AzureMatcherMySQL is the Azure matcher type for Azure MySQL databases.
-	AzureMatcherMySQL = "mysql"
-	// AzureMatcherPostgres is the Azure matcher type for Azure Postgres databases.
-	AzureMatcherPostgres = "postgres"
-	// AzureMatcherRedis is the Azure matcher type for Azure Cache for Redis databases.
-	AzureMatcherRedis = "redis"
-	// AzureMatcherSQLServer is the Azure matcher type for SQL Server databases.
-	AzureMatcherSQLServer = "sqlserver"
-)
-
-// SupportedAzureMatchers is list of Azure services currently supported by the
-// Teleport discovery service.
-var SupportedAzureMatchers = []string{
-	AzureMatcherVM,
-	AzureMatcherKubernetes,
-	AzureMatcherMySQL,
-	AzureMatcherPostgres,
-	AzureMatcherRedis,
-	AzureMatcherSQLServer,
-}
-
-const (
-	// GCPMatcherKubernetes is the GCP matcher type for GCP kubernetes.
-	GCPMatcherKubernetes = "gke"
-	// GCPMatcherCompute is the GCP matcher for GCP VMs.
-	GCPMatcherCompute = "gce"
-)
-
-// SupportedGCPMatchers is list of GCP services currently supported by the
-// Teleport discovery service.
-var SupportedGCPMatchers = []string{
-	GCPMatcherKubernetes,
-	GCPMatcherCompute,
-}
-
-const (
-	// KubernetesMatchersApp is app matcher type for Kubernetes services
-	KubernetesMatchersApp = "app"
-)
-
-// SupportedKubernetesMatchers is a list of Kubernetes matchers supported by
-// Teleport discovery service
-var SupportedKubernetesMatchers = []string{
-	KubernetesMatchersApp,
+// IsSimple is used to short-circuit matching when a filter doesn't specify anything more
+// specific than resource kind.
+func (m *MatchResourceFilter) IsSimple() bool {
+	return len(m.Labels) == 0 &&
+		len(m.SearchKeywords) == 0 &&
+		m.PredicateExpression == "" &&
+		len(m.Kinds) == 0
 }

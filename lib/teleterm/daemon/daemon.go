@@ -16,6 +16,7 @@ package daemon
 
 import (
 	"context"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -24,13 +25,16 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/services/connectmycomputer"
+	"github.com/gravitational/teleport/lib/teleterm/services/unifiedresources"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
@@ -201,11 +205,17 @@ func (s *Service) ResolveCluster(path string) (*clusters.Cluster, *client.Telepo
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	cluster, clusterClient, err := s.resolveCluster(resourceURI)
+	cluster, clusterClient, err := s.ResolveClusterURI(resourceURI)
 	return cluster, clusterClient, trace.Wrap(err)
 }
 
-func (s *Service) resolveCluster(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
+// ResolveClusterURI is like ResolveCluster, but it accepts an already parsed URI instead of a
+// string.
+//
+// In the future, we should migrate towards ResolveClusterURI. Transforming strings into URIs should
+// be done on the outermost layer, that is the gRPC handlers, so that the inner core doesn't have to
+// worry about parsing URIs and can assume they are correct.
+func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
 	cluster, clusterClient, err := s.cfg.Storage.GetByResourceURI(uri)
 	return cluster, clusterClient, trace.Wrap(err)
 }
@@ -272,17 +282,11 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return gateway, nil
 	}
 
-	cliCommandProvider, err := s.getGatewayCLICommandProvider(targetURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             targetURI,
 		TargetUser:            params.TargetUser,
 		TargetSubresourceName: params.TargetSubresourceName,
 		LocalPort:             params.LocalPort,
-		CLICommandProvider:    cliCommandProvider,
 		OnExpiredCert:         s.reissueGatewayCerts,
 		KubeconfigsDir:        s.cfg.KubeconfigsDir,
 	}
@@ -303,17 +307,6 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	return gateway, nil
 }
 
-func (s *Service) getGatewayCLICommandProvider(targetURI uri.ResourceURI) (gateway.CLICommandProvider, error) {
-	switch {
-	case targetURI.IsDB():
-		return s.cfg.DBCLICommandProvider, nil
-	case targetURI.IsKube():
-		return s.cfg.KubeCLICommandProvider, nil
-	default:
-		return nil, trace.NotImplemented("gateway not supported for %v", targetURI)
-	}
-}
-
 // reissueGatewayCerts tries to reissue gateway certs.
 func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) error {
 	reloginReq := &api.ReloginRequest{
@@ -327,7 +320,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 	}
 
 	reissueDBCerts := func() error {
-		cluster, _, err := s.resolveCluster(g.TargetURI())
+		cluster, _, err := s.ResolveClusterURI(g.TargetURI())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -416,6 +409,28 @@ func (s *Service) ListGateways() []gateway.Gateway {
 	}
 
 	return gws
+}
+
+// GetGatewayCLICommand creates the CLI command used for the provided gateway.
+func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (*exec.Cmd, error) {
+	targetURI := gateway.TargetURI()
+	switch {
+	case targetURI.IsDB():
+		cluster, _, err := s.cfg.Storage.GetByResourceURI(targetURI)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cmd, err := cmd.NewDBCLICommand(cluster, gateway)
+		return cmd, trace.Wrap(err)
+
+	case targetURI.IsKube():
+		cmd, err := cmd.NewKubeCLICommand(gateway)
+		return cmd, trace.Wrap(err)
+
+	default:
+		return nil, trace.NotImplemented("gateway not supported for %v", targetURI)
+	}
 }
 
 // SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
@@ -774,7 +789,44 @@ func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClus
 	return nodeToken, trace.Wrap(err)
 }
 
-// DeleteConnectMyComputerToken deletes a join token
+// DeleteConnectMyComputerNode deletes the Connect My Computer node.
+func (s *Service) DeleteConnectMyComputerNode(ctx context.Context, req *api.DeleteConnectMyComputerNodeRequest) (*api.DeleteConnectMyComputerNodeResponse, error) {
+	cluster, clusterClient, err := s.ResolveCluster(req.GetRootClusterUri())
+	if err != nil {
+		return &api.DeleteConnectMyComputerNodeResponse{}, trace.Wrap(err)
+	}
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		err = s.cfg.ConnectMyComputerNodeDelete.Run(ctx, authClient, cluster)
+		return trace.Wrap(err)
+	})
+
+	return &api.DeleteConnectMyComputerNodeResponse{}, trace.Wrap(err)
+}
+
+// GetConnectMyComputerNodeName reads the Connect My Computer node name (UUID) from a disk.
+func (s *Service) GetConnectMyComputerNodeName(req *api.GetConnectMyComputerNodeNameRequest) (*api.GetConnectMyComputerNodeNameResponse, error) {
+	cluster, _, err := s.ResolveCluster(req.GetRootClusterUri())
+	if err != nil {
+		return &api.GetConnectMyComputerNodeNameResponse{}, trace.Wrap(err)
+	}
+
+	uuid, err := s.cfg.ConnectMyComputerNodeName.Get(cluster)
+	return &api.GetConnectMyComputerNodeNameResponse{Name: uuid}, trace.Wrap(err)
+}
+
+// DeleteConnectMyComputerToken deletes a join token.
 func (s *Service) DeleteConnectMyComputerToken(ctx context.Context, req *api.DeleteConnectMyComputerTokenRequest) (*api.DeleteConnectMyComputerTokenResponse, error) {
 	_, clusterClient, err := s.ResolveCluster(req.RootClusterUri)
 	if err != nil {
@@ -799,6 +851,72 @@ func (s *Service) DeleteConnectMyComputerToken(ctx context.Context, req *api.Del
 	})
 
 	return response, trace.Wrap(err)
+}
+
+// WaitForConnectMyComputerNodeJoin returns a response only after detecting that a Connect My
+// Computer node for the given cluster has joined the cluster.
+func (s *Service) WaitForConnectMyComputerNodeJoin(ctx context.Context, rootClusterURI uri.ResourceURI) (clusters.Server, error) {
+	cluster, clusterClient, err := s.ResolveClusterURI(rootClusterURI)
+	if err != nil {
+		return clusters.Server{}, trace.Wrap(err)
+	}
+
+	var server clusters.Server
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		server, err = s.cfg.ConnectMyComputerNodeJoinWait.Run(ctx, authClient, cluster)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	})
+
+	return server, trace.Wrap(err)
+}
+
+// ListUnifiedResources returns resources for the given cluster and search params.
+func (s *Service) ListUnifiedResources(ctx context.Context, clusterURI uri.ResourceURI, req *proto.ListUnifiedResourcesRequest) (*unifiedresources.ListResponse, error) {
+	cluster, clusterClient, err := s.ResolveClusterURI(clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var resources *unifiedresources.ListResponse
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		resources, err = unifiedresources.List(ctx, cluster, authClient, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	})
+
+	return resources, trace.Wrap(err)
 }
 
 func (s *Service) shouldReuseGateway(targetURI uri.ResourceURI) (gateway.Gateway, bool) {

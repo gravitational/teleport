@@ -103,6 +103,11 @@ type License interface {
 	// generate licenses that support older versions of Teleport
 	SetSupportsResourceAccessRequests(Bool)
 
+	// GetSupportsFeatureHiding returns feature hiding support flag.
+	GetSupportsFeatureHiding() Bool
+	// GetSupportsFeatureHiding sets feature hiding support flag.
+	SetSupportsFeatureHiding(Bool)
+
 	// GetTrial returns the trial flag.
 	//  Note: This is not applicable to Cloud licenses
 	GetTrial() Bool
@@ -119,6 +124,12 @@ type License interface {
 
 	// GetFeatureSource returns where the features should be loaded from.
 	GetFeatureSource() FeatureSource
+
+	// GetCustomTheme returns the name of the WebUI custom theme
+	GetCustomTheme() string
+
+	// SetCustomTheme sets the name of the WebUI custom theme
+	SetCustomTheme(themeName string)
 }
 
 // FeatureSource defines where the list of features enabled
@@ -192,6 +203,16 @@ func (c *LicenseV3) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (c *LicenseV3) SetResourceID(id int64) {
 	c.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (c *LicenseV3) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *LicenseV3) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
 }
 
 // GetName returns the name of the resource
@@ -382,6 +403,26 @@ func (c *LicenseV3) SetSupportsResourceAccessRequests(value Bool) {
 	c.Spec.SupportsResourceAccessRequests = value
 }
 
+// GetSupportsFeatureHiding returns feature hiding requests support flag
+func (c *LicenseV3) GetSupportsFeatureHiding() Bool {
+	return c.Spec.SupportsFeatureHiding
+}
+
+// SetSupportsFeatureHiding sets feature hiding requests support flag
+func (c *LicenseV3) SetSupportsFeatureHiding(value Bool) {
+	c.Spec.SupportsFeatureHiding = value
+}
+
+// GetCustomTheme returns the name of the WebUI custom theme
+func (c *LicenseV3) GetCustomTheme() string {
+	return c.Spec.CustomTheme
+}
+
+// SetCustomTheme sets the name of the WebUI custom theme
+func (c *LicenseV3) SetCustomTheme(themeName string) {
+	c.Spec.CustomTheme = themeName
+}
+
 // GetTrial returns the trial flag
 func (c *LicenseV3) GetTrial() Bool {
 	return c.Spec.Trial
@@ -415,6 +456,9 @@ func (c *LicenseV3) String() string {
 	}
 	if c.GetSupportsDesktopAccess() {
 		features = append(features, "supports desktop access")
+	}
+	if c.GetSupportsFeatureHiding() {
+		features = append(features, "supports feature hiding")
 	}
 	if c.GetCloud() {
 		features = append(features, "is hosted by Gravitational")
@@ -473,8 +517,12 @@ type LicenseSpecV3 struct {
 	SupportsMachineID Bool `json:"machine_id,omitempty"`
 	// SupportsResourceAccessRequests turns resource access request support on or off
 	SupportsResourceAccessRequests Bool `json:"resource_access_requests,omitempty"`
+	// SupportsFeatureHiding turns feature hiding support on or off
+	SupportsFeatureHiding Bool `json:"feature_hiding,omitempty"`
 	// Trial is true for trial licenses
 	Trial Bool `json:"trial,omitempty"`
 	// FeatureSource is the source of the set of enabled feature
 	FeatureSource FeatureSource `json:"feature_source"`
+	// CustomTheme is the name of the WebUI custom theme
+	CustomTheme string `json:"custom_theme,omitempty"`
 }

@@ -318,10 +318,11 @@ func toEvent(rec *dynamodbstreams.Record) (*backend.Event, error) {
 		return &backend.Event{
 			Type: op,
 			Item: backend.Item{
-				Key:     trimPrefix(r.FullPath),
-				Value:   r.Value,
-				Expires: expires,
-				ID:      r.ID,
+				Key:      trimPrefix(r.FullPath),
+				Value:    r.Value,
+				Expires:  expires,
+				ID:       r.ID,
+				Revision: r.Revision,
 			},
 		}, nil
 	case types.OpDelete:

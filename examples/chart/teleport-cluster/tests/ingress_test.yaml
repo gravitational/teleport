@@ -500,3 +500,39 @@ tests:
       - equal:
           path: spec.otherSpecStuff
           value: lint
+
+  - it: does not set tls.secretName by default
+    values:
+      - ../.lint/ingress.yaml
+    asserts:
+      - isEmpty:
+          path: spec.tls[0].secretName
+      - matchSnapshot:
+          path: spec.tls
+
+  - it: sets tls.secretName when cert-manager is enabled
+    values:
+      - ../.lint/ingress.yaml
+    set:
+      highAvailability:
+        certManager:
+          enabled: true
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: teleport-tls
+      - matchSnapshot:
+          path: spec.tls
+
+  - it: sets tls.secretName the value of tls.existingSecretName when set
+    values:
+      - ../.lint/ingress.yaml
+    set:
+      tls:
+        existingSecretName: helm-lint-tls-secret
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: helm-lint-tls-secret
+      - matchSnapshot:
+          path: spec.tls

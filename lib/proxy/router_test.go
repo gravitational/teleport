@@ -15,7 +15,9 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
+	"math/rand"
 	"net"
 	"testing"
 
@@ -99,6 +101,13 @@ func TestGetServers(t *testing.T) {
 		},
 	}
 
+	unambiguousInsensitiveCfg := types.ClusterNetworkingConfigV2{
+		Spec: types.ClusterNetworkingConfigSpecV2{
+			RoutingStrategy:        types.RoutingStrategy_UNAMBIGUOUS_MATCH,
+			CaseInsensitiveRouting: true,
+		},
+	}
+
 	hostID := uuid.NewString()
 	const ec2ID = "012345678901-i-01234567890abcdef"
 
@@ -167,6 +176,26 @@ func TestGetServers(t *testing.T) {
 			hostname: "lion",
 			addr:     "lion.roar",
 		},
+		{
+			name:     "platypus1",
+			hostname: "Platypus",
+			tunnel:   true,
+		},
+		{
+			name:     "platypus2",
+			hostname: "platypus",
+			tunnel:   true,
+		},
+		{
+			name:     "capybara1",
+			hostname: "Capybara",
+			tunnel:   true,
+		},
+	})
+
+	// ensure tests don't have order-dependence
+	rand.Shuffle(len(servers), func(i, j int) {
+		servers[i], servers[j] = servers[j], servers[i]
 	})
 
 	cases := []struct {
@@ -279,6 +308,27 @@ func TestGetServers(t *testing.T) {
 				require.Empty(t, srv)
 			},
 		},
+		{
+			name:         "case-insensitive match",
+			site:         testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
+			host:         "capybara",
+			errAssertion: require.NoError,
+			serverAssertion: func(t *testing.T, srv types.Server) {
+				require.NotNil(t, srv)
+				require.Equal(t, "Capybara", srv.GetHostname())
+			},
+		},
+		{
+			name: "case-insensitive ambiguous",
+			site: testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
+			host: "platypus",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.NotFound(teleport.NodeIsAmbiguous))
+			},
+			serverAssertion: func(t *testing.T, srv types.Server) {
+				require.Empty(t, srv)
+			},
+		},
 	}
 
 	ctx := context.Background()
@@ -295,6 +345,87 @@ func serverResolver(srv types.Server, err error) serverResolverFn {
 	return func(ctx context.Context, host, port string, site site) (types.Server, error) {
 		return srv, err
 	}
+}
+
+type mockConn struct {
+	net.Conn
+	buff bytes.Buffer
+}
+
+func (o *mockConn) Read(p []byte) (n int, err error) {
+	return o.buff.Read(p)
+}
+
+func (o *mockConn) Write(p []byte) (n int, err error) {
+	return o.buff.Write(p)
+}
+
+func (o *mockConn) Close() error {
+	return nil
+}
+
+func TestCheckedPrefixWriter(t *testing.T) {
+	t.Parallel()
+	testData := []byte("test data")
+	t.Run("missing prefix", func(t *testing.T) {
+		t.Run("single write", func(t *testing.T) {
+			cpw := newCheckedPrefixWriter(&mockConn{}, []byte("wrong"))
+
+			_, err := cpw.Write(testData)
+			require.True(t, trace.IsAccessDenied(err), "expected trace.AccessDenied error, got: %v", err)
+		})
+		t.Run("two writes", func(t *testing.T) {
+			cpw := newCheckedPrefixWriter(&mockConn{}, append(testData, []byte("wrong")...))
+
+			_, err := cpw.Write(testData)
+			require.NoError(t, err)
+
+			_, err = cpw.Write(testData)
+			require.True(t, trace.IsAccessDenied(err), "expected trace.AccessDenied error, got: %v", err)
+		})
+	})
+	t.Run("success", func(t *testing.T) {
+		t.Run("single write", func(t *testing.T) {
+			cpw := newCheckedPrefixWriter(&mockConn{}, []byte("test"))
+
+			// First write with correct prefix should be successful
+			_, err := cpw.Write(testData)
+			require.NoError(t, err)
+
+			// Write some additional data
+			secondData := []byte("second data")
+			_, err = cpw.Write(secondData)
+			require.NoError(t, err)
+
+			// Resulting read should contain data from both writes
+			buf := make([]byte, len(testData)+len(secondData))
+			_, err = cpw.Read(buf)
+			require.NoError(t, err)
+			require.Equal(t, append(testData, secondData...), buf)
+		})
+		t.Run("two writes", func(t *testing.T) {
+			cpw := newCheckedPrefixWriter(&mockConn{}, []byte("test"))
+
+			// First write gives part of correct prefix
+			_, err := cpw.Write(testData[:3])
+			require.NoError(t, err)
+
+			// Second write gives the rest of correct prefix
+			_, err = cpw.Write(testData[3:])
+			require.NoError(t, err)
+
+			// Write some additional data
+			secondData := []byte("second data")
+			_, err = cpw.Write(secondData)
+			require.NoError(t, err)
+
+			// Resulting read should contain all written data
+			buf := make([]byte, len(testData)+len(secondData))
+			_, err = cpw.Read(buf)
+			require.NoError(t, err)
+			require.Equal(t, append(testData, secondData...), buf)
+		})
+	})
 }
 
 type tunnel struct {
@@ -361,6 +492,19 @@ func TestRouter_DialHost(t *testing.T) {
 	agentlessSrv := &types.ServerV2{
 		Kind:    types.KindNode,
 		SubKind: types.SubKindOpenSSHNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: uuid.NewString(),
+		},
+		Spec: types.ServerSpecV2{
+			Addr:     "127.0.0.1:9001",
+			Hostname: "agentless",
+		},
+	}
+
+	agentlessEC2ICESrv := &types.ServerV2{
+		Kind:    types.KindNode,
+		SubKind: types.SubKindOpenSSHEICENode,
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name: uuid.NewString(),
@@ -461,6 +605,26 @@ func TestRouter_DialHost(t *testing.T) {
 				require.Equal(t, agentlessSrv, params.TargetServer)
 				require.Nil(t, params.GetUserAgent)
 				require.NotNil(t, params.AgentlessSigner)
+				require.True(t, params.IsAgentlessNode)
+				require.NotNil(t, conn)
+			},
+		},
+		{
+			name: "dial success to agentless node using EC2 Instance Connect Endpoint",
+			router: Router{
+				clusterName:    "test",
+				log:            logger,
+				localSite:      &testRemoteSite{conn: fakeConn{}},
+				siteGetter:     &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
+				tracer:         tracing.NoopTracer("test"),
+				serverResolver: serverResolver(agentlessEC2ICESrv, nil),
+			},
+			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
+				require.NoError(t, err)
+				require.Equal(t, agentlessEC2ICESrv, params.TargetServer)
+				require.Nil(t, params.GetUserAgent)
+				require.Nil(t, params.AgentlessSigner)
+				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
 			},
 		},

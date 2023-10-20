@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Indicator, Box } from 'design';
+import { Box, Indicator } from 'design';
 
 import useTeleport from 'teleport/useTeleport';
 import {
@@ -25,11 +25,16 @@ import {
 } from 'teleport/components/Layout';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
+import cfg from 'teleport/config';
+import history from 'teleport/services/history/history';
+import localStorage from 'teleport/services/localStorage';
 
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
+import { SearchResource } from 'teleport/Discover/SelectResource';
+
 import DatabaseList from './DatabaseList';
-import { useDatabases, State } from './useDatabases';
+import { State, useDatabases } from './useDatabases';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -66,13 +71,18 @@ export function Databases(props: State) {
     fetchedData.agents.length === 0 &&
     isSearchEmpty;
 
+  const enabled = localStorage.areUnifiedResourcesEnabled();
+  if (enabled) {
+    history.replace(cfg.getUnifiedResourcesRoute(clusterId));
+  }
+
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Databases</FeatureHeaderTitle>
         {attempt.status === 'success' && !hasNoDatabases && (
           <AgentButtonAdd
-            agent="database"
+            agent={SearchResource.DATABASE}
             beginsWithVowel={false}
             isLeafCluster={isLeafCluster}
             canCreate={canCreate}
@@ -123,7 +133,7 @@ const emptyStateInfo: EmptyStateInfo = {
   byline:
     'Teleport Database Access provides secure access to PostgreSQL, MySQL, MariaDB, MongoDB, Redis, and Microsoft SQL Server.',
   docsURL: 'https://goteleport.com/docs/database-access/guides/',
-  resourceType: 'database',
+  resourceType: SearchResource.DATABASE,
   readOnly: {
     title: 'No Databases Found',
     resource: 'databases',

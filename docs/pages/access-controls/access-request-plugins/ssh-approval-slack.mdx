@@ -151,19 +151,19 @@ configure the Slack plugin to use these credentials. You will also configure the
 plugin to notify the right Slack channels when it receives an Access Request
 update.
 
-### Create a config file
+### Create a configuration file
 
 <Tabs>
-<TabItem label="Executable">
-The Teleport Slack plugin uses a config file in TOML format. Generate a
-boilerplate config by running the following command (the plugin will not run
+<TabItem label="Executable or Docker">
+The Teleport Slack plugin uses a configuration file in TOML format. Generate a
+boilerplate configuration by running the following command (the plugin will not run
 unless the config file is in `/etc/teleport-slack.toml`):
 
 ```code
 $ teleport-slack configure | sudo tee /etc/teleport-slack.toml > /dev/null
 ```
 
-This should result in a config file like the one below:
+This should result in a configuration file like the one below:
 
 ```toml
 (!examples/resources/plugins/teleport-slack.toml!)
@@ -181,7 +181,7 @@ based on the following example:
 </TabItem>
 </Tabs>
 
-### Edit the config file
+### Edit the configuration file
 
 Open the configuration file created for the Teleport Slack plugin and update the following fields:
 
@@ -205,7 +205,7 @@ receives an Access Request from the Auth Service, it will look up the role being
 requested and identify the Slack channels to notify.
 
 <Tabs>
-<TabItem label="Executable">
+<TabItem label="Executable or Docker">
 Here is an example of a `role_to_recipients` map:
 
 ```toml
@@ -263,7 +263,7 @@ by adding the following to your `role_to_recipients` config (replace
 earlier):
 
 <Tabs>
-<TabItem label="Executable">
+<TabItem label="Executable or Docker">
 ```toml
 [role_to_recipients]
 "*" = "access-requests"
@@ -312,6 +312,13 @@ If everything works fine, the log output should look like this:
 $ teleport-slack start
 INFO   Starting Teleport Access Slack Plugin 7.2.1: slack/app.go:80
 INFO   Plugin is ready slack/app.go:101
+```
+</TabItem>
+<TabItem label="Docker">
+run the plugin:
+
+```code
+$ docker run -v <path-to-config>:/etc/teleport-slack.toml public.ecr.aws/gravitational/teleport-plugin-slack:(=teleport.version=) start
 ```
 </TabItem>
 <TabItem label="Helm Chart">
@@ -365,9 +372,7 @@ should still check the Teleport audit log to ensure that the right users are
 reviewing the right requests.
 
 When auditing Access Request reviews, check for events with the type `Access
-Request Reviewed` in the Teleport Web UI <ScopedBlock scope={["oss",
-"enterprise"]}>and `access_request.review` if reviewing the audit log on the
-Auth Service host</ScopedBlock>.
+Request Reviewed` in the Teleport Web UI.
 
 </Admonition>
 

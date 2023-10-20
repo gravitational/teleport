@@ -265,6 +265,10 @@ func TestNaivelyValidateHostname(t *testing.T) {
 			shouldPass: true,
 		},
 		{
+			hostname:   "test",
+			shouldPass: true,
+		},
+		{
 			hostname:   "testhost-withdashes.example.com",
 			shouldPass: true,
 		},
@@ -296,12 +300,221 @@ func TestNaivelyValidateHostname(t *testing.T) {
 			hostname:   "consecutive..dots",
 			shouldPass: false,
 		},
+		{
+			hostname:   "host:22",
+			shouldPass: false,
+		},
+		{
+			hostname:   "host with spaces",
+			shouldPass: false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.hostname, func(t *testing.T) {
 			testResult := NaivelyValidateHostname(tt.hostname)
 			require.Equal(t, tt.shouldPass, testResult)
+		})
+	}
+}
+
+func TestCheckAndSplitValidityKey(t *testing.T) {
+	t.Parallel()
+
+	var tests = []struct {
+		name          string
+		input         string
+		desiredOutput []string
+		checkErr      require.ErrorAssertionFunc
+	}{
+		{
+			name:          "Should pass with an empty input string",
+			input:         "",
+			desiredOutput: []string(nil),
+			checkErr:      require.NoError,
+		},
+		{
+			name:  "Should pass with two wildcards",
+			input: "*.foo.example.com || *.bar.example.com",
+			desiredOutput: []string{
+				"*.foo.example.com",
+				"*.bar.example.com",
+			},
+			checkErr: require.NoError,
+		},
+		{
+			name:          "Should pass with a single string and no delimiter",
+			input:         "test",
+			desiredOutput: []string{"test"},
+			checkErr:      require.NoError,
+		},
+		{
+			name:  "Should pass with wildcard, single string and regular hostname",
+			input: "*.example.com || test || teleport.test.com",
+			desiredOutput: []string{
+				"*.example.com",
+				"test",
+				"teleport.test.com",
+			},
+			checkErr: require.NoError,
+		},
+		{
+			name:  "Should pass with mixed usage",
+			input: "*.example.com || test || teleport.test.com || longstring || *.wow.com",
+			desiredOutput: []string{
+				"*.example.com",
+				"test",
+				"teleport.test.com",
+				"longstring",
+				"*.wow.com",
+			},
+			checkErr: require.NoError,
+		},
+		{
+			name:  "Should pass with trailing space",
+			input: "*.example.com || lol.example.com || test.teleport.com ",
+			desiredOutput: []string{
+				"*.example.com",
+				"lol.example.com",
+				"test.teleport.com",
+			},
+			checkErr: require.NoError,
+		},
+		{
+			name:  "Should pass with preceding space",
+			input: " *.example.com || lol.example.com",
+			desiredOutput: []string{
+				"*.example.com",
+				"lol.example.com",
+			},
+			checkErr: require.NoError,
+		},
+		{
+			name:  "Should pass with random spacing",
+			input: " *.example.com  ||   lol.example.com",
+			desiredOutput: []string{
+				"*.example.com",
+				"lol.example.com",
+			},
+			checkErr: require.NoError,
+		},
+		{
+			name:  "Should pass with extra space in the middle",
+			input: " *.example.com ||  lol.example.com || test.teleport.com",
+			desiredOutput: []string{
+				"*.example.com",
+				"lol.example.com",
+				"test.teleport.com",
+			},
+			checkErr: require.NoError,
+		},
+		{
+			name:     "Should error if colons are used",
+			input:    "*.example.com && port:22",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail if negation is used",
+			input:    "*.example.com && ! *.extrasecure.example.com",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail if parentheses are used",
+			input:    "(*.foo.example.com || *.bar.example.com)",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail if parentheses and port are used",
+			input:    "(*.foo.example.com || *.bar.example.com) && port:0-1023",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail with multiple parentheses and port",
+			input:    "(*.foo.example.com || *.bar.example.com || *.qux.example.com) && port:0-1023",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail with multiple parentheses, port and trailing hostname",
+			input:    "((*.foo.example.com || *.bar.example.com || *.qux.example.com) && port:0-1023) || teleport.example.com",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail with multiple parentheses, port and two trailing hostnames",
+			input:    "((*.example.com || lol.example.com && port:22) && port:1024) || test.teleport.com || teleport.test.com",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail if single pipe delimiter is used",
+			input:    "*.example.com || lol.example.com | test.teleport.com",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail if single ampersand delimiter is used",
+			input:    "*.example.com & lol.example.com || test.teleport.com",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail if boolean AND is used",
+			input:    "*.example.com && lol.example.com || test.teleport.com",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail with misplaced pipe delimiter",
+			input:    "*.example.com || lol.example.com || | test.teleport.com",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail with empty final field",
+			input:    "*.example.com || lol.example.com || | test.teleport.com || ",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail with double delimiter and empty field",
+			input:    "*.example.com || lol.example.com || || test.teleport.com",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail with triple delimiter and empty field",
+			input:    "*.example.com || lol.example.com || || || test.teleport.com",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail with pipe character in hostname",
+			input:    "*.example.com || lol.example.com || test.|teleport.com",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail with negation character around hostname",
+			input:    "*.example.com || lol.example.com || !test.teleport.com",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail with a non-hostname",
+			input:    "*.example.com || lol.example.com || test.teleport.com || \"\"",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should fail with a single trailing dot",
+			input:    "*.example.com || lol.example.com || .",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should error with single wildcard symbol",
+			input:    "*",
+			checkErr: require.Error,
+		},
+		{
+			name:     "Should error if multiple single wildcard symbols are present",
+			input:    "* || *",
+			checkErr: require.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testResult, err := CheckAndSplitValidityKey(tt.input, "TeleportHostCA-testcluster.example.com")
+			tt.checkErr(t, err)
+			require.Equal(t, tt.desiredOutput, testResult)
 		})
 	}
 }

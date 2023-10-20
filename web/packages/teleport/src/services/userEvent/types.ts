@@ -25,6 +25,7 @@ export enum CaptureEvent {
   CreateNewRoleCancelClickEvent = 'tp.ui.createNewRoleCancel.click',
   CreateNewRoleViewDocumentationClickEvent = 'tp.ui.createNewRoleViewDocumentation.click',
   UiCallToActionClickEvent = 'tp.ui.callToAction.click',
+  FeatureRecommendationEvent = 'tp.ui.feature.recommendation',
 
   // PreUserEvent types
   //   these events are unauthenticated,
@@ -59,6 +60,7 @@ export enum IntegrationEnrollKind {
   OpsGenie = 'INTEGRATION_ENROLL_KIND_OPSGENIE',
   Okta = 'INTEGRATION_ENROLL_KIND_OKTA',
   Jamf = 'INTEGRATION_ENROLL_KIND_JAMF',
+  ServiceNow = 'INTEGRATION_ENROLL_KIND_SERVICENOW',
   MachineID = 'INTEGRATION_ENROLL_KIND_MACHINE_ID',
   MachineIDGitHubActions = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS',
   MachineIDCircleCI = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_CIRCLECI',
@@ -79,6 +81,9 @@ export enum DiscoverEvent {
   DesktopActiveDirectoryToolsInstall = 'tp.ui.discover.desktop.activeDirectory.tools.install',
   DesktopActiveDirectoryConfigure = 'tp.ui.discover.desktop.activeDirectory.configure',
   AutoDiscoveredResources = 'tp.ui.discover.autoDiscoveredResources',
+  EC2InstanceSelection = 'tp.ui.discover.selectedEC2Instance',
+  EC2DeployEICE = 'tp.ui.discover.deployEICE',
+  CreateNode = 'tp.ui.discover.createNode',
   PrincipalsConfigure = 'tp.ui.discover.principals.configure',
   TestConnection = 'tp.ui.discover.testConnection',
   Completed = 'tp.ui.discover.completed',
@@ -129,6 +134,8 @@ export enum DiscoverEventResource {
   ApplicationHttp = 'DISCOVER_RESOURCE_APPLICATION_HTTP',
   ApplicationTcp = 'DISCOVER_RESOURCE_APPLICATION_TCP',
   WindowsDesktop = 'DISCOVER_RESOURCE_WINDOWS_DESKTOP',
+
+  Ec2Instance = 'DISCOVER_RESOURCE_EC2_INSTANCE',
 
   SamlApplication = 'DISCOVER_RESOURCE_SAML_APPLICATION',
 }
@@ -220,3 +227,19 @@ export enum CtaEvent {
   CTA_UPGRADE_BANNER = 6,
   CTA_BILLING_SUMMARY = 7,
 }
+
+export enum Feature {
+  FEATURES_UNSPECIFIED = 0,
+  FEATURES_TRUSTED_DEVICES = 1,
+}
+
+export enum FeatureRecommendationStatus {
+  FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED = 0,
+  FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1,
+  FEATURE_RECOMMENDATION_STATUS_DONE = 2,
+}
+
+export type FeatureRecommendationEvent = {
+  Feature: Feature;
+  FeatureRecommendationStatus: FeatureRecommendationStatus;
+};

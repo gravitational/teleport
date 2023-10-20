@@ -3,6 +3,8 @@ set -euo pipefail
 
 cdnBaseURL='{{.CDNBaseURL}}'
 teleportVersion='{{.TeleportVersion}}'
+teleportFlavor='{{.TeleportFlavor}}' # teleport or teleport-ent
+successMessage='{{.SuccessMessage}}'
 
 # shellcheck disable=all
 tempDir=$({{.BinMktemp}} -d)
@@ -14,7 +16,7 @@ teleportArgs='{{.TeleportArgs}}'
 
 function teleportTarballName(){
     if [[ ${OS} == "Darwin" ]]; then
-        echo teleport-${teleportVersion}-darwin-universal-bin.tar.gz
+        echo ${teleportFlavor}-${teleportVersion}-darwin-universal-bin.tar.gz
         return 0
     fi;
 
@@ -23,10 +25,10 @@ function teleportTarballName(){
         return 1
     fi;
 
-    if [[ ${ARCH} == "armv7l" ]]; then echo "teleport-${teleportVersion}-linux-arm-bin.tar.gz"
-    elif [[ ${ARCH} == "aarch64" ]]; then echo "teleport-${teleportVersion}-linux-arm64-bin.tar.gz"
-    elif [[ ${ARCH} == "x86_64" ]]; then echo "teleport-${teleportVersion}-linux-amd64-bin.tar.gz"
-    elif [[ ${ARCH} == "i686" ]]; then echo "teleport-${teleportVersion}-linux-386-bin.tar.gz"
+    if [[ ${ARCH} == "armv7l" ]]; then echo "${teleportFlavor}-${teleportVersion}-linux-arm-bin.tar.gz"
+    elif [[ ${ARCH} == "aarch64" ]]; then echo "${teleportFlavor}-${teleportVersion}-linux-arm64-bin.tar.gz"
+    elif [[ ${ARCH} == "x86_64" ]]; then echo "${teleportFlavor}-${teleportVersion}-linux-amd64-bin.tar.gz"
+    elif [[ ${ARCH} == "i686" ]]; then echo "${teleportFlavor}-${teleportVersion}-linux-386-bin.tar.gz"
     else
         echo "Invalid Linux architecture ${ARCH}." >&2
         return 1
@@ -42,11 +44,11 @@ function main() {
     tar -xzf ${tarballName}
 
     mkdir -p ./bin
-    mv ./teleport/teleport ./bin/teleport
+    mv ./${teleportFlavor}/teleport ./bin/teleport
     echo "> ./bin/teleport ${teleportArgs}"
-    ./bin/teleport ${teleportArgs}
+    ./bin/teleport ${teleportArgs} && echo $successMessage
 
-    popd > /dev/null
+    popd > /dev/null    
 }
 
 main

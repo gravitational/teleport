@@ -383,6 +383,15 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 		"addr":     conn.conn.RemoteAddr().String(),
 	})
 
+	sshutils.DiscardChannelData(ch)
+	if ch != nil {
+		defer func() {
+			if err := ch.Close(); err != nil {
+				logger.Warnf("Failed to close heartbeat channel: %v", err)
+			}
+		}()
+	}
+
 	firstHeartbeat := true
 	proxyResyncTicker := s.clock.NewTicker(s.proxySyncInterval)
 	defer func() {
@@ -755,16 +764,27 @@ func (s *remoteSite) DialAuthServer(params reversetunnelclient.DialParams) (net.
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
 func (s *remoteSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
-	recConfig, err := s.localAccessPoint.GetSessionRecordingConfig(s.ctx)
+	localRecCfg, err := s.localAccessPoint.GetSessionRecordingConfig(s.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// If the proxy is in recording mode and a SSH connection is being
-	// requested or the target server is a registered OpenSSH node, build
-	// an in-memory forwarding server.
-	if shouldDialAndForward(params, recConfig) {
+	if shouldDialAndForward(params, localRecCfg) {
 		return s.dialAndForward(params)
+	}
+
+	if params.ConnType == types.NodeTunnel {
+		// If the remote cluster is recording at the proxy we need to respect
+		// that and forward and record the session. We will be connecting
+		// to the node without connecting through the remote proxy, so the
+		// session won't have a chance to get recorded at the remote proxy.
+		remoteRecCfg, err := s.remoteAccessPoint.GetSessionRecordingConfig(s.ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if services.IsRecordAtProxy(remoteRecCfg.GetMode()) {
+			return s.dialAndForward(params)
+		}
 	}
 
 	// Attempt to perform a direct TCP dial.
@@ -780,7 +800,7 @@ func (s *remoteSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, e
 		ConnType:        params.ConnType,
 		ClientSrcAddr:   stringOrEmpty(params.From),
 		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
-		IsAgentlessNode: params.AgentlessSigner != nil,
+		IsAgentlessNode: params.IsAgentlessNode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -790,8 +810,8 @@ func (s *remoteSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, e
 }
 
 func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
-	if params.GetUserAgent == nil && params.AgentlessSigner == nil {
-		return nil, trace.BadParameter("user agent getter and agentless signer both missing")
+	if params.GetUserAgent == nil && !params.IsAgentlessNode {
+		return nil, trace.BadParameter("user agent getter is required for teleport nodes")
 	}
 	s.logger.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
 
@@ -822,7 +842,7 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 		ConnType:        params.ConnType,
 		ClientSrcAddr:   stringOrEmpty(params.From),
 		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
-		IsAgentlessNode: params.AgentlessSigner != nil,
+		IsAgentlessNode: params.IsAgentlessNode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -837,6 +857,7 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 	serverConfig := forward.ServerConfig{
 		AuthClient:      s.localClient,
 		UserAgent:       userAgent,
+		IsAgentlessNode: params.IsAgentlessNode,
 		AgentlessSigner: params.AgentlessSigner,
 		TargetConn:      targetConn,
 		SrcAddr:         params.From,

@@ -99,9 +99,9 @@ running Teleport: via the `teleport` CLI, using a Helm chart, or via systemd:
     When running `teleport` from the command line, pass the `--insecure` flag to disable
     TLS certificate validation. For example:
     ```sh
-    $ teleport start -c /etc/teleport.yaml --insecure
-    $ teleport app start -c /etc/teleport.yaml --insecure
-    $ teleport db start -c /etc/teleport.yaml --insecure
+    $ sudo teleport start -c /etc/teleport.yaml --insecure
+    $ sudo teleport app start -c /etc/teleport.yaml --insecure
+    $ sudo teleport db start -c /etc/teleport.yaml --insecure
     ```
     Without the `--insecure` flag, you will see an error message that looks like
     `x509: “tele.example.com” certificate is not trusted`.
@@ -127,8 +127,7 @@ running Teleport: via the `teleport` CLI, using a Helm chart, or via systemd:
     
     
     If you are using the `teleport-kube-agent` chart, set the 
-    [insecureSkipProxyTLSVerify
-    ](../../reference/helm-reference/teleport-kube-agent.mdx#insecureskipproxytlsverify)
+    [insecureSkipProxyTLSVerify](../../reference/helm-reference/teleport-kube-agent.mdx#insecureskipproxytlsverify)
     flag to `true`:
     <Tabs>
       <TabItem label="values.yaml">

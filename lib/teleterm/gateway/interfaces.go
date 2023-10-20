@@ -20,7 +20,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
-	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -35,8 +34,6 @@ type Gateway interface {
 	// ReloadCert loads the key pair from cfg.CertPath & cfg.KeyPath and
 	// updates the cert of the running local proxy.
 	ReloadCert() error
-	// CLICommand returns a command which launches a CLI client pointed at the gateway.
-	CLICommand() (*api.GatewayCLICommand, error)
 
 	URI() uri.ResourceURI
 	TargetURI() uri.ResourceURI

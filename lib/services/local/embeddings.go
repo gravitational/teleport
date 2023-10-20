@@ -51,6 +51,20 @@ func (e EmbeddingsService) GetEmbedding(ctx context.Context, kind, resourceID st
 	return ai.UnmarshalEmbedding(result.Value)
 }
 
+// GetEmbeddings returns a stream of all embeddings
+func (e EmbeddingsService) GetAllEmbeddings(ctx context.Context) stream.Stream[*embedding.Embedding] {
+	startKey := backend.ExactKey(embeddingsPrefix)
+	items := backend.StreamRange(ctx, e, startKey, backend.RangeEnd(startKey), 50)
+	return stream.FilterMap(items, func(item backend.Item) (*embedding.Embedding, bool) {
+		embedding, err := ai.UnmarshalEmbedding(item.Value)
+		if err != nil {
+			e.log.Warnf("Skipping embedding at %s, failed to unmarshal: %v", item.Key, err)
+			return nil, false
+		}
+		return embedding, true
+	})
+}
+
 // GetEmbeddings returns a stream of embeddings for a given kind.
 func (e EmbeddingsService) GetEmbeddings(ctx context.Context, kind string) stream.Stream[*embedding.Embedding] {
 	startKey := backend.ExactKey(embeddingsPrefix, kind)

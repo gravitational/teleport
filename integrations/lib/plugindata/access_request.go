@@ -15,8 +15,11 @@
 package plugindata
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/gravitational/trace"
 )
 
 // ResolutionTag represents enum type of access request resolution constant
@@ -27,6 +30,7 @@ const (
 	ResolvedApproved = ResolutionTag("APPROVED")
 	ResolvedDenied   = ResolutionTag("DENIED")
 	ResolvedExpired  = ResolutionTag("EXPIRED")
+	ResolvedPromoted = ResolutionTag("PROMOTED")
 )
 
 // AccessRequestData represents generic plugin data required for access request processing
@@ -38,10 +42,11 @@ type AccessRequestData struct {
 	ResolutionTag     ResolutionTag
 	ResolutionReason  string
 	SystemAnnotations map[string][]string
+	Resources         []string
 }
 
 // DecodeAccessRequestData deserializes a string map to PluginData struct.
-func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData) {
+func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData, err error) {
 	data.User = dataMap["user"]
 	if str := dataMap["roles"]; str != "" {
 		data.Roles = strings.Split(str, ",")
@@ -53,16 +58,43 @@ func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData)
 	data.ResolutionTag = ResolutionTag(dataMap["resolution"])
 	data.ResolutionReason = dataMap["resolve_reason"]
 
+	if str, ok := dataMap["resources"]; ok {
+		err = json.Unmarshal([]byte(str), &data.Resources)
+		if err != nil {
+			err = trace.Wrap(err)
+			return
+		}
+	}
+
+	if str, ok := dataMap["system_annotations"]; ok {
+		err = json.Unmarshal([]byte(str), &data.SystemAnnotations)
+		if err != nil {
+			err = trace.Wrap(err)
+			return
+		}
+		if len(data.SystemAnnotations) == 0 {
+			data.SystemAnnotations = nil
+		}
+	}
 	return
 }
 
 // EncodeAccessRequestData deserializes a string map to PluginData struct.
-func EncodeAccessRequestData(data AccessRequestData) map[string]string {
+func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) {
 	result := make(map[string]string)
 
 	result["user"] = data.User
 	result["roles"] = strings.Join(data.Roles, ",")
+	result["resources"] = strings.Join(data.Resources, ",")
 	result["request_reason"] = data.RequestReason
+
+	if len(data.Resources) != 0 {
+		resources, err := json.Marshal(data.Resources)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result["resources"] = string(resources)
+	}
 
 	var reviewsCountStr string
 	if data.ReviewsCount > 0 {
@@ -72,5 +104,12 @@ func EncodeAccessRequestData(data AccessRequestData) map[string]string {
 	result["resolution"] = string(data.ResolutionTag)
 	result["resolve_reason"] = data.ResolutionReason
 
-	return result
+	if len(data.SystemAnnotations) != 0 {
+		annotaions, err := json.Marshal(data.SystemAnnotations)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result["system_annotations"] = string(annotaions)
+	}
+	return result, nil
 }

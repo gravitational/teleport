@@ -121,7 +121,7 @@ function FormPassword(props: Props) {
             <Flex alignItems="flex-end" mb={4}>
               <Box width="50%" data-testid="mfa-select">
                 <FieldSelect
-                  label="Two-factor type"
+                  label="Two-factor Type"
                   value={mfaType}
                   options={mfaOptions}
                   onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
@@ -133,7 +133,7 @@ function FormPassword(props: Props) {
               <Box width="50%">
                 {mfaType.value === 'otp' && (
                   <FieldInput
-                    label="Authenticator code"
+                    label="Authenticator Code"
                     inputMode="numeric"
                     autoComplete="one-time-code"
                     rule={requiredToken}

@@ -1,4 +1,4 @@
-/* 
+/*
 Security Groups and Rules for Cluster.
 
 Note: Please see the list of networking ports documentation for their usage.
@@ -31,10 +31,10 @@ resource "aws_security_group_rule" "cluster_ingress_ssh" {
 // Permit inbound to Teleport Web interface
 // tfsec:ignore:aws-ec2-no-public-ingress-sgr
 resource "aws_security_group_rule" "cluster_ingress_web" {
-  description       = "Permit inbound to Teleport Web interface"
+  description       = "Permit inbound to Teleport web interface"
   type              = "ingress"
-  from_port         = 3080
-  to_port           = 3080
+  from_port         = 443
+  to_port           = 443
   protocol          = "tcp"
   cidr_blocks       = var.allowed_ingress_cidr_blocks
   security_group_id = aws_security_group.cluster.id
@@ -46,49 +46,54 @@ resource "aws_security_group_rule" "cluster_ingress_services" {
   description       = "Permit inbound to Teleport services"
   type              = "ingress"
   from_port         = 3022
-  to_port           = 3025
+  to_port           = 3026
   protocol          = "tcp"
   cidr_blocks       = var.allowed_ingress_cidr_blocks
   security_group_id = aws_security_group.cluster.id
+  // don't expose other ports if ACM is enabled
+  count = var.use_acm ? 0 : 1
 }
 
-// Permit inbound to Teleport mysql services
+// Permit inbound to Teleport mysql listener
 // tfsec:ignore:aws-ec2-no-public-ingress-sgr
 resource "aws_security_group_rule" "cluster_ingress_mysql" {
-  description       = "Permit inbound to Teleport mysql services"
+  description       = "Permit inbound to Teleport mysql listener"
   type              = "ingress"
   from_port         = 3036
   to_port           = 3036
   protocol          = "tcp"
   cidr_blocks       = var.allowed_ingress_cidr_blocks
   security_group_id = aws_security_group.cluster.id
-  count             = var.enable_mysql_listener ? 1 : 0
+  // only expose if listener enabled and ACM disabled
+  count = var.enable_mysql_listener ? !var.use_acm ? 1 : 0 : 0
 }
 
-// Permit inbound to Teleport postgres services
+// Permit inbound to Teleport postgres listener
 // tfsec:ignore:aws-ec2-no-public-ingress-sgr
 resource "aws_security_group_rule" "cluster_ingress_postgres" {
-  description       = "Permit inbound to Teleport postgres services"
+  description       = "Permit inbound to Teleport postgres listener"
   type              = "ingress"
   from_port         = 5432
   to_port           = 5432
   protocol          = "tcp"
   cidr_blocks       = var.allowed_ingress_cidr_blocks
   security_group_id = aws_security_group.cluster.id
-  count             = var.enable_postgres_listener ? 1 : 0
+  // only expose if listener enabled and ACM disabled
+  count = var.enable_postgres_listener ? !var.use_acm ? 1 : 0 : 0
 }
 
-// Permit inbound to Teleport mongodb services
+// Permit inbound to Teleport mongodb listener
 // tfsec:ignore:aws-ec2-no-public-ingress-sgr
 resource "aws_security_group_rule" "cluster_ingress_mongodb" {
-  description       = "Permit inbound to Teleport mongodb services"
+  description       = "Permit inbound to Teleport mongodb listener"
   type              = "ingress"
   from_port         = 27017
   to_port           = 27017
   protocol          = "tcp"
   cidr_blocks       = var.allowed_ingress_cidr_blocks
   security_group_id = aws_security_group.cluster.id
-  count             = var.enable_mongodb_listener ? 1 : 0
+  // only expose if listener enabled and ACM disabled
+  count = var.enable_mongodb_listener ? !var.use_acm ? 1 : 0 : 0
 }
 
 // Permit all outbound traffic

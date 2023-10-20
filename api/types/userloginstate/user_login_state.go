@@ -46,6 +46,9 @@ type Spec struct {
 
 	// Traits are the traits attached to the user login state.
 	Traits trait.Traits `json:"traits" yaml:"traits"`
+
+	// UserType is the type of user that this state represents.
+	UserType types.UserType `json:"user_type" yaml:"user_type"`
 }
 
 // New creates a new user login state.
@@ -67,7 +70,15 @@ func (u *UserLoginState) CheckAndSetDefaults() error {
 	u.SetKind(types.KindUserLoginState)
 	u.SetVersion(types.V1)
 
-	return trace.Wrap(u.ResourceHeader.CheckAndSetDefaults())
+	if err := trace.Wrap(u.ResourceHeader.CheckAndSetDefaults()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if u.Spec.UserType == "" {
+		u.Spec.UserType = types.UserTypeLocal
+	}
+
+	return nil
 }
 
 // GetRoles returns the roles attached to the user login state.
@@ -76,8 +87,24 @@ func (u *UserLoginState) GetRoles() []string {
 }
 
 // GetTraits returns the traits attached to the user login state.
-func (u *UserLoginState) GetTraits() trait.Traits {
+func (u *UserLoginState) GetTraits() map[string][]string {
 	return u.Spec.Traits
+}
+
+// GetUserType returns the user type for the user login state.
+func (u *UserLoginState) GetUserType() types.UserType {
+	return u.Spec.UserType
+}
+
+// IsBot returns true if the user is a bot.
+func (u *UserLoginState) IsBot() bool {
+	_, ok := u.GetMetadata().Labels[types.BotGenerationLabel]
+	return ok
+}
+
+// BotGenerationLabel returns the bot generation label.
+func (u *UserLoginState) BotGenerationLabel() string {
+	return u.GetMetadata().Labels[types.BotGenerationLabel]
 }
 
 // GetMetadata returns metadata. This is specifically for conforming to the Resource interface,

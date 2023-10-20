@@ -110,7 +110,7 @@ export function SecondStageInstructions(
               <FieldInput
                 mb={1}
                 autoFocus
-                label="thumbprint"
+                label="Thumbprint"
                 onChange={e => setThumbprint(e.target.value)}
                 value={thumbprint}
                 placeholder="Paste the thumbprint here"

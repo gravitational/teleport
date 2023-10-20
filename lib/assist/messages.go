@@ -21,16 +21,7 @@ package assist
 
 import (
 	"fmt"
-
-	"github.com/gravitational/teleport/lib/ai/model"
 )
-
-// commandPayload is a payload for a command message.
-type commandPayload struct {
-	Command string        `json:"command,omitempty"`
-	Nodes   []string      `json:"nodes,omitempty"`
-	Labels  []model.Label `json:"labels,omitempty"`
-}
 
 // CommandExecSummary is a payload for the COMMAND_RESULT_SUMMARY message.
 type CommandExecSummary struct {

@@ -26,7 +26,7 @@ const kind = props => {
     case 'danger':
       return {
         background: theme.colors.error.main,
-        color: theme.colors.text.primaryInverse,
+        color: theme.colors.buttons.warning.text,
       };
     case 'info':
       return {

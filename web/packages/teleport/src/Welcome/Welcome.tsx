@@ -16,12 +16,19 @@ limitations under the License.
 
 import React from 'react';
 
-import { Route, Switch, useParams } from 'teleport/components/Router';
+import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
+
+import {
+  Route,
+  Switch,
+  useParams,
+  useLocation,
+} from 'teleport/components/Router';
 import history from 'teleport/services/history';
-import LogoHero from 'teleport/components/LogoHero';
 import cfg from 'teleport/config';
 import { NewCredentialsContainerProps } from 'teleport/Welcome/NewCredentials';
 
+import { CLOUD_INVITE_URL_PARAM } from './const';
 import { CardWelcome } from './CardWelcome';
 
 type WelcomeProps = {
@@ -30,9 +37,17 @@ type WelcomeProps = {
 
 export default function Welcome({ NewCredentials }: WelcomeProps) {
   const { tokenId } = useParams<{ tokenId: string }>();
+  const { search } = useLocation();
 
   const handleOnInviteContinue = () => {
-    history.push(cfg.getUserInviteTokenContinueRoute(tokenId));
+    // We need to pass through the `invite` query parameter (if it exists) to
+    // render the invite collaborators form for Cloud users.
+    let suffix = '';
+    if (new URLSearchParams(search).has(CLOUD_INVITE_URL_PARAM)) {
+      suffix = `?${CLOUD_INVITE_URL_PARAM}`;
+    }
+
+    history.push(`${cfg.getUserInviteTokenContinueRoute(tokenId)}${suffix}`);
   };
 
   const handleOnResetContinue = () => {
@@ -40,32 +55,37 @@ export default function Welcome({ NewCredentials }: WelcomeProps) {
   };
 
   return (
-    <>
-      <LogoHero />
-      <Switch>
-        <Route exact path={cfg.routes.userInvite}>
+    <Switch>
+      <Route exact path={cfg.routes.userInvite}>
+        <WelcomeWrapper>
           <CardWelcome
             title="Welcome to Teleport"
             subTitle="Please click the button below to create an account"
             btnText="Get started"
             onClick={handleOnInviteContinue}
           />
-        </Route>
-        <Route exact path={cfg.routes.userReset}>
+        </WelcomeWrapper>
+      </Route>
+      <Route exact path={cfg.routes.userReset}>
+        <WelcomeWrapper>
           <CardWelcome
             title="Reset Authentication"
             subTitle="Please click the button below to begin recovery of your account"
             btnText="Continue"
             onClick={handleOnResetContinue}
           />
-        </Route>
-        <Route path={cfg.routes.userInviteContinue}>
+        </WelcomeWrapper>
+      </Route>
+      <Route path={cfg.routes.userInviteContinue}>
+        <WelcomeWrapper>
           <NewCredentials tokenId={tokenId} />
-        </Route>
-        <Route path={cfg.routes.userResetContinue}>
+        </WelcomeWrapper>
+      </Route>
+      <Route path={cfg.routes.userResetContinue}>
+        <WelcomeWrapper>
           <NewCredentials resetMode={true} tokenId={tokenId} />
-        </Route>
-      </Switch>
-    </>
+        </WelcomeWrapper>
+      </Route>
+    </Switch>
   );
 }

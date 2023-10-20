@@ -59,7 +59,7 @@ package rdpclient
 #cgo linux LDFLAGS: -l:librdp_client.a -lpthread -ldl -lm
 #cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
 #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
-#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -lrdp_client -lpthread -ldl -lm
+#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -framework SystemConfiguration -lrdp_client -lpthread -ldl -lm
 #include <librdprs.h>
 */
 import "C"
@@ -201,6 +201,10 @@ func (c *Client) Run(ctx context.Context) error {
 		stopErr := c.stopRustRDP()
 		return trace.NewAggregate(err, stopErr)
 	}
+}
+
+func (c *Client) GetClientUsername() string {
+	return c.username
 }
 
 func (c *Client) readClientUsername() error {
@@ -716,6 +720,7 @@ func tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowledge
 		return C.ErrCodeFailure
 	}
 	return client.sharedDirectoryAcknowledge(tdp.SharedDirectoryAcknowledge{
+		//nolint:unconvert // Avoid hard dependencies on C types
 		ErrCode:     uint32(ack.err_code),
 		DirectoryID: uint32(ack.directory_id),
 	})
@@ -771,8 +776,9 @@ func tdp_sd_create_request(handle C.uintptr_t, req *C.CGOSharedDirectoryCreateRe
 	return client.sharedDirectoryCreateRequest(tdp.SharedDirectoryCreateRequest{
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
-		FileType:     uint32(req.file_type),
-		Path:         C.GoString(req.path),
+		//nolint:unconvert // Avoid hard dependencies on C types.
+		FileType: uint32(req.file_type),
+		Path:     C.GoString(req.path),
 	})
 }
 

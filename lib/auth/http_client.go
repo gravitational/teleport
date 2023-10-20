@@ -89,7 +89,7 @@ func (c *HTTPClientConfig) CheckAndSetDefaults() error {
 	// Set the next protocol. This is needed due to the Auth Server using a
 	// multiplexer for protocol detection. Unless next protocol is specified
 	// it will attempt to upgrade to HTTP2 and at that point there is no way
-	// to distinguish between HTTP2/JSON or GPRC.
+	// to distinguish between HTTP2/JSON or gRPC.
 	c.TLS.NextProtos = []string{teleport.HTTPNextProtoTLS}
 
 	// Configure ALPN SNI direct dial TLS routing information used by ALPN SNI proxy in order to
@@ -661,16 +661,6 @@ func (c *HTTPClient) DeleteProxy(ctx context.Context, name string) error {
 	return nil
 }
 
-// UpsertUser user updates user entry.
-func (c *HTTPClient) UpsertUser(user types.User) error {
-	data, err := services.MarshalUser(user)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("users"), &upsertUserRawReq{User: data})
-	return trace.Wrap(err)
-}
-
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
 func (c *HTTPClient) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
@@ -780,7 +770,7 @@ func (c *HTTPClient) ValidateOIDCAuthCallback(ctx context.Context, q url.Values)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rawResponse *OIDCAuthRawResponse
+	var rawResponse OIDCAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -818,7 +808,7 @@ func (c *HTTPClient) ValidateSAMLResponse(ctx context.Context, re string, connec
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rawResponse *SAMLAuthRawResponse
+	var rawResponse SAMLAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}

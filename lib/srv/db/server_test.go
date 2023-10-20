@@ -32,6 +32,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -182,6 +183,57 @@ func TestDatabaseServerLimiting(t *testing.T) {
 
 		require.FailNow(t, "we should exceed the connection limit by now")
 	})
+}
+
+func TestDatabaseServerAutoDisconnect(t *testing.T) {
+	const (
+		user   = "bob"
+		role   = "admin"
+		dbName = "postgres"
+		dbUser = user
+	)
+
+	ctx := context.Background()
+	allowDbUsers := []string{types.Wildcard}
+	allowDbNames := []string{types.Wildcard}
+
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+
+	go testCtx.startHandlingConnections()
+	t.Cleanup(func() {
+		require.NoError(t, testCtx.Close())
+	})
+
+	const clientIdleTimeout = time.Second * 30
+
+	// create user/role with client idle timeout
+	testCtx.createUserAndRole(ctx, t, user, role, allowDbUsers, allowDbNames, withClientIdleTimeout(clientIdleTimeout))
+
+	// connect
+	pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
+	require.NoError(t, err)
+
+	// immediate query should work
+	_, err = pgConn.Exec(ctx, "select 1").ReadAll()
+	require.NoError(t, err)
+
+	// advance clock several times, perform query.
+	// the activity should update the idle activity timer.
+	for i := 0; i < 10; i++ {
+		testCtx.clock.Advance(clientIdleTimeout / 2)
+		_, err = pgConn.Exec(ctx, "select 1").ReadAll()
+		require.NoErrorf(t, err, "failed on iteration %v", i+1)
+	}
+
+	// advance clock by full idle timeout, expect the client to be disconnected automatically.
+	testCtx.clock.Advance(clientIdleTimeout)
+	waitForEvent(t, testCtx, events.ClientDisconnectCode)
+
+	// expect failure after timeout.
+	_, err = pgConn.Exec(ctx, "select 1").ReadAll()
+	require.Error(t, err)
+
+	require.NoError(t, pgConn.Close(ctx))
 }
 
 func TestHeartbeatEvents(t *testing.T) {
@@ -394,25 +446,9 @@ func TestShutdownWithActiveConnections(t *testing.T) {
 	}
 
 	cancelConn()
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		select {
-		case err := <-connErrCh:
-			assert.NoError(c, err, "unexpected connection error")
-		default:
-		}
-	}, time.Second, 100*time.Millisecond)
-
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		select {
-		case err := <-shutdownErrCh:
-			assert.NoError(c, err, "unexpected server shutdown error")
-		default:
-		}
-	}, time.Second, 100*time.Millisecond)
-
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.NoError(c, server.Wait(), "unexpected server Wait error")
-	}, time.Second, 100*time.Millisecond)
+	require.NoError(t, <-connErrCh, "unexpected connection close error")
+	require.NoError(t, <-shutdownErrCh, "unexpected server shutdown error")
+	require.NoError(t, server.Wait(), "unexpected server Wait error")
 }
 
 // TestShutdownWithActiveConnections given that a running database server with
@@ -425,17 +461,14 @@ func TestCloseWithActiveConnections(t *testing.T) {
 	server, connErrCh, _ := databaseServerWithActiveConnection(t, ctx)
 
 	require.NoError(t, server.Close())
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		select {
 		case err := <-connErrCh:
-			assert.ErrorIs(c, err, io.ErrUnexpectedEOF)
+			assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
 		default:
 		}
 	}, time.Second, 100*time.Millisecond)
-
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.NoError(t, server.Wait(), "unexpected error from server Wait")
-	}, time.Second, 100*time.Millisecond)
+	require.NoError(t, server.Wait(), "unexpected server Wait error")
 }
 
 // serverWithActiveConnection starts a server with one active connection that
@@ -447,20 +480,25 @@ func databaseServerWithActiveConnection(t *testing.T, ctx context.Context) (*Ser
 	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres(databaseName))
 	go testCtx.startHandlingConnections()
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"*"}, []string{"*"})
-	dbTestServer, ok := testCtx.postgres[databaseName]
-	require.True(t, ok)
 
 	connCtx, cancelConn := context.WithCancel(ctx)
-	t.Cleanup(func() { cancelConn() })
+	t.Cleanup(cancelConn)
 	connErrCh := make(chan error)
 
-	go func() {
-		conn, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
-		if err != nil {
-			connErrCh <- err
-			return
-		}
+	conn, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
+	require.NoError(t, err, "failed to establish connection")
 
+	// Immediately sends a query. This ensures the connection is healthy and
+	// active.
+	_, err = conn.Exec(ctx, "select 1").ReadAll()
+	if err != nil {
+		conn.Close(ctx)
+		require.Fail(t, "failed to send initial query")
+	}
+
+	require.Equal(t, int32(1), testCtx.server.activeConnections.Load(), "expected one active connection, but got none")
+
+	go func() {
 		ticker := time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
 		defer conn.Close(ctx)
@@ -479,15 +517,6 @@ func databaseServerWithActiveConnection(t *testing.T, ctx context.Context) (*Ser
 			}
 		}
 	}()
-
-	require.Eventually(t, func() bool {
-		return testCtx.server.activeConnections.Load() == int32(1)
-	}, time.Second, 100*time.Millisecond, "expected one active connection, but got none")
-
-	// Ensures the first query has been received.
-	require.Eventually(t, func() bool {
-		return dbTestServer.db.QueryCount() > uint32(1)
-	}, time.Second, 100*time.Millisecond, "database test server hasn't received queries")
 
 	return testCtx.server, connErrCh, cancelConn
 }

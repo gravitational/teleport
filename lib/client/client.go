@@ -21,7 +21,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -31,7 +30,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/moby/term"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
@@ -49,9 +47,9 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -436,7 +434,7 @@ func WithMFARequired(mfaRequired *bool) IssueUserCertsOpt {
 }
 
 // IssueUserCertsWithMFA generates a single-use certificate for the user.
-func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, promptMFAChallenge PromptMFAChallengeHandler, applyOpts ...IssueUserCertsOpt) (*Key, error) {
+func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, promptMFA PromptMFAFunc, applyOpts ...IssueUserCertsOpt) (*Key, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/IssueUserCertsWithMFA",
@@ -543,97 +541,24 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		defer clt.Close()
 	}
 
-	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
-	stream, err := clt.GenerateUserSingleUseCerts(ctx)
-	if err != nil {
-		if trace.IsNotImplemented(err) {
-			// Probably talking to an older server, use the old non-MFA endpoint.
-			log.WithError(err).Debug("Auth server does not implement GenerateUserSingleUseCerts.")
-			// SSH certs can be used without reissuing.
-			if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
-				return key, nil
-			}
-			return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
-		}
-		return nil, trace.Wrap(err)
-	}
-	defer func() {
-		// CloseSend closes the client side of the stream
-		stream.CloseSend()
-		// Recv to wait for the server side of the stream to end, this needs to
-		// be called to ensure the spans are finished properly
-		stream.Recv()
-	}()
-
-	initReq, err := proxy.prepareUserCertsRequest(params, key)
+	certsReq, err := proxy.prepareUserCertsRequest(params, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_Init{
-		Init: initReq,
-	}})
-	if err != nil {
-		return nil, trace.Wrap(trail.FromGRPC(err))
-	}
 
-	resp, err := stream.Recv()
+	key, _, err = PerformMFACeremony(ctx, PerformMFACeremonyParams{
+		CurrentAuthClient: proxy.currentCluster,
+		RootAuthClient:    clt,
+		PromptMFA:         promptMFA,
+		MFAAgainstRoot:    params.RouteToCluster == rootClusterName,
+		MFARequiredReq:    nil, // No need to check if we got this far.
+		CertsReq:          certsReq,
+		Key:               key,
+	})
 	if err != nil {
-		err = trail.FromGRPC(err)
-		// Older versions will NOT reply with a MFARequired response in the
-		// challenge and will terminate the stream with an auth.ErrNoMFADevices error.
-		// In this case for all protocols other than SSH fall back to reissuing
-		// certs without MFA.
-		if errors.Is(err, auth.ErrNoMFADevices) {
-			if params.usage() != proto.UserCertsRequest_SSH {
-				return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
-			}
-		}
-
 		return nil, trace.Wrap(err)
 	}
-	mfaChal := resp.GetMFAChallenge()
-	if mfaChal == nil {
-		return nil, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected MFAChallenge", resp.Response)
-	}
-	mfaResp, err := promptMFAChallenge(ctx, proxy.teleportClient.WebProxyAddr, mfaChal)
-	if err != nil {
-		return nil, trace.Wrap(trail.FromGRPC(err))
-	}
-	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: mfaResp}})
-	if err != nil {
-		return nil, trace.Wrap(trail.FromGRPC(err))
-	}
 
-	resp, err = stream.Recv()
-	if err != nil {
-		return nil, trace.Wrap(trail.FromGRPC(err))
-	}
-	certResp := resp.GetCert()
-	if certResp == nil {
-		return nil, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected SingleUseUserCert", resp.Response)
-	}
-	switch crt := certResp.Cert.(type) {
-	case *proto.SingleUseUserCert_SSH:
-		key.Cert = crt.SSH
-	case *proto.SingleUseUserCert_TLS:
-		switch initReq.Usage {
-		case proto.UserCertsRequest_Kubernetes:
-			key.KubeTLSCerts[initReq.KubernetesCluster] = crt.TLS
-		case proto.UserCertsRequest_Database:
-			dbCert, err := makeDatabaseClientPEM(params.RouteToDatabase.Protocol, crt.TLS, key)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = dbCert
-		case proto.UserCertsRequest_WindowsDesktop:
-			key.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = crt.TLS
-		default:
-			return nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", initReq.Usage)
-		}
-	default:
-		return nil, trace.BadParameter("server sent a %T SingleUseUserCert in response", certResp.Cert)
-	}
-	key.ClusterName = params.RouteToCluster
 	log.Debug("Issued single-use user certificate after an MFA check.")
 	return key, nil
 }
@@ -656,11 +581,6 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		params.AccessRequests = activeRequests.AccessRequests
 	}
 
-	attestationStatement, err := keys.GetAttestationStatement(key.PrivateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &proto.UserCertsRequest{
 		PublicKey:             key.MarshalSSHPublicKey(),
 		Username:              tlsCert.Subject.CommonName,
@@ -676,7 +596,7 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		Usage:                 params.usage(),
 		Format:                proxy.teleportClient.CertificateFormat,
 		RequesterName:         params.RequesterName,
-		AttestationStatement:  attestationStatement.ToProto(),
+		AttestationStatement:  key.PrivateKey.GetAttestationStatement().ToProto(),
 	}, nil
 }
 
@@ -692,11 +612,11 @@ func (proxy *ProxyClient) RootClusterName(ctx context.Context) (string, error) {
 	return proxy.teleportClient.RootClusterName(ctx)
 }
 
-// CreateAccessRequest registers a new access request with the auth server.
-func (proxy *ProxyClient) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+// CreateAccessRequestV2 registers a new access request with the auth server.
+func (proxy *ProxyClient) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
-		"proxyClient/CreateAccessRequest",
+		"proxyClient/CreateAccessRequestV2",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(attribute.String("request", req.GetName())),
 	)
@@ -704,7 +624,7 @@ func (proxy *ProxyClient) CreateAccessRequest(ctx context.Context, req types.Acc
 
 	site := proxy.CurrentCluster()
 
-	return site.CreateAccessRequest(ctx, req)
+	return site.CreateAccessRequestV2(ctx, req)
 }
 
 // GetAccessRequests loads all access requests matching the supplied filter.
@@ -1147,6 +1067,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		ALPNConnUpgradeRequired:    proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy(ctx, proxyAddr),
 		PROXYHeaderGetter:          CreatePROXYHeaderGetter(ctx, proxy.teleportClient.PROXYSigner),
 		InsecureAddressDiscovery:   proxy.teleportClient.InsecureSkipVerify,
+		PromptAdminRequestMFA:      proxy.teleportClient.NewMFAPrompt(mfa.WithHintBeforePrompt(mfa.AdminMFAHintBeforePrompt)),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1224,7 +1145,8 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
+		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
+		PromptAdminRequestMFA: proxy.teleportClient.NewMFAPrompt(mfa.WithHintBeforePrompt(mfa.AdminMFAHintBeforePrompt)),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

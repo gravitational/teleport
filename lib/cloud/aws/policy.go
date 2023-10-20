@@ -76,6 +76,14 @@ type Statement struct {
 	Resources SliceOrString `json:"Resource,omitempty"`
 	// Principals is a list of principals.
 	Principals map[string]SliceOrString `json:"Principal,omitempty"`
+	// Conditions is a list of conditions that must be satisfied for the action to be allowed.
+	// Example:
+	// Condition:
+	//    StringEquals:
+	//        "proxy.example.com:aud": "discover.teleport"
+	Conditions map[string]map[string]SliceOrString `json:"Condition,omitempty"`
+	// StatementID is an optional identifier for the statement.
+	StatementID string `json:"Sid,omitempty"`
 }
 
 // ensureResource ensures that the statement contains the specified resource.

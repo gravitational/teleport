@@ -27,13 +27,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -49,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -98,7 +97,8 @@ type AuthProvider interface {
 	GetSessionEvents(namespace string, sid session.ID, after int) ([]events.EventFields, error)
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 	IsMFARequired(ctx context.Context, req *authproto.IsMFARequiredRequest) (*authproto.IsMFARequiredResponse, error)
-	GenerateUserSingleUseCerts(ctx context.Context) (authproto.AuthService_GenerateUserSingleUseCertsClient, error)
+	CreateAuthenticateChallenge(ctx context.Context, req *authproto.CreateAuthenticateChallengeRequest) (*authproto.MFAAuthenticateChallenge, error)
+	GenerateUserCerts(ctx context.Context, req authproto.UserCertsRequest) (*authproto.Certs, error)
 	MaintainSessionPresence(ctx context.Context) (authproto.AuthService_MaintainSessionPresenceClient, error)
 }
 
@@ -135,7 +135,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 		proxySigner:     cfg.PROXYSigner,
 		participantMode: cfg.ParticipantMode,
 		tracker:         cfg.Tracker,
-		clock:           cfg.Clock,
+		presenceChecker: cfg.PresenceChecker,
 	}, nil
 }
 
@@ -178,8 +178,8 @@ type TerminalHandlerConfig struct {
 	// Tracker is the session tracker of the session being joined. May be nil
 	// if the user is not joining a session.
 	Tracker types.SessionTracker
-	// Clock used for presence checking.
-	Clock clockwork.Clock
+	// PresenceChecker used for presence checking.
+	PresenceChecker PresenceChecker
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
@@ -282,8 +282,12 @@ type TerminalHandler struct {
 	// if the user is not joining a session.
 	tracker types.SessionTracker
 
-	// clock to use for presence checking
-	clock clockwork.Clock
+	// presenceChecker to use for presence checking
+	presenceChecker PresenceChecker
+
+	// closedByClient indicates if the websocket connection was closed by the
+	// user (closing the browser tab, exiting the session, etc).
+	closedByClient atomic.Bool
 }
 
 // ServeHTTP builds a connection to the remote node and then pumps back two types of
@@ -358,10 +362,14 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (t *TerminalHandler) Close() error {
 	var err error
 	t.closeOnce.Do(func() {
-		// If the terminal handler was closed (most likely due to the *SessionContext
-		// closing) then the stream should be closed as well.
-		if t.stream != nil {
-			err = t.stream.Close()
+		if t.stream == nil {
+			return
+		}
+
+		if t.stream.sshSession != nil {
+			err = trace.NewAggregate(t.stream.sshSession.Close(), t.stream.Close())
+		} else {
+			err = trace.Wrap(t.stream.Close())
 		}
 	})
 	return trace.Wrap(err)
@@ -396,6 +404,20 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 	t.log.Debug("Creating websocket stream")
 
+	defaultCloseHandler := ws.CloseHandler()
+	ws.SetCloseHandler(func(code int, text string) error {
+		t.closedByClient.Store(true)
+		t.log.Debug("web socket was closed by client - terminating session")
+
+		// Call the default close handler if one was set.
+		if defaultCloseHandler != nil {
+			err := defaultCloseHandler(code, text)
+			return trace.NewAggregate(err, t.Close())
+		}
+
+		return trace.Wrap(t.Close())
+	})
+
 	// Start sending ping frames through websocket to client.
 	go startPingLoop(ctx, ws, t.keepAliveInterval, t.log, t.Close)
 
@@ -405,6 +427,15 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// Block until the terminal session is complete.
 	t.streamTerminal(ctx, tc)
 	t.log.Debug("Closing websocket stream")
+}
+
+type stderrWriter struct {
+	stream *TerminalStream
+}
+
+func (s stderrWriter) Write(b []byte) (int, error) {
+	s.stream.writeError(string(b))
+	return len(b), nil
 }
 
 // makeClient builds a *client.TeleportClient for the connection.
@@ -421,7 +452,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *TerminalStream
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
 	clientConfig.Namespace = apidefaults.Namespace
 	clientConfig.Stdout = stream
-	clientConfig.Stderr = stream
+	clientConfig.Stderr = stderrWriter{stream: stream}
 	clientConfig.Stdin = stream
 	clientConfig.SiteName = t.sessionData.ClusterName
 	if err := clientConfig.ParseProxyHost(t.proxyHostPort); err != nil {
@@ -465,132 +496,59 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	ctx, span := t.tracer.Start(ctx, "terminal/issueSessionMFACerts")
 	defer span.End()
 
-	// Always acquire single-use certificates from the root cluster, that's where
-	// both the user and their devices are registered.
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
-	stream, err := t.ctx.cfg.RootClient.GenerateUserSingleUseCerts(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer func() {
-		stream.CloseSend()
-		stream.Recv()
-	}()
 
+	// Prepare MFA check request.
+	mfaRequiredReq := &authproto.IsMFARequiredRequest{
+		Target: &authproto.IsMFARequiredRequest_Node{
+			Node: &authproto.NodeLogin{
+				Node:  t.sessionData.ServerID,
+				Login: tc.HostLogin,
+			},
+		},
+	}
+
+	// Prepare UserCertsRequest.
 	pk, err := keys.ParsePrivateKey(t.ctx.cfg.Session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	key := &client.Key{
 		PrivateKey: pk,
 		Cert:       t.ctx.cfg.Session.GetPub(),
 		TLSCert:    t.ctx.cfg.Session.GetTLSCert(),
 	}
-
 	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if err := stream.Send(
-		&authproto.UserSingleUseCertsRequest{
-			Request: &authproto.UserSingleUseCertsRequest_Init{
-				Init: &authproto.UserCertsRequest{
-					PublicKey:      key.MarshalSSHPublicKey(),
-					Username:       tlsCert.Subject.CommonName,
-					Expires:        tlsCert.NotAfter,
-					RouteToCluster: t.sessionData.ClusterName,
-					NodeName:       t.sessionData.ServerID,
-					Usage:          authproto.UserCertsRequest_SSH,
-					Format:         tc.CertificateFormat,
-					SSHLogin:       tc.HostLogin,
-				},
-			},
-		}); err != nil {
-		return nil, trail.FromGRPC(err)
+	certsReq := &authproto.UserCertsRequest{
+		PublicKey:      key.MarshalSSHPublicKey(),
+		Username:       tlsCert.Subject.CommonName,
+		Expires:        tlsCert.NotAfter,
+		RouteToCluster: t.sessionData.ClusterName,
+		NodeName:       t.sessionData.ServerID,
+		Usage:          authproto.UserCertsRequest_SSH,
+		Format:         tc.CertificateFormat,
+		SSHLogin:       tc.HostLogin,
 	}
 
-	resp, err := stream.Recv()
-	if err != nil {
-		err = trail.FromGRPC(err)
-		// If connecting to a host in a leaf cluster and MFA failed check to see
-		// if the leaf cluster requires MFA. If it doesn't return an error indicating
-		// that MFA was not required instead of the error received from the root cluster.
-		if t.sessionData.ClusterName != tc.SiteName {
-			check, err := t.authProvider.IsMFARequired(ctx, &authproto.IsMFARequiredRequest{
-				Target: &authproto.IsMFARequiredRequest_Node{
-					Node: &authproto.NodeLogin{
-						Node:  t.sessionData.ServerID,
-						Login: tc.HostLogin,
-					},
-				},
-			})
-			if err != nil {
-				return nil, trace.Wrap(client.MFARequiredUnknown(err))
-			}
-			if !check.Required {
-				return nil, trace.Wrap(services.ErrSessionMFANotRequired)
-			}
-		}
-
-		return nil, trail.FromGRPC(err)
-	}
-
-	challenge := resp.GetMFAChallenge()
-	if challenge == nil {
-		return nil, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected MFAChallenge", resp.Response)
-	}
-
-	switch challenge.MFARequired {
-	case authproto.MFARequired_MFA_REQUIRED_NO:
-		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
-	case authproto.MFARequired_MFA_REQUIRED_UNSPECIFIED:
-		mfaRequiredResp, err := t.authProvider.IsMFARequired(ctx, &authproto.IsMFARequiredRequest{
-			Target: &authproto.IsMFARequiredRequest_Node{
-				Node: &authproto.NodeLogin{
-					Node:  t.sessionData.ServerID,
-					Login: tc.HostLogin,
-				},
-			},
-		})
-		if err != nil {
-			return nil, trace.Wrap(client.MFARequiredUnknown(trail.FromGRPC(err)))
-		}
-
-		if !mfaRequiredResp.Required {
-			return nil, trace.Wrap(services.ErrSessionMFANotRequired)
-		}
-	case authproto.MFARequired_MFA_REQUIRED_YES:
-	}
-
-	span.AddEvent("prompting user with mfa challenge")
-	assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{})(ctx, tc.WebProxyAddr, challenge)
+	key, _, err = client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
+		CurrentAuthClient: t.authProvider,
+		RootAuthClient:    t.ctx.cfg.RootClient,
+		PromptMFA: func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+			span.AddEvent("prompting user with mfa challenge")
+			assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{})(ctx, chal)
+			span.AddEvent("user completed mfa challenge")
+			return assertion, trace.Wrap(err)
+		},
+		MFAAgainstRoot: t.ctx.cfg.RootClusterName == tc.SiteName,
+		MFARequiredReq: mfaRequiredReq,
+		CertsReq:       certsReq,
+		Key:            key,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	span.AddEvent("user completed mfa challenge")
-
-	err = stream.Send(&authproto.UserSingleUseCertsRequest{Request: &authproto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: assertion}})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	resp, err = stream.Recv()
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	certResp := resp.GetCert()
-	if certResp == nil {
-		return nil, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected SingleUseUserCert", resp.Response)
-	}
-
-	switch crt := certResp.Cert.(type) {
-	case *authproto.SingleUseUserCert_SSH:
-		key.Cert = crt.SSH
-	default:
-		return nil, trace.BadParameter("server sent a %T SingleUseUserCert in response", certResp.Cert)
 	}
 
 	key.ClusterName = t.sessionData.ClusterName
@@ -599,22 +557,18 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return []ssh.AuthMethod{am}, nil
 }
 
-func promptMFAChallenge(
-	stream *WSStream,
-	codec mfaCodec,
-) client.PromptMFAChallengeHandler {
-	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+func promptMFAChallenge(stream *WSStream, codec mfaCodec) client.PromptMFAFunc {
+	return func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 		var challenge *client.MFAAuthenticateChallenge
 
 		// Convert from proto to JSON types.
 		switch {
-		case c.GetWebauthnChallenge() != nil:
+		case chal.GetWebauthnChallenge() != nil:
 			challenge = &client.MFAAuthenticateChallenge{
-				WebauthnChallenge: wanlib.CredentialAssertionFromProto(c.WebauthnChallenge),
+				WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
 			}
 		default:
 			return nil, trace.AccessDenied("only hardware keys are supported on the web terminal, please register a hardware device to connect to this server")
@@ -746,11 +700,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				prompt := func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-					resp, err := promptMFAChallenge(t.stream.WSStream, protobufMFACodec{})(ctx, proxyAddr, c)
-					return resp, trace.Wrap(err)
-				}
-				if err := client.RunPresenceTask(ctx, out, t.authProvider, t.sessionData.ID.String(), prompt, client.WithPresenceClock(t.clock)); err != nil {
+				if err := t.presenceChecker(ctx, out, t.authProvider, t.sessionData.ID.String(), promptMFAChallenge(t.stream.WSStream, protobufMFACodec{})); err != nil {
 					t.log.WithError(err).Warn("Unable to stream terminal - failure performing presence checks")
 					return
 				}
@@ -761,8 +711,13 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
 	if err = nc.RunInteractiveShell(ctx, t.participantMode, t.tracker, beforeStart); err != nil {
-		t.log.WithError(err).Warn("Unable to stream terminal - failure running interactive shell")
-		t.stream.writeError(err.Error())
+		if !t.closedByClient.Load() {
+			t.stream.writeError(err.Error())
+		}
+		return
+	}
+
+	if t.closedByClient.Load() {
 		return
 	}
 
@@ -1107,14 +1062,20 @@ func (t *TerminalStream) handleWindowResize(ctx context.Context, envelope Envelo
 		return
 	}
 
-	var e map[string]string
+	var e map[string]interface{}
 	err := json.Unmarshal([]byte(envelope.Payload), &e)
 	if err != nil {
 		t.log.Warnf("Failed to parse resize payload: %v", err)
 		return
 	}
 
-	params, err := session.UnmarshalTerminalParams(e["size"])
+	size, ok := e["size"].(string)
+	if !ok {
+		t.log.Errorf("expected size to be of type string, got type %T instead", size)
+		return
+	}
+
+	params, err := session.UnmarshalTerminalParams(size)
 	if err != nil {
 		t.log.Warnf("Failed to retrieve terminal size: %v", err)
 		return
@@ -1345,10 +1306,8 @@ func (t *WSStream) SendCloseMessage(event sessionEndEvent) error {
 
 func (t *WSStream) close() {
 	t.once.Do(func() {
-		defer func() {
-			close(t.rawC)
-			close(t.challengeC)
-		}()
+		close(t.rawC)
+		close(t.challengeC)
 	})
 }
 

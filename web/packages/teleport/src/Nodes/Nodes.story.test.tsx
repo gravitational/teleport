@@ -17,7 +17,20 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
 
+import { KeysEnum } from 'teleport/services/localStorage';
+
 import { Loaded, Failed, Empty, EmptyReadOnly } from './Nodes.story';
+
+// TODO (avatus) DELETE IN 15.0
+// this is to allow the tests to actually render
+// the correct tables
+beforeAll(() => {
+  localStorage.setItem(KeysEnum.UNIFIED_RESOURCES_DISABLED, 'true');
+});
+
+afterAll(() => {
+  localStorage.removeItem(KeysEnum.UNIFIED_RESOURCES_DISABLED);
+});
 
 test('loaded', () => {
   const { container } = render(<Loaded />);

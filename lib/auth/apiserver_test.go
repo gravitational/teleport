@@ -135,7 +135,7 @@ func TestUpsertServer(t *testing.T) {
 			addServers(s.GetAuthServers())
 			addServers(s.GetNodes(ctx, apidefaults.Namespace))
 			addServers(s.GetProxies())
-			require.Empty(t, cmp.Diff(allServers, []types.Server{tt.wantServer}, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+			require.Empty(t, cmp.Diff(allServers, []types.Server{tt.wantServer}, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 		})
 	}
 }
@@ -207,8 +207,8 @@ type mockClientI struct {
 	existingRole string
 }
 
-func (c *mockClientI) UpsertUser(user types.User) error {
-	return nil
+func (c *mockClientI) UpsertUser(context.Context, types.User) (types.User, error) {
+	return nil, nil
 }
 func (c *mockClientI) GetRole(_ context.Context, name string) (types.Role, error) {
 	if c.existingRole != name {

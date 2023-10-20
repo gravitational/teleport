@@ -330,7 +330,7 @@ func TestMatchApplicationServers(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
+	fakeClock := clockwork.NewFakeClock()
 	authClient := &mockAuthClient{
 		clusterName: clusterName,
 		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr),

@@ -208,13 +208,10 @@ Bob can also assume granted Access Request roles using Web UI:
 
 ![Teleport Assume](../../../img/access-controls/dual-authz/teleport-7-bob-assume.png)
 
-{/* TODO: This H2 will show up in the table of contents when this section is invisible.
-We need a way to hide invisible H2s from the TOC. */}
-<ScopedBlock scope={["enterprise"]}>
 
 ## Troubleshooting
 
-### Cert errors in self-hosted deployments
+### Certificate errors in self-hosted deployments
 
 You may be getting certificate errors if Teleport's Auth Service is missing an address in the server certificate:
 
@@ -232,5 +229,3 @@ To fix the problem, update the Auth Service with a public address, and restart T
 auth_service:
   public_addr: ['localhost:3025', 'example.com:3025']
 ```
-
-</ScopedBlock>

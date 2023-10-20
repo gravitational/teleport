@@ -154,6 +154,16 @@ func (ca *CertAuthorityV2) SetResourceID(id int64) {
 	ca.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (ca *CertAuthorityV2) GetRevision() string {
+	return ca.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (ca *CertAuthorityV2) SetRevision(rev string) {
+	ca.Metadata.SetRevision(rev)
+}
+
 // WithoutSecrets returns an instance of resource without secrets.
 func (ca *CertAuthorityV2) WithoutSecrets() Resource {
 	ca2 := ca.Clone().(*CertAuthorityV2)

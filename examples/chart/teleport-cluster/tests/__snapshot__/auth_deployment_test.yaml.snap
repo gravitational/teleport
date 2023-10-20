@@ -1,6 +1,6 @@
 should add an operator side-car when operator is enabled:
   1: |
-    image: public.ecr.aws/gravitational/teleport-operator:14.0.0-dev
+    image: public.ecr.aws/gravitational/teleport-operator:15.0.0-dev
     imagePullPolicy: IfNotPresent
     livenessProbe:
       httpGet:
@@ -9,6 +9,13 @@ should add an operator side-car when operator is enabled:
       initialDelaySeconds: 15
       periodSeconds: 20
     name: operator
+    ports:
+    - containerPort: 8080
+      name: op-metrics
+      protocol: TCP
+    - containerPort: 8081
+      name: op-health
+      protocol: TCP
     readinessProbe:
       httpGet:
         path: /readyz
@@ -34,7 +41,7 @@ should add an operator side-car when operator is enabled:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -167,7 +174,7 @@ should set nodeSelector when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -264,7 +271,7 @@ should set resources when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -350,7 +357,7 @@ should set securityContext when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:

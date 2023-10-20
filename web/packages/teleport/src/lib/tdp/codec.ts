@@ -14,18 +14,9 @@
  * limitations under the License.
  */
 
-import {
-  TextEncoder as TestTextEncoder,
-  TextDecoder as TestTextDecoder,
-} from 'util';
-
 import { arrayBufferToBase64 } from 'shared/utils/base64';
 
 import { RDPFastPathPDU } from 'teleport/ironrdp/pkg';
-
-// This is needed for tests until jsdom adds support for TextEncoder (https://github.com/jsdom/jsdom/issues/2524)
-window.TextEncoder = window.TextEncoder || TestTextEncoder;
-window.TextDecoder = window.TextDecoder || TestTextDecoder;
 
 export type Message = ArrayBuffer;
 

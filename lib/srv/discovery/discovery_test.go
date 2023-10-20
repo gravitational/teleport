@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -48,8 +47,10 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -59,7 +60,9 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
@@ -138,10 +141,17 @@ func (m *mockEC2Client) DescribeInstancesPagesWithContext(
 	return nil
 }
 
+func genEC2InstanceIDs(n int) []string {
+	var ec2InstanceIDs []string
+	for i := 0; i < n; i++ {
+		ec2InstanceIDs = append(ec2InstanceIDs, fmt.Sprintf("instance-id-%d", i))
+	}
+	return ec2InstanceIDs
+}
+
 func genEC2Instances(n int) []*ec2.Instance {
 	var ec2Instances []*ec2.Instance
-	for i := 0; i < n; i++ {
-		id := fmt.Sprintf("instance-id-%d", i)
+	for _, id := range genEC2InstanceIDs(n) {
 		ec2Instances = append(ec2Instances, &ec2.Instance{
 			InstanceId: aws.String(id),
 			Tags: []*ec2.Tag{{
@@ -156,17 +166,36 @@ func genEC2Instances(n int) []*ec2.Instance {
 	return ec2Instances
 }
 
+type mockSSMInstaller struct {
+	mu                 sync.Mutex
+	installedInstances []string
+}
+
+func (m *mockSSMInstaller) Run(_ context.Context, req server.SSMRunRequest) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, inst := range req.Instances {
+		m.installedInstances = append(m.installedInstances, inst.InstanceID)
+	}
+	return nil
+}
+
+func (m *mockSSMInstaller) GetInstalledInstances() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.installedInstances
+}
+
 func TestDiscoveryServer(t *testing.T) {
 	t.Parallel()
 	tcs := []struct {
 		name string
 		// presentInstances is a list of servers already present in teleport
-		presentInstances  []types.Server
-		foundEC2Instances []*ec2.Instance
-		ssm               *mockSSMClient
-		emitter           *mockEmitter
-		logHandler        func(*testing.T, io.Reader, chan struct{})
-		wantEvents        int
+		presentInstances       []types.Server
+		foundEC2Instances      []*ec2.Instance
+		ssm                    *mockSSMClient
+		emitter                *mockEmitter
+		wantInstalledInstances []string
 	}{
 		{
 			name:             "no nodes present, 1 found ",
@@ -211,7 +240,7 @@ func TestDiscoveryServer(t *testing.T) {
 					})
 				},
 			},
-			wantEvents: 1,
+			wantInstalledInstances: []string{"instance-id-1"},
 		},
 		{
 			name: "nodes present, instance filtered",
@@ -252,17 +281,6 @@ func TestDiscoveryServer(t *testing.T) {
 				},
 			},
 			emitter: &mockEmitter{},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				for scanner.Scan() {
-					fmt.Println("LOG: ", scanner.Text())
-					if strings.Contains(scanner.Text(),
-						"All discovered EC2 instances are already part of the cluster.") {
-						done <- struct{}{}
-						return
-					}
-				}
-			},
 		},
 		{
 			name: "nodes present, instance not filtered",
@@ -302,18 +320,8 @@ func TestDiscoveryServer(t *testing.T) {
 					ResponseCode: aws.Int64(0),
 				},
 			},
-			emitter: &mockEmitter{},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				for scanner.Scan() {
-					if strings.Contains(scanner.Text(),
-						"Running Teleport installation on these instances: AccountID: owner, Instances: [instance-id-1]") {
-						done <- struct{}{}
-						return
-					}
-				}
-			},
-			wantEvents: 1,
+			emitter:                &mockEmitter{},
+			wantInstalledInstances: []string{"instance-id-1"},
 		},
 		{
 			name:              "chunked nodes get 2 log messages",
@@ -330,23 +338,8 @@ func TestDiscoveryServer(t *testing.T) {
 					ResponseCode: aws.Int64(0),
 				},
 			},
-			emitter: &mockEmitter{},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				instances := genEC2Instances(58)
-				findAll := []string{genEC2InstancesLogStr(server.ToEC2Instances(instances[:50])), genEC2InstancesLogStr(server.ToEC2Instances(instances[50:]))}
-				index := 0
-				for scanner.Scan() {
-					if index == len(findAll) {
-						done <- struct{}{}
-						return
-					}
-					if strings.Contains(scanner.Text(), findAll[index]) {
-						index++
-					}
-				}
-			},
-			wantEvents: 58,
+			emitter:                &mockEmitter{},
+			wantInstalledInstances: genEC2InstanceIDs(58),
 		},
 	}
 
@@ -394,6 +387,7 @@ func TestDiscoveryServer(t *testing.T) {
 
 			logger := logrus.New()
 			reporter := &mockUsageReporter{}
+			installer := &mockSSMInstaller{}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
@@ -414,6 +408,7 @@ func TestDiscoveryServer(t *testing.T) {
 				Log:     logger,
 			})
 			require.NoError(t, err)
+			server.ec2Installer = installer
 			tc.emitter.server = server
 			tc.emitter.t = t
 
@@ -422,35 +417,21 @@ func TestDiscoveryServer(t *testing.T) {
 				require.NoError(t, r.Close())
 				require.NoError(t, w.Close())
 			})
-			if tc.logHandler != nil {
-				logger.SetOutput(w)
-				logger.SetLevel(logrus.DebugLevel)
-			}
 
 			go server.Start()
 			t.Cleanup(server.Stop)
 
-			if tc.logHandler != nil {
-				done := make(chan struct{})
-				go tc.logHandler(t, r, done)
-				timeoutCtx, cancelfn := context.WithTimeout(ctx, time.Second*5)
-				defer cancelfn()
-				select {
-				case <-timeoutCtx.Done():
-					t.Fatal("Timeout waiting for log entries")
-					return
-				case <-done:
-				}
-			}
-
-			if tc.wantEvents > 0 {
+			if len(tc.wantInstalledInstances) > 0 {
+				slices.Sort(tc.wantInstalledInstances)
 				require.Eventually(t, func() bool {
-					return reporter.EventsCount() == tc.wantEvents
-				}, 100*time.Millisecond, 10*time.Millisecond)
+					instances := installer.GetInstalledInstances()
+					slices.Sort(instances)
+					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.EventsCount()
+				}, 500*time.Millisecond, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
-					return reporter.EventsCount() != 0
-				}, 100*time.Millisecond, 10*time.Millisecond)
+					return len(installer.GetInstalledInstances()) > 0 || reporter.EventsCount() > 0
+				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
 		})
 	}
@@ -989,11 +970,11 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			if tc.wantEvents > 0 {
 				require.Eventually(t, func() bool {
 					return reporter.EventsCount() == tc.wantEvents
-				}, 100*time.Millisecond, 10*time.Millisecond)
+				}, time.Second, 100*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
 					return reporter.EventsCount() != 0
-				}, 100*time.Millisecond, 10*time.Millisecond)
+				}, time.Second, 100*time.Millisecond)
 			}
 		})
 	}
@@ -1278,6 +1259,22 @@ func TestDiscoveryDatabase(t *testing.T) {
 	awsRDSDBWithRole.SetAWSAssumeRole("arn:aws:iam::123456789012:role/test-role")
 	awsRDSDBWithRole.SetAWSExternalID("test123")
 
+	matcherForDiscoveryConfigFn := func(t *testing.T, discoveryGroup string, m Matchers) *discoveryconfig.DiscoveryConfig {
+		dc, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: uuid.NewString()},
+			discoveryconfig.Spec{
+				DiscoveryGroup: discoveryGroup,
+				AWS:            m.AWS,
+				Azure:          m.Azure,
+				GCP:            m.GCP,
+				Kube:           m.Kubernetes,
+			},
+		)
+
+		require.NoError(t, err)
+		return dc
+	}
+
 	testCloudClients := &cloud.TestCloudClients{
 		STS: &mocks.STSMock{},
 		RDS: &mocks.RDSMock{
@@ -1304,12 +1301,13 @@ func TestDiscoveryDatabase(t *testing.T) {
 		awsMatchers       []types.AWSMatcher
 		azureMatchers     []types.AzureMatcher
 		expectDatabases   []types.Database
+		discoveryConfigs  func(*testing.T) []*discoveryconfig.DiscoveryConfig
 		wantEvents        int
 	}{
 		{
 			name: "discover AWS database",
 			awsMatchers: []types.AWSMatcher{{
-				Types:   []string{services.AWSMatcherRedshift},
+				Types:   []string{types.AWSMatcherRedshift},
 				Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 				Regions: []string{"us-east-1"},
 			}},
@@ -1319,7 +1317,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 		{
 			name: "discover AWS database with assumed role",
 			awsMatchers: []types.AWSMatcher{{
-				Types:      []string{services.AWSMatcherRDS},
+				Types:      []string{types.AWSMatcherRDS},
 				Tags:       map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 				Regions:    []string{"us-west-1"},
 				AssumeRole: &role,
@@ -1330,7 +1328,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 		{
 			name: "discover Azure database",
 			azureMatchers: []types.AzureMatcher{{
-				Types:          []string{services.AzureMatcherRedis},
+				Types:          []string{types.AzureMatcherRedis},
 				ResourceTags:   map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 				Regions:        []string{types.Wildcard},
 				ResourceGroups: []string{types.Wildcard},
@@ -1357,7 +1355,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				}),
 			},
 			awsMatchers: []types.AWSMatcher{{
-				Types:   []string{services.AWSMatcherRedshift},
+				Types:   []string{types.AWSMatcherRedshift},
 				Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 				Regions: []string{"us-east-1"},
 			}},
@@ -1376,7 +1374,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				}),
 			},
 			awsMatchers: []types.AWSMatcher{{
-				Types:      []string{services.AWSMatcherRDS},
+				Types:      []string{types.AWSMatcherRDS},
 				Tags:       map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 				Regions:    []string{"us-west-1"},
 				AssumeRole: &role,
@@ -1396,7 +1394,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				}),
 			},
 			awsMatchers: []types.AWSMatcher{{
-				Types:   []string{services.AWSMatcherRedshift},
+				Types:   []string{types.AWSMatcherRedshift},
 				Tags:    map[string]utils.Strings{"do-not-match": {"do-not-match"}},
 				Regions: []string{"us-east-1"},
 			}},
@@ -1424,7 +1422,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				}),
 			},
 			awsMatchers: []types.AWSMatcher{{
-				Types:   []string{services.AWSMatcherRedshift},
+				Types:   []string{types.AWSMatcherRedshift},
 				Tags:    map[string]utils.Strings{"do-not-match": {"do-not-match"}},
 				Regions: []string{"us-east-1"},
 			}},
@@ -1438,6 +1436,38 @@ func TestDiscoveryDatabase(t *testing.T) {
 					URI:      "localhost:12345",
 				}),
 			},
+		},
+		{
+			name:            "discover Azure database using dynamic matchers",
+			expectDatabases: []types.Database{azRedisDB},
+			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
+				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
+					Azure: []types.AzureMatcher{{
+						Types:          []string{types.AzureMatcherRedis},
+						ResourceTags:   map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+						Regions:        []string{types.Wildcard},
+						ResourceGroups: []string{types.Wildcard},
+						Subscriptions:  []string{"sub1"},
+					}},
+				})
+				return []*discoveryconfig.DiscoveryConfig{dc1}
+			},
+			wantEvents: 1,
+		},
+		{
+			name:            "discover AWS database using dynamic matchers",
+			expectDatabases: []types.Database{awsRedshiftDB},
+			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
+				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
+					AWS: []types.AWSMatcher{{
+						Types:   []string{types.AWSMatcherRedshift},
+						Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+						Regions: []string{"us-east-1"},
+					}},
+				})
+				return []*discoveryconfig.DiscoveryConfig{dc1}
+			},
+			wantEvents: 1,
 		},
 	}
 
@@ -1493,6 +1523,21 @@ func TestDiscoveryDatabase(t *testing.T) {
 
 			require.NoError(t, err)
 
+			// Add Dynamic Matchers and wait for reconcile again
+			if tc.discoveryConfigs != nil {
+				for _, dc := range tc.discoveryConfigs(t) {
+					_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc)
+					require.NoError(t, err)
+				}
+
+				// Wait for the DiscoveryConfig to be added to the dynamic matchers
+				require.Eventually(t, func() bool {
+					srv.muDynamicFetchers.RLock()
+					defer srv.muDynamicFetchers.RUnlock()
+					return len(srv.dynamicDatabaseFetchers) > 0
+				}, 1*time.Second, 100*time.Millisecond)
+			}
+
 			t.Cleanup(srv.Stop)
 			go srv.Start()
 
@@ -1505,7 +1550,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
 				require.NoError(t, err)
 				require.Empty(t, cmp.Diff(tc.expectDatabases, actualDatabases,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 				))
 			case <-time.After(time.Second):
@@ -1515,14 +1560,188 @@ func TestDiscoveryDatabase(t *testing.T) {
 			if tc.wantEvents > 0 {
 				require.Eventually(t, func() bool {
 					return reporter.EventsCount() == tc.wantEvents
-				}, 100*time.Millisecond, 10*time.Millisecond)
+				}, time.Second, 100*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
 					return reporter.EventsCount() != 0
-				}, 100*time.Millisecond, 10*time.Millisecond)
+				}, time.Second, 100*time.Millisecond)
 			}
 		})
 	}
+}
+
+func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
+	const mainDiscoveryGroup = "main"
+
+	clock := clockwork.NewFakeClock()
+
+	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", mainDiscoveryGroup)
+
+	testCloudClients := &cloud.TestCloudClients{
+		STS: &mocks.STSMock{},
+		RDS: &mocks.RDSMock{
+			DBInstances: []*rds.DBInstance{awsRDSInstance},
+			DBEngineVersions: []*rds.DBEngineVersion{
+				{Engine: aws.String(services.RDSEnginePostgres)},
+			},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	// Create and start test auth server.
+	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+	tlsServer, err := testAuthServer.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+	// Auth client for discovery service.
+	identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+	authClient, err := tlsServer.NewClient(identity)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+	waitForReconcile := make(chan struct{})
+	reporter := &mockUsageReporter{}
+	tlsServer.Auth().SetUsageReporter(reporter)
+	srv, err := New(
+		authz.ContextWithUser(ctx, identity.I),
+		&Config{
+			CloudClients:     testCloudClients,
+			KubernetesClient: fake.NewSimpleClientset(),
+			AccessPoint:      tlsServer.Auth(),
+			Matchers:         Matchers{},
+			Emitter:          authClient,
+			onDatabaseReconcile: func() {
+				waitForReconcile <- struct{}{}
+			},
+			DiscoveryGroup: mainDiscoveryGroup,
+			clock:          clock,
+		})
+
+	require.NoError(t, err)
+
+	t.Cleanup(srv.Stop)
+	go srv.Start()
+
+	// First Reconcile should not have any databases
+	select {
+	case <-waitForReconcile:
+		actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
+		require.NoError(t, err)
+		require.Empty(t, actualDatabases)
+	case <-time.After(time.Second):
+		t.Fatal("Didn't receive reconcile event after 1s")
+	}
+
+	// Adding a Dynamic Matcher for a different Discovery Group, should not bring any new resources.
+	t.Run("DiscoveryGroup does not match: matcher is not loaded", func(t *testing.T) {
+		// Create a Dynamic matcher
+		dc1, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: uuid.NewString()},
+			discoveryconfig.Spec{
+				DiscoveryGroup: "another-discovery-group",
+				AWS: []types.AWSMatcher{{
+					Types:   []string{types.AWSMatcherRDS},
+					Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+					Regions: []string{"us-west-1"},
+				}},
+			},
+		)
+		require.NoError(t, err)
+
+		_, err = tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc1)
+		require.NoError(t, err)
+		require.Eventually(t, func() bool {
+			srv.muDynamicFetchers.RLock()
+			defer srv.muDynamicFetchers.RUnlock()
+			return len(srv.dynamicDatabaseFetchers) == 0
+		}, 1*time.Second, 100*time.Millisecond)
+
+		// Advance clock to trigger a poll.
+		clock.Advance(5 * time.Minute)
+
+		// Reconcile should not have any databases
+		select {
+		case <-waitForReconcile:
+			actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
+			require.NoError(t, err)
+			require.Empty(t, actualDatabases)
+		case <-time.After(time.Second):
+			t.Fatal("Didn't receive reconcile event after 1s")
+		}
+	})
+
+	t.Run("New DiscoveryConfig with valid Group", func(t *testing.T) {
+		// Create a Dynamic matcher
+		dc1, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: uuid.NewString()},
+			discoveryconfig.Spec{
+				DiscoveryGroup: mainDiscoveryGroup,
+				AWS: []types.AWSMatcher{{
+					Types:   []string{types.AWSMatcherRDS},
+					Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+					Regions: []string{"us-west-1"},
+				}},
+			},
+		)
+		require.NoError(t, err)
+
+		_, err = tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc1)
+		require.NoError(t, err)
+		require.Eventually(t, func() bool {
+			srv.muDynamicFetchers.RLock()
+			defer srv.muDynamicFetchers.RUnlock()
+			return len(srv.dynamicDatabaseFetchers) > 0
+		}, 1*time.Second, 100*time.Millisecond)
+
+		// Advance clock to trigger a poll.
+		clock.Advance(5 * time.Minute)
+
+		// Check for new resource in reconciler
+		expectDatabases := []types.Database{awsRDSDB}
+		select {
+		case <-waitForReconcile:
+			actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expectDatabases, actualDatabases,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+				cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
+			))
+		case <-time.After(time.Second):
+			t.Fatal("Didn't receive reconcile event after 1s")
+		}
+
+		t.Run("removing the DiscoveryConfig: fetcher is removed and database is removed", func(t *testing.T) {
+			// Remove DiscoveryConfig
+			err = tlsServer.Auth().DiscoveryConfigClient().DeleteDiscoveryConfig(ctx, dc1.GetName())
+			require.NoError(t, err)
+			require.Eventually(t, func() bool {
+				srv.muDynamicFetchers.RLock()
+				defer srv.muDynamicFetchers.RUnlock()
+				return len(srv.dynamicDatabaseFetchers) == 0
+			}, 1*time.Second, 100*time.Millisecond)
+
+			// Advance clock to trigger a poll.
+			clock.Advance(5 * time.Minute)
+
+			// Existing databases must be removed.
+			select {
+			case <-waitForReconcile:
+				actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
+				require.NoError(t, err)
+				require.Empty(t, actualDatabases)
+			case <-time.After(time.Second):
+				t.Fatal("Didn't receive reconcile event after 1s")
+			}
+		})
+	})
 }
 
 func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (*rds.DBInstance, types.Database) {
@@ -1543,7 +1762,7 @@ func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (
 	staticLabels := database.GetStaticLabels()
 	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	database.SetStaticLabels(staticLabels)
-	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRDS)
+	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRDS)
 	return instance, database
 }
 
@@ -1565,7 +1784,7 @@ func makeRedshiftCluster(t *testing.T, name, region string, discoveryGroup strin
 	staticLabels := database.GetStaticLabels()
 	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	database.SetStaticLabels(staticLabels)
-	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRedshift)
+	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRedshift)
 	return cluster, database
 }
 
@@ -1588,7 +1807,7 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 	staticLabels := database.GetStaticLabels()
 	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	database.SetStaticLabels(staticLabels)
-	common.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherRedis)
+	common.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherRedis)
 	return resourceInfo, database
 }
 
@@ -1621,14 +1840,33 @@ func (m *mockAzureClient) ListVirtualMachines(_ context.Context, _ string) ([]*a
 	return m.vms, nil
 }
 
+type mockAzureInstaller struct {
+	mu                 sync.Mutex
+	installedInstances []string
+}
+
+func (m *mockAzureInstaller) Run(_ context.Context, req server.AzureRunRequest) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, inst := range req.Instances {
+		m.installedInstances = append(m.installedInstances, *inst.Name)
+	}
+	return nil
+}
+
+func (m *mockAzureInstaller) GetInstalledInstances() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.installedInstances
+}
+
 func TestAzureVMDiscovery(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name          string
-		presentVMs    []types.Server
-		foundAzureVMs []*armcompute.VirtualMachine
-		logHandler    func(*testing.T, io.Reader, chan struct{})
-		wantEvents    int
+		name                   string
+		presentVMs             []types.Server
+		foundAzureVMs          []*armcompute.VirtualMachine
+		wantInstalledInstances []string
 	}{
 		{
 			name:       "no nodes present, 1 found",
@@ -1640,6 +1878,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 						ResourceGroupName: "rg",
 						Name:              "testvm",
 					}).String()),
+					Name:     aws.String("testvm"),
 					Location: aws.String("westcentralus"),
 					Tags: map[string]*string{
 						"teleport": aws.String("yes"),
@@ -1649,17 +1888,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					},
 				},
 			},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				for scanner.Scan() {
-					if strings.Contains(scanner.Text(),
-						"Running Teleport installation on these virtual machines") {
-						done <- struct{}{}
-						return
-					}
-				}
-			},
-			wantEvents: 1,
+			wantInstalledInstances: []string{"testvm"},
 		},
 		{
 			name: "nodes present, instance filtered",
@@ -1669,8 +1898,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 					Metadata: types.Metadata{
 						Name: "name",
 						Labels: map[string]string{
-							types.SubscriptionIDLabel: "testsub",
-							types.VMIDLabel:           "test-vmid",
+							"teleport.internal/subscription-id": "testsub",
+							"teleport.internal/vm-id":           "test-vmid",
 						},
 						Namespace: defaults.Namespace,
 					},
@@ -1691,16 +1920,6 @@ func TestAzureVMDiscovery(t *testing.T) {
 						VMID: aws.String("test-vmid"),
 					},
 				},
-			},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				for scanner.Scan() {
-					if strings.Contains(scanner.Text(),
-						"All discovered Azure VMs are already part of the cluster") {
-						done <- struct{}{}
-						return
-					}
-				}
 			},
 		},
 		{
@@ -1711,8 +1930,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 					Metadata: types.Metadata{
 						Name: "name",
 						Labels: map[string]string{
-							types.SubscriptionIDLabel: "testsub",
-							types.VMIDLabel:           "alternate-vmid",
+							"teleport.internal/subscription-id": "testsub",
+							"teleport.internal/vm-id":           "alternate-vmid",
 						},
 						Namespace: defaults.Namespace,
 					},
@@ -1725,6 +1944,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 						ResourceGroupName: "rg",
 						Name:              "testvm",
 					}).String()),
+					Name:     aws.String("testvm"),
 					Location: aws.String("westcentralus"),
 					Tags: map[string]*string{
 						"teleport": aws.String("yes"),
@@ -1734,17 +1954,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					},
 				},
 			},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				for scanner.Scan() {
-					if strings.Contains(scanner.Text(),
-						"Running Teleport installation on these virtual machines") {
-						done <- struct{}{}
-						return
-					}
-				}
-			},
-			wantEvents: 1,
+			wantInstalledInstances: []string{"testvm"},
 		},
 	}
 
@@ -1785,6 +1995,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			logger := logrus.New()
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
+			installer := &mockAzureInstaller{}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
@@ -1804,6 +2015,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			})
 
 			require.NoError(t, err)
+			server.azureInstaller = installer
 			emitter.server = server
 			emitter.t = t
 
@@ -1812,35 +2024,20 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.NoError(t, r.Close())
 				require.NoError(t, w.Close())
 			})
-			if tc.logHandler != nil {
-				logger.SetOutput(w)
-				logger.SetLevel(logrus.DebugLevel)
-			}
 
 			go server.Start()
 			t.Cleanup(server.Stop)
 
-			if tc.logHandler != nil {
-				done := make(chan struct{})
-				go tc.logHandler(t, r, done)
-				timeoutCtx, cancelfn := context.WithTimeout(ctx, time.Second*5)
-				defer cancelfn()
-				select {
-				case <-timeoutCtx.Done():
-					t.Fatal("Timeout waiting for log entries")
-					return
-				case <-done:
-				}
-			}
-
-			if tc.wantEvents > 0 {
+			if len(tc.wantInstalledInstances) > 0 {
 				require.Eventually(t, func() bool {
-					return reporter.EventsCount() == tc.wantEvents
-				}, 100*time.Millisecond, 10*time.Millisecond)
+					instances := installer.GetInstalledInstances()
+					slices.Sort(instances)
+					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.EventsCount()
+				}, 500*time.Millisecond, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
-					return reporter.EventsCount() != 0
-				}, 100*time.Millisecond, 10*time.Millisecond)
+					return len(installer.GetInstalledInstances()) > 0 || reporter.EventsCount() > 0
+				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
 		})
 
@@ -1871,14 +2068,33 @@ func (m *mockGCPClient) RemoveSSHKey(_ context.Context, _ *gcp.SSHKeyRequest) er
 	return nil
 }
 
+type mockGCPInstaller struct {
+	mu                 sync.Mutex
+	installedInstances []string
+}
+
+func (m *mockGCPInstaller) Run(_ context.Context, req server.GCPRunRequest) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, inst := range req.Instances {
+		m.installedInstances = append(m.installedInstances, inst.Name)
+	}
+	return nil
+}
+
+func (m *mockGCPInstaller) GetInstalledInstances() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.installedInstances
+}
+
 func TestGCPVMDiscovery(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name        string
-		presentVMs  []types.Server
-		foundGCPVMs []*gcp.Instance
-		logHandler  func(*testing.T, io.Reader, chan struct{})
-		wantEvents  int
+		name                   string
+		presentVMs             []types.Server
+		foundGCPVMs            []*gcp.Instance
+		wantInstalledInstances []string
 	}{
 		{
 			name:       "no nodes present, 1 found",
@@ -1893,17 +2109,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 					},
 				},
 			},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				for scanner.Scan() {
-					if strings.Contains(scanner.Text(),
-						"Running Teleport installation on these virtual machines") {
-						done <- struct{}{}
-						return
-					}
-				}
-			},
-			wantEvents: 1,
+			wantInstalledInstances: []string{"myinstance"},
 		},
 		{
 			name: "nodes present, instance filtered",
@@ -1913,9 +2119,9 @@ func TestGCPVMDiscovery(t *testing.T) {
 					Metadata: types.Metadata{
 						Name: "name",
 						Labels: map[string]string{
-							types.ProjectIDLabel: "myproject",
-							types.ZoneLabel:      "myzone",
-							types.NameLabel:      "myinstance",
+							"teleport.internal/project-id": "myproject",
+							"teleport.internal/zone":       "myzone",
+							"teleport.internal/name":       "myinstance",
 						},
 						Namespace: defaults.Namespace,
 					},
@@ -1930,16 +2136,6 @@ func TestGCPVMDiscovery(t *testing.T) {
 						"teleport": "yes",
 					},
 				},
-			},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				for scanner.Scan() {
-					if strings.Contains(scanner.Text(),
-						"All discovered GCP VMs are already part of the cluster") {
-						done <- struct{}{}
-						return
-					}
-				}
 			},
 		},
 		{
@@ -1950,9 +2146,9 @@ func TestGCPVMDiscovery(t *testing.T) {
 					Metadata: types.Metadata{
 						Name: "name",
 						Labels: map[string]string{
-							types.ProjectIDLabel: "myproject",
-							types.ZoneLabel:      "myzone",
-							types.NameLabel:      "myotherinstance",
+							"teleport.internal/project-id": "myproject",
+							"teleport.internal/zone":       "myzone",
+							"teleport.internal/name":       "myotherinstance",
 						},
 						Namespace: defaults.Namespace,
 					},
@@ -1968,17 +2164,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 					},
 				},
 			},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				for scanner.Scan() {
-					if strings.Contains(scanner.Text(),
-						"Running Teleport installation on these virtual machines") {
-						done <- struct{}{}
-						return
-					}
-				}
-			},
-			wantEvents: 1,
+			wantInstalledInstances: []string{"myinstance"},
 		},
 	}
 
@@ -2018,6 +2204,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 			logger := logrus.New()
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
+			installer := &mockGCPInstaller{}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
@@ -2028,7 +2215,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 						Types:      []string{"gce"},
 						ProjectIDs: []string{"myproject"},
 						Locations:  []string{"myzone"},
-						Tags:       types.Labels{"teleport": {"yes"}},
+						Labels:     types.Labels{"teleport": {"yes"}},
 					}},
 				},
 				Emitter: emitter,
@@ -2036,7 +2223,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 			})
 
 			require.NoError(t, err)
-
+			server.gcpInstaller = installer
 			emitter.server = server
 			emitter.t = t
 
@@ -2045,36 +2232,20 @@ func TestGCPVMDiscovery(t *testing.T) {
 				require.NoError(t, r.Close())
 				require.NoError(t, w.Close())
 			})
-			if tc.logHandler != nil {
-				logger.SetOutput(w)
-				logger.SetLevel(logrus.DebugLevel)
-			}
 
 			go server.Start()
 			t.Cleanup(server.Stop)
 
-			if tc.logHandler != nil {
-				done := make(chan struct{})
-				go tc.logHandler(t, r, done)
-				timeoutCtx, cancelfn := context.WithTimeout(ctx, time.Second*5)
-				defer cancelfn()
-				select {
-				case <-timeoutCtx.Done():
-					t.Fatal("Timeout waiting for log entries")
-					return
-				case <-done:
-					return
-				}
-			}
-
-			if tc.wantEvents > 0 {
+			if len(tc.wantInstalledInstances) > 0 {
 				require.Eventually(t, func() bool {
-					return reporter.EventsCount() == tc.wantEvents
-				}, 100*time.Millisecond, 10*time.Millisecond)
+					instances := installer.GetInstalledInstances()
+					slices.Sort(instances)
+					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.EventsCount()
+				}, 500*time.Millisecond, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
-					return reporter.EventsCount() != 0
-				}, 100*time.Millisecond, 10*time.Millisecond)
+					return len(installer.GetInstalledInstances()) > 0 || reporter.EventsCount() > 0
+				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
 
 		})

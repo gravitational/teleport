@@ -17,6 +17,9 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
 
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
+import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
+
 import {
   AllAccess,
   NoAccess,
@@ -25,21 +28,25 @@ import {
 } from './SelectResource.story';
 
 test('render with all access', async () => {
+  mockUserContextProviderWith(makeTestUserContext());
   const { container } = render(<AllAccess />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('render with no access', async () => {
+  mockUserContextProviderWith(makeTestUserContext());
   const { container } = render(<NoAccess />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('render with partial access', async () => {
+  mockUserContextProviderWith(makeTestUserContext());
   const { container } = render(<PartialAccess />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('render with URL loc state set to "server"', async () => {
+  mockUserContextProviderWith(makeTestUserContext());
   const { container } = render(<InitRouteEntryServer />);
   expect(container.firstChild).toMatchSnapshot();
 });

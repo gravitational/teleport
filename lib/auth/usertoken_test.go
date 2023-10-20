@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -400,7 +400,7 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 			getReq: func() *proto.CreatePrivilegeTokenRequest {
 				return &proto.CreatePrivilegeTokenRequest{
 					ExistingMFAResponse: &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
-						Webauthn: &webauthn.CredentialAssertionResponse{},
+						Webauthn: &wanpb.CredentialAssertionResponse{},
 					}},
 				}
 			},
@@ -433,7 +433,7 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 			}
 
 			// Test user is locked.
-			user, err := srv.Auth().GetUser(username, false)
+			user, err := srv.Auth().GetUser(ctx, username, false)
 			require.NoError(t, err)
 			require.True(t, user.GetStatus().IsLocked)
 			require.False(t, user.GetStatus().LockExpires.IsZero())

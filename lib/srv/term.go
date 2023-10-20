@@ -118,7 +118,7 @@ func NewTerminal(ctx *ServerContext) (Terminal, error) {
 
 	// If this is not a Teleport node, find out what mode the cluster is in and
 	// return the correct terminal.
-	if ctx.ServerSubKind == types.SubKindOpenSSHNode || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if types.IsOpenSSHNodeSubKind(ctx.ServerSubKind) || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return newRemoteTerminal(ctx)
 	}
 	return newLocalTerminal(ctx)
@@ -472,7 +472,7 @@ func (t *terminal) setOwner() error {
 		return trace.Wrap(err)
 	}
 
-	err = os.Chown(t.tty.Name(), uid, gid)
+	err = os.Lchown(t.tty.Name(), uid, gid)
 	if err != nil {
 		return trace.Wrap(err)
 	}

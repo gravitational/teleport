@@ -94,7 +94,7 @@ func TestMakeApps(t *testing.T) {
 				}))},
 			expected: []App{
 				{
-					Kind:       types.KindAppServer,
+					Kind:       types.KindApp,
 					Name:       "1",
 					URI:        "1.com",
 					PublicAddr: "1.com",
@@ -103,7 +103,7 @@ func TestMakeApps(t *testing.T) {
 					UserGroups: []UserGroupAndDescription{},
 				},
 				{
-					Kind:        types.KindAppServer,
+					Kind:        types.KindApp,
 					Name:        "2",
 					Description: "group 2 friendly name",
 					URI:         "2.com",
@@ -141,7 +141,7 @@ func TestMakeApps(t *testing.T) {
 			},
 			expected: []App{
 				{
-					Kind:       types.KindAppServer,
+					Kind:       types.KindApp,
 					Name:       "1",
 					URI:        "1.com",
 					PublicAddr: "1.com",
@@ -153,7 +153,7 @@ func TestMakeApps(t *testing.T) {
 					},
 				},
 				{
-					Kind:        types.KindAppServer,
+					Kind:        types.KindApp,
 					Name:        "2",
 					Description: "group 2 friendly name",
 					URI:         "2.com",
@@ -182,7 +182,7 @@ func TestMakeApps(t *testing.T) {
 			})},
 			expected: []App{
 				{
-					Kind:        types.KindSAMLIdPServiceProvider,
+					Kind:        types.KindApp,
 					Name:        "grafana_saml",
 					Description: "SAML Application",
 					PublicAddr:  "",

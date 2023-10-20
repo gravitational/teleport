@@ -539,6 +539,28 @@ func TestMakeDatabaseConfig(t *testing.T) {
 				},
 			}, databases.ResourceMatchers)
 		})
+
+		t.Run("assume role", func(t *testing.T) {
+			flags := DatabaseSampleFlags{
+				DynamicResourcesRawLabels: []string{
+					"env=dev",
+				},
+				DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBAccess",
+				DatabaseAWSExternalID:    "externalID123",
+			}
+			databases := generateAndParseConfig(t, flags)
+			require.Equal(t, []ResourceMatcher{
+				{
+					Labels: types.Labels{
+						"env": apiutils.Strings{"dev"},
+					},
+					AWS: ResourceMatcherAWS{
+						AssumeRoleARN: "arn:aws:iam::123456789012:role/DBAccess",
+						ExternalID:    "externalID123",
+					},
+				},
+			}, databases.ResourceMatchers)
+		})
 	})
 }
 

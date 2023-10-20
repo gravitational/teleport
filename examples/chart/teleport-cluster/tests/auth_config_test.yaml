@@ -502,3 +502,11 @@ tests:
           of: ConfigMap
       - matchSnapshot:
           path: data.teleport\.yaml
+
+  - it: sets "provisioned" billing mode when autoscaling is enabled
+    values:
+      - ../.lint/aws-dynamodb-autoscaling.yaml
+    asserts:
+      - matchRegex:
+          path: data.teleport\.yaml
+          pattern: 'billing_mode: provisioned'

@@ -17,11 +17,14 @@ limitations under the License.
 package postgres
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"fmt"
 	"net"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -82,6 +85,8 @@ type TestServer struct {
 	userEventsCh chan UserEvent
 	// mu protects test server's shared state.
 	mu sync.Mutex
+	// allowedUsers list of users that can be used to connect to the server.
+	allowedUsers *sync.Map
 
 	// nextPid is a dummy variable used to assign each connection a unique fake "pid".
 	// it's incremented after each new startup connection. Starts counting from 1.
@@ -90,6 +95,9 @@ type TestServer struct {
 	pids map[uint32]*pidHandle
 	// pidMu is a lock protecting nextPid and pids.
 	pidMu sync.Mutex
+
+	// mmCache caches multiMessage for reuse in benchmark
+	mmCache map[string]*multiMessage
 }
 
 // pidHandle represents a fake pid handle that can cancel operations in progress.
@@ -129,6 +137,11 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 		return nil, trace.Wrap(err)
 	}
 
+	var allowedUsers sync.Map
+	for _, user := range config.Users {
+		allowedUsers.Store(user, struct{}{})
+	}
+
 	return &TestServer{
 		cfg:       config,
 		listener:  config.Listener,
@@ -142,6 +155,8 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 		pids:             make(map[uint32]*pidHandle),
 		storedProcedures: make(map[string]string),
 		userEventsCh:     make(chan UserEvent, 100),
+		allowedUsers:     &allowedUsers,
+		mmCache:          make(map[string]*multiMessage),
 	}, nil
 }
 
@@ -216,9 +231,12 @@ func (s *TestServer) startTLS(conn net.Conn) (*pgproto3.Backend, error) {
 func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgproto3.StartupMessage) error {
 	// Push connect parameters into the channel so tests can consume them.
 	s.parametersCh <- startupMessage.Parameters
-	// If auth token is specified, used it for password authentication, this
-	// simulates cloud provider IAM auth.
-	if s.cfg.AuthToken != "" {
+
+	// Perform authentication.
+	switch {
+	case s.cfg.AuthToken != "":
+		// If auth token is specified, used it for password authentication, this
+		// simulates cloud provider IAM auth.
 		if err := s.handlePasswordAuth(client); err != nil {
 			if trace.IsAccessDenied(err) {
 				if err := client.Send(&pgproto3.ErrorResponse{Code: pgerrcode.InvalidPassword, Message: err.Error()}); err != nil {
@@ -227,7 +245,12 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgp
 			}
 			return trace.Wrap(err)
 		}
+	case !s.cfg.AllowAnyUser:
+		if _, ok := s.allowedUsers.Load(startupMessage.Parameters[userParameterName]); !ok {
+			return trace.AccessDenied("invalid username")
+		}
 	}
+
 	// Accept auth and send ready for query.
 	if err := client.Send(&pgproto3.AuthenticationOk{}); err != nil {
 		return trace.Wrap(err)
@@ -266,7 +289,7 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgp
 				if err := s.handleActivateUser(client); err != nil {
 					s.log.WithError(err).Error("Failed to handle user activation.")
 				}
-			case deactivateQuery:
+			case deactivateQuery, deleteQuery:
 				if err := s.handleDeactivateUser(client); err != nil {
 					s.log.WithError(err).Error("Failed to handle user deactivation.")
 				}
@@ -331,6 +354,10 @@ func (s *TestServer) handleQuery(client *pgproto3.Backend, query string, pid uin
 			return trace.Wrap(err)
 		}
 	}
+	if selectBenchmarkRe.MatchString(query) {
+		return trace.Wrap(s.handleBenchmarkQuery(query, client))
+	}
+
 	messages := []pgproto3.BackendMessage{
 		&pgproto3.RowDescription{Fields: TestQueryResponse.FieldDescriptions},
 		&pgproto3.DataRow{Values: TestQueryResponse.Rows[0]},
@@ -353,7 +380,7 @@ func (s *TestServer) handleCreateStoredProcedure(query string) error {
 		return trace.BadParameter("failed to extract stored procedure name from query")
 	}
 	switch match[1] {
-	case activateProcName, deactivateProcName:
+	case activateProcName, deactivateProcName, deleteProcName:
 		s.log.Debugf("Created stored procedure %q.", match[1])
 	default:
 		return trace.BadParameter("test server doesn't support stored procedure %q", match[1])
@@ -361,6 +388,107 @@ func (s *TestServer) handleCreateStoredProcedure(query string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.storedProcedures[match[1]] = query
+	return nil
+}
+
+// multiMessage wraps *pgproto3.DataRow and implements pgproto3.BackendMessage by writing multiple copies of this message in Encode.
+type multiMessage struct {
+	singleMessage *pgproto3.DataRow
+	payload       []byte
+}
+
+func newMultiMessage(rowSize, repeats int) (*multiMessage, error) {
+	buf := make([]byte, rowSize)
+	_, err := rand.Read(buf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	message := &pgproto3.DataRow{Values: [][]byte{buf}}
+	encoded := message.Encode(nil)
+	payload := bytes.Repeat(encoded, repeats)
+	return &multiMessage{
+		singleMessage: message,
+		payload:       payload,
+	}, nil
+}
+
+func (m *multiMessage) Decode(_ []byte) error {
+	return trace.NotImplemented("Decode is not implemented for multiMessage")
+}
+
+func (m *multiMessage) Encode(dst []byte) []byte {
+	return append(dst, m.payload...)
+}
+
+func (m *multiMessage) Backend() {
+}
+
+var _ pgproto3.BackendMessage = (*multiMessage)(nil)
+
+func (s *TestServer) getMultiMessage(rowSize, repeats int) (*multiMessage, error) {
+	key := fmt.Sprintf("%v/%v", rowSize, repeats)
+	if mm, ok := s.mmCache[key]; ok {
+		return mm, nil
+	}
+	mm, err := newMultiMessage(rowSize, repeats)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.mmCache[key] = mm
+	return mm, nil
+}
+
+// handleBenchmarkQuery handles the query used for read benchmark. It will send a stream of messages of requested size and number.
+func (s *TestServer) handleBenchmarkQuery(query string, client *pgproto3.Backend) error {
+	// parse benchmark parameters
+	matches := selectBenchmarkRe.FindStringSubmatch(query)
+
+	messageSize, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// minimum message size is 11, corresponding to empty buffer transferred in a DataRow
+	if messageSize < 11 {
+		return trace.BadParameter("bad message size, must be at least 11, got %v", messageSize)
+	}
+
+	repeats, err := strconv.Atoi(matches[2])
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	mm, err := s.getMultiMessage(messageSize-11, repeats)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.log.Debugf("Responding to query %q, will send %v messages of length %v, total length %v", query, repeats, len(mm.singleMessage.Encode(nil)), len(mm.payload))
+
+	// preamble
+	err = client.Send(&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte("dummy")}}})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// send messages in bulk, which is fast.
+	err = client.Send(mm)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// epilogue
+	err = client.Send(&pgproto3.CommandComplete{CommandTag: []byte("SELECT 100")})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = client.Send(&pgproto3.ReadyForQuery{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.log.Debugf("Finished handling query %q", query)
+
 	return nil
 }
 
@@ -426,6 +554,7 @@ func (s *TestServer) handleActivateUser(client *pgproto3.Backend) error {
 	// Mark the user as active.
 	s.log.Debugf("Activated user %q with roles %v.", name, roles)
 	s.userEventsCh <- UserEvent{Name: name, Roles: roles, Active: true}
+	s.allowedUsers.Store(name, struct{}{})
 	return nil
 }
 
@@ -486,6 +615,7 @@ func (s *TestServer) handleDeactivateUser(client *pgproto3.Backend) error {
 	// Mark the user as active.
 	s.log.Debugf("Deactivated user %q.", name)
 	s.userEventsCh <- UserEvent{Name: name, Active: false}
+	s.allowedUsers.Delete(name)
 	return nil
 }
 
@@ -706,6 +836,13 @@ const TestLongRunningQuery = "pg_sleep(forever)"
 // testSecretKey is the secret key stub for all connections, used for cancel requests.
 const testSecretKey = 1234
 
+// userParameterName is the parameter name that contains the username used to
+// connect.
+const userParameterName = "user"
+
 // storedProcedureRe is the regex for capturing stored procedure name from its
 // creation query.
 var storedProcedureRe = regexp.MustCompile(`create or replace procedure (.+)\(`)
+
+// selectBenchmarkRe is the regex for capturing the parameters from the select query used for read benchmark.
+var selectBenchmarkRe = regexp.MustCompile(`SELECT \* FROM bench\_(\d+) LIMIT (\d+)`)

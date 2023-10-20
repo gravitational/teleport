@@ -21,15 +21,12 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
-	"os/exec"
 	"strconv"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/utils/keys"
-	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -187,29 +184,6 @@ func (b *base) LocalPortInt() int {
 	return port
 }
 
-// CLICommand returns a command which launches a CLI client pointed at the gateway.
-func (b *base) CLICommand() (*api.GatewayCLICommand, error) {
-	cmd, err := b.cfg.CLICommandProvider.GetCommand(b)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return makeCLICommand(cmd), nil
-}
-
-func makeCLICommand(cmd *exec.Cmd) *api.GatewayCLICommand {
-	cmdString := strings.TrimSpace(
-		fmt.Sprintf("%s %s",
-			strings.Join(cmd.Env, " "),
-			strings.Join(cmd.Args, " ")))
-
-	return &api.GatewayCLICommand{
-		Path:    cmd.Path,
-		Args:    cmd.Args,
-		Env:     cmd.Env,
-		Preview: cmdString,
-	}
-}
-
 // ReloadCert loads the key pair from cfg.CertPath & cfg.KeyPath and updates the cert of the running
 // local proxy. This is typically done after the cert is reissued and saved to disk.
 //
@@ -273,11 +247,6 @@ type base struct {
 	// that the local proxy is now closed and to release any resources.
 	closeContext context.Context
 	closeCancel  context.CancelFunc
-}
-
-// CLICommandProvider provides a CLI command for gateways which support CLI clients.
-type CLICommandProvider interface {
-	GetCommand(gateway Gateway) (*exec.Cmd, error)
 }
 
 type TCPPortAllocator interface {

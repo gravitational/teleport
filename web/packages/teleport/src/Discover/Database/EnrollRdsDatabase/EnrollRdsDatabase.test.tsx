@@ -152,6 +152,7 @@ const mockAwsDbs: AwsRdsDatabase[] = [
     labels: [{ name: 'env', value: 'prod' }],
     accountId: 'account-id-1',
     resourceId: 'resource-id-1',
+    vpcId: 'vpc-123',
     region: 'us-east-2',
     subnets: ['subnet1', 'subnet2'],
   },

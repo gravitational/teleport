@@ -181,7 +181,7 @@ The following key types will be used when the configured algorithm suite is
     * this may be a JWT for Snowflake access
   * windows desktop service -> RDP server
     * 2048-bit RSA (X.509 cert signed by user CA)
-    * this is a current limitation of our rdpclient implemenation, we could
+    * this is a current limitation of our rdpclient implementation, we could
       change this with some effort, and I don't think it would be a breaking
       change (we could do it within `balanced-v1`).
 
@@ -265,7 +265,7 @@ uses: user ssh cert signing, user tls cert signing, ssh hosts trust this CA
   * Ed25519 support was added to OpenSSH 6.5 in January 2014, *before* SHA-2
     hash support was added for RSA keys in OpenSSH 7.2
   * Some SSH clients other than OpenSSH have very limited support for newer
-    protocols - we will need to make sure this is very visbible as a possibly
+    protocols - we will need to make sure this is very visible as a possibly
     breaking change.
 
 * current/`legacy` TLS key type: 2048-bit RSA
@@ -464,7 +464,7 @@ This will change the disk layout of the ~/.tsh directory:
 `foo` above is a stand-in for the username of the logged-in user.
 
 Currently the user's private key for both SSH and TLS is held in
-`~/.tsh/keys/one.exmample.com/foo`, with the SSH pubkey held in `foo.pub` and
+`~/.tsh/keys/one.example.com/foo`, with the SSH pubkey held in `foo.pub` and
 the TLS cert held in `foo-x509.pem`.
 App, Database, and K8s certs use the same private key and are held under the
 `foo-app`, `foo-db`, and `foo-kube` directories.
@@ -476,7 +476,7 @@ app`, `tsh db connect`, `tsh kube login`, so it is less likely for users to have
 to make a manual fix if we move the TLS files.
 
 The main TLS private key will now be held in
-`~/.tsh/keys/one.exmample.com/foo-privkey.pem`
+`~/.tsh/keys/one.example.com/foo-privkey.pem`
 
 All TLS x509 cert files will be renamed from `<name>-x509.pem` to
 `<name>-cert.pem` so that any software trying to use the old `<name>-x509.pem`
@@ -642,7 +642,7 @@ Considerations:
 * Teleport derives client SSH and TLS certs from the same client keypair,
   supporting different algorithms for each will require larger changes.
 * It seems it is time to split client SSH and TLS keys to support the popular
-  and secure Ed25519 algorithm for SSH and the widely-suported
+  and secure Ed25519 algorithm for SSH and the widely-supported
   `ECDSA_P256_SHA256` algorithm for TLS. This will also allows to evolve the
   algorithms used for each protocol independently in the future.
 
@@ -761,7 +761,7 @@ absolutely necessary for security reasons.
 Teleport administrators will be able to deviate from the `recommended`
 algorithms when they have a compliance need (they must use a particular
 algorithm) or a compatibility need (one of our selected algorithms is not
-supported by an external softare that interacts with Teleport in their
+supported by an external software that interacts with Teleport in their
 deployment).
 
 Here is what the config will look like in its default state:

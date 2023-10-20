@@ -99,11 +99,7 @@ export class FileDownloader implements IFileDownloader {
             // TODO(gzdunek): electron doesn't expose much information about why the download failed.
             // Fortunately, there is a PR in works that will add more info https://github.com/electron/electron/pull/38859.
             // Use DownloadItem.getLastReason() when it gets merged.
-            onDownloadError(
-              new Error(
-                `Download failed. Requested file may not exist or is temporarily unavailable.`
-              )
-            );
+            onDownloadError(new Error(`Failed to download ${item.getURL()}`));
             break;
           case 'cancelled':
             onDownloadError(new Error('Download was cancelled.'));

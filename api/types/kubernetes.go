@@ -156,6 +156,16 @@ func (k *KubernetesClusterV3) SetResourceID(id int64) {
 	k.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (k *KubernetesClusterV3) GetRevision() string {
+	return k.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (k *KubernetesClusterV3) SetRevision(rev string) {
+	k.Metadata.SetRevision(rev)
+}
+
 // GetMetadata returns the resource metadata.
 func (k *KubernetesClusterV3) GetMetadata() Metadata {
 	return k.Metadata
@@ -604,6 +614,16 @@ func (k *KubernetesResourceV1) GetResourceID() int64 {
 // SetResourceID sets resource ID.
 func (k *KubernetesResourceV1) SetResourceID(id int64) {
 	k.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (k *KubernetesResourceV1) GetRevision() string {
+	return k.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (k *KubernetesResourceV1) SetRevision(rev string) {
+	k.Metadata.SetRevision(rev)
 }
 
 // CheckAndSetDefaults validates the Resource and sets any empty fields to

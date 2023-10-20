@@ -363,6 +363,9 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (types.Se
 	if cfg.ID != 0 {
 		s.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		s.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		s.SetExpiry(cfg.Expires)
 	}
@@ -394,6 +397,7 @@ func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
 			// to prevent unexpected data races
 			copy := *server
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			server = &copy
 		}
 		return utils.FastMarshal(server)
@@ -443,8 +447,12 @@ func NewAWSNodeFromEC2Instance(instance ec2Types.Instance, awsCloudMetadata *typ
 	}
 	libaws.AddMetadataLabels(labels, awsCloudMetadata.AccountID, awsCloudMetadata.Region)
 
-	awsCloudMetadata.InstanceID = aws.ToString(instance.InstanceId)
+	instanceID := aws.ToString(instance.InstanceId)
+	labels[types.AWSInstanceIDLabel] = instanceID
+
+	awsCloudMetadata.InstanceID = instanceID
 	awsCloudMetadata.VPCID = aws.ToString(instance.VpcId)
+	awsCloudMetadata.SubnetID = aws.ToString(instance.SubnetId)
 
 	if aws.ToString(instance.PrivateIpAddress) == "" {
 		return nil, trace.BadParameter("private ip address is required from ec2 instance")

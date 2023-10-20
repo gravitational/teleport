@@ -58,7 +58,7 @@ var commonEtcdOptions = []Option{
 
 func TestEtcd(t *testing.T) {
 	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
+		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
 
 	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
@@ -92,7 +92,7 @@ func TestEtcd(t *testing.T) {
 
 func TestPrefix(t *testing.T) {
 	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
+		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
 
 	ctx := context.Background()
@@ -169,7 +169,7 @@ func requireKV(ctx context.Context, t *testing.T, bk *EtcdBackend, key, val stri
 // See https://github.com/gravitational/teleport/issues/4786
 func TestCompareAndSwapOversizedValue(t *testing.T) {
 	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
+		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
 	// setup
 	const maxClientMsgSize = 128
@@ -202,7 +202,7 @@ func TestLeaseBucketing(t *testing.T) {
 	const count = 40
 
 	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
+		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -216,13 +216,15 @@ func TestLeaseBucketing(t *testing.T) {
 	require.NoError(t, err)
 	defer bk.Close()
 
+	leases := make(map[int64]struct{})
 	for i := 0; i < count; i++ {
-		_, err := bk.Put(ctx, backend.Item{
+		lease, err := bk.Put(ctx, backend.Item{
 			Key:     backend.Key(pfx, fmt.Sprintf("%d", i)),
 			Value:   []byte(fmt.Sprintf("val-%d", i)),
 			Expires: time.Now().Add(time.Minute),
 		})
 		require.NoError(t, err)
+		leases[lease.ID] = struct{}{}
 		time.Sleep(time.Millisecond * 200)
 	}
 
@@ -231,11 +233,6 @@ func TestLeaseBucketing(t *testing.T) {
 	rslt, err := bk.GetRange(ctx, start, backend.RangeEnd(start), backend.NoLimit)
 	require.NoError(t, err)
 	require.Len(t, rslt.Items, count)
-
-	leases := make(map[int64]struct{})
-	for _, item := range rslt.Items {
-		leases[item.LeaseID] = struct{}{}
-	}
 
 	// ensure that we averaged more than 1 item per lease, but
 	// also spanned more than one bucket.

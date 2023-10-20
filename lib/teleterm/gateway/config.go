@@ -73,8 +73,6 @@ type Config struct {
 	WebProxyAddr string
 	// Log is a component logger
 	Log *logrus.Entry
-	// CLICommandProvider returns a CLI command for the gateway
-	CLICommandProvider CLICommandProvider
 	// TCPPortAllocator creates listeners on the given ports. This interface lets us avoid occupying
 	// hardcoded ports in tests.
 	TCPPortAllocator TCPPortAllocator
@@ -129,10 +127,6 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.TargetURI.String() == "" {
 		return trace.BadParameter("missing target URI")
-	}
-
-	if c.CLICommandProvider == nil {
-		return trace.BadParameter("missing CLICommandProvider")
 	}
 
 	if c.TCPPortAllocator == nil {

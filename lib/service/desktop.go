@@ -228,6 +228,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		},
 		ShowDesktopWallpaper:         cfg.WindowsDesktop.ShowDesktopWallpaper,
 		LDAPConfig:                   windows.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		PKIDomain:                    cfg.WindowsDesktop.PKIDomain,
 		DiscoveryBaseDN:              cfg.WindowsDesktop.Discovery.BaseDN,
 		DiscoveryLDAPFilters:         cfg.WindowsDesktop.Discovery.Filters,
 		DiscoveryLDAPAttributeLabels: cfg.WindowsDesktop.Discovery.LabelAttributes,
@@ -251,12 +252,12 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		process.BroadcastEvent(Event{Name: WindowsDesktopReady, Payload: nil})
 
 		mux, err := multiplexer.New(multiplexer.Config{
-			Context:                     process.ExitContext(),
-			Listener:                    listener,
-			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
-			ID:                          teleport.Component(teleport.ComponentWindowsDesktop),
-			CertAuthorityGetter:         accessPoint.GetCertAuthority,
-			LocalClusterName:            clusterName,
+			Context:             process.ExitContext(),
+			Listener:            listener,
+			PROXYProtocolMode:   multiplexer.PROXYProtocolOff, // Desktop service never should process unsigned PROXY headers.
+			ID:                  teleport.Component(teleport.ComponentWindowsDesktop),
+			CertAuthorityGetter: accessPoint.GetCertAuthority,
+			LocalClusterName:    clusterName,
 		})
 		if err != nil {
 			return trace.Wrap(err)

@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-import { Cluster } from 'teleterm/services/tshd/types';
-import { ConfigService } from 'teleterm/services/config';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
-
 import * as tsh from 'teleterm/services/tshd/types';
 
 /**
@@ -29,24 +26,17 @@ import * as tsh from 'teleterm/services/tshd/types';
  * This will make it easier to understand what the user can and cannot do without having to jump around the code base.
  * https://github.com/gravitational/teleport/pull/28346#discussion_r1246653846
  * */
-export function canUseConnectMyComputer(
-  rootCluster: Cluster,
-  configService: ConfigService,
+export function hasConnectMyComputerPermissions(
+  loggedInUser: tsh.LoggedInUser,
   runtimeSettings: RuntimeSettings
 ): boolean {
-  if (rootCluster.leaf) {
-    return false;
-  }
-
   const isUnix =
     runtimeSettings.platform === 'darwin' ||
     runtimeSettings.platform === 'linux';
 
   return (
     isUnix &&
-    rootCluster.loggedInUser?.acl?.tokens.create &&
-    rootCluster.features?.isUsageBasedBilling &&
-    rootCluster.loggedInUser?.userType == tsh.UserType.USER_TYPE_LOCAL &&
-    configService.get('feature.connectMyComputer').value
+    loggedInUser?.acl?.tokens.create &&
+    loggedInUser?.userType === tsh.UserType.USER_TYPE_LOCAL
   );
 }

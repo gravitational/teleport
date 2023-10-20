@@ -90,6 +90,14 @@ type UserACL struct {
 	Assist ResourceAccess `json:"assist"`
 	// SAMLIdpServiceProvider defines access to `saml_idp_service_provider` objects.
 	SAMLIdpServiceProvider ResourceAccess `json:"samlIdpServiceProvider"`
+	// AccessList defines access to access list management.
+	AccessList ResourceAccess `json:"accessList"`
+	// DiscoveryConfig defines whether the user has access to manage DiscoveryConfigs.
+	DiscoveryConfig ResourceAccess `json:"discoverConfigs"`
+	// AuditQuery defines access to audit query management.
+	AuditQuery ResourceAccess `json:"auditQuery"`
+	// SecurityReport defines access to security reports.
+	SecurityReport ResourceAccess `json:"securityReport"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -115,7 +123,7 @@ func newAccess(roleSet RoleSet, ctx *Context, kind string) ResourceAccess {
 }
 
 // NewUserACL builds an ACL for a user based on their roles.
-func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, desktopRecordingEnabled bool) UserACL {
+func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, desktopRecordingEnabled, accessMonitoringEnabled bool) UserACL {
 	ctx := &Context{User: user}
 	recordedSessionAccess := newAccess(userRoles, ctx, types.KindSession)
 	activeSessionAccess := newAccess(userRoles, ctx, types.KindSSHSession)
@@ -157,7 +165,16 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	license := newAccess(userRoles, ctx, types.KindLicense)
 	deviceTrust := newAccess(userRoles, ctx, types.KindDevice)
 	integrationsAccess := newAccess(userRoles, ctx, types.KindIntegration)
+	discoveryConfigsAccess := newAccess(userRoles, ctx, types.KindDiscoveryConfig)
 	lockAccess := newAccess(userRoles, ctx, types.KindLock)
+	accessListAccess := newAccess(userRoles, ctx, types.KindAccessList)
+
+	var auditQuery ResourceAccess
+	var securityReports ResourceAccess
+	if accessMonitoringEnabled {
+		auditQuery = newAccess(userRoles, ctx, types.KindAuditQuery)
+		securityReports = newAccess(userRoles, ctx, types.KindSecurityReport)
+	}
 
 	return UserACL{
 		AccessRequests:          requestAccess,
@@ -184,9 +201,13 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		License:                 license,
 		Plugins:                 pluginsAccess,
 		Integrations:            integrationsAccess,
+		DiscoveryConfig:         discoveryConfigsAccess,
 		DeviceTrust:             deviceTrust,
 		Locks:                   lockAccess,
 		Assist:                  assistAccess,
 		SAMLIdpServiceProvider:  samlIdpServiceProviderAccess,
+		AccessList:              accessListAccess,
+		AuditQuery:              auditQuery,
+		SecurityReport:          securityReports,
 	}
 }

@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -93,8 +93,8 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 // ResetPassword securely generates a new random password and assigns it to user.
 // This method is used to invalidate existing user password during password
 // reset process.
-func (s *Server) ResetPassword(username string) (string, error) {
-	user, err := s.GetUser(username, false)
+func (s *Server) ResetPassword(ctx context.Context, username string) (string, error) {
+	user, err := s.GetUser(ctx, username, false)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -123,7 +123,7 @@ func (s *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 	user := req.User
 	authReq := AuthenticateUserRequest{
 		Username: user,
-		Webauthn: wanlib.CredentialAssertionResponseFromProto(req.Webauthn),
+		Webauthn: wantypes.CredentialAssertionResponseFromProto(req.Webauthn),
 	}
 	if len(req.OldPassword) > 0 {
 		authReq.Pass = &PassCreds{
@@ -325,7 +325,7 @@ func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 		}
 	}
 
-	user, err := s.GetUser(username, false)
+	user, err := s.GetUser(ctx, username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

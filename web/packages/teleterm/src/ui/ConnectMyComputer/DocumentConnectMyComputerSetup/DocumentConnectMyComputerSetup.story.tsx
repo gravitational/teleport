@@ -14,54 +14,149 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useEffect, useRef, useLayoutEffect } from 'react';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { WorkspaceContextProvider } from 'teleterm/ui/Documents';
-import * as types from 'teleterm/ui/services/workspacesService';
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import {
+  makeRootCluster,
+  makeServer,
+} from 'teleterm/services/tshd/testHelpers';
+import { IAppContext } from 'teleterm/ui/types';
+import { Cluster } from 'teleterm/services/tshd/types';
+import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
 
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { ConnectMyComputerContextProvider } from '../connectMyComputerContext';
 
 import { DocumentConnectMyComputerSetup } from './DocumentConnectMyComputerSetup';
 
 export default {
-  title: 'Teleterm/ConnectMyComputer/DocumentConnectMyComputerSetup',
+  title: 'Teleterm/ConnectMyComputer/Setup',
 };
 
 export function Default() {
   const cluster = makeRootCluster();
-  const doc: types.DocumentConnectMyComputerSetup = {
-    kind: 'doc.connect_my_computer_setup',
-    rootClusterUri: cluster.uri,
-    title: 'Connect My Computer',
-    uri: '/docs/123',
+  const appContext = new MockAppContext({ appVersion: cluster.proxyVersion });
+  appContext.connectMyComputerService.waitForNodeToJoin = async () =>
+    makeServer();
+  return (
+    <ShowState
+      cluster={cluster}
+      appContext={appContext}
+      clickStartSetup={false}
+    />
+  );
+}
+
+export function Success() {
+  const cluster = makeRootCluster();
+  const appContext = new MockAppContext({ appVersion: cluster.proxyVersion });
+  appContext.connectMyComputerService.waitForNodeToJoin = async () =>
+    makeServer();
+  // Report the agent as running so that the autostart behavior doesn't kick in and attempt to start
+  // the agent over and over.
+  appContext.mainProcessClient.subscribeToAgentUpdate = (
+    rootClusterUri,
+    callback
+  ) => {
+    callback({ status: 'running' });
+
+    return { cleanup: () => {} };
   };
-  const appContext = new MockAppContext();
-  appContext.clustersService.state.clusters.set(cluster.uri, cluster);
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = cluster.uri;
-    draftState.workspaces[cluster.uri] = {
-      localClusterUri: cluster.uri,
-      documents: [doc],
-      location: doc.uri,
-      accessRequests: undefined,
-    };
-  });
+  return <ShowState cluster={cluster} appContext={appContext} />;
+}
+
+export function Errored() {
+  const cluster = makeRootCluster();
+  const appContext = new MockAppContext({ appVersion: cluster.proxyVersion });
+  appContext.connectMyComputerService.createAgentConfigFile = () => {
+    throw new Error('Failed to write file, no permissions.');
+  };
+  return <ShowState cluster={cluster} appContext={appContext} />;
+}
+
+export function InProgress() {
+  const cluster = makeRootCluster();
+  const appContext = new MockAppContext({ appVersion: cluster.proxyVersion });
+  const ref = useRef(new AbortController());
+
+  useEffect(() => {
+    return () => ref.current.abort();
+  }, []);
+
+  appContext.connectMyComputerService.downloadAgent = () =>
+    new Promise(resolve => {
+      ref.current.signal.addEventListener('abort', () => resolve(undefined));
+    });
+
+  return <ShowState cluster={cluster} appContext={appContext} />;
+}
+
+export function AgentVersionTooNew() {
+  const cluster = makeRootCluster({ proxyVersion: '16.3.0' });
+  const appContext = new MockAppContext({ appVersion: '17.0.0' });
+
+  return (
+    <ShowState
+      cluster={cluster}
+      appContext={appContext}
+      clickStartSetup={false}
+    />
+  );
+}
+
+export function AgentVersionTooOld() {
+  const cluster = makeRootCluster({ proxyVersion: '16.3.0' });
+  const appContext = new MockAppContext({ appVersion: '14.1.0' });
+  return (
+    <ShowState
+      cluster={cluster}
+      appContext={appContext}
+      clickStartSetup={false}
+    />
+  );
+}
+
+function ShowState({
+  cluster,
+  appContext,
+  clickStartSetup = true,
+}: {
+  cluster: Cluster;
+  appContext: IAppContext;
+  clickStartSetup?: boolean;
+}) {
+  if (!appContext.clustersService.state.clusters.get(cluster.uri)) {
+    appContext.clustersService.state.clusters.set(cluster.uri, cluster);
+    appContext.workspacesService.setState(draftState => {
+      draftState.rootClusterUri = cluster.uri;
+      draftState.workspaces[cluster.uri] = {
+        localClusterUri: cluster.uri,
+        documents: [],
+        location: undefined,
+        accessRequests: undefined,
+      };
+    });
+  }
+
+  useLayoutEffect(() => {
+    if (clickStartSetup) {
+      (
+        document.querySelector('[data-testid=start-setup]') as HTMLButtonElement
+      )?.click();
+    }
+  }, [clickStartSetup]);
 
   return (
     <MockAppContextProvider appContext={appContext}>
-      <WorkspaceContextProvider
-        value={{
-          accessRequestsService: undefined,
-          documentsService:
-            appContext.workspacesService.getActiveWorkspaceDocumentService(),
-          localClusterUri: cluster.uri,
-          rootClusterUri: appContext.workspacesService.getRootClusterUri(),
-        }}
-      >
-        <DocumentConnectMyComputerSetup visible={true} doc={doc} />
-      </WorkspaceContextProvider>
+      <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
+        <ResourcesContextProvider>
+          <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
+            <DocumentConnectMyComputerSetup />
+          </ConnectMyComputerContextProvider>
+        </ResourcesContextProvider>
+      </MockWorkspaceContextProvider>
     </MockAppContextProvider>
   );
 }

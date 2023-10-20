@@ -94,6 +94,16 @@ func (n *Namespace) SetResourceID(id int64) {
 	n.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (n *Namespace) GetRevision() string {
+	return n.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (n *Namespace) SetRevision(rev string) {
+	n.Metadata.SetRevision(rev)
+}
+
 // GetName returns the name of the cluster.
 func (n *Namespace) GetName() string {
 	return n.Metadata.Name

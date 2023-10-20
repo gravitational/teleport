@@ -105,6 +105,21 @@ var roleMappings = map[string]SystemRole{
 	"mdm":             RoleMDM,
 }
 
+func normalizedSystemRole(s string) SystemRole {
+	if role, ok := roleMappings[strings.ToLower(strings.TrimSpace(s))]; ok {
+		return role
+	}
+	return SystemRole(s)
+}
+
+func normalizedSystemRoles(s []string) []SystemRole {
+	roles := make([]SystemRole, 0, len(s))
+	for _, role := range s {
+		roles = append(roles, normalizedSystemRole(role))
+	}
+	return roles
+}
+
 // localServiceMappings is the subset of role mappings which happen to be true
 // teleport services (e.g. db, kube, etc), excluding those which represent remote
 // services (i.e. remoteproxy).
@@ -141,10 +156,7 @@ func LocalServiceMappings() SystemRoles {
 
 // NewTeleportRoles return a list of teleport roles from slice of strings
 func NewTeleportRoles(in []string) (SystemRoles, error) {
-	var roles SystemRoles
-	for _, val := range in {
-		roles = append(roles, SystemRole(val))
-	}
+	roles := SystemRoles(normalizedSystemRoles(in))
 	return roles, roles.Check()
 }
 
@@ -153,8 +165,7 @@ func NewTeleportRoles(in []string) (SystemRoles, error) {
 func ParseTeleportRoles(str string) (SystemRoles, error) {
 	var roles SystemRoles
 	for _, s := range strings.Split(str, ",") {
-		cleaned := strings.ToLower(strings.TrimSpace(s))
-		if r, ok := roleMappings[cleaned]; ok && r.Check() == nil {
+		if r := normalizedSystemRole(s); r.Check() == nil {
 			roles = append(roles, r)
 			continue
 		}

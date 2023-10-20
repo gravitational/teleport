@@ -47,7 +47,7 @@ const (
 	minServerVersion = "6.1.0"
 	// pluginName is used to tag PluginData and as a Delegator in Audit log.
 	pluginName = "jira"
-	// grpcBackoffMaxDelay is a maximum time GRPC client waits before reconnection attempt.
+	// grpcBackoffMaxDelay is a maximum time gRPC client waits before reconnection attempt.
 	grpcBackoffMaxDelay = time.Second * 2
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
@@ -282,9 +282,7 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 		switch {
 		case req.GetState().IsPending():
 			err = a.onPendingRequest(ctx, req)
-		case req.GetState().IsApproved():
-			err = a.onResolvedRequest(ctx, req)
-		case req.GetState().IsDenied():
+		case req.GetState().IsResolved():
 			err = a.onResolvedRequest(ctx, req)
 		default:
 			log.WithField("event", event).Warn("Unknown request state")
@@ -420,6 +418,8 @@ func (a *App) onJiraWebhook(ctx context.Context, webhook Webhook) error {
 		resolution.Tag = ResolvedApproved
 	case state.IsDenied():
 		resolution.Tag = ResolvedDenied
+	case state.IsPromoted():
+		resolution.Tag = ResolvedPromoted
 	default:
 		return trace.BadParameter("unknown request state %v (%s)", state, state)
 	}
@@ -474,6 +474,8 @@ func (a *App) onResolvedRequest(ctx context.Context, req types.AccessRequest) er
 		resolution.Tag = ResolvedApproved
 	case types.RequestState_DENIED:
 		resolution.Tag = ResolvedDenied
+	case types.RequestState_PROMOTED:
+		resolution.Tag = ResolvedPromoted
 	}
 	err := trace.Wrap(a.resolveIssue(ctx, req.GetName(), resolution))
 	return trace.NewAggregate(commentErr, err)

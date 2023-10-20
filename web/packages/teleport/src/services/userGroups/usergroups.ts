@@ -16,7 +16,7 @@ limitations under the License.
 
 import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
-import { AgentResponse } from 'teleport/services/agents';
+import { ResourcesResponse } from 'teleport/services/agents';
 
 import { makeUserGroup } from './makeUserGroup';
 
@@ -27,7 +27,7 @@ class UserGroupService {
     clusterId: string,
     params: UrlResourcesParams,
     signal?: AbortSignal
-  ): Promise<AgentResponse<UserGroup>> {
+  ): Promise<ResourcesResponse<UserGroup>> {
     return api
       .get(cfg.getUserGroupsListUrl(clusterId, params), signal)
       .then(json => {

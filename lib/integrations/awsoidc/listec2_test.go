@@ -52,6 +52,20 @@ func (m *mockListEC2Client) GetCallerIdentity(ctx context.Context, params *sts.G
 func (m mockListEC2Client) DescribeInstances(ctx context.Context, params *ec2.DescribeInstancesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
 	requestedPage := 1
 
+	stateFilter := false
+	platformFilter := false
+	for _, filter := range params.Filters {
+		if aws.ToString(filter.Name) == "instance-state-name" && len(filter.Values) == 1 && filter.Values[0] == "running" {
+			stateFilter = true
+		}
+		if aws.ToString(filter.Name) == "platform-details" && len(filter.Values) == 1 && filter.Values[0] == "Linux/UNIX" {
+			platformFilter = true
+		}
+	}
+	if !stateFilter || !platformFilter {
+		return nil, trace.BadParameter("instance-state-name and platform-details filters were not included")
+	}
+
 	totalInstances := len(m.ec2Instances)
 
 	if params.NextToken != nil {
@@ -99,6 +113,7 @@ func TestListEC2(t *testing.T) {
 				PrivateDnsName:   aws.String("my-private-dns.compute.aws"),
 				InstanceId:       aws.String(fmt.Sprintf("i-%d", i)),
 				VpcId:            aws.String("vpc-abcd"),
+				SubnetId:         aws.String("subnet-123"),
 				PrivateIpAddress: aws.String("172.31.1.1"),
 			})
 		}
@@ -163,6 +178,7 @@ func TestListEC2(t *testing.T) {
 				PrivateDnsName:   aws.String("my-private-dns.compute.aws"),
 				InstanceId:       aws.String("i-123456789abcedf"),
 				VpcId:            aws.String("vpc-abcd"),
+				SubnetId:         aws.String("subnet-123"),
 				PrivateIpAddress: aws.String("172.31.1.1"),
 			},
 			},
@@ -176,8 +192,9 @@ func TestListEC2(t *testing.T) {
 					SubKind: "openssh-ec2-ice",
 					Metadata: types.Metadata{
 						Labels: map[string]string{
-							"account-id": "123456789012",
-							"region":     "us-east-1",
+							"account-id":               "123456789012",
+							"region":                   "us-east-1",
+							"teleport.dev/instance-id": "i-123456789abcedf",
 						},
 						Namespace: "default",
 					},
@@ -191,6 +208,7 @@ func TestListEC2(t *testing.T) {
 								Region:      "us-east-1",
 								VPCID:       "vpc-abcd",
 								Integration: "myintegration",
+								SubnetID:    "subnet-123",
 							},
 						},
 					},

@@ -154,7 +154,7 @@ function getTestSetup({ documents }: { documents: Document[] }) {
 
   const utils = render(
     <MockAppContextProvider appContext={appContext}>
-      <TabHost ctx={appContext} />
+      <TabHost ctx={appContext} topBarContainerRef={undefined} />
     </MockAppContextProvider>
   );
 

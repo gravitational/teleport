@@ -28,7 +28,7 @@ export function KubeWrapper(props: WrapperProps) {
   useEffect(() => {
     return () => {
       // once the user leaves this flow, delete the existing token
-      clearCachedJoinTokenResult(ResourceKind.Kubernetes);
+      clearCachedJoinTokenResult([ResourceKind.Kubernetes]);
     };
   }, []);
 

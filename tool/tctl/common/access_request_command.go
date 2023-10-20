@@ -276,13 +276,21 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client auth.ClientI) 
 	req.SetRequestReason(c.reason)
 
 	if c.dryRun {
-		err = services.ValidateAccessRequestForUser(ctx, clockwork.NewRealClock(), client, req, tlsca.Identity{}, services.ExpandVars(true))
+		users := &struct {
+			auth.ClientI
+			services.UserLoginStatesGetter
+		}{
+			ClientI:               client,
+			UserLoginStatesGetter: client.UserLoginStateClient(),
+		}
+		err = services.ValidateAccessRequestForUser(ctx, clockwork.NewRealClock(), users, req, tlsca.Identity{}, services.ExpandVars(true))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		return trace.Wrap(printJSON(req, "request"))
 	}
-	if err := client.CreateAccessRequest(ctx, req); err != nil {
+	req, err = client.CreateAccessRequestV2(ctx, req)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("%s\n", req.GetName())

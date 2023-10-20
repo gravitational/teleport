@@ -366,9 +366,10 @@ func getOSBuildNumber() (string, error) {
 	return string(bytes.TrimSpace(out)), nil
 }
 
-func firstOf(strings ...string) string {
+func firstValidAssetTag(strings ...string) string {
 	for _, str := range strings {
-		if str != "" {
+		// Skip empty serials and known bad values.
+		if str != "" && str != "Default string" {
 			return str
 		}
 	}
@@ -406,7 +407,7 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 		return nil, trace.Wrap(err, "fetching user")
 	}
 
-	serial := firstOf(reportedAssetTag, systemSerial, baseBoardSerial)
+	serial := firstValidAssetTag(reportedAssetTag, systemSerial, baseBoardSerial)
 	if serial == "" {
 		return nil, trace.BadParameter("unable to determine serial number")
 	}

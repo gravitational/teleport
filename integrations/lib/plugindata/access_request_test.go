@@ -23,6 +23,7 @@ import (
 var sampleAccessRequestData = AccessRequestData{
 	User:             "user-foo",
 	Roles:            []string{"role-foo", "role-bar"},
+	Resources:        []string{"cluster/node/foo", "cluster/node/bar"},
 	RequestReason:    "foo reason",
 	ReviewsCount:     3,
 	ResolutionTag:    ResolvedApproved,
@@ -30,10 +31,12 @@ var sampleAccessRequestData = AccessRequestData{
 }
 
 func TestEncodeAccessRequestData(t *testing.T) {
-	dataMap := EncodeAccessRequestData(sampleAccessRequestData)
-	assert.Len(t, dataMap, 6)
+	dataMap, err := EncodeAccessRequestData(sampleAccessRequestData)
+	assert.Nil(t, err)
+	assert.Len(t, dataMap, 7)
 	assert.Equal(t, "user-foo", dataMap["user"])
 	assert.Equal(t, "role-foo,role-bar", dataMap["roles"])
+	assert.Equal(t, `["cluster/node/foo","cluster/node/bar"]`, dataMap["resources"])
 	assert.Equal(t, "foo reason", dataMap["request_reason"])
 	assert.Equal(t, "3", dataMap["reviews_count"])
 	assert.Equal(t, "APPROVED", dataMap["resolution"])
@@ -41,26 +44,33 @@ func TestEncodeAccessRequestData(t *testing.T) {
 }
 
 func TestDecodeAccessRequestData(t *testing.T) {
-	pluginData := DecodeAccessRequestData(map[string]string{
+	pluginData, err := DecodeAccessRequestData(map[string]string{
 		"user":           "user-foo",
 		"roles":          "role-foo,role-bar",
+		"resources":      `["cluster/node/foo", "cluster/node/bar"]`,
 		"request_reason": "foo reason",
 		"reviews_count":  "3",
 		"resolution":     "APPROVED",
 		"resolve_reason": "foo ok",
 	})
+	assert.Nil(t, err)
 	assert.Equal(t, sampleAccessRequestData, pluginData)
 }
 
 func TestEncodeEmptyAccessRequestData(t *testing.T) {
-	dataMap := EncodeAccessRequestData(AccessRequestData{})
-	assert.Len(t, dataMap, 6)
+	dataMap, err := EncodeAccessRequestData(AccessRequestData{})
+	assert.Nil(t, err)
+	assert.Len(t, dataMap, 7)
 	for key, value := range dataMap {
 		assert.Emptyf(t, value, "value at key %q must be empty", key)
 	}
 }
 
 func TestDecodeEmptyAccessRequestData(t *testing.T) {
-	assert.Empty(t, DecodeAccessRequestData(nil))
-	assert.Empty(t, DecodeAccessRequestData(make(map[string]string)))
+	decoded, err := DecodeAccessRequestData(nil)
+	assert.Nil(t, err)
+	assert.Empty(t, decoded)
+	decoded, err = DecodeAccessRequestData(make(map[string]string))
+	assert.Nil(t, err)
+	assert.Empty(t, decoded)
 }

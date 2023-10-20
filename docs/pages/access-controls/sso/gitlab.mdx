@@ -59,6 +59,9 @@ to each of these groups.
 
 Create an OIDC connector resource using `tctl`.
 
+On your workstation, create a file called `client-secret.txt` consisting only of
+your client secret.
+
 <Tabs>
 <TabItem label="GitLab.com">
 Replace the application ID and secret with the values from GitLab:
@@ -66,7 +69,7 @@ Replace the application ID and secret with the values from GitLab:
 ```code
 $ tctl sso configure oidc --preset gitlab \
 --id <APPLICATION-ID> \
---secret <APPLICATION-SECRET> \
+--secret $( cat client-secret.txt) \
 --claims-to-roles groups,company/admin,admin \
 --claims-to-roles groups,company/dev,dev > oidc.yaml
 ```
@@ -80,7 +83,7 @@ Replace the application ID and secret with the values from GitLab, and replace
 $ tctl sso configure oidc --preset gitlab \
 --id <APPLICATION-ID> \
 --issuer-url https://gitlab.company.com \
---secret <APPLICATION-SECRET> \
+--secret $( cat client-secret.txt) \
 --claims-to-roles groups,company/admin,admin \
 --claims-to-roles groups,company/dev,dev > oidc.yaml
 ```
@@ -107,7 +110,7 @@ spec:
     value: company/gitlab-dev
   client_id: <APPLICATION-ID>
   client_secret: <APPLICATION-SECRET>
-  display: Gitlab
+  display: GitLab
   issuer_url: https://gitlab.com
   prompt: none
   redirect_url: https://teleport.example.com:443/v1/webapi/oidc/callback
@@ -128,7 +131,7 @@ of the command to diagnose.
 Create the connector using `tctl` tool:
 
 ```code
-$ tctl create -f oidc.yaml.yaml
+$ tctl create -f oidc.yaml
 ```
 
 ## Create Teleport Roles

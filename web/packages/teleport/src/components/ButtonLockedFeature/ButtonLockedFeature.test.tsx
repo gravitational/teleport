@@ -15,12 +15,14 @@ limitations under the License.
 */
 
 import React from 'react';
-import { render, screen } from 'design/utils/testing';
+import { render, screen, userEvent } from 'design/utils/testing';
+
+import cfg from 'teleport/config';
 
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
-import { CtaEvent } from 'teleport/services/userEvent';
+import { CtaEvent, userEventService } from 'teleport/services/userEvent';
 
 import { ButtonLockedFeature } from './ButtonLockedFeature';
 
@@ -45,15 +47,16 @@ describe('buttonLockedFeature', () => {
     expect(screen.queryByTestId('locked-icon')).not.toBeInTheDocument();
   });
 
-  test('it has the proper href', () => {
+  test('it has upgrade-team href for Team Plan', () => {
     const version = ctx.storeUser.state.cluster.authVersion;
+    cfg.isUsageBasedBilling = true;
 
     renderWithContext(
       <ButtonLockedFeature noIcon={true}>text</ButtonLockedFeature>
     );
     expect(screen.getByText('text').closest('a')).toHaveAttribute(
       'href',
-      `https://goteleport.com/r/upgrade-team?${version}&utm_campaign=undefined`
+      `https://goteleport.com/r/upgrade-team?e_${version}&utm_campaign=CTA_UNSPECIFIED`
     );
 
     renderWithContext(
@@ -63,15 +66,88 @@ describe('buttonLockedFeature', () => {
     );
     expect(screen.getByText('othertext').closest('a')).toHaveAttribute(
       'href',
-      `https://goteleport.com/r/upgrade-team?${version}&utm_campaign=${
+      `https://goteleport.com/r/upgrade-team?e_${version}&utm_campaign=${
         CtaEvent[CtaEvent.CTA_ACCESS_REQUESTS]
       }`
     );
   });
+
+  test('it has upgrade-community href for community edition', () => {
+    const version = ctx.storeUser.state.cluster.authVersion;
+    cfg.isUsageBasedBilling = false;
+    renderWithContext(
+      <ButtonLockedFeature noIcon={true}>text</ButtonLockedFeature>,
+      {
+        enterprise: false,
+      }
+    );
+    expect(screen.getByText('text').closest('a')).toHaveAttribute(
+      'href',
+      `https://goteleport.com/r/upgrade-community?${version}&utm_campaign=CTA_UNSPECIFIED`
+    );
+
+    renderWithContext(
+      <ButtonLockedFeature noIcon={true} event={CtaEvent.CTA_ACCESS_REQUESTS}>
+        othertext
+      </ButtonLockedFeature>,
+      {
+        enterprise: false,
+      }
+    );
+    expect(screen.getByText('othertext').closest('a')).toHaveAttribute(
+      'href',
+      `https://goteleport.com/r/upgrade-community?${version}&utm_campaign=${
+        CtaEvent[CtaEvent.CTA_ACCESS_REQUESTS]
+      }`
+    );
+  });
+
+  describe('userEventService', () => {
+    beforeEach(() => {
+      jest.spyOn(userEventService, 'captureCtaEvent');
+    });
+
+    afterEach(() => {
+      jest.resetAllMocks();
+      jest.clearAllMocks();
+    });
+
+    test('does not invoke userEventService for oss', async () => {
+      renderWithContext(<ButtonLockedFeature>content</ButtonLockedFeature>, {
+        enterprise: false,
+      });
+
+      await userEvent.click(screen.getByText('content').closest('a'));
+      expect(userEventService.captureCtaEvent).not.toHaveBeenCalled();
+    });
+
+    test('invokes userEventService for enterprise', async () => {
+      renderWithContext(
+        <ButtonLockedFeature event={CtaEvent.CTA_ACCESS_REQUESTS}>
+          content
+        </ButtonLockedFeature>
+      );
+
+      await userEvent.click(screen.getByText('content').closest('a'));
+      expect(userEventService.captureCtaEvent).toHaveBeenCalledWith(
+        CtaEvent.CTA_ACCESS_REQUESTS
+      );
+    });
+  });
 });
 
 const ctx = createTeleportContext();
-function renderWithContext(ui: React.ReactElement) {
+
+type renderProps = {
+  enterprise?: boolean;
+};
+
+function renderWithContext(
+  ui: React.ReactElement,
+  { enterprise = true }: renderProps = {}
+) {
+  ctx.isEnterprise = enterprise;
+
   return render(
     <TeleportContextProvider ctx={ctx}>{ui}</TeleportContextProvider>
   );

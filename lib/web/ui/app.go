@@ -23,7 +23,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -114,7 +113,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	}
 
 	resultApp := App{
-		Kind:         app.GetKind(),
+		Kind:         types.KindApp,
 		Name:         app.GetName(),
 		Description:  app.GetDescription(),
 		URI:          app.GetURI(),
@@ -123,9 +122,14 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		ClusterID:    c.AppClusterName,
 		FQDN:         fqdn,
 		AWSConsole:   app.IsAWSConsole(),
-		FriendlyName: services.FriendlyName(app),
+		FriendlyName: types.FriendlyName(app),
 		UserGroups:   userGroupAndDescriptions,
 		SAMLApp:      false,
+	}
+
+	if app.IsAWSConsole() {
+		resultApp.AWSRoles = aws.FilterAWSRoles(c.Identity.AWSRoleARNs,
+			app.GetAWSAccountID())
 	}
 
 	return resultApp
@@ -135,13 +139,13 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 func MakeSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
 	labels := makeLabels(app.GetAllLabels())
 	resultApp := App{
-		Kind:         app.GetKind(),
+		Kind:         types.KindApp,
 		Name:         app.GetName(),
-		Description:  app.GetMetadata().Description,
+		Description:  "SAML Application",
 		PublicAddr:   "",
 		Labels:       labels,
 		ClusterID:    c.AppClusterName,
-		FriendlyName: services.FriendlyName(app),
+		FriendlyName: types.FriendlyName(app),
 		SAMLApp:      true,
 	}
 
@@ -168,7 +172,7 @@ func MakeApps(c MakeAppsConfig) []App {
 			}
 
 			resultApp := App{
-				Kind:         appOrSP.GetKind(),
+				Kind:         types.KindApp,
 				Name:         appOrSP.GetName(),
 				Description:  appOrSP.GetDescription(),
 				URI:          app.GetURI(),
@@ -177,7 +181,7 @@ func MakeApps(c MakeAppsConfig) []App {
 				ClusterID:    c.AppClusterName,
 				FQDN:         fqdn,
 				AWSConsole:   app.IsAWSConsole(),
-				FriendlyName: services.FriendlyName(app),
+				FriendlyName: types.FriendlyName(app),
 				UserGroups:   userGroupAndDescriptions,
 				SAMLApp:      false,
 			}
@@ -191,13 +195,13 @@ func MakeApps(c MakeAppsConfig) []App {
 		} else {
 			labels := makeLabels(appOrSP.GetSAMLIdPServiceProvider().GetAllLabels())
 			resultApp := App{
-				Kind:         appOrSP.GetKind(),
+				Kind:         types.KindApp,
 				Name:         appOrSP.GetName(),
 				Description:  appOrSP.GetDescription(),
 				PublicAddr:   appOrSP.GetPublicAddr(),
 				Labels:       labels,
 				ClusterID:    c.AppClusterName,
-				FriendlyName: services.FriendlyName(appOrSP),
+				FriendlyName: types.FriendlyName(appOrSP),
 				SAMLApp:      true,
 			}
 

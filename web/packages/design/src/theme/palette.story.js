@@ -21,7 +21,7 @@ import React from 'react';
 import { Flex, Box } from '..';
 
 import * as colors from './palette';
-import { getContrastText } from './darkTheme';
+import { getContrastText } from './themes/sharedStyles';
 
 export default {
   title: 'Design/Theme/Palette',

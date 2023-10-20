@@ -58,11 +58,10 @@ var (
 )
 
 const (
-	// teleportOSS is the prefix for the image name when deploying the OSS version of Teleport
-	teleportOSS = "teleport"
-
-	// teleportEnt is the prefix for the image name when deploying the Enterprise version of Teleport
-	teleportEnt = "teleport-ent"
+	// distrolessTeleportOSS is the distroless image of the OSS version of Teleport
+	distrolessTeleportOSS = "public.ecr.aws/gravitational/teleport-distroless"
+	// distrolessTeleportEnt is the distroless image of the Enterprise version of Teleport
+	distrolessTeleportEnt = "public.ecr.aws/gravitational/teleport-ent-distroless"
 
 	// clusterStatusActive is the string representing an ACTIVE ECS Cluster.
 	clusterStatusActive = "ACTIVE"
@@ -104,6 +103,10 @@ type DeployServiceRequest struct {
 	// SubnetIDs are the subnets associated with the service.
 	SubnetIDs []string
 
+	// SecurityGroups to apply to the service's network configuration.
+	// If empty, the default security group for the VPC is going to be used.
+	SecurityGroups []string
+
 	// ClusterName is the ECS Cluster to be used.
 	// It will be created if it doesn't exist.
 	// It will be updated if it doesn't include the FARGATE capacity provider using PutClusterCapacityProviders.
@@ -137,7 +140,7 @@ type DeployServiceRequest struct {
 	IntegrationName string
 
 	// ResourceCreationTags is used to add tags when creating resources in AWS.
-	ResourceCreationTags awsTags
+	ResourceCreationTags AWSTags
 
 	// DeploymentMode is the identifier of a deployment mode - which Teleport Services to enable and their configuration.
 	DeploymentMode string
@@ -177,12 +180,26 @@ func normalizeECSResourceName(name string) string {
 	return replacer.Replace(name)
 }
 
+// normalizeECSClusterName returns the normalized ECS Cluster Name
+func normalizeECSClusterName(teleportClusterName string) string {
+	return normalizeECSResourceName(fmt.Sprintf("%s-teleport", teleportClusterName))
+}
+
+// normalizeECSServiceName returns the normalized ECS Service Name
+func normalizeECSServiceName(teleportClusterName, deploymentMode string) string {
+	return normalizeECSResourceName(fmt.Sprintf("%s-teleport-%s", teleportClusterName, deploymentMode))
+}
+
+// normalizeECSTaskName returns the normalized ECS TaskDefinition Family
+func normalizeECSTaskName(teleportClusterName, deploymentMode string) string {
+	return normalizeECSResourceName(fmt.Sprintf("%s-teleport-%s", teleportClusterName, deploymentMode))
+}
+
 // CheckAndSetDefaults checks if the required fields are present.
 func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	if r.TeleportClusterName == "" {
 		return trace.BadParameter("teleport cluster name is required")
 	}
-	baseResourceName := normalizeECSResourceName(r.TeleportClusterName)
 
 	if r.TeleportVersionTag == "" {
 		r.TeleportVersionTag = teleport.Version
@@ -213,17 +230,17 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ClusterName == nil || *r.ClusterName == "" {
-		clusterName := fmt.Sprintf("%s-teleport", baseResourceName)
+		clusterName := normalizeECSClusterName(r.TeleportClusterName)
 		r.ClusterName = &clusterName
 	}
 
 	if r.ServiceName == nil || *r.ServiceName == "" {
-		serviceName := fmt.Sprintf("%s-teleport-%s", baseResourceName, r.DeploymentMode)
+		serviceName := normalizeECSServiceName(r.TeleportClusterName, r.DeploymentMode)
 		r.ServiceName = &serviceName
 	}
 
 	if r.TaskName == nil || *r.TaskName == "" {
-		taskName := fmt.Sprintf("%s-teleport-%s", baseResourceName, r.DeploymentMode)
+		taskName := normalizeECSTaskName(r.TeleportClusterName, r.DeploymentMode)
 		r.TaskName = &taskName
 	}
 
@@ -236,7 +253,7 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ResourceCreationTags == nil {
-		r.ResourceCreationTags = DefaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
+		r.ResourceCreationTags = defaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
 	}
 
 	if len(r.DatabaseResourceMatcherLabels) == 0 {
@@ -287,9 +304,17 @@ type DeployServiceClient interface {
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.CreateService
 	CreateService(ctx context.Context, params *ecs.CreateServiceInput, optFns ...func(*ecs.Options)) (*ecs.CreateServiceOutput, error)
 
+	// DescribeTaskDefinition describes the task definition.
+	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.DescribeTaskDefinition
+	DescribeTaskDefinition(ctx context.Context, params *ecs.DescribeTaskDefinitionInput, optFns ...func(*ecs.Options)) (*ecs.DescribeTaskDefinitionOutput, error)
+
 	// RegisterTaskDefinition registers a new task definition from the supplied family and containerDefinitions.
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.RegisterTaskDefinition
 	RegisterTaskDefinition(ctx context.Context, params *ecs.RegisterTaskDefinitionInput, optFns ...func(*ecs.Options)) (*ecs.RegisterTaskDefinitionOutput, error)
+
+	// DeregisterTaskDefinition deregisters the task definition.
+	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.DeregisterTaskDefinition
+	DeregisterTaskDefinition(ctx context.Context, params *ecs.DeregisterTaskDefinitionInput, optFns ...func(*ecs.Options)) (*ecs.DeregisterTaskDefinitionOutput, error)
 
 	// TokenService are the required methods to manage the IAM Join Token.
 	// When the deployed service connects to the cluster, it will use the IAM Join method.
@@ -429,11 +454,7 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 
 // upsertTask ensures a TaskDefinition with TaskName exists
 func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest, configB64 string) (*ecsTypes.TaskDefinition, error) {
-	teleportFlavor := teleportOSS
-	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		teleportFlavor = teleportEnt
-	}
-	taskAgentContainerImage := fmt.Sprintf("public.ecr.aws/gravitational/%s-distroless:%s", teleportFlavor, req.TeleportVersionTag)
+	taskAgentContainerImage := getDistrolessTeleportImage(req.TeleportVersionTag)
 
 	taskDefOut, err := clt.RegisterTaskDefinition(ctx, &ecs.RegisterTaskDefinitionInput{
 		Family: req.TaskName,
@@ -452,11 +473,16 @@ func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceR
 				Value: aws.String("true"),
 			}},
 			Command: []string{
+				// --rewrite 15:3 rewrites SIGTERM -> SIGQUIT. This enables graceful shutdown of teleport
+				"--rewrite",
+				"15:3",
+				"--",
+				"teleport",
 				"start",
 				"--config-string",
 				configB64,
 			},
-			EntryPoint: []string{"teleport"},
+			EntryPoint: []string{"/usr/bin/dumb-init"},
 			Image:      &taskAgentContainerImage,
 			Name:       &taskAgentContainerName,
 			LogConfiguration: &ecsTypes.LogConfiguration{
@@ -598,6 +624,16 @@ func waitForActiveCluster(ctx context.Context, clt DeployServiceClient, req Depl
 	return trace.Wrap(err)
 }
 
+func deployServiceNetworkConfiguration(req DeployServiceRequest) *ecsTypes.NetworkConfiguration {
+	return &ecsTypes.NetworkConfiguration{
+		AwsvpcConfiguration: &ecsTypes.AwsVpcConfiguration{
+			AssignPublicIp: ecsTypes.AssignPublicIpEnabled, // no internet connection otherwise
+			Subnets:        req.SubnetIDs,
+			SecurityGroups: req.SecurityGroups,
+		},
+	}
+}
+
 // upsertService creates or updates the service.
 // If the service exists but its LaunchType is not Fargate, then it gets re-created.
 func upsertService(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest, taskARN string) (*ecsTypes.Service, error) {
@@ -638,18 +674,13 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req DeployServi
 			}
 
 			updateServiceResp, err := clt.UpdateService(ctx, &ecs.UpdateServiceInput{
-				Service:        req.ServiceName,
-				DesiredCount:   &oneAgent,
-				TaskDefinition: &taskARN,
-				Cluster:        req.ClusterName,
-				NetworkConfiguration: &ecsTypes.NetworkConfiguration{
-					AwsvpcConfiguration: &ecsTypes.AwsVpcConfiguration{
-						AssignPublicIp: ecsTypes.AssignPublicIpEnabled, // no internet connection otherwise
-						Subnets:        req.SubnetIDs,
-					},
-				},
-				ForceNewDeployment: true,
-				PropagateTags:      ecsTypes.PropagateTagsService,
+				Service:              req.ServiceName,
+				DesiredCount:         &oneAgent,
+				TaskDefinition:       &taskARN,
+				Cluster:              req.ClusterName,
+				NetworkConfiguration: deployServiceNetworkConfiguration(req),
+				ForceNewDeployment:   true,
+				PropagateTags:        ecsTypes.PropagateTagsService,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -660,23 +691,27 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req DeployServi
 	}
 
 	createServiceOut, err := clt.CreateService(ctx, &ecs.CreateServiceInput{
-		ServiceName:    req.ServiceName,
-		DesiredCount:   &oneAgent,
-		LaunchType:     ecsTypes.LaunchTypeFargate,
-		TaskDefinition: &taskARN,
-		Cluster:        req.ClusterName,
-		NetworkConfiguration: &ecsTypes.NetworkConfiguration{
-			AwsvpcConfiguration: &ecsTypes.AwsVpcConfiguration{
-				AssignPublicIp: ecsTypes.AssignPublicIpEnabled, // no internet connection otherwise
-				Subnets:        req.SubnetIDs,
-			},
-		},
-		Tags:          req.ResourceCreationTags.ToECSTags(),
-		PropagateTags: ecsTypes.PropagateTagsService,
+		ServiceName:          req.ServiceName,
+		DesiredCount:         &oneAgent,
+		LaunchType:           ecsTypes.LaunchTypeFargate,
+		TaskDefinition:       &taskARN,
+		Cluster:              req.ClusterName,
+		NetworkConfiguration: deployServiceNetworkConfiguration(req),
+		Tags:                 req.ResourceCreationTags.ToECSTags(),
+		PropagateTags:        ecsTypes.PropagateTagsService,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return createServiceOut.Service, nil
+}
+
+// getDistrolessTeleportImage returns the distroless teleport image string
+func getDistrolessTeleportImage(version string) string {
+	teleportImage := distrolessTeleportOSS
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		teleportImage = distrolessTeleportEnt
+	}
+	return fmt.Sprintf("%s:%s", teleportImage, version)
 }

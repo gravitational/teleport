@@ -60,6 +60,7 @@ const mockAwsRdsDb: AwsRdsDatabase = {
   labels: mockDbLabels,
   accountId: 'account-id-1',
   resourceId: 'resource-id-1',
+  vpcId: 'vpc-123',
   region: region,
   subnets: ['subnet1', 'subnet2'],
 };

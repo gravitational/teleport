@@ -5,12 +5,15 @@ description: How to configure Teleport database access with self-hosted Cockroac
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="CockroachDB" dbConfigure="CockroachDB with mutual TLS authentication" dbName="CockroachDB" !)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access CockroachDB Self-Hosted](../../../img/database-access/guides/cockroachdb_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access CockroachDB Cloud](../../../img/database-access/guides/cockroachdb_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -163,3 +166,4 @@ $ tsh db logout roach
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
 - [CockroachDB client authentication](https://www.cockroachlabs.com/docs/stable/authentication.html#client-authentication)
+

@@ -15,8 +15,14 @@ new major version of Teleport:
 - [ ] Verify that `gravitational/docs/.gitmodules` contains the latest release
 
 - [ ] Ensure that submodule directories in `gravitational/docs` correspond to
-    those in `.gitmodules` (remove the directory of the EOL release and create
-    one for the next release)
+    those in `.gitmodules`.
+
+    Remove the directory of the EOL release and create one for the next release
+    using a command similar to the following:
+
+    ```bash
+    git submodule add https://github.com/gravitational/teleport content/<VERSION>.x
+    ```
 
 ## Is the docs site up to date with the new release?
 
@@ -67,7 +73,7 @@ to select "Version 12.0" in the documentation version switcher.
 ### Installation
 
 - [ ] General [installation page](../../docs/pages/installation.mdx): ensure that
-  installation methods support the new release candidate. 
+  installation methods support the new release candidate.
 - [ ] Enterprise Cloud [downloads
   page](../../docs/pages/choose-an-edition/teleport-cloud/downloads.mdx): ensure that
   the release cnadidate is available at the repositories we link to.
@@ -80,9 +86,11 @@ to select "Version 12.0" in the documentation version switcher.
 - [ ] [Teleport Enterprise with
   Helm](../../docs/pages/deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx)
 - [ ] [Teleport Enterprise with
-  Terraform](../../docs/pages/deploy-a-cluster/deployments/aws-terraform.mdx)
+  Terraform](../../docs/pages/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform.mdx)
 
 ### New feature docs
 
 - [ ] Review the roadmap for the major version we are releasing and verify that
-  you can complete all how-to guides for new features successfully.
+  you can complete all how-to guides for new features successfully. Consult the
+  [Upcoming Releases Page](../../docs/pages/upcoming-releases.mdx) for a list of
+  features in the next major release.

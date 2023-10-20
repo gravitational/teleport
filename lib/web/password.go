@@ -23,7 +23,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 )
@@ -37,7 +37,7 @@ type changePasswordReq struct {
 	// SecondFactorToken is user 2nd factor token
 	SecondFactorToken string `json:"second_factor_token"`
 	// WebauthnAssertionResponse is a Webauthn response
-	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // changePassword updates users password based on the old password.
@@ -57,7 +57,7 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, p httpr
 		OldPassword:       req.OldPassword,
 		NewPassword:       req.NewPassword,
 		SecondFactorToken: req.SecondFactorToken,
-		Webauthn: wanlib.CredentialAssertionResponseToProto(
+		Webauthn: wantypes.CredentialAssertionResponseToProto(
 			req.WebauthnAssertionResponse,
 		),
 	}
@@ -100,5 +100,5 @@ func (h *Handler) createAuthenticateChallengeWithPassword(w http.ResponseWriter,
 		return nil, trace.Wrap(err)
 	}
 
-	return client.MakeAuthenticateChallenge(chal), nil
+	return makeAuthenticateChallenge(chal), nil
 }

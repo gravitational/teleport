@@ -58,10 +58,16 @@ type Engine struct {
 	// cancelReq is a cancel request saved when a cancel request is received
 	// instead of a startup message.
 	cancelReq *pgproto3.CancelRequest
+
+	// rawClientConn is raw, unwrapped network connection to the client
+	rawClientConn net.Conn
+	// rawServerConn is raw, unwrapped network connection to the server
+	rawServerConn net.Conn
 }
 
 // InitializeConnection initializes the client connection.
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
+	e.rawClientConn = clientConn
 	e.client = pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
 
 	// The proxy is supposed to pass a startup message it received from
@@ -127,9 +133,9 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 	defer func() {
-		err := e.GetUserProvisioner(e).Deactivate(ctx, sessionCtx)
+		err := e.GetUserProvisioner(e).Teardown(ctx, sessionCtx)
 		if err != nil {
-			e.Log.WithError(err).Error("Failed to deactivate the user.")
+			e.Log.WithError(err).Error("Failed to teardown auto user.")
 		}
 	}()
 	// This is where we connect to the actual Postgres database.
@@ -138,6 +144,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		cancelAutoUserLease()
 		return trace.Wrap(err)
 	}
+	e.rawServerConn = hijackedConn.Conn
 	// Release the auto-users semaphore now that we've successfully connected.
 	cancelAutoUserLease()
 	// Upon successful connect, indicate to the Postgres client that startup
@@ -170,7 +177,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	clientErrCh := make(chan error, 1)
 	serverErrCh := make(chan error, 1)
 	go e.receiveFromClient(e.client, server, clientErrCh, sessionCtx)
-	go e.receiveFromServer(server, e.client, serverConn, serverErrCh, sessionCtx)
+	go e.receiveFromServer(serverConn, serverErrCh, sessionCtx)
 	select {
 	case err := <-clientErrCh:
 		e.Log.WithError(err).Debug("Client done.")
@@ -218,7 +225,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	// When using auto-provisioning, force the database username to be same
 	// as Teleport username. If it's not provided explicitly, some database
 	// clients (e.g. psql) get confused and display incorrect username.
-	if sessionCtx.AutoCreateUser {
+	if sessionCtx.AutoCreateUserMode.IsEnabled() {
 		if sessionCtx.DatabaseUser != sessionCtx.Identity.Username {
 			return trace.AccessDenied("please use your Teleport username (%q) to connect instead of %q",
 				sessionCtx.Identity.Username, sessionCtx.DatabaseUser)
@@ -232,7 +239,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		Database:       sessionCtx.Database,
 		DatabaseUser:   sessionCtx.DatabaseUser,
 		DatabaseName:   sessionCtx.DatabaseName,
-		AutoCreateUser: sessionCtx.AutoCreateUser,
+		AutoCreateUser: sessionCtx.AutoCreateUserMode.IsEnabled(),
 	})
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
@@ -402,38 +409,59 @@ func (e *Engine) auditFuncCallMessage(session *common.Session, msg *pgproto3.Fun
 // receiveFromServer receives messages from the provided frontend (which
 // is connected to the database instance) and relays them back to the psql
 // or other client via the provided backend.
-func (e *Engine) receiveFromServer(server *pgproto3.Frontend, client *pgproto3.Backend, serverConn *pgconn.PgConn, serverErrCh chan<- error, sessionCtx *common.Session) {
+func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<- error, sessionCtx *common.Session) {
 	log := e.Log.WithField("from", "server")
-
 	ctr := common.GetMessagesFromServerMetric(sessionCtx.Database)
 
-	defer log.Debug("Stop receiving from server.")
-	for {
-		message, err := server.Receive()
-		if err != nil {
-			if serverConn.IsClosed() {
-				log.Debug("Server connection closed.")
-				serverErrCh <- nil
+	// parse and count the messages from the server in a separate goroutine,
+	// operating on a copy of the server message stream. the copy is arranged below.
+	copyReader, copyWriter := io.Pipe()
+	defer copyWriter.Close()
+
+	closeChan := make(chan struct{})
+
+	go func() {
+		defer copyReader.Close()
+		defer close(closeChan)
+
+		// server will never be used to write to server,
+		// which is why we pass io.Discard instead of e.rawServerConn
+		server := pgproto3.NewFrontend(pgproto3.NewChunkReader(copyReader), io.Discard)
+
+		var count int64
+		defer func() {
+			log.WithField("parsed_total", count).Debug("Stopped parsing messages from server.")
+		}()
+
+		for {
+			message, err := server.Receive()
+			if err != nil {
+				if serverConn.IsClosed() {
+					log.Debug("Server connection closed.")
+					return
+				}
+				log.WithError(err).Error("Failed to receive message from server.")
 				return
 			}
-			log.WithError(err).Errorf("Failed to receive message from server.")
-			serverErrCh <- err
-			return
-		}
-		log.Tracef("Received server message: %#v.", message)
-		ctr.Inc()
 
-		// This is where we would plug in custom logic for particular
-		// messages received from the Postgres server (i.e. emitting
-		// an audit event), but for now just pass them along back to
-		// the client.
-		err = client.Send(message)
-		if err != nil {
-			log.WithError(err).Error("Failed to send message to client.")
-			serverErrCh <- err
-			return
+			count += 1
+			ctr.Inc()
+			log.Tracef("Received server message: %#v.", message)
 		}
+	}()
+
+	// the messages are ultimately copied from e.rawServerConn to e.rawClientConn,
+	// but a copy of that message stream is written to a synchronous pipe,
+	// which is read by the analysis goroutine above.
+	total, err := io.Copy(e.rawClientConn, io.TeeReader(e.rawServerConn, copyWriter))
+	if err != nil && !trace.IsConnectionProblem(trace.ConvertSystemError(err)) {
+		log.WithError(err).Warn("Server -> Client copy finished with unexpected error.")
 	}
+
+	<-closeChan
+
+	serverErrCh <- trace.Wrap(err)
+	log.Debugf("Stopped receiving from server. Transferred %v bytes.", total)
 }
 
 // getConnectConfig returns config that can be used to connect to the

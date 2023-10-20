@@ -112,7 +112,10 @@ func (l *TLSListener) Serve() error {
 			tlsConn, ok := conn.(*tls.Conn)
 			if !ok {
 				conn.Close()
-				log.Errorf("Expected tls.Conn, got %T, internal usage error.", conn)
+				l.log.WithFields(log.Fields{
+					"src_addr": conn.RemoteAddr(),
+					"dst_addr": conn.LocalAddr(),
+				}).Errorf("Expected tls.Conn, got %T, internal usage error.", conn)
 				continue
 			}
 			go l.detectAndForward(tlsConn)
@@ -120,11 +123,11 @@ func (l *TLSListener) Serve() error {
 		}
 		if utils.IsUseOfClosedNetworkError(err) {
 			<-l.context.Done()
-			return trace.Wrap(err, "listener is closed")
+			return nil
 		}
 		select {
 		case <-l.context.Done():
-			return trace.Wrap(net.ErrClosed, "listener is closed")
+			return nil
 		case <-time.After(5 * time.Second):
 		}
 	}
@@ -141,7 +144,10 @@ func (l *TLSListener) detectAndForward(conn *tls.Conn) {
 	start := l.cfg.Clock.Now()
 	if err := conn.Handshake(); err != nil {
 		if trace.Unwrap(err) != io.EOF {
-			l.log.WithError(err).Warning("Handshake failed.")
+			l.log.WithFields(log.Fields{
+				"src_addr": conn.RemoteAddr(),
+				"dst_addr": conn.LocalAddr(),
+			}).WithError(err).Warning("Handshake failed.")
 		}
 		conn.Close()
 		return
@@ -167,7 +173,10 @@ func (l *TLSListener) detectAndForward(conn *tls.Conn) {
 		l.httpListener.HandleConnection(l.context, conn)
 	default:
 		conn.Close()
-		l.log.WithError(err).Errorf("unsupported protocol: %v", conn.ConnectionState().NegotiatedProtocol)
+		l.log.WithFields(log.Fields{
+			"src_addr": conn.RemoteAddr(),
+			"dst_addr": conn.LocalAddr(),
+		}).WithError(err).Errorf("unsupported protocol: %v", conn.ConnectionState().NegotiatedProtocol)
 	}
 }
 
