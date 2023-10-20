@@ -18,7 +18,7 @@ import { App } from 'teleport/services/apps';
 import { Database } from 'teleport/services/databases';
 import { Node } from 'teleport/services/nodes';
 import { Kube } from 'teleport/services/kube';
-import { Desktop, WindowsDesktopService } from 'teleport/services/desktops';
+import { Desktop } from 'teleport/services/desktops';
 
 import { UserGroup } from '../userGroups';
 
@@ -30,7 +30,6 @@ export type UnifiedResource =
   | Node
   | Kube
   | Desktop
-  | WindowsDesktopService
   | UserGroup;
 
 export type UnifiedResourceKind = UnifiedResource['kind'];

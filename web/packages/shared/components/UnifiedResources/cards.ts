@@ -34,7 +34,6 @@ import {
   UnifiedResourceUi,
   UnifiedResourceDatabase,
   UnifiedResourceApp,
-  UnifiedResourceWindowsDesktopService,
   UnifiedResourceUserGroup,
   UnifiedResourceDesktop,
 } from './types';
@@ -127,20 +126,6 @@ export function makeUnifiedResourceCardDesktop(
     ActionButton: ui.ActionButton,
     labels: resource.labels,
     description: { primary: 'Windows', secondary: resource.addr },
-  };
-}
-
-export function makeUnifiedResourceCardWindowsDesktopService(
-  resource: UnifiedResourceWindowsDesktopService,
-  ui: UnifiedResourceUi
-): UnifiedResourceCard {
-  return {
-    name: resource.name,
-    SecondaryIcon: ServerIcon,
-    primaryIconName: 'Windows',
-    ActionButton: ui.ActionButton,
-    labels: resource.labels,
-    description: {},
   };
 }
 
