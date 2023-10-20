@@ -17,7 +17,7 @@ limitations under the License.
 const path = require('path');
 
 module.exports = {
-  testEnvironment: 'jsdom',
+  testEnvironment: path.join(__dirname, 'jest-environment-patched-jsdom.js'),
   moduleNameMapper: {
     // mock all imports to asset files
     '\\.(css|scss|stylesheet)$': path.join(__dirname, 'mockStyles.js'),
@@ -29,5 +29,11 @@ module.exports = {
     '^e-teleport/(.*)$': '<rootDir>/e/web/teleport/src/$1',
     '^e-teleterm/(.*)$': '<rootDir>/e/web/teleterm/src/$1',
     '^gen-proto-js/(.*)$': '<rootDir>/gen/proto/js/$1',
+  },
+  // Keep pre-v29 snapshot format to avoid existing snapshots breaking.
+  // https://jestjs.io/docs/upgrading-to-jest29#snapshot-format
+  snapshotFormat: {
+    escapeString: true,
+    printBasicPrototype: true,
   },
 };
