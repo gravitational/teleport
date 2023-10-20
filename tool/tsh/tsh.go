@@ -478,6 +478,9 @@ type CLIConf struct {
 	// WebauthnLogin allows tests to override the Webauthn Login func.
 	// Defaults to [wancli.Login].
 	WebauthnLogin client.WebauthnLoginFunc
+
+	// LeafClusterName is the optional name of a leaf cluster to connect to instead
+	LeafClusterName string
 }
 
 // Stdout returns the stdout writer.
@@ -1039,6 +1042,15 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	config := app.Command("config", "Print OpenSSH configuration details.")
 	config.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 
+	puttyConfig := app.Command("puttyconfig", "Add PuTTY saved session configuration for specified hostname to Windows registry")
+	puttyConfig.Arg("[user@]host", "Remote hostname and optional login to use").Required().StringVar(&cf.UserHost)
+	puttyConfig.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
+	puttyConfig.Flag("leaf", "Add a configuration for connecting to a leaf cluster").StringVar(&cf.LeafClusterName)
+	// only expose `tsh puttyconfig` subcommand on windows
+	if runtime.GOOS != constants.WindowsOS {
+		puttyConfig.Hidden()
+	}
+
 	// FIDO2, TouchID and WebAuthnWin commands.
 	f2 := newFIDO2Command(app)
 	tid := newTouchIDCommand(app)
@@ -1355,6 +1367,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onRequestDrop(&cf)
 	case config.FullCommand():
 		err = onConfig(&cf)
+	case puttyConfig.FullCommand():
+		err = onPuttyConfig(&cf)
 	case aws.FullCommand():
 		err = onAWS(&cf)
 	case azure.FullCommand():
