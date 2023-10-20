@@ -60,9 +60,7 @@ export default function TopBar(props: Props) {
             style={primaryOnTrue(isSharingDirectory)}
             pr={3}
             title={
-              isSharingDirectory
-                ? 'Directory Sharing Enabled'
-                : 'Directory Sharing Disabled'
+              renderDirectorySharingStatus(clipboardSharingEnabled, canShareDirectory)
             }
           />
           <Clipboard
@@ -87,6 +85,15 @@ export default function TopBar(props: Props) {
       </Flex>
     </TopNav>
   );
+
+  function renderDirectorySharingStatus(isSharingDirectory: boolean, canShareDirectory: boolean) {
+    if (isSharingDirectory)
+     return 'Directory Sharing Active';
+
+   if (canShareDirectory)
+     return 'Directory Sharing Inactive';
+   return 'Directory Sharing Disabled'
+  }
 }
 
 export const TopBarHeight = 40;
