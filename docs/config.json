@@ -429,8 +429,13 @@
               "slug": "/access-controls/access-requests/resource-requests/",
               "forScopes": ["enterprise", "cloud"]
             },
+	    {
+	      "title": "Configure Access Requests",
+              "slug": "/access-controls/access-requests/access-request-configuration/",
+              "forScopes": ["enterprise", "cloud"]
+	    },
             {
-              "title": "Teleport Community Edition Role Access Requests",
+              "title": "Access Requests in Teleport Community Edition",
               "slug": "/access-controls/access-requests/oss-role-requests/",
               "forScopes": ["oss"]
             }
