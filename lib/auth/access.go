@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gravitational/trace"
 
@@ -99,9 +100,9 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) (types.Role, e
 }
 
 var (
-	errDeleteRoleUser       = trace.BadParameter("failed to delete a role that is still in use by a user, check the system server logs for more details")
-	errDeleteRoleCA         = trace.BadParameter("failed to delete a role that is still in use by a certificate authority, check the system server logs for more details")
-	errDeleteRoleAccessList = trace.BadParameter("failed to delete a role that is still in use by an access list, check the system server logs for more details")
+	errDeleteRoleUser       = errors.New("failed to delete a role that is still in use by a user, check the system server logs for more details")
+	errDeleteRoleCA         = errors.New("failed to delete a role that is still in use by a certificate authority, check the system server logs for more details")
+	errDeleteRoleAccessList = errors.New("failed to delete a role that is still in use by an access list, check the system server logs for more details")
 )
 
 // DeleteRole deletes a role and emits a related audit event.
