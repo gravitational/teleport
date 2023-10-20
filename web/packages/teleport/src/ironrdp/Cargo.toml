@@ -25,9 +25,9 @@ time = { version = "0.3", features = ["wasm-bindgen"] }
 console_error_panic_hook = "0.1.7"
 
 # TODO: change when https://github.com/Devolutions/IronRDP/pull/230 lands
-ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "2bc27293bc3226c6a3fe471397c5169cf0b3658c" }
-ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "2bc27293bc3226c6a3fe471397c5169cf0b3658c" }
-ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP", rev = "2bc27293bc3226c6a3fe471397c5169cf0b3658c" }
+ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "62b29fa6744f6eb4a5672095b01e34d482767388" }
+ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "62b29fa6744f6eb4a5672095b01e34d482767388" }
+ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP", rev = "62b29fa6744f6eb4a5672095b01e34d482767388" }
 
 # Uncomment the following lines and comment out the ones above to use local crates instead of the ones from github
 # ironrdp-session = { path = "/path/to/your/local/IronRDP/crates/ironrdp-session" }

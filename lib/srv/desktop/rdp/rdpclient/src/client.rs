@@ -500,7 +500,6 @@ fn create_config(width: u16, height: u16, pin: String) -> Config {
         client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
         platform: MajorPlatformType::UNSPECIFIED,
         no_server_pointer: false,
-        autologon: true,
     }
 }
 
