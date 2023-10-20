@@ -96,6 +96,8 @@ func TestRBAC(t *testing.T) {
 		},
 		Spec: &pb.ExternalCloudAuditSpec{
 			IntegrationName:        "aws-integration-1",
+			Region:                 "us-west-2",
+			PolicyName:             "test-policy",
 			SessionsRecordingsUri:  "s3://bucket/sess",
 			AthenaWorkgroup:        "primary",
 			GlueDatabase:           "teleport_db",
@@ -181,6 +183,22 @@ func TestRBAC(t *testing.T) {
 			},
 		},
 		{
+			desc: "generate draft",
+			f: func() error {
+				_, err := service.GenerateDraftExternalCloudAudit(ctx, &pb.GenerateDraftExternalCloudAuditRequest{
+					IntegrationName: "test-integration",
+					Region:          "us-west-2",
+				})
+				return err
+			},
+			allow: map[check]bool{
+				{types.KindExternalCloudAudit, types.VerbCreate}: true,
+			},
+			expectChecks: []check{
+				{types.KindExternalCloudAudit, types.VerbCreate},
+			},
+		},
+		{
 			desc: "delete draft",
 			f: func() error {
 				_, err := service.DeleteDraftExternalCloudAudit(ctx, &pb.DeleteDraftExternalCloudAuditRequest{})
@@ -205,7 +223,7 @@ func TestRBAC(t *testing.T) {
 				allow: tc.allow,
 			}
 			err = tc.f()
-			require.NoError(t, err)
+			require.NoError(t, err, trace.DebugReport(err))
 			require.ElementsMatch(t, tc.expectChecks, authorizer.checker.checks)
 		})
 	}

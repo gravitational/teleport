@@ -47,6 +47,20 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	}, nil
 }
 
+func (s *Service) GenerateDraftExternalCloudAudit(ctx context.Context, req *pb.GenerateDraftExternalCloudAuditRequest) (*pb.GenerateDraftExternalCloudAuditResponse, error) {
+	if err := s.authorizeVerbs(ctx, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := s.externalCloudAudit.GenerateDraftExternalCloudAudit(ctx, req.IntegrationName, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &pb.GenerateDraftExternalCloudAuditResponse{
+		ExternalCloudAudit: conv.ToProto(resp),
+	}, nil
+}
+
 func (s *Service) UpsertDraftExternalCloudAudit(ctx context.Context, req *pb.UpsertDraftExternalCloudAuditRequest) (*pb.UpsertDraftExternalCloudAuditResponse, error) {
 	if err := s.authorizeVerbs(ctx, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
