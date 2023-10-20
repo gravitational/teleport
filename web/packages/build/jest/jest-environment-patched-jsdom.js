@@ -1,6 +1,6 @@
 import { TextEncoder, TextDecoder } from 'node:util';
 
-import JSDOMEnvironment, * as jestEnvironmentJSDOM from 'jest-environment-jsdom';
+import { TestEnvironment as JSDOMEnvironment } from 'jest-environment-jsdom';
 
 // When using jest-environment-jsdom, TextEncoder and TextDecoder are not defined. This poses a
 // problem when writing tests for code which uses TextEncoder and TextDecoder directly or that
@@ -21,7 +21,4 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
     if (!global.TextDecoder) global.TextDecoder = TextDecoder;
   }
 }
-export const TestEnvironment =
-  jestEnvironmentJSDOM.TestEnvironment === JSDOMEnvironment
-    ? PatchedJSDOMEnvironment
-    : jestEnvironmentJSDOM.TestEnvironment;
+export const TestEnvironment = PatchedJSDOMEnvironment;
