@@ -2386,12 +2386,25 @@ impl Contexts {
         Ok(handle)
     }
 
+    pub fn disconnect(&mut self, handle: ScardHandle) -> PduResult<()> {
+        self.get_internal_mut(handle.context.value)?
+            .disconnect(handle.value);
+        Ok(())
+    }
+
     pub fn set_scard_cancel_response(
         &mut self,
         id: u32,
         resp: DeviceControlResponse,
     ) -> PduResult<()> {
         self.get_internal_mut(id)?.set_scard_cancel_response(resp)
+    }
+
+    pub fn take_scard_cancel_response(
+        &mut self,
+        id: u32,
+    ) -> PduResult<Option<DeviceControlResponse>> {
+        Ok(self.get_internal_mut(id)?.take_scard_cancel_response())
     }
 
     pub fn get_card(
@@ -2463,6 +2476,10 @@ impl ContextInternal {
         }
         self.scard_cancel_response = Some(resp);
         Ok(())
+    }
+
+    fn take_scard_cancel_response(&mut self) -> Option<DeviceControlResponse> {
+        self.scard_cancel_response.take()
     }
 
     fn set_scard_cancel_response_deprecated(

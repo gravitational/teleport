@@ -117,12 +117,15 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             err_code: CGOErrCode::ErrCodeSuccess,
             message: ptr::null_mut(),
         },
-        Err(e) => CGOResult {
-            err_code: CGOErrCode::ErrCodeFailure,
-            message: CString::new(format!("{}", e))
-                .map(|c| c.into_raw())
-                .unwrap_or(ptr::null_mut()),
-        },
+        Err(e) => {
+            error!("client_run failed: {:?}", e);
+            CGOResult {
+                err_code: CGOErrCode::ErrCodeFailure,
+                message: CString::new(format!("{}", e))
+                    .map(|c| c.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+            }
+        }
     }
 }
 
