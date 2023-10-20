@@ -77,8 +77,16 @@ func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData,
 			data.SystemAnnotations = nil
 		}
 	}
-	if str := dataMap["suggested_reviewers"]; str != "" {
-		data.SuggestedReviewers = strings.Split(str, ",")
+
+	if str, ok := dataMap["suggested_reviewers"]; ok {
+		err = json.Unmarshal([]byte(str), &data.SuggestedReviewers)
+		if err != nil {
+			err = trace.Wrap(err)
+			return
+		}
+		if len(data.SuggestedReviewers) == 0 {
+			data.SuggestedReviewers = nil
+		}
 	}
 	return
 }
@@ -116,6 +124,12 @@ func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) 
 		result["system_annotations"] = string(annotaions)
 	}
 
-	result["suggested_reviewers"] = strings.Join(data.SuggestedReviewers, ",")
+	if len(data.SuggestedReviewers) != 0 {
+		reviewers, err := json.Marshal(data.SuggestedReviewers)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result["suggested_reviewers"] = string(reviewers)
+	}
 	return result, nil
 }
