@@ -35,7 +35,7 @@ x509-parser = "0.14"
 sspi = { version = "0.10.1", features = ["network_client", "dns_resolver"] }
 static_init = "1.0.3"
 
-# # TODO: update once https://github.com/Devolutions/IronRDP/pull/230 lands
+# TODO: change when https://github.com/Devolutions/IronRDP/pull/230 lands
 ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "dfca83db55140e839a9b41049b4a2170f93af287" }
 ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "dfca83db55140e839a9b41049b4a2170f93af287" }
 ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "dfca83db55140e839a9b41049b4a2170f93af287" }

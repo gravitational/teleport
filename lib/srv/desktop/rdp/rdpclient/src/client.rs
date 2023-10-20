@@ -7,6 +7,7 @@ use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
+use ironrdp_pdu::rdp::client_info::ClientInfoFlags;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::{PduError, PduParsing};
 use ironrdp_rdpdr::pdu::RdpdrPdu;

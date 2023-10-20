@@ -24,7 +24,7 @@ tracing-web = "0.1.2"
 time = { version = "0.3", features = ["wasm-bindgen"] }
 console_error_panic_hook = "0.1.7"
 
-# TODO: update once https://github.com/Devolutions/IronRDP/pull/230 lands
+# TODO: change when https://github.com/Devolutions/IronRDP/pull/230 lands
 ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "dfca83db55140e839a9b41049b4a2170f93af287" }
 ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "dfca83db55140e839a9b41049b4a2170f93af287" }
 ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP", rev = "dfca83db55140e839a9b41049b4a2170f93af287" }
