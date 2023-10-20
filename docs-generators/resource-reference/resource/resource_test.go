@@ -225,6 +225,27 @@ spec:
 				}},
 		},
 		{
+			description: "named scalar type with no override",
+			source: `package mypkg
+// Server includes information about a server registered with Teleport.
+type Server struct {
+    // Name is the name of the resource.
+    Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
+    // Spec contains information about the server.
+    Spec types.ServerSpecV1 BACKTICKjson:"spec"BACKTICK
+    Label Labels
+}
+`,
+			declSources: []string{
+				`package mypkg
+
+// Labels is a slice of strings that we'll process downstream
+type Labels []string
+`,
+			},
+			errorSubstring: "example YAML",
+		},
+		{
 			description: "custom type fields with no override and custom JSON unmarshaller",
 			source: `
 package mypkg
