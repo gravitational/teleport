@@ -43,6 +43,7 @@ ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "0799bbc
 ironrdp-rdpsnd = { git = "https://github.com/Devolutions/IronRDP", rev = "0799bbc73ccc1143af77f8e1fbcc020cc67ea08a" }
 ironrdp-rdpdr = { git = "https://github.com/Devolutions/IronRDP", rev = "0799bbc73ccc1143af77f8e1fbcc020cc67ea08a" }
 ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "0799bbc73ccc1143af77f8e1fbcc020cc67ea08a" }
+ironrdp-cliprdr = { git = "https://github.com/Devolutions/IronRDP", rev = "0799bbc73ccc1143af77f8e1fbcc020cc67ea08a" }
 
 # Uncomment the following lines to use local crates instead of the ones from github
 # ironrdp-connector = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-connector" }
@@ -53,6 +54,7 @@ ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "0799bbc73
 # ironrdp-rdpsnd = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-rdpsnd" }
 # ironrdp-rdpdr = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-rdpdr" }
 # ironrdp-svc = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-svc" }
+# ironrdp-cliprdr = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-cliprdr" }
 
 # Uncomment the following lines to use local crates instead of the ones from github
 # ironrdp-connector = { path = "/Users/hesperus/work/IronRDP/crates/ironrdp-connector" }
