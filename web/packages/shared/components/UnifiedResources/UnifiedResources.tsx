@@ -93,8 +93,8 @@ interface UnifiedResourcesProps<T> {
   params: ResourceFilter;
   //TODO(gzdunek): the pin button should be moved to some other place
   //according to the new designs
-  Header(pinAllButton: React.JSX.Element): React.JSX.Element;
-  EmptySearchResults: React.JSX.Element;
+  Header(pinAllButton: React.ReactElement): React.ReactElement;
+  EmptySearchResults: React.ReactElement;
   pinningNotSupported: boolean;
   availableKinds: SharedUnifiedResource['resource']['kind'][];
   /**

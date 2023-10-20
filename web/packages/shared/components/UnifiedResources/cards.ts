@@ -50,7 +50,7 @@ export interface UnifiedResourceCard {
   }[];
   primaryIconName: ResourceIconName;
   SecondaryIcon: typeof Icon;
-  ActionButton: React.JSX.Element;
+  ActionButton: React.ReactElement;
 }
 
 export function makeUnifiedResourceCardNode(
