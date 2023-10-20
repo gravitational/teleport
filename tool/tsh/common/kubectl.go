@@ -426,6 +426,10 @@ func makeAndStartKubeLocalProxy(cf *CLIConf, config *clientcmdapi.Config, cluste
 		return nil, "", trace.Wrap(err)
 	}
 
+	if err := localProxy.WriteKubeConfig(); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
 	go localProxy.Start(cf.Context)
 
 	closeFn := func() {
