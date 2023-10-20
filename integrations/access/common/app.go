@@ -254,7 +254,7 @@ func (a *BaseApp) notifyForAccessListReviews(ctx context.Context, accessList *ac
 	log := logger.Get(ctx)
 	allRecipients := make(map[string]Recipient, len(accessList.Spec.Owners))
 
-	now := a.clock.Now().Add(time.Hour)
+	now := a.clock.Now()
 	// Find the current notification window.
 	notificationStart := accessList.Spec.Audit.NextAuditDate
 
