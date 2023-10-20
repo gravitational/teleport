@@ -692,18 +692,18 @@ func (s *ServicesTestSuite) RolesCRUD(t *testing.T) {
 		},
 	}
 
-	err = s.Access.UpsertRole(ctx, &role)
+	upserted, err := s.Access.UpsertRole(ctx, &role)
 	require.NoError(t, err)
 	rout, err := s.Access.GetRole(ctx, role.Metadata.Name)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rout, &role, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(upserted, rout, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	role.Spec.Allow.Logins = []string{"bob"}
-	err = s.Access.UpsertRole(ctx, &role)
+	upserted, err = s.Access.UpsertRole(ctx, &role)
 	require.NoError(t, err)
 	rout, err = s.Access.GetRole(ctx, role.Metadata.Name)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rout, &role, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(upserted, rout, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.Access.DeleteRole(ctx, role.Metadata.Name)
 	require.NoError(t, err)
@@ -1595,7 +1595,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = s.Access.UpsertRole(ctx, role)
+				_, err = s.Access.UpsertRole(ctx, role)
 				require.NoError(t, err)
 
 				out, err := s.Access.GetRole(ctx, role.GetName())

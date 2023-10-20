@@ -8,10 +8,14 @@ description: Frequently asked questions about Teleport Machine ID
 On CI/CD platforms where your workflow runs in an ephemeral environment (e.g
 no persistent state exists between individual workflow runs), Machine ID works
 best where a supported join method exists. These are:
-- GitHub Actions (Teleport 11)
-- CircleCI (Teleport 11.1)
-- GitLab (Teleport 12.2)
+
+- GitHub Actions
+- CircleCI
+- GitLab
 - AWS
+- GCP
+- Azure
+- Kubernetes
 
 On CI/CD platforms where you control the runner environment (e.g self-hosted
 Jenkins runner), Machine ID can run as a daemon on the runner and the generated

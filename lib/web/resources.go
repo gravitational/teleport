@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -143,11 +144,21 @@ func upsertRole(ctx context.Context, clt resourcesAPIGetter, content, httpMethod
 		return nil, trace.Wrap(err)
 	}
 
-	if err := clt.UpsertRole(ctx, role); err != nil {
+	upserted, err := clt.UpsertRole(ctx, role)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.NewResourceItem(role)
+	return ui.NewResourceItem(upserted)
+}
+
+// getPresetRoles returns a list of preset roles expected to be available on
+// this server. These are hard-coded for a given Teleport version, so this
+// should have the same security implications as the Teleport version exposed
+// via the public ping endpoint.
+func (h *Handler) getPresetRoles(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	presets := auth.GetPresetRoles()
+	return ui.NewRoles(presets)
 }
 
 func (h *Handler) getGithubConnectorsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -182,48 +193,24 @@ func (h *Handler) deleteGithubConnector(w http.ResponseWriter, r *http.Request, 
 	return OK(), nil
 }
 
-func (h *Handler) upsertGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) updateGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var req ui.ResourceItem
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return upsertGithubConnector(r.Context(), clt, req.Content, r.Method, params)
+	item, err := UpdateResource[types.GithubConnector](r, params, types.KindGithubConnector, services.UnmarshalGithubConnector, clt.UpdateGithubConnector)
+	return item, trace.Wrap(err)
 }
 
-func upsertGithubConnector(ctx context.Context, clt resourcesAPIGetter, content, httpMethod string, params httprouter.Params) (*ui.ResourceItem, error) {
-	get := func(ctx context.Context, name string) (types.Resource, error) {
-		return clt.GetGithubConnector(ctx, name, false)
-	}
-
-	extractedRes, err := ExtractResourceAndValidate(content)
+func (h *Handler) createGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if extractedRes.Kind != types.KindGithubConnector {
-		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
-	}
-
-	if err := CheckResourceUpsert(ctx, httpMethod, params, extractedRes.Metadata.Name, get); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	connector, err := services.UnmarshalGithubConnector(extractedRes.Raw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := clt.UpsertGithubConnector(ctx, connector); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ui.NewResourceItem(connector)
+	item, err := CreateResource[types.GithubConnector](r, types.KindGithubConnector, services.UnmarshalGithubConnector, clt.CreateGithubConnector)
+	return item, trace.Wrap(err)
 }
 
 func (h *Handler) getTrustedClustersHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -301,6 +288,93 @@ func upsertTrustedCluster(ctx context.Context, clt resourcesAPIGetter, content, 
 	}
 
 	return ui.NewResourceItem(tc)
+}
+
+// unmarshalFunc is a type signature for an unmarshaling function.
+type unmarshalFunc[T types.Resource] func([]byte, ...services.MarshalOption) (T, error)
+
+// CreateResource is a helper function for POST requests from the UI to create a new resource. It will
+// validate the request contains the appropriate items, that the resource attempting to be created is
+// valid. If all validations are satisfied then the creation is attempted. If the resource already exists
+// a [trace.AlreadyExists] error is returned.
+func CreateResource[T types.Resource](r *http.Request, kind string, unmarshalFn unmarshalFunc[T], createFn func(ctx context.Context, r T) (T, error)) (*ui.ResourceItem, error) {
+	var req ui.ResourceItem
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	extractedRes, err := ExtractResourceAndValidate(req.Content)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if extractedRes.Kind != kind {
+		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
+	}
+
+	resource, err := unmarshalFn(extractedRes.Raw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := createFn(r.Context(), resource)
+	if err != nil {
+		if trace.IsAlreadyExists(err) {
+			return nil, trace.AlreadyExists("resource with name %q already exists", extractedRes.Metadata.Name)
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	item, err := ui.NewResourceItem(created)
+	return item, trace.Wrap(err)
+}
+
+// UpdateResource is a helper function for PUT requests from the UI to update an existing resource. It will
+// validate the request contains the appropriate items, that the resource attempting to be updated is
+// valid. If all validations are satisfied then the update is attempted. If the resource does not exist
+// a [trace.NotFound] error is returned.
+func UpdateResource[T types.Resource](r *http.Request, params httprouter.Params, kind string, unmarshalFn unmarshalFunc[T], updateFn func(ctx context.Context, r T) (T, error)) (*ui.ResourceItem, error) {
+	var req ui.ResourceItem
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	extractedRes, err := ExtractResourceAndValidate(req.Content)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if extractedRes.Kind != kind {
+		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
+	}
+
+	resourceName := params.ByName("name")
+	if resourceName == "" {
+		return nil, trace.BadParameter("missing resource name")
+	}
+
+	// Error if the user is trying to rename the resource.
+	if extractedRes.Metadata.Name != resourceName {
+		return nil, trace.BadParameter("resource renaming is not supported, please create a different resource and then delete this one")
+	}
+
+	resource, err := unmarshalFn(extractedRes.Raw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := updateFn(r.Context(), resource)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("resource with name %q does not exist", extractedRes.Metadata.Name)
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	item, err := ui.NewResourceItem(updated)
+	return item, trace.Wrap(err)
 }
 
 // getResource tries to retrieve a resource (by name),
@@ -459,7 +533,7 @@ type resourcesAPIGetter interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 	// UpsertRole creates or updates role
-	UpsertRole(ctx context.Context, role types.Role) error
+	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
 	// UpsertGithubConnector creates or updates a Github connector
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
 	// GetGithubConnectors returns all configured Github connectors

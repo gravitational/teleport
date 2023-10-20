@@ -852,6 +852,7 @@ func (c *Client) CreateUser(ctx context.Context, user types.User) (types.User, e
 		return nil, trace.BadParameter("unsupported user type %T", user)
 	}
 
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	if _, err := c.grpc.CreateUser(ctx, userV2); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -867,6 +868,7 @@ func (c *Client) UpdateUser(ctx context.Context, user types.User) (types.User, e
 		return nil, trace.BadParameter("unsupported user type %T", user)
 	}
 
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	_, err := c.grpc.UpdateUser(ctx, userV2)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -882,6 +884,7 @@ func (c *Client) GetUser(ctx context.Context, name string, withSecrets bool) (ty
 	if name == "" {
 		return nil, trace.BadParameter("missing username")
 	}
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	user, err := c.grpc.GetUser(ctx, &proto.GetUserRequest{
 		Name:        name,
 		WithSecrets: withSecrets,
@@ -895,6 +898,7 @@ func (c *Client) GetUser(ctx context.Context, name string, withSecrets bool) (ty
 // GetCurrentUser returns current user as seen by the server.
 // Useful especially in the context of remote clusters which perform role and trait mapping.
 func (c *Client) GetCurrentUser(ctx context.Context) (types.User, error) {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	currentUser, err := c.grpc.GetCurrentUser(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -921,6 +925,7 @@ func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) 
 // GetUsers returns a list of users.
 // withSecrets controls whether authentication details are returned.
 func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
 		WithSecrets: withSecrets,
 	})
@@ -939,8 +944,8 @@ func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, 
 
 // DeleteUser deletes a user by name.
 func (c *Client) DeleteUser(ctx context.Context, user string) error {
-	req := &proto.DeleteUserRequest{Name: user}
-	_, err := c.grpc.DeleteUser(ctx, req)
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
+	_, err := c.grpc.DeleteUser(ctx, &proto.DeleteUserRequest{Name: user})
 	return trace.Wrap(err)
 }
 
@@ -1595,15 +1600,48 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return roles, nil
 }
 
-// UpsertRole creates or updates role
-func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
+// CreateRole creates a new role.
+func (c *Client) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
 	r, ok := role.(*types.RoleV6)
 	if !ok {
-		return trace.BadParameter("invalid type %T", role)
+		return nil, trace.BadParameter("invalid type %T", role)
 	}
 
-	_, err := c.grpc.UpsertRole(ctx, r)
-	return trace.Wrap(err)
+	created, err := c.grpc.CreateRole(ctx, &proto.CreateRoleRequest{Role: r})
+	return created, trace.Wrap(err)
+}
+
+// UpdateRole updates an already existing role.
+func (c *Client) UpdateRole(ctx context.Context, role types.Role) (types.Role, error) {
+	r, ok := role.(*types.RoleV6)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", role)
+	}
+
+	updated, err := c.grpc.UpdateRole(ctx, &proto.UpdateRoleRequest{Role: r})
+	return updated, trace.Wrap(err)
+}
+
+// UpsertRole creates or updates a role.
+func (c *Client) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
+	r, ok := role.(*types.RoleV6)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", role)
+	}
+
+	upserted, err := c.grpc.UpsertRoleV2(ctx, &proto.UpsertRoleRequest{Role: r})
+	if err != nil && trace.IsNotImplemented(err) {
+		//nolint:staticcheck // SA1019. Kept for backward compatibility.
+		_, err := c.grpc.UpsertRole(ctx, r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		r, err := c.grpc.GetRole(ctx, &proto.GetRoleRequest{Name: role.GetName()})
+		return r, trace.Wrap(err)
+	}
+
+	return upserted, trace.Wrap(err)
 }
 
 // DeleteRole deletes role by name
@@ -1654,7 +1692,9 @@ func (c *Client) GetMFADevices(ctx context.Context, in *proto.GetMFADevicesReque
 	return resp, nil
 }
 
+// Deprecated: Use GenerateUserCerts instead.
 func (c *Client) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {
+	//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 	stream, err := c.grpc.GenerateUserSingleUseCerts(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

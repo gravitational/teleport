@@ -1,0 +1,27 @@
+To specify the database roles a user should be assigned within the database,
+use the `db_roles` role option:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: auto-db-users
+spec:
+  options:
+    # create_db_user enables automatic user provisioning for matching databases
+    create_db_user: true
+  allow:
+    db_labels:
+      "*": "*"
+    db_names:
+    - "*"
+    # db_roles is a list of roles the database user will be assigned
+    db_roles:
+    - reader
+    - "{{internal.db_roles}}"
+    - "{{external.db_roles}}"
+```
+
+With automatic user provisioning, users always connect to the database with
+their Teleport username so the `db_users` role field is ignored for roles
+that have database user provisioning enabled.

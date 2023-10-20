@@ -211,8 +211,9 @@ func MakeUserMetadata(session *Session) events.UserMetadata {
 // MakeSessionMetadata returns common session metadata for database session.
 func MakeSessionMetadata(session *Session) events.SessionMetadata {
 	return events.SessionMetadata{
-		SessionID: session.ID,
-		WithMFA:   session.Identity.MFAVerified,
+		SessionID:        session.ID,
+		WithMFA:          session.Identity.MFAVerified,
+		PrivateKeyPolicy: string(session.Identity.PrivateKeyPolicy),
 	}
 }
 

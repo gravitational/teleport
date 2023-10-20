@@ -2726,7 +2726,7 @@ func (x *SyncInventoryMissingDevices) GetDevices() []*Device {
 	return nil
 }
 
-// Request for GetDevicesUsage.
+// Superseded by ResourceUsageService.GetUsage.
 type GetDevicesUsageRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

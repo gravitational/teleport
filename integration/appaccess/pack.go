@@ -184,7 +184,7 @@ func (p *Pack) CreateUser(t *testing.T) (types.User, string) {
 
 	role := services.RoleForUser(user)
 	role.SetLogins(types.Allow, []string{username, "root", "ubuntu"})
-	err = p.rootCluster.Process.GetAuthServer().UpsertRole(context.Background(), role)
+	role, err = p.rootCluster.Process.GetAuthServer().UpsertRole(context.Background(), role)
 	require.NoError(t, err)
 
 	user.AddRole(role.GetName())
