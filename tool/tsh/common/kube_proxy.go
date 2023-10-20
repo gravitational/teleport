@@ -146,7 +146,7 @@ Please provide Kubernetes cluster names or labels or predicate expression to thi
 
 		err = reexecToShell(ctx, string(configBytes))
 		err = trace.NewAggregate(err, localProxy.Close())
-		_, _ = fmt.Fprint(os.Stdout, "Local proxy for Kubernetes is closed.\n")
+		_, _ = fmt.Fprint(cf.Stdout(), "Local proxy for Kubernetes is closed.\n")
 		err = trace.NewAggregate(err, <-lpErrChan)
 		return err
 	} else {
