@@ -43,33 +43,160 @@ Users](https://www.mongodb.com/docs/atlas/security-add-mongodb-users/) and
 Roles](https://www.mongodb.com/docs/atlas/security-add-mongodb-roles/) for
 MongoDB Atlas are managed at a Atlas project level.
 
-As a consequence, database users and roles are not modifiable through
-in-database connections.
-
-Instead, one can authenticate with Atlas using the Atlas SDK and use APIs to
-manage these database users and roles. Multiple deployment jobs will be created
-to update the MongoDB clusters in this project, upon successful APIs calls.
+As a consequence, database users and roles are NOT modifiable through
+in-database connections. Instead, one can authenticate with Atlas using the
+Atlas SDK and use APIs to manage these database users and roles. Multiple
+deployment jobs will be created to update the MongoDB clusters in this project,
+upon successful APIs calls.
 
 In my personal testing on an Atlas project with a single MongoDB cluster, it
 takes 10~20 seconds for the deployment job to refresh the database user in the
 target MongoDB cluster.
 
 With the current design of Automatic User Provisioning, the database user must
-be updated with new role assignments before and after client connection.
-However, waiting for 10+ seconds for provisioning the database user each
-connection will result in a very bad user experience (also client may just time
-out).
-
-In addition, since the database user is shared across all MongoDB clusters
-within the project, the auto-provisioned database user will gain unintentional
-access to other MongoDB clusters that are not currently being connected through
-Teleport.
-
-Last but not the least, if we were to implement this, we must manage all API
-keys used for authenticating different projects on Atlas.
+be updated with new role assignments for each new connection then the roles
+should be revoked once the connection is done. However, waiting for 10+ seconds
+for provisioning the database user each connection will result in a very bad
+user experience (also client may just time out).
 
 ## Self-hosted MongoDB Details
 
-The overwall flow and logic wil follow the previous [RFD
+The overall flow and logic will follow the previous [RFD
 113](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).
-All differences will be outlined in the sections below.
+Differences will be outlined in the sections below.
+
+### The admin user connection
+
+The Database Service will connect as an admin user in order to manage database
+users. The admin user requires the following privileges:
+```json
+{
+  "createUser": "CN=teleport-admin",
+  "roles": [
+    { "role": "clusterMonitor", "db": "admin" },
+    { "role": "userAdminAnyDatabase", "db": "admin" }
+  ]
+}
+```
+
+As the implementation of other databases, the name of admin user is
+defined in the database spec `admin_user.name`, and the admin user will
+authenticate using X.509 for self-hosted databases.
+
+However, there is NO concept of "Stored Procedures" in MongoDB. The user
+provisioning logic will be carried through multiple `runCommand` calls
+implemented in Go. Multiple parallel database sessions will not race thanks to
+[semaphore
+locking](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md#locking).
+
+### Roles
+
+Unlike MySQL or PostgreSQL where roles are scoped to the entire database
+instance/cluster, a role in MongoDB is scoped to a specific database.
+
+For example, a custom role `myCustomRole` can be created on database `db1` with
+specific privileges on `db1`, and another role `myCustomRole` can be created on
+database `db2` with specific privileges on `db2`. They will be considered two
+different roles.
+
+Most built-in roles are available on all databases, while some built-in roles
+like `readAnyDatabase` can only be applied on the `admin` database.
+
+Therefore, when specifying database roles to assign for the user, it must be in
+the format of `<role-name>@<db-name>` to fully identify the role:
+
+```yaml
+kind: "role"
+version: "v6"
+metadata:
+  name: "example"
+spec:
+  options:
+    create_db_user_mode: keep
+  allow:
+    db_names:
+    - "db1"
+    - "db2"
+    - "db3"
+    db_roles: 
+    - "readAnyDatabase@admin"
+    - "readWrite@db2"
+    - "myCustomRole@db3"
+```
+
+Note that in the above example, even though the user is assigned role
+`readAnyDatabase@admin`, Teleport will block access to databases not in the
+`db_names`.
+
+### User accounts
+
+New users with name `CN=<teleport-username>` will be created on `$external`
+database to use X.509 authentication.
+
+All auto-provisioned users will be assigned role `teleport-auto-user@admin`.
+The `teleport-auto-user` is created on database `admin` with empty privileges.
+
+There is no built-in way to lock an user account in MongoDB, for deactivation
+purpose. As a workaround, the following `authenticationRestrictions` will be
+applied to the user account, in addition to stripping the roles:
+
+```json
+{
+  "updateUser": "CN=<teleport-username>",
+  "roles": [
+    { "role": "teleport-auto-user", "db": "admin" }
+  ],
+  "authenticationRestrictions": [
+    { "clientSource": ["0.0.0.0"] }
+  ]
+}
+```
+
+Limiting the `clientSource` effectively locks out the user from logging in.
+
+When re-activating the user, `clientSource` will be set to `["0.0.0.0/0"]`.
+
+### Finding active connections
+
+Command `currentOp` is used to find active connections for a specific user:
+```json
+{
+  "currentOp": true,
+  "$ownOps": false,
+  "$all": true,
+  "effectiveUsers": {
+    "$elemMatch": {
+      "user": "CN=<teleport-username>",
+      "db": "$external"
+    }
+  }
+}
+```
+
+## UX
+
+Database roles must be specified in format of `<role-name>@<db-name>`. See
+"Roles" section above for more details.
+
+## Security
+
+The admin user requires role `clusterMonitor@admin` and role
+`userAdminAnyDatabase@admin` to monitor connections and manage users.
+
+Auth restrictions `clientSource: ["0.0.0.0"]` is used to lock an user account
+when deactivated.
+
+See above sections for more details.
+
+## Performance
+
+As stated in [Issue
+#10950](https://github.com/gravitational/teleport/issues/10950), MongoDB
+clients usually spawn multiple connections to the server resulting multiple
+parallel database sessions on the Database Service. The number of connections
+can be limited using a smaller `maxPoolSize` (default 100) in the connection
+string, but Teleport does not have full control on this as it's specified from
+the MongoDB clients.
+
+To speed things up, the admin user connection will be kept open and reused for
+up to a minute, per MongoDB database per Teleport user per Database Service.
