@@ -303,6 +303,18 @@ const colors: ThemeColors = {
           color: pink[700],
         },
       },
+      temporaryResourceGroup: {
+        background: lighten(pink[200], 0.9),
+        borderColor: pink[200],
+        typeColor: pink[200],
+        iconBackground: pink[200],
+        handleColor: pink[300],
+        highlightColor: pink[200],
+        label: {
+          background: pink[200],
+          color: pink[300],
+        },
+      },
       allowedAction: {
         background: lighten(green[300], 0.9),
         borderColor: green[300],
@@ -313,6 +325,18 @@ const colors: ThemeColors = {
         label: {
           background: green[200],
           color: green[700],
+        },
+      },
+      temporaryAllowedAction: {
+        background: lighten(green[200], 0.9),
+        borderColor: green[200],
+        typeColor: green[200],
+        iconBackground: green[200],
+        handleColor: green[300],
+        highlightColor: green[200],
+        label: {
+          background: green[200],
+          color: green[300],
         },
       },
       disallowedAction: {
