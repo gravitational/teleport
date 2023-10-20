@@ -428,6 +428,9 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 				return trace.Errorf("KeyboardButton: client_write_rdp_keyboard: %v", errCode)
 			}
 		case tdp.ClipboardData:
+			if !c.cfg.AllowClipboard {
+				continue
+			}
 			if len(m) > 0 {
 				if errCode := C.client_update_clipboard(
 					C.ulong(c.handle),
