@@ -281,13 +281,14 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		// require a version number and `kind` value, so we search the
 		// methods of the resource type for the one that specifies these
 		// values.
+	fieldOrResourceTypes:
 		for pi, e := range entries {
 			// If we have excluded this resource via the
 			// config, don't create a separate section for
 			// it.
 			for _, ex := range conf.ExcludedResourceTypes {
 				if ex.Name == pi.DeclName && ex.Package == pi.PackageName {
-					continue
+					continue fieldOrResourceTypes
 				}
 			}
 
