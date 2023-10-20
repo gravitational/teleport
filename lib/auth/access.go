@@ -27,10 +27,11 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 )
 
-// UpsertRole creates or updates a role and emits a related audit event.
-func (a *Server) UpsertRole(ctx context.Context, role types.Role) error {
-	if err := a.Services.UpsertRole(ctx, role); err != nil {
-		return trace.Wrap(err)
+// CreateRole creates a role and emits a related audit event.
+func (a *Server) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
+	created, err := a.Services.CreateRole(ctx, role)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleCreate{
@@ -45,13 +46,61 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) error {
 	}); err != nil {
 		log.WithError(err).Warnf("Failed to emit role create event.")
 	}
-	return nil
+	return created, nil
+}
+
+// UpdateRole updates a role and emits a related audit event.
+func (a *Server) UpdateRole(ctx context.Context, role types.Role) (types.Role, error) {
+	created, err := a.Services.UpdateRole(ctx, role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(tross): add a RoleUpdate type, RoleUpdatedEvent/Code for metadata
+	// and convert this to use them instead of a create event. As is this matches
+	// existing behavior since all updates to a role were done vie upsert which
+	// only ever emits a create event.
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleCreate{
+		Metadata: apievents.Metadata{
+			Type: events.RoleCreatedEvent,
+			Code: events.RoleCreatedCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: role.GetName(),
+		},
+	}); err != nil {
+		log.WithError(err).Warnf("Failed to emit role create event.")
+	}
+	return created, nil
+}
+
+// UpsertRole creates or updates a role and emits a related audit event.
+func (a *Server) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
+	upserted, err := a.Services.UpsertRole(ctx, role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleCreate{
+		Metadata: apievents.Metadata{
+			Type: events.RoleCreatedEvent,
+			Code: events.RoleCreatedCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: role.GetName(),
+		},
+	}); err != nil {
+		log.WithError(err).Warnf("Failed to emit role create event.")
+	}
+	return upserted, nil
 }
 
 // DeleteRole deletes a role and emits a related audit event.
 func (a *Server) DeleteRole(ctx context.Context, name string) error {
 	// check if this role is used by CA or Users
-	users, err := a.Services.GetUsers(false)
+	users, err := a.Services.GetUsers(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -27,9 +27,11 @@
   "private": true,
   "resolutions": {
     "react": "16.14.0",
-    "**/minimist": "^1.2.5",
-    "**/@types/react": "^16.8.19",
-    "webpack": "^5.76.2",
+    "**/d3-color": "^3.1.0",
+    "**/minimist": "^1.2.8",
+    "**/@types/react": "^16.9.49",
+    "**/trim": "0.0.3",
+    "webpack": "^5.88.2",
     "x-default-browser": "^0.5.2"
   },
   "devDependencies": {

@@ -22,7 +22,6 @@ import { OnboardCard } from 'design/Onboard/OnboardCard';
 import { Box } from 'design';
 
 import RecoveryCodes from 'teleport/components/RecoveryCodes';
-import { PrivateKeyLoginDisabledCard } from 'teleport/components/PrivateKeyPolicy';
 import cfg from 'teleport/config';
 
 import { loginFlows } from 'teleport/Welcome/NewCredentials/constants';
@@ -61,11 +60,13 @@ export function NewCredentials(props: NewCredentialsProps) {
     primaryAuthType,
     success,
     finishedRegister,
-    privateKeyPolicyEnabled,
     isDashboard,
     displayOnboardingQuestionnaire = false,
     setDisplayOnboardingQuestionnaire = false,
     Questionnaire = undefined,
+    displayInviteCollaborators = false,
+    setDisplayInviteCollaborators = null,
+    InviteCollaborators = undefined,
   } = props;
 
   // Check which flow to render as default.
@@ -86,11 +87,19 @@ export function NewCredentials(props: NewCredentialsProps) {
     return null;
   }
 
-  if (success && privateKeyPolicyEnabled) {
+  if (
+    success &&
+    !resetMode &&
+    displayInviteCollaborators &&
+    setDisplayInviteCollaborators &&
+    InviteCollaborators
+  ) {
     return (
-      <PrivateKeyLoginDisabledCard
-        title={resetMode ? 'Reset Complete' : 'Registration Complete'}
-      />
+      <OnboardCard>
+        <InviteCollaborators
+          onSubmit={() => setDisplayInviteCollaborators(false)}
+        />
+      </OnboardCard>
     );
   }
 

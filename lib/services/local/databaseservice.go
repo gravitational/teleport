@@ -42,15 +42,17 @@ func (s *DatabaseServicesService) UpsertDatabaseService(ctx context.Context, ser
 	if err := service.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := service.GetRevision()
 	value, err := services.MarshalDatabaseService(service)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(databaseServicePrefix, service.GetName()),
-		Value:   value,
-		Expires: service.Expiry(),
-		ID:      service.GetResourceID(),
+		Key:      backend.Key(databaseServicePrefix, service.GetName()),
+		Value:    value,
+		Expires:  service.Expiry(),
+		ID:       service.GetResourceID(),
+		Revision: rev,
 	}
 	lease, err := s.Put(ctx, item)
 	if err != nil {
@@ -83,7 +85,7 @@ func (s *DatabaseServicesService) DeleteDatabaseService(ctx context.Context, nam
 
 // DeleteAllDatabaseServices removes all DatabaseService resources.
 func (s *DatabaseServicesService) DeleteAllDatabaseServices(ctx context.Context) error {
-	startKey := backend.Key(databaseServicePrefix)
+	startKey := backend.ExactKey(databaseServicePrefix)
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)

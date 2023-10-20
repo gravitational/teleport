@@ -135,15 +135,8 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 		defer auditPipeOut.Close()
 
 		// Create common fields for events
-		serverMeta := apievents.ServerMetadata{
-			ServerID:        serverCtx.GetServer().HostUUID(),
-			ServerHostname:  serverCtx.GetServer().GetInfo().GetHostname(),
-			ServerNamespace: serverCtx.GetServer().GetNamespace(),
-		}
-		sessionMeta := apievents.SessionMetadata{
-			SessionID: string(serverCtx.SessionID()),
-			WithMFA:   serverCtx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
-		}
+		serverMeta := serverCtx.GetServerMetadata()
+		sessionMeta := serverCtx.GetSessionMetadata()
 		userMeta := serverCtx.Identity.GetUserMetadata()
 		connectionMeta := apievents.ConnectionMetadata{
 			RemoteAddr: serverConn.RemoteAddr().String(),

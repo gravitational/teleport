@@ -686,7 +686,8 @@ func TestAgentForwardPermission(t *testing.T) {
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = types.NewBool(false)
 	role.SetOptions(roleOptions)
-	require.NoError(t, f.testSrv.Auth().UpsertRole(ctx, role))
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
@@ -717,7 +718,7 @@ func TestMaxSessions(t *testing.T) {
 	roleOptions := role.GetOptions()
 	roleOptions.MaxSessions = maxSessions
 	role.SetOptions(roleOptions)
-	err = f.testSrv.Auth().UpsertRole(ctx, role)
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	for i := int64(0); i < maxSessions; i++ {
@@ -790,7 +791,7 @@ func TestAgentForward(t *testing.T) {
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = types.NewBool(true)
 	role.SetOptions(roleOptions)
-	err = f.testSrv.Auth().UpsertRole(ctx, role)
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	se, err := f.ssh.clt.NewSession(ctx)
@@ -896,7 +897,7 @@ func TestX11Forward(t *testing.T) {
 	roleOptions := role.GetOptions()
 	roleOptions.PermitX11Forwarding = types.NewBool(true)
 	role.SetOptions(roleOptions)
-	err = f.testSrv.Auth().UpsertRole(ctx, role)
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	// Open two x11 sessions from two separate clients to
@@ -956,7 +957,7 @@ func TestRootX11ForwardPermissions(t *testing.T) {
 	roleOptions := role.GetOptions()
 	roleOptions.PermitX11Forwarding = types.NewBool(true)
 	role.SetOptions(roleOptions)
-	err = f.testSrv.Auth().UpsertRole(ctx, role)
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	// Create a new X11 session as a non-root nonroot in the system.
@@ -2585,12 +2586,12 @@ func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string,
 	role.SetOptions(opts)
 	role.SetLogins(types.Allow, allowedLogins)
 	role.SetNodeLabels(types.Allow, allowedLabels)
-	err = auth.UpsertRole(ctx, role)
+	_, err = auth.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	user.AddRole(role.GetName())
-	err = auth.UpsertUser(user)
+	user, err = auth.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

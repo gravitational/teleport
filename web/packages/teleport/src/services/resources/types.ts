@@ -18,6 +18,7 @@ export type Resource<T extends Kind> = {
   id: string;
   kind: T;
   name: string;
+  description?: string;
   // content is config in yaml format.
   content: string;
 };

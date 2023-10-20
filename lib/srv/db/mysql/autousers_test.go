@@ -92,12 +92,12 @@ func Test_convertActivateError(t *testing.T) {
 	}
 	usernameDoesNotMatchError := &mysql.MyError{
 		Code:    mysql.ER_SIGNAL_EXCEPTION,
-		State:   sqlStateUsernameDoesNotMatch,
+		State:   common.SQLStateUsernameDoesNotMatch,
 		Message: `Teleport username does not match user attributes`,
 	}
 	rolesChangedError := &mysql.MyError{
 		Code:    mysql.ER_SIGNAL_EXCEPTION,
-		State:   sqlStateRolesChanged,
+		State:   common.SQLStateRolesChanged,
 		Message: `user has active connections and roles have changed`,
 	}
 	// Currently not converted to trace.AccessDeined as it may conflict with
@@ -148,6 +148,35 @@ func Test_convertActivateError(t *testing.T) {
 			converted := convertActivateError(sessionCtx, test.input)
 			require.True(t, test.errorIs(converted))
 			require.Contains(t, converted.Error(), test.errorContains)
+		})
+	}
+}
+
+func Test_checkMySQLSupportedVersion(t *testing.T) {
+	tests := []struct {
+		input      string
+		checkError require.ErrorAssertionFunc
+	}{
+		{
+			input:      "invalid-server-version",
+			checkError: require.NoError,
+		},
+		{
+			input:      "8.0.28",
+			checkError: require.NoError,
+		},
+		{
+			input:      "9.0.0",
+			checkError: require.NoError,
+		},
+		{
+			input:      "5.7.42",
+			checkError: require.Error,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			test.checkError(t, checkMySQLSupportedVersion(test.input))
 		})
 	}
 }

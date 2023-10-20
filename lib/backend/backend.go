@@ -202,9 +202,6 @@ type Watcher interface {
 	// Close closes the watcher and releases
 	// all associated resources
 	Close() error
-
-	// Prefixes returns the prefixes that the watcher is monitoring.
-	Prefixes() [][]byte
 }
 
 // GetResult provides the result of GetRange request
@@ -435,6 +432,12 @@ func internalKey(internalPrefix string, parts ...string) []byte {
 func CreateRevision() string {
 	return uuid.NewString()
 }
+
+// BlankRevision is a placeholder revision to be used by backends when
+// the revision of the item in the backend is empty. This can happen
+// to any existing resources that were last written before support for
+// revisions was added.
+var BlankRevision = uuid.Nil.String()
 
 // NewLease creates a lease for the provided [Item].
 func NewLease(item Item) *Lease {

@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"k8s.io/client-go/kubernetes"
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -115,11 +117,15 @@ type Config struct {
 	// PollInterval is the cadence at which the discovery server will run each of its
 	// discovery cycles.
 	PollInterval time.Duration
+
+	// clock is passed to watchers to handle poll intervals.
+	// Mostly used in tests.
+	clock clockwork.Clock
 }
 
 func (c *Config) CheckAndSetDefaults() error {
-	if c.Matchers.IsEmpty() {
-		return trace.BadParameter("no matchers configured for discovery")
+	if c.Matchers.IsEmpty() && c.DiscoveryGroup == "" {
+		return trace.BadParameter("no matchers or discovery group configured for discovery")
 	}
 	if c.Emitter == nil {
 		return trace.BadParameter("no Emitter configured for discovery")
@@ -164,6 +170,10 @@ kubernetes matchers are present.`)
 		c.PollInterval = 5 * time.Minute
 	}
 
+	if c.clock == nil {
+		c.clock = clockwork.NewRealClock()
+	}
+
 	c.Log = c.Log.WithField(trace.Component, teleport.ComponentDiscovery)
 	c.Matchers.Azure = services.SimplifyAzureMatchers(c.Matchers.Azure)
 	return nil
@@ -200,6 +210,16 @@ type Server struct {
 	kubeAppsFetchers []common.Fetcher
 	// databaseFetchers holds all database fetchers.
 	databaseFetchers []common.Fetcher
+
+	// dynamicMatcherWatcher is an initialized Watcher for DiscoveryConfig resources.
+	// Each new event must update the existing resources.
+	dynamicMatcherWatcher types.Watcher
+
+	// dynamicDatabaseFetchers holds the current Database Fetchers for the Dynamic Matchers (those coming from DiscoveryConfig resource).
+	// The key is the DiscoveryConfig name.
+	dynamicDatabaseFetchers map[string][]common.Fetcher
+	muDynamicFetchers       sync.RWMutex
+
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
 	// reconciler periodically reconciles the labels of discovered instances
@@ -220,11 +240,22 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 
 	localCtx, cancelfn := context.WithCancel(ctx)
 	s := &Server{
-		Config:          cfg,
-		ctx:             localCtx,
-		cancelfn:        cancelfn,
-		usageEventCache: make(map[string]struct{}),
+		Config:                  cfg,
+		ctx:                     localCtx,
+		cancelfn:                cancelfn,
+		usageEventCache:         make(map[string]struct{}),
+		dynamicDatabaseFetchers: make(map[string][]common.Fetcher),
 	}
+
+	if err := s.startDynamicMatchersWatcher(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	databaseFetchers, err := s.databaseFetchersFromMatchers(cfg.Matchers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.databaseFetchers = databaseFetchers
 
 	if err := s.initAWSWatchers(cfg.Matchers.AWS); err != nil {
 		return nil, trace.Wrap(err)
@@ -251,10 +282,42 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	return s, nil
 }
 
+// startDynamicMatchersWatcher starts a watcher for DiscoveryConfig events.
+// After initialization, it starts a goroutine that receives and handles events.
+func (s *Server) startDynamicMatchersWatcher(ctx context.Context) error {
+	if s.DiscoveryGroup == "" {
+		return nil
+	}
+
+	watcher, err := s.AccessPoint.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{{
+			Kind: types.KindDiscoveryConfig,
+		}},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Wait for OpInit event so the watcher is ready.
+	select {
+	case event := <-watcher.Events():
+		if event.Type != types.OpInit {
+			return trace.BadParameter("failed to watch for DiscoveryConfig: received an unexpected event while waiting for the initial OpInit")
+		}
+	case <-watcher.Done():
+		return trace.Wrap(watcher.Error())
+	}
+
+	s.dynamicMatcherWatcher = watcher
+
+	go s.startDynamicWatcherUpdater()
+	return nil
+}
+
 // initAWSWatchers starts AWS resource watchers based on types provided.
 func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	ec2Matchers, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
-		return matcherType == services.AWSMatcherEC2
+		return matcherType == types.AWSMatcherEC2
 	})
 
 	// start ec2 watchers
@@ -282,15 +345,8 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		s.reconciler = lr
 	}
 
-	// Add database fetchers.
-	databaseMatchers, otherMatchers := splitMatchers(otherMatchers, db.IsAWSMatcherType)
-	if len(databaseMatchers) > 0 {
-		databaseFetchers, err := db.MakeAWSFetchers(s.ctx, s.CloudClients, databaseMatchers)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.databaseFetchers = append(s.databaseFetchers, databaseFetchers...)
-	}
+	// Database fetchers were added in databaseFetchersFromMatchers.
+	_, otherMatchers = splitMatchers(otherMatchers, db.IsAWSMatcherType)
 
 	// Add kube fetchers.
 	for _, matcher := range otherMatchers {
@@ -302,7 +358,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		for _, t := range matcher.Types {
 			for _, region := range matcher.Regions {
 				switch t {
-				case services.AWSMatcherEKS:
+				case types.AWSMatcherEKS:
 					client, err := s.CloudClients.GetAWSEKSClient(
 						s.ctx,
 						region,
@@ -345,7 +401,7 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 	}
 
 	for _, matcher := range matchers {
-		if !slices.Contains(matcher.Types, services.KubernetesMatchersApp) {
+		if !slices.Contains(matcher.Types, types.KubernetesMatchersApp) {
 			continue
 		}
 
@@ -365,10 +421,40 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 	return nil
 }
 
+// databaseFetchersFromMatchers converts Matchers into a set of Database Fetchers.
+func (s *Server) databaseFetchersFromMatchers(matchers Matchers) ([]common.Fetcher, error) {
+	var fetchers []common.Fetcher
+
+	// AWS
+	awsDatabaseMatchers, _ := splitMatchers(matchers.AWS, db.IsAWSMatcherType)
+	if len(awsDatabaseMatchers) > 0 {
+		databaseFetchers, err := db.MakeAWSFetchers(s.ctx, s.CloudClients, awsDatabaseMatchers)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		fetchers = append(fetchers, databaseFetchers...)
+	}
+
+	// Azure
+	azureDatabaseMatchers, _ := splitMatchers(matchers.Azure, db.IsAzureMatcherType)
+	if len(azureDatabaseMatchers) > 0 {
+		databaseFetchers, err := db.MakeAzureFetchers(s.CloudClients, azureDatabaseMatchers)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		fetchers = append(fetchers, databaseFetchers...)
+	}
+
+	// There are no Database Matchers for GCP Matchers.
+	// There are no Database Matchers for Kube Matchers.
+
+	return fetchers, nil
+}
+
 // initAzureWatchers starts Azure resource watchers based on types provided.
 func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMatcher) error {
 	vmMatchers, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
-		return matcherType == services.AzureMatcherVM
+		return matcherType == types.AzureMatcherVM
 	})
 
 	// VM watcher.
@@ -385,15 +471,8 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 		}
 	}
 
-	// Add database fetchers.
-	databaseMatchers, otherMatchers := splitMatchers(otherMatchers, db.IsAzureMatcherType)
-	if len(databaseMatchers) > 0 {
-		databaseFetchers, err := db.MakeAzureFetchers(s.CloudClients, databaseMatchers)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.databaseFetchers = append(s.databaseFetchers, databaseFetchers...)
-	}
+	// Database fetchers were added in databaseFetchersFromMatchers.
+	_, otherMatchers = splitMatchers(otherMatchers, db.IsAzureMatcherType)
 
 	// Add kube fetchers.
 	for _, matcher := range otherMatchers {
@@ -404,7 +483,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 		for _, subscription := range subscriptions {
 			for _, t := range matcher.Types {
 				switch t {
-				case services.AzureMatcherKubernetes:
+				case types.AzureMatcherKubernetes:
 					kubeClient, err := s.CloudClients.GetAzureKubernetesClient(subscription)
 					if err != nil {
 						return trace.Wrap(err)
@@ -436,7 +515,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 	}
 
 	vmMatchers, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
-		return matcherType == services.GCPMatcherCompute
+		return matcherType == types.GCPMatcherCompute
 	})
 
 	// VM watcher.
@@ -462,7 +541,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 			for _, location := range matcher.Locations {
 				for _, t := range matcher.Types {
 					switch t {
-					case services.GCPMatcherKubernetes:
+					case types.GCPMatcherKubernetes:
 						fetcher, err := fetchers.NewGKEFetcher(fetchers.GKEFetcherConfig{
 							Client:       kubeClient,
 							Location:     location,
@@ -740,6 +819,7 @@ func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
 		Params:          instances.Parameters,
 		ScriptName:      instances.ScriptName,
 		PublicProxyAddr: instances.PublicProxyAddr,
+		ClientID:        instances.ClientID,
 	}
 	if err := s.azureInstaller.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)
@@ -907,6 +987,99 @@ func (s *Server) Start() error {
 	return nil
 }
 
+// startDynamicWatcherUpdater watches for DiscoveryConfig resource change events.
+// Before consuming changes, it iterates over all DiscoveryConfigs and
+// For deleted resources, it deletes the matchers.
+// For new/updated resources, it replaces the set of fetchers.
+func (s *Server) startDynamicWatcherUpdater() {
+	// Add all existing DiscoveryConfigs as matchers.
+	nextKey := ""
+	for {
+		dcs, respNextKey, err := s.AccessPoint.ListDiscoveryConfigs(s.ctx, 0, nextKey)
+		if err != nil {
+			s.Log.WithError(err).Warnf("failed to list discovery configs")
+			return
+		}
+		for _, dc := range dcs {
+			if dc.GetDiscoveryGroup() != s.DiscoveryGroup {
+				continue
+			}
+
+			if err := s.upsertDynamicMatchers(dc); err != nil {
+				s.Log.WithError(err).Warnf("failed to update dynamic matchers for discovery config %q", dc.GetName())
+				continue
+			}
+		}
+		if respNextKey == "" {
+			break
+		}
+		nextKey = respNextKey
+	}
+
+	// Consume DiscoveryConfig events to update Matchers as they change.
+	for {
+		select {
+		case event := <-s.dynamicMatcherWatcher.Events():
+			switch event.Type {
+			case types.OpPut:
+				dc, ok := event.Resource.(*discoveryconfig.DiscoveryConfig)
+				if !ok {
+					s.Log.Warnf("dynamic matcher watcher: unexpected resource type %T", event.Resource)
+					return
+				}
+
+				if dc.GetDiscoveryGroup() != s.DiscoveryGroup {
+					// Let's assume there's a DiscoveryConfig DC1 has DiscoveryGroup DG1, which this process is monitoring.
+					// If the user updates the DiscoveryGroup to DG2, then DC1 must be removed from the scope of this process.
+					// We blindly delete it, in the worst case, this is a no-op.
+					s.muDynamicFetchers.Lock()
+					delete(s.dynamicDatabaseFetchers, event.Resource.GetName())
+					s.muDynamicFetchers.Unlock()
+					continue
+				}
+
+				if err := s.upsertDynamicMatchers(dc); err != nil {
+					s.Log.WithError(err).Warnf("failed to update dynamic matchers for discovery config %q", dc.GetName())
+					continue
+				}
+
+			case types.OpDelete:
+				s.muDynamicFetchers.Lock()
+				delete(s.dynamicDatabaseFetchers, event.Resource.GetName())
+				s.muDynamicFetchers.Unlock()
+
+			default:
+				s.Log.Warnf("Skipping unknown event type %s", event.Type)
+			}
+		case <-s.dynamicMatcherWatcher.Done():
+			s.Log.Warnf("dynamic matcher watcher error: %v", s.dynamicMatcherWatcher.Error())
+			return
+		}
+	}
+}
+
+// upsertDynamicMatchers upserts the internal set of dynamic matchers given a particular discovery config.
+func (s *Server) upsertDynamicMatchers(dc *discoveryconfig.DiscoveryConfig) error {
+	matchers := Matchers{
+		AWS:        dc.Spec.AWS,
+		Azure:      dc.Spec.Azure,
+		GCP:        dc.Spec.GCP,
+		Kubernetes: dc.Spec.Kube,
+	}
+
+	databaseFetchers, err := s.databaseFetchersFromMatchers(matchers)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(marco): add other matcher types (VMs, Kubes, KubeApps)
+
+	s.muDynamicFetchers.Lock()
+	s.dynamicDatabaseFetchers[dc.GetName()] = databaseFetchers
+	s.muDynamicFetchers.Unlock()
+	return nil
+}
+
 // Stop stops the discovery service.
 func (s *Server) Stop() {
 	s.cancelfn()
@@ -918,6 +1091,11 @@ func (s *Server) Stop() {
 	}
 	if s.gcpWatcher != nil {
 		s.gcpWatcher.Stop()
+	}
+	if s.dynamicMatcherWatcher != nil {
+		if err := s.dynamicMatcherWatcher.Close(); err != nil {
+			s.Log.Warnf("dynamic matcher watcher closing error: ", trace.Wrap(err))
+		}
 	}
 }
 

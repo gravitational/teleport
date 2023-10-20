@@ -77,6 +77,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAuthPreferenceParser()
 		case types.KindSessionRecordingConfig:
 			parser = newSessionRecordingConfigParser()
+		case types.KindExternalCloudAudit:
+			parser = newExternalCloudAuditParser()
 		case types.KindUIConfig:
 			parser = newUIConfigParser()
 		case types.KindClusterName:
@@ -162,6 +164,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newOktaAssignmentParser()
 		case types.KindIntegration:
 			parser = newIntegrationParser()
+		case types.KindDiscoveryConfig:
+			parser = newDiscoveryConfigParser()
 		case types.KindHeadlessAuthentication:
 			p, err := newHeadlessAuthenticationParser(kind.Filter)
 			if err != nil {
@@ -173,6 +177,12 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = p
 		case types.KindAccessList:
 			parser = newAccessListParser()
+		case types.KindAuditQuery:
+			parser = newAuditQueryParser()
+		case types.KindSecurityReport:
+			parser = newSecurityReportParser()
+		case types.KindSecurityReportState:
+			parser = newSecurityReportStateParser()
 		case types.KindUserLoginState:
 			parser = newUserLoginStateParser()
 		case types.KindAccessListMember:
@@ -192,6 +202,15 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		return nil, trace.BadParameter("none of the requested kinds can be watched")
 	}
 
+	origNumPrefixes := len(prefixes)
+	redundantNumPrefixes := len(backend.RemoveRedundantPrefixes(prefixes))
+	if origNumPrefixes != redundantNumPrefixes {
+		// If you've hit this error, the prefixes in two or more of your parsers probably overlap, meaning
+		// one prefix will also contain another as a subset. Look into using backend.ExactKey instead of
+		// backend.Key in your parser.
+		return nil, trace.BadParameter("redundant prefixes detected in events, which will result in event parsers not aligning with their intended prefix (this is a bug)")
+	}
+
 	w, err := e.backend.NewWatcher(ctx, backend.Watch{
 		Name:            watch.Name,
 		Prefixes:        prefixes,
@@ -201,23 +220,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if err := verifyEventWatcherPrefixes(prefixes, w); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return newWatcher(w, e.Entry, parsers, validKinds), nil
-}
-
-// verifyEventWatcherPrefixes will ensure that the expected prefixes are all found within the watcher.
-func verifyEventWatcherPrefixes(expectedPrefixes [][]byte, watcher backend.Watcher) error {
-	if len(expectedPrefixes) != len(watcher.Prefixes()) {
-		// If you've hit this error, the prefixes in two or more of your parsers probably overlap, meaning
-		// one prefix will also contain another as a subset. Look into using backend.ExactKey instead of
-		// backend.Key in your parser.
-		return trace.BadParameter("redundant prefixes detected in events, which will result in event parsers not aligning with their intended prefix")
-	}
-	return nil
 }
 
 func newWatcher(backendWatcher backend.Watcher, l *logrus.Entry, parsers []resourceParser, kinds []types.WatchKind) *watcher {
@@ -620,6 +623,31 @@ func (p *sessionRecordingConfigParser) parse(event backend.Event) (types.Resourc
 			return nil, trace.Wrap(err)
 		}
 		return ap, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newExternalCloudAuditParser() *externalCloudAuditParser {
+	return &externalCloudAuditParser{
+		baseParser: newBaseParser(backend.Key(externalCloudAuditPrefix)),
+	}
+}
+
+type externalCloudAuditParser struct {
+	baseParser
+}
+
+func (p *externalCloudAuditParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindExternalCloudAudit, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalExternalCloudAudit(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
@@ -1616,6 +1644,31 @@ func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
+func newDiscoveryConfigParser() *discoveryConfigParser {
+	return &discoveryConfigParser{
+		baseParser: newBaseParser(backend.Key(discoveryConfigPrefix)),
+	}
+}
+
+type discoveryConfigParser struct {
+	baseParser
+}
+
+func (p *discoveryConfigParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindDiscoveryConfig, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalDiscoveryConfig(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func newHeadlessAuthenticationParser(m map[string]string) (*headlessAuthenticationParser, error) {
 	var filter types.HeadlessAuthenticationFilter
 	if err := filter.FromMap(m); err != nil {
@@ -1670,6 +1723,78 @@ func (p *accessListParser) parse(event backend.Event) (types.Resource, error) {
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAuditQueryParser() *auditQueryParser {
+	return &auditQueryParser{
+		baseParser: newBaseParser(backend.Key(AuditQueryPrefix)),
+	}
+}
+
+type auditQueryParser struct {
+	baseParser
+}
+
+func (p *auditQueryParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindAuditQuery, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalAuditQuery(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newSecurityReportParser() *securityReportParser {
+	return &securityReportParser{
+		baseParser: newBaseParser(backend.Key(SecurityReportPrefix)),
+	}
+}
+
+type securityReportParser struct {
+	baseParser
+}
+
+func (p *securityReportParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindSecurityReport, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalSecurityReport(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newSecurityReportStateParser() *securityReportStateParser {
+	return &securityReportStateParser{
+		baseParser: newBaseParser(backend.Key(SecurityReportStatePrefix)),
+	}
+}
+
+type securityReportStateParser struct {
+	baseParser
+}
+
+func (p *securityReportStateParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindSecurityReportState, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalSecurityReportState(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)

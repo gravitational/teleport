@@ -1818,6 +1818,10 @@ message AuthPreferenceSpecV2 {
   // Okta is a set of options related to the Okta service in Teleport.
   // Requires Teleport Enterprise.
   OktaOptions Okta = 17 [(gogoproto.jsontag) = "okta,omitempty"];
+
+  // PIVSlot is a PIV slot that Teleport clients should use instead of the
+  // default based on private key policy. For example, "9a" or "9e".
+  string PIVSlot = 18 [(gogoproto.jsontag) = "piv_slot,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -2453,6 +2457,19 @@ enum CreateHostUserMode {
   HOST_USER_MODE_KEEP = 3;
 }
 
+// CreateDatabaseUserMode determines whether database user creation should be
+// disabled or if users should be cleaned up or kept after sessions end.
+enum CreateDatabaseUserMode {
+  DB_USER_MODE_UNSPECIFIED = 0;
+  // DB_USER_MODE_OFF disables user creation.
+  DB_USER_MODE_OFF = 1;
+  // DB_USER_MODE_KEEP allows user creation and disable users at session end.
+  DB_USER_MODE_KEEP = 2;
+  // DB_USER_MODE_BEST_EFFORT_DROP allows user creation and tries to drop user
+  // at session end. If the drop fails, fallback to disabling them.
+  DB_USER_MODE_BEST_EFFORT_DROP = 3;
+}
+
 // RoleOptions is a set of role options
 message RoleOptions {
   // ForwardAgent is SSH agent forwarding.
@@ -2614,6 +2631,10 @@ message RoleOptions {
   // CreateHostUserMode allows users to be automatically created on a
   // host when not set to off
   CreateHostUserMode CreateHostUserMode = 28 [(gogoproto.jsontag) = "create_host_user_mode,omitempty"];
+
+  // CreateDatabaseUserMode allows users to be automatically created on a
+  // database when not set to off.
+  CreateDatabaseUserMode CreateDatabaseUserMode = 29 [(gogoproto.jsontag) = "create_db_user_mode,omitempty"];
 }
 
 message RecordSession {
@@ -4977,6 +4998,9 @@ message SessionTrackerSpecV1 {
 
   // TargetSubKind is the sub kind of the target server.
   string TargetSubKind = 22 [(gogoproto.jsontag) = "target_sub_kind,omitempty"];
+
+  // InitialCommand is the command that was executed to start this session.
+  repeated string InitialCommand = 23 [(gogoproto.jsontag) = "initial_command,omitempty"];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker
@@ -5326,9 +5350,14 @@ enum RequireMFAType {
   // and login sessions must use a private key backed by a hardware key.
   SESSION_AND_HARDWARE_KEY = 2;
   // HARDWARE_KEY_TOUCH means login sessions must use a hardware private key that
-  // requires touch to be used. This touch is required for all private key operations,
-  // so the key is always treated as MFA verified for sessions.
+  // requires touch to be used.
   HARDWARE_KEY_TOUCH = 3;
+  // HARDWARE_KEY_PIN means login sessions must use a hardware private key that
+  // requires pin to be used.
+  HARDWARE_KEY_PIN = 4;
+  // HARDWARE_KEY_TOUCH_AND_PIN means login sessions must use a hardware private key that
+  // requires touch and pin to be used.
+  HARDWARE_KEY_TOUCH_AND_PIN = 5;
 }
 
 // Plugin describes a single instance of a Teleport Plugin
@@ -5477,6 +5506,9 @@ message PluginOktaSettings {
 
   // OrgUrl is the Okta organization URL to use for API communication.
   string org_url = 1;
+
+  // EnableUserSync controls the user sync in the Okta integration service.
+  bool enable_user_sync = 2;
 }
 
 // Defines a set of discord channel IDs
@@ -6197,8 +6229,10 @@ message InstallerParams {
   // SSHDConfig provides the path to write sshd configuration changes
   string SSHDConfig = 5 [(gogoproto.jsontag) = "sshd_config,omitempty"];
   // PublicProxyAddr is the address of the proxy the discovered node should use
-  // to connect to the cluster. Used only in Azure.
+  // to connect to the cluster.
   string PublicProxyAddr = 6 [(gogoproto.jsontag) = "proxy_addr,omitempty"];
+  // Azure is the set of Azure-specific installation parameters.
+  AzureInstallerParams Azure = 7 [(gogoproto.jsontag) = "azure,omitempty"];
 }
 
 // AWSSSM provides options to use when executing SSM documents
@@ -6206,6 +6240,13 @@ message AWSSSM {
   // DocumentName is the name of the document to use when executing an
   // SSM command
   string DocumentName = 1 [(gogoproto.jsontag) = "document_name,omitempty"];
+}
+
+// AzureInstallerParams is the set of Azure-specific installation parameters.
+message AzureInstallerParams {
+  // ClientID is the client ID of the managed identity discovered nodes
+  // should use to join the cluster.
+  string ClientID = 1 [(gogoproto.jsontag) = "client_id,omitempty"];
 }
 
 // AzureMatcher matches Azure resources.

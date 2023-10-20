@@ -38,6 +38,7 @@ const (
 	DiscoveryConfigService_GetDiscoveryConfig_FullMethodName        = "/teleport.discoveryconfig.v1.DiscoveryConfigService/GetDiscoveryConfig"
 	DiscoveryConfigService_CreateDiscoveryConfig_FullMethodName     = "/teleport.discoveryconfig.v1.DiscoveryConfigService/CreateDiscoveryConfig"
 	DiscoveryConfigService_UpdateDiscoveryConfig_FullMethodName     = "/teleport.discoveryconfig.v1.DiscoveryConfigService/UpdateDiscoveryConfig"
+	DiscoveryConfigService_UpsertDiscoveryConfig_FullMethodName     = "/teleport.discoveryconfig.v1.DiscoveryConfigService/UpsertDiscoveryConfig"
 	DiscoveryConfigService_DeleteDiscoveryConfig_FullMethodName     = "/teleport.discoveryconfig.v1.DiscoveryConfigService/DeleteDiscoveryConfig"
 	DiscoveryConfigService_DeleteAllDiscoveryConfigs_FullMethodName = "/teleport.discoveryconfig.v1.DiscoveryConfigService/DeleteAllDiscoveryConfigs"
 )
@@ -54,6 +55,8 @@ type DiscoveryConfigServiceClient interface {
 	CreateDiscoveryConfig(ctx context.Context, in *CreateDiscoveryConfigRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error)
 	// UpdateDiscoveryConfig updates an existing DiscoveryConfig resource.
 	UpdateDiscoveryConfig(ctx context.Context, in *UpdateDiscoveryConfigRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error)
+	// UpsertDiscoveryConfig creates or updates a DiscoveryConfig resource.
+	UpsertDiscoveryConfig(ctx context.Context, in *UpsertDiscoveryConfigRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error)
 	// DeleteDiscoveryConfig removes the specified DiscoveryConfig resource.
 	DeleteDiscoveryConfig(ctx context.Context, in *DeleteDiscoveryConfigRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllDiscoveryConfigs removes all DiscoveryConfigs.
@@ -104,6 +107,15 @@ func (c *discoveryConfigServiceClient) UpdateDiscoveryConfig(ctx context.Context
 	return out, nil
 }
 
+func (c *discoveryConfigServiceClient) UpsertDiscoveryConfig(ctx context.Context, in *UpsertDiscoveryConfigRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error) {
+	out := new(DiscoveryConfig)
+	err := c.cc.Invoke(ctx, DiscoveryConfigService_UpsertDiscoveryConfig_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *discoveryConfigServiceClient) DeleteDiscoveryConfig(ctx context.Context, in *DeleteDiscoveryConfigRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, DiscoveryConfigService_DeleteDiscoveryConfig_FullMethodName, in, out, opts...)
@@ -134,6 +146,8 @@ type DiscoveryConfigServiceServer interface {
 	CreateDiscoveryConfig(context.Context, *CreateDiscoveryConfigRequest) (*DiscoveryConfig, error)
 	// UpdateDiscoveryConfig updates an existing DiscoveryConfig resource.
 	UpdateDiscoveryConfig(context.Context, *UpdateDiscoveryConfigRequest) (*DiscoveryConfig, error)
+	// UpsertDiscoveryConfig creates or updates a DiscoveryConfig resource.
+	UpsertDiscoveryConfig(context.Context, *UpsertDiscoveryConfigRequest) (*DiscoveryConfig, error)
 	// DeleteDiscoveryConfig removes the specified DiscoveryConfig resource.
 	DeleteDiscoveryConfig(context.Context, *DeleteDiscoveryConfigRequest) (*emptypb.Empty, error)
 	// DeleteAllDiscoveryConfigs removes all DiscoveryConfigs.
@@ -156,6 +170,9 @@ func (UnimplementedDiscoveryConfigServiceServer) CreateDiscoveryConfig(context.C
 }
 func (UnimplementedDiscoveryConfigServiceServer) UpdateDiscoveryConfig(context.Context, *UpdateDiscoveryConfigRequest) (*DiscoveryConfig, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateDiscoveryConfig not implemented")
+}
+func (UnimplementedDiscoveryConfigServiceServer) UpsertDiscoveryConfig(context.Context, *UpsertDiscoveryConfigRequest) (*DiscoveryConfig, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertDiscoveryConfig not implemented")
 }
 func (UnimplementedDiscoveryConfigServiceServer) DeleteDiscoveryConfig(context.Context, *DeleteDiscoveryConfigRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteDiscoveryConfig not implemented")
@@ -249,6 +266,24 @@ func _DiscoveryConfigService_UpdateDiscoveryConfig_Handler(srv interface{}, ctx 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DiscoveryConfigService_UpsertDiscoveryConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertDiscoveryConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DiscoveryConfigServiceServer).UpsertDiscoveryConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DiscoveryConfigService_UpsertDiscoveryConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DiscoveryConfigServiceServer).UpsertDiscoveryConfig(ctx, req.(*UpsertDiscoveryConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _DiscoveryConfigService_DeleteDiscoveryConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteDiscoveryConfigRequest)
 	if err := dec(in); err != nil {
@@ -307,6 +342,10 @@ var DiscoveryConfigService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateDiscoveryConfig",
 			Handler:    _DiscoveryConfigService_UpdateDiscoveryConfig_Handler,
+		},
+		{
+			MethodName: "UpsertDiscoveryConfig",
+			Handler:    _DiscoveryConfigService_UpsertDiscoveryConfig_Handler,
 		},
 		{
 			MethodName: "DeleteDiscoveryConfig",

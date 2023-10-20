@@ -17,7 +17,7 @@
 import React from 'react';
 import styled, { useTheme } from 'styled-components';
 import { Flex, Box } from 'design';
-import { Check, Warning, Refresh } from 'design/Icon';
+import * as icons from 'design/Icon';
 import { decomposeColor, emphasize } from 'design/theme/utils/colorManipulator';
 import { AttemptStatus } from 'shared/hooks/useAsync';
 
@@ -74,7 +74,13 @@ function Phase({
 
   return (
     <>
-      <StyledPhase mr="3" bg={bg}>
+      <StyledPhase
+        mr="3"
+        bg={bg}
+        css={`
+          position: relative;
+        `}
+      >
         <PhaseIcon status={status} />
       </StyledPhase>
       {!isLast && (
@@ -108,29 +114,19 @@ const StyledLine = styled(Box)`
 
 function PhaseIcon({ status }: { status: AttemptStatus }): JSX.Element {
   if (status === 'success') {
-    return <Check size="small" color="white" />;
+    return <icons.Check size="small" color="white" />;
   }
 
   if (status === 'error') {
-    return <Warning size="small" color="white" />;
+    return <icons.Warning size="small" color="white" />;
   }
 
   if (status === 'processing') {
     return (
-      <Refresh
-        size="extraLarge"
-        color="success"
-        css={`
-          animation: anim-rotate 1.5s infinite linear;
-          @keyframes anim-rotate {
-            0% {
-              transform: rotate(0);
-            }
-            100% {
-              transform: rotate(360deg);
-            }
-        `}
-      />
+      <>
+        <Spinner />
+        <icons.Restore size="small" color="buttons.text" />
+      </>
     );
   }
 
@@ -151,3 +147,23 @@ function getPhaseSolidColor(theme: any): string {
   const alpha = decomposeColor(theme.colors.spotBackground[1]).values[3] || 0;
   return emphasize(theme.colors.levels.surface, alpha);
 }
+
+const Spinner = styled.div`
+  opacity: 1;
+  color: ${props => props.theme.colors.spotBackground[2]};
+  border: 3px solid ${props => props.theme.colors.success};
+  border-radius: 50%;
+  border-top: 3px solid ${props => props.theme.colors.spotBackground[0]};
+  width: 24px;
+  height: 24px;
+  position: absolute;
+  animation: spinner 4s linear infinite;
+  @keyframes spinner {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+`;

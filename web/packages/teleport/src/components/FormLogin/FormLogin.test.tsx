@@ -195,5 +195,4 @@ const props: Props = {
   onLoginWithWebauthn: null,
   isPasswordlessEnabled: false,
   primaryAuthType: 'local',
-  privateKeyPolicyEnabled: false,
 };

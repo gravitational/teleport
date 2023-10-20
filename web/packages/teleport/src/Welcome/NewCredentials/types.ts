@@ -38,7 +38,6 @@ export type UseTokenState = {
   redirect: () => void;
   success: boolean;
   finishedRegister: () => void;
-  privateKeyPolicyEnabled: boolean;
 };
 
 // Note: QuestionnaireProps is duplicated in Enterprise (e-teleport/Welcome/Questionnaire/Questionnaire)
@@ -46,6 +45,12 @@ export type QuestionnaireProps = {
   onboard: boolean;
   username?: string;
   onSubmit?: () => void;
+};
+
+// Note: InviteCollaboratorsCardProps is duplicated in Enterprise
+// (e-teleport/Welcome/InviteCollaborators/InviteCollaborators)
+export type InviteCollaboratorsCardProps = {
+  onSubmit: () => void;
 };
 
 export type NewCredentialsProps = UseTokenState & {
@@ -60,6 +65,13 @@ export type NewCredentialsProps = UseTokenState & {
     username,
     onSubmit,
   }: QuestionnaireProps) => ReactElement;
+
+  // support for E's invite collaborators at onboarding
+  displayInviteCollaborators?: boolean;
+  setDisplayInviteCollaborators?: (bool: boolean) => void;
+  InviteCollaborators?: ({
+    onSubmit,
+  }: InviteCollaboratorsCardProps) => ReactElement;
 };
 
 export type RegisterSuccessProps = {

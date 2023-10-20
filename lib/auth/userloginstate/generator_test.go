@@ -295,7 +295,8 @@ func TestAccessLists(t *testing.T) {
 			for _, role := range test.roles {
 				role, err := types.NewRole(role, types.RoleSpecV6{})
 				require.NoError(t, err)
-				require.NoError(t, backendSvc.UpsertRole(ctx, role))
+				_, err = backendSvc.UpsertRole(ctx, role)
+				require.NoError(t, err)
 			}
 
 			state, err := svc.Generate(ctx, test.user)
@@ -365,7 +366,6 @@ func newAccessList(t *testing.T, clock clockwork.Clock, name string, roles []str
 	}, accesslist.Spec{
 		Title: "title",
 		Audit: accesslist.Audit{
-			Frequency:     time.Hour * 8760, // Roughly a year
 			NextAuditDate: clock.Now().Add(time.Hour * 48),
 		},
 		Owners: []accesslist.Owner{

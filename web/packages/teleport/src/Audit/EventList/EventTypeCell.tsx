@@ -115,6 +115,10 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.USER_SSO_LOGINFAILURE]: Icons.Info,
   [eventCodes.USER_SSO_TEST_FLOW_LOGIN]: Icons.Info,
   [eventCodes.USER_SSO_TEST_FLOW_LOGINFAILURE]: Icons.Info,
+  [eventCodes.USER_HEADLESS_LOGIN_REQUESTED]: Icons.Info,
+  [eventCodes.USER_HEADLESS_LOGIN_APPROVED]: Icons.Info,
+  [eventCodes.USER_HEADLESS_LOGIN_APPROVEDFAILURE]: Icons.Info,
+  [eventCodes.USER_HEADLESS_LOGIN_REJECTED]: Icons.Info,
   [eventCodes.KUBE_REQUEST]: Icons.Kubernetes,
   [eventCodes.KUBE_CREATED]: Icons.Kubernetes,
   [eventCodes.KUBE_UPDATED]: Icons.Kubernetes,
@@ -238,6 +242,8 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: Icons.User,
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]:
     Icons.Warning,
+  [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: Icons.Info,
+  [eventCodes.SECURITY_REPORT_RUN]: Icons.Info,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 

@@ -96,6 +96,18 @@ func (c *Client) UpdateDiscoveryConfig(ctx context.Context, discoveryConfig *dis
 	return dc, trace.Wrap(err)
 }
 
+// UpsertDiscoveryConfig creates or updates a DiscoveryConfig.
+func (c *Client) UpsertDiscoveryConfig(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
+	resp, err := c.grpcClient.UpsertDiscoveryConfig(ctx, &discoveryconfigv1.UpsertDiscoveryConfigRequest{
+		DiscoveryConfig: conv.ToProto(discoveryConfig),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dc, err := conv.FromProto(resp)
+	return dc, trace.Wrap(err)
+}
+
 // DeleteDiscoveryConfig removes the specified DiscoveryConfig resource.
 func (c *Client) DeleteDiscoveryConfig(ctx context.Context, name string) error {
 	_, err := c.grpcClient.DeleteDiscoveryConfig(ctx, &discoveryconfigv1.DeleteDiscoveryConfigRequest{

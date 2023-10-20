@@ -153,9 +153,31 @@ func (m *Manager) getSSHSigner(ctx context.Context, keySet types.CAKeySet) (ssh.
 			return nil, trace.Wrap(err)
 		}
 		sshSigner, err := ssh.NewSignerFromSigner(signer)
-		return sshSigner, trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// SHA-512 to match NewSSHKeyPair.
+		return toRSASHA512Signer(sshSigner), trace.Wrap(err)
 	}
 	return nil, trace.NotFound("no usable SSH key pairs found")
+}
+
+// toRSASHA512Signer forces an ssh.MultiAlgorithmSigner into using
+// "rsa-sha2-sha512" (instead of its SHA256 default).
+func toRSASHA512Signer(signer ssh.Signer) ssh.Signer {
+	ss, ok := signer.(ssh.MultiAlgorithmSigner)
+	if !ok {
+		return signer
+	}
+	return rsaSHA512Signer{MultiAlgorithmSigner: ss}
+}
+
+type rsaSHA512Signer struct {
+	ssh.MultiAlgorithmSigner
+}
+
+func (s rsaSHA512Signer) Algorithms() []string {
+	return []string{ssh.KeyAlgoRSASHA512}
 }
 
 // GetTLSCertAndSigner selects a usable TLS keypair from the given CA

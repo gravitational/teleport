@@ -114,7 +114,7 @@ update.
 ### Create a config file
 
 <Tabs>
-<TabItem label="Executable">
+<TabItem label="Executable or Docker">
 The Teleport Discord plugin uses a config file in TOML format. Generate a
 boilerplate config by running the following command (the plugin will not run
 unless the config file is in `/etc/teleport-discord.toml`):
@@ -221,7 +221,7 @@ by adding the following to your `role_to_recipients` config (replace
 `YOUR-CHANNEL-ID` with a valid channel ID):
 
 <Tabs>
-<TabItem label="Executable">
+<TabItem label="Executable or Docker">
 ```toml
 [role_to_recipients]
 "*" = "YOUR-CHANNEL-ID"
@@ -240,7 +240,7 @@ roleToRecipients:
 The final configuration file should resemble the following:
 
 <Tabs>
-<TabItem label="Executable">
+<TabItem label="Executable or Docker">
 ```toml
 (!examples/resources/plugins/teleport-discord.toml!)
 ```
@@ -269,8 +269,15 @@ If everything works fine, the log output should look like this:
 
 ```code
 $ teleport-discord start
-INFO   Starting Teleport Access Discord Plugin 7.2.1: discord/app.go:80
+INFO   Starting Teleport Access Discord Plugin (=teleport.version=): discord/app.go:80
 INFO   Plugin is ready discord/app.go:101
+```
+</TabItem>
+<TabItem label="Docker">
+Start the plugin:
+
+```code
+$ docker run -v <path-to-config>:/etc/teleport-discord.toml public.ecr.aws/gravitational/teleport-plugin-discord:(=teleport.version=) start
 ```
 </TabItem>
 <TabItem label="Helm Chart">

@@ -35,6 +35,8 @@ type DiscoveryConfigs interface {
 	CreateDiscoveryConfig(context.Context, *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error)
 	// UpdateDiscoveryConfig updates an existing DiscoveryConfig resource.
 	UpdateDiscoveryConfig(context.Context, *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error)
+	// UpsertDiscoveryConfig upserts a DiscoveryConfig resource.
+	UpsertDiscoveryConfig(context.Context, *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error)
 	// DeleteDiscoveryConfig removes the specified DiscoveryConfig resource.
 	DeleteDiscoveryConfig(ctx context.Context, name string) error
 	// DeleteAllDiscoveryConfigs removes all DiscoveryConfigs.
@@ -64,6 +66,7 @@ func MarshalDiscoveryConfig(discoveryConfig *discoveryconfig.DiscoveryConfig, op
 	if !cfg.PreserveResourceID {
 		copy := *discoveryConfig
 		copy.SetResourceID(0)
+		copy.SetRevision("")
 		discoveryConfig = &copy
 	}
 	return utils.FastMarshal(discoveryConfig)
@@ -87,6 +90,9 @@ func UnmarshalDiscoveryConfig(data []byte, opts ...MarshalOption) (*discoverycon
 	}
 	if cfg.ID != 0 {
 		discoveryConfig.SetResourceID(cfg.ID)
+	}
+	if cfg.Revision != "" {
+		discoveryConfig.SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
 		discoveryConfig.SetExpiry(cfg.Expires)

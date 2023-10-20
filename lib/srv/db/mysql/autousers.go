@@ -26,9 +26,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
@@ -79,6 +81,18 @@ func (c *clientConn) executeAndCloseResult(command string, args ...any) error {
 	return trace.Wrap(err)
 }
 
+func (c *clientConn) isMariaDB() bool {
+	return strings.Contains(strings.ToLower(c.GetServerVersion()), "mariadb")
+}
+
+// maxUsernameLength returns the username/role character limit.
+func (c *clientConn) maxUsernameLength() int {
+	if c.isMariaDB() {
+		return mariadbMaxUsernameLength
+	}
+	return mysqlMaxUsernameLength
+}
+
 // ActivateUser creates or enables the database user.
 func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) error {
 	if sessionCtx.Database.GetAdminUser() == "" {
@@ -91,6 +105,11 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	}
 	defer conn.Close()
 
+	// Ensure version is supported.
+	if err := checkSupportedVersion(conn); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Ensure the roles meet spec.
 	if err := checkRoles(conn, sessionCtx.DatabaseRoles); err != nil {
 		return trace.Wrap(err)
@@ -102,7 +121,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	}
 
 	// Use "tp-<hash>" in case DatabaseUser is over max username length.
-	sessionCtx.DatabaseUser = maybeHashUsername(sessionCtx.DatabaseUser, maxUsernameLength(conn))
+	sessionCtx.DatabaseUser = maybeHashUsername(sessionCtx.DatabaseUser, conn.maxUsernameLength())
 	e.Log.Infof("Activating MySQL user %q with roles %v for %v.", sessionCtx.DatabaseUser, sessionCtx.DatabaseRoles, sessionCtx.Identity.Username)
 
 	// Prep JSON.
@@ -144,10 +163,47 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 		sessionCtx.DatabaseUser,
 	)
 
-	if getSQLState(err) == sqlStateActiveUser {
+	if getSQLState(err) == common.SQLStateActiveUser {
 		e.Log.Debugf("Failed to deactivate user %q: %v.", sessionCtx.DatabaseUser, err)
 		return nil
 	}
+	return trace.Wrap(err)
+}
+
+// DeleteUser deletes the database user.
+func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) error {
+	if sessionCtx.Database.GetAdminUser() == "" {
+		return trace.BadParameter("Teleport does not have admin user configured for this database")
+	}
+
+	conn, err := e.connectAsAdminUser(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer conn.Close()
+
+	e.Log.Infof("Deleting MySQL user %q for %v.", sessionCtx.DatabaseUser, sessionCtx.Identity.Username)
+
+	result, err := conn.Execute(fmt.Sprintf("CALL %s(?)", deleteUserProcedureName), sessionCtx.DatabaseUser)
+	if err != nil {
+		if getSQLState(err) == common.SQLStateActiveUser {
+			e.Log.Debugf("Failed to delete user %q: %v.", sessionCtx.DatabaseUser, err)
+			return nil
+		}
+
+		return trace.Wrap(err)
+	}
+	defer result.Close()
+
+	switch readDeleteUserResult(result) {
+	case common.SQLStateUserDropped:
+		e.Log.Debugf("User %q deleted successfully.", sessionCtx.DatabaseUser)
+	case common.SQLStateUserDeactivated:
+		e.Log.Infof("Unable to delete user %q, it was disabled instead.", sessionCtx.DatabaseUser)
+	default:
+		e.Log.Warnf("Unable to determine user %q deletion state.", sessionCtx.DatabaseUser)
+	}
+
 	return trace.Wrap(err)
 }
 
@@ -175,7 +231,7 @@ func (e *Engine) setupDatabaseForAutoUsers(conn *clientConn, sessionCtx *common.
 	//   be used to track User -> JSON attribute mapping (protected view with
 	//   row level security can be used in addition so each user can only read
 	//   their own attributes, if needed).
-	if isMariaDB(conn) {
+	if conn.isMariaDB() {
 		return trace.NotImplemented("auto user provisioning is not supported for MariaDB yet")
 	}
 
@@ -238,10 +294,10 @@ func convertActivateError(sessionCtx *common.Session, err error) error {
 	}
 
 	switch getSQLState(err) {
-	case sqlStateUsernameDoesNotMatch:
+	case common.SQLStateUsernameDoesNotMatch:
 		return trace.AlreadyExists("username %q (Teleport user %q) already exists in this MySQL database and is used for another Teleport user.", sessionCtx.Identity.Username, sessionCtx.DatabaseUser)
 
-	case sqlStateRolesChanged:
+	case common.SQLStateRolesChanged:
 		return trace.CompareFailed("roles for user %q has changed. Please quit all active connections and try again.", sessionCtx.Identity.Username)
 
 	default:
@@ -257,33 +313,54 @@ func convertActivateError(sessionCtx *common.Session, err error) error {
 // This also avoids "No database selected" errors if client doesn't provide
 // one.
 func defaultSchema(_ *common.Session) string {
-	// Use "mysql" as the default schema as both MySQL and Mariadb have it.
+	// Aurora MySQL does not allow procedures on built-in "mysql" database.
+	// Technically we can use another built-in database like "sys". However,
+	// AWS (or database admins for self-hosted) may restrict permissions on
+	// these built-in databases eventually. Well, each built-in database has
+	// its own purpose.
+	//
+	// Thus lets use a teleport-specific database. This database should be
+	// created when configuring the admin user. The admin user should be
+	// granted the following permissions for this database:
+	// GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON teleport.* TO '<admin-user>'
 	//
 	// TODO consider allowing user to specify the default database through database
-	// definition.
-	return "mysql"
-}
-
-func isMariaDB(conn *clientConn) bool {
-	return strings.Contains(strings.ToLower(conn.GetServerVersion()), "mariadb")
-}
-
-// maxUsernameLength returns the username/role character limit.
-func maxUsernameLength(conn *clientConn) int {
-	if isMariaDB(conn) {
-		return mariadbMaxUsernameLength
-	}
-	return mysqlMaxUsernameLength
+	// definition/labels.
+	return "teleport"
 }
 
 func checkRoles(conn *clientConn, roles []string) error {
-	maxRoleLength := maxUsernameLength(conn)
+	maxRoleLength := conn.maxUsernameLength()
 	for _, role := range roles {
 		if len(role) > maxRoleLength {
 			return trace.BadParameter("role %q exceeds maximum length limit of %d", role, maxRoleLength)
 		}
 	}
 	return nil
+}
+
+func checkSupportedVersion(conn *clientConn) error {
+	if conn.isMariaDB() {
+		return trace.NotImplemented("auto user provisioning is not supported for MariaDB yet")
+	}
+	return trace.Wrap(checkMySQLSupportedVersion(conn.GetServerVersion()))
+}
+
+func checkMySQLSupportedVersion(serverVersion string) error {
+	ver, err := semver.NewVersion(serverVersion)
+	switch {
+	case err != nil:
+		logrus.Debugf("Invalid MySQL server version %q. Assuming role management is supported.", serverVersion)
+		return nil
+
+	// Reference:
+	// https://dev.mysql.com/doc/relnotes/mysql/8.0/en/news-8-0-0.html#mysqld-8-0-0-account-management
+	case ver.Major < 8:
+		return trace.BadParameter("role management is not supported for MySQL servers older than 8.0")
+
+	default:
+		return nil
+	}
 }
 
 func maybeHashUsername(teleportUser string, maxUsernameLength int) string {
@@ -379,6 +456,14 @@ func doTransaction(conn *clientConn, do func() error) error {
 	return trace.Wrap(conn.Commit())
 }
 
+func readDeleteUserResult(res *mysql.Result) string {
+	if len(res.Values) != 1 && len(res.Values[0]) != 1 {
+		return ""
+	}
+
+	return string(res.Values[0][0].AsString())
+}
+
 const (
 	// procedureVersion is a hard-coded string that is set as procedure
 	// comments to indicate the procedure version.
@@ -400,25 +485,10 @@ const (
 	// SELECT TO_USER AS 'Teleport Managed Users' FROM mysql.role_edges WHERE FROM_USER = 'teleport-auto-user'
 	teleportAutoUserRole = "teleport-auto-user"
 
-	// sqlStateActiveUser is the SQLSTATE raised by deactivation procedure when
-	// user has active connections.
-	//
-	// SQLSTATE reference:
-	// https://en.wikipedia.org/wiki/SQLSTATE
-	sqlStateActiveUser = "TP000"
-	// sqlStateUsernameDoesNotMatch is the SQLSTATE raised by activation
-	// procedure when the Teleport username does not match user's attributes.
-	//
-	// Possibly there is a hash collision, or someone manually updated the user
-	// attributes.
-	sqlStateUsernameDoesNotMatch = "TP001"
-	// sqlStateRolesChanged is the SQLSTATE raised by activation procedure when
-	// the user has active connections but roles has changed.
-	sqlStateRolesChanged = "TP002"
-
 	revokeRolesProcedureName    = "teleport_revoke_roles"
 	activateUserProcedureName   = "teleport_activate_user"
 	deactivateUserProcedureName = "teleport_deactivate_user"
+	deleteUserProcedureName     = "teleport_delete_user"
 )
 
 var (
@@ -428,6 +498,8 @@ var (
 	deactivateUserProcedure string
 	//go:embed mysql_revoke_roles.sql
 	revokeRolesProcedure string
+	//go:embed mysql_delete_user.sql
+	deleteProcedure string
 
 	allProcedures = []struct {
 		name          string
@@ -444,6 +516,10 @@ var (
 		{
 			name:          deactivateUserProcedureName,
 			createCommand: deactivateUserProcedure,
+		},
+		{
+			name:          deleteUserProcedureName,
+			createCommand: deleteProcedure,
 		},
 	}
 )

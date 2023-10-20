@@ -119,7 +119,7 @@ func (c *ACLCommand) List(ctx context.Context, client auth.ClientI) error {
 		}
 	}
 
-	if len(accessLists) == 0 {
+	if len(accessLists) == 0 && c.format == teleport.Text {
 		fmt.Println("no access lists")
 		return nil
 	}
@@ -222,7 +222,7 @@ func displayAccessLists(format string, accessLists ...*accesslist.AccessList) er
 	case teleport.YAML:
 		return trace.Wrap(utils.WriteYAML(os.Stdout, accessLists))
 	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSON(os.Stdout, accessLists))
+		return trace.Wrap(utils.WriteJSONArray(os.Stdout, accessLists))
 	case teleport.Text:
 		return trace.Wrap(displayAccessListsText(accessLists...))
 	}
@@ -232,7 +232,7 @@ func displayAccessLists(format string, accessLists ...*accesslist.AccessList) er
 }
 
 func displayAccessListsText(accessLists ...*accesslist.AccessList) error {
-	table := asciitable.MakeTable([]string{"ID", "Audit Frequency", "Granted Roles", "Granted Traits"})
+	table := asciitable.MakeTable([]string{"ID", "Review Frequency", "Review Day Of Month", "Granted Roles", "Granted Traits"})
 	for _, accessList := range accessLists {
 		grantedRoles := strings.Join(accessList.GetGrants().Roles, ",")
 		traitStrings := make([]string, 0, len(accessList.GetGrants().Traits))
@@ -242,7 +242,8 @@ func displayAccessListsText(accessLists ...*accesslist.AccessList) error {
 		grantedTraits := strings.Join(traitStrings, ",")
 		table.AddRow([]string{
 			accessList.GetName(),
-			accessList.GetAuditFrequency().String(),
+			accessList.Spec.Audit.Recurrence.Frequency.String(),
+			accessList.Spec.Audit.Recurrence.DayOfMonth.String(),
 			grantedRoles,
 			grantedTraits,
 		})

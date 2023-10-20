@@ -17,6 +17,7 @@
 import React, { useState, useEffect } from 'react';
 
 import { Box, Indicator, Text, Flex } from 'design';
+import { Warning } from 'design/Icon';
 import { Danger } from 'design/Alert';
 import { FetchStatus } from 'design/DataTable/types';
 
@@ -27,9 +28,14 @@ import {
   SecurityGroup,
   integrationService,
 } from 'teleport/services/integrations';
+import {
+  DiscoverEvent,
+  DiscoverEventStatus,
+} from 'teleport/services/userEvent';
 import { NodeMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
   ActionButtons,
+  ButtonBlueText,
   Header,
   SecurityGroupPicker,
 } from 'teleport/Discover/Shared';
@@ -78,7 +84,8 @@ export function CreateEc2Ice() {
   const { attempt: deployEc2IceAttempt, setAttempt: setDeployEc2IceAttempt } =
     useAttempt('');
 
-  const { emitErrorEvent, agentMeta, prevStep, nextStep } = useDiscover();
+  const { emitErrorEvent, agentMeta, prevStep, nextStep, emitEvent } =
+    useDiscover();
 
   async function fetchSecurityGroups() {
     const integration = (agentMeta as NodeMeta).integration;
@@ -122,13 +129,22 @@ export function CreateEc2Ice() {
         }
       );
       // Capture event for deploying EICE.
-      // emitEvent(null); TODO rudream (ADD EVENTS FOR EICE FLOW)
+      emitEvent(
+        { stepStatus: DiscoverEventStatus.Success },
+        {
+          eventName: DiscoverEvent.EC2DeployEICE,
+        }
+      );
     } catch (err) {
       const errMsg = getErrMessage(err);
       setShowCreatingDialog(false);
       setDeployEc2IceAttempt({ status: 'failed', statusText: errMsg });
-      emitErrorEvent(
-        `ec2 instance connect endpoint deploying failed: ${errMsg}`
+      // Capture error event for failing to deploy EICE.
+      emitEvent(
+        { stepStatus: DiscoverEventStatus.Error, stepStatusError: errMsg },
+        {
+          eventName: DiscoverEvent.EC2DeployEICE,
+        }
       );
     }
   }
@@ -155,7 +171,15 @@ export function CreateEc2Ice() {
             any security groups, the default one for the VPC will be used.
           </Text>
           {fetchSecurityGroupsAttempt.status === 'failed' && (
-            <Danger>{fetchSecurityGroupsAttempt.statusText}</Danger>
+            <>
+              <Flex my={3}>
+                <Warning size="medium" ml={1} mr={2} color="error.main" />
+                <Text>{fetchSecurityGroupsAttempt.statusText}</Text>
+              </Flex>
+              <ButtonBlueText ml={1} onClick={fetchSecurityGroups}>
+                Retry
+              </ButtonBlueText>
+            </>
           )}
           {fetchSecurityGroupsAttempt.status === 'processing' && (
             <Flex width="352px" justifyContent="center" mt={3}>

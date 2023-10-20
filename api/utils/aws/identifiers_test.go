@@ -24,11 +24,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIsValidAccountID(t *testing.T) {
-	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
-		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
-	}
+func isBadParamErrFn(t require.TestingT, err error, i ...any) {
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+}
 
+func TestIsValidAccountID(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
 		accountID string
@@ -77,10 +77,6 @@ func TestIsValidAccountID(t *testing.T) {
 }
 
 func TestIsValidIAMRoleName(t *testing.T) {
-	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
-		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
-	}
-
 	for _, tt := range []struct {
 		name     string
 		role     string
@@ -128,11 +124,55 @@ func TestIsValidIAMRoleName(t *testing.T) {
 	}
 }
 
-func TestIsValidRegion(t *testing.T) {
-	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
-		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+func TestIsValidIAMPolicyName(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		policy   string
+		errCheck require.ErrorAssertionFunc
+	}{
+		{
+			name:     "valid",
+			policy:   "valid",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "valid with numbers",
+			policy:   "00VALID11",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "only one symbol",
+			policy:   "_",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "all symbols",
+			policy:   "Test+1=2,3.4@5-6_7",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "empty",
+			policy:   "",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "too large",
+			policy:   strings.Repeat("p", 129),
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "invalid symbols",
+			policy:   "policy/admin",
+			errCheck: isBadParamErrFn,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errCheck(t, IsValidIAMPolicyName(tt.policy))
+		})
 	}
+}
 
+func TestIsValidRegion(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		region   string
@@ -176,6 +216,173 @@ func TestIsValidRegion(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.errCheck(t, IsValidRegion(tt.region))
+		})
+	}
+}
+
+func TestCheckRoleARN(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		arn      string
+		errCheck require.ErrorAssertionFunc
+	}{
+		{
+			name:     "valid",
+			arn:      "arn:aws:iam:us-west-2:123456789012:role/foo/bar",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "empty string",
+			arn:      "",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "arn identifier but no other section",
+			arn:      "arn:nil",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "valid with resource that has spaces",
+			arn:      "arn:aws:iam:us-west-2:123456789012:role/foo bar",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "valid when resource section has :",
+			arn:      "arn:aws:iam:us-west-2:123456789012:role/foo bar:a",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "invalid when resource is missing",
+			arn:      "arn:aws:iam:us-west-2:123456789012",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "valid even if region is missing",
+			arn:      "arn:aws:iam::123456789012:role/foo bar",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "invalid when the resource is not role",
+			arn:      "arn:aws:iam::123456789012:user/foo bar",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "invalid when the resource is of type role, but role name section is missing",
+			arn:      "arn:aws:iam::123456789012:role",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "invalid when the resource is of type role, but role is empty",
+			arn:      "arn:aws:iam::123456789012:role/",
+			errCheck: isBadParamErrFn,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errCheck(t, CheckRoleARN(tt.arn))
+		})
+	}
+}
+
+func TestIsValidPartition(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		partition string
+		errCheck  require.ErrorAssertionFunc
+	}{
+		{
+			name:      "aws",
+			partition: "aws",
+			errCheck:  require.NoError,
+		},
+		{
+			name:      "china",
+			partition: "aws-cn",
+			errCheck:  require.NoError,
+		},
+		{
+			name:      "govcloud",
+			partition: "aws-us-gov",
+			errCheck:  require.NoError,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errCheck(t, IsValidPartition(tt.partition))
+		})
+	}
+}
+
+func TestIsValidAthenaWorkgroupName(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		workgroup string
+		errCheck  require.ErrorAssertionFunc
+	}{
+		{
+			name:      "valid",
+			workgroup: "test-Workgroup-123_456",
+			errCheck:  require.NoError,
+		},
+		{
+			name:      "empty",
+			workgroup: "",
+			errCheck:  isBadParamErrFn,
+		},
+		{
+			name:      "too long",
+			workgroup: strings.Repeat("w", 129),
+			errCheck:  isBadParamErrFn,
+		},
+		{
+			name:      "symbols",
+			workgroup: "!bad%workgroup",
+			errCheck:  isBadParamErrFn,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errCheck(t, IsValidAthenaWorkgroupName(tt.workgroup))
+		})
+	}
+}
+
+func TestIsValidGlueResourceName(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		resourceName string
+		errCheck     require.ErrorAssertionFunc
+	}{
+		{
+			name:         "valid",
+			resourceName: "test_database_123_456",
+			errCheck:     require.NoError,
+		},
+		{
+			name:         "empty",
+			resourceName: "",
+			errCheck:     isBadParamErrFn,
+		},
+		{
+			name:         "too long",
+			resourceName: strings.Repeat("g", 256),
+			errCheck:     isBadParamErrFn,
+		},
+		{
+			name:         "hyphen",
+			resourceName: "bad-table",
+			errCheck:     isBadParamErrFn,
+		},
+		{
+			name:         "capital",
+			resourceName: "bad-Table",
+			errCheck:     isBadParamErrFn,
+		},
+		{
+			name:         "symbols",
+			resourceName: "!bad%table",
+			errCheck:     isBadParamErrFn,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errCheck(t, IsValidGlueResourceName(tt.resourceName))
 		})
 	}
 }

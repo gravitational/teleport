@@ -36,6 +36,11 @@ const (
 	// releases on the release server
 	EnterpriseReleaseEndpoint = "teleport-ent"
 
+	// PackageNameOSS is the teleport package name for the OSS version.
+	PackageNameOSS = "teleport"
+	// PackageNameOSS is the teleport package name for the Enterprise version.
+	PackageNameEnt = "teleport-ent"
+
 	// ActionRead grants read access (get, list)
 	ActionRead = "read"
 
@@ -275,6 +280,15 @@ const (
 	// session recording configuration.
 	MetaNameSessionRecordingConfig = "session-recording-config"
 
+	// KindExternalCloudAudit the resource for external cloud audit.
+	KindExternalCloudAudit = "external_cloud_audit"
+	// MetaNameExternalCloudAuditDraft is the exact name of the singleton resource
+	// holding external cloud audit draft configuration.
+	MetaNameExternalCloudAuditDraft = "draft"
+	// MetaNameExternalCloudAuditCluster is the exact name of the singleton resource
+	// holding external cloud audit cluster configuration.
+	MetaNameExternalCloudAuditCluster = "cluster"
+
 	// KindClusterConfig is the resource that holds cluster level configuration.
 	// Deprecated: This does not correspond to an actual resource anymore but is
 	// still used when checking access to the new configuration resources, as an
@@ -460,9 +474,20 @@ const (
 	// KindAccessListMember is an AccessListMember resource
 	KindAccessListMember = "access_list_member"
 
+	// KindAccessListReview is an AccessListReview resource
+	KindAccessListReview = "access_list_review"
+
 	// KindDiscoveryConfig is a DiscoveryConfig resource.
 	// Used for adding additional matchers in Discovery Service.
 	KindDiscoveryConfig = "discovery_config"
+	// KindAuditQuery is an AuditQuery resource.
+	KindAuditQuery = "audit_query"
+	// KindSecurityReport is a SecurityReport resource.
+	KindSecurityReport = "security_report"
+	// KindSecurityReportState is a SecurityReportState resource.
+	KindSecurityReportState = "security_report_state"
+	// KindSecurityReportCostLimiter const limiter
+	KindSecurityReportCostLimiter = "security_report_cost_limiter"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"
@@ -1112,4 +1137,14 @@ const (
 	JWTClaimsRewriteTraits = "traits"
 	// JWTClaimsRewriteNone include neither traits nor roles in the JWT token.
 	JWTClaimsRewriteNone = "none"
+)
+
+const (
+	// DefaultInstallerScriptName is the name of the by default populated, EC2
+	// installer script
+	DefaultInstallerScriptName = "default-installer"
+
+	// DefaultInstallerScriptNameAgentless is the name of the by default populated, EC2
+	// installer script when agentless mode is enabled for a matcher
+	DefaultInstallerScriptNameAgentless = "default-agentless-installer"
 )

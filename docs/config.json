@@ -161,8 +161,13 @@
           "forScopes": ["oss", "enterprise"],
           "entries": [
             {
-              "title": "AWS Terraform",
-              "slug": "/deploy-a-cluster/deployments/aws-terraform/",
+              "title": "AWS HA Terraform",
+              "slug": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
+              "forScopes": ["oss", "enterprise"]
+            },
+            {
+              "title": "AWS Single-Instance Terraform",
+              "slug": "/deploy-a-cluster/deployments/aws-starter-cluster-terraform/",
               "forScopes": ["oss", "enterprise"]
             },
             {
@@ -267,7 +272,8 @@
             },
             {
               "title": "GitHub",
-              "slug": "/access-controls/sso/github-sso/"
+              "slug": "/access-controls/sso/github-sso/",
+              "forScopes": ["oss", "team", "enterprise", "cloud"]
             },
             {
               "title": "GitLab",
@@ -423,8 +429,13 @@
               "slug": "/access-controls/access-requests/resource-requests/",
               "forScopes": ["enterprise", "cloud"]
             },
+	    {
+	      "title": "Configure Access Requests",
+              "slug": "/access-controls/access-requests/access-request-configuration/",
+              "forScopes": ["enterprise", "cloud"]
+	    },
             {
-              "title": "Role Requests in OSS Teleport",
+              "title": "Access Requests in Teleport Community Edition",
               "slug": "/access-controls/access-requests/oss-role-requests/",
               "forScopes": ["oss"]
             }
@@ -453,12 +464,12 @@
             {
               "title": "Opsgenie",
               "slug": "/access-controls/access-request-plugins/opsgenie/",
-              "forScopes": ["cloud"]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "ServiceNow",
               "slug": "/access-controls/access-request-plugins/servicenow/",
-              "forScopes": ["cloud"]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Jira",
@@ -615,8 +626,8 @@
           "slug": "/management/security/",
           "entries": [
             {
-              "title": "Privilege Elevation",
-              "slug": "/management/security/privilege-elevation/"
+              "title": "Restrict Access for Privileged Accounts",
+              "slug": "/management/security/restrict-privileges/"
             },
             {
               "title": "Reducing the Blast Radius of Attacks",
@@ -717,8 +728,8 @@
           "slug": "/connect-your-client/teleport-connect/"
         },
         {
-          "title": "Using PuTTY",
-          "slug": "/connect-your-client/putty/"
+          "title": "Using PuTTY and WinSCP",
+          "slug": "/connect-your-client/putty-winscp/"
         },
         {
           "title": "Database GUI Clients",
@@ -896,7 +907,7 @@
         {
           "title": "Troubleshooting Application Access",
           "slug": "/application-access/troubleshooting-apps/"
-        },           
+        },
         {
           "title": "Reference",
           "slug": "/application-access/reference/"
@@ -925,7 +936,11 @@
             },
             {
               "title": "Agentless OpenSSH Integration",
-              "slug": "/server-access/guides/openssh/"
+              "slug": "/server-access/guides/openssh/openssh/"
+            },
+            {
+              "title": "Agentless OpenSSH Integration (Manual Install)",
+              "slug": "/server-access/guides/openssh/openssh-manual-install/"
             },
             {
               "title": "Recording Proxy Mode",
@@ -977,6 +992,10 @@
         {
           "title": "Access Controls",
           "slug": "/server-access/rbac/"
+        },
+        {
+          "title": "Troubleshooting Server Access",
+          "slug": "/server-access/troubleshooting-server/"
         }
       ]
     },
@@ -1097,8 +1116,16 @@
               "slug": "/database-access/guides/rds/"
             },
             {
-              "title": "AWS RDS Proxy",
-              "slug": "/database-access/guides/rds-proxy/"
+              "title": "AWS RDS Proxy for MariaDB/MySQL",
+              "slug": "/database-access/guides/rds-proxy-mysql/"
+            },
+            {
+              "title": "AWS RDS Proxy for PostgreSQL",
+              "slug": "/database-access/guides/rds-proxy-postgres/"
+            },
+            {
+              "title": "AWS RDS Proxy for SQL Server",
+              "slug": "/database-access/guides/rds-proxy-sqlserver/"
             },
             {
               "title": "AWS Redshift",
@@ -1206,10 +1233,20 @@
             {
               "title": "RBAC",
               "slug": "/database-access/rbac/configuring-access/"
+            }
+          ]
+        },
+        {
+          "title": "Automatic User Provisioning",
+          "slug": "/database-access/auto-user-provisioning/",
+          "entries": [
+            {
+              "title": "MySQL",
+              "slug": "/database-access/auto-user-provisioning/mysql/"
             },
             {
-              "title": "Automatic User Provisioning ",
-              "slug": "/database-access/rbac/configuring-auto-user-provisioning/"
+              "title": "PostgreSQL",
+              "slug": "/database-access/auto-user-provisioning/postgres/"
             }
           ]
         },
@@ -1327,48 +1364,78 @@
           "slug": "/machine-id/getting-started/"
         },
         {
-          "title": "Guides",
-          "slug": "/machine-id/guides/",
+          "title": "Deploying Machine ID",
+          "slug": "/machine-id/deployment/",
           "entries": [
             {
-              "title": "Ansible",
-              "slug": "/machine-id/guides/ansible/"
+              "title": "AWS",
+              "slug": "/machine-id/deployment/aws/"
             },
             {
-              "title": "GitHub Actions",
-              "slug": "/machine-id/guides/github-actions/"
+              "title": "Google Cloud",
+              "slug": "/machine-id/deployment/gcp/"
+            },
+            {
+              "title": "Azure",
+              "slug": "/machine-id/deployment/azure/"
             },
             {
               "title": "CircleCI",
-              "slug": "/machine-id/guides/circleci/"
+              "slug": "/machine-id/deployment/circleci/"
             },
             {
-              "title": "GitHub Actions & Kubernetes",
-              "slug": "/machine-id/guides/github-actions-kubernetes/"
+              "title": "GitHub Actions",
+              "slug": "/machine-id/deployment/github-actions/"
             },
             {
-              "title": "GitLab CI",
-              "slug": "/machine-id/guides/gitlab/"
+              "title": "GitLab",
+              "slug": "/machine-id/deployment/gitlab/"
             },
             {
               "title": "Jenkins",
-              "slug": "/machine-id/guides/jenkins/"
+              "slug": "/machine-id/deployment/jenkins/"
             },
-            {
-              "title": "Databases",
-              "slug": "/machine-id/guides/databases/"
+	    {
+              "title": "Linux Server",
+              "slug": "/machine-id/deployment/linux/"
             },
             {
               "title": "Kubernetes",
-              "slug": "/machine-id/guides/kubernetes/"
+              "slug": "/machine-id/deployment/kubernetes/"
+            }
+          ]
+        },
+        {
+          "title": "Accessing Infrastructure with Machine ID",
+          "slug": "/machine-id/access-guides/",
+          "entries": [
+            {
+              "title": "tctl",
+              "slug": "/machine-id/access-guides/tctl/"
+            },
+            {
+              "title": "Kubernetes",
+              "slug": "/machine-id/access-guides/kubernetes/"
+            },
+            {
+              "title": "Terraform",
+              "slug": "/machine-id/access-guides/terraform/"
             },
             {
               "title": "Applications",
-              "slug": "/machine-id/guides/applications/"
+              "slug": "/machine-id/access-guides/applications/"
             },
             {
-              "title": "Host Certificates",
-              "slug": "/machine-id/guides/host-certificate/"
+              "title": "Databases",
+              "slug": "/machine-id/access-guides/databases/"
+            },
+            {
+              "title": "SSH",
+              "slug": "/machine-id/access-guides/ssh/"
+            },
+            {
+              "title": "Ansible",
+              "slug": "/machine-id/access-guides/ansible/"
             }
           ]
         },
@@ -1645,7 +1712,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "13.3.9",
+      "version": "13.4.3",
       "major_version": "13",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -1814,7 +1881,12 @@
     },
     {
       "source": "/aws-terraform-guide/",
-      "destination": "/deploy-a-cluster/deployments/aws-terraform/",
+      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/aws-terraform/",
+      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
       "permanent": true
     },
     {
@@ -2149,7 +2221,7 @@
     },
     {
       "source": "/setup/deployments/aws-terraform/",
-      "destination": "/deploy-a-cluster/deployments/aws-terraform/",
+      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
       "permanent": true
     },
     {
@@ -2474,7 +2546,7 @@
     },
     {
       "source": "/kubernetes-access/guides/cicd/",
-      "destination": "/machine-id/guides/kubernetes/",
+      "destination": "/machine-id/access-guides/kubernetes/",
       "permanent": true
     },
     {
@@ -2810,6 +2882,66 @@
     {
       "source": "/management/guides/terraform-provider/",
       "destination": "/management/dynamic-resources/terraform-provider/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/",
+      "destination": "/machine-id/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/applications/",
+      "destination": "/machine-id/access-guides/applications/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/ansible/",
+      "destination": "/machine-id/access-guides/ansible/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/databases/",
+      "destination": "/machine-id/access-guides/databases/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/kubernetes/",
+      "destination": "/machine-id/access-guides/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/circleci/",
+      "destination": "/machine-id/deployment/circleci/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/jenkins/",
+      "destination": "/machine-id/deployment/jenkins/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/gitlab/",
+      "destination": "/machine-id/deployment/gitlab/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/gitlab/",
+      "destination": "/machine-id/deployment/github-actions/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/openssh/",
+      "destination": "/server-access/guides/openssh/openssh/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/putty/",
+      "destination": "/connect-your-client/putty-winscp/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/rbac/configuring-auto-user-provisioning/",
+      "destination": "/database-access/auto-user-provisioning/",
       "permanent": true
     }
   ]

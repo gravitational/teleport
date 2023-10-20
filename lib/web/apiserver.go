@@ -764,13 +764,14 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
 
 	h.GET("/webapi/roles", h.WithAuth(h.getRolesHandle))
-	h.POST("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
-	h.PUT("/webapi/roles/:name", h.WithAuth(h.upsertRoleHandle))
+	h.POST("/webapi/roles", h.WithAuth(h.createRoleHandle))
+	h.PUT("/webapi/roles/:name", h.WithAuth(h.updateRoleHandle))
 	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
+	h.GET("/webapi/presetroles", h.WithUnauthenticatedHighLimiter(h.getPresetRoles))
 
 	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))
-	h.POST("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
-	h.PUT("/webapi/github/:name", h.WithAuth(h.upsertGithubConnectorHandle))
+	h.POST("/webapi/github", h.WithAuth(h.createGithubConnectorHandle))
+	h.PUT("/webapi/github/:name", h.WithAuth(h.updateGithubConnectorHandle))
 	h.DELETE("/webapi/github/:name", h.WithAuth(h.deleteGithubConnector))
 
 	h.GET("/webapi/trustedcluster", h.WithAuth(h.getTrustedClustersHandle))
@@ -821,6 +822,13 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET(OIDCJWKWURI, h.WithLimiter(h.jwksOIDC))
 	h.GET("/webapi/thumbprint", h.WithLimiter(h.thumbprint))
 
+	// DiscoveryConfig CRUD
+	h.GET("/webapi/sites/:site/discoveryconfig", h.WithClusterAuth(h.discoveryconfigList))
+	h.POST("/webapi/sites/:site/discoveryconfig", h.WithClusterAuth(h.discoveryconfigCreate))
+	h.GET("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigGet))
+	h.PUT("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigUpdate))
+	h.DELETE("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigDelete))
+
 	// Connection upgrades.
 	h.GET("/webapi/connectionupgrade", h.WithHighLimiter(h.connectionUpgrade))
 
@@ -861,6 +869,12 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Updates the user's preferences
 	h.PUT("/webapi/user/preferences", h.WithAuth(h.updateUserPreferences))
+
+	// Fetches the user's cluster preferences.
+	h.GET("/webapi/user/preferences/:site", h.WithClusterAuth(h.getUserClusterPreferences))
+
+	// Updates the user's cluster preferences.
+	h.PUT("/webapi/user/preferences/:site", h.WithClusterAuth(h.updateUserClusterPreferences))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -946,7 +960,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := clt.GetUser(c.GetUser(), false)
+	user, err := clt.GetUser(r.Context(), c.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -959,7 +973,13 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	}
 	desktopRecordingEnabled := recConfig.GetMode() != types.RecordOff
 
-	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), h.ClusterFeatures, desktopRecordingEnabled)
+	pingResp, err := clt.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessMonitoringEnabled := pingResp.ServerFeatures != nil && pingResp.ServerFeatures.IdentityGovernance
+
+	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), h.ClusterFeatures, desktopRecordingEnabled, accessMonitoringEnabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1003,6 +1023,7 @@ func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, 
 		AllowHeadless:       cap.GetAllowHeadless(),
 		Local:               &webclient.LocalSettings{},
 		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
+		PIVSlot:             cap.GetPIVSlot(),
 		DeviceTrustDisabled: deviceTrustDisabled(cap),
 		DeviceTrust:         deviceTrustSettings(cap),
 	}
@@ -1044,6 +1065,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 		SecondFactor:        cap.GetSecondFactor(),
 		PreferredLocalMFA:   cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
+		PIVSlot:             cap.GetPIVSlot(),
 		DeviceTrustDisabled: deviceTrustDisabled(cap),
 		DeviceTrust:         deviceTrustSettings(cap),
 	}
@@ -1060,6 +1082,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 		SecondFactor:        cap.GetSecondFactor(),
 		PreferredLocalMFA:   cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
+		PIVSlot:             cap.GetPIVSlot(),
 		DeviceTrustDisabled: deviceTrustDisabled(cap),
 		DeviceTrust:         deviceTrustSettings(cap),
 	}
@@ -1076,6 +1099,7 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 		SecondFactor:        cap.GetSecondFactor(),
 		PreferredLocalMFA:   cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
+		PIVSlot:             cap.GetPIVSlot(),
 		DeviceTrustDisabled: deviceTrustDisabled(cap),
 		DeviceTrust:         deviceTrustSettings(cap),
 	}
@@ -1775,6 +1799,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	if installUpdater {
 		repoChannel = stableCloudChannelRepo
 	}
+	azureClientID := r.URL.Query().Get("azure-client-id")
 
 	tmpl := installers.Template{
 		PublicProxyAddr:   h.PublicProxyAddr(),
@@ -1782,6 +1807,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		TeleportPackage:   teleportPackage,
 		RepoChannel:       repoChannel,
 		AutomaticUpgrades: strconv.FormatBool(installUpdater),
+		AzureClientID:     azureClientID,
 	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)
@@ -2241,7 +2267,7 @@ func (h *Handler) trySettingConnectorNameToPasswordless(ctx context.Context, ses
 		return nil
 	}
 
-	users, err := h.cfg.ProxyClient.GetUsers(false)
+	users, err := h.cfg.ProxyClient.GetUsers(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2494,7 +2520,6 @@ func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ ht
 }
 
 func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesRequest, error) {
-
 	values := r.URL.Query()
 
 	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
@@ -2511,12 +2536,24 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		}
 	}
 
+	// set default kinds to be requested if none exist in the request
+	if len(kinds) == 0 {
+		kinds = []string{
+			types.KindApp,
+			types.KindDatabase,
+			types.KindNode,
+			types.KindWindowsDesktop,
+			types.KindKubernetesCluster,
+		}
+	}
+
 	startKey := values.Get("startKey")
 	return &proto.ListUnifiedResourcesRequest{
 		Kinds:               kinds,
 		Limit:               limit,
 		StartKey:            startKey,
 		SortBy:              sortBy,
+		PinnedOnly:          values.Get("pinnedOnly") == "true",
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
 		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
@@ -2641,6 +2678,9 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			unifiedResources = append(unifiedResources, desktop)
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker)
+			unifiedResources = append(unifiedResources, kube)
+		case types.KubeServer:
+			kube := ui.MakeKubeCluster(r.GetCluster(), accessChecker)
 			unifiedResources = append(unifiedResources, kube)
 		default:
 			return nil, trace.Errorf("UI Resource has unknown type: %T", resource)
@@ -3151,6 +3191,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		Moderated:             accessEvaluator.IsModerated(),
 		DatabaseName:          tracker.GetDatabaseName(),
 		Owner:                 tracker.GetHostUser(),
+		Command:               strings.Join(tracker.GetCommand(), " "),
 	}
 }
 
@@ -3831,7 +3872,6 @@ func consumeTokenForAPICall(ctx context.Context, proxyClient auth.ClientI, token
 	}
 
 	return token, nil
-
 }
 
 // checkTokenTTL returns true if the token is still valid.

@@ -19,6 +19,8 @@ package common
 import (
 	"fmt"
 	"net"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/gravitational/trace"
@@ -161,7 +163,8 @@ func addPuTTYSession(proxyHostname string, hostname string, port int, login stri
 	return nil
 }
 
-// addHostCAPublicKey adds a host CA to the registry with a set of space-separated hostnames
+// addHostCAPublicKey adds a host CA to the registry with a set of hostnames delimited by " || "
+// as per PuTTY's "Validity" syntax.
 func addHostCAPublicKey(registryHostCAStruct puttyhosts.HostCAPublicKeyForRegistry) error {
 	registryKeyName := fmt.Sprintf(`%v\%v`, puttyRegistrySSHHostCAsKey, registryHostCAStruct.KeyName)
 
@@ -171,7 +174,9 @@ func addHostCAPublicKey(registryHostCAStruct puttyhosts.HostCAPublicKeyForRegist
 		return trace.Wrap(err)
 	}
 	defer registryKey.Close()
-	hostList, _, err := registryKey.GetStringsValue("MatchHosts")
+
+	// get the "new" string-based Validity value if present.
+	validity, _, err := registryKey.GetStringValue("Validity")
 	if err != nil {
 		// ERROR_FILE_NOT_FOUND is an acceptable error, meaning that the value does not already
 		// exist and it must be created
@@ -180,16 +185,42 @@ func addHostCAPublicKey(registryHostCAStruct puttyhosts.HostCAPublicKeyForRegist
 			return trace.Wrap(err)
 		}
 	}
-	// initialize an empty hostlist if there isn't one stored under the registry key
-	if len(hostList) == 0 {
-		hostList = []string{}
+
+	// split the Validity key out into a list of individual hostnames (hostList)
+	hostList, err := puttyhosts.CheckAndSplitValidityKey(validity, registryHostCAStruct.KeyName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// get the "old" multistring-based MatchHosts value if present, so we can migrate it to the newer
+	// "Validity" format and then delete it.
+	matchHosts, _, err := registryKey.GetStringsValue("MatchHosts")
+	if err != nil {
+		// ERROR_FILE_NOT_FOUND is an acceptable error, meaning that the value does not already
+		// exist and it must be created
+		if err != syscall.ERROR_FILE_NOT_FOUND {
+			log.Debugf("Can't get registry value %v: %T", registryKeyName, err)
+			return trace.Wrap(err)
+		}
+	}
+	// if matchHosts has any entries, we do a one-time migration of all the values from the "old" MatchHosts
+	// multistring to the new Validity string,
+	if len(matchHosts) > 0 {
+		log.Debugf("Found %v legacy MatchHosts value(s) in registry key %v, migrating to new Validity format", len(matchHosts), registryKeyName)
+		hostList = append(hostList, matchHosts...)
 	}
 
 	// add the new hostname to the existing hostList from the registry key (if one exists)
 	hostList = puttyhosts.AddHostToHostList(hostList, registryHostCAStruct.Hostname)
 
+	// Reconstruct the "Validity" string using our hostList, separated by " || ".
+	hostListValidity := strings.Join(hostList, " || ")
+
 	// write strings to subkey
-	if err := registry.WriteMultiString(registryKey, "MatchHosts", hostList); err != nil {
+	// In beta versions of PuTTY 0.78 and the initial release of 'tsh puttyconfig', the list of valid hosts was
+	// represented by a REG_MULTI_SZ called "MatchHosts". Newer versions of PuTTY, WinSCP and 'tsh puttyconfig' use
+	// and prefer the string-formatted "Validity" instead. PuTTY will ignore "MatchHosts" when "Validity" is set.
+	if err := registry.WriteString(registryKey, "Validity", hostListValidity); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := registry.WriteString(registryKey, "PublicKey", registryHostCAStruct.PublicKey); err != nil {
@@ -207,6 +238,16 @@ func addHostCAPublicKey(registryHostCAStruct puttyhosts.HostCAPublicKeyForRegist
 		return trace.Wrap(err)
 	}
 
+	// if matchHosts has any entries, delete the "MatchHosts" key from the registry as its entries were migrated above.
+	if len(matchHosts) > 0 {
+		log.Debugf("Deleting %v legacy MatchHosts value(s) from registry key %v", len(matchHosts), registryKeyName)
+		err := registryKey.DeleteValue("MatchHosts")
+		// failure to delete this value isn't a fatal error, so we should continue regardless
+		if err != nil {
+			log.Debugf("Failed to delete old MatchHosts value for %v: %v", registryHostCAStruct.KeyName, err)
+		}
+	}
+
 	return nil
 }
 
@@ -217,19 +258,29 @@ func onPuttyConfig(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// validate hostname against a naive regex to make sure it doesn't contain obviously illegal characters due
-	// to typos or similar. setting an "invalid" key in the registry makes it impossible to delete via the PuTTY
-	// UI and requires registry edits, so it's much better to error out early here.
-	hostname := tc.Config.Host
+	// remove any spaces from the provided hostname. if the hostname contains a colon, it will be a
+	// hostname:port combination so we split it. this is useful as shorthand when adding OpenSSH hosts
+	// with `tsh puttyconfig user@host:22`, rather than using the longer `tsh puttyconfig --port 22 user@host`
+	hostname := strings.TrimSpace(tc.Config.Host)
+	port := tc.Config.HostPort
+	if splitHost, splitPort, err := net.SplitHostPort(hostname); err == nil {
+		hostname = splitHost
+		port, err = strconv.Atoi(splitPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	// validate the hostname against a naive regex to make sure it doesn't contain obviously illegal characters
+	// due to typos or similar. setting an "invalid" key in the registry makes it impossible to delete via the
+	// PuTTY UI and requires registry edits, so it's much better to error out early here.
 	if !puttyhosts.NaivelyValidateHostname(hostname) {
 		return trace.BadParameter("provided hostname %v does not look like a valid hostname. Make sure it doesn't contain illegal characters.", hostname)
 	}
 
-	port := tc.Config.HostPort
 	userHostString := hostname
 	login := ""
 	if tc.Config.HostLogin != "" {
-		login = tc.Config.HostLogin
+		login = strings.ReplaceAll(tc.Config.HostLogin, " ", "")
 		userHostString = fmt.Sprintf("%v@%v", login, userHostString)
 	}
 
@@ -293,7 +344,7 @@ func onPuttyConfig(cf *CLIConf) error {
 	}
 
 	// add session to registry
-	if err := addPuTTYSession(proxyHost, tc.Config.Host, port, login, ppkFilePath, certificateFilePath, localCommandString, cf.LeafClusterName); err != nil {
+	if err := addPuTTYSession(proxyHost, hostname, port, login, ppkFilePath, certificateFilePath, localCommandString, cf.LeafClusterName); err != nil {
 		log.Errorf("Failed to add PuTTY session for %v: %T\n", userHostString, err)
 		return trace.Wrap(err)
 	}

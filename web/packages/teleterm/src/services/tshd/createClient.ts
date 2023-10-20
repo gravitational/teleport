@@ -789,6 +789,71 @@ export default function createClient(
         });
       });
     },
+
+    listUnifiedResources(
+      params: types.ListUnifiedResourcesRequest,
+      abortSignal?: types.TshAbortSignal
+    ) {
+      return withAbort(abortSignal, callRef => {
+        const req = new api.ListUnifiedResourcesRequest()
+          .setClusterUri(params.clusterUri)
+          .setLimit(params.limit)
+          .setKindsList(params.kindsList)
+          .setSortBy(
+            new api.SortBy()
+              .setField(params.sortBy.field)
+              .setIsDesc(params.sortBy.isDesc)
+          )
+          .setStartKey(params.startKey)
+          .setSearch(params.search)
+          .setQuery(params.query)
+          .setSearchAsRoles(params.searchAsRoles);
+
+        return new Promise<types.ListUnifiedResourcesResponse>(
+          (resolve, reject) => {
+            callRef.current = tshd.listUnifiedResources(req, (err, res) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve({
+                  nextKey: res.getNextKey(),
+                  resources: res
+                    .getResourcesList()
+                    .map(p => {
+                      switch (p.getResourceCase()) {
+                        case api.PaginatedResource.ResourceCase.SERVER:
+                          return {
+                            kind: 'server' as const,
+                            resource: p.getServer().toObject() as types.Server,
+                          };
+                        case api.PaginatedResource.ResourceCase.DATABASE:
+                          return {
+                            kind: 'database' as const,
+                            resource: p
+                              .getDatabase()
+                              .toObject() as types.Database,
+                          };
+                        case api.PaginatedResource.ResourceCase.KUBE:
+                          return {
+                            kind: 'kube' as const,
+                            resource: p.getKube().toObject() as types.Kube,
+                          };
+                        default:
+                          logger.info(
+                            `Ignoring unsupported resource ${JSON.stringify(
+                              p.toObject()
+                            )}.`
+                          );
+                      }
+                    })
+                    .filter(Boolean),
+                });
+              }
+            });
+          }
+        );
+      });
+    },
   };
 
   return client;
