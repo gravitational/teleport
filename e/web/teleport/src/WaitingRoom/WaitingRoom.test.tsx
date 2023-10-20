@@ -12,7 +12,7 @@ import { makeAccessRequest } from 'e-teleport/services/workflow';
 import WaitingRoom from './WaitingRoom';
 
 beforeAll(() => {
-  jest.useFakeTimers('modern');
+  jest.useFakeTimers();
   jest.setSystemTime(new Date('2020-11-04T19:07:50.693Z'));
 });
 
