@@ -20,7 +20,7 @@ use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use ironrdp_pdu::{other_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::DeviceControlResponse;
-use ironrdp_rdpdr::pdu::esc::{ScardContext, ScardHandle};
+use ironrdp_rdpdr::pdu::esc::{ReadCacheCall, ScardContext, ScardHandle};
 use iso7816::command::Command as CardCommand;
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::model::data::Message as MessageTrait;
@@ -2418,6 +2418,12 @@ impl Contexts {
 
     pub fn exists(&self, id: u32) -> bool {
         self.contexts.contains_key(&id)
+    }
+
+    pub fn read_cache(&mut self, call: ReadCacheCall) -> PduResult<Option<Vec<u8>>> {
+        Ok(self
+            .get_internal_mut(call.common.context.value)?
+            .cache_read(&call.lookup_name))
     }
 
     fn get_internal_mut_deprecated(&mut self, id: u32) -> RdpResult<&mut ContextInternal> {
