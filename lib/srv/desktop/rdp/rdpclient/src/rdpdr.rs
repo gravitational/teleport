@@ -39,10 +39,10 @@ use ironrdp_pdu::utils::CharacterSet;
 use ironrdp_pdu::{custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::esc::{
     rpce, CardProtocol, CardState, CardStateFlags, ConnectCall, ConnectReturn, ContextCall,
-    EstablishContextReturn, GetDeviceTypeIdCall, GetDeviceTypeIdReturn, GetStatusChangeCall,
-    GetStatusChangeReturn, HCardAndDispositionCall, ListReadersReturn, ReadCacheCall,
-    ReadCacheReturn, ReaderStateCommonCall, ScardCall, StatusReturn, TransmitCall, TransmitReturn,
-    WriteCacheCall,
+    EstablishContextReturn, GetDeviceTypeIdCall, GetDeviceTypeIdReturn, GetReaderIconReturn,
+    GetStatusChangeCall, GetStatusChangeReturn, HCardAndDispositionCall, ListReadersReturn,
+    ReadCacheCall, ReadCacheReturn, ReaderStateCommonCall, ScardCall, StatusReturn, TransmitCall,
+    TransmitReturn, WriteCacheCall,
 };
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::{
@@ -184,6 +184,10 @@ impl RdpdrBackend for TeleportRdpdrBackend {
             },
             ScardIoCtlCode::WriteCacheW => match call {
                 ScardCall::WriteCacheCall(call) => self.handle_write_cache(req, call),
+                _ => Self::unsupported_combo_error(req.io_control_code, call),
+            },
+            ScardIoCtlCode::GetReaderIcon => match call {
+                ScardCall::GetReaderIconCall(_) => self.handle_get_reader_icon(req),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
             _ => Err(custom_err!(
@@ -516,6 +520,19 @@ impl TeleportRdpdrBackend {
     ) -> PduResult<()> {
         self.contexts.write_cache(call)?;
         self.write_rdpdr_response(req, Box::new(LongReturn::new(ReturnCode::Success)))
+    }
+
+    fn handle_get_reader_icon(
+        &mut self,
+        req: DeviceControlRequest<ScardIoCtlCode>,
+    ) -> PduResult<()> {
+        self.write_rdpdr_response(
+            req,
+            Box::new(GetReaderIconReturn::new(
+                ReturnCode::UnsupportedFeature,
+                vec![],
+            )),
+        )
     }
 
     fn create_get_status_change_return(
