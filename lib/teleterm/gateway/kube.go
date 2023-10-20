@@ -133,7 +133,12 @@ func (k *kube) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) 
 
 	certs := make(alpnproxy.KubeClientCerts)
 	certs.Add(k.cfg.ClusterName, k.cfg.TargetName, cert)
-	return alpnproxy.NewKubeMiddleware(certs, certReissuer.reissueCert, k.cfg.Clock, k.cfg.Log), nil
+	return alpnproxy.NewKubeMiddleware(alpnproxy.KubeMiddlewareConfig{
+		Certs:        certs,
+		CertReissuer: certReissuer.reissueCert,
+		Clock:        k.cfg.Clock,
+		Logger:       k.cfg.Log,
+	}), nil
 }
 
 func (k *kube) makeForwardProxyForKube() error {
