@@ -74,7 +74,7 @@ func (d *DefaultBootstrapInfraClient) UpdateTable(ctx context.Context, params *g
 
 // BootstrapInfra bootstraps external cloud audit infrastructure
 // We are currently very opinionated about inputs and have additional checks
-func BootstrapInfra(ctx context.Context, clt BootstrapInfraClient, eca ecatypes.ExternalCloudAuditSpec, region string) error {
+func BootstrapInfra(ctx context.Context, clt BootstrapInfraClient, eca *ecatypes.ExternalCloudAuditSpec, region string) error {
 	ltsBucket, transientBucket, err := validateAndParseS3Input(eca)
 	if err != nil {
 		return trace.Wrap(err)
@@ -318,7 +318,11 @@ func createGlueInfra(ctx context.Context, clt createGlueInfraClient, table, data
 
 // validateAndParseS3Input parses and checks s3 input uris against are strict rules
 // We currently enforce two buckets one for long term storage and one for transient short term storage
-func validateAndParseS3Input(input ecatypes.ExternalCloudAuditSpec) (string, string, error) {
+func validateAndParseS3Input(input *ecatypes.ExternalCloudAuditSpec) (string, string, error) {
+	if input == nil {
+		return "", "", trace.BadParameter("input is nil")
+	}
+
 	auditEventsBucket, err := url.Parse(input.AuditEventsLongTermURI)
 	if err != nil {
 		return "", "", trace.Wrap(err, "parsing audit events URI")

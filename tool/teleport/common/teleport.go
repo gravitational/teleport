@@ -1026,7 +1026,7 @@ func onIntegrationConfExternalAuditCmd(params config.IntegrationConfExternalClou
 			Athena: athena.NewFromConfig(cfg),
 		}
 
-		err = externalcloudaudit.BootstrapInfra(ctx, bootstrapClt, ecatypes.ExternalCloudAuditSpec{
+		err = externalcloudaudit.BootstrapInfra(ctx, bootstrapClt, &ecatypes.ExternalCloudAuditSpec{
 			SessionsRecordingsURI:  params.SessionRecordingsURI,
 			AuditEventsLongTermURI: params.AuditEventsURI,
 			AthenaResultsURI:       params.AthenaResultsURI,
