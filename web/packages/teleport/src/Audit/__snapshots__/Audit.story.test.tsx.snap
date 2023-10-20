@@ -11586,7 +11586,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [admin@example.com] tried approve headless login request, but got an error
+            User [admin@example.com] tried to approve headless login request, but got an error [user(name="fsdfsdf") not found]
           </td>
           <td
             style="min-width: 120px;"

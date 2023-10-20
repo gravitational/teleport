@@ -713,8 +713,8 @@ export const formatters: Formatters = {
   [eventCodes.USER_HEADLESS_LOGIN_APPROVEDFAILURE]: {
     type: 'user.login',
     desc: 'Headless Login Failed',
-    format: ({ user }) =>
-      `User [${user}] tried approve headless login request, but got an error`,
+    format: ({ user, error }) =>
+      `User [${user}] tried to approve headless login request, but got an error [${error}]`,
   },
   [eventCodes.USER_HEADLESS_LOGIN_REJECTED]: {
     type: 'user.login',

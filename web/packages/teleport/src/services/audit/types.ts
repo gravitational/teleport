@@ -607,7 +607,10 @@ export type RawEvents = {
     typeof eventCodes.USER_HEADLESS_LOGIN_APPROVED
   >;
   [eventCodes.USER_HEADLESS_LOGIN_APPROVEDFAILURE]: RawEvent<
-    typeof eventCodes.USER_HEADLESS_LOGIN_APPROVEDFAILURE
+    typeof eventCodes.USER_HEADLESS_LOGIN_APPROVEDFAILURE,
+    {
+      error: string;
+    }
   >;
   [eventCodes.USER_HEADLESS_LOGIN_REJECTED]: RawEvent<
     typeof eventCodes.USER_HEADLESS_LOGIN_REJECTED
