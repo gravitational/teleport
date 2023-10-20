@@ -26,6 +26,8 @@ func TestNewFromDecl(t *testing.T) {
 		expected map[PackageInfo]ReferenceEntry
 		// Go source fixtures that the test uses for named type fields.
 		declSources []string
+		// Substring to expect in a resulting error message
+		errorSubstring string
 	}{
 		{
 			description: "scalar fields with one field ignored",
@@ -221,6 +223,52 @@ spec:
 							Type:        "[Server Spec v1](#server-spec-v1)"},
 					},
 				}},
+		},
+		{
+			description: "custom type fields with no override and custom JSON unmarshaller",
+			source: `
+package mypkg
+
+// Server includes information about a server registered with Teleport.
+type Server struct {
+    // Name is the name of the resource.
+    Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
+    // Spec contains information about the server.
+    Spec types.ServerSpecV1 BACKTICKjson:"spec"BACKTICK
+}
+`,
+			declSources: []string{
+				`package mypkg
+
+func (s *Server) UnmarshalJSON (b []byte) error {
+  return nil
+}
+`,
+			},
+			errorSubstring: "Example YAML:",
+		},
+		{
+			description: "custom type fields with no override and custom YAML unmarshaller",
+			source: `
+package mypkg
+
+// Application includes information about an application registered with Teleport.
+type Application struct {
+    // Name is the name of the resource.
+    Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
+    // Spec contains information about the application.
+    Spec types.AppSpecV1 BACKTICKjson:"spec"BACKTICK
+}
+`,
+			declSources: []string{
+				`package mypkg
+
+func (a *Application) UnmarshalYAML(value *yaml.Node) error {
+  return nil
+}
+`,
+			},
+			errorSubstring: "Example YAML:",
 		},
 		{
 			description: "example YAML block",
@@ -903,7 +951,11 @@ type Metadata struct {
 				Decl:        gd,
 				PackageName: f.Name.Name,
 			}, allDecls)
-			assert.NoError(t, err)
+			if tc.errorSubstring == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, tc.errorSubstring)
+			}
 
 			assert.Equal(t, tc.expected, r)
 		})
