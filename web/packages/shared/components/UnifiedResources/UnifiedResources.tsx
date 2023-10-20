@@ -59,7 +59,6 @@ import {
   makeUnifiedResourceCardDatabase,
   makeUnifiedResourceCardKube,
   makeUnifiedResourceCardApp,
-  makeUnifiedResourceCardWindowsDesktopService,
   makeUnifiedResourceCardDesktop,
   makeUnifiedResourceCardUserGroup,
 } from './cards';
@@ -561,8 +560,6 @@ function mapResourceToCard({ resource, ui }: SharedUnifiedResource) {
       return makeUnifiedResourceCardApp(resource, ui);
     case 'windows_desktop':
       return makeUnifiedResourceCardDesktop(resource, ui);
-    case 'windows_desktop_service':
-      return makeUnifiedResourceCardWindowsDesktopService(resource, ui);
     case 'user_group':
       return makeUnifiedResourceCardUserGroup(resource, ui);
   }
