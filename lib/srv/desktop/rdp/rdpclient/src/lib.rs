@@ -156,8 +156,17 @@ pub unsafe extern "C" fn client_update_clipboard(
     data: *mut u8,
     len: u32,
 ) -> CGOErrCode {
-    warn!("unimplemented: client_update_clipboard");
-    CGOErrCode::ErrCodeSuccess
+    let data = from_go_array(data, len);
+    match String::from_utf8(data) {
+        Ok(s) => call_function_on_handle(
+            cgo_handle,
+            ClientFunction::UpdateClipboard(s),
+        ),
+        Err(e) => {
+            error!("can't convert clipboard data: {}", e);
+            CGOErrCode::ErrCodeFailure
+        }
+    }
 }
 
 /// client_handle_tdp_sd_announce announces a new drive that's ready to be

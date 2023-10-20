@@ -52,6 +52,14 @@ pub fn to_utf8(s: &str) -> Vec<u8> {
     format!("{s}\x00").into_bytes()
 }
 
+pub fn from_utf8(s: Vec<u8>) -> RdpResult<String> {
+    let mut with_null_terminator =
+        String::from_utf8(s).or_else(|_| Err(invalid_data_error("invalid Unicode")))?;
+    with_null_terminator.pop();
+    let without_null_terminator = with_null_terminator;
+    Ok(without_null_terminator)
+}
+
 /// Takes a Rust string slice and calculates it's unicode size in bytes.
 pub fn unicode_size(s: &str, with_null_term: bool) -> u32 {
     u32::try_from(to_unicode(s, with_null_term).len()).unwrap()

@@ -1441,6 +1441,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ironrdp-cliprdr"
+version = "0.1.0"
+source = "git+https://github.com/Devolutions/IronRDP?rev=dfca83db55140e839a9b41049b4a2170f93af287#dfca83db55140e839a9b41049b4a2170f93af287"
+dependencies = [
+ "bitflags 2.4.0",
+ "ironrdp-pdu",
+ "ironrdp-svc",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "ironrdp-connector"
 version = "0.1.0"
 source = "git+https://github.com/Devolutions/IronRDP?rev=dfca83db55140e839a9b41049b4a2170f93af287#dfca83db55140e839a9b41049b4a2170f93af287"
@@ -2481,6 +2493,7 @@ dependencies = [
  "cbindgen",
  "env_logger",
  "futures-util",
+ "ironrdp-cliprdr",
  "ironrdp-connector",
  "ironrdp-pdu",
  "ironrdp-rdpdr",
