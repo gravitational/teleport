@@ -19,6 +19,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -256,15 +257,25 @@ func onPuttyConfig(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// remove any spaces from provided hostname and validate it against a naive regex to make sure it doesn't contain
-	// obviously illegal characters due to typos or similar. setting an "invalid" key in the registry makes it impossible
-	// to delete via the PuTTY UI and requires registry edits, so it's much better to error out early here.
-	hostname := strings.ReplaceAll(tc.Config.Host, " ", "")
+	// remove any spaces from the provided hostname. if the hostname contains a colon, it will be a
+	// hostname:port combination so we split it. this is useful as shorthand when adding OpenSSH hosts
+	// with `tsh puttyconfig user@host:22`, rather than using the longer `tsh puttyconfig --port 22 user@host`
+	hostname := strings.TrimSpace(tc.Config.Host)
+	port := tc.Config.HostPort
+	if splitHost, splitPort, err := net.SplitHostPort(hostname); err == nil {
+		hostname = splitHost
+		port, err = strconv.Atoi(splitPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	// validate the hostname against a naive regex to make sure it doesn't contain obviously illegal characters
+	// due to typos or similar. setting an "invalid" key in the registry makes it impossible to delete via the
+	// PuTTY UI and requires registry edits, so it's much better to error out early here.
 	if !puttyhosts.NaivelyValidateHostname(hostname) {
 		return trace.BadParameter("provided hostname %v does not look like a valid hostname. Make sure it doesn't contain illegal characters.", hostname)
 	}
 
-	port := tc.Config.HostPort
 	userHostString := hostname
 	login := ""
 	if tc.Config.HostLogin != "" {
