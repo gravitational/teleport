@@ -88,6 +88,13 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	if cf.Headless {
+		if len(c.kubeClusters) == 0 && cf.Labels != "" && cf.PredicateExpression != "" {
+			return trace.BadParameter(`No Kubernetes clusters found to proxy.
+
+Please provide Kubernetes cluster names or labels or predicate expression to this command:
+    tsh proxy kube <kube-cluster-1> <kube-cluster-2>`)
+		}
+
 		tc.AllowHeadless = true
 	}
 
@@ -151,11 +158,35 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	}
 }
 
+func getPrepareErrorMessage(headless bool) string {
+	headlessFlag := ""
+	secondPart := `
+
+Or login the Kubernetes cluster first:
+    tsh kube login <kube-cluster-1>
+    tsh proxy kube`
+
+	if headless {
+		headlessFlag = "--headless "
+		secondPart = ""
+	}
+	errorMsg := fmt.Sprintf(`No Kubernetes clusters found to proxy.
+
+Please provide Kubernetes cluster names or labels or predicate expression to this command:
+    tsh %[1]sproxy kube <kube-cluster-1> <kube-cluster-2>
+    tsh %[1]sproxy kube --labels env=root
+    tsh %[1]sproxy kube --query 'labels["env"]=="root"'%[2]s`, headlessFlag, secondPart)
+
+	return errorMsg
+}
+
 func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*clientcmdapi.Config, kubeconfig.LocalProxyClusters, error) {
 	defaultConfig, err := kubeconfig.Load(getKubeConfigPath(cf, ""))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
+	errorMsg := getPrepareErrorMessage(cf.Headless)
 
 	// Use kube clusters from arg.
 	if len(c.kubeClusters) > 0 || cf.Labels != "" || cf.PredicateExpression != "" {
@@ -191,17 +222,16 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 		return defaultConfig, clusters, nil
 	}
 
+	// In headless mode it's assumed user works on a remote machine where they don't have
+	// tsh credentials and can't login into Teleport Kubernetes clusters.
+	if cf.Headless {
+		return nil, nil, trace.BadParameter(errorMsg)
+	}
+
 	// Use logged-in clusters.
 	clusters := kubeconfig.LocalProxyClustersFromDefaultConfig(defaultConfig, tc.KubeClusterAddr())
 	if len(clusters) == 0 {
-		return nil, nil, trace.BadParameter(`No Kubernetes clusters found from the default kubeconfig.
-
-Please provide Kubernetes cluster names to this command:
-    tsh proxy kube <kube-cluster-1> <kube-cluster-2>
-
-Or login the Kubernetes cluster first:
-	tsh kube login <kube-cluster-1>
-	tsh proxy kube`)
+		return nil, nil, trace.BadParameter(errorMsg)
 	}
 
 	c.printPrepare(cf, "Preparing the following Teleport Kubernetes clusters from the default kubeconfig:", clusters)
