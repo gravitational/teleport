@@ -55,7 +55,7 @@ func TestWriteMovieCanBeCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	frames, err := writeMovie(ctx, fs, "test", "test.avi")
+	frames, err := writeMovie(ctx, fs, "test", "test.avi", nil)
 	require.Equal(t, context.Canceled, err)
 	require.Equal(t, 0, frames)
 }
@@ -68,7 +68,7 @@ func TestWriteMovieDoesNotSupportSSH(t *testing.T) {
 	}
 	fs := eventstest.NewFakeStreamer(events, 0)
 
-	frames, err := writeMovie(context.Background(), fs, "test", "test.avi")
+	frames, err := writeMovie(context.Background(), fs, "test", "test.avi", nil)
 	require.True(t, trace.IsBadParameter(err), "expected bad paramater error, got %v", err)
 	require.Equal(t, 0, frames)
 }
@@ -88,7 +88,7 @@ func TestWriteMovieMultipleScreenSpecs(t *testing.T) {
 
 	fs := eventstest.NewFakeStreamer(events, 0)
 	t.Cleanup(func() { os.RemoveAll("test.avi") })
-	frames, err := writeMovie(context.Background(), fs, session.ID("test"), "test.avi")
+	frames, err := writeMovie(context.Background(), fs, session.ID("test"), "test.avi", nil)
 	require.True(t, trace.IsBadParameter(err), "expected bad paramater error, got %v", err)
 	require.Equal(t, 0, frames)
 }
@@ -105,7 +105,7 @@ func TestWriteMovieWritesOneFrame(t *testing.T) {
 	}
 	fs := eventstest.NewFakeStreamer(events, 0)
 	t.Cleanup(func() { os.RemoveAll("test.avi") })
-	frames, err := writeMovie(context.Background(), fs, session.ID("test"), "test.avi")
+	frames, err := writeMovie(context.Background(), fs, session.ID("test"), "test.avi", nil)
 	require.NoError(t, err)
 	require.Equal(t, 1, frames)
 }
@@ -122,7 +122,7 @@ func TestWriteMovieWritesManyFrames(t *testing.T) {
 	}
 	fs := eventstest.NewFakeStreamer(events, 0)
 	t.Cleanup(func() { os.RemoveAll("test.avi") })
-	frames, err := writeMovie(context.Background(), fs, session.ID("test"), "test.avi")
+	frames, err := writeMovie(context.Background(), fs, session.ID("test"), "test.avi", nil)
 	require.NoError(t, err)
 	require.Equal(t, framesPerSecond, frames)
 }
