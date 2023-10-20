@@ -24,6 +24,7 @@ import TeleportContext from 'teleport/teleportContext';
 import { makeUserContext } from 'teleport/services/user';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
+import { NotificationKind } from 'teleport/stores/storeNotifications';
 
 import { TopBar } from './TopBar';
 
@@ -55,5 +56,59 @@ export function Story() {
     </Router>
   );
 }
-
 Story.storyName = 'TopBar';
+
+export function TopBarWithNotifications() {
+  const ctx = new TeleportContext();
+
+  ctx.storeUser.state = makeUserContext({
+    userName: 'admin',
+    cluster: {
+      name: 'test-cluster',
+      lastConnected: Date.now(),
+    },
+  });
+  ctx.storeNotifications.state = {
+    notifications: [
+      {
+        item: {
+          kind: NotificationKind.AccessList,
+          resourceName: 'banana',
+          route: '',
+        },
+        id: '111',
+        date: new Date(),
+      },
+      {
+        item: {
+          kind: NotificationKind.AccessList,
+          resourceName: 'apple',
+          route: '',
+        },
+        id: '222',
+        date: new Date(),
+      },
+      {
+        item: {
+          kind: NotificationKind.AccessList,
+          resourceName: 'carrot',
+          route: '',
+        },
+        id: '333',
+        date: new Date(),
+      },
+    ],
+  };
+
+  return (
+    <Router history={createMemoryHistory()}>
+      <LayoutContextProvider>
+        <TeleportContextProvider ctx={ctx}>
+          <FeaturesContextProvider value={getOSSFeatures()}>
+            <TopBar />
+          </FeaturesContextProvider>
+        </TeleportContextProvider>
+      </LayoutContextProvider>
+    </Router>
+  );
+}

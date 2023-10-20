@@ -99,15 +99,17 @@ func (s *DatabaseService) UpdateDatabase(ctx context.Context, database types.Dat
 	if err := database.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := database.GetRevision()
 	value, err := services.MarshalDatabase(database)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(databasesPrefix, database.GetName()),
-		Value:   value,
-		Expires: database.Expiry(),
-		ID:      database.GetResourceID(),
+		Key:      backend.Key(databasesPrefix, database.GetName()),
+		Value:    value,
+		Expires:  database.Expiry(),
+		ID:       database.GetResourceID(),
+		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
 	if err != nil {

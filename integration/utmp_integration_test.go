@@ -365,12 +365,12 @@ func newUpack(ctx context.Context, s *SrvCtx, username string, allowedLogins []s
 	role.SetOptions(opts)
 	role.SetLogins(types.Allow, allowedLogins)
 	role.SetNodeLabels(types.Allow, allowedLabels)
-	err = auth.UpsertRole(ctx, role)
+	role, err = auth.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	user.AddRole(role.GetName())
-	err = auth.UpsertUser(user)
+	user, err = auth.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

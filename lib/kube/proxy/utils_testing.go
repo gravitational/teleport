@@ -435,9 +435,9 @@ func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, usern
 	} else {
 		roleSpec.SetupRoleFunc(role)
 	}
-	err = c.TLSServer.Auth().UpsertRole(ctx, role)
+	upsertedRole, err := c.TLSServer.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
-	return user, role
+	return user, upsertedRole
 }
 
 func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...KubeClusterConfig) string {
@@ -480,7 +480,7 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 	require.NoError(t, err)
 
 	// Fetch user info to get roles and max session TTL.
-	user, err := authServer.GetUser(userName, false)
+	user, err := authServer.GetUser(context.Background(), userName, false)
 	require.NoError(t, err)
 
 	roles, err := services.FetchRoles(user.GetRoles(), authServer, user.GetTraits())

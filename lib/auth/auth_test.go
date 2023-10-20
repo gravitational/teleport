@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -233,7 +234,7 @@ func TestSessions(t *testing.T) {
 	out, err := s.a.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.NoError(t, err)
 	ws.SetPriv(nil)
-	require.Equal(t, ws, out)
+	require.Empty(t, cmp.Diff(ws, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.a.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
 		User:      user,
@@ -281,7 +282,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	role.SetKubeUsers(types.Allow, []string{user})
 	role.SetKubeGroups(types.Allow, []string{"system:masters"})
 
-	err = s.a.UpsertRole(ctx, role)
+	role, err = s.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	kg := testauthority.New()
@@ -558,7 +559,7 @@ func TestUserLock(t *testing.T) {
 		require.Error(t, err)
 	}
 
-	user, err := s.a.GetUser(username, false)
+	user, err := s.a.GetUser(ctx, username, false)
 	require.NoError(t, err)
 	require.True(t, user.GetStatus().IsLocked)
 
@@ -774,21 +775,21 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	user.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: "some-auth-user"},
 	})
-	err = s.a.CreateUser(ctx, user)
+	user, err = s.a.CreateUser(ctx, user)
 	require.NoError(t, err)
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.UserCreateEvent)
 	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserCreate).User, "some-auth-user")
 	s.mockEmitter.Reset()
 
 	// test create user with existing user
-	err = s.a.CreateUser(ctx, user)
+	_, err = s.a.CreateUser(ctx, user)
 	require.True(t, trace.IsAlreadyExists(err))
 	require.Nil(t, s.mockEmitter.LastEvent())
 
 	// test createdBy gets set to default
 	user2, err := types.NewUser("some-other-user")
 	require.NoError(t, err)
-	err = s.a.CreateUser(ctx, user2)
+	_, err = s.a.CreateUser(ctx, user2)
 	require.NoError(t, err)
 	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserCreate).User, teleport.UserSystem)
 	s.mockEmitter.Reset()
@@ -796,12 +797,12 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	// test update on non-existent user
 	user3, err := types.NewUser("non-existent-user")
 	require.NoError(t, err)
-	err = s.a.UpdateUser(ctx, user3)
+	_, err = s.a.UpdateUser(ctx, user3)
 	require.True(t, trace.IsNotFound(err))
 	require.Nil(t, s.mockEmitter.LastEvent())
 
 	// test update user
-	err = s.a.UpdateUser(ctx, user)
+	_, err = s.a.UpdateUser(ctx, user)
 	require.NoError(t, err)
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.UserUpdatedEvent)
 	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserCreate).User, teleport.UserSystem)
@@ -860,24 +861,33 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	s := newAuthSuite(t)
 
 	ctx := context.Background()
-	// test github create event
 	github, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{
-		TeamsToLogins: []types.TeamMapping{
+		TeamsToRoles: []types.TeamRolesMapping{
 			{
 				Organization: "octocats",
 				Team:         "dummy",
-				Logins:       []string{"dummy"},
+				Roles:        []string{"dummy"},
 			},
 		},
 	})
+	// test github create event
 	require.NoError(t, err)
-	err = s.a.upsertGithubConnector(ctx, github)
+	github, err = s.a.createGithubConnector(ctx, github)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test github update event
+	github.SetDisplay("llama")
+	github, err = s.a.updateGithubConnector(ctx, github)
+	require.NoError(t, err)
+	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
+	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
+	s.mockEmitter.Reset()
+
+	// test github upsert event
+	github.SetDisplay("alpaca")
 	err = s.a.upsertGithubConnector(ctx, github)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
@@ -896,7 +906,6 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 	s := newAuthSuite(t)
 
 	ctx := context.Background()
-	// test oidc create event
 	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{
 		ClientID: "a",
 		ClaimsToRoles: []types.ClaimMapping{
@@ -909,13 +918,24 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
-	err = s.a.UpsertOIDCConnector(ctx, oidc)
+
+	// test oidc create event
+	oidc, err = s.a.CreateOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test oidc update event
+	oidc.SetDisplay("llama")
+	oidc, err = s.a.UpdateOIDCConnector(ctx, oidc)
+	require.NoError(t, err)
+	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
+	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorCreatedEvent)
+	s.mockEmitter.Reset()
+
+	// test oidc upsert event
+	oidc.SetDisplay("alpaca")
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
@@ -953,10 +973,9 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	// SAML connector validation requires the roles in mappings exist.
 	role, err := types.NewRole("dummy", types.RoleSpecV6{})
 	require.NoError(t, err)
-	err = s.a.CreateRole(ctx, role)
+	role, err = s.a.CreateRole(ctx, role)
 	require.NoError(t, err)
 
-	// test saml create
 	saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "a",
 		Issuer:                   "b",
@@ -972,13 +991,23 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = s.a.UpsertSAMLConnector(ctx, saml)
+	// test saml create
+	saml, err = s.a.CreateSAMLConnector(ctx, saml)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test saml update event
+	saml.SetDisplay("llama")
+	saml, err = s.a.UpdateSAMLConnector(ctx, saml)
+	require.NoError(t, err)
+	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
+	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorCreatedEvent)
+	s.mockEmitter.Reset()
+
+	// test saml upsert event
+	saml.SetDisplay("alapaca")
 	err = s.a.UpsertSAMLConnector(ctx, saml)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
@@ -1646,7 +1675,7 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
 
-	err = s.a.UpsertRole(ctx, pinnedRole)
+	_, err = s.a.UpsertRole(ctx, pinnedRole)
 	require.NoError(t, err)
 
 	findTLSLoginIP := func(names []pkix.AttributeTypeAndValue) any {
@@ -1774,7 +1803,7 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	options := role.GetOptions()
 	options.CertExtensions = []*types.CertExtension{&extension}
 	role.SetOptions(options)
-	err = p.a.UpsertRole(ctx, role)
+	_, err = p.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	accessInfo := services.AccessInfoFromUserState(user)
@@ -2025,8 +2054,10 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 	ulsRole2, err := types.NewRole("uls-role2", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	require.NoError(t, p.a.UpsertRole(ctx, ulsRole1))
-	require.NoError(t, p.a.UpsertRole(ctx, ulsRole2))
+	_, err = p.a.UpsertRole(ctx, ulsRole1)
+	require.NoError(t, err)
+	_, err = p.a.UpsertRole(ctx, ulsRole2)
+	require.NoError(t, err)
 
 	userState, err = p.a.GetUserOrLoginState(ctx, user.GetName())
 	require.NoError(t, err)

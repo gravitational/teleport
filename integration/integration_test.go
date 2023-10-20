@@ -2170,25 +2170,15 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			// to be started, then shut down the auth server.
 			postFunc: func(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance) {
 				site := teleport.GetSiteAPI(helpers.Site)
-				var sems []types.Semaphore
-				var err error
-				for i := 0; i < 6; i++ {
-					sems, err = site.GetSemaphores(ctx, types.SemaphoreFilter{
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					sems, err := site.GetSemaphores(ctx, types.SemaphoreFilter{
 						SemaphoreKind: types.SemaphoreKindConnection,
 					})
-					if err == nil && len(sems) > 0 {
-						break
-					}
-					select {
-					case <-time.After(time.Millisecond * 100):
-					case <-ctx.Done():
-						return
-					}
-				}
-				require.NoError(t, err)
-				require.Len(t, sems, 1)
+					assert.NoError(t, err)
+					assert.Len(t, sems, 1)
+				}, 2*time.Second, 100*time.Millisecond)
 
-				timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 				defer cancel()
 
 				ss, err := waitForSessionToBeEstablished(timeoutCtx, defaults.Namespace, site)
@@ -2250,6 +2240,8 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 		// test cases that don't specify concurrentConns are single-connection tests.
 		tc.concurrentConns = 1
 	}
+
+	waitForNodesToRegister(t, teleport, helpers.Site)
 
 	asyncErrors := make(chan error, 1)
 
@@ -2868,7 +2860,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 		},
 	})
 	require.NoError(t, err)
-	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
+	_, err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(ctx,
@@ -3194,7 +3186,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 		},
 	})
 	require.NoError(t, err)
-	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
+	_, err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
 	require.NoError(t, err)
 
 	trustedClusterToken := "trusted-cluster-token"
@@ -3432,7 +3424,7 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 		},
 	})
 	require.NoError(t, err)
-	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
+	_, err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
 	require.NoError(t, err)
 
 	trustedClusterToken := "trusted-cluster-token"
@@ -3574,7 +3566,7 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 		},
 	})
 	require.NoError(t, err)
-	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
+	_, err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
 	require.NoError(t, err)
 
 	trustedClusterToken := "trusted-cluster-token"
@@ -3685,7 +3677,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 		},
 	})
 	require.NoError(t, err)
-	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
+	_, err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(ctx,
@@ -3861,7 +3853,7 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 		},
 	})
 	require.NoError(t, err)
-	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
+	_, err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
 	require.NoError(t, err)
 
 	trustedClusterToken := "trusted-cluster-token"
@@ -3886,11 +3878,11 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, aux.Start())
 
 	// create user in backend
-	err = main.Process.GetAuthServer().UpsertRole(ctx, devsRole)
+	_, err = main.Process.GetAuthServer().UpsertRole(ctx, devsRole)
 	require.NoError(t, err)
-	err = main.Process.GetAuthServer().UpsertRole(ctx, adminsRole)
+	_, err = main.Process.GetAuthServer().UpsertRole(ctx, adminsRole)
 	require.NoError(t, err)
-	err = main.Process.GetAuthServer().UpsertUser(&types.UserV2{
+	_, err = main.Process.GetAuthServer().UpsertUser(ctx, &types.UserV2{
 		Kind: types.KindUser,
 		Metadata: types.Metadata{
 			Name: username,
@@ -4192,18 +4184,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, "cluster-remote", 1)
 	helpers.WaitForActiveTunnelConnections(t, secondProxy, "cluster-remote", 1)
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// once the tunnel is established we need to wait until we have a
-		// connection to the remote auth
-		site := main.GetSiteAPI("cluster-remote")
-		if !assert.NotNil(t, site) {
-			return
-		}
-		// we need to wait until we know about the node because direct dial to
-		// unregistered servers is no longer supported
-		_, err := site.GetNode(ctx, defaults.Namespace, main.Config.HostUUID)
-		assert.NoError(t, err)
-	}, time.Minute, 250*time.Millisecond)
+	waitForNodesToRegister(t, main, "cluster-remote")
 
 	// Requests going via main proxy should succeed.
 	output, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
@@ -5547,7 +5528,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 		},
 	})
 	require.NoError(t, err)
-	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
+	_, err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	trustedClusterToken := "trusted-cluster-token"
 	err = svc.GetAuthServer().UpsertToken(ctx,
@@ -6176,6 +6157,22 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
+func waitForNodesToRegister(t *testing.T, teleport *helpers.TeleInstance, site string) {
+	t.Helper()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// once the tunnel is established we need to wait until we have a
+		// connection to the remote auth
+		site := teleport.GetSiteAPI(site)
+		if !assert.NotNil(t, site) {
+			return
+		}
+		// we need to wait until we know about the node because direct dial to
+		// unregistered servers is no longer supported
+		_, err := site.GetNode(context.Background(), defaults.Namespace, teleport.Config.HostUUID)
+		assert.NoError(t, err)
+	}, time.Second*30, 250*time.Millisecond)
+}
+
 // TestDataTransfer makes sure that a "session.data" event is emitted at the
 // end of a session that matches the amount of data that was transferred.
 func testDataTransfer(t *testing.T, suite *integrationTestSuite) {
@@ -6196,6 +6193,8 @@ func testDataTransfer(t *testing.T, suite *integrationTestSuite) {
 		Host:    Host,
 		Port:    helpers.Port(t, main.SSH),
 	}
+
+	waitForNodesToRegister(t, main, helpers.Site)
 
 	// Write 1 MB to stdout.
 	command := []string{"dd", "if=/dev/zero", "bs=1024", "count=1024"}
@@ -6856,7 +6855,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	})
 	require.NoError(t, err)
 
-	err = authServer.UpsertRole(ctx, requestedRole)
+	requestedRole, err = authServer.UpsertRole(ctx, requestedRole)
 	require.NoError(t, err)
 
 	// Create user role with ability to request role
@@ -6874,7 +6873,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	})
 	require.NoError(t, err)
 
-	err = authServer.UpsertRole(ctx, userRole)
+	userRole, err = authServer.UpsertRole(ctx, userRole)
 	require.NoError(t, err)
 
 	user, err := types.NewUser(suite.Me.Username)
@@ -6903,7 +6902,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	}
 
 	// Update user
-	err = authServer.UpsertUser(user)
+	user, err = authServer.UpsertUser(ctx, user)
 	require.NoError(t, err)
 
 	WaitForResource(t, watcher, user.GetKind(), user.GetName())
@@ -7523,7 +7522,8 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 
 	require.NoError(t, root.CreateEx(makeConfig(true)))
 	require.NoError(t, leaf.CreateEx(makeConfig(false)))
-	require.NoError(t, leaf.Process.GetAuthServer().UpsertRole(ctx, role))
+	_, err = leaf.Process.GetAuthServer().UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	// Connect leaf to root.
 	tcToken := "trusted-cluster-token"
@@ -8868,7 +8868,8 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, instance.Process.GetAuthServer().UpsertRole(ctx, peerRole))
+	_, err = instance.Process.GetAuthServer().UpsertRole(ctx, peerRole)
+	require.NoError(t, err)
 
 	moderatorRole, err := types.NewRole("moderator", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -8883,7 +8884,8 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, instance.Process.GetAuthServer().UpsertRole(ctx, moderatorRole))
+	_, err = instance.Process.GetAuthServer().UpsertRole(ctx, moderatorRole)
+	require.NoError(t, err)
 
 	setupUser := func(user, role string, asrv *auth.Server) {
 		u, err := types.NewUser(user)
@@ -8891,7 +8893,8 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 		u.SetRoles([]string{"access", role})
 		u.SetLogins([]string{suite.Me.Username, user})
 
-		require.NoError(t, asrv.CreateUser(ctx, u))
+		_, err = asrv.CreateUser(ctx, u)
+		require.NoError(t, err)
 
 		token, err := asrv.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
 			Name: user,

@@ -385,9 +385,8 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 		},
 	})
 	require.NoError(t, err, "NewRole(prod)")
-	require.NoError(t,
-		adminClient.UpsertRole(ctx, prodRole),
-		"UpsertRole(%q)", prodRole.GetName())
+	prodRole, err = adminClient.UpsertRole(ctx, prodRole)
+	require.NoError(t, err, "UpsertRole(%q)", prodRole.GetName())
 
 	// Create a user with MFA devices...
 	userCreds, err := createUserWithSecondFactors(testServer)
@@ -395,14 +394,13 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 	username := userCreds.username
 
 	// ...and assign the user a sane unix login, plus the prod role.
-	user, err := adminClient.GetUser(username, false /* withSecrets */)
+	user, err := adminClient.GetUser(ctx, username, false /* withSecrets */)
 	require.NoError(t, err, "GetUser(%q)", username)
 	const login = "llama"
 	user.SetLogins(append(user.GetLogins(), login))
 	user.AddRole(prodRole.GetName())
-	require.NoError(t,
-		adminClient.UpdateUser(ctx, user.(*types.UserV2)),
-		"UpdateUser(%q)", username)
+	_, err = adminClient.UpdateUser(ctx, user.(*types.UserV2))
+	require.NoError(t, err, "UpdateUser(%q)", username)
 
 	userClient, err := testServer.NewClient(TestUser(username))
 	require.NoError(t, err, "NewClient(%q)", username)

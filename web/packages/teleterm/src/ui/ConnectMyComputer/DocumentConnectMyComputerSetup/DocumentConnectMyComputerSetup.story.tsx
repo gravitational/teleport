@@ -54,6 +54,16 @@ export function Success() {
   const appContext = new MockAppContext({ appVersion: cluster.proxyVersion });
   appContext.connectMyComputerService.waitForNodeToJoin = async () =>
     makeServer();
+  // Report the agent as running so that the autostart behavior doesn't kick in and attempt to start
+  // the agent over and over.
+  appContext.mainProcessClient.subscribeToAgentUpdate = (
+    rootClusterUri,
+    callback
+  ) => {
+    callback({ status: 'running' });
+
+    return { cleanup: () => {} };
+  };
   return <ShowState cluster={cluster} appContext={appContext} />;
 }
 

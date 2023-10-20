@@ -14,6 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import React, { FocusEvent } from 'react';
+
+import { StylesConfig } from 'react-select';
+
 export type Props = {
   inputId?: string;
   hasError?: boolean;
@@ -26,7 +30,7 @@ export type Props = {
   controlShouldRenderValue?: boolean;
   maxMenuHeight?: number;
   onChange(e: Option<any, any> | Option<any, any>[]): void;
-  onKeyDown?(e: KeyboardEvent): void;
+  onKeyDown?(e: KeyboardEvent | React.KeyboardEvent): void;
   value: null | Option<any, any> | Option<any, any>[];
   isMulti?: boolean;
   autoFocus?: boolean;
@@ -45,6 +49,7 @@ export type Props = {
   onInputChange?(value: string, actionMeta: ActionMeta): void;
   // Whether or not the element is on an elevated platform (such as a dialog).
   elevated?: boolean;
+  stylesConfig?: StylesConfig;
 };
 
 export type AsyncProps = Omit<Props, 'options'> & {
@@ -53,6 +58,13 @@ export type AsyncProps = Omit<Props, 'options'> & {
   defaultMenuIsOpen?: boolean;
   loadOptions(input: string, o?: Option[]): Promise<Option[] | void>;
   noOptionsMessage(): string;
+};
+
+/**
+ * Properties specific to `react-select`'s Creatable widget.
+ */
+export type CreatableProps = Omit<Props, 'options'> & {
+  onBlur?(e: FocusEvent): void;
 };
 
 // Option defines the data type for select dropdown list.

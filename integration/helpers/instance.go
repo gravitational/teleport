@@ -614,21 +614,21 @@ func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) er
 			roleOptions.ForwardAgent = types.NewBool(true)
 			role.SetOptions(roleOptions)
 
-			err = auth.UpsertRole(ctx, role)
+			role, err = auth.UpsertRole(ctx, role)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			teleUser.AddRole(role.GetMetadata().Name)
 		} else {
 			for _, role := range user.Roles {
-				err := auth.UpsertRole(ctx, role)
+				role, err := auth.UpsertRole(ctx, role)
 				if err != nil {
 					return trace.Wrap(err)
 				}
 				teleUser.AddRole(role.GetName())
 			}
 		}
-		err = auth.UpsertUser(teleUser)
+		_, err = auth.UpsertUser(ctx, teleUser)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1317,9 +1317,15 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		sshProxyAddr = cfg.Proxy.SSHAddr
 		kubeProxyAddr = cfg.Proxy.KubeAddr
 	case cfg.ALBAddr != "":
-		webProxyAddr = cfg.ALBAddr
-		sshProxyAddr = cfg.ALBAddr
-		kubeProxyAddr = cfg.ALBAddr
+		if i.IsSinglePortSetup {
+			webProxyAddr = cfg.ALBAddr
+			sshProxyAddr = cfg.ALBAddr
+			kubeProxyAddr = cfg.ALBAddr
+		} else {
+			webProxyAddr = cfg.ALBAddr
+			sshProxyAddr = i.SSHProxy
+			kubeProxyAddr = i.Config.Proxy.Kube.ListenAddr.Addr
+		}
 	default:
 		webProxyAddr = i.Web
 		sshProxyAddr = i.SSHProxy
@@ -1388,11 +1394,11 @@ func (i *TeleInstance) CreateWebUser(t *testing.T, username, password string) {
 
 	role := services.RoleForUser(user)
 	role.SetLogins(types.Allow, []string{username})
-	err = i.Process.GetAuthServer().UpsertRole(context.Background(), role)
+	role, err = i.Process.GetAuthServer().UpsertRole(context.Background(), role)
 	require.NoError(t, err)
 
 	user.AddRole(role.GetName())
-	err = i.Process.GetAuthServer().CreateUser(context.Background(), user)
+	_, err = i.Process.GetAuthServer().CreateUser(context.Background(), user)
 	require.NoError(t, err)
 
 	err = i.Process.GetAuthServer().UpsertPassword(user.GetName(), []byte(password))

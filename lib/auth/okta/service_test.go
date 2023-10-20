@@ -217,13 +217,13 @@ func initSvc(t *testing.T, kind string) (context.Context, *Service) {
 		},
 	})
 	require.NoError(t, err)
-	roleSvc.CreateRole(ctx, role)
+	role, err = roleSvc.CreateRole(ctx, role)
 	require.NoError(t, err)
 
 	user, err := types.NewUser("test-user")
 	user.AddRole(role.GetName())
 	require.NoError(t, err)
-	userSvc.CreateUser(user)
+	user, err = userSvc.CreateUser(ctx, user)
 	require.NoError(t, err)
 
 	svc, err := NewService(ServiceConfig{

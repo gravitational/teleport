@@ -41,10 +41,10 @@ func NewAccessService(backend backend.Backend) *AccessService {
 }
 
 // DeleteAllRoles deletes all roles
-func (s *AccessService) DeleteAllRoles() error {
+func (s *AccessService) DeleteAllRoles(ctx context.Context) error {
 	startKey := backend.Key(rolesPrefix)
 	endKey := backend.RangeEnd(startKey)
-	return s.DeleteRange(context.TODO(), startKey, endKey)
+	return s.DeleteRange(ctx, startKey, endKey)
 }
 
 // GetRoles returns a list of roles registered with the local auth server
@@ -72,55 +72,91 @@ func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return out, nil
 }
 
-// CreateRole creates a role on the backend.
-func (s *AccessService) CreateRole(ctx context.Context, role types.Role) error {
+// CreateRole creates a new role.
+func (s *AccessService) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
 	err := services.ValidateRoleName(role)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
+	rev := role.GetRevision()
 	value, err := services.MarshalRole(role)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
-		Value:   value,
-		Expires: role.Expiry(),
+		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  role.Expiry(),
+		ID:       role.GetResourceID(),
+		Revision: rev,
 	}
 
-	_, err = s.Create(ctx, item)
+	lease, err := s.Create(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+	role.SetRevision(lease.Revision)
+	return role, nil
 }
 
-// UpsertRole updates parameters about role
-func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) error {
+// UpdateRole updates an existing role.
+func (s *AccessService) UpdateRole(ctx context.Context, role types.Role) (types.Role, error) {
 	err := services.ValidateRoleName(role)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
+	rev := role.GetRevision()
 	value, err := services.MarshalRole(role)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
-		Value:   value,
-		Expires: role.Expiry(),
-		ID:      role.GetResourceID(),
+		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  role.Expiry(),
+		ID:       role.GetResourceID(),
+		Revision: rev,
 	}
 
-	_, err = s.Put(ctx, item)
+	lease, err := s.ConditionalUpdate(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+	role.SetRevision(lease.Revision)
+	return role, nil
+}
+
+// UpsertRole creates or overwrites an existing role.
+func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
+	err := services.ValidateRoleName(role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rev := role.GetRevision()
+	value, err := services.MarshalRole(role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  role.Expiry(),
+		ID:       role.GetResourceID(),
+		Revision: rev,
+	}
+
+	lease, err := s.Put(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	role.SetRevision(lease.Revision)
+	return role, nil
 }
 
 // GetRole returns a role by name
@@ -203,15 +239,17 @@ func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets 
 
 // UpsertLock upserts a lock.
 func (s *AccessService) UpsertLock(ctx context.Context, lock types.Lock) error {
+	rev := lock.GetRevision()
 	value, err := services.MarshalLock(lock)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(locksPrefix, lock.GetName()),
-		Value:   value,
-		Expires: lock.Expiry(),
-		ID:      lock.GetResourceID(),
+		Key:      backend.Key(locksPrefix, lock.GetName()),
+		Value:    value,
+		Expires:  lock.Expiry(),
+		ID:       lock.GetResourceID(),
+		Revision: rev,
 	}
 
 	if _, err = s.Put(ctx, item); err != nil {
@@ -260,15 +298,17 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 			if !strings.HasPrefix(lock.GetName(), clusterName) {
 				lock.SetName(clusterName + "/" + lock.GetName())
 			}
+			rev := lock.GetRevision()
 			value, err := services.MarshalLock(lock)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			item := backend.Item{
-				Key:     backend.Key(locksPrefix, lock.GetName()),
-				Value:   value,
-				Expires: lock.Expiry(),
-				ID:      lock.GetResourceID(),
+				Key:      backend.Key(locksPrefix, lock.GetName()),
+				Value:    value,
+				Expires:  lock.Expiry(),
+				ID:       lock.GetResourceID(),
+				Revision: rev,
 			}
 			newRemoteLocksToStore[string(item.Key)] = item
 		}

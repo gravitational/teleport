@@ -710,7 +710,7 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 	role.SetOptions(roleOpt)
 
-	err = authServer.UpsertRole(ctx, role)
+	_, err = authServer.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	// Register an SSH node.
@@ -1021,7 +1021,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	role.SetWindowsLogins(types.Allow, []string{"role"})
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	role.SetOptions(roleOpt)
-	err = srv.Auth().UpsertRole(ctx, role)
+	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	testUser := TestUser(user.GetName())
 	testUser.TTL = userCertTTL
@@ -1643,10 +1643,12 @@ type generateUserSingleUseCertsTestOpts struct {
 
 func testGenerateUserSingleUseCertsStream(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertsTestOpts) {
 	runStream := func() (*proto.SingleUseUserCert, error) {
+		//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 		stream, err := cl.GenerateUserSingleUseCerts(ctx)
 		require.NoError(t, err, "GenerateUserSingleUseCerts stream creation failed")
 
 		// Init.
+		//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 		if err := stream.Send(&proto.UserSingleUseCertsRequest{
 			Request: &proto.UserSingleUseCertsRequest_Init{
 				Init: opts.initReq,
@@ -1664,6 +1666,7 @@ func testGenerateUserSingleUseCertsStream(ctx context.Context, t *testing.T, cl 
 		opts.mfaRequiredHandler(t, authnChal.MFARequired)
 		authnSolved := opts.authnHandler(t, authnChal)
 
+		//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 		switch err := stream.Send(&proto.UserSingleUseCertsRequest{
 			Request: &proto.UserSingleUseCertsRequest_MFAResponse{
 				MFAResponse: authnSolved,
@@ -1733,6 +1736,8 @@ var requireMFATypes = []types.RequireMFAType{
 	types.RequireMFAType_SESSION,
 	types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
 	types.RequireMFAType_HARDWARE_KEY_TOUCH,
+	types.RequireMFAType_HARDWARE_KEY_PIN,
+	types.RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN,
 }
 
 func TestIsMFARequired(t *testing.T) {
@@ -1783,11 +1788,11 @@ func TestIsMFARequired(t *testing.T) {
 					role.SetOptions(roleOpt)
 					role.SetLogins(types.Allow, []string{user.GetName()})
 
-					err = srv.Auth().UpsertRole(ctx, role)
+					role, err = srv.Auth().UpsertRole(ctx, role)
 					require.NoError(t, err)
 
 					user.AddRole(role.GetName())
-					err = srv.Auth().UpsertUser(user)
+					user, err = srv.Auth().UpsertUser(ctx, user)
 					require.NoError(t, err)
 
 					cl, err := srv.NewClient(TestUser(user.GetName()))
@@ -1879,7 +1884,7 @@ func TestIsMFARequired_unauthorized(t *testing.T) {
 	roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 	role.SetOptions(roleOpt)
 	role.SetNodeLabels(types.Allow, map[string]utils.Strings{"a": []string{"c"}})
-	err = srv.Auth().UpsertRole(ctx, role)
+	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	cl, err := srv.NewClient(TestUser(user.GetName()))
@@ -1937,7 +1942,7 @@ func TestIsMFARequired_nodeMatch(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	user, err := CreateUser(srv.Auth(), "mfa-user", role)
+	user, err := CreateUser(ctx, srv.Auth(), "mfa-user", role)
 	require.NoError(t, err)
 
 	cl, err := srv.NewClient(TestUser(user.GetName()))
@@ -3733,7 +3738,7 @@ func TestSAMLValidation(t *testing.T) {
 
 			role, err := CreateRole(ctx, server.Auth(), "test_role", types.RoleSpecV6{Allow: tc.allow})
 			require.NoError(t, err)
-			user, err := CreateUser(server.Auth(), "test_user", role)
+			user, err := CreateUser(ctx, server.Auth(), "test_user", role)
 			require.NoError(t, err)
 
 			connector, err := types.NewSAMLConnector("test_connector", types.SAMLConnectorSpecV2{
@@ -3896,7 +3901,7 @@ func TestRoleVersions(t *testing.T) {
 		},
 	})
 
-	user, err := CreateUser(srv.Auth(), "user", role)
+	user, err := CreateUser(context.Background(), srv.Auth(), "user", role)
 	require.NoError(t, err)
 
 	client, err := srv.NewClient(TestUser(user.GetName()))
@@ -4048,7 +4053,8 @@ func TestRoleVersions(t *testing.T) {
 					// Re-upsert the role so that the watcher sees it, do this
 					// on the auth server directly to avoid the
 					// TeleportDowngradedLabel check in ServerWithRoles
-					require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+					role, err = srv.Auth().UpsertRole(ctx, role)
+					require.NoError(t, err)
 
 					gotRole, err = func() (types.Role, error) {
 						for {
@@ -4069,7 +4075,7 @@ func TestRoleVersions(t *testing.T) {
 						// Try to re-upsert the role we got. If it was
 						// downgraded, it should be rejected due to the
 						// TeleportDowngradedLabel
-						err = client.UpsertRole(ctx, gotRole)
+						_, err = client.UpsertRole(ctx, gotRole)
 						if tc.expectDowngraded {
 							require.Error(t, err)
 						} else {

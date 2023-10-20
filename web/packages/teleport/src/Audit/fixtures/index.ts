@@ -2422,6 +2422,58 @@ export const events = [
     uid: '6fa08495-170a-4de9-884f-9931fbdb5982',
   },
   {
+    'addr.remote': '1.1.1.1:42',
+    code: 'T1012I',
+    cluster_name: 'root.cluster',
+    event: 'user.login',
+    method: 'headless',
+    ei: 0,
+    success: false,
+    time: '2019-04-22T00:49:03Z',
+    uid: '173d6b6e-d613-44be-8ff6-f9f893791ef4',
+    user: 'admin@example.com',
+  },
+  {
+    'addr.remote': '2.2.2.2:42',
+    code: 'T1013I',
+    cluster_name: 'root.cluster',
+    event: 'user.login',
+    method: 'headless',
+    ei: 0,
+    success: true,
+    time: '2019-04-22T00:49:03Z',
+    uid: '173d6b6e-d613-44be-8ff6-f9f893791ef5',
+    user: 'admin@example.com',
+    message: 'Headless login was requested from the address 1.1.1.1:42',
+  },
+  {
+    'addr.remote': '2.2.2.2:42',
+    code: 'T1013W',
+    error: 'user(name="fsdfsdf") not found',
+    cluster_name: 'root.cluster',
+    event: 'user.login',
+    method: 'headless',
+    ei: 0,
+    success: true,
+    time: '2019-04-22T00:49:03Z',
+    uid: '173d6b6e-d613-44be-8ff6-f9f893791ef5',
+    user: 'admin@example.com',
+    message: 'Headless login was requested from the address 1.1.1.1:42',
+  },
+  {
+    'addr.remote': '2.2.2.2:42',
+    code: 'T1014W',
+    cluster_name: 'root.cluster',
+    event: 'user.login',
+    method: 'headdless',
+    ei: 0,
+    success: false,
+    time: '2019-04-22T00:49:03Z',
+    uid: '173d6b6e-d613-44be-8ff6-f9f893791ef6',
+    user: 'admin@example.com',
+    message: 'Headless login was requested from the address 1.1.1.1:42',
+  },
+  {
     code: 'TUW01I',
     time: '2022-04-13T20:00:04.000Z',
     user: 'alice@example.com',
@@ -3059,9 +3111,9 @@ export const events = [
     members: [
       {
         member_name: 'user',
-        updated_by: 'mike',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL005E',
@@ -3071,9 +3123,9 @@ export const events = [
     members: [
       {
         member_name: 'user',
-        updated_by: 'mike',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL006I',
@@ -3083,9 +3135,9 @@ export const events = [
     members: [
       {
         member_name: 'user',
-        updated_by: 'mike',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL006E',
@@ -3095,9 +3147,9 @@ export const events = [
     members: [
       {
         member_name: 'user',
-        updated_by: 'mike',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL007I',
@@ -3107,9 +3159,9 @@ export const events = [
     members: [
       {
         member_name: 'user',
-        updated_by: 'mike',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL007E',
@@ -3118,10 +3170,16 @@ export const events = [
     access_list_name: 'access-list',
     members: [
       {
-        member_name: 'user',
-        updated_by: 'mike',
+        member_name: 'carrot',
+      },
+      {
+        member_name: 'apple',
+      },
+      {
+        member_name: 'banana',
       },
     ],
+    updated_by: 'mike',
   },
   {
     code: 'TAL008I',
@@ -3136,6 +3194,31 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
     updated_by: 'mike',
+  },
+  {
+    cluster_name: 'root.com',
+    code: 'SRE001I',
+    data_scanned_in_bytes: 4045,
+    days: 90,
+    event: 'secreports.audit.query.run',
+    query: 'select * FROM cert_create',
+    success: true,
+    time: '2023-10-09T10:09:10.473Z',
+    total_execution_time_in_millis: 1440,
+    uid: 'dc29d36c-c5b6-4ffc-9aa7-2d9ba18a3953',
+    user: 'marek',
+  },
+  {
+    cluster_name: 'root.com',
+    code: 'SRE002I',
+    data_scanned_in_bytes: 13258,
+    event: 'secreports.report.run',
+    name: 'privilege_access_report_90_days',
+    success: true,
+    time: '2023-10-09T09:10:03.633Z',
+    total_execution_time_in_millis: 14082,
+    uid: 'f44871b9-7247-467b-a760-8159d3f47bac',
+    user: 'system',
   },
 ].map(makeEvent);
 

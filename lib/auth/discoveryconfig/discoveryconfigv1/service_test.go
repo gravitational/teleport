@@ -223,6 +223,43 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 			ErrAssertion: require.NoError,
 		},
 
+		// Upsert
+		{
+			Name: "no access to upsert discovery config",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindDiscoveryConfig},
+					Verbs:     []string{types.VerbUpdate}, // missing VerbCreate
+				}}},
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
+				dc := sampleDiscoveryConfigFn(t, dcName)
+				_, err := resourceSvc.UpsertDiscoveryConfig(ctx, &discoveryconfigpb.UpsertDiscoveryConfigRequest{
+					DiscoveryConfig: convert.ToProto(dc),
+				})
+				return err
+			},
+			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
+		},
+		{
+			Name: "access to upsert discovery config",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindDiscoveryConfig},
+					Verbs:     []string{types.VerbUpdate, types.VerbCreate},
+				}}},
+			},
+			Setup: func(t *testing.T, dcName string) {},
+			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
+				dc := sampleDiscoveryConfigFn(t, dcName)
+				_, err := resourceSvc.UpsertDiscoveryConfig(ctx, &discoveryconfigpb.UpsertDiscoveryConfigRequest{
+					DiscoveryConfig: convert.ToProto(dc),
+				})
+				return err
+			},
+			ErrAssertion: require.NoError,
+		},
+
 		// Delete
 		{
 			Name: "no access to delete discovery config",
@@ -306,14 +343,14 @@ func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.Ro
 	role, err := types.NewRole(roleName, roleSpec)
 	require.NoError(t, err)
 
-	err = localClient.CreateRole(ctx, role)
+	role, err = localClient.CreateRole(ctx, role)
 	require.NoError(t, err)
 
 	// Create user
 	user, err := types.NewUser("user-" + uuid.NewString())
 	require.NoError(t, err)
 	user.AddRole(roleName)
-	err = localClient.CreateUser(user)
+	user, err = localClient.CreateUser(ctx, user)
 	require.NoError(t, err)
 
 	return authz.ContextWithUser(ctx, authz.LocalUser{
@@ -326,8 +363,8 @@ func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.Ro
 }
 
 type localClient interface {
-	CreateUser(user types.User) error
-	CreateRole(ctx context.Context, role types.Role) error
+	CreateUser(ctx context.Context, user types.User) (types.User, error)
+	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
 	CreateDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error)
 }
 
