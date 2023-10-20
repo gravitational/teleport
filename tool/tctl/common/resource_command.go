@@ -142,6 +142,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:            rc.updateUser,
 		types.KindGithubConnector: rc.updateGithubConnector,
+		types.KindOIDCConnector:   rc.updateOIDCConnector,
+		types.KindSAMLConnector:   rc.updateSAMLConnector,
 	}
 	rc.config = config
 
@@ -823,6 +825,20 @@ func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client auth.
 	return nil
 }
 
+// updateGithubConnector updates an existing OIDC connector.
+func (rc *ResourceCommand) updateOIDCConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	connector, err := services.UnmarshalOIDCConnector(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := client.UpdateOIDCConnector(ctx, connector); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("authentication connector %q has been updated\n", connector.GetName())
+	return nil
+}
+
 func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	// Create services.SAMLConnector from raw YAML to extract the connector name.
 	conn, err := services.UnmarshalSAMLConnector(raw.Raw)
@@ -855,6 +871,20 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.
 		return trace.Wrap(err)
 	}
 	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))
+	return nil
+}
+
+func (rc *ResourceCommand) updateSAMLConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	// Create services.SAMLConnector from raw YAML to extract the connector name.
+	conn, err := services.UnmarshalSAMLConnector(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err = client.UpdateSAMLConnector(ctx, conn); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("authentication connector '%s' has been updated\n", conn.GetName())
 	return nil
 }
 
