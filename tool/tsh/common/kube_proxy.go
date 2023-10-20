@@ -133,8 +133,7 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 }
 
 func runHeadlessKubeProxy(cf *CLIConf, localProxy *kubeLocalProxy) error {
-	// If headless, run proxy in the background and reexec into a new shell with $KUBECONFIG already pointed to
-	// our config file
+	// Getting context with cancel function, so we could stop shell process if localProxy stops.
 	ctx, cancel := context.WithCancel(cf.Context)
 
 	configBytes, err := clientcmd.Write(*localProxy.kubeconfig)
