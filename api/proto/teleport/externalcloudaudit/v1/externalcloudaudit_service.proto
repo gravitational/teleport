@@ -55,6 +55,11 @@ service ExternalCloudAuditService {
   // DisableClusterExternalCloudAudit disables the external cloud audit feature.
   // This method causes the Teleport Auth service to reload.
   rpc DisableClusterExternalCloudAudit(DisableClusterExternalCloudAuditRequest) returns (google.protobuf.Empty);
+
+  // GenerateDraftExternalCloudAudit generates a new external cloud audit
+  // resource with randomized resource names and upserts it as the current
+  // draft.
+  rpc GenerateDraftExternalCloudAudit(GenerateDraftExternalCloudAuditRequest) returns (GenerateDraftExternalCloudAuditResponse);
 }
 
 // GetDraftExternalCloudAuditRequest is a request to get the draft external
@@ -64,7 +69,7 @@ message GetDraftExternalCloudAuditRequest {}
 // GetDraftExternalCloudAuditResponse is a response to getting the draft
 // external cloud audit configuration.
 message GetDraftExternalCloudAuditResponse {
-  // ExternalCloudAudit is the ExternalCloudAudit to be upserted.
+  // ExternalCloudAudit is the current draft ExternalCloudAudit.
   ExternalCloudAudit external_cloud_audit = 1;
 }
 
@@ -111,3 +116,21 @@ message GetClusterExternalCloudAuditResponse {
 // DisableClusterExternalCloudAuditRequest is a request for disabling cluster
 // external cloud audit.
 message DisableClusterExternalCloudAuditRequest {}
+
+// GenerateDraftExternalCloudAuditRequest is a request for
+// GenerateDraftExternalCloudAudit.
+message GenerateDraftExternalCloudAuditRequest {
+  // IntegrationName is name of existing AWS OIDC integration used to get AWS
+  // credentials.
+  string integration_name = 1;
+  // Region is the AWS region where infrastructure is hosted.
+  string region = 2;
+}
+
+// GenerateDraftExternalCloudAuditResponse is a response for
+// GenerateDraftExternalCloudAudit.
+message GenerateDraftExternalCloudAuditResponse {
+  // ExternalCloudAudit is the generated ExternalCloudAudit that has been set as
+  // the current draft.
+  ExternalCloudAudit external_cloud_audit = 1;
+}

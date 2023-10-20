@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types/externalcloudaudit"
 	"github.com/gravitational/teleport/api/types/header"
@@ -44,11 +45,13 @@ var (
 // ExternalCloudAuditService manages external cloud audit resources in the Backend.
 type ExternalCloudAuditService struct {
 	backend backend.Backend
+	logger  *logrus.Entry
 }
 
 func NewExternalCloudAuditService(backend backend.Backend) *ExternalCloudAuditService {
 	return &ExternalCloudAuditService{
 		backend: backend,
+		logger:  logrus.WithField(trace.Component, "externalcloudaudit.backend"),
 	}
 }
 
@@ -67,36 +70,60 @@ func (s *ExternalCloudAuditService) GetDraftExternalCloudAudit(ctx context.Conte
 
 // UpsertDraftExternalAudit upserts the draft external cloud audit resource.
 func (s *ExternalCloudAuditService) UpsertDraftExternalCloudAudit(ctx context.Context, in *externalcloudaudit.ExternalCloudAudit) (*externalcloudaudit.ExternalCloudAudit, error) {
-	err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
+	value, err := services.MarshalExternalCloudAudit(in)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Lock is used here and in Promote to prevent upserting in the middle
+	// of a promotion and the possibility of deleting a newly upserted draft
+	// after the previous one was promoted.
+	err = backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 		LockConfiguration: backend.LockConfiguration{
 			Backend:  s.backend,
 			LockName: externalCloudAuditLockName,
 			TTL:      externalCloudAuditLockTTL,
 		},
 	}, func(ctx context.Context) error {
-		value, err := services.MarshalExternalCloudAudit(in)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 		_, err = s.backend.Put(ctx, backend.Item{
 			Key:   draftExternalCloudAuditBackendKey,
 			Value: value,
 		})
 		return trace.Wrap(err)
 	})
+	return in, trace.Wrap(err)
+}
+
+// GenerateDraftExternalCloudAudit creates a new draft ExternalCloudAudit with
+// randomized resource names and stores it as the current draft, returning the
+// generated resource.
+func (s *ExternalCloudAuditService) GenerateDraftExternalCloudAudit(ctx context.Context, integrationName, region string) (*externalcloudaudit.ExternalCloudAudit, error) {
+	generated, err := externalcloudaudit.GenerateDraftExternalCloudAudit(integrationName, region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return in, nil
+
+	value, err := services.MarshalExternalCloudAudit(generated)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	_, err = s.backend.Create(ctx, backend.Item{
+		Key:   draftExternalCloudAuditBackendKey,
+		Value: value,
+	})
+	if trace.IsAlreadyExists(err) {
+		return nil, trace.AlreadyExists("draft external_cloud_audit already exists")
+	}
+	return generated, trace.Wrap(err)
 }
 
 // DeleteDraftExternalAudit removes the draft external cloud audit resource.
 func (s *ExternalCloudAuditService) DeleteDraftExternalCloudAudit(ctx context.Context) error {
 	err := s.backend.Delete(ctx, draftExternalCloudAuditBackendKey)
-	if err != nil {
-		return trace.Wrap(err)
+	if trace.IsNotFound(err) {
+		return trace.NotFound("draft external_cloud_audit is not found")
 	}
-	return nil
+	return trace.Wrap(err)
 }
 
 // GetClusterExternalCloudAudit returns the cluster external cloud audit resource.
@@ -115,8 +142,9 @@ func (s *ExternalCloudAuditService) GetClusterExternalCloudAudit(ctx context.Con
 // PromoteToClusterExternalCloudAudit promotes draft to cluster external
 // cloud audit resource.
 func (s *ExternalCloudAuditService) PromoteToClusterExternalCloudAudit(ctx context.Context) error {
-	// Lock is used to prevent race between getting draft configuration and
-	// upserting it while promoting/cloning.
+	// Lock is used here and in UpsertDraft to prevent upserting in the middle
+	// of a promotion and the possibility of deleting a newly upserted draft
+	// after the previous one was promoted.
 	err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 		LockConfiguration: backend.LockConfiguration{
 			Backend:  s.backend,
@@ -127,7 +155,7 @@ func (s *ExternalCloudAuditService) PromoteToClusterExternalCloudAudit(ctx conte
 		draft, err := s.GetDraftExternalCloudAudit(ctx)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return trace.BadParameter("can't promote to cluster when draft does not exists")
+				return trace.BadParameter("can't promote to cluster when draft does not exist")
 			}
 			return trace.Wrap(err)
 		}
@@ -143,7 +171,17 @@ func (s *ExternalCloudAuditService) PromoteToClusterExternalCloudAudit(ctx conte
 			Key:   clusterExternalCloudAuditBackendKey,
 			Value: value,
 		})
-		return trace.Wrap(err)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Clean up the current draft which has now been promoted.
+		// Failing to delete the current draft is not critical and the promotion
+		// has already succeeded, so just log any failure and return nil.
+		if err := s.backend.Delete(ctx, draftExternalCloudAuditBackendKey); err != nil {
+			s.logger.Info("failed to delete current draft external_cloud_audit after promoting to cluster")
+		}
+		return nil
 	})
 	return trace.Wrap(err)
 }

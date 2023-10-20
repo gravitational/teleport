@@ -61,7 +61,7 @@ func (d *DefaultConfigureExternalCloudAuditClient) GetCallerIdentity(ctx context
 func ConfigureExternalCloudAudit(
 	ctx context.Context,
 	clt ConfigureExternalCloudAuditClient,
-	params *config.IntegrationConfExternalCloudAuditIAM,
+	params *config.IntegrationConfExternalCloudAudit,
 ) error {
 	policyCfg := &awslib.ExternalCloudAuditPolicyConfig{
 		Partition:           params.Partition,

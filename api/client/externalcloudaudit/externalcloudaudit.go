@@ -58,6 +58,21 @@ func (c *Client) UpsertDraftExternalCloudAudit(ctx context.Context, in *external
 	return out, trace.Wrap(err)
 }
 
+// GenerateDraftExternalCloudAudit create a new draft external cloud audit
+// resource with randomized resource names and upserts it as the current
+// draft.
+func (c *Client) GenerateDraftExternalCloudAudit(ctx context.Context, integrationName, region string) (*externalcloudaudit.ExternalCloudAudit, error) {
+	resp, err := c.grpcClient.GenerateDraftExternalCloudAudit(ctx, &externalcloudauditv1.GenerateDraftExternalCloudAuditRequest{
+		IntegrationName: integrationName,
+		Region:          region,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := conv.FromProtoDraft(resp.GetExternalCloudAudit())
+	return out, trace.Wrap(err)
+}
+
 // DeleteDraftExternalCloudAudit removes draft external cloud audit resource.
 func (c *Client) DeleteDraftExternalCloudAudit(ctx context.Context) error {
 	_, err := c.grpcClient.DeleteDraftExternalCloudAudit(ctx, &externalcloudauditv1.DeleteDraftExternalCloudAuditRequest{})

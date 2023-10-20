@@ -284,10 +284,10 @@ const (
 	KindExternalCloudAudit = "external_cloud_audit"
 	// MetaNameExternalCloudAuditDraft is the exact name of the singleton resource
 	// holding external cloud audit draft configuration.
-	MetaNameExternalCloudAuditDraft = "external-cloud-audit-draft"
+	MetaNameExternalCloudAuditDraft = "draft"
 	// MetaNameExternalCloudAuditCluster is the exact name of the singleton resource
 	// holding external cloud audit cluster configuration.
-	MetaNameExternalCloudAuditCluster = "external-cloud-audit-cluster"
+	MetaNameExternalCloudAuditCluster = "cluster"
 
 	// KindClusterConfig is the resource that holds cluster level configuration.
 	// Deprecated: This does not correspond to an actual resource anymore but is

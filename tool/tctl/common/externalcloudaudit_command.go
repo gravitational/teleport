@@ -30,8 +30,13 @@ import (
 type ExternalCloudAuditCommand struct {
 	config *servicecfg.Config
 
+	integrationName string
+	region          string
+
 	// promote implements the "tctl externalcloudaudit promote" subcommand.
 	promote *kingpin.CmdClause
+	// generate implements the "tctl externalcloudaudit generate" subcommand.
+	generate *kingpin.CmdClause
 }
 
 // Initialize allows ExternalCloudAuditCommand to plug itself into the CLI parser.
@@ -40,6 +45,11 @@ func (c *ExternalCloudAuditCommand) Initialize(app *kingpin.Application, config 
 
 	externalCloudAudit := app.Command("externalcloudaudit", "Operate on external cloud audit configuration.").Hidden()
 	c.promote = externalCloudAudit.Command("promote", "Promotes existing draft external cloud audit to be used in cluster").Hidden()
+
+	// This command should remain hidden it is only meant for development/test.
+	c.generate = externalCloudAudit.Command("generate", "Generates an external cloud audit configuration with randomized resource names and saves it as the current draft").Hidden()
+	c.generate.Flag("integration", "Name of an existing AWS OIDC integration").Required().StringVar(&c.integrationName)
+	c.generate.Flag("region", "AWS region where infrastructure will be hosted").Required().StringVar(&c.region)
 }
 
 // TryRun attempts to run subcommands.
@@ -47,6 +57,8 @@ func (c *ExternalCloudAuditCommand) TryRun(ctx context.Context, cmd string, clie
 	switch cmd {
 	case c.promote.FullCommand():
 		err = c.Promote(ctx, client)
+	case c.generate.FullCommand():
+		err = c.Generate(ctx, client)
 	default:
 		return false, nil
 	}
@@ -57,4 +69,11 @@ func (c *ExternalCloudAuditCommand) TryRun(ctx context.Context, cmd string, clie
 // external cloud audit in cluster based on existing draft.
 func (c *ExternalCloudAuditCommand) Promote(ctx context.Context, clt auth.ClientI) error {
 	return trace.Wrap(clt.ExternalCloudAuditClient().PromoteToClusterExternalCloudAudit(ctx))
+}
+
+// Generate creates an external cloud audit configuration with randomized
+// resource names and saves it as the current draft.
+func (c *ExternalCloudAuditCommand) Generate(ctx context.Context, clt auth.ClientI) error {
+	_, err := clt.ExternalCloudAuditClient().GenerateDraftExternalCloudAudit(ctx, c.integrationName, c.region)
+	return trace.Wrap(err)
 }
