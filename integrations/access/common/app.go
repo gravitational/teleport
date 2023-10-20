@@ -256,7 +256,7 @@ func (a *BaseApp) notifyForAccessListReviews(ctx context.Context, accessList *ac
 
 	now := a.clock.Now()
 	// Find the current notification window.
-	notificationStart := accessList.Spec.Audit.NextAuditDate
+	notificationStart := accessList.Spec.Audit.NextAuditDate.Add(-accessList.Spec.Audit.Notifications.Start)
 
 	// If the current time before the notification start time, skip notifications.
 	if now.Before(notificationStart) {
@@ -293,13 +293,15 @@ func (a *BaseApp) notifyForAccessListReviews(ctx context.Context, accessList *ac
 		}
 	}
 
-	windowStart := notificationStart.Add(now.Sub(notificationStart) / oneWeek)
+	// Calculate weeks from start.
+	weeksFromStart := now.Sub(notificationStart) / oneWeek
+	windowStart := notificationStart.Add(weeksFromStart * oneWeek)
 
 	recipients := []Recipient{}
 	for _, recipient := range allRecipients {
 		_, err := a.accessListPluginData.Update(ctx, accessListOwnerKey(accessList.GetName(), recipient.Name), func(data pd.AccessListNotificationData) (pd.AccessListNotificationData, error) {
 			// If the notification window is before the last notification date, then this user doesn't need a notification.
-			if windowStart.Before(data.LastNotification) {
+			if !windowStart.After(data.LastNotification) {
 				return pd.AccessListNotificationData{}, trace.AlreadyExists("user %s has already been notified", recipient.Name)
 			}
 			return pd.AccessListNotificationData{
@@ -389,6 +391,22 @@ func (a *BaseApp) init(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	a.initBackend()
+
+	if a.clock == nil {
+		a.clock = clockwork.NewRealClock()
+	}
+
+	log.Debug("Starting API health check...")
+	if err = a.bot.CheckHealth(ctx); err != nil {
+		return trace.Wrap(err, "API health check failed")
+	}
+
+	log.Debug("API health check finished ok")
+	return nil
+}
+
+func (a *BaseApp) initBackend() {
 	a.accessRequestPluginData = pd.NewCAS(
 		a.apiClient,
 		a.PluginName,
@@ -404,18 +422,6 @@ func (a *BaseApp) init(ctx context.Context) error {
 		pd.EncodeAccessListNotificationData,
 		pd.DecodeAccessListNotificationData,
 	)
-
-	if a.clock == nil {
-		a.clock = clockwork.NewRealClock()
-	}
-
-	log.Debug("Starting API health check...")
-	if err = a.bot.CheckHealth(ctx); err != nil {
-		return trace.Wrap(err, "API health check failed")
-	}
-
-	log.Debug("API health check finished ok")
-	return nil
 }
 
 func (a *BaseApp) onPendingRequest(ctx context.Context, req types.AccessRequest) error {
